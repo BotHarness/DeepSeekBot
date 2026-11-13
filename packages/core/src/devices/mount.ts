@@ -777,11 +777,17 @@ export function mountDevicePairing(
     const routes = async () => {
       await publishingReady;
       const status = await publishing.status();
-      const privateRoute = privateTunnel.admission() ?? privateConnection.admission();
-      if (privateRoute)
+      const privateRoutes = privateTunnel.admissions();
+      const relayRoute = privateConnection.admission();
+      const admissions = privateRoutes.length ? privateRoutes : relayRoute ? [relayRoute] : [];
+      if (admissions.length)
         return {
           ...status,
-          routes: [{ url: privateRoute.origin, kind: 'private' as const, ready: true }],
+          routes: admissions.map((route) => ({
+            url: route.origin,
+            kind: 'private' as const,
+            ready: true,
+          })),
         };
       status.routes.unshift(...lan.routes());
       const tunnel = connect.route();

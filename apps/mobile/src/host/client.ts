@@ -143,6 +143,8 @@ export interface HostCompatibility {
 }
 
 export interface HostSnapshot {
+  routePreference?: string;
+  routeChangePending?: boolean;
   feedRead?: 'acknowledged' | 'unsupported' | 'unconfirmed';
   routes?: readonly {
     url: string;
@@ -171,6 +173,7 @@ export interface StreamHandlers {
 }
 
 export interface HostClient {
+  setRoutePreference?(route: string | undefined): Promise<void>;
   updateRoutes?(routes: string[]): void;
   testRoute?(url: string): Promise<boolean>;
   getSnapshot(): HostSnapshot;
@@ -201,6 +204,8 @@ export interface HostApiAnswer {
 }
 
 export interface HostClientOptions {
+  routePreference?: string;
+  onRoutePreferenceChanged?: (route: string | undefined) => Promise<void>;
   onRoutesChanged?: (routes: string[]) => Promise<void>;
   onPurged?: (placements: unknown) => void;
   hostId?: string;
@@ -372,6 +377,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     ...(options.encryption === undefined ? {} : { encryption: options.encryption }),
   });
   let routes = preferredRoutes(options.routes);
+  let routePreference = options.routePreference;
+  let changingPreference = false;
+  let preferenceRevision = 0;
+  let routeChangePending = false;
   const routeChecks = new Map<string, 'verified' | 'unreachable'>();
   const authorization = { authorization: `Device ${options.credential}` };
   const appVersion = options.appVersion ?? installedAppVersion();
@@ -386,14 +395,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
     compatibility = next;
     publish();
   };
-  let route = options.routes[0] ?? '';
+  let route = routePreference ?? options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const avatars = new Map<string, string>();
   const avatarLoading = new Set<string>();
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
-  let snapshot: HostSnapshot = { connection: { status: 'stopped', route } };
+  let snapshot: HostSnapshot = {
+    connection: { status: 'stopped', route },
+    ...(routePreference === undefined ? {} : { routePreference }),
+  };
   let bots: PersonaBotSummary[] | undefined;
   let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
@@ -477,6 +489,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         ? (snapshot.disruptedSince ?? Date.now())
         : undefined;
     const next: HostSnapshot = {
+      ...(routePreference === undefined ? {} : { routePreference }),
+      ...(routeChangePending ? { routeChangePending: true } : {}),
       routes:
         snapshot.routes !== undefined &&
         JSON.stringify(nextRoutes) === JSON.stringify(snapshot.routes)
@@ -583,7 +597,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
     if (
-      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
+      checkRoute(route, options.encryption?.privateRelay).ok &&
       !isEncryptedRoute(route, options.encryption)
     )
       return { uri: absolute(path), headers: authorization, ...scope };
@@ -608,7 +622,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     };
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
-    if (!checkRoute(route, options.encryption?.privateRelay?.origin).ok) return {};
+    if (!checkRoute(route, options.encryption?.privateRelay).ok) return {};
     if (!isEncryptedRoute(route, options.encryption))
       return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = route + path;
@@ -1077,13 +1091,24 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const pickRoute = async (): Promise<void> => {
     let failure: unknown;
-    for (const candidate of routes) {
+    const revision = preferenceRevision;
+    routeChangePending = false;
+    resumeRequested = false;
+    if (routePreference !== undefined) {
+      route = routePreference;
+      if (!routes.includes(routePreference))
+        throw new Unreachable('The selected route is no longer available.');
+    }
+    for (const candidate of routePreference === undefined ? routes : [routePreference]) {
       try {
         await call('list', {}, candidate);
+        if (revision !== preferenceRevision) throw new Unreachable('The route preference changed.');
         routeChecks.set(candidate, 'verified');
         route = candidate;
+        routeChangePending = false;
         return;
       } catch (error) {
+        if (revision !== preferenceRevision) throw error;
         routeChecks.set(candidate, 'unreachable');
         if (
           isConnectRoute(candidate) ||
@@ -1297,6 +1322,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     rejections = 0;
     disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
+    if (routeChangePending) resumeLive();
     const health = setInterval(() => {
       void discoverRoutes();
       void refreshConnected(probeHost).catch(() => undefined);
@@ -1380,7 +1406,15 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const recoverPreferred = async (): Promise<void> => {
-    if (checkingPreferred || activeRequests > 0 || Date.now() - preferredSwitchAt < 60_000) return;
+    if (
+      routePreference !== undefined ||
+      routeChangePending ||
+      checkingPreferred ||
+      activeRequests > 0 ||
+      Date.now() - preferredSwitchAt < 60_000
+    )
+      return;
+    const revision = preferenceRevision;
     const previous = route;
     const disconnect = disconnectCurrent;
     const current = generation;
@@ -1396,6 +1430,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         }
         if (
           !running ||
+          revision !== preferenceRevision ||
           current !== generation ||
           route !== previous ||
           disconnect !== disconnectCurrent ||
@@ -1532,6 +1567,28 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   return {
+    async setRoutePreference(next) {
+      if (changingPreference) throw new Error('connection-preference-busy');
+      if (next !== undefined && !routes.includes(next)) throw new Error('connection-route-unknown');
+      if (next === routePreference) return;
+      changingPreference = true;
+      try {
+        await options.onRoutePreferenceChanged?.(next);
+        routePreference = next;
+        preferenceRevision++;
+        routeChangePending = running;
+        preferredSwitchAt = Date.now();
+        publish();
+        if (running) {
+          resumeRequested = true;
+          resumeLive();
+          clearTimeout(retryTimer);
+          wake?.();
+        }
+      } finally {
+        changingPreference = false;
+      }
+    },
     updateRoutes(next) {
       const previous = routes;
       routes = preferredRoutes(next);
@@ -1664,7 +1721,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     resource,
     secretInputAllowed: () =>
-      checkRoute(route, options.encryption?.privateRelay?.origin).ok &&
+      checkRoute(route, options.encryption?.privateRelay).ok &&
       (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);

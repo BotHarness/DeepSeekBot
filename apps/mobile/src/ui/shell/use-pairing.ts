@@ -154,8 +154,10 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       signal: operation.signal,
     });
     pending.current = undefined;
-    setBusy(false);
-    setFingerprint(undefined);
+    if (!result.ok || operation.signal.aborted || options.stayOnPage) {
+      setBusy(false);
+      setFingerprint(undefined);
+    }
     if (operation.signal.aborted) return 'cancelled';
     if (!result.ok) {
       if (clearsPastedLink(result.code, method)) handled.current = undefined;

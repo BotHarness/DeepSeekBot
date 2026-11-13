@@ -981,6 +981,23 @@ deepseekbot connection cancel --client-id <id> --connection-id <attempt>
 
 States are `connecting`, `verify-host`, `approve-device`, `connected`, `failed` and `cancelled`; failures include a coded `code`. Reusing an attempt ID with the same link reads the existing attempt; a different link is refused. Up to 16 attempts are retained for the mounted Client control session. An accepted attempt lasts at most five minutes. Closing/reloading the Client or losing its relay registration cancels unfinished enrollment. Expired commands cannot start an attempt. Cancellation after `saved: true` keeps the already saved Remote Host; remove it explicitly if desired. Offline/stale targets refuse instead of saving in the CLI or Host. This command does not authorize Tob to compare identities or approve devices.
 
+### Manage computers on a selected browser Client
+
+```bash
+deepseekbot connection-hosts --client-id <id>
+deepseekbot connection-host <host-id> inspect --client-id <id>
+deepseekbot connection-host <host-id> test-route <origin> --client-id <id>
+deepseekbot connection-host <host-id> remove --client-id <id> --confirm
+deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
+```
+
+`select-route` persists the preference in the selected browser’s existing Host record before switching after active requests finish. A manual origin must already be eligible and never silently fails over. Pass `automatic` to restore the existing policy without widening route eligibility. `connection-hosts` reports saved preference, pending switch and actual current route separately. Only this Client/Host is affected; mobile connection details use the same HostClient behavior and their own canonical persistence owner.
+
+These commands use the existing selected-Client control channel and the same management adapter as the Connections dialog. Lists expose Host identity, name and actual route observations, never credentials or private keys. `inspect` uses that browser's paired authorization on the target Host to read devices and stoppable routes. `remove` deletes this browser connection only, preserving Host data and grants; `revoke-device` revokes the named device on the target; `stop-route` disables only that target's LAN listener or private Tunnel. Stopping the active route or revoking the current device may interrupt the reply: an unacknowledged action is not a success and needs a fresh status check. Unknown Hosts/routes/devices, stale requests and unconfirmed writes are refused. Account grouping does not rewrite sign-in/sign-out provenance or grant management permissions.
+
 ### Models, usage and activity
 
 ```bash
@@ -1597,7 +1614,7 @@ deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-fil
 relay at `https://connect.botharness.ai` publishes (`DEEPSEEKBOT_CONNECT_RELAY` overrides it). The
 reply carries `userCode` and `verificationUri`; with `--wait` the CLI prints them to stderr and waits
 until the Host finishes. The Host then stores only the refresh token in the DSH credential store,
-links itself to the account (at most three Hosts per account), asks the relay for its tunnel and runs
+links itself to the account (subject to the service account limit), asks the relay for its tunnel and runs
 it as `connect-enable` would, with no hand-made token. While signed in it asks the relay again when
 the tunnel stops, so a tunnel the relay reclaimed after the Host was offline comes back on the same
 `<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,
@@ -1622,9 +1639,9 @@ For account errors, `connect.account.recovery` distinguishes `automatic` (a save
 
 `connect-account-hosts` loads the signed-in account's computers on demand, including this computer
 when linked. Rows contain only `id`, `name`, `hostname`, `createdAt`, optional `connected`, `current`
-and `sessionKnown`; an absent connection value means unknown. It does not add a relay request to
+and `sessionKnown`, plus optional `botNetwork: {hostId, publicKey}` from the authenticated relay registration. An absent connection value means unknown. The public identity supports grouping only when both Host ID and pinned key match; it is not a credential. It does not add a relay request to
 the Devices snapshot poll. A saved account session can list computers even when this computer is
-blocked by the three-computer limit.
+blocked by the service account limit.
 
 `connect-account-revoke` requires `--confirm` and refuses `current-host` before making a relay
 request. Use `connect-sign-out` for this computer. The relay tombstones the other computer's
@@ -1870,6 +1887,25 @@ After a Bot has a live Orchestrator Agent, `bot-tools` also lists its registered
 For several IM requests in one turn, call `ask_secret` with the existing account and field declaration plus the exact accepted `source_event_id` of the request being handled before consuming the references. Configured accounts reuse their values without another card or a Web notification address. Web and Schedule reuse omit the selector. `private-source-required` supplies this recovery; `private-source-invalid`, `private-source-unavailable`, `private-source-ambiguous`, `private-source-revoked` and `private-account-unavailable` distinguish the other refusals. Do not retry an unchanged operation, choose a historical source, or treat a Host refusal as a remote outage. Conflicting account associations require a new turn; revocation remains authoritative.
 
 ## Private connection (no Docker)
+
+### Independently managed private routes
+
+Use `device-offer --route-id quick|custom --out <new-absolute-private-file>` for a single-route invitation, including recovery or older phones. Omit `--route-id` to admit all connected private routes.
+
+`private-route list` reads the Host's public `privateRoutes` projection. A Host supports `quick` plus one `custom` route (Named Tunnel or private HTTPS ingress):
+
+```bash
+deepseekbot private-route add quick --confirm
+deepseekbot private-route add custom --origin https://bot.example.com --confirm
+deepseekbot private-route stop quick --confirm
+deepseekbot private-route start quick --confirm
+deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
+deepseekbot private-route remove custom --confirm
+```
+
+Use the existing Host connection arguments for every command. Named connector tokens enter through stdin only. Add retries are idempotent; changing an occupied slot requires Replace. Stop retains configuration and disabled intent; only enabled routes resume after Host restart. Remove forgets the selected configuration, without revoking paired phones. Revoke the device through the existing device command to remove its access across both routes. Legacy no-ID enable/disable refuses ambiguous multi-route operations.
+
+An invitation admits only connected private routes. Updated phones retain at most two explicitly admitted origins under the same pinned Host identity; older phones use its primary origin. A restarted Quick Tunnel may change address and require rescanning. Neither route enables an official-service fallback. Before upgrading an existing Profile, follow the protected backup and matching-version rollback instructions in [ADR-0333](adr/0333-bounded-private-route-coexistence.md); reverting packages alone cannot read the migrated credentials.
 
 `private-tunnel-enable --quick --confirm` starts a Quick Tunnel; `private-tunnel-enable --hostname <name> --token-stdin --confirm` runs your own Named Tunnel with its connector token from stdin. Both publish only the encrypted device channel through the Host's bundled cloudflared and persist the enabled state, so a restarted Host restores it. `devices` reports `privateTunnel` (`state`, `mode`, `origin`, `originPort`, coded `issue`/`probe`, `addressChanged`). A pairing offer is refused with `private-tunnel-unreachable` until the public address reaches this Host. `private-tunnel-disable --confirm` stops it and forgets the token and phone admission. See [private connection](private-connect.md).
 

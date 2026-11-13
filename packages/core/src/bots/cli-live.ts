@@ -244,6 +244,7 @@ export const LIVE_OPTIONS = {
   bot: { type: 'string' },
   conversation: { type: 'string' },
   out: { type: 'string' },
+  'route-id': { type: 'string' },
   'args-stdin': { type: 'boolean' },
   'cause-event': { type: 'string' },
   session: { type: 'string' },

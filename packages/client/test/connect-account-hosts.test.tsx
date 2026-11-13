@@ -190,3 +190,61 @@ it('keeps the confirmation open when the revoke receipt is not successful', asyn
   expect(container.querySelector('[role="dialog"]')).not.toBeNull();
   expect(container.textContent).toContain(t('devices.connect.computerActionFailed'));
 });
+
+it('signs out the current Host only through its local account owner after named confirmation', async () => {
+  await act(async () =>
+    root.render(
+      <ConnectAccountHosts
+        t={t}
+        account={{ state: 'signed-in', hostId: current.id }}
+        reloadSnapshot={reloadSnapshot}
+        allowCurrentSignOut
+      />,
+    ),
+  );
+  await click(t('devices.connect.signOutNamed', { name: current.name }));
+  expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+  const confirm = container.querySelector('[role="dialog"] button:last-child');
+  if (!(confirm instanceof HTMLButtonElement)) throw new Error('Missing confirmation');
+  await act(async () => confirm.click());
+  const posts = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+  expect(posts).toHaveLength(1);
+  expect(posts[0]?.[0]).toBe('./api/botharness/devices/connect');
+  expect(JSON.parse(String(posts[0]?.[1]?.body))).toEqual({ action: 'sign-out' });
+  expect(container.textContent).toContain(remote.name);
+  expect(reloadSnapshot).toHaveBeenCalledTimes(1);
+});
+
+it.each(['host-limit', 'list-unavailable'])(
+  'keeps confirmed current-account sign-out available during %s',
+  async (condition) => {
+    hosts = [remote];
+    listDown = condition === 'list-unavailable';
+    await act(async () =>
+      root.render(
+        <ConnectAccountHosts
+          t={t}
+          account={
+            condition === 'host-limit'
+              ? { state: 'error', issue: 'host-limit' }
+              : { state: 'signed-in', hostId: current.id }
+          }
+          reloadSnapshot={reloadSnapshot}
+          allowCurrentSignOut
+        />,
+      ),
+    );
+    await click(t('devices.connect.signOutNamed', { name: t('devices.connect.thisComputer') }));
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(
+      0,
+    );
+    const confirm = container.querySelector('[role="dialog"] button:last-child');
+    if (!(confirm instanceof HTMLButtonElement)) throw new Error('Missing confirmation');
+    await act(async () => confirm.click());
+    const posts = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.[0]).toBe('./api/botharness/devices/connect');
+    expect(JSON.parse(String(posts[0]?.[1]?.body))).toEqual({ action: 'sign-out' });
+    expect(reloadSnapshot).toHaveBeenCalledTimes(1);
+  },
+);

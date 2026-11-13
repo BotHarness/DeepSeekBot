@@ -15,7 +15,7 @@ Everything else may stay blocked; Tobs answers 404 to any other path on that por
 
 ## Turn it on
 
-Settings → Connections → Add connection → Connect a device to this Host → Private connection (recommended) → **Your own proxy or tunnel**. Enter the HTTPS address and choose **Save and check**. The page shows the local port to forward to. By default that port listens on `127.0.0.1`, so the proxy must run on the same computer; turn on **Accept forwarding from other LAN machines** when the proxy runs elsewhere on your LAN.
+Bot settings → Connections → Add connection → Connect your phone to this computer → App installed, start connecting → Advanced methods → **Your own proxy or tunnel**. Enter the HTTPS address and choose **Save and check**. The page shows the local port to forward to. By default that port listens on `127.0.0.1`, so the proxy must run on the same computer; turn on **Accept forwarding from other LAN machines** when the proxy runs elsewhere on your LAN.
 
 CLI: `deepseekbot private-ingress-enable --origin https://bot.example.com --confirm` (add `--lan` for a proxy on another machine), `deepseekbot devices` for status (`privateTunnel.originPort` is the port to forward to), and `deepseekbot private-ingress-disable --confirm`.
 

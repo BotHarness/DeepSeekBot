@@ -1,7 +1,8 @@
-import { useState, type ReactElement } from 'react';
+import { useState, type ComponentProps, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import { ConnectionGuide } from './connection-guide.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { SettingsRow } from './ds/settings-row.js';
@@ -62,7 +63,20 @@ function modeTitle(mode: PrivateTunnelView['mode']) {
       : 'privateTunnel.quickTitle';
 }
 
-export function PrivateTunnelSettings({
+function recoveryKey(reason: string | undefined) {
+  if (reason === 'private-ingress-origin-invalid') return 'connections.recovery.address';
+  if (reason === 'private-tunnel-hostname-invalid' || reason === 'private-tunnel-token-invalid')
+    return 'connections.recovery.token';
+  if (reason === 'private-route-origin-in-use') return 'privateTunnel.routes.originInUse';
+  if (reason === 'private-route-in-use') return 'connections.recovery.busy';
+  if (reason === 'dns') return 'connections.recovery.dns';
+  if (reason === 'tls') return 'connections.recovery.tls';
+  if (reason === 'timeout' || reason === 'tunnel-unreachable' || reason?.startsWith('http-'))
+    return 'connections.recovery.forward';
+  return 'connections.recovery.generic';
+}
+
+function PrivateTunnelRouteSettings({
   t,
   status,
   refresh,
@@ -70,8 +84,14 @@ export function PrivateTunnelSettings({
   advanced,
   step,
   setStep,
+  routeId,
+  replace = false,
+  secondaryQuick = false,
 }: PropsLocale<'botharness'> & {
   status?: PrivateTunnelView;
+  routeId?: PrivateRouteView['id'];
+  replace?: boolean;
+  secondaryQuick?: boolean;
   refresh(): Promise<unknown>;
   pair(): void;
   advanced(): void;
@@ -93,7 +113,18 @@ export function PrivateTunnelSettings({
       const response = await fetch('./api/botharness/devices/private-tunnel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body, confirm: true }),
+        body: JSON.stringify({
+          ...body,
+          ...(body['action'] === 'enable'
+            ? {
+                action: replace ? 'replace' : 'add',
+                routeId: body['mode'] === 'quick' ? 'quick' : 'custom',
+              }
+            : routeId
+              ? { action: 'stop', routeId }
+              : {}),
+          confirm: true,
+        }),
       });
       const result = (await response.json().catch(() => ({}))) as { code?: string };
       if (!response.ok) {
@@ -114,7 +145,7 @@ export function PrivateTunnelSettings({
       icon="info"
       tone="warning"
       title={t('privateTunnel.panel.failedTitle')}
-      body={t('privateTunnel.refused', { code: failure })}
+      body={t(recoveryKey(failure))}
       data={{ 'data-private-tunnel-failure': failure }}
     />
   ) : null;
@@ -165,7 +196,7 @@ export function PrivateTunnelSettings({
           {status.mode === 'ingress' && status.lan ? null : chip(t, local!)}
           <p {...stylex.props(styles.meta)}>
             {status.state === 'error'
-              ? t('privateTunnel.error', { issue: status.issue ?? 'unknown' })
+              ? t(recoveryKey(status.probe ?? status.issue))
               : t('privateTunnel.verifying')}
           </p>
         </StatusBlock>
@@ -176,7 +207,7 @@ export function PrivateTunnelSettings({
           icon="info"
           tone="warning"
           title={t('privateTunnel.panel.errorTitle')}
-          body={t('privateTunnel.error', { issue: status.issue ?? 'unknown' })}
+          body={t(recoveryKey(status.probe ?? status.issue))}
           data={{ 'data-private-tunnel': 'error' }}
         >
           {status.probe ? (
@@ -212,6 +243,7 @@ export function PrivateTunnelSettings({
     return (
       <StatusStack title={t('privateTunnel.title')}>
         {block}
+        <ConnectionGuide t={t} method={status.mode === 'ingress' ? 'ingress' : 'named'} />
         {status.addressChanged ? (
           <StatusBlock
             icon="alarm-clock"
@@ -271,7 +303,7 @@ export function PrivateTunnelSettings({
           icon="server"
           tone="accent"
           title={t('privateTunnel.ingressTitle')}
-          body={t('privateTunnel.ingressHelp')}
+          body={t('connections.ingressRequirements')}
           data={{ 'data-private-tunnel-setup': 'ingress' }}
         >
           <StepProgress
@@ -309,11 +341,18 @@ export function PrivateTunnelSettings({
               onClick={() => void send({ action: 'enable', mode: 'ingress', origin, lan })}
               {...stylex.props(styles.submit)}
             >
-              {t(busy ? 'privateRelay.connecting' : 'privateTunnel.ingressEnable')}
+              {t(
+                busy
+                  ? 'privateRelay.connecting'
+                  : replace
+                    ? 'privateTunnel.routes.replaceConfirm'
+                    : 'privateTunnel.ingressEnable',
+              )}
             </Button>
           </div>
         </StatusBlock>
         {failed}
+        <ConnectionGuide t={t} method="ingress" />
       </StatusStack>
     );
 
@@ -324,7 +363,7 @@ export function PrivateTunnelSettings({
           icon="globe"
           tone="accent"
           title={t('privateTunnel.namedTitle')}
-          body={t('privateTunnel.namedHelp')}
+          body={t('connections.namedRequirements')}
           data={{ 'data-private-tunnel-setup': 'named' }}
         >
           <StepProgress
@@ -358,11 +397,18 @@ export function PrivateTunnelSettings({
               onClick={() => void send({ action: 'enable', mode: 'named', hostname, token })}
               {...stylex.props(styles.submit)}
             >
-              {t(busy ? 'privateRelay.connecting' : 'privateTunnel.namedEnable')}
+              {t(
+                busy
+                  ? 'privateRelay.connecting'
+                  : replace
+                    ? 'privateTunnel.routes.replaceConfirm'
+                    : 'privateTunnel.namedEnable',
+              )}
             </Button>
           </div>
         </StatusBlock>
         {failed}
+        <ConnectionGuide t={t} method="named" />
       </StatusStack>
     );
 
@@ -375,7 +421,7 @@ export function PrivateTunnelSettings({
         body={t('privateTunnel.panel.offBody')}
         action={
           <Button
-            variant="primary"
+            variant={secondaryQuick ? 'outline' : 'primary'}
             size="sm"
             disabled={busy}
             onClick={() => void send({ action: 'enable', mode: 'quick' })}
@@ -426,6 +472,183 @@ export function PrivateTunnelSettings({
           onClick={advanced}
         />
       </StatusDisclosure>
+    </StatusStack>
+  );
+}
+
+export interface PrivateRouteView extends PrivateTunnelView {
+  id: 'quick' | 'custom';
+  enabled: boolean;
+}
+
+export function PrivateTunnelSettings(
+  props: ComponentProps<typeof PrivateTunnelRouteSettings> & {
+    routes?: PrivateRouteView[];
+    managementOnly?: boolean;
+    fresh?: boolean;
+  },
+): ReactElement {
+  const { t, routes, step, setStep, managementOnly = false, fresh = true } = props;
+  const [selected, select] = useState<PrivateRouteView['id']>();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [remove, setRemove] = useState<PrivateRouteView['id']>();
+  async function change(action: 'start' | 'stop' | 'remove', routeId: PrivateRouteView['id']) {
+    setBusy(true);
+    setFailed(false);
+    try {
+      const result = await fetch('./api/botharness/devices/private-tunnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, routeId, confirm: true }),
+      });
+      if (!result.ok) {
+        setFailed(true);
+        return;
+      }
+      setRemove(undefined);
+      await props.refresh();
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!routes?.length) return managementOnly ? <></> : <PrivateTunnelRouteSettings {...props} />;
+  const current = routes.find((route) => route.id === selected);
+  const custom = routes.find((route) => route.id === 'custom');
+  return (
+    <StatusStack title={t('privateTunnel.title')}>
+      {!managementOnly &&
+      step === 'choose' &&
+      current?.state !== 'connected' &&
+      routes.some((route) => route.state === 'connected') ? (
+        <Button variant="primary" onClick={props.pair}>
+          {t('privateRelay.pair')}
+        </Button>
+      ) : null}
+      {routes.map((route) => (
+        <StatusBlock
+          key={route.id}
+          title={t(modeTitle(route.mode))}
+          icon={route.mode === 'quick' ? 'globe' : 'server'}
+          tone={
+            route.state === 'connected'
+              ? 'success'
+              : route.state === 'error'
+                ? 'warning'
+                : 'neutral'
+          }
+          body={route.origin ?? t(`privateTunnel.routes.${route.state}`)}
+          action={
+            <>
+              <span>{t(`privateTunnel.routes.${route.state}`)}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy || !fresh}
+                onClick={() => void change(route.enabled ? 'stop' : 'start', route.id)}
+              >
+                {t(route.enabled ? 'privateTunnel.routes.stop' : 'privateTunnel.routes.start')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy || !fresh}
+                onClick={() => {
+                  select(selected === route.id ? undefined : route.id);
+                  setStep('choose');
+                }}
+              >
+                {t('privateTunnel.panel.manage')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy || !fresh}
+                onClick={() => setRemove(route.id)}
+              >
+                {t('privateTunnel.routes.remove')}
+              </Button>
+            </>
+          }
+        />
+      ))}
+      {failed ? (
+        <StatusBlock
+          icon="info"
+          tone="warning"
+          title={t('privateTunnel.panel.failedTitle')}
+          body={t('connections.recovery.generic')}
+        />
+      ) : null}
+      {remove ? (
+        <StatusBlock
+          icon="info"
+          tone="warning"
+          title={t('privateTunnel.routes.remove')}
+          body={t('privateTunnel.routes.removeHint')}
+          action={
+            <>
+              <Button variant="outline" disabled={busy} onClick={() => setRemove(undefined)}>
+                {t('privateTunnel.routes.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={busy}
+                onClick={() => void change('remove', remove)}
+              >
+                {t('privateTunnel.routes.removeConfirm')}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
+      {current && step === 'choose' && current.state !== 'off' ? (
+        <PrivateTunnelRouteSettings {...props} status={current} routeId={current.id} />
+      ) : null}
+      {managementOnly ? null : step !== 'choose' ? (
+        <>
+          {custom ? (
+            <p {...stylex.props(styles.meta)}>{t('privateTunnel.routes.replaceHint')}</p>
+          ) : null}
+          <PrivateTunnelRouteSettings {...props} status={{ state: 'off' }} replace={!!custom} />
+          <Button variant="outline" onClick={() => setStep('choose')}>
+            {t('privateTunnel.routes.cancel')}
+          </Button>
+        </>
+      ) : (
+        <>
+          {!routes.some((route) => route.id === 'quick') ? (
+            <PrivateTunnelRouteSettings {...props} status={{ state: 'off' }} secondaryQuick />
+          ) : (
+            <>
+              <ChoiceButton
+                title={t(
+                  custom ? 'privateTunnel.routes.replaceNamed' : 'privateTunnel.routes.addNamed',
+                )}
+                disabled={busy}
+                onClick={() => {
+                  select(undefined);
+                  setStep('named');
+                }}
+              />
+              <ChoiceButton
+                title={t(
+                  custom
+                    ? 'privateTunnel.routes.replaceIngress'
+                    : 'privateTunnel.routes.addIngress',
+                )}
+                disabled={busy}
+                onClick={() => {
+                  select(undefined);
+                  setStep('ingress');
+                }}
+              />
+            </>
+          )}
+        </>
+      )}
     </StatusStack>
   );
 }

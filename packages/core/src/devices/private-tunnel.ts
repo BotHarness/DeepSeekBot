@@ -1,12 +1,13 @@
 import { spawn as spawnProcess } from 'node:child_process';
+import { lookup, Resolver } from 'node:dns';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, request as httpRequest, type IncomingMessage, type Server } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { connect as tcpConnect, type AddressInfo } from 'node:net';
+import { connect as tcpConnect, type AddressInfo, type LookupFunction } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { getCACertificates } from 'node:tls';
 
-import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
+import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import {
   createCloudflaredResolver,
@@ -51,13 +52,19 @@ export type PrivateTunnelRefusal =
   | 'private-tunnel-token-invalid'
   | 'private-ingress-origin-invalid'
   | 'private-route-in-use'
-  | 'credential-unavailable';
+  | 'credential-unavailable'
+  | 'private-route-origin-in-use'
+  | 'private-route-id-required'
+  | 'private-route-not-found'
+  | 'private-route-replace-required'
+  | 'private-route-limit'
+  | 'private-tunnel-credential-invalid';
 
 export type PrivateTunnelResult =
-  | { ok: true; status: PrivateTunnelStatus }
+  | { ok: true; status: PrivateTunnelStatus; routeId?: 'quick' | 'custom' }
   | { ok: false; code: PrivateTunnelRefusal };
 
-interface TunnelRecord {
+export interface TunnelRecord {
   mode: PrivateTunnelMode;
   phoneToken: string;
   originPort: number;
@@ -131,7 +138,7 @@ export function privateIngressOrigin(input: string): string | undefined {
   return url.origin;
 }
 
-function parseRecord(payload: unknown): TunnelRecord | undefined {
+export function parseTunnelRecord(payload: unknown): TunnelRecord | undefined {
   if (typeof payload !== 'object' || payload === null) return undefined;
   const value = payload as Record<string, unknown>;
   const mode = value['mode'];
@@ -236,7 +243,49 @@ export function systemTrustedCertificates(): string[] {
   }
 }
 
-export const createTrustFetch = (certificates: () => string[]) =>
+type QueryIpv4 = (
+  hostname: string,
+  callback: (error: NodeJS.ErrnoException | null, addresses: string[]) => void,
+) => void;
+const queryQuickIpv4: QueryIpv4 = (hostname, callback) => {
+  const resolver = new Resolver({ timeout: 1500, tries: 1 });
+  resolver.resolve4(hostname, callback);
+};
+
+export function createQuickTunnelLookup(
+  systemLookup: LookupFunction = lookup,
+  query: QueryIpv4 = queryQuickIpv4,
+): LookupFunction {
+  return (hostname, options, callback) => {
+    systemLookup(hostname, options, (error, address, family) => {
+      if (
+        error?.code !== 'ENOTFOUND' ||
+        !/^[a-z0-9-]+\.trycloudflare\.com$/u.test(hostname) ||
+        options.family === 6
+      ) {
+        callback(error, address, family);
+        return;
+      }
+      query(hostname, (dnsError, addresses) => {
+        if (dnsError || !addresses.length) {
+          callback(error, address, family);
+          return;
+        }
+        callback(
+          null,
+          options.all ? addresses.map((value) => ({ address: value, family: 4 })) : addresses[0]!,
+          4,
+        );
+      });
+    });
+  };
+}
+const quickTunnelLookup = createQuickTunnelLookup();
+
+export const createTrustFetch = (
+  certificates: () => string[],
+  resolveHost: LookupFunction = quickTunnelLookup,
+) =>
   ((input: string | URL, init?: RequestInit): Promise<Response> =>
     new Promise((resolve, reject) => {
       const url = new URL(String(input));
@@ -248,7 +297,7 @@ export const createTrustFetch = (certificates: () => string[]) =>
         if (timeout) error.name = 'TimeoutError';
         reject(error);
       };
-      const options = { method: 'GET', ...(signal ? { signal } : {}) };
+      const options = { method: 'GET', lookup: resolveHost, ...(signal ? { signal } : {}) };
       const done = (response: IncomingMessage) => {
         let body = '';
         response.setEncoding('utf8');
@@ -279,7 +328,7 @@ export function probeFailure(error: unknown): string {
   return error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'network';
 }
 
-export function createPrivateTunnel(options: {
+export interface PrivateTunnelOptions {
   credentials: () => Credentials | undefined;
   port: () => number;
   resolveBinary?: CloudflaredResolver;
@@ -291,8 +340,16 @@ export function createPrivateTunnel(options: {
   probeWindowMs?: number;
   reprobeMs?: number;
   record?: (phase: string, detail?: string) => void;
-}) {
-  const key = credentialKey('botharness-core', 'private-tunnel');
+}
+
+export function createPrivateTunnelRuntime(
+  options: Omit<PrivateTunnelOptions, 'credentials'> & {
+    storage: {
+      read(): Promise<TunnelRecord | undefined | 'unavailable' | 'invalid'>;
+      persist(record: TunnelRecord): Promise<boolean>;
+    };
+  },
+) {
   const spawn = options.spawn ?? spawnTunnel;
   const fetchImpl = options.fetch ?? systemTrustFetch;
   const record = options.record ?? (() => {});
@@ -313,6 +370,7 @@ export function createPrivateTunnel(options: {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let probeTimer: ReturnType<typeof setTimeout> | undefined;
   let probing = 0;
+  let probeAbort: AbortController | undefined;
   let nonce: string | undefined;
   let backoff = RESTART_MIN_MS;
   let generation = 0;
@@ -334,40 +392,46 @@ export function createPrivateTunnel(options: {
     probeTimer.unref?.();
   };
 
-  const read = async (): Promise<TunnelRecord | undefined | 'unavailable' | 'invalid'> => {
-    const native = options.credentials();
-    if (native === undefined) return 'unavailable';
-    try {
-      const stored = await native.readRecord(key);
-      if (stored === undefined || stored === null) return undefined;
-      return (stored.kind === 'grant' ? parseRecord(stored.payload) : undefined) ?? 'invalid';
-    } catch {
-      return 'unavailable';
-    }
-  };
-  const persist = async (next: TunnelRecord): Promise<boolean> => {
-    const native = options.credentials();
-    if (native === undefined) return false;
-    try {
-      await native.modifyRecord(key, async () => ({ kind: 'grant', payload: { ...next } }));
-      return true;
-    } catch {
-      return false;
-    }
-  };
+  const read = options.storage.read;
+  const persist = options.storage.persist;
 
-  const verify = (run: number, session: number, origin: string, deadline: number): void => {
+  const verify = (
+    run: number,
+    session: number,
+    origin: string,
+    deadline: number,
+    attempt = 1,
+    startedAt = Date.now(),
+  ): void => {
     if (run !== generation || session !== probing) return;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      status = { ...status, state: 'error', issue: 'tunnel-unreachable' };
+      record(
+        'unreachable',
+        `probe=${status.probe ?? 'timeout'} attempts=${attempt - 1} elapsedMs=${Date.now() - startedAt}`,
+      );
+      probeLater(() => verify(run, session, origin, Date.now() + probeWindow), reprobe);
+      return;
+    }
+    probeAbort?.abort();
+    const abort = new AbortController();
+    probeAbort = abort;
+    const timeoutMs = Math.min(10_000, 2_500 * 2 ** Math.min(attempt - 1, 2), remaining);
+    record(
+      'probe-started',
+      `attempt=${attempt} elapsedMs=${Date.now() - startedAt} timeoutMs=${timeoutMs}`,
+    );
     nonce = randomBytes(16).toString('hex');
     const expected = nonce;
     void fetchImpl(`${origin}${PROBE_PREFIX}${expected}`, {
       redirect: 'error',
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.any([abort.signal, AbortSignal.timeout(timeoutMs)]),
     })
       .then(async (response) => {
         const body = await response.text();
-        if (response.status !== 200 || body !== expected)
-          throw new Error(`http-${response.status}`);
+        if (response.status !== 200) throw new Error(`http-${response.status}`);
+        if (body !== expected) throw new Error('challenge-mismatch');
       })
       .then(
         () => {
@@ -376,18 +440,29 @@ export function createPrivateTunnel(options: {
           delete status.issue;
           delete status.probe;
           backoff = RESTART_MIN_MS;
-          record('verified', `mode=${status.mode ?? ''}`);
+          record(
+            'verified',
+            `mode=${status.mode ?? ''} attempt=${attempt} elapsedMs=${Date.now() - startedAt}`,
+          );
           probeLater(() => verify(run, session, origin, Date.now() + probeWindow), reprobe * 4);
         },
         (error: unknown) => {
           if (run !== generation || session !== probing) return;
           const probe =
-            error instanceof Error && error.message.startsWith('http-')
+            error instanceof Error &&
+            (error.message.startsWith('http-') || error.message === 'challenge-mismatch')
               ? error.message
               : probeFailure(error);
           status = { ...status, probe };
+          record(
+            'probe-failed',
+            `attempt=${attempt} elapsedMs=${Date.now() - startedAt} probe=${probe}`,
+          );
           if (Date.now() < deadline) {
-            probeLater(() => verify(run, session, origin, deadline), probeInterval);
+            probeLater(
+              () => verify(run, session, origin, deadline, attempt + 1, startedAt),
+              Math.min(probeInterval, 500 * 2 ** Math.min(attempt - 1, 3), deadline - Date.now()),
+            );
             return;
           }
           status = { ...status, state: 'error', issue: 'tunnel-unreachable' };
@@ -470,6 +545,7 @@ export function createPrivateTunnel(options: {
       if (tunnel === child) tunnel = undefined;
       if (run !== generation) return;
       probing += 1;
+      probeAbort?.abort();
       clearTimeout(probeTimer);
       nonce = undefined;
       status = { ...status, state: 'error', issue };
@@ -494,6 +570,7 @@ export function createPrivateTunnel(options: {
     clearTimeout(timer);
     clearTimeout(probeTimer);
     probing += 1;
+    probeAbort?.abort();
     nonce = undefined;
     tunnel?.kill();
     tunnel = undefined;
@@ -572,78 +649,6 @@ export function createPrivateTunnel(options: {
         if (started !== undefined && started.originPort !== stored.originPort)
           await persist(started);
       }),
-    enable: (input: {
-      mode: PrivateTunnelMode;
-      hostname?: string;
-      token?: string;
-      origin?: string;
-      lan?: boolean;
-      inUse?: boolean;
-    }) =>
-      serial(async (): Promise<PrivateTunnelResult> => {
-        if (input.inUse) return { ok: false, code: 'private-route-in-use' };
-        if (input.mode !== 'quick' && input.mode !== 'named' && input.mode !== 'ingress')
-          return { ok: false, code: 'private-tunnel-input-invalid' };
-        let hostname: string | undefined;
-        let token: string | undefined;
-        let origin: string | undefined;
-        if (input.mode === 'ingress') {
-          origin = privateIngressOrigin(input.origin ?? '');
-          if (origin === undefined) return { ok: false, code: 'private-ingress-origin-invalid' };
-        }
-        if (input.mode === 'named') {
-          hostname = privateTunnelHostname(input.hostname ?? '');
-          if (hostname === undefined) return { ok: false, code: 'private-tunnel-hostname-invalid' };
-          token = (input.token ?? '').trim();
-          if (!validTunnelToken(token)) return { ok: false, code: 'private-tunnel-token-invalid' };
-        }
-        if (options.credentials() === undefined)
-          return { ok: false, code: 'credential-unavailable' };
-        const previous = await read();
-        const kept = typeof previous === 'object' ? previous : undefined;
-        if (input.mode === 'quick' && kept?.mode === 'quick') hostname = kept.hostname;
-        const keptOrigin =
-          kept?.mode === 'ingress'
-            ? kept.origin
-            : kept?.hostname === undefined
-              ? undefined
-              : `https://${kept.hostname}`;
-        if (origin !== undefined && keptOrigin !== undefined && keptOrigin !== origin)
-          status = { ...status, addressChanged: true };
-        const next: TunnelRecord = {
-          mode: input.mode,
-          phoneToken: kept?.phoneToken ?? randomBytes(32).toString('hex'),
-          originPort: kept?.originPort ?? 0,
-          ...(hostname === undefined ? {} : { hostname }),
-          ...(token === undefined ? {} : { token }),
-          ...(origin === undefined ? {} : { origin, lan: input.lan === true }),
-        };
-        current = next;
-        const started = await run(next);
-        if (!(await persist(started ?? next))) {
-          await stop();
-          current = undefined;
-          status = { state: 'off' };
-          return { ok: false, code: 'credential-unavailable' };
-        }
-        record('enabled', `mode=${input.mode}`);
-        return { ok: true, status: { ...status } };
-      }),
-    disable: () =>
-      serial(async (): Promise<PrivateTunnelResult> => {
-        await stop();
-        current = undefined;
-        status = { state: 'off' };
-        const native = options.credentials();
-        if (native === undefined) return { ok: false, code: 'credential-unavailable' };
-        try {
-          await native.deleteRecord(key);
-        } catch {
-          return { ok: false, code: 'credential-unavailable' };
-        }
-        record('disabled');
-        return { ok: true, status: { ...status } };
-      }),
     acknowledgeAddress: () => {
       delete status.addressChanged;
     },
@@ -651,4 +656,4 @@ export function createPrivateTunnel(options: {
   };
 }
 
-export type PrivateTunnel = ReturnType<typeof createPrivateTunnel>;
+export { createPrivateTunnel, type PrivateTunnel } from './private-tunnel-owner.js';

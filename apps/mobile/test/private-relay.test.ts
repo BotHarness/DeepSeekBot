@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { checkRoute } from '../src/host/route';
-import { parseEncryption, parseSavedHost } from '../src/host/hosts';
+import { parseEncryption, parseSavedHost, parsePrivateAdmission } from '../src/host/hosts';
 import { parsePairingLink, pairingLinkMode, redeemPairing } from '../src/host/pairing';
 import { encryptedCarrier } from '../src/host/encrypted-carrier';
 import { learnedRoutes } from '../src/host/learned-routes';
@@ -13,6 +13,53 @@ const encryption = {
   privateRelay: admission,
 };
 describe('private relay trust boundary', () => {
+  it('persists two explicitly admitted private origins without learning a third route', () => {
+    const second = 'https://second.example.com';
+    const privateRelay = { ...admission, additionalOrigins: [second] };
+    const host = {
+      hostId: 'host',
+      hostName: 'Home',
+      deviceId: 'phone',
+      credential: 'credential',
+      encryption: { ...encryption, privateRelay },
+      routes: [admission.origin, second],
+    };
+    expect(parseSavedHost(JSON.parse(JSON.stringify(host)))).toEqual(host);
+    expect(checkRoute(second, privateRelay).ok).toBe(true);
+    expect(checkRoute('https://third.example.com', privateRelay).ok).toBe(false);
+    expect(
+      parseSavedHost({ ...host, routes: [...host.routes, 'https://third.example.com'] }),
+    ).toBeUndefined();
+    expect(parseSavedHost({ ...host, routes: [second, second] })).toBeUndefined();
+    expect(
+      learnedRoutes(host, {
+        host: { id: 'host' },
+        connect: { encryption: { publicKey: encryption.hostKey } },
+        routes: { routes: [{ url: 'https://fallback.deepseekbot.dev', ready: true }] },
+      }),
+    ).toEqual(host.routes);
+  });
+  it.each([
+    ['https://second.example.com', 'https://third.example.com'],
+    [admission.origin],
+    ['http://second.example.com'],
+    ['https://second.example.com/path'],
+    ['https://user:password@second.example.com'],
+    ['https://fallback.deepseekbot.dev'],
+  ])('refuses malformed or overbroad additional origins: %j', (...additionalOrigins) => {
+    const privateRelay = { ...admission, additionalOrigins };
+    expect(parsePrivateAdmission(privateRelay)).toBeUndefined();
+    expect(
+      parseSavedHost({
+        hostId: 'host',
+        hostName: 'Home',
+        deviceId: 'phone',
+        credential: 'credential',
+        encryption: { ...encryption, privateRelay },
+        routes: [admission.origin],
+      }),
+    ).toBeUndefined();
+  });
   it('rejects persisted private routes mixed with an official fallback', () => {
     expect(
       parseSavedHost({

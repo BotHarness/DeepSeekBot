@@ -214,3 +214,54 @@ describe('connect CLI', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 });
+
+it('manages a named private route with explicit identity and never includes its token in output', async () => {
+  const http = vi.fn(async () => reply({ ok: true, routeId: 'custom' }));
+  const connect = vi.fn(async () => ({ http }));
+  const result = await runConnectCommand(
+    'private-route',
+    ['replace', 'custom'],
+    { hostname: 'bot.example.com', 'token-stdin': true, confirm: true },
+    { readStdin: async () => 'private-test-token' },
+    connect,
+  );
+  expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+    action: 'replace',
+    routeId: 'custom',
+    confirm: true,
+    mode: 'named',
+    hostname: 'bot.example.com',
+    token: 'private-test-token',
+  });
+  expect(JSON.stringify(result)).not.toContain('private-test-token');
+  for (const action of ['start', 'stop', 'remove']) {
+    await runConnectCommand('private-route', [action, 'quick'], { confirm: true }, {}, connect);
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action,
+      routeId: 'quick',
+      confirm: true,
+    });
+  }
+});
+
+it('refuses ambiguous route mutations before opening a Host connection', async () => {
+  const connect = vi.fn();
+  for (const args of [[], ['stop'], ['remove', 'unknown'], ['add', 'custom']]) {
+    await expect(
+      runConnectCommand('private-route', args, { confirm: true }, {}, connect),
+    ).rejects.toMatchObject({ code: 'usage' });
+  }
+  await expect(
+    runConnectCommand('private-route', ['stop', 'quick'], {}, {}, connect),
+  ).rejects.toMatchObject({ code: 'usage' });
+  expect(connect).not.toHaveBeenCalled();
+});
+
+it('lists the same public route statuses exposed by the Host', async () => {
+  const routes = [{ id: 'quick', enabled: true, state: 'connected' }];
+  const http = vi.fn(async () => reply({ privateRoutes: routes }));
+  expect(
+    await runConnectCommand('private-route', ['list'], {}, {}, async () => ({ http })),
+  ).toEqual({ routes });
+  expect(http).toHaveBeenCalledWith('/api/botharness/devices');
+});

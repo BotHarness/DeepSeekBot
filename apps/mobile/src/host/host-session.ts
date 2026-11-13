@@ -274,6 +274,20 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   deviceAlerts.paired(saved.hostId);
   const client = createHostClient({
     ...saved,
+    onRoutePreferenceChanged: (routePreference) =>
+      serialize(async () => {
+        const owns = () => sessions.get(saved.hostId)?.host.client === client;
+        if (!owns()) throw new Error('connection-host-changed');
+        const next = {
+          ...stored,
+          hosts: stored.hosts.map((host) => {
+            if (host.hostId !== saved.hostId) return host;
+            const { routePreference: _previous, ...rest } = host;
+            return routePreference === undefined ? rest : { ...rest, routePreference };
+          }),
+        };
+        if (!(await commit(next, 'switch', owns))) throw new Error('connection-host-changed');
+      }),
     onPurged: (placements) => {
       const fresh = purgeCaches.apply(saved.hostId, placements);
       if (fresh.length === 0) return;
@@ -560,7 +574,7 @@ export const hostSession = {
     hostId: string,
     credential: string,
     routes: string[],
-    privateRelay?: { origin: string; token: string },
+    privateRelay?: NonNullable<SavedHost['encryption']>['privateRelay'],
   ): Promise<void> {
     return serialize(async () => {
       const existing = stored.hosts.find((host) => host.hostId === hostId);

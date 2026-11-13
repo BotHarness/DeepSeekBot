@@ -122,6 +122,9 @@ it('shows the complete fingerprint and optional explanation without granting tru
   expect(mocks.dismissTo).not.toHaveBeenCalled();
   await approve();
   expect(mocks.dismissTo).toHaveBeenCalledWith('/');
+  expect(pairing.busy).toBe(true);
+  expect(view.textContent).toContain(t.pairingVerification.waiting);
+  expect(view.querySelector('[data-testid="pairing-fingerprint"]')!.textContent).toBe(fingerprint);
 });
 it('refuses a mismatch without proceeding to device approval', async () => {
   const { confirmed } = await setup();

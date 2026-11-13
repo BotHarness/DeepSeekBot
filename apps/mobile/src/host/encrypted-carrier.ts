@@ -11,7 +11,7 @@ import type {
   HostSocketEvents,
 } from './carrier';
 import type { HostEncryption } from './hosts';
-import { checkRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import { checkRoute, hasPrivateOrigin, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
 import { APP_VERSION_HEADER } from '../../../../packages/core/src/devices/client-compat';
 
 export const HOST_KEY_REJECTIONS: ReadonlySet<string> = new Set([
@@ -25,7 +25,7 @@ export class ConnectRefused extends Error {
   }
 }
 
-function requestUrl(input: string, privateOrigin?: string): URL {
+function requestUrl(input: string, privateOrigin?: Parameters<typeof checkRoute>[1]): URL {
   let url: URL;
   try {
     url = new URL(input);
@@ -108,7 +108,7 @@ export function openNoiseSocket(options: {
   message(value: Record<string, unknown>): void;
   closed(reason: string): void;
 }) {
-  if (!checkRoute(options.origin, options.encryption.privateRelay?.origin).ok)
+  if (!checkRoute(options.origin, options.encryption.privateRelay).ok)
     throw new ConnectRefused('route-invalid');
   const channel = new ConnectChannel({
     role: 'initiator',
@@ -197,7 +197,8 @@ export function openNoiseSocket(options: {
         },
         closed: (reason) => fail(reason || 'channel-disconnected'),
       },
-      options.encryption.privateRelay?.origin === options.origin
+      options.encryption.privateRelay &&
+        hasPrivateOrigin(options.encryption.privateRelay, options.origin)
         ? {
             Authorization: 'Bearer ' + options.encryption.privateRelay.token,
             'X-BotHarness-Admission': options.encryption.privateRelay.token,
@@ -480,7 +481,7 @@ export function encryptedCarrier(options: {
     url: string,
     init: HostRequest,
   ): Promise<HostResponse> => {
-    const parsed = requestUrl(url, options.encryption?.privateRelay?.origin);
+    const parsed = requestUrl(url, options.encryption?.privateRelay);
     await waitForAdmission(current.ready, init.signal);
     if (init.signal.aborted) throw new Error('request-cancelled');
     if (
@@ -555,17 +556,14 @@ export function encryptedCarrier(options: {
       directs.clear();
     },
     async request(url, init) {
-      const parsed = requestUrl(url, options.encryption?.privateRelay?.origin);
+      const parsed = requestUrl(url, options.encryption?.privateRelay);
       if (!options.requireEncryption && !isEncryptedRoute(parsed.origin, options.encryption))
         return options.raw.request(url, init);
       if (init.signal.aborted) throw new Error('request-cancelled');
       return relayRequest(pick(parsed.origin), url, init);
     },
     openSocket(url, events, headers): HostSocket {
-      const parsed = requestUrl(
-        url.replace(/^ws/u, 'http'),
-        options.encryption?.privateRelay?.origin,
-      );
+      const parsed = requestUrl(url.replace(/^ws/u, 'http'), options.encryption?.privateRelay);
       if (!options.requireEncryption && !isEncryptedRoute(parsed.origin, options.encryption))
         return options.raw.openSocket(url, events, headers);
       let current: Session | undefined,

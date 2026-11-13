@@ -15,7 +15,7 @@
 
 ## 开启
 
-设置 → 连接 → 添加连接 → 让设备连接本机 → 私有连接（推荐）→ **自己的代理或隧道**。填写 HTTPS 地址，选择 **保存并检查**，页面会显示要转发到的本机端口。这个端口默认只监听 `127.0.0.1`，所以代理要装在同一台电脑上；代理在局域网另一台机器上时，打开 **允许局域网内其他机器转发**。
+Bot 设置 → 连接 → 添加连接 → 用手机连接这台电脑 → 已安装 App，开始连接 → 进阶方式 → **自己的代理或隧道**。填写 HTTPS 地址，选择 **保存并检查**，页面会显示要转发到的本机端口。这个端口默认只监听 `127.0.0.1`，所以代理要装在同一台电脑上；代理在局域网另一台机器上时，打开 **允许局域网内其他机器转发**。
 
 CLI：`deepseekbot private-ingress-enable --origin https://bot.example.com --confirm`（代理在其他机器上时加 `--lan`），用 `deepseekbot devices` 查看状态（`privateTunnel.originPort` 就是要转发到的端口），关闭用 `deepseekbot private-ingress-disable --confirm`。
 

@@ -4,7 +4,7 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 
 ## Sub-features
 
-- `pair`: Add remote redeems the other Host's pairing link.
+- `pair`: Add remote opens the shared Connections Modal directly at Connect to another computer. Paste a pairing URL or read a local PNG/JPEG/WebP QR image, verify the full identity and approve on the target Host. After its real Feed is read, customize the saved name/icon in the same Modal; Back and Done remain in its footer. Verify the newly selected Host tab and appearance survive refresh, including the first remote tab switching the sidebar branch.
 - `tabs`: the icon strip filters All, This host and each Remote Host; tooltips name the Host, and Chinese uses 全部、本机、远程.
 - `open`: a remote row opens a Host-scoped conversation.
 - `avatars`: remote Bot portraits and group images/member stacks appear in rows and conversation headers; Bot message authors and live drafts use the same remote portrait.

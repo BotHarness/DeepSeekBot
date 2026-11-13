@@ -1,6 +1,11 @@
 import { CliLiveError } from './cli-live-error.js';
 export const CONNECT_COMMANDS = [
   {
+    command: 'private-route',
+    description:
+      'list, add/replace <quick|custom>, or start/stop/remove <quick|custom>; mutations require --confirm',
+  },
+  {
     command: 'private-connect',
     description: 'claim a Docker relay: --hostname <https-origin> --token-stdin --confirm',
   },
@@ -84,6 +89,63 @@ export async function runConnectCommand(
   }>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): Promise<unknown> {
+  if (command === 'private-route') {
+    const [action, routeId] = rest;
+    if (action === 'list' && rest.length === 1) {
+      const host = await connect();
+      const snapshot = JSON.parse(new TextDecoder().decode((await host.http(DEVICES)).bytes)) as {
+        privateRoutes?: unknown;
+      };
+      return { routes: snapshot.privateRoutes ?? [] };
+    }
+    if (
+      rest.length !== 2 ||
+      (routeId !== 'quick' && routeId !== 'custom') ||
+      !['add', 'replace', 'start', 'stop', 'remove'].includes(action ?? '') ||
+      !values.confirm ||
+      values.wait
+    )
+      throw new CliLiveError(
+        'usage',
+        'private-route requires list, or add/replace/start/stop/remove <quick|custom> --confirm.',
+      );
+    const configure = action === 'add' || action === 'replace';
+    const named = values.hostname !== undefined || values['token-stdin'] === true;
+    if (
+      (!configure && (named || values.origin !== undefined || values.lan || values.quick)) ||
+      (configure && routeId === 'quick' && (named || values.origin !== undefined || values.lan)) ||
+      (configure &&
+        routeId === 'custom' &&
+        (values.quick ||
+          named === (values.origin !== undefined) ||
+          (named && (!values.hostname || !values['token-stdin'] || values.lan))))
+    )
+      throw new CliLiveError(
+        'usage',
+        'Custom routes require --origin <https-origin> [--lan], or --hostname <name> --token-stdin.',
+      );
+    const token = named ? (await (io.readStdin?.() ?? Promise.resolve(''))).trim() : undefined;
+    if (named && !token) throw new CliLiveError('usage', 'Read the Named Tunnel token from stdin.');
+    const host = await connect();
+    return JSON.parse(
+      new TextDecoder().decode(
+        (
+          await host.http(DEVICES + '/private-tunnel', {
+            action,
+            routeId,
+            confirm: true,
+            ...(configure
+              ? { mode: routeId === 'quick' ? 'quick' : named ? 'named' : 'ingress' }
+              : {}),
+            ...(named ? { hostname: values.hostname, token } : {}),
+            ...(values.origin !== undefined
+              ? { origin: values.origin, lan: values.lan === true }
+              : {}),
+          })
+        ).bytes,
+      ),
+    ) as unknown;
+  }
   if (command === 'private-ingress-enable' || command === 'private-ingress-disable') {
     const enable = command === 'private-ingress-enable';
     if (

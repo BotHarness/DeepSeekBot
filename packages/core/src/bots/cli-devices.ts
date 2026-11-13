@@ -50,7 +50,7 @@ export function isDevicesCommand(command: string): boolean {
 export async function runDevicesCommand(
   command: string,
   rest: string[],
-  values: { confirm?: boolean; out?: string },
+  values: { confirm?: boolean; out?: string; 'route-id'?: string },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
@@ -58,6 +58,11 @@ export async function runDevicesCommand(
     writeFileSync(path, `${text}\n`, { flag: 'wx', mode: 0o600 }),
   exists: (path: string) => boolean = existsSync,
 ): Promise<unknown> {
+  if (
+    values['route-id'] !== undefined &&
+    (command !== 'device-offer' || !['quick', 'custom'].includes(values['route-id']))
+  )
+    throw new CliLiveError('usage', '--route-id quick|custom requires device-offer.');
   if (command === 'bot-lan') {
     const [action, hostId, publicKey] = rest;
     const valid =
@@ -186,6 +191,9 @@ export async function runDevicesCommand(
       routes: snapshot['routes'],
       ...(snapshot['privateRelay'] === undefined ? {} : { privateRelay: snapshot['privateRelay'] }),
       ...(snapshot['direct'] === undefined ? {} : { direct: snapshot['direct'] }),
+      ...(snapshot['privateRoutes'] === undefined
+        ? {}
+        : { privateRoutes: snapshot['privateRoutes'] }),
       ...(snapshot['privateTunnel'] === undefined
         ? {}
         : { privateTunnel: snapshot['privateTunnel'] }),
@@ -212,7 +220,10 @@ export async function runDevicesCommand(
     return decode((await host.http(`${DEVICES}/offer-status`, { receipt: rest[0] })).bytes);
   if (command === 'device-revoke')
     return decode((await host.http(`${DEVICES}/revoke`, { deviceId: rest[0] })).bytes);
-  const view = decode((await host.http(`${DEVICES}/offer`, {})).bytes);
+  const view = decode(
+    (await host.http(`${DEVICES}/offer`, values['route-id'] ? { routeId: values['route-id'] } : {}))
+      .bytes,
+  );
   if (typeof view['link'] !== 'string' || typeof view['receipt'] !== 'string')
     throw new CliLiveError(
       'host-protocol-error',

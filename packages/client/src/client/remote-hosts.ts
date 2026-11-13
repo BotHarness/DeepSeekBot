@@ -93,6 +93,7 @@ export interface RemoteHosts {
     trust?: RemotePairTrust,
   ): Promise<HostPairResult>;
   remove(hostId: string): Promise<void>;
+  forgetLocal(hostId: string): Promise<void>;
   select(tab: string): void;
   open(target: RemoteConversationTarget): void;
   close(): void;
@@ -301,9 +302,37 @@ export function createRemoteHosts(options: {
     } catch {}
   };
 
+  const saveHostChange = (
+    hostId: string,
+    client: HostClient,
+    change: (host: SavedHost) => SavedHost,
+  ): void => {
+    const entry = clients.get(hostId);
+    if (!entry || entry.client !== client) throw new Error('connection-host-changed');
+    if (!storage) throw new Error('storage-unavailable');
+    const next = change(entry.host);
+    storage.setItem(
+      REMOTE_HOSTS_STORAGE_KEY,
+      JSON.stringify(
+        [...clients.values()].map(({ host }) =>
+          serializeSavedHost(host.hostId === hostId ? next : host),
+        ),
+      ),
+    );
+    entry.host = next;
+    publish();
+  };
+
   const attach = (host: SavedHost): void => {
     const client = createHostClient({
       ...host,
+      onRoutesChanged: async (routes) =>
+        saveHostChange(host.hostId, client, (current) => ({ ...current, routes })),
+      onRoutePreferenceChanged: async (routePreference) =>
+        saveHostChange(host.hostId, client, (current) => {
+          const { routePreference: _previous, ...rest } = current;
+          return routePreference === undefined ? rest : { ...rest, routePreference };
+        }),
       routes: host.routes,
       credential: host.credential,
       carrier,
@@ -438,6 +467,19 @@ export function createRemoteHosts(options: {
       } finally {
         pairing.delete(parsed.payload.host.id);
       }
+    },
+    async forgetLocal(hostId) {
+      const entry = clients.get(hostId);
+      if (entry === undefined) return;
+      if (!storage) throw new Error('storage-unavailable');
+      const remaining = [...clients.values()]
+        .filter(({ host }) => host.hostId !== hostId)
+        .map(({ host }) => serializeSavedHost(host));
+      if (remaining.length === 0) storage.removeItem(REMOTE_HOSTS_STORAGE_KEY);
+      else storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify(remaining));
+      const releasing = releaseRemoteHostViewers(entry.client);
+      forget(hostId);
+      await releasing;
     },
     async remove(hostId) {
       const entry = clients.get(hostId);

@@ -112,8 +112,15 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'devices.connect.account',
     'devices.connect.tunnel',
     'devices.connect.computersStatus',
+    'devices.connect.thisComputer',
+    'connections.manage.switches',
     'connections.title',
     'connections.methods',
+    'connections.lan',
+    'privateTunnel.title',
+    'connections.hosts.account',
+    'connections.hosts.other',
+    'connections.hosts.preference',
     'connections.pending',
     'devices.lan.title',
     'devices.tailscale.title',
@@ -130,6 +137,9 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
 };
 
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'connections.methods': 'connections.hosts.local',
+  'devices.lan.title': 'devices.lan.notice',
+  'connections.hosts.preference': 'connections.hosts.preferenceScope',
   'zoom.current': 'zoom.current.description',
   'zoom.default': 'zoom.default.description',
   'zoom.setup.enable': 'zoom.setup.enable.description',

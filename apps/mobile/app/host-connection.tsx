@@ -1,10 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { createHostClient } from '../src/host/client';
 import { installedAppVersion } from '../src/host/app-version';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
-import { nativeCarrier } from '../src/host/native-carrier';
 import { isConnectRoute, isLanRoute, isLoopbackRoute, isTailscaleRoute } from '../src/host/route';
 import { SHEET_GROUP } from '../src/ui/chat/sheet';
 import { space } from '../src/ui/design/tokens';
@@ -15,28 +13,35 @@ import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 import { Text } from '../src/ui/primitives/text';
 import { useMounted } from '../src/ui/mounted';
 import { useStrings } from '../src/ui/strings';
+import { PreferenceRow } from '../src/ui/primitives/preference-row';
 
 export default function HostConnectionScreen() {
   const t = useStrings();
   const copy = t.connectionRoutes;
   const router = useRouter();
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
-  const session = useHostSession();
+  const session = useHostSession(hostId);
   const host = session.hosts.find((item) => item.hostId === (hostId ?? session.saved?.hostId));
-  const active = host?.hostId === session.saved?.hostId ? session.client : undefined;
-  const client = useMemo(
-    () => active ?? (host ? createHostClient({ ...host, carrier: nativeCarrier() }) : undefined),
-    [active, host?.hostId, host?.credential],
-  );
-  useFocusEffect(
-    useCallback(() => {
-      if (!client || client === active) return;
-      client.start();
-      return () => client.stop();
-    }, [client, active]),
-  );
+  const automaticHint = host?.encryption?.privateRelay ? copy.privateAutomatic : copy.automatic;
+  const client = session.client;
   const snapshot = useHostSnapshot(client);
   const [busy, setBusy] = useState<string>();
+  const [preferenceFailed, setPreferenceFailed] = useState(false);
+  const savingPreference = useRef(false);
+  const selectRoute = async (value: string) => {
+    if (savingPreference.current || !client?.setRoutePreference) return;
+    savingPreference.current = true;
+    setBusy('preference');
+    setPreferenceFailed(false);
+    try {
+      await client.setRoutePreference(value === 'automatic' ? undefined : value);
+    } catch {
+      setPreferenceFailed(true);
+    } finally {
+      savingPreference.current = false;
+      setBusy(undefined);
+    }
+  };
   const [copied, setCopied] = useState<string>();
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const mount = useMounted(() => () => clearTimeout(copiedTimer.current), []);
@@ -64,10 +69,56 @@ export default function HostConnectionScreen() {
   return (
     <SheetScreen onMount={mount}>
       <SettingsForm header={header} testID="host-connection">
+        {host && client ? (
+          <SettingsSection on={SHEET_GROUP} footer={copy.preferenceScope}>
+            {busy === 'preference' ? (
+              <SettingsRow
+                on={SHEET_GROUP}
+                title={copy.preference}
+                detail={snapshot.routePreference ?? copy.autoChoice}
+                control={{ kind: 'busy' }}
+              />
+            ) : (
+              <PreferenceRow
+                on={SHEET_GROUP}
+                title={copy.preference}
+                icon="computer"
+                testID="connection-route-preference"
+                value={snapshot.routePreference ?? 'automatic'}
+                options={[
+                  { value: 'automatic', label: copy.autoChoice, icon: 'computer' },
+                  ...[
+                    ...new Set([
+                      ...routes.map(({ url }) => url),
+                      ...(snapshot.routePreference === undefined ? [] : [snapshot.routePreference]),
+                    ]),
+                  ].map((url) => ({ value: url, label: url, icon: 'computer' as const })),
+                ]}
+                onChange={(value) => void selectRoute(value)}
+              />
+            )}
+            {snapshot.routeChangePending ? (
+              <SettingsRow on={SHEET_GROUP} title={copy.switchPending} control={{ kind: 'busy' }} />
+            ) : null}
+            {preferenceFailed ? (
+              <SettingsRow on={SHEET_GROUP} title={copy.preferenceFailed} tone="danger" />
+            ) : null}
+            {snapshot.routePreference === undefined ? null : (
+              <SettingsRow
+                on={SHEET_GROUP}
+                title={copy.returnAutomatic}
+                detail={copy.manualHint}
+                icon="computer"
+                testID="connection-return-automatic"
+                onPress={busy ? undefined : () => void selectRoute('automatic')}
+              />
+            )}
+          </SettingsSection>
+        ) : null}
         {host && (routes.length > 0 || hiddenActiveLoopback) ? null : (
           <SettingsFormItem>
             <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-              {host ? copy.automatic : t.hostLookMissing}
+              {host ? automaticHint : t.hostLookMissing}
             </Text>
           </SettingsFormItem>
         )}
@@ -109,7 +160,9 @@ export default function HostConnectionScreen() {
               key={url}
               title={kind}
               on={SHEET_GROUP}
-              {...(index === routes.length - 1 ? { footer: copy.automatic } : {})}
+              {...(index === routes.length - 1 && snapshot.routePreference === undefined
+                ? { footer: automaticHint }
+                : {})}
             >
               <SettingsRow
                 on={SHEET_GROUP}

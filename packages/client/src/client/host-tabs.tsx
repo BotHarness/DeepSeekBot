@@ -4,6 +4,9 @@ import * as stylex from '@stylexjs/stylex';
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
 import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
 import { UnreadCount } from './unread-count.js';
+import { HostLookSettings } from './host-look-settings.js';
+import { readQrImage } from './qr-image.js';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { HostSettings } from './host-settings.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { RemoteAvatar } from './remote-avatar.js';
@@ -325,14 +328,19 @@ export function AddRemoteHostDialog({
   onClose,
   onBack,
   inline = false,
+  footerContainer,
   t,
 }: {
   onClose: () => void;
   onBack?: (() => void) | undefined;
   inline?: boolean;
+  footerContainer?: HTMLElement | null | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [link, setLink] = useState('');
+  const [readingImage, setReadingImage] = useState(false);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const imageRead = useRef(0);
   const [attempt, setAttempt] = useState<ConnectionAttempt>();
   const [error, setError] = useState<string>();
   const control = useRef<ReturnType<typeof createConnectionControl>>();
@@ -361,12 +369,14 @@ export function AddRemoteHostDialog({
       }
     });
     return () => {
+      imageRead.current += 1;
       off();
       owner.dispose();
       control.current = undefined;
     };
   }, []);
-  const busy = attempt?.state === 'connecting' || attempt?.state === 'approve-device';
+  const busy =
+    readingImage || attempt?.state === 'connecting' || attempt?.state === 'approve-device';
   const submit = () => {
     if (attempt?.state === 'connected' || attempt?.saved) {
       onClose();
@@ -400,6 +410,8 @@ export function AddRemoteHostDialog({
     <FormDialog
       title={t('connections.join')}
       inline={inline}
+      footerContainer={footerContainer}
+      showCancel={!inline}
       description={!attempt ? t('connections.joinHint') : undefined}
       labels={{
         close: t('common.close'),
@@ -438,17 +450,61 @@ export function AddRemoteHostDialog({
             <code>{attempt.deviceFingerprint}</code>
           </div>
         ) : attempt?.state === 'connected' ? (
-          <div role="status">{t('connections.connected', { name: attempt.hostName ?? '' })}</div>
+          <>
+            <div role="status">{t('connections.connected', { name: attempt.hostName ?? '' })}</div>
+            {attempt.hostId ? (
+              <HostLookSettings hostId={attempt.hostId} name={attempt.hostName ?? ''} t={t} />
+            ) : null}
+          </>
         ) : attempt?.saved && failed ? (
           <div role="status">{t('connections.savedOffline', { name: attempt.hostName ?? '' })}</div>
         ) : !attempt || failed ? (
-          <TextField
-            label={t('remoteHosts.add.link')}
-            hint={t('remoteHosts.add.hint')}
-            value={link}
-            onChange={setLink}
-            initialFocus={true}
-          />
+          <>
+            <TextField
+              label={t('remoteHosts.add.link')}
+              hint={t('remoteHosts.add.hint')}
+              value={link}
+              onChange={setLink}
+              initialFocus={true}
+            />
+            <input
+              ref={imageInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (!file) return;
+                const read = ++imageRead.current;
+                setReadingImage(true);
+                setError(undefined);
+                void readQrImage(file)
+                  .then(
+                    (value) => {
+                      if (read === imageRead.current) {
+                        setLink(value);
+                        setAttempt(undefined);
+                      }
+                    },
+                    () => {
+                      if (read === imageRead.current) setError(t('remoteHosts.add.imageError'));
+                    },
+                  )
+                  .finally(() => {
+                    if (read === imageRead.current) setReadingImage(false);
+                  });
+              }}
+            />
+            <Button
+              variant="outline"
+              disabled={readingImage}
+              icon={<ChannelSidebarIcon name="image" size={16} />}
+              onClick={() => imageInput.current?.click()}
+            >
+              {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
+            </Button>
+          </>
         ) : (
           <div role="status">{t('connections.reading')}</div>
         )}

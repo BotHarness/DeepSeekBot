@@ -2,6 +2,18 @@
 
 Private connection lets your phone reach this computer from mobile data or outside Wi-Fi without an official account, Docker or a VPN app. The desktop Host runs its bundled `cloudflared` and publishes **only the encrypted phone channel**; settings, files and APIs stay private. Phones still pair by QR, compare the Host fingerprint, and need you to approve the exact phone key on the desktop.
 
+## Advanced methods in Connections
+
+The same Connections dialog opens from the Control Rail, Bot settings and optional first-run phone step. Confirm that the mobile App is installed before preparing a route. Quick Tunnel and Tobs Connect remain the short setup choices; **Advanced methods** directly exposes LAN, Tailscale, a fixed Cloudflare Tunnel, your own HTTPS ingress and Docker relay. Deployment-guide buttons open the existing [ingress standard](private-ingress.md) and this Docker guide, whose [relay standard](private-relay-standard.md) remains the protocol authority.
+
+Back navigation keeps prepared Host routes running. Quick Tunnel can coexist with one custom connection: a Named Cloudflare Tunnel or your existing private HTTPS ingress. Each row has its own status, Stop and Resume controls. Stop retains settings; Host restart restores only enabled connections. Add never replaces an occupied configuration. Replacing the custom connection requires an explicit replacement action; Quick Tunnel stays unchanged. Remove forgets that connection's configuration after confirmation, but does not revoke paired phones. Revoke a phone separately to deny it on every route.
+
+Updated phones save both explicitly admitted private addresses under one Host identity. Older phones use the invitation's primary address. A Quick Tunnel restart can change its address: rescan to replace the saved addresses without adding a second Host. A stopped or failed route does not prevent the other verified route from pairing. Private connections do not learn official-service fallback addresses.
+
+Docker relay remains a separate, exclusive private deployment mode. Its owner credentials and volumes must be retained during migration; there is no generic UI reset. Before upgrading an existing Host, take a protected complete Profile/credentials backup: the two-route credentials format is not readable by older packages, and rollback requires restoring the matching backup. See [migration and rollback](adr/0333-bounded-private-route-coexistence.md) and the [CLI route commands](bot-cli.md#independently-managed-private-routes).
+
+Tailscale needs the phone and computer in the same permitted tailnet. iOS and Android normally run only one VPN at a time, so enabling Tailscale can interrupt another VPN; see [Tailscale's platform guidance](https://tailscale.com/docs/reference/faq/other-vpns). LAN needs a reachable local network. HTTPS ingress needs DNS, a certificate trusted by both endpoints, WebSocket forwarding and a successful Host check before a QR is offered. Failure guidance names DNS, TLS or forwarding actions; it never disables certificate validation or silently switches to the official service.
+
 ## Turn it on
 
 Open **Mobile app → Start pairing → Quick Tunnel (no sign-in)** to create a temporary address. Bot Settings → Connections opens the same dialog. Opening it does not start a tunnel: review the temporary-address notice and choose **Create a free temporary address**. Other deployment methods expand separately:

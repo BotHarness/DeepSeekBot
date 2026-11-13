@@ -950,6 +950,23 @@ deepseekbot connection cancel --client-id <id> --connection-id <attempt>
 
 状态包括 `connecting`、`verify-host`、`approve-device`、`connected`、`failed` 和 `cancelled`，失败带有 `code`。同一操作 ID 和链接返回原操作状态，换链接则拒绝；每个挂载的 Client 控制会话最多保留 16 次操作。已接受操作最长等待五分钟；关闭或刷新页面、控制登记丢失都会取消未完成接入。过期命令不能启动操作。`saved: true` 后取消会保留已经保存的 Remote Host，需要时应明确移除。离线或失效目标直接拒绝，不回退到 CLI 或 Host 保存。该命令不授予 Tob 判断身份或批准设备的权限。
 
+### 管理指定浏览器中的电脑
+
+```bash
+deepseekbot connection-hosts --client-id <id>
+deepseekbot connection-host <host-id> inspect --client-id <id>
+deepseekbot connection-host <host-id> test-route <origin> --client-id <id>
+deepseekbot connection-host <host-id> remove --client-id <id> --confirm
+deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
+```
+
+`select-route` 先在所选浏览器的现有 Host 记录中保存选择，再等待进行中的请求结束后切换。手动地址必须已获准；失败不会自动换路。传入 `automatic` 恢复既有自动策略，不扩大通道资格。`connection-hosts` 分别报告保存的选择、切换是否待完成和实际当前线路。只影响这个 Client/Host；手机连接详情通过同一 HostClient 行为及手机自己的保存所有者执行。
+
+通过现有 Client 控制通道执行，与连接对话框复用同一管理适配器。列表只返回 Host 标识、名称及实际线路观察，不返回设备凭据或私钥。`inspect` 使用该浏览器对目标 Host 的配对授权读取设备与可停止线路。`remove` 仅删除此浏览器的本地连接，保留 Host 数据和设备授权；`revoke-device` 在目标 Host 撤销指定设备；`stop-route` 只关闭指定目标的局域网监听或私有 Tunnel。停止当前线路或撤销当前设备可能令响应中断，未收到确认不能视为成功，需重新检查。未知 Host、线路、设备、过期请求和未确认写入均拒绝。账号分组不改变连接的登录/退出来源或授予管理权限。
+
 ### 模型、用量与活动
 
 ```bash
@@ -1552,7 +1569,7 @@ deepseekbot connect-account-revoke <host-id> --confirm --host <host> --token-fil
 `connect-sign-in` 用 `https://connect.botharness.ai` 上 relay 公布的 WorkOS client 发起 CLI Auth
 （设备授权流程；可用 `DEEPSEEKBOT_CONNECT_RELAY` 覆盖 relay 地址）。返回里有 `userCode` 和
 `verificationUri`；加 `--wait` 时 CLI 把它们打印到 stderr，并等 Host 完成登录。之后 Host 只把 refresh
-token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 3 台 Host），向 relay 申请隧道并像
+token 存进 DSH 凭据存储，把自己关联到账号（受服务端账号配额限制），向 relay 申请隧道并像
 `connect-enable` 一样运行，不再需要手工 token。登录期间隧道停掉时 Host 会重新向 relay 申请，所以
 Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
@@ -1572,8 +1589,8 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 账号出错时，`connect.account.recovery` 区分 `automatic`（已保存的会话能自动重试注册或隧道设置）和 `sign-in`（需要再次主动登录）。所有权校验失败后不会恢复旧账号，界面提供相同的恢复指引。设备授权轮询在网络失败、没有 OAuth 错误的 HTTP 408/429/5xx 后延长间隔，仍在原授权到期时间停止；明确的 OAuth 拒绝仍会终止登录。`authorization_pending` 保留间隔，`slow_down` 增加五秒，遵循 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5)。
 
 `connect-account-hosts` 按需读取账号中的电脑；本机已关联时会标为 `current`。每行仅含
-`id`、`name`、`hostname`、`createdAt`、可选 `connected`、`current` 和 `sessionKnown`；
-缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因三台限制而未关联时，
+`id`、`name`、`hostname`、`createdAt`、可选 `connected`、`current` 和 `sessionKnown`，以及可选的 `botNetwork: {hostId, publicKey}`。该公开身份来自已认证的 relay 登记，仅在 Host ID 与已固定公钥同时匹配时用于分组，不是凭据；
+缺少连接状态表示未知。它不会给 Devices 快照轮询增加 relay 请求。本机因账号配额限制而未关联时，
 仍可用已保存的账号会话读取列表。
 
 `connect-account-revoke` 必须带 `--confirm`，owner 在发请求前拒绝 `current-host`；本机退出仍用
@@ -1813,6 +1830,25 @@ Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册�
 同轮存在多条 IM 请求时，先用原账号和字段声明调用 `ask_secret`，并传入正在处理的那条已接受请求的精确 `source_event_id`，再消费引用。已配置账号会复用原值，不新建卡片，也不要求 Web 通知地址。Web 与 Schedule 复用不传来源选择器。`private-source-required` 给出这条恢复路径；`private-source-invalid`、`private-source-unavailable`、`private-source-ambiguous`、`private-source-revoked`、`private-account-unavailable` 分别区分其他拒绝原因。不要重复原样调用、选择历史来源，或把 Host 拒绝当成远端故障。同账号来源冲突需要新一轮；撤销检查始终保留。
 
 ## 私有连接（无需 Docker）
+
+### 独立管理私有连接
+
+使用 `device-offer --route-id quick|custom --out <新的绝对路径私有文件>` 创建单条连接的邀请，用于恢复连接或旧版手机；省略 `--route-id` 则邀请包含所有已连通的私有地址。
+
+`private-route list` 读取 Host 的公开 `privateRoutes` 状态。一台 Host 支持 `quick` 和一个 `custom` 连接（Named Tunnel 或自有 HTTPS 入口）：
+
+```bash
+deepseekbot private-route add quick --confirm
+deepseekbot private-route add custom --origin https://bot.example.com --confirm
+deepseekbot private-route stop quick --confirm
+deepseekbot private-route start quick --confirm
+deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
+deepseekbot private-route remove custom --confirm
+```
+
+每条命令沿用现有 Host 连接参数。Named Tunnel 令牌只从 stdin 输入。重复添加相同配置不会创建第二条连接；修改已有配置必须使用 Replace。Stop 保留配置并记住停止状态；Host 重启仅恢复已启用的连接。Remove 只移除指定配置，不撤销手机授权。使用既有设备撤销命令可同时撤销两条通道上的访问。多条连接存在时，不指定连接 ID 的旧启停命令会拒绝歧义操作。
+
+邀请只包含已连通的私有地址。新版手机在相同 Host 身份下保存最多两个明确授权的地址，旧版手机使用主地址。Quick Tunnel 重启后地址可能变化，需要重新扫码。私有连接不会自动回退到官方服务。升级已有 Profile 前，按 [ADR-0333](adr/0333-bounded-private-route-coexistence.md) 备份受保护的完整 Profile；降级需要恢复匹配版本的备份，仅回退软件包无法读取迁移后的凭据。
 
 `private-tunnel-enable --quick --confirm` 启动 Quick Tunnel；`private-tunnel-enable --hostname <主机名> --token-stdin --confirm` 用 stdin 传入的连接器令牌运行你自己的 Named Tunnel。两者都通过 Host 内置的 cloudflared 只公开加密设备通道，并持久化开启状态，Host 重启后自动恢复。`devices` 返回 `privateTunnel`（`state`、`mode`、`origin`、`originPort`、编码的 `issue`/`probe`、`addressChanged`）。公网地址确认连到本机之前，配对邀请会以 `private-tunnel-unreachable` 拒绝。`private-tunnel-disable --confirm` 停止隧道并删除令牌和手机准入。见[私有连接](private-connect.zh.md)。
 

@@ -75,7 +75,8 @@
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.methods')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}"
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}"
       ],
       "commands": [
         "devices",
@@ -96,7 +97,8 @@
         "private-tunnel-enable",
         "private-tunnel-disable",
         "private-ingress-enable",
-        "private-ingress-disable"
+        "private-ingress-disable",
+        "private-route"
       ]
     },
     {
@@ -104,7 +106,7 @@
       "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
       "scope": "Profile",
       "surfaces": [
-        "setting:packages/client/src/client/connect-account-hosts.tsx:{host.name}",
+        "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.thisComputer')}",
         "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.computersStatus')}"
       ],
       "commands": [
@@ -1049,6 +1051,19 @@
         "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
       ],
       "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
+    },
+    {
+      "id": "remote-connection-management",
+      "description": "One selected browser Client observes routes and uses its target Host authorization; local removal is separate from Host revocation and route stop.",
+      "scope": "Client",
+      "surfaces": [
+        "setting:packages/client/src/client/connection-hosts.tsx:{device.name}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{t('connections.hosts.preference')}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{host.name}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{t(kind === 'lan' ? 'connections.lan' : 'privateTunnel.title')}"
+      ],
+      "commands": ["connection-hosts", "connection-host", "connect-account-hosts"]
     }
   ]
 }

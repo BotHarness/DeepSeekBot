@@ -9,21 +9,30 @@ import { zhTranslate as t } from '../src/client/locale.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: 'button',
   Input: 'input',
+  Switch: 'input',
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
   PanelDialog: ({
     children,
+    secondary,
+    actions,
     closeLabel,
     onClose,
   }: {
     children: ReactNode;
+    secondary?: ReactNode;
+    actions?: ReactNode;
     closeLabel: string;
     onClose(): void;
   }) => (
     <div role="dialog">
       {children}
+      <footer>
+        {secondary}
+        {actions}
+      </footer>
       <button onClick={onClose}>{closeLabel}</button>
     </div>
   ),
@@ -34,6 +43,7 @@ const tail = { url: 'https://computer.example.ts.net', kind: 'tailscale', ready:
 const loopback = { url: 'http://127.0.0.1:4100', kind: 'loopback', ready: true };
 let routes: (typeof lan)[];
 let connect: Record<string, unknown> | undefined;
+let privateTunnel: Record<string, unknown> | undefined;
 let lanState: 'off' | 'listening' | 'error';
 let failEnable: boolean;
 let expiresAt: string;
@@ -53,6 +63,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   routes = [loopback];
   connect = undefined;
+  privateTunnel = undefined;
   lanState = 'off';
   failEnable = false;
   expiresAt = new Date(Date.now() + 600_000).toISOString();
@@ -85,6 +96,7 @@ beforeEach(() => {
       }
       return Response.json({
         connect,
+        privateTunnel,
         host: { id: 'h', name: 'QA computer' },
         devices: pairedDevices,
         lan: { state: lanState },
@@ -250,7 +262,7 @@ it('opens one standalone dialog and reuses an existing route without publishing 
   const onClose = vi.fn();
   await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={onClose} />));
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-  expect(host.textContent).toContain('QA computer');
+  expect(host.textContent).not.toContain('QA computer');
   expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
   expect(posts).toEqual([]);
   await click(t('connections.phoneApp.ready'));
@@ -395,6 +407,8 @@ it('keeps computer link entry inside the shared dialog and returns to both inten
   await click(t('connections.join'));
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(host.textContent).toContain(t('connections.joinHint'));
+  expect(button(t('remoteHosts.add.image'))).toBeDefined();
+  expect(host.querySelector('footer [data-remote-host-add-submit]')).not.toBeNull();
   expect(host.querySelector('input')).not.toBeNull();
   expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
   expect(host.querySelector('[data-remote-host-add-submit]')?.hasAttribute('disabled')).toBe(true);
@@ -448,3 +462,65 @@ it.each([undefined, 'relay-full', 'relay-unavailable', 'host-limit'])(
     expect(button('Tobs Connect')).toBeDefined();
   },
 );
+
+it('opens Named and ingress preparation directly from Advanced without publishing', async () => {
+  await act(async () =>
+    root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
+  );
+  expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
+  await click(t('connections.phoneApp.ready'));
+  expect(button(t('privateTunnel.namedTitle'))).toBeUndefined();
+  await click(t('connections.advancedMethods'));
+  await click(t('privateTunnel.namedTitle'));
+  expect(host.querySelector('[data-private-tunnel-setup="named"]')).not.toBeNull();
+  expect(host.querySelector('input[type="password"]')).not.toBeNull();
+  expect(button(t('connections.deploymentGuide'))).toBeDefined();
+  await click(t('connections.back'));
+  await click(t('connections.back'));
+  await click(t('privateTunnel.ingressTitle'));
+  expect(host.querySelector('[data-private-tunnel-setup="ingress"]')).not.toBeNull();
+  expect(host.textContent).toContain(t('connections.ingressRequirements'));
+  expect(posts).toEqual([]);
+});
+
+it('preserves an existing private route instead of silently adding a Docker relay', async () => {
+  privateTunnel = { state: 'connected', mode: 'named', origin: 'https://bot.example.com' };
+  await act(async () =>
+    root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
+  );
+  await click(t('connections.phoneApp.ready'));
+  await click(t('connections.advancedMethods'));
+  await click(t('privateRelay.title'));
+  expect(host.textContent).toContain(t('connections.privateReplacement'));
+  expect(host.querySelector('[data-private-tunnel="connected"]')).not.toBeNull();
+  expect(button(t('privateRelay.claim'))).toBeUndefined();
+  expect(posts).toEqual([]);
+});
+
+it('explains the mobile VPN limit before Tailscale setup without publishing', async () => {
+  await act(async () =>
+    root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
+  );
+  await click(t('connections.phoneApp.ready'));
+  await click(t('connections.advancedMethods'));
+  await click('Tailscale');
+  expect(host.textContent).toContain(t('connections.tailscaleVpn'));
+  expect(button(t('connections.vpnGuide'))).toBeDefined();
+  expect(posts).toEqual([]);
+});
+
+it('lets an existing ready route return to advanced methods without replacing it', async () => {
+  routes = [tail, loopback];
+  await act(async () =>
+    root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
+  );
+  await click(t('connections.phoneApp.ready'));
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  await click(t('connections.methods'));
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
+  await click(t('connections.advancedMethods'));
+  await click('Tailscale');
+  expect(host.textContent).toContain(t('connections.tailscaleVpn'));
+  expect(button(t('connections.continue'))).toBeDefined();
+  expect(posts.map((post) => post.url)).toEqual(['./api/botharness/devices/offer']);
+});
