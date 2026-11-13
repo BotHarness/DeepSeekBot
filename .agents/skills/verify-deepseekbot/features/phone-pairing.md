@@ -162,6 +162,11 @@ Use two isolated Hosts and one browser served by the joining Host. Create an inv
 
 Repeat enrollment in a second isolated browser context with the existing targeted `connection-clients` and `connection start/status/confirm/cancel` CLI. Never print the private link or credential. Missing Client, stale request, cancelled confirmation and late responses must not save to an unintended Client. Existing public-seam tests cover deterministic refusals; preserve real two-Host UI/CLI evidence, no-publication checks and teardown. This Web Client interaction does not change native phone enrollment; distinguish its browser evidence from assigned Simulator and physical-device acceptance.
 
+## Account environment diagnostics (#4128)
+
+On both native platforms, pair/account → choose a synthetic computer → Add. Refuse the offer with a controlled HTTP502 or DNS failure containing sentinel credentials/private URL text. The correct failed row keeps its short summary, View details expands request stage/time/category/status in the same scrolling list, and Copy diagnostics places the same safe facts plus app/OS identity on the real clipboard. No sentinel, raw body, address, email or credential may appear. A second computer's report must remain independent; a new attempt and Refresh must clear old details/copied state. Refresh failure preserves cached rows and offers its own account diagnostic. Clipboard failure leaves a retry action.
+
+Development-only native fixtures: `/qa/account-actions?scenario=connection-diagnostics`, `connection-diagnostics-network`, `connection-diagnostics-session`, `connection-diagnostics-invalid`, and `connection-diagnostics-list`; existing `__DEV__` plus `.dev` gates remain required. They exercise the production account request owner with controlled request responses; they qualify native rendering/copy, not the real Connect service. Run `apps/mobile/test/connection-diagnostic.test.ts`, `apps/mobile/test/connection-failure-actions.test.tsx`, `apps/mobile/test/account-panel-ios-integration.test.tsx` and account/pairing regression tests. Native acceptance covers light/dark × default/intermediate/maximum Dynamic Type, bottom action reachability, return/reopen and real clipboard readback. Record actual binary/JS source and Android UNTESTED until its queue executes the equivalent steps.
 
 ## Client-local route selection (#4077)
 

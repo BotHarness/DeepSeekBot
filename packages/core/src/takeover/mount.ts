@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
@@ -56,7 +57,7 @@ export function createCoreTakeoverHandoffs(
     admit: (channelId, messageId, body) => {
       if (core.channels.get(channelId)?.type === 'group')
         core.runtime.admitGroupMessage(channelId, messageId);
-      else core.runtime.admitDmMessage({ channelId, messageId, body });
+      else core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, { channelId, messageId, body });
     },
     ...(events === undefined ? {} : { events }),
     info: (format, value) => ctx.logger.info(format, value),

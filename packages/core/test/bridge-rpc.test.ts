@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -9,7 +10,7 @@ import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  createBridgeMethods,
+  createBridgeMethodsForHumans,
   type BridgeMethods,
   type BridgeMethodsDeps,
 } from '../src/bridge/methods.js';
@@ -48,7 +49,7 @@ function setup(
     rootDir: join(root, 'channels'),
     now: () => new Date('2026-09-19T00:00:00.000Z'),
   });
-  const methods: BridgeMethods = createBridgeMethods({
+  const methodsForHuman = createBridgeMethodsForHumans({
     registry,
     states: createBotStateTracker(),
     channels,
@@ -58,9 +59,10 @@ function setup(
     ...extras,
     ...(sourcePolicy === undefined ? {} : { sourcePolicy }),
   });
-  const ctx = new Context();
-  const service = registerBridge(ctx, methods);
-  return { root, registry, channels, methods, service };
+  const methods = methodsForHuman(OWNER_HUMAN_CONTEXT);
+  const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
+  const service = registerBridge(ctx, methodsForHuman);
+  return { root, registry, channels, methods, methodsForHuman, service };
 }
 
 function parameterNames(method: (...args: never[]) => unknown): string[] {
@@ -76,6 +78,26 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
+  it('reuses one method table per Human across RPC calls', () => {
+    const { service, methods, methodsForHuman } = setup();
+    const identity = vi.spyOn(methods, 'humanIdentity');
+    expect(service.humanIdentity().humanId).toBe(OWNER_HUMAN_CONTEXT.humanId);
+    expect(service.humanIdentity().humanId).toBe(OWNER_HUMAN_CONTEXT.humanId);
+    expect(identity).toHaveBeenCalledTimes(2);
+    const ownerAgain = methodsForHuman(humanContext(OWNER_HUMAN_CONTEXT.humanId));
+    expect(ownerAgain).toBe(methods);
+    expect(ownerAgain.voiceDictation).toBe(methods.voiceDictation);
+    const second = humanContext('human-test-b');
+    const secondMethods = methodsForHuman(second);
+    expect(secondMethods).not.toBe(methods);
+    expect(secondMethods.voiceDictation).not.toBe(methods.voiceDictation);
+    expect(methodsForHuman(humanContext(second.humanId))).toBe(secondMethods);
+    expect(secondMethods.humanIdentity({})).toMatchObject({
+      ok: true,
+      value: { humanId: second.humanId },
+    });
+  });
+
   it('declares every remote method with plain identifier parameters', () => {
     const { service } = setup();
     const prototype = Object.getPrototypeOf(service) as Record<string, unknown>;
@@ -99,6 +121,7 @@ describe('bridge typert service', () => {
 
   it('refuses workspace authorization without an authenticated Owner invocation', () => {
     const { service, methods } = setup();
+    Object.defineProperty(service, 'ctx', { value: new Context() });
     const approve = vi.spyOn(methods, 'grantRequestApprove');
     expect(() => service.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
       /authenticated Owner/,

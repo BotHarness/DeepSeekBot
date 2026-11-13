@@ -1,10 +1,10 @@
+import { type HumanContext } from '../humans/context.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import {
   isGroupAvatar,
-  LOCAL_HUMAN_ID,
   type ChannelRecord,
   type GroupInvitation,
   type GroupMemberWakePolicy,
@@ -65,15 +65,29 @@ export interface ChannelManagementResult extends ChannelManagementSnapshot {
 }
 export interface ChannelManagementService {
   snapshot(channelId: string): ChannelManagementSnapshot;
-  wakePolicies(channelId: string): ChannelManagementSnapshot;
-  rename(input: ChannelManagementRenameInput): ChannelManagementSnapshot;
-  setAvatar(input: ChannelManagementAvatarInput): ChannelManagementSnapshot;
-  setWake(input: ChannelManagementWakeInput): ChannelManagementSnapshot;
-  removeMember(input: ChannelManagementMemberInput): ChannelManagementSnapshot;
-  cancelInvite(input: ChannelManagementCancelInviteInput): ChannelManagementSnapshot;
-  decideJoin(input: ChannelManagementDecideJoinInput): ChannelManagementSnapshot;
-  create(input: ChannelManagementCreateInput, operationKey?: string): ChannelManagementResult;
-  invite(input: ChannelManagementInviteInput, operationKey?: string): ChannelManagementResult;
+  wakePolicies(human: HumanContext, channelId: string): ChannelManagementSnapshot;
+  rename(human: HumanContext, input: ChannelManagementRenameInput): ChannelManagementSnapshot;
+  setAvatar(human: HumanContext, input: ChannelManagementAvatarInput): ChannelManagementSnapshot;
+  setWake(human: HumanContext, input: ChannelManagementWakeInput): ChannelManagementSnapshot;
+  removeMember(human: HumanContext, input: ChannelManagementMemberInput): ChannelManagementSnapshot;
+  cancelInvite(
+    human: HumanContext,
+    input: ChannelManagementCancelInviteInput,
+  ): ChannelManagementSnapshot;
+  decideJoin(
+    human: HumanContext,
+    input: ChannelManagementDecideJoinInput,
+  ): ChannelManagementSnapshot;
+  create(
+    human: HumanContext,
+    input: ChannelManagementCreateInput,
+    operationKey?: string,
+  ): ChannelManagementResult;
+  invite(
+    human: HumanContext,
+    input: ChannelManagementInviteInput,
+    operationKey?: string,
+  ): ChannelManagementResult;
   lookupCreate(
     operationKey: string,
     input: ChannelManagementCreateInput,
@@ -214,13 +228,17 @@ export function createChannelManagement(options: {
       wakePolicies,
     };
   };
-  const humanSnapshot = (channelId: string): ChannelManagementSnapshot => {
+  const humanSnapshot = (human: HumanContext, channelId: string): ChannelManagementSnapshot => {
     const result = snapshot(channelId);
-    if (!channels.listHumanMembers(channelId).some((member) => member.humanId === LOCAL_HUMAN_ID))
+    if (
+      !channels
+        .listHumanMembers(human, channelId)
+        .some((member) => member.humanId === human.humanId)
+    )
       throw new ChannelManagementError('channel-access-denied');
     return result;
   };
-  const edit = (input: ChannelManagementEditInput, fields: string[]) => {
+  const edit = (human: HumanContext, input: ChannelManagementEditInput, fields: string[]) => {
     if (
       Object.keys(input).some(
         (field) => !['channelId', 'expectedChannel', ...fields].includes(field),
@@ -230,7 +248,7 @@ export function createChannelManagement(options: {
       (input.expectedChannel !== undefined && !/^[a-f0-9]{64}$/u.test(input.expectedChannel))
     )
       throw new ChannelManagementError('invalid-input');
-    const before = humanSnapshot(input.channelId);
+    const before = humanSnapshot(human, input.channelId);
     if (input.expectedChannel !== undefined && before.channelFingerprint !== input.expectedChannel)
       throw new ChannelManagementError('stale-channel');
     return before;
@@ -242,8 +260,8 @@ export function createChannelManagement(options: {
     if (!channel.members.includes(slug)) throw new ChannelManagementError('not-group-member');
     if (!allowMissing && !registry.get(slug)) throw new ChannelManagementError('unknown-bot');
   };
-  const current = (before: ChannelManagementSnapshot): void => {
-    if (humanSnapshot(before.channel.id).channelFingerprint !== before.channelFingerprint)
+  const current = (human: HumanContext, before: ChannelManagementSnapshot): void => {
+    if (humanSnapshot(human, before.channel.id).channelFingerprint !== before.channelFingerprint)
       throw new ChannelManagementError('stale-channel');
   };
   const decisionTarget = (
@@ -378,7 +396,7 @@ export function createChannelManagement(options: {
   return {
     snapshot,
     wakePolicies: humanSnapshot,
-    rename(input) {
+    rename(human: HumanContext, input) {
       if (
         typeof input.name !== 'string' ||
         !input.name.trim() ||
@@ -386,21 +404,21 @@ export function createChannelManagement(options: {
         [...input.name].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
       )
         throw new ChannelManagementError('invalid-input');
-      const before = edit(input, ['name']);
-      current(before);
-      if (!channels.rename(input.channelId, input.name.trim()))
+      const before = edit(human, input, ['name']);
+      current(human, before);
+      if (!channels.rename(human, input.channelId, input.name.trim()))
         throw new ChannelManagementError('unknown-channel');
       return snapshot(input.channelId);
     },
-    setAvatar(input) {
+    setAvatar(human: HumanContext, input) {
       if (input.avatar !== null && !isGroupAvatar(input.avatar))
         throw new ChannelManagementError('invalid-input');
-      const before = edit(input, ['avatar']);
-      current(before);
-      channels.setGroupAvatar(input.channelId, input.avatar);
+      const before = edit(human, input, ['avatar']);
+      current(human, before);
+      channels.setGroupAvatar(human, input.channelId, input.avatar);
       return snapshot(input.channelId);
     },
-    setWake(input) {
+    setWake(human: HumanContext, input) {
       if (
         !['all', 'mentions', 'digest', 'silent'].includes(input.mode) ||
         !Number.isSafeInteger(input.count) ||
@@ -412,11 +430,11 @@ export function createChannelManagement(options: {
         (input.inherit !== undefined && typeof input.inherit !== 'boolean')
       )
         throw new ChannelManagementError('invalid-input');
-      const before = edit(input, ['botSlug', 'mode', 'count', 'intervalSeconds', 'inherit']);
+      const before = edit(human, input, ['botSlug', 'mode', 'count', 'intervalSeconds', 'inherit']);
       member(before.channel, input.botSlug);
       const bot = registry.get(input.botSlug)!;
       if (bot.paused) throw new ChannelManagementError('archived-bot');
-      current(before);
+      current(human, before);
       channels.setGroupWakePolicy(
         input.channelId,
         input.botSlug,
@@ -430,29 +448,29 @@ export function createChannelManagement(options: {
       );
       return snapshot(input.channelId);
     },
-    removeMember(input) {
-      const before = edit(input, ['botSlug']);
+    removeMember(human: HumanContext, input) {
+      const before = edit(human, input, ['botSlug']);
       member(before.channel, input.botSlug, true);
-      current(before);
+      current(human, before);
       channels.removeGroupMember(input.channelId, input.botSlug);
       return snapshot(input.channelId);
     },
-    cancelInvite(input) {
+    cancelInvite(human: HumanContext, input) {
       decisionId(input.invitationId);
-      const before = edit(input, ['invitationId']);
+      const before = edit(human, input, ['invitationId']);
       const invitation = before.channel.invitations?.find((item) => item.id === input.invitationId);
       if (!invitation) throw new ChannelManagementError('unknown-invitation');
       if (invitation.status !== 'pending')
         throw new ChannelManagementError('invitation-not-pending');
       decisionTarget(invitation.targetBotSlug, invitation.targetBotCreatedAt, true);
-      current(before);
+      current(human, before);
       channels.cancelGroupInvite(input.channelId, input.invitationId);
       return snapshot(input.channelId);
     },
-    decideJoin(input) {
+    decideJoin(human: HumanContext, input) {
       decisionId(input.requestId);
       if (typeof input.accept !== 'boolean') throw new ChannelManagementError('invalid-input');
-      const before = edit(input, ['requestId', 'accept']);
+      const before = edit(human, input, ['requestId', 'accept']);
       const request = before.channel.joinRequests?.find((item) => item.id === input.requestId);
       if (!request) throw new ChannelManagementError('unknown-join-request');
       if (input.accept && options.isProtectedBot(request.requesterBotSlug))
@@ -473,10 +491,10 @@ export function createChannelManagement(options: {
         false,
         !input.accept,
       );
-      const dm = channels.getOrCreateDm(requester.slug, requester.displayName);
+      const dm = channels.getOrCreateDm(human, requester.slug, requester.displayName);
       if (!dm) throw new ChannelManagementError('channel-operation-unavailable');
       decisionTarget(request.requesterBotSlug, request.requesterBotCreatedAt, false, !input.accept);
-      current(before);
+      current(human, before);
       const decided = channels.decideGroupJoin({
         channelId: input.channelId,
         requestId: input.requestId,
@@ -498,7 +516,7 @@ export function createChannelManagement(options: {
       const row = checked(operationKey, 'invite', input);
       return row ? complete(row) : undefined;
     },
-    create(input, operationKey) {
+    create(human: HumanContext, input, operationKey) {
       createInput(input);
       let row = operationKey === undefined ? undefined : checked(operationKey, 'create', input);
       if (row) {
@@ -509,14 +527,14 @@ export function createChannelManagement(options: {
       if (operationKey !== undefined && !row)
         row = reserve(operationKey, 'create', input, 'group-' + randomUUID(), targets);
       assertTargets(targets);
-      const channel = channels.createGroup({
+      const channel = channels.createGroup(human, {
         ...input,
         ...(row === undefined ? {} : { id: row.channel_id }),
       });
       if (!row) return snapshot(channel.id);
       return complete(finish(row))!;
     },
-    invite(input, operationKey) {
+    invite(human: HumanContext, input, operationKey) {
       inviteInput(input);
       let row = operationKey === undefined ? undefined : checked(operationKey, 'invite', input);
       if (row) {
@@ -533,7 +551,7 @@ export function createChannelManagement(options: {
       if (operationKey !== undefined && !row)
         row = reserve(operationKey, 'invite', input, input.channelId, [target]);
       const bot = registry.get(input.botSlug)!;
-      const dm = channels.getOrCreateDm(bot.slug, bot.displayName);
+      const dm = channels.getOrCreateDm(human, bot.slug, bot.displayName);
       if (!dm) throw new ChannelManagementError('group-invite-unavailable');
       assertTargets([target]);
       if (snapshot(input.channelId).channelFingerprint !== before.channelFingerprint)

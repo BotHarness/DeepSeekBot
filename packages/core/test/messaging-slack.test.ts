@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -348,9 +349,15 @@ it('Slack shared routing preserves one source, independent member policy and own
     fingerprint,
     targetDigest: target.digest,
   });
-  const channel = core.channels.createGroup({ name: 'Shared Slack', members: ['ada', 'bea'] });
+  const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Shared Slack',
+    members: ['ada', 'bea'],
+  });
   const channelId = channel.id;
-  const other = core.channels.createGroup({ name: 'Unconnected', members: ['ada'] });
+  const other = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Unconnected',
+    members: ['ada'],
+  });
   await core.externalMessaging.setDefaults({
     platform: 'slack',
     expectedRevision: 0,
@@ -360,7 +367,9 @@ it('Slack shared routing preserves one source, independent member policy and own
     intervalSeconds: 45,
     identityEnabled: true,
   });
-  const policies = createBridgeMethods({ ...core }).channelGroupWakePolicies({ channelId });
+  const policies = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelGroupWakePolicies({
+    channelId,
+  });
   expect(policies).toMatchObject({
     ok: true,
     value: {

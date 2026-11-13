@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -73,7 +74,7 @@ describe('a timed question card across a Host restart', () => {
               messageId: 'missing-followup',
               callId: 'call-followup',
             });
-            await second.channels.appendMessage(channelId, {
+            await second.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
               id: 'followup-card',
               at: new Date().toISOString(),
               author: { kind: 'bot', slug: 'ada' },
@@ -98,7 +99,7 @@ describe('a timed question card across a Host restart', () => {
       first.registry.create({ slug: 'ada', displayName: 'Ada' });
       memoryDir = first.registry.memoryDirFor('ada')!;
       writeFileSync(join(memoryDir, 'retained.md'), 'Existing Memory');
-      channelId = first.channels.getOrCreateDm('ada', 'Ada')!.id;
+      channelId = first.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
       first.ownership.claim({
         sessionId,
         botSlug: 'ada',
@@ -151,10 +152,11 @@ describe('a timed question card across a Host restart', () => {
       await broker.recover(second.humanAttention.openTimedQuestionCards());
       expect(broker.status('ada', messageId, channelId)).toBe('pending');
       expect(
-        second.humanAttention.list({ category: 'action', botSlug: 'ada' }).items,
+        second.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'ada' })
+          .items,
       ).toMatchObject([{ kind: 'user-question', messageId }]);
 
-      expect(await broker.answer('ada', messageId, answer)).toBe(true);
+      expect(await broker.answer('ada', messageId, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
       await second.runtime.whenIdle();
       expect(await foreignFollowup!(() => true)).toBe(false);
       expect(await followup!(() => true)).toBe(true);
@@ -206,14 +208,14 @@ describe('a timed question card across a Host restart', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const channelId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
+      const channelId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
       core.ownership.claim({
         sessionId,
         botSlug: 'ada',
         rootRole: 'orchestrator',
         at: '2026-10-13T09:00:00Z',
       });
-      const card = await core.channels.appendMessage(channelId, {
+      const card = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'card',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -227,7 +229,7 @@ describe('a timed question card across a Host restart', () => {
       expect(core.runtime.recoverNativeQuestionInput?.(sessionId, channelId, 'other')).toBe(
         undefined,
       );
-      await core.channels.appendMessage(channelId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'ordinary-bot-message',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },

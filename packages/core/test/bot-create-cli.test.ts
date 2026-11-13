@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
@@ -709,7 +710,7 @@ describe('deepseekbot lifecycle', () => {
         database: attachOperationalModule(owner, 'messaging'),
         rootDir: join(home, 'botharness', 'channels'),
       });
-      channels.getOrCreateDm(id, 'Ada');
+      channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, id, 'Ada');
     } finally {
       owner.close();
     }
@@ -869,14 +870,14 @@ describe('deepseekbot channels, grants, schedules, pairings', () => {
         database: attachOperationalModule(owner, 'messaging'),
         rootDir: join(home, 'botharness', 'channels'),
       });
-      const dm = channels.getOrCreateDm(slug, name)!;
-      await channels.appendMessage(dm.id, {
+      const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, name)!;
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'seed-one',
         at: '2026-10-10T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'first',
       });
-      await channels.appendMessage(dm.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'seed-two',
         at: '2026-10-10T00:01:00.000Z',
         author: { kind: 'human' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 
@@ -50,8 +51,8 @@ describe('Human attention unread status', () => {
 
   it('reads placements only after each Channel read position', () => {
     const { attention, statements, plan } = recorder();
-    expect(attention.status(true)).toMatchObject({ unreadCount: 0 });
-    attention.unreadByChannel();
+    expect(attention.status(OWNER_HUMAN_CONTEXT, true)).toMatchObject({ unreadCount: 0 });
+    attention.unreadByChannel(OWNER_HUMAN_CONTEXT);
     const counts = statements.filter(
       (statement) =>
         statement.includes('count(*) AS count FROM') || statement.includes('AS unread_count'),
@@ -76,9 +77,9 @@ describe('Human attention unread status', () => {
 
   it('never scans message, placement or Admission history for action attention', () => {
     const { attention, statements, plan } = recorder();
-    attention.durableAttention();
-    attention.actionSummary();
-    attention.list({ limit: 20 });
+    attention.durableAttention(OWNER_HUMAN_CONTEXT);
+    attention.actionSummary(OWNER_HUMAN_CONTEXT);
+    attention.list(OWNER_HUMAN_CONTEXT, { limit: 20 });
     attention.openTimedQuestionCards();
     const scans = statements
       .flatMap(plan)

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -363,8 +364,8 @@ it.each([false, true])(
 
 it('local DM work never borrows an existing paired WeChat identity to show typing', async () => {
   const f = await fixture();
-  const dm = f.core.channels.getOrCreateDm('ada', 'Ada')!;
-  const admission = f.core.runtime.admitDmMessage({
+  const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const admission = f.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'local',
     body: 'local work',
@@ -381,7 +382,7 @@ it('saves only the identity preference through the real bridge and retains it ac
   const f = await fixture();
   const identity = (await f.core.externalMessaging.snapshot('ada')).identities![0]!;
   expect(
-    await createBridgeMethods(f.core).messagingIdentity({
+    await createBridgeMethods(OWNER_HUMAN_CONTEXT, f.core).messagingIdentity({
       slug: 'ada',
       input: {
         kind: 'update',

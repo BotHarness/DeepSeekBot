@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import {
   appendFileSync,
   mkdirSync,
@@ -58,8 +59,8 @@ describe('channel store', () => {
     const root = createRoot();
     const store = createChannelStore({ rootDir: root, now: tickingNow() });
 
-    const first = store.getOrCreateDm('ada', 'Ada');
-    const second = store.getOrCreateDm('ada', 'Ada Lovelace');
+    const first = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const second = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada Lovelace');
 
     expect(first).toMatchObject({
       id: 'dm-ada',
@@ -81,26 +82,26 @@ describe('channel store', () => {
 
   it('renames group and DM channels without changing their stable ids or timestamps', () => {
     const store = createChannelStore({ rootDir: createRoot(), now: tickingNow() });
-    const dm = store.getOrCreateDm('ada', 'Ada');
-    const group = store.createGroup({ name: 'Team', members: [] });
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const group = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
 
-    expect(store.rename(dm?.id ?? '', '  Ada Lovelace  ')).toMatchObject({
+    expect(store.rename(OWNER_HUMAN_CONTEXT, dm?.id ?? '', '  Ada Lovelace  ')).toMatchObject({
       id: 'dm-ada',
       name: 'Ada Lovelace',
       createdAt: dm?.createdAt,
       updatedAt: dm?.updatedAt,
     });
-    expect(store.rename(group.id, '  Research  ')?.name).toBe('Research');
-    expect(store.rename(group.id, '   ')).toBeUndefined();
-    expect(store.rename('missing', 'Name')).toBeUndefined();
+    expect(store.rename(OWNER_HUMAN_CONTEXT, group.id, '  Research  ')?.name).toBe('Research');
+    expect(store.rename(OWNER_HUMAN_CONTEXT, group.id, '   ')).toBeUndefined();
+    expect(store.rename(OWNER_HUMAN_CONTEXT, 'missing', 'Name')).toBeUndefined();
   });
 
   it('falls back to the slug when the DM name is blank and rejects hostile slugs', () => {
     const store = createChannelStore({ rootDir: createRoot(), now: tickingNow() });
 
-    expect(store.getOrCreateDm('ada', '   ')?.name).toBe('ada');
-    expect(store.getOrCreateDm('Ada', 'Ada')).toBeUndefined();
-    expect(store.getOrCreateDm('../evil', 'Evil')).toBeUndefined();
+    expect(store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', '   ')?.name).toBe('ada');
+    expect(store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'Ada', 'Ada')).toBeUndefined();
+    expect(store.getOrCreateDm(OWNER_HUMAN_CONTEXT, '../evil', 'Evil')).toBeUndefined();
     expect(store.get('..')).toBeUndefined();
     expect(store.readMessages('..')).toEqual([]);
   });
@@ -108,11 +109,20 @@ describe('channel store', () => {
   it('slugifies group names and suffixes collisions', () => {
     const store = createChannelStore({ rootDir: createRoot(), now: tickingNow() });
 
-    const design = store.createGroup({ name: 'Design Team', members: ['ada', 'bob'] });
-    const designAgain = store.createGroup({ name: 'design   team', members: [] });
-    const designThird = store.createGroup({ name: 'DESIGN-TEAM!', members: [] });
-    const room = store.createGroup({ name: '设计', members: [] });
-    const roomAgain = store.createGroup({ name: '!!!', members: [] });
+    const design = store.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Design Team',
+      members: ['ada', 'bob'],
+    });
+    const designAgain = store.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'design   team',
+      members: [],
+    });
+    const designThird = store.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'DESIGN-TEAM!',
+      members: [],
+    });
+    const room = store.createGroup(OWNER_HUMAN_CONTEXT, { name: '设计', members: [] });
+    const roomAgain = store.createGroup(OWNER_HUMAN_CONTEXT, { name: '!!!', members: [] });
 
     expect(design).toMatchObject({
       id: 'group-design-team',
@@ -127,12 +137,12 @@ describe('channel store', () => {
 
   it('lists channels newest-updated first and moves one to the front on append', async () => {
     const store = createChannelStore({ rootDir: createRoot(), now: tickingNow() });
-    store.getOrCreateDm('ada', 'Ada');
-    store.createGroup({ name: 'Team', members: [] });
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
 
     expect(store.list().map((channel) => channel.id)).toEqual(['group-team', 'dm-ada']);
 
-    await store.appendMessage('dm-ada', message('hello'));
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', message('hello'));
 
     expect(store.list().map((channel) => channel.id)).toEqual(['dm-ada', 'group-team']);
     expect(store.get('dm-ada')?.updatedAt).toBe('2026-09-19T00:00:03.000Z');
@@ -141,9 +151,9 @@ describe('channel store', () => {
   it('appends messages and pages them newest-first', async () => {
     const root = createRoot();
     const store = createChannelStore({ rootDir: root, now: tickingNow() });
-    store.getOrCreateDm('ada', 'Ada');
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     for (const body of ['m1', 'm2', 'm3', 'm4', 'm5']) {
-      await store.appendMessage('dm-ada', message(body));
+      await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', message(body));
     }
 
     expect(store.readMessages('dm-ada').map((entry) => entry.body)).toEqual([
@@ -179,9 +189,9 @@ describe('channel store', () => {
   it('persists only a same-Channel reply ID and projects its summary in every read path', async () => {
     const root = createRoot();
     const store = createChannelStore({ rootDir: root, now: tickingNow() });
-    const channel = store.createGroup({ name: 'Team', members: [] });
+    const channel = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const original = message('Original   message');
-    await store.appendMessage(channel.id, original);
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, original);
     expect(store.hasMessage(channel.id, original.id)).toBe(true);
     expect(store.hasMessage(channel.id, 'missing')).toBe(false);
     const reply = {
@@ -189,7 +199,7 @@ describe('channel store', () => {
       replyTo: original.id,
       replyToPreview: { author: { kind: 'human' as const }, body: 'untrusted preview' },
     };
-    const committed = await store.appendMessage(channel.id, reply);
+    const committed = await store.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, reply);
     expect(committed).toMatchObject({
       replyTo: original.id,
       replyToPreview: { author: { kind: 'human' }, body: 'Original message' },
@@ -218,17 +228,23 @@ describe('channel store', () => {
       rootDir: createRoot(),
       onCommitted: (commit) => commits.push(commit.message.id),
     });
-    const dm = store.getOrCreateDm('ada', 'Ada');
-    const group = store.createGroup({ name: 'Team', members: [] });
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const group = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const groupMessage = message('group');
-    await store.appendMessage(group.id, groupMessage);
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, group.id, groupMessage);
     expect(dm).toBeDefined();
     if (dm === undefined) return;
     await expect(
-      store.appendMessage(dm.id, { ...message('cross'), replyTo: groupMessage.id }),
+      store.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        ...message('cross'),
+        replyTo: groupMessage.id,
+      }),
     ).rejects.toThrow(ChannelReplyTargetError);
     await expect(
-      store.appendMessage(dm.id, { ...message('missing'), replyTo: 'unknown' }),
+      store.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        ...message('missing'),
+        replyTo: 'unknown',
+      }),
     ).rejects.toThrow(ChannelReplyTargetError);
     expect(store.revision(dm.id)).toBe(0);
     expect(store.readMessages(dm.id)).toEqual([]);
@@ -237,10 +253,12 @@ describe('channel store', () => {
 
   it('serializes concurrent appends to the same channel', async () => {
     const store = createChannelStore({ rootDir: createRoot(), now: tickingNow() });
-    store.getOrCreateDm('ada', 'Ada');
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
 
     await Promise.all(
-      Array.from({ length: 20 }, (_, index) => store.appendMessage('dm-ada', message(`m${index}`))),
+      Array.from({ length: 20 }, (_, index) =>
+        store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', message(`m${index}`)),
+      ),
     );
 
     const entries = store.readMessages('dm-ada');
@@ -251,14 +269,14 @@ describe('channel store', () => {
   it('skips corrupt lines when reading', async () => {
     const root = createRoot();
     const store = createChannelStore({ rootDir: root, now: tickingNow() });
-    store.getOrCreateDm('ada', 'Ada');
-    await store.appendMessage('dm-ada', message('good'));
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', message('good'));
     appendFileSync(
       join(root, 'dm-ada', 'messages.ndjson'),
       'not json\n{"id":"broken"}\n\n',
       'utf8',
     );
-    await store.appendMessage('dm-ada', message('good again'));
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', message('good again'));
     appendFileSync(join(root, 'dm-ada', 'messages.ndjson'), 'not json\n', 'utf8');
 
     expect(store.readMessages('dm-ada').map((entry) => entry.body)).toEqual(['good again', 'good']);
@@ -274,43 +292,48 @@ describe('channel store', () => {
     expect(store.list()).toEqual([]);
     expect(store.get('dm-ada')).toBeUndefined();
     expect(store.readMessages('dm-ada')).toEqual([]);
-    expect(await store.appendMessage('dm-ada', message('nowhere'))).toBeUndefined();
+    expect(
+      await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', message('nowhere')),
+    ).toBeUndefined();
   });
 
   it('keeps one durable, monotonic read position per Channel across Host restarts', async () => {
     const root = createRoot();
     const store = createChannelStore({ rootDir: root, now: tickingNow() });
-    store.getOrCreateDm('ada', 'Ada');
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const first = message('first');
     const second = message('second');
     const third = message('third');
-    for (const entry of [first, second, third]) await store.appendMessage('dm-ada', entry);
+    for (const entry of [first, second, third])
+      await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', entry);
 
-    expect(store.readPosition('dm-ada')).toBeUndefined();
-    expect(await store.markRead('dm-ada', second.id)).toMatchObject({
+    expect(store.readPosition(OWNER_HUMAN_CONTEXT, 'dm-ada')).toBeUndefined();
+    expect(await store.markRead(OWNER_HUMAN_CONTEXT, 'dm-ada', second.id)).toMatchObject({
       messageId: second.id,
       revision: 2,
     });
     const reopened = createChannelStore({ rootDir: root, now: tickingNow() });
-    expect(reopened.readPosition('dm-ada')?.messageId).toBe(second.id);
-    expect((await reopened.markRead('dm-ada', first.id))?.messageId).toBe(second.id);
-    expect((await reopened.markRead('dm-ada', third.id))?.revision).toBe(3);
-    expect(await reopened.markRead('dm-ada', 'missing')).toBeUndefined();
-    expect(await reopened.markRead('../escape', third.id)).toBeUndefined();
-    expect(reopened.readPosition('dm-ada')?.messageId).toBe(third.id);
+    expect(reopened.readPosition(OWNER_HUMAN_CONTEXT, 'dm-ada')?.messageId).toBe(second.id);
+    expect((await reopened.markRead(OWNER_HUMAN_CONTEXT, 'dm-ada', first.id))?.messageId).toBe(
+      second.id,
+    );
+    expect((await reopened.markRead(OWNER_HUMAN_CONTEXT, 'dm-ada', third.id))?.revision).toBe(3);
+    expect(await reopened.markRead(OWNER_HUMAN_CONTEXT, 'dm-ada', 'missing')).toBeUndefined();
+    expect(await reopened.markRead(OWNER_HUMAN_CONTEXT, '../escape', third.id)).toBeUndefined();
+    expect(reopened.readPosition(OWNER_HUMAN_CONTEXT, 'dm-ada')?.messageId).toBe(third.id);
   });
 
   it('ignores a corrupt or stale read position rather than opening at the wrong message', async () => {
     const root = createRoot();
     const store = createChannelStore({ rootDir: root });
-    store.getOrCreateDm('ada', 'Ada');
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const entry = message('first');
-    await store.appendMessage('dm-ada', entry);
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', entry);
     const path = join(root, 'dm-ada', 'read-position.json');
     writeFileSync(path, 'not json', 'utf8');
-    expect(store.readPosition('dm-ada')).toBeUndefined();
+    expect(store.readPosition(OWNER_HUMAN_CONTEXT, 'dm-ada')).toBeUndefined();
     writeFileSync(path, JSON.stringify({ messageId: 'missing', revision: 1, readAt: entry.at }));
-    expect(store.readPosition('dm-ada')).toBeUndefined();
+    expect(store.readPosition(OWNER_HUMAN_CONTEXT, 'dm-ada')).toBeUndefined();
   });
 
   it('accepts only refs present in the profile before durable append', async () => {
@@ -323,14 +346,20 @@ describe('channel store', () => {
       name: 'note.txt',
     });
     const store = createChannelStore({ rootDir: join(root, 'channels'), attachments });
-    store.getOrCreateDm('ada', 'Ada');
-    const sent = await store.appendMessage('dm-ada', { ...message(''), attachments: [ref] });
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    const sent = await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
+      ...message(''),
+      attachments: [ref],
+    });
     expect(sent?.attachments).toEqual([ref]);
     expect(store.readMessages('dm-ada')[0]?.attachments).toEqual([ref]);
     const forged = { ...ref, name: 'another.txt' };
     expect(() => store.assertAttachmentRefs([forged])).toThrow('does not belong');
     await expect(
-      store.appendMessage('dm-ada', { ...message('bad'), attachments: [forged] }),
+      store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
+        ...message('bad'),
+        attachments: [forged],
+      }),
     ).rejects.toThrow('does not belong');
     expect(store.revision('dm-ada')).toBe(1);
     const orphan = await attachments.upload({
@@ -347,9 +376,9 @@ describe('channel store', () => {
     expect(attachments.has(ref)).toBe(true);
     expect(attachments.has(orphan)).toBe(false);
     const other = createChannelStore({ rootDir: join(root, 'other-channels') });
-    other.getOrCreateDm('ada', 'Ada');
+    other.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     await expect(
-      other.appendMessage('dm-ada', { ...message('bad'), attachments: [ref] }),
+      other.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', { ...message('bad'), attachments: [ref] }),
     ).rejects.toThrow('does not belong');
   });
 
@@ -370,7 +399,7 @@ describe('channel store', () => {
     const notes = await upload('notes.txt', new TextEncoder().encode('hello'));
     expect(png.mime).toBe('image/png');
     const store = createChannelStore({ rootDir: join(root, 'channels'), attachments });
-    store.getOrCreateDm('ada', 'Ada');
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const photo = { ...message(''), attachments: [png] };
     const file = { ...message('see attached'), attachments: [notes] };
     const voice = {
@@ -379,12 +408,13 @@ describe('channel store', () => {
       voice: { state: 'ready' as const, attachment: 'voice-file', durationMs: 7000 },
     };
     const text = message('just text');
-    for (const target of [photo, file, voice, text]) await store.appendMessage('dm-ada', target);
+    for (const target of [photo, file, voice, text])
+      await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', target);
     const replies = [photo, file, voice, text].map((target) => ({
       ...message('re'),
       replyTo: target.id,
     }));
-    for (const reply of replies) await store.appendMessage('dm-ada', reply);
+    for (const reply of replies) await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', reply);
     const previews = store
       .readMessages('dm-ada', { limit: 4 })
       .toReversed()

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -25,7 +26,7 @@ function git(root: string, ...args: string[]): string {
 }
 
 async function admit(runtime: BotRuntime, channelId: string, messageId: string, body: string) {
-  const admission = runtime.admitDmMessage({ channelId, messageId, body });
+  const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, { channelId, messageId, body });
   if (!admission.admitted) throw new Error(admission.reason);
   await admission.settled;
 }
@@ -42,12 +43,12 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const memoryRoot = registry.memoryDirFor('ada')!;
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   const ownership = createSessionOwnership(attachOperationalModule(owner, 'session-ownership'));
   const memory = createMemoryService({ registry, ownership, database: owner, now: FIXED_NOW });
   const seed = memory.snapshot('ada').head!;
-  const persona = memory.saveHuman({
+  const persona = memory.saveHuman(OWNER_HUMAN_CONTEXT, {
     botSlug: 'ada',
     path: 'PERSONA.md',
     body: 'Ada Memory\n',
@@ -152,7 +153,7 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
       author: { kind: 'human' as const },
       body: 'start assignment',
     };
-    await channels.appendMessage(dm.id, firstMessage);
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, firstMessage);
     await admit(runtime, dm.id, firstMessage.id, firstMessage.body);
     expect(assignmentRun).toBeDefined();
     writeFileSync(join(memoryRoot, 'draft.md'), 'Unfinished Memory edit\n');
@@ -166,7 +167,7 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
       body: 'Switch Memory to history',
       memorySwitchTarget: 'history',
     };
-    await channels.appendMessage(dm.id, switchMessage);
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, switchMessage);
     await admit(runtime, dm.id, switchMessage.id, switchMessage.body);
     expect(git(memoryRoot, 'branch', '--show-current')).toBe('main');
     expect(git(memoryRoot, 'diff', '--cached', '--name-only')).toBe('draft.md');

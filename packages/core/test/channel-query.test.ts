@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { queryChannelMessages } from '../src/channels/store.js';
@@ -126,13 +127,22 @@ describe('PersonaBot Channel history query', () => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
       core.registry.create({ slug: 'cee', displayName: 'Cee' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const group = core.channels.createGroup({ name: 'History', members: ['ada', 'bea'] });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'History',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
-      privateId = core.channels.createGroup({ name: 'Private', members: ['cee'] }).id;
-      otherId = core.channels.createGroup({ name: 'Other', members: ['ada'] }).id;
+      privateId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Private',
+        members: ['cee'],
+      }).id;
+      otherId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Other',
+        members: ['ada'],
+      }).id;
       for (let index = 0; index < 215; index++) {
-        await core.channels.appendMessage(groupId, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
           id: 'old-' + index,
           at: new Date(Date.UTC(2026, 8, 1, 0, 0, index)).toISOString(),
           author: index === 5 || index === 100 ? { kind: 'bot', slug: 'bea' } : { kind: 'human' },
@@ -141,31 +151,31 @@ describe('PersonaBot Channel history query', () => {
           ...(index === 100 ? { replyTo: 'old-5' } : {}),
         });
       }
-      await core.channels.appendMessage(groupId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
         id: 'unicode-1',
         at: '2026-09-01T00:04:00.000Z',
         author: { kind: 'human' },
         body: 'CAFÉ status',
       });
-      await core.channels.appendMessage(otherId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, otherId, {
         id: 'other-1',
         at: '2026-09-01T00:04:00.000Z',
         author: { kind: 'human' },
         body: 'needle from another joined Channel',
       });
-      await core.channels.appendMessage(privateId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, privateId, {
         id: 'secret-1',
         at: '2026-09-01T00:05:00.000Z',
         author: { kind: 'human' },
         body: 'needle must stay private',
       });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask-history',
         at: '2026-09-02T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Find old messages',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'ask-history',
         body: 'Find old messages',
@@ -260,14 +270,17 @@ describe('PersonaBot Channel history query', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Timeline', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Timeline',
+        members: ['ada'],
+      });
       groupId = group.id;
       for (const [prefix, day] of [
         ['new', 2],
         ['backfill', 1],
       ] as const) {
         for (let index = 0; index < 120; index++) {
-          await core.channels.appendMessage(groupId, {
+          await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
             id: prefix + '-' + index,
             at: new Date(Date.UTC(2026, 8, day, 0, 0, index)).toISOString(),
             author: { kind: 'human' },
@@ -275,20 +288,20 @@ describe('PersonaBot Channel history query', () => {
           });
         }
       }
-      await core.channels.appendMessage(groupId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
         id: 'offset-backfill',
         at: '2026-09-02T00:30:00+01:00',
         author: { kind: 'human' },
         body: 'chronology offset backfill',
       });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask-order',
         at: '2026-09-03T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Find history',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'ask-order',
         body: 'Find history',
