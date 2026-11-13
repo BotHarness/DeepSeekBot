@@ -28,6 +28,9 @@ const native = vi.hoisted(() => ({
   longPresses: Array<{ enabled: boolean; duration: number; start: () => void }>(),
 }));
 
+vi.mock('../src/ui/chat/message-attachment-picker', () => ({
+  MessageAttachmentPicker: () => null,
+}));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 
