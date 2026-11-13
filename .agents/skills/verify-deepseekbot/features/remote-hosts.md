@@ -10,6 +10,10 @@ Use `relationships list|initiate|approve|sync|enroll|disconnect` for agent parit
 
 Same-machine browser qualification must distinguish transport refusal from authorization. Two `127.0.0.1` Web origins share ambient cookies, which the encrypted WebSocket entry refuses. Use the existing independent encrypted LAN entry without weakening that guard. Preserve failed browser attempts and console output. Record Web, installed Desktop, Simulator and physical device results separately; this journey does not qualify #4130.
 
+## Another Client enrollment (E2)
+
+Use a second browser context with independent local storage, authenticated to A. In Connections, select **Use on this client** for the active relationship with B, name the Client and open B's Channel. No additional Host approval is requested. Read B's `devices` through the supported CLI: each context has a distinct named device ID. Revoke only the second ID; its Feed must refuse while the first context and a separately paired test device keep reading. Refresh/restart and repeat with the original UI closed. A cancelled dialog must not save a late grant, stale relationship IDs must refuse, and opening an already enrolled Host must select that exact Host without issuing another grant. Compare the pre-E2 one-click entry to the explicit named enrollment dialog, and record enrollment-to-Feed time with the tab foregrounded.
+
 ## Sub-features
 
 - `pair`: Add remote opens the shared Connections Modal directly at Connect to another computer. Paste a pairing URL or read a local PNG/JPEG/WebP QR image, verify the full identity and approve on the target Host. After its real Feed is read, customize the saved name/icon in the same Modal; Back and Done remain in its footer. Verify the newly selected Host tab and appearance survive refresh, including the first remote tab switching the sidebar branch.

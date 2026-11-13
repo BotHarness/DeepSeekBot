@@ -17,6 +17,11 @@ export const zh = {
   'relationships.disconnect': '断开双向访问',
   'relationships.disconnectHint': '撤销与 {name} 的双向访问。独立配对的手机和远端数据不受影响。',
   'relationships.open': '打开频道',
+  'relationships.useClient': '在此客户端使用',
+  'relationships.clientDefault': '桌面浏览器',
+  'relationships.clientName': '客户端名称',
+  'relationships.clientHint':
+    '为此客户端单独授权访问 {name}，无需再次批准电脑关系。可在对方的设备列表中单独撤销。',
   'relationships.failed': '连接操作未完成，请检查另一台电脑后重试。',
   'connections.namedRequirements': '需要自己的 Cloudflare 账号、域名和 Tunnel 令牌。',
   'connections.ingressRequirements': '需要手机和电脑都能访问的 HTTPS 地址及受信任证书。',
@@ -5231,6 +5236,11 @@ export const en = {
   'relationships.disconnectHint':
     'Revoke reciprocal access with {name}. Independently paired phones and remote data are kept.',
   'relationships.open': 'Open Channels',
+  'relationships.useClient': 'Use on this client',
+  'relationships.clientDefault': 'Desktop browser',
+  'relationships.clientName': 'Client name',
+  'relationships.clientHint':
+    'Give this client its own access to {name}, without approving the computer relationship again. Revoke it separately in that computer’s device list.',
   'relationships.failed':
     'The connection operation did not finish. Check the other computer and try again.',
   'connections.namedRequirements': 'Requires your Cloudflare account, domain and Tunnel token.',

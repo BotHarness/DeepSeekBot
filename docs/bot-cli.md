@@ -13,16 +13,18 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 `relationships` uses the authenticated local Host and the same approval owner as Connections. Each CLI enrollment creates its own device grant; no remote credential is shared through the local Host.
 
-| Command                                                                                  | Purpose                                                                                                                  |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `relationships list`                                                                     | Read persisted peers, approval state and pending peer revocation.                                                        |
-| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm` | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                          |
-| `relationships approve <id> <peer-public-key> --confirm`                                 | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                              |
-| `relationships sync <id>`                                                                | Read the peer's approval and complete the authenticated reciprocal handshake.                                            |
-| `relationships enroll <id> --out <new-absolute-private-file>`                            | Enroll this CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers.      |
-| `relationships disconnect <id> --confirm`                                                | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending. |
+| Command                                                                                  | Purpose                                                                                                                   |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `relationships list`                                                                     | Read persisted peers, approval state and pending peer revocation.                                                         |
+| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm` | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                           |
+| `relationships approve <id> <peer-public-key> --confirm`                                 | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                               |
+| `relationships sync <id>`                                                                | Read the peer's approval and complete the authenticated reciprocal handshake.                                             |
+| `relationships enroll <id> --device-name <name> --out <new-absolute-private-file>`       | Enroll this named CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers. |
+| `relationships disconnect <id> --confirm`                                                | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending.  |
 
 Use the existing `--host` / `--token-file` options to select the exact local owner. Repeat `enroll` against the other local Host for its independent CLI Client; `device-probe --device-file <absolute-private-file>` reads that Client's real remote Feed. Phones cannot invoke relationship enrollment through their device gateway. Do not retry an uncertain initiation blindly: inspect `relationships list` first. The E1 command persists pending peer revocation; automatic retry after an offline peer returns belongs to E4.
+
+To verify separate Clients, enroll twice into different new private files with distinct `--device-name` values (1–60 characters; default `CLI desktop`). On the remote owner, `devices` lists their distinct identifiers and names. Run `device-revoke <device-id> --confirm` for one, then probe both files: only that grant must fail. Keep an independently paired device in this check. A new relationship generation never revives an old one; use `relationships list` and the exact active ID. Web Clients use **Connections → Computer relationships → Use on this client**, give the Client a name, then open its remote Channel. Already enrolled Clients select **Open Channels** without issuing another grant.
 
 ### Recoverable Zip transfer and import
 

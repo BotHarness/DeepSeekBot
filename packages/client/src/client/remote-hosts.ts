@@ -1,6 +1,6 @@
 import { hostLooks } from './host-looks.js';
 import { enrollRelationshipClient } from '../../../core/src/devices/relationship-enrollment.js';
-import { relationshipRequest } from './relationships.js';
+import { relationshipRequest, type ClientRelationship } from './relationships.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
 import {
@@ -85,7 +85,11 @@ export interface RemotePairTrust {
 }
 
 export interface RemoteHosts {
-  enrollRelationship(id: string, name: string, signal?: AbortSignal): Promise<HostPairResult>;
+  enrollRelationship(
+    relationship: Pick<ClientRelationship, 'id' | 'peer'>,
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<HostPairResult>;
   notifications: RemoteNotifications;
   getSnapshot(): RemoteHostsSnapshot;
   subscribe(listener: () => void): () => void;
@@ -379,38 +383,50 @@ export function createRemoteHosts(options: {
 
   return {
     notifications,
-    async enrollRelationship(id, name, signal) {
-      const result = await enrollRelationshipClient({
-        relationshipId: id,
-        name,
-        carrier,
-        request: (body) => relationshipRequest(body, signal),
-        ...(signal ? { signal } : {}),
-      });
-      if (!result.ok) return result;
-      if (signal?.aborted || clients.has(result.host.hostId)) {
-        await revokePairing({ host: result.host, carrier });
-        return { ok: false, code: signal?.aborted ? 'cancelled' : 'already-paired' };
-      }
+    async enrollRelationship(relationship, name, signal) {
+      const target = relationship.peer.id;
+      if (signal?.aborted) return { ok: false, code: 'cancelled' };
+      if (clients.has(target)) return { ok: false, code: 'already-paired' };
+      if (pairing.has(target)) return { ok: false, code: 'pairing-in-progress' };
+      pairing.add(target);
       try {
-        if (!storage) throw new Error('storage-unavailable');
-        storage.setItem(
-          REMOTE_HOSTS_STORAGE_KEY,
-          JSON.stringify(
-            [...[...clients.values()].map(({ host }) => host), result.host].map(serializeSavedHost),
-          ),
-        );
-      } catch {
-        await revokePairing({ host: result.host, carrier });
-        return { ok: false, code: 'storage-failure' };
+        const result = await enrollRelationshipClient({
+          relationshipId: relationship.id,
+          expectedPeer: relationship.peer,
+          name,
+          carrier,
+          request: (body) => relationshipRequest(body, signal),
+          ...(signal ? { signal } : {}),
+        });
+        if (!result.ok) return result;
+        if (signal?.aborted || clients.has(result.host.hostId)) {
+          await revokePairing({ host: result.host, carrier });
+          return { ok: false, code: signal?.aborted ? 'cancelled' : 'already-paired' };
+        }
+        try {
+          if (!storage) throw new Error('storage-unavailable');
+          storage.setItem(
+            REMOTE_HOSTS_STORAGE_KEY,
+            JSON.stringify(
+              [...[...clients.values()].map(({ host }) => host), result.host].map(
+                serializeSavedHost,
+              ),
+            ),
+          );
+        } catch {
+          await revokePairing({ host: result.host, carrier });
+          return { ok: false, code: 'storage-failure' };
+        }
+        attach(result.host);
+        tab = result.host.hostId;
+        try {
+          storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+        } catch {}
+        publish();
+        return result;
+      } finally {
+        pairing.delete(target);
       }
-      attach(result.host);
-      tab = result.host.hostId;
-      try {
-        storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
-      } catch {}
-      publish();
-      return result;
     },
     getSnapshot: () => snapshot,
     client: (hostId) => clients.get(hostId)?.client,

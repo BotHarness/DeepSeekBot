@@ -39,3 +39,17 @@ it('keeps destructive disconnect confirmation and private enrollment output mand
     confirm: true,
   });
 });
+
+it('rejects invalid Client names before connecting or creating credentials', async () => {
+  const { http, connect } = fixture();
+  for (const name of ['', ' ', 'x'.repeat(61)]) {
+    await expect(
+      runRelationshipCommand(
+        ['enroll', id],
+        { out: '/new-private-grant.json', 'device-name': name },
+        connect,
+      ),
+    ).rejects.toThrow('--device-name');
+  }
+  expect(http).not.toHaveBeenCalled();
+});
