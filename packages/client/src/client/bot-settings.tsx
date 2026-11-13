@@ -74,6 +74,7 @@ export interface BotSettingsTarget {
 export interface BotSettingsSnapshot {
   readonly open: boolean;
   readonly sectionId: string | undefined;
+  readonly pairPhone?: boolean;
   readonly target?: BotSettingsTarget | undefined;
 }
 
@@ -99,15 +100,19 @@ export class BotSettings {
     this.#set({
       open: true,
       sectionId:
-        sectionId === 'connect'
+        sectionId === 'connect' || sectionId === 'pair-phone'
           ? BOT_SETTINGS_SECTIONS.devices
-          : (sectionId ?? this.#snapshot.sectionId),
+          : (sectionId ??
+            (this.#snapshot.sectionId === BOT_SETTINGS_SECTIONS.devices
+              ? BOT_SETTINGS_SECTIONS.general
+              : this.#snapshot.sectionId)),
+      pairPhone: sectionId === 'pair-phone',
       target: this.#target(target),
     });
   };
 
   readonly select = (sectionId: string, target?: string): void => {
-    this.#set({ ...this.#snapshot, sectionId, target: this.#target(target) });
+    this.#set({ ...this.#snapshot, sectionId, pairPhone: false, target: this.#target(target) });
   };
 
   readonly close = (): void => {
@@ -122,6 +127,7 @@ export class BotSettings {
     if (
       next.open === this.#snapshot.open &&
       next.sectionId === this.#snapshot.sectionId &&
+      next.pairPhone === this.#snapshot.pairPhone &&
       next.target === this.#snapshot.target
     )
       return;
@@ -192,6 +198,19 @@ export function BotSettingsView({
     setQuery('');
     botSettings.close();
   };
+  if (active?.id === BOT_SETTINGS_SECTIONS.devices) {
+    return (
+      <>
+        {
+          renderSlot(
+            SECTION_SLOT,
+            { close, pairPhone: state.pairPhone },
+            { only: active.id },
+          ) as ReactNode
+        }
+      </>
+    );
+  }
   return (
     <SettingsDialog
       title={t('settings.nav')}

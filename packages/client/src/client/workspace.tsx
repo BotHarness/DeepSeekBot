@@ -448,7 +448,7 @@ function WorkspaceRail({
         )}
 
       <CallRailButton t={t} onReturn={() => options.dockPanels?.open(CHANNEL_BODY_PANEL)} />
-      <MobileAppsEntry t={t} />
+      <MobileAppsEntry t={t} onPair={() => options.openBotSettings('pair-phone')} />
       <BugReportEntry t={t} />
       {launcher ? (
         <RailSearchButton launcher={launcher} bindings={options.shortcutBindings} t={t} />

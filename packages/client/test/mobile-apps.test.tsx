@@ -29,12 +29,12 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-async function render() {
+async function render(onPair?: () => void) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
-  await act(async () => root.render(<MobileAppsEntry t={t} />));
+  await act(async () => root.render(<MobileAppsEntry t={t} onPair={onPair} />));
   const entry = host.querySelector<HTMLButtonElement>(
     `button[aria-label="${t('mobileApps.open')}"]`,
   )!;
@@ -88,5 +88,19 @@ it('the hint action opens the ways to get each app', async () => {
   await act(async () => action.click());
   expect(panel()?.querySelector('[data-platform="ios"]')?.textContent).toContain('TestFlight');
   expect(panel()?.querySelector('[data-platform="android"]')?.textContent).toContain('Discord');
+  await act(async () => root.unmount());
+});
+
+it('starts pairing from the download surface and closes it before opening the connection flow', async () => {
+  const onPair = vi.fn();
+  const { root, entry } = await render(onPair);
+  await act(async () => entry.click());
+  const action = [...panel()!.querySelectorAll('button')].find(
+    (button) => button.textContent === t('mobileApps.pair'),
+  )!;
+  await act(async () => action.click());
+  expect(onPair).toHaveBeenCalledOnce();
+  expect(panel()).toBeNull();
+  expect(document.activeElement).toBe(entry);
   await act(async () => root.unmount());
 });

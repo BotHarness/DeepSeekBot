@@ -135,12 +135,12 @@ it('closes Bot Settings for DSH settings and reopens at IM apps when it returns'
   imApps.manage();
   expect(settings.getSnapshot().open).toBe(false);
   returned?.();
-  expect(settings.getSnapshot()).toEqual({ open: true, sectionId: 'im-apps' });
+  expect(settings.getSnapshot()).toEqual({ open: true, sectionId: 'im-apps', pairPhone: false });
   expect(imApps.takeNotice()).toBeUndefined();
 
   imApps.manage();
   unavailable?.();
-  expect(settings.getSnapshot()).toEqual({ open: true, sectionId: 'im-apps' });
+  expect(settings.getSnapshot()).toEqual({ open: true, sectionId: 'im-apps', pairPhone: false });
   expect(imApps.takeNotice()).toBe('settings-unavailable');
   expect(imApps.takeNotice()).toBeUndefined();
 });

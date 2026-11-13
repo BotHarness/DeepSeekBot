@@ -159,7 +159,7 @@ it('leads every sidebar section with its own glyph and keeps the label as the na
     ids.map((id, order) => ({ id, order, label: id })),
   );
   act(() => {
-    settings.open('devices');
+    settings.open('general');
   });
   const buttons = [...document.querySelectorAll('nav button')];
   expect(buttons.map((button) => button.textContent)).toEqual(ids);
@@ -170,7 +170,7 @@ it('leads every sidebar section with its own glyph and keeps the label as the na
     return icon?.innerHTML;
   });
   expect(new Set(glyphs).size).toBe(ids.length);
-  expect(current()).toBe('devices');
+  expect(current()).toBe('general');
 });
 
 it('gives a plugin section without a mapped glyph the generic settings glyph', () => {
@@ -285,7 +285,11 @@ it('notifies subscribers only on change', () => {
   settings.close();
   settings.close();
   expect(listener).toHaveBeenCalledTimes(2);
-  expect(settings.getSnapshot()).toEqual({ open: false, sectionId: 'models' });
+  expect(settings.getSnapshot()).toMatchObject({
+    open: false,
+    sectionId: 'models',
+    pairPhone: false,
+  });
 });
 
 function frameWidth(narrow: boolean): void {
@@ -390,4 +394,45 @@ it('searches another page and focuses the matching setting after navigation', ()
   expect(settings.getSnapshot().sectionId).toBe('appearance');
   expect(document.activeElement?.getAttribute('data-settings-highlight')).toBe('');
   expect(input.value).toBe('');
+});
+
+it('routes the phone entry to Connections while keeping ordinary settings independent', () => {
+  const settings = new BotSettings();
+  settings.open('pair-phone');
+  expect(settings.getSnapshot()).toMatchObject({
+    open: true,
+    sectionId: 'devices',
+    pairPhone: true,
+  });
+  settings.close();
+  settings.open('devices');
+  expect(settings.getSnapshot()).toMatchObject({
+    open: true,
+    sectionId: 'devices',
+    pairPhone: false,
+  });
+  settings.select('general');
+  expect(settings.getSnapshot()).toMatchObject({ sectionId: 'general', pairPhone: false });
+});
+
+it('opens Connections outside the settings sidebar and passes the phone intent to its shared surface', () => {
+  const settings = new BotSettings();
+  mount(settings, [...ROWS, { id: 'devices', order: 45, label: '连接' }]);
+  act(() => settings.open('pair-phone'));
+  expect(shownSection()).toBe('devices');
+  expect(document.querySelector('nav')).toBeNull();
+  act(() => rendered.at(-1)!.close!());
+  expect(settings.getSnapshot().open).toBe(false);
+});
+
+it('returns to ordinary settings after closing the standalone Connections dialog', () => {
+  const settings = new BotSettings();
+  settings.open('pair-phone');
+  settings.close();
+  settings.open();
+  expect(settings.getSnapshot()).toMatchObject({
+    open: true,
+    sectionId: 'general',
+    pairPhone: false,
+  });
 });
