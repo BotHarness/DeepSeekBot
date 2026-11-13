@@ -5,6 +5,7 @@ import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import android.view.View
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
@@ -29,6 +30,7 @@ class PredictivePageView(context: Context, appContext: AppContext) : ExpoView(co
   private var ime = false
   private var tracking = false
   private var committed = false
+  private var reportedState = ""
   var reducedMotion = false
 
   init {
@@ -64,6 +66,7 @@ class PredictivePageView(context: Context, appContext: AppContext) : ExpoView(co
     page.layout(0, 0, right - left, bottom - top)
   }
   override fun onAttachedToWindow() { super.onAttachedToWindow(); post { syncBack() } }
+  override fun onWindowFocusChanged(hasWindowFocus: Boolean) { super.onWindowFocusChanged(hasWindowFocus); if (hasWindowFocus) syncBack() }
   override fun onDetachedFromWindow() { stopBack(); animator?.cancel(); super.onDetachedFromWindow() }
   private fun stopBack() {
     if (Build.VERSION.SDK_INT >= 33) callback?.let { findOnBackInvokedDispatcher()?.unregisterOnBackInvokedCallback(it) }
@@ -95,8 +98,11 @@ class PredictivePageView(context: Context, appContext: AppContext) : ExpoView(co
   }
   private fun syncBack() {
     if (Build.VERSION.SDK_INT < 34) return
+    val state = "active=$active ime=$ime committed=$committed attached=$isAttachedToWindow registered=${callback != null}"
+    if (state != reportedState) { reportedState = state; Log.d("BH.PredictivePage", "phase=sync $state") }
     if (!active || ime || committed || !isAttachedToWindow) { stopBack(); return }
     if (callback != null) return
+    val dispatcher = findOnBackInvokedDispatcher() ?: return
     val next = object : OnBackAnimationCallback {
       override fun onBackStarted(event: BackEvent) {
         animator?.cancel()
@@ -109,7 +115,7 @@ class PredictivePageView(context: Context, appContext: AppContext) : ExpoView(co
       override fun onBackInvoked() { if (tracking) settle(true) else commit() }
     }
     // JS suspends this surface for local Back owners; native IME insets suspend it too.
-    findOnBackInvokedDispatcher()?.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_OVERLAY, next)
+    dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_OVERLAY, next)
     callback = next
   }
 }
