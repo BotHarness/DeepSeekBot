@@ -64,13 +64,17 @@ it('versions every existing attachment once and skips them on the next run', asy
 
 it('stops when asked and resumes where it stopped after a restart', async () => {
   const { core, fileIds } = await upgradedHost(3);
-  await new Promise((resolve) => setTimeout(resolve, 0));
   const controller = new AbortController();
   const stopped = await backfillMediaVersions({
-    fileIds,
+    fileIds: function* () {
+      const [first, ...remaining] = fileIds();
+      if (first !== undefined) yield first;
+      controller.abort();
+      yield* remaining;
+    },
     versions: core.mediaVersions,
     signal: controller.signal,
-    sleep: async () => controller.abort(),
+    ...instant,
   });
   expect(stopped).toMatchObject({ stopped: true });
   expect(stopped.checked).toBeLessThan(3);
