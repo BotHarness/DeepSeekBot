@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 
 import type { MessageAttachment } from '../../host/conversation';
 import { edge, space } from '../design/tokens';
@@ -26,7 +26,7 @@ export function MessageAttachmentPicker({
   const theme = useDesignTheme();
   const pending = useRef(false);
   const live = useRef(false);
-  const mount = useMounted<ScrollView>(() => {
+  const mount = useMounted<ScrollViewInstance>(() => {
     live.current = true;
     return () => {
       live.current = false;
