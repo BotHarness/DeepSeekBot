@@ -18,6 +18,8 @@
 
 [官网](https://tobs.app) · [宣传片](#video) · [安装](#install) · [能力](#features) · [版本亮点](#releases) · [与 DS Bot 的区别](#deepseek-bot-projects) · [社区](#community) · [文档](https://tobs.app/docs/overview/)
 
+<sub>赞助商</sub>&nbsp;&nbsp;<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/sponsors/wellmei-night.png" /><img src="docs/assets/readme/sponsors/wellmei-day.png" height="32" alt="浙江杭州维美控股集团 WELLMEI" /></picture>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://x.com/XXXX540515">𝕏 <b>eric_0721</b> @XXXX540515</a> 创始人
+
 </div>
 
 <a id="video"></a>
