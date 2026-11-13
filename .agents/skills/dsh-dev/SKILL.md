@@ -5,6 +5,10 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### CredentialKey segments and opaque identifiers
+
+The pinned native credentials service accepts lowercase letter/digit/hyphen key segments. An opaque application ID can contain uppercase letters or underscores: hash the exact ID for its protected-record key and bind the original identity in the payload. Lowercasing the ID can merge distinct owners. Use `modifyRecord` for writes and keep route admission separate from per-device credentials. Verify protected writes and readback through the running Host, with secret-free output.
+
 ### DSH 0.2.2-rc.1 qualification
 
 Use [the recurring RC workflow](../../../docs/agents/dsh-upgrade.md) and
