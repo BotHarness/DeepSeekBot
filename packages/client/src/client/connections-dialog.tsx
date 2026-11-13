@@ -6,6 +6,7 @@ export function ConnectionsDialog({
   t,
   onClose,
   pairPhone = false,
+  joinComputer = false,
   pairedDeviceId,
   onDevicePaired,
   onFeedRead,
@@ -13,6 +14,7 @@ export function ConnectionsDialog({
   t: BotHarnessTranslate;
   onClose(): void;
   pairPhone?: boolean | undefined;
+  joinComputer?: boolean | undefined;
   pairedDeviceId?: string | undefined;
   onDevicePaired?: ((deviceId: string) => void) | undefined;
   onFeedRead?: ((deviceId: string) => void) | undefined;
@@ -25,6 +27,7 @@ export function ConnectionsDialog({
       t={t}
       standalone
       initialPairing={pairPhone}
+      initialRemote={joinComputer}
       onClose={onClose}
     />
   );

@@ -1,4 +1,5 @@
 import { useId, type FormEvent, type ReactElement, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -72,6 +73,7 @@ export function FormDialog({
   scroll = false,
   submitData,
   inline = false,
+  footerContainer,
   children,
 }: {
   readonly title: string;
@@ -91,6 +93,7 @@ export function FormDialog({
   readonly scroll?: boolean;
   readonly submitData?: Readonly<Record<`data-${string}`, string>>;
   readonly inline?: boolean;
+  readonly footerContainer?: HTMLElement | null | undefined;
   readonly children?: ReactNode;
 }): ReactElement {
   const formId = useId();
@@ -147,7 +150,11 @@ export function FormDialog({
       <section aria-label={title} {...stylex.props(styles.form)}>
         {description === undefined ? null : <p>{description}</p>}
         {body}
-        {footer}
+        {footerContainer === undefined
+          ? footer
+          : footerContainer
+            ? createPortal(footer, footerContainer)
+            : null}
       </section>
     );
   }

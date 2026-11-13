@@ -3,15 +3,10 @@ import { useSearchOpenMark } from './search-open-mark.js';
 import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
+import { ConnectionsDialog } from './connections-dialog.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
 import { useChannelDockActive } from './channel-dock.js';
-import {
-  AddRemoteHostDialog,
-  HostMark,
-  HostTabs,
-  RemoteHostRows,
-  useRemoteHosts,
-} from './host-tabs.js';
+import { HostMark, HostTabs, RemoteHostRows, useRemoteHosts } from './host-tabs.js';
 import { plainMarkdown } from '../../../core/src/channels/message-preview.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
@@ -2134,7 +2129,7 @@ export function BotSidebar({
   };
 
   const header = (
-    <div className="bh-header">
+    <div key="roster-header" className="bh-header">
       {!headerTarget && (
         <span className={`bh-header-label${searchOpen ? ' bh-header-label-hidden' : ''}`}>
           {t('roster.messages')}
@@ -2261,7 +2256,8 @@ export function BotSidebar({
       </div>
       {headerEnd}
       {addingRemote ? (
-        <AddRemoteHostDialog
+        <ConnectionsDialog
+          joinComputer
           onClose={() => {
             setAddingRemote(false);
           }}
@@ -2277,7 +2273,11 @@ export function BotSidebar({
     return (
       <div className="bh-root bh-region" data-bh-tour="roster">
         {headerTarget
-          ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
+          ? createPortal(
+              <InstantTooltipScope>{header}</InstantTooltipScope>,
+              headerTarget,
+              'roster-header',
+            )
           : header}
         <HostTabs t={t} />
         <div className="bh-roster-list">
@@ -2337,7 +2337,11 @@ export function BotSidebar({
         t={t}
       />
       {headerTarget
-        ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
+        ? createPortal(
+            <InstantTooltipScope>{header}</InstantTooltipScope>,
+            headerTarget,
+            'roster-header',
+          )
         : header}
       {hostTabs ? <HostTabs t={t} /> : null}
       {state.status === 'loading' && state.bots.length === 0 ? (
