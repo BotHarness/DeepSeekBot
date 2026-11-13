@@ -72,6 +72,14 @@ const fixture = (routes?: string[]) => {
     carrier: new FakeHost().carrier,
     connectionOperationLock: lock,
   });
+  for (const hostId of ['a', 'b']) {
+    const client = sources.client(hostId)!;
+    const snapshot = client.getSnapshot();
+    vi.spyOn(client, 'getSnapshot').mockImplementation(() => ({
+      ...snapshot,
+      connection: { status: 'connected', route: routes?.[0] ?? 'http://127.0.0.1:47001' },
+    }));
+  }
   return { sources, values, storage, lock };
 };
 
@@ -623,6 +631,94 @@ it.each([false, true])(
     }
   },
 );
+
+it('retains Host content identity when execution-state storage is unreadable and explicitly recovers it', async () => {
+  const { storage, lock } = fixture();
+  storage.setItem('botharness.remoteHosts.operations.v1', 'invalid json');
+  const sources = createRemoteHosts({
+    storage,
+    carrier: new FakeHost().carrier,
+    connectionOperationLock: lock,
+  });
+  expect(sources.getSnapshot().hosts.map((entry) => entry.host.hostId)).toEqual(['a', 'b']);
+  expect(sources.getSnapshot().hosts[0]!.host.connectionOperationUnavailable).toBe(true);
+  const api = vi.spyOn(sources.client('a')!, 'api').mockResolvedValue({
+    status: 200,
+    body: { host: { id: 'a', name: 'Studio' }, devices: [], lan: { state: 'listening' } },
+  });
+  await expect(
+    manageConnections(
+      sources,
+      { action: 'stop-route', hostId: 'a', kind: 'lan', confirm: true },
+      request(),
+    ),
+  ).rejects.toThrow('connection-operation-storage-unavailable');
+  expect(api).not.toHaveBeenCalled();
+  storage.removeItem('botharness.remoteHosts.operations.v1');
+  await expect(
+    manageConnections(sources, { action: 'read-operation', hostId: 'a' }, request()),
+  ).resolves.toMatchObject({ outcome: 'none' });
+  expect(sources.getSnapshot().hosts[0]!.host.connectionOperationUnavailable).toBeUndefined();
+});
+
+it('refuses new writes at the unresolved-fact limit without pruning old outcomes', async () => {
+  const { sources, storage } = fixture();
+  const index = Array.from({ length: 32 }, (_, n) => ({
+    hostId: `older-host-${n}`,
+    key: `unresolved-${n}`,
+  }));
+  for (const item of index)
+    storage.setItem(
+      item.key,
+      JSON.stringify({
+        generation: crypto.randomUUID(),
+        hostKey: '11'.repeat(32),
+        deviceId: 'previous',
+        operation: { action: 'sign-out' },
+      }),
+    );
+  storage.setItem('botharness.remoteHosts.operations.v1', JSON.stringify(index));
+  const api = vi.spyOn(sources.client('a')!, 'api').mockResolvedValue({
+    status: 200,
+    body: { host: { id: 'a', name: 'Studio' }, devices: [], lan: { state: 'listening' } },
+  });
+  await expect(
+    manageConnections(
+      sources,
+      { action: 'stop-route', hostId: 'a', kind: 'lan', confirm: true },
+      request(),
+    ),
+  ).rejects.toThrow('connection-operation-limit');
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(storage.getItem('botharness.remoteHosts.operations.v1')!)).toHaveLength(32);
+  expect(index.every((item) => storage.getItem(item.key) !== null)).toBe(true);
+});
+
+it('refuses offline writes even if a separate owner inspection can still return loaded state', async () => {
+  const { sources } = fixture();
+  const client = sources.client('a')!;
+  vi.spyOn(client, 'getSnapshot').mockReturnValue({
+    connection: {
+      status: 'unreachable',
+      route: 'http://127.0.0.1:47001',
+      attempt: 1,
+      reason: 'offline',
+    },
+  });
+  const api = vi.spyOn(client, 'api').mockResolvedValue({
+    status: 200,
+    body: { host: { id: 'a', name: 'Studio' }, devices: [], lan: { state: 'listening' } },
+  });
+  await expect(
+    manageConnections(
+      sources,
+      { action: 'stop-route', hostId: 'a', kind: 'lan', confirm: true },
+      request(),
+    ),
+  ).rejects.toThrow('connection-host-offline');
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(api.mock.calls[0]?.[1]?.body).toBeUndefined();
+});
 
 it('persists selection only for the selected browser Host and restores it through its existing store', async () => {
   const { sources, values, storage } = fixture();

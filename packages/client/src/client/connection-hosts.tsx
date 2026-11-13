@@ -130,9 +130,19 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
     }
   };
   const observed = observedHost(remote);
-  const mutationBlocked = busy || remote.host.pendingConnection !== undefined;
+  const mutationBlocked =
+    busy ||
+    remote.host.pendingConnection !== undefined ||
+    remote.host.connectionOperationUnavailable === true ||
+    remote.snapshot.connection.status !== 'connected';
   return (
     <div ref={mount}>
+      {remote.snapshot.connection.status !== 'connected' ? (
+        <Note tone="danger">{t('remoteHosts.offline', { name })}</Note>
+      ) : null}
+      {remote.host.connectionOperationUnavailable ? (
+        <Note tone="warning">{t('connections.remote.storageUnavailable')}</Note>
+      ) : null}
       {remote.host.connectionOwnerChanged ? (
         <>
           <Note tone="warning">{t('connections.remote.ownerChanged', { name })}</Note>
@@ -225,7 +235,16 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
       ) : failed ? (
         <Note tone="warning">{t('connections.hosts.failed')}</Note>
       ) : null}
-      <Button variant="outline" size="sm" disabled={busy} onClick={() => void load()}>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={busy}
+        onClick={() =>
+          remote.host.connectionOperationUnavailable
+            ? void perform({ action: 'read-operation' })
+            : void load()
+        }
+      >
         {t('devices.connection.retry')}
       </Button>
       {managed?.devices

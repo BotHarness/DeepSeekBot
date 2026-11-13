@@ -101,7 +101,12 @@ async function inspect(
   remote: RemoteHost,
   signal: AbortSignal,
 ): Promise<ManagedHost> {
-  const answer = await client.api('/api/botharness/devices', { signal });
+  let answer: Awaited<ReturnType<HostClient['api']>>;
+  try {
+    answer = await client.api('/api/botharness/devices', { signal });
+  } catch {
+    throw new AppearanceError('connection-management-unavailable');
+  }
   if (answer.status !== 200) throw new AppearanceError('connection-management-refused');
   const body = object(answer.body);
   const host = object(body.host);
@@ -460,6 +465,8 @@ async function executeConnections(
     throw new AppearanceError('connection-request-stale');
   if (sources.client(remote.host.hostId) !== client)
     throw new AppearanceError('connection-host-changed');
+  if (client.getSnapshot().connection.status !== 'connected')
+    throw new AppearanceError('connection-host-offline');
   const hostKey = remote.host.encryption?.hostKey;
   if (!hostKey) throw new AppearanceError('connection-host-key-required');
   if (

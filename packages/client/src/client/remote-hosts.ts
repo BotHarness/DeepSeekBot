@@ -61,6 +61,7 @@ export interface RemoteConversationTarget {
 type ManagedSavedHost = SavedHost & {
   pendingConnection?: PendingConnection;
   connectionOwnerChanged?: boolean;
+  connectionOperationUnavailable?: boolean;
 };
 
 export interface RemoteHost {
@@ -162,14 +163,18 @@ function readHosts(storage: HostStorage | undefined): ManagedSavedHost[] {
       ? value.flatMap((entry: unknown) => {
           const host = parseSavedHost(entry);
           if (!host) return [];
-          const pendingConnection = readPendingConnection(storage, host);
-          return [
-            {
-              ...host,
-              ...(pendingConnection ? { pendingConnection } : {}),
-              ...(oldConnectionOwner(storage, host) ? { connectionOwnerChanged: true } : {}),
-            },
-          ];
+          try {
+            const pendingConnection = readPendingConnection(storage, host);
+            return [
+              {
+                ...host,
+                ...(pendingConnection ? { pendingConnection } : {}),
+                ...(oldConnectionOwner(storage, host) ? { connectionOwnerChanged: true } : {}),
+              },
+            ];
+          } catch {
+            return [{ ...host, connectionOperationUnavailable: true }];
+          }
         })
       : [];
   } catch {
@@ -208,7 +213,12 @@ function readPendingConnection(
 }
 
 function persistedHost(host: ManagedSavedHost) {
-  const { pendingConnection: _execution, connectionOwnerChanged: _previousOwner, ...saved } = host;
+  const {
+    pendingConnection: _execution,
+    connectionOwnerChanged: _previousOwner,
+    connectionOperationUnavailable: _executionUnavailable,
+    ...saved
+  } = host;
   return serializeSavedHost(saved);
 }
 
@@ -500,13 +510,16 @@ export function createRemoteHosts(options: {
     async withConnectionOperation(hostId, client, run, signal) {
       const entry = clients.get(hostId);
       if (!entry || entry.client !== client) throw new Error('connection-host-changed');
+      let entered = false;
       const locked = async () => {
+        entered = true;
         if (clients.get(hostId) !== entry || entry.client !== client)
           throw new Error('connection-host-changed');
         const pending = readPendingConnection(storage, entry.host);
         const {
           pendingConnection: _old,
           connectionOwnerChanged: _previousOwner,
+          connectionOperationUnavailable: _executionUnavailable,
           ...rest
         } = entry.host;
         entry.host = {
@@ -521,7 +534,12 @@ export function createRemoteHosts(options: {
       if (options.connectionOperationLock) return options.connectionOperationLock(name, locked);
       if (typeof navigator === 'undefined' || !navigator.locks)
         throw new Error('connection-operation-lock-unavailable');
-      return navigator.locks.request(name, { ...(signal ? { signal } : {}) }, locked);
+      try {
+        return await navigator.locks.request(name, signal ? { signal } : {}, locked);
+      } catch (error) {
+        if (!entered && !signal?.aborted) throw new Error('connection-operation-lock-unavailable');
+        throw error;
+      }
     },
     previousConnectionOperations(hostId, client) {
       const entry = clients.get(hostId);
@@ -573,6 +591,7 @@ export function createRemoteHosts(options: {
       const {
         pendingConnection: _previous,
         connectionOwnerChanged: _previousOwner,
+        connectionOperationUnavailable: _executionUnavailable,
         ...rest
       } = entry.host;
       entry.host = {

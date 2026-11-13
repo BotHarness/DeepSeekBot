@@ -92,6 +92,13 @@ beforeEach(() => {
     },
   }));
   vi.spyOn(sources.client('target')!, 'api').mockImplementation(api);
+  const client = sources.client('target')!;
+  const snapshot = client.getSnapshot();
+  vi.spyOn(client, 'getSnapshot').mockImplementation(() => ({
+    ...snapshot,
+    connection: { status: 'connected', route: 'http://127.0.0.1:47001' },
+  }));
+  sources.setPendingConnection('target', client, undefined);
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);

@@ -292,6 +292,8 @@ export const zh = {
   'connections.remote.ownerChanged':
     '{name} 的旧设备授权仍有未确认操作。新授权不会继承或重试该操作。',
   'connections.remote.readPrevious': '核对之前的操作结果',
+  'connections.remote.storageUnavailable':
+    '无法读取已保存的连接操作记录。连接更改已停用；请恢复本应用存储访问，或在此环境所在电脑上管理。',
   'connections.remote.lockUnavailable':
     '更改连接需要支持 Web Locks 的安全页面。请在此环境所在电脑上打开，或使用其命令行管理连接。',
   'connections.remote.unknown':
@@ -5596,6 +5598,8 @@ export const en = {
   'connections.remote.ownerChanged':
     'An operation under an older device grant for {name} remains unconfirmed. This grant will not inherit or retry it.',
   'connections.remote.readPrevious': 'Check previous operation result',
+  'connections.remote.storageUnavailable':
+    'Saved connection operation history cannot be read. Changes are blocked; restore this app’s storage access, or manage the environment on its computer.',
   'connections.remote.lockUnavailable':
     'Connection changes need a secure page with Web Locks. Open this environment on its computer, or manage its connections with its CLI.',
   'connections.remote.unknown':
