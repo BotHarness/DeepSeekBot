@@ -102,7 +102,10 @@ export class BotSettings {
       sectionId:
         sectionId === 'connect' || sectionId === 'pair-phone'
           ? BOT_SETTINGS_SECTIONS.devices
-          : (sectionId ?? this.#snapshot.sectionId),
+          : (sectionId ??
+            (this.#snapshot.sectionId === BOT_SETTINGS_SECTIONS.devices
+              ? BOT_SETTINGS_SECTIONS.general
+              : this.#snapshot.sectionId)),
       pairPhone: sectionId === 'pair-phone',
       target: this.#target(target),
     });

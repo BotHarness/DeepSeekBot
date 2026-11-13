@@ -424,3 +424,15 @@ it('opens Connections outside the settings sidebar and passes the phone intent t
   act(() => rendered.at(-1)!.close!());
   expect(settings.getSnapshot().open).toBe(false);
 });
+
+it('returns to ordinary settings after closing the standalone Connections dialog', () => {
+  const settings = new BotSettings();
+  settings.open('pair-phone');
+  settings.close();
+  settings.open();
+  expect(settings.getSnapshot()).toMatchObject({
+    open: true,
+    sectionId: 'general',
+    pairPhone: false,
+  });
+});
