@@ -498,3 +498,19 @@ it('explains the mobile VPN limit before Tailscale setup without publishing', as
   expect(button(t('connections.vpnGuide'))).toBeDefined();
   expect(posts).toEqual([]);
 });
+
+it('lets an existing ready route return to advanced methods without replacing it', async () => {
+  routes = [tail, loopback];
+  await act(async () =>
+    root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
+  );
+  await click(t('connections.phoneApp.ready'));
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  await click(t('connections.methods'));
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
+  await click(t('connections.advancedMethods'));
+  await click('Tailscale');
+  expect(host.textContent).toContain(t('connections.tailscaleVpn'));
+  expect(button(t('connections.continue'))).toBeDefined();
+  expect(posts.map((post) => post.url)).toEqual(['./api/botharness/devices/offer']);
+});

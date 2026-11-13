@@ -1340,6 +1340,16 @@ export function PairedDevicesSettings({
                   <Callout tone="warning">{t('devices.pair.loopbackOnly')}</Callout>
                 )}
                 <div {...stylex.props(styles.actions)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      close();
+                      setSetup('method');
+                    }}
+                  >
+                    {t('connections.methods')}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => void copy(offer.link)}>
                     {copied ? t('devices.pair.copied') : t('devices.pair.copy')}
                   </Button>
