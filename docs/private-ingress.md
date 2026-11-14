@@ -2,6 +2,12 @@
 
 If you already run a reverse proxy or tunnel, Tobs can use it instead of the built-in Cloudflare options. Any proxy that meets the **ingress standard** below is accepted, the same way any S3-compatible service works with S3 clients.
 
+Choose another method: [private connections](private-connect.md), [Named Tunnel](private-named-tunnel.md), [Docker relay](private-relay.md).
+
+## Prepare the network path
+
+Have a running Tobs Host and phone App, an unused HTTPS hostname, a trusted certificate, and access to the proxy configuration. Install Tobs first using the [installation guide](https://tobs.app/en/docs/installation/). A public proxy needs DNS and inbound reachability; it must also reach the Host's dedicated gateway. A VPS running nginx cannot directly forward to a home computer's `127.0.0.1`. Place the proxy on that computer, use an authorized LAN/private network path, or provide an outbound tunnel such as frp. Keep existing services, certificates and Host configuration.
+
 ## The ingress standard
 
 Your proxy must:
@@ -41,6 +47,7 @@ server {
     proxy_read_timeout 300s;
   }
   location /.well-known/botharness-tunnel/ { proxy_pass http://127.0.0.1:PORT; }
+  location / { return 404; }
 }
 ```
 
@@ -58,11 +65,30 @@ bot.example.com {
 }
 ```
 
-**frp** (reference, not yet verified): expose an `http` proxy with `customDomains = ["bot.example.com"]`, `localPort = PORT`, and terminate HTTPS on the frps side (`vhostHTTPSPort` with a certificate, or an HTTPS reverse proxy in front of frps).
+**frp** (reference, not yet verified): the Host-side `frpc` initiates an outbound connection to your public `frps`. An `http` proxy with `customDomains = ["bot.example.com"]` and `localPort = PORT` can sit behind an HTTPS reverse proxy on the server. Forward the two paths above, including the WebSocket upgrade and admission header. Merely setting `vhostHTTPSPort` does not add certificate termination to an HTTP proxy; frp's HTTPS/https2http mode is a different configuration. Follow the [official HTTPS example](https://gofrp.org/en/docs/examples/https2http/). frp is a generic tunnel, not an implementation of Tobs's [private relay protocol](private-relay-standard.md).
 
 **ngrok** (reference, not yet verified): `ngrok http PORT --url https://<your-ngrok-domain>`; enter that `https://` address in Tobs.
 
-**Your own Cloudflare Named Tunnel**: prefer the built-in **Fixed address** option, which runs cloudflared for you. To manage cloudflared yourself, point the public hostname's service at `http://127.0.0.1:PORT`.
+**Your own Cloudflare Named Tunnel**: prefer the built-in [Fixed address guide](private-named-tunnel.md), which runs cloudflared for you. To manage cloudflared yourself, point the public hostname's service at `http://127.0.0.1:PORT`.
+
+## Copy to your agent
+
+Copy this whole block and provide only public deployment inputs. The proxy may be on another machine; name that machine's role explicitly.
+
+```text
+Set up my existing Tobs Host through my own HTTPS proxy/tunnel. Read https://tobs.app/en/docs/private-ingress/; if unavailable, use https://github.com/BotHarness/DeepSeekBot/blob/main/docs/private-ingress.md. Ask for my public/internal HTTPS origin, proxy type/location and authorized access if missing.
+
+1. Inspect the actual running Host/Profile/version, CLI help, existing routes, DNS/certificates, proxy and port ownership. Establish how the proxy reaches this Host. A reverse proxy alone cannot cross home NAT, and a remote server's loopback is not this computer. If the path is missing, present the needed tunnel/network option before changing anything.
+2. Agree on concrete changes. Preserve existing services, DNS, TLS, routes and pairings. Do not buy infrastructure, overwrite a custom connection, enable LAN listening or alter shared firewall rules without the corresponding authorization. Let me complete provider login; credentials stay in protected local input/files, never chat, command arguments or logs.
+3. Register my HTTPS origin in Tobs's own-proxy flow, obtain its stable gateway-only port and configure forwarding. Preserve GET /botharness-device/channel with WebSocket Upgrade/Connection and X-BotHarness-Admission, plus GET /.well-known/botharness-tunnel/<nonce>. Keep idle WebSockets for at least 60 seconds; block unrelated paths. Publish no Host web/admin port. LAN bind is needed only for an authorized proxy on another LAN machine.
+4. Validate the proxy config before reload. Check DNS, OS-trusted TLS and Tobs's readiness probe over the chosen origin. A browser login challenge must not block the phone channel. Do not skip certificate checks, silently use official Connect or claim untested frp/ngrok references are qualified deployments.
+5. Let me scan locally, compare Host fingerprints and approve the exact phone key; keep pairing material out of chat. Verify a real Bot reply over the intended outside network (or the intended intranet), reconnect, and revocation of an authorized test phone. Report any unavailable phone/model checks as pending.
+6. Report resources changed, actual checks and the remaining steps. Provide restart and rollback limited to this configuration; preserve the Host Profile, other proxy routes, certificates and device grants.
+```
+
+## Verify and maintain
+
+Complete [route verification](private-connect.md#verify-the-selected-route) through the chosen HTTPS origin, not a localhost shortcut. Record the configured upstream port so proxy reloads/restarts keep using it. Retain the previous proxy configuration for rollback. On versions with per-route controls, Stop preserves configuration; removing an ingress does not revoke the phone. Remove only its proxy rules/DNS after checking ownership; do not stop shared nginx/Caddy services to retire one route.
 
 ## Company network without internet
 

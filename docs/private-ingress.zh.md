@@ -2,6 +2,12 @@
 
 如果你已经有反向代理或隧道，Tobs 可以直接使用它，不必用内置的 Cloudflare 选项。只要满足下面的**入站标准**就能接入，就像任何 S3 兼容服务都能用 S3 客户端一样。
 
+其他选择：[私有连接总览](private-connect.zh.md)、[Named Tunnel](private-named-tunnel.zh.md)、[Docker Relay](private-relay.zh.md)。
+
+## 准备网络路径
+
+准备已运行的 Tobs Host 与手机 App、未占用的 HTTPS 主机名、可信证书和代理配置权限。尚未安装时先看[安装教程](https://tobs.app/docs/installation/)。公网代理需要 DNS 与入站连通性，同时必须能访问 Host 的专用设备网关。VPS 上的 nginx 不能直接转发到家中电脑的 `127.0.0.1`；需要代理就在该电脑上、已有授权的局域网/私网路径，或 frp 等出站隧道。保留现有服务、证书与 Host 配置。
+
 ## 入站标准
 
 你的代理需要：
@@ -24,6 +30,27 @@ CLI：`deepseekbot private-ingress-enable --origin https://bot.example.com --con
 ## 参考配置
 
 把 `PORT` 换成 Tobs 显示的端口，把 `bot.example.com` 换成你的地址。配置内容见[英文版](private-ingress.md#reference-configs)：nginx 和 Caddy 已于 2026-11-09 实测（配对、真实回复、撤销均通过；测试时由 Cloudflare Quick Tunnel 终止 HTTPS，证书需你自己配置）；frp、ngrok 为参考配置，尚未实测；自己的 Cloudflare Named Tunnel 建议直接用内置的 **固定地址** 选项。
+
+frp 的常规代理由 Host 旁的 `frpc` 主动连接公网服务器的 `frps`，再转发到本机网关端口。在服务器上用 HTTPS 反向代理承接其 HTTP 代理时，必须透传上面的两条路径、WebSocket 升级和准入头。仅设置 `vhostHTTPSPort` 不会自动为 HTTP 代理终止证书；HTTPS/https2http 是另一种配置，参见 [frp 官方示例](https://gofrp.org/en/docs/examples/https2http/)。frp 是通用隧道，不是 Tobs [私有 Relay 协议](private-relay-standard.zh.md)的实现。Named 的完整步骤见 [Named Tunnel 教程](private-named-tunnel.zh.md)。
+
+## 复制给你的 agent
+
+复制完整代码块，仅提供公开部署信息；代理在其他机器上时，明确它是哪台机器、承担什么角色。
+
+```text
+帮我通过自己的 HTTPS 代理/隧道连接现有 Tobs Host。先读 https://tobs.app/docs/private-ingress/；不可访问时读 https://github.com/BotHarness/DeepSeekBot/blob/main/docs/private-ingress.zh.md。缺少时询问我的公网/内网 HTTPS 地址、代理类型和位置，以及已授权的访问方式。
+
+1. 检查实际运行的 Host/Profile/版本、CLI 帮助、已有连接、DNS/证书、代理和端口归属。确认代理如何到达这台 Host。反向代理本身不能穿透家庭 NAT，远程服务器的 loopback 也不是家中电脑。路径不存在时，先说明需要的隧道/网络选项。
+2. 约定具体改动，保留现有服务、DNS、TLS、连接和配对。不擅自购买基础设施、覆盖 custom 连接、启用局域网监听或修改共享防火墙。服务商登录由我完成；凭据只用本地受保护输入/文件，不进入聊天、命令参数或日志。
+3. 在 Tobs 自带代理流程登记 HTTPS 地址，取得稳定的专用设备网关端口并配置转发。原样保留 GET /botharness-device/channel 的 WebSocket Upgrade/Connection 和 X-BotHarness-Admission，以及 GET /.well-known/botharness-tunnel/<nonce>。空闲 WebSocket 至少保持 60 秒，拦住无关路径，不发布 Host 网页/管理端口。只有代理位于其他局域网机器且已获授权时才开启 LAN 监听。
+4. 重载前验证代理配置，再检查 DNS、系统信任的 TLS 和所选地址上的 Tobs 可达性探测。网页登录挑战不能拦住手机通道。不跳过证书检查、不暗中使用官方 Connect，不把尚未实测的 frp/ngrok 参考配置当成已验收部署。
+5. 让我在本机扫码、核对 Host 指纹并批准准确手机公钥，配对材料不进入聊天。在目标外网或约定内网验证真实 Bot 回复、重连及经授权的测试手机撤销。无法执行的手机/模型检查明确标为待完成。
+6. 报告修改资源、真实检查和剩余步骤，给出只针对本次配置的重启与回退方法；保留 Host Profile、其他代理规则、证书和设备授权。
+```
+
+## 验证与维护
+
+通过所选 HTTPS 地址完成[连接验证](private-connect.zh.md#验证所选连接)，不能用 localhost 捷径代替。记下上游端口，确保代理重载/重启后仍使用它，并保留旧代理配置用于回退。支持单条连接控制的版本中，停止保留配置，移除入口不等于撤销手机。清理前核对归属，只移除本条代理规则/DNS，不为退役一条连接而停止共享 nginx/Caddy。
 
 ## 没有外网的公司内网
 

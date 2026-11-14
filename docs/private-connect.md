@@ -1,6 +1,21 @@
-# Private connection
+# Choose a private connection
 
-Private connection lets your phone reach this computer from mobile data or outside Wi-Fi without an official account, Docker or a VPN app. The desktop Host runs its bundled `cloudflared` and publishes **only the encrypted phone channel**; settings, files and APIs stay private. Phones still pair by QR, compare the Host fingerprint, and need you to approve the exact phone key on the desktop.
+Private connection lets your phone reach this computer from mobile data or outside Wi-Fi without an official Tobs account. Choose a built-in tunnel, an HTTPS ingress or your own relay below. The built-in tunnel uses bundled `cloudflared`; the other methods use your selected proxy or relay. They publish **only the encrypted phone channel**; Host administration stays private. Phones still pair by QR, compare the Host fingerprint, and need you to approve the exact phone key on the desktop.
+
+## Choose a deployment
+
+| What you already have                     | Guide with manual steps and an agent prompt                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| A Cloudflare account and a domain on it   | [Cloudflare Named Tunnel](private-named-tunnel.md): fixed address; Tobs runs cloudflared |
+| An HTTPS proxy, tunnel or company gateway | [Your own HTTPS ingress](private-ingress.md): nginx/Caddy, frp/ngrok or internal HTTPS   |
+| A public server for your relay            | [Docker private relay](private-relay.md): your server, up to 16 computers                |
+| Nothing yet; a temporary trial is enough  | Quick Tunnel below: no account, changing address                                         |
+
+Named/Quick use Cloudflare's network; a self-hosted relay uses your server. HTTPS ingress depends on your chosen provider and a working path from the proxy to the Host. A proxy alone does not traverse home NAT. None of these private modes requires official Tobs Connect.
+
+Each deployment guide has a complete copyable prompt. Copying does not run it. Start with the [installation guide](https://tobs.app/en/docs/installation/) if Tobs is not installed.
+
+Private connection options shipped in 1.7.0. The shared Connections dialog and independent Quick/custom controls described below were added later; inspect the installed version and available controls before configuring them. Keep the current Host Profile and device grants.
 
 ## Advanced methods in Connections
 
@@ -28,57 +43,12 @@ The Host never falls back to the official relay. When the public check fails, th
 
 CLI: `deepseekbot private-tunnel-enable --quick --confirm`, `deepseekbot private-tunnel-enable --hostname <name> --token-stdin --confirm` (pipe the connector token) and `deepseekbot private-tunnel-disable --confirm`. `deepseekbot devices` shows `privateTunnel` status.
 
-# Advanced: Docker private relay
+## Advanced: Docker private relay
 
-Use this only if you already run a public server. It does not require an official account or Cloudflare account. This first slice connects one desktop Host to its phones. Multi-Host enrollment and upgrades have separate v2.0 acceptance gates.
+The server deployment, independent multi-Host claims, verification, recovery and agent prompt are in [Docker private relay](private-relay.md). The [relay standard](private-relay-standard.md) describes compatible implementations.
 
-**You need a public HTTPS endpoint reachable by both your phone and computer.** Use an existing public server, or a home/NAS endpoint with correctly configured public connectivity. A domain alone or Docker running only behind home NAT does not provide remote access. This setup does not purchase infrastructure, open router ports, configure DNS, or guarantee connectivity across every carrier.
+## Verify the selected route
 
-## Prepare the server
+After Tobs confirms public readiness, pair locally, compare the Host fingerprint and approve the exact phone key. Use mobile data/outside Wi-Fi, send a uniquely identifiable Bot message and check the real reply. Verify reconnect and, when authorized, revocation. Keep QR codes and tokens out of agent chat and screenshots. A health response or running process alone does not prove phone access.
 
-Install Docker Compose and Node 24 on the server. Copy the candidate's `deploy/private-relay` directory to an absolute directory you control. Point an existing DNS name to that server and make inbound TCP 80/443 reachable. Other applications must not already own these ports. Caddy obtains and renews the HTTPS certificate; certificate issuance and carrier reachability can fail independently.
-
-For example, if you placed the files at `/opt/botharness-private`, run these commands in **Bash on that server**, substituting your actual full directory and domain:
-
-```bash
-node /opt/botharness-private/setup.mjs relay.example.com
-docker compose --project-name botharness-private --project-directory /opt/botharness-private --file /opt/botharness-private/compose.yaml up --build --detach
-```
-
-Setup creates private `.env` and `bootstrap.secret` files without printing the key. Keep both out of git, screenshots and shared logs. Compose passes the key to its container environment, which machine administrators can inspect; this does not protect secrets from administrators of that server. The relay runs as an unprivileged user, persists only hashed admission credentials, and carries encrypted application frames rather than chat history.
-
-## Claim and pair
-
-1. On your trusted desktop, open **Settings → Connections → Add connection → Connect a device to this Host → Private connection (recommended) → Your own relay server (Docker, advanced)**.
-2. Enter the HTTPS origin and privately copy the initial setup key from the server's `bootstrap.secret` file. Do not send it to another person or put it into command arguments.
-3. Choose **Claim and connect**. Wait for **Connected**. A successful local setup, container start or health response alone is not proof that your phone can reach it.
-4. Choose **Show phone pairing code**. On the native phone, scan it and verify the full Host fingerprint against the trusted desktop. On the desktop, compare and approve the exact phone key.
-5. Send a Bot message from the phone and check the actual reply. For external-access acceptance use mobile data, not only home Wi-Fi.
-
-The first successful claim wins. A repeated or competing claim is refused. Relay admission is not Host authorization: the pinned Host key and per-Host device approval remain mandatory. The QR includes sensitive relay admission material; treat it like a pairing invitation. Revoking a phone denies Host access and closes its active encrypted channels, even though the relay admission token shared by the phones of that computer is not rotated.
-
-## More computers on one relay
-
-One deployment serves up to 16 computers. Each computer gets its own one-time claim key, its own owner credential and its own phone admission, so a phone paired with one computer cannot reach another through the relay, and releasing or revoking one computer never affects the others.
-
-On the server, create a key for each extra computer:
-
-```bash
-node /opt/botharness-private/setup.mjs add-host office-mac
-```
-
-This writes `host-office-mac.secret` (the key, private to the server) and appends only its hash to `hosts/keys`, which the relay reads on every claim, so no restart is needed. On that computer, claim with the same steps as above but paste the contents of `host-office-mac.secret` instead of `bootstrap.secret`. The first computer keeps using `bootstrap.secret`.
-
-Upgrading a single-computer deployment: pull the new `deploy/private-relay` files, then `docker compose up -d --build` with the same project directory. The existing claim, phones and volumes keep working unchanged; add more computers with `add-host` afterwards. The wire protocol is documented in [the relay standard](private-relay-standard.md), with a conformance script for third-party relays.
-
-## Failures and recovery
-
-- **Cannot reach the service:** check public DNS, inbound ports, HTTPS certificate and Docker status. Do not disable certificate validation. The app does not silently use the official relay.
-- **Already claimed:** continue from the original desktop/Profile. Do not delete the relay data volume to make the error disappear.
-- **Connection interrupted during claim:** the desktop saves private owner credentials before claiming. Keep its Profile and restart the same Host; it reconnects without replaying the claim. An unknown result is not reported as success.
-- **Server restart:** retain the `relay-data` and Caddy volumes and the desktop credential store. The same owner and phone pairing should reconnect. Removing a volume is destructive recovery, not an upgrade step.
-- **Phone lost:** use the Host's existing paired-device revoke control. If all trusted Host credentials are lost, rebuild and re-pair; a server account cannot recover the original Host identity.
-
-Stop only this deployment with the same absolute Compose path and project name, using `down` **without** `--volumes`. Do not touch unrelated stacks. This candidate has no cloud offline queue, no remote wake, no new media promise, and no guaranteed free hosting allowance. Mainland ordinary-network qualification remains an explicit release gate.
-
-CLI operators can use [the private connection commands](bot-cli.md#docker-private-connectivity). Native acceptance evidence is tracked in [#3746](https://github.com/BotHarness/DeepSeekBot/issues/3746); this guide does not claim that acceptance has passed.
+[PR #3780](https://github.com/BotHarness/DeepSeekBot/pull/3780) records iOS Simulator pairing, real replies and revocation for Quick/Named, nginx/Caddy routing and multi-Host relay. frp/ngrok remain reference configurations. Physical cellular, mainland carrier, Android and media-feature qualification is separate.
