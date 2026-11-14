@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,6 +22,7 @@ const homes: string[] = [];
 const owners: OperationalDatabaseOwner[] = [];
 const route = { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'low' };
 const legacy: PersonaBotRecord = {
+  ownerHumanId: 'local-human',
   slug: 'existing',
   displayName: 'Existing',
   createdAt: '2026-10-05T00:00:00Z',
@@ -112,7 +114,7 @@ describe('Registry database authority', () => {
     }
     const next = mount(setup.home);
     const registry = createPersonaBotRegistry({ rootDir: setup.rootDir, database: next });
-    expect(registry.list()).toEqual([identity]);
+    expect(registry.list()).toEqual([{ ...identity, ownerHumanId: 'local-human' }]);
     const port = attachOperationalModule(next, 'test');
     expect(
       port.read(
@@ -416,7 +418,7 @@ describe('Registry database authority', () => {
       expect(second.operationalDatabase.diagnostics().mode).toBe('recovery');
       expect(() => second.registry.create({ slug: 'denied', displayName: 'Denied' })).toThrow();
       expect(() =>
-        second.runtime.admitDmMessage({
+        second.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: 'qa-channel',
           messageId: 'qa-message',
           body: 'must not execute',

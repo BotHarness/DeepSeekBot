@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import {
   parameterSchemaSpecToJsonSchema,
   validateArgs,
@@ -51,13 +52,19 @@ async function withTools(
   try {
     for (const slug of ['ada', 'bea', 'cee'])
       core.registry.create({ slug, displayName: slug.toUpperCase() });
-    const team = core.channels.createGroup({
+    const team = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Team A',
       members: ['ada', 'bea'],
       ownerBotSlug: 'ada',
     });
-    const other = core.channels.createGroup({ name: 'Team B', members: ['ada', 'bea'] });
-    const privateGroup = core.channels.createGroup({ name: 'Private secret', members: ['cee'] });
+    const other = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Team B',
+      members: ['ada', 'bea'],
+    });
+    const privateGroup = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Private secret',
+      members: ['cee'],
+    });
     const request = core.channels.requestGroupJoin({
       channelId: team.id,
       requesterBotSlug: 'cee',
@@ -77,7 +84,7 @@ async function withTools(
       ['system', { kind: 'system' as const }],
     ] as const) {
       for (const index of [1, 2])
-        await core.channels.appendMessage(team.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, team.id, {
           id: `${kind}-${index}`,
           at: `2026-09-01T00:00:0${index}.000Z`,
           author,
@@ -94,26 +101,30 @@ async function withTools(
           body: `needle ${kind} ${index}`,
         });
     }
-    await core.channels.appendMessage(other.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, other.id, {
       id: 'other-record',
       at: '2026-09-01T00:00:03.000Z',
       author: { kind: 'human' },
       body: 'needle other',
     });
-    await core.channels.appendMessage(privateGroup.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, privateGroup.id, {
       id: 'private-record',
       at: '2026-09-01T00:00:04.000Z',
       author: { kind: 'human' },
       body: 'needle secret',
     });
-    const dm = core.channels.getOrCreateDm('ada', 'ADA')!;
-    await core.channels.appendMessage(dm.id, {
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'ADA')!;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-check',
       at: '2026-09-02T00:00:00.000Z',
       author: { kind: 'human' },
       body: 'Check',
     });
-    core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'human-check', body: 'Check' });
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: dm.id,
+      messageId: 'human-check',
+      body: 'Check',
+    });
     await core.runtime.whenIdle();
     expect(failures).toEqual([]);
   } finally {
@@ -151,7 +162,8 @@ describe('registered Channel discovery/read contracts', () => {
         signal: new AbortController().signal,
       } as ToolRunContext);
       expect(
-        core.humanAttention.list({ category: 'replies', channelId: team }).items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies', channelId: team })
+          .items,
       ).toMatchObject([{ kind: 'channel-mention', summary: '@Human Ready?' }]);
     });
   });

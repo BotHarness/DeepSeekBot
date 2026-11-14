@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -32,10 +33,10 @@ function fixture() {
   });
   broker = new ChannelUserQuestions(core.channels, core.ownership, () => live);
   core.companions.attachQuestions(broker);
-  const methods = createBridgeMethods({ ...core, userQuestions: broker });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, userQuestions: broker });
   const start = async (slug: string, signal?: AbortSignal) => {
     core.registry.create({ slug, displayName: slug });
-    const channel = core.channels.getOrCreateDm(slug, slug)!;
+    const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug)!;
     const sessionId = 'qa-' + slug;
     core.ownership.claim({
       sessionId,
@@ -158,11 +159,14 @@ describe('Human Inbox question Host boundary', () => {
         ).toMatchObject({ ok: true });
         await scene.answer;
       }
-      const all = f.core.humanAttention.list({ category: 'handled' });
+      const all = f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'handled' });
       expected = all.items.map((item) => item.id);
       expect(expected).toHaveLength(3);
-      const first = f.core.humanAttention.list({ category: 'handled', limit: 1 });
-      const second = f.core.humanAttention.list({
+      const first = f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+        category: 'handled',
+        limit: 1,
+      });
+      const second = f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
         category: 'handled',
         limit: 1,
         cursor: first.nextCursor!,
@@ -172,7 +176,7 @@ describe('Human Inbox question Host boundary', () => {
       );
       expect(
         f.core.humanAttention
-          .list({ category: 'handled', sort: 'oldest' })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'handled', sort: 'oldest' })
           .items.map((item) => item.id),
       ).toEqual([...expected].reverse());
       expect(
@@ -182,13 +186,18 @@ describe('Human Inbox question Host boundary', () => {
         f.methods.humanAttention({ category: 'handled', sort: 'oldest', cursor: first.nextCursor }),
       ).toMatchObject({ ok: false });
       expect(
-        f.core.humanAttention.list({ category: 'handled', channelId: 'dm-ada' }).items,
+        f.core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'handled',
+          channelId: 'dm-ada',
+        }).items,
       ).toMatchObject([{ botSlug: 'ada' }]);
       const pending = await f.start('dee');
-      await f.core.channels.markRead(pending.channelId, pending.message.id);
-      expect(f.core.humanAttention.status().hasAction).toBe(true);
+      await f.core.channels.markRead(OWNER_HUMAN_CONTEXT, pending.channelId, pending.message.id);
+      expect(f.core.humanAttention.status(OWNER_HUMAN_CONTEXT).hasAction).toBe(true);
       expect(
-        f.core.humanAttention.list({ category: 'handled' }).items.map((item) => item.id),
+        f.core.humanAttention
+          .list(OWNER_HUMAN_CONTEXT, { category: 'handled' })
+          .items.map((item) => item.id),
       ).toEqual(expected);
       f.broker.close();
       await pending.answer.catch(() => undefined);
@@ -200,7 +209,9 @@ describe('Human Inbox question Host boundary', () => {
     const reopened = createCore({ dshHome: f.home, agents });
     try {
       expect(
-        reopened.humanAttention.list({ category: 'handled' }).items.map((item) => item.id),
+        reopened.humanAttention
+          .list(OWNER_HUMAN_CONTEXT, { category: 'handled' })
+          .items.map((item) => item.id),
       ).toEqual(expected);
     } finally {
       await reopened.runtime.close();

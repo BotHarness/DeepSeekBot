@@ -1,3 +1,6 @@
+import { PublicChannelsDialog } from './public-channels-dialog.js';
+import { humanIdOf, selfHumanId } from './self-human.js';
+import { useTeamMode } from './team-state.js';
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
 import { useSearchOpenMark } from './search-open-mark.js';
 import { observeHumanAttention } from './messaging-defaults-live.js';
@@ -575,7 +578,9 @@ function channelPreview(
       t('roster.latestActivity'));
   const author =
     message.author.kind === 'human'
-      ? t('rail.you')
+      ? humanIdOf(message.author) === selfHumanId()
+        ? t('rail.you')
+        : (message.author.displayName ?? t('channelActivity.human'))
       : message.author.kind === 'bot'
         ? (bots.get(message.author.slug)?.displayName ?? message.author.slug)
         : message.author.kind === 'bridged'
@@ -1022,7 +1027,8 @@ type CreateRequest =
       pinned?: boolean;
     }
   | { kind: 'channel'; sectionId?: string }
-  | { kind: 'marketplace' };
+  | { kind: 'marketplace' }
+  | { kind: 'public-channels' };
 
 type FlatBlockView =
   | { kind: 'section'; section: RosterSection; channels: ChannelSummary[] }
@@ -1048,6 +1054,7 @@ export function BotSidebar({
   const state = useClientFields(SIDEBAR_FIELDS);
   const hostTabs = useChannelDockActive();
   const [addingRemote, setAddingRemote] = useState(false);
+  const teamMode = useTeamMode(actions.teamCall);
   const remoteHostsState = useRemoteHosts();
   const remoteOpen = hostTabs && remoteHostsState.open !== undefined;
   const channelUnread = useClientStore(selectChannelUnread);
@@ -1555,6 +1562,7 @@ export function BotSidebar({
     if (id === 'channel') setCreateRequest({ kind: 'channel' });
     if (id === 'section') setCreateRequest({ kind: 'section' });
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
+    if (id === 'public-channels') setCreateRequest({ kind: 'public-channels' });
     if (id === 'remote') setAddingRemote(true);
   };
 
@@ -2260,7 +2268,13 @@ export function BotSidebar({
               </button>
             </Tooltip>
           }
-          items={menuItems(t, gitReady(state.git), hostTabs)}
+          items={menuItems(
+            t,
+            gitReady(state.git),
+            hostTabs,
+            teamMode?.enabled === true,
+            teamMode?.viewer.kind === 'member',
+          ).filter((item) => teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id))}
           onSelect={selectMenu}
           onClose={() => {
             setMenuOpen(false);
@@ -3052,6 +3066,19 @@ export function BotSidebar({
               setBatchError('failed');
             }
             return true;
+          }}
+        />
+      ) : null}
+      {createRequest?.kind === 'public-channels' && actions.teamCall !== undefined ? (
+        <PublicChannelsDialog
+          call={actions.teamCall}
+          t={t}
+          onClose={() => {
+            setCreateRequest(undefined);
+          }}
+          onJoined={(channelId) => {
+            setCreateRequest(undefined);
+            void actions.refreshRoster().then(() => actions.openChannel(channelId));
           }}
         />
       ) : null}
@@ -3979,6 +4006,13 @@ export function ChannelMoveMenu({
   );
 }
 
+const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set([
+  'bot',
+  'channel',
+  'section',
+  'public-channels',
+]);
+
 function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
   if (id === 'bot' || id === 'bot:empty') return 'empty';
   if (id === 'bot:git') return 'git';
@@ -3986,7 +4020,13 @@ function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
   return undefined;
 }
 
-function menuItems(t: BotHarnessTranslate, gitAvailable: boolean, remotes: boolean): MenuEntry[] {
+function menuItems(
+  t: BotHarnessTranslate,
+  gitAvailable: boolean,
+  remotes: boolean,
+  team = false,
+  member = false,
+): MenuEntry[] {
   const disabled = !gitAvailable;
   return [
     {
@@ -3995,8 +4035,12 @@ function menuItems(t: BotHarnessTranslate, gitAvailable: boolean, remotes: boole
       icon: <IconAgentPresetOutlineRegular size={16} />,
       submenu: [
         { id: 'bot:empty', label: t('roster.menu.createBot.empty'), disabled },
-        { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
-        { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+        ...(member
+          ? []
+          : [
+              { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
+              { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+            ]),
       ],
     },
     {
@@ -4004,6 +4048,15 @@ function menuItems(t: BotHarnessTranslate, gitAvailable: boolean, remotes: boole
       label: t('roster.menu.createChannel'),
       icon: <IconNewChatOutlineRegular size={16} />,
     },
+    ...(team
+      ? [
+          {
+            id: 'public-channels',
+            label: t('team.channels.browse'),
+            icon: <ChannelSidebarIcon name="hash" size={16} />,
+          },
+        ]
+      : []),
     {
       id: 'section',
       label: t('roster.menu.createSection'),

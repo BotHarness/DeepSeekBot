@@ -1,3 +1,4 @@
+import { type HumanContext } from '../humans/context.js';
 import { asyncGitSteps, syncGitSteps, type GitSteps } from './git-steps.js';
 import {
   isMemoryMarkdown,
@@ -36,7 +37,6 @@ import {
 import { dirname, join } from 'node:path';
 
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { LOCAL_HUMAN_ID } from '../channels/channel.js';
 import { atomicWriteFile } from '../fs/atomic-write.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
@@ -246,29 +246,41 @@ export interface MemoryAcceptance {
   workingChanges(botSlug: string): MemoryWorkingChange[];
   workingDiff(botSlug: string, path: string, kind: MemoryWorkingKind): MemoryWorkingDiff;
   recoveryHistory(botSlug: string): MemoryRecoveryCheckpoint[];
-  restoreHuman(input: { botSlug: string; checkpointId: string; expectedCurrentId: string }): {
+  restoreHuman(
+    human: HumanContext,
+    input: { botSlug: string; checkpointId: string; expectedCurrentId: string },
+  ): {
     checkpoint: MemoryRecoveryCheckpoint;
     archivePath: string;
   };
-  repairHuman(input: {
-    botSlug: string;
-    expectedHead: string;
-    repairId: string;
-  }): MemoryRepairEvent;
-  saveHuman(input: {
-    botSlug: string;
-    path: string;
-    body: string;
-    expectedHead: string;
-    editId: string;
-  }): MemoryAcceptedCommit;
-  restoreCommitHuman(input: {
-    botSlug: string;
-    sha: string;
-    expectedHead: string;
-    restoreId: string;
-    name?: string;
-  }): {
+  repairHuman(
+    human: HumanContext,
+    input: {
+      botSlug: string;
+      expectedHead: string;
+      repairId: string;
+    },
+  ): MemoryRepairEvent;
+  saveHuman(
+    human: HumanContext,
+    input: {
+      botSlug: string;
+      path: string;
+      body: string;
+      expectedHead: string;
+      editId: string;
+    },
+  ): MemoryAcceptedCommit;
+  restoreCommitHuman(
+    human: HumanContext,
+    input: {
+      botSlug: string;
+      sha: string;
+      expectedHead: string;
+      restoreId: string;
+      name?: string;
+    },
+  ): {
     head: string;
     backup: string | null;
     version: MemoryVersionName | null;
@@ -2071,13 +2083,14 @@ export function createMemoryAcceptance(options: {
         );
       }
     },
-    restoreHuman(input) {
+    restoreHuman(human: HumanContext, input) {
       assertIdle(input.botSlug);
       if (inFlight.has(input.botSlug) || pendingRepair(input.botSlug) !== undefined)
         throw new MemoryAcceptError('memory-conflict', 'Memory is busy');
       const root = repository(registry, input.botSlug);
       try {
         const result = recovery.restore(
+          human,
           input.botSlug,
           root,
           input.checkpointId,
@@ -2148,7 +2161,7 @@ export function createMemoryAcceptance(options: {
       const patch = run(root, ['show', '--format=', '--no-ext-diff', sha], MAX_DIFF_BYTES);
       return { sha, diff: patch.toString('utf8') };
     },
-    repairHuman(input) {
+    repairHuman(human: HumanContext, input) {
       assertIdle(input.botSlug);
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(input.repairId)) {
         throw new MemoryAcceptError('memory-invalid', 'Valid Memory repair identity is required');
@@ -2213,7 +2226,7 @@ export function createMemoryAcceptance(options: {
               baseline,
               provisionalHead,
               backupPath,
-              LOCAL_HUMAN_ID,
+              human.humanId,
               at,
             );
             return db
@@ -2283,7 +2296,7 @@ export function createMemoryAcceptance(options: {
         ),
       );
     },
-    saveHuman(input) {
+    saveHuman(human: HumanContext, input) {
       assertIdle(input.botSlug);
       if (pendingRepair(input.botSlug) !== undefined) {
         throw new MemoryAcceptError(
@@ -2346,7 +2359,7 @@ export function createMemoryAcceptance(options: {
             sha,
             parentSha: baseline,
             actorKind: 'human',
-            actorId: LOCAL_HUMAN_ID,
+            actorId: human.humanId,
             causeKind: 'human-edit',
             causeId: input.editId,
             validationResult: validateCommit(root, sha),
@@ -2359,7 +2372,7 @@ export function createMemoryAcceptance(options: {
       try {
         recovery.capture(input.botSlug, root, {
           origin: 'human-command',
-          originId: LOCAL_HUMAN_ID,
+          originId: human.humanId,
           causeKind: 'human-edit',
           causeId: input.editId,
         });
@@ -2370,7 +2383,7 @@ export function createMemoryAcceptance(options: {
       }
       return accepted;
     },
-    restoreCommitHuman(input) {
+    restoreCommitHuman(human: HumanContext, input) {
       assertIdle(input.botSlug);
       if (inFlight.has(input.botSlug) || pendingRepair(input.botSlug) !== undefined)
         throw new MemoryAcceptError('memory-conflict', 'Memory is busy');
@@ -2390,7 +2403,7 @@ export function createMemoryAcceptance(options: {
         root,
         {
           origin: 'human-command',
-          originId: LOCAL_HUMAN_ID,
+          originId: human.humanId,
           causeKind: 'human-edit',
           causeId: input.restoreId,
         },
@@ -2447,7 +2460,7 @@ export function createMemoryAcceptance(options: {
             commits.map((commit) => ({
               ...commit,
               actorKind: 'human' as const,
-              actorId: LOCAL_HUMAN_ID,
+              actorId: human.humanId,
               causeKind: 'human-edit' as const,
               causeId: input.restoreId,
               validationResult: validateCommit(root, commit.sha),
@@ -2457,7 +2470,7 @@ export function createMemoryAcceptance(options: {
         }
         recovery.capture(input.botSlug, root, {
           origin: 'human-command',
-          originId: LOCAL_HUMAN_ID,
+          originId: human.humanId,
           causeKind: 'human-edit',
           causeId: input.restoreId,
         });

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
@@ -502,7 +503,7 @@ it('marks stale/deleted remote sources as definite failure rather than rerouting
 
 it('keeps receive lifecycle separate from proactive authorization and exposes it through the real RPC methods', async () => {
   const fx = await fixture();
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   expect((await fx.core.externalMessaging.snapshot('ada')).grants[0]?.reception).toBe('off');
   expect(
     await methods.messagingReceive({ slug: 'ada', grantId: fx.grant.id, enabled: true }),
@@ -659,7 +660,9 @@ it.each([true, false])(
         if (withDm) await run.channels.send({ body: 'Assignment acknowledgement' });
       },
     });
-    const dm = withDm ? fx.core.channels.getOrCreateDm('ada', 'Ada') : undefined;
+    const dm = withDm
+      ? fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')
+      : undefined;
     const database = attachOperationalModule(fx.core.operationalDatabase, 'test');
     database.transaction(
       (db) => {
@@ -1144,7 +1147,7 @@ it('enriches display names without changing canonical identity and preserves har
 
 async function sharedTarget(fx: Awaited<ReturnType<typeof fixture>>) {
   expect(fx.core.registry.create({ slug: 'bea', displayName: 'Bea' }).ok).toBe(true);
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   const result = methods.channelCreate({ name: 'Shared Lark work', members: ['ada', 'bea'] });
   if (!result.ok) throw new Error(result.error.message);
   const channelId = result.value.channel.id;
@@ -1210,14 +1213,14 @@ it('places one canonical external Source Event in a shared Channel, wakes only t
   expect(fx.replies).toEqual([
     { botId: 'lark-app', route: event().reply, text: 'Shared work reply' },
   ]);
-  const dm = fx.core.channels.getOrCreateDm('bea', 'Bea')!;
-  await fx.core.channels.appendMessage(dm.id, {
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+  await fx.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'check',
     at: '2026-10-01T00:01:00Z',
     author: { kind: 'human' },
     body: 'Read the shared Channel',
   });
-  fx.core.runtime.admitDmMessage({
+  fx.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'check',
     body: 'Read the shared Channel',
@@ -1225,7 +1228,9 @@ it('places one canonical external Source Event in a shared Channel, wakes only t
   await fx.idle();
   expect(fx.runs.map((run) => run.bot.slug)).toEqual(['ada', 'bea']);
   expect(
-    fx.core.channels.readMessages(fx.core.channels.getOrCreateDm('ada', 'Ada')!.id),
+    fx.core.channels.readMessages(
+      fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id,
+    ),
   ).toHaveLength(0);
   expect(fx.replies).toHaveLength(1);
   await fx.receive();
@@ -1246,9 +1251,12 @@ it('places one canonical external Source Event in a shared Channel, wakes only t
 
 it('refuses non-group or nonmember targets without changing the grant, and supports returning to Inbox-only reception', async () => {
   const fx = await fixture();
-  const methods = createBridgeMethods({ ...fx.core });
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
-  const other = fx.core.channels.createGroup({ name: 'Other members', members: [] });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const other = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Other members',
+    members: [],
+  });
   for (const channelId of [dm.id, other.id, 'missing']) {
     expect(
       await methods.messagingChannelTarget({ slug: 'ada', grantId: fx.grant.id, channelId }),
@@ -2077,7 +2085,9 @@ it.each([
   await fx.receive(inbound);
   await fx.receive(inbound);
   await fx.idle();
-  expect(createBridgeMethods({ ...fx.core }).channelActivityToday({})).toMatchObject({
+  expect(
+    createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).channelActivityToday({}),
+  ).toMatchObject({
     ok: true,
     value: {
       total: 1,
@@ -2112,7 +2122,7 @@ function managedEvent(
   return event({ at: new Date(Date.parse(after) + 1).toISOString(), ...overrides });
 }
 async function addManagedBridge(fx: Awaited<ReturnType<typeof fixture>>, enabled = true) {
-  const result = createBridgeMethods({ ...fx.core }).channelCreate({
+  const result = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).channelCreate({
     name: 'Managed Lark',
     members: ['ada'],
   });
@@ -2340,7 +2350,7 @@ it('Bridge writes reject stale configuration and departed Humans, and expose exp
   await expect(fx.core.externalMessaging.inbound.channelBridge(channelId, update)).rejects.toThrow(
     'bridge-stale',
   );
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   expect((await fx.core.externalMessaging.channelBridges(dm.id)).canTargetInbox).toBe(true);
   attachOperationalModule(fx.core.operationalDatabase, 'test').transaction((db) => {
     db.prepare(
@@ -2467,7 +2477,7 @@ it('uses each Bot default and effective channel override in the Human query and 
   const fx = await fixture();
   const id = await sharedTarget(fx);
   fx.core.sourcePolicy.setGroupOrdinary('bea', 'silent', 5, 30, { kind: 'human' });
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   expect(methods.channelGroupWakePolicies({ channelId: id })).toMatchObject({
     ok: true,
     value: {
@@ -2494,7 +2504,7 @@ it('uses each Bot default and effective channel override in the Human query and 
     ok: true,
     value: { members: [{ inherited: false, policy: { count: 2 } }, { inherited: true }] },
   });
-  const privateGroup = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const privateGroup = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   expect(methods.channelGroupWakePolicies({ channelId: privateGroup.id })).toMatchObject({
     ok: false,
   });
@@ -2781,7 +2791,7 @@ it('handles a local member reply after shared external harvest without granting 
 
 async function inboxShareTarget(fx: Awaited<ReturnType<typeof fixture>>) {
   expect(fx.core.registry.create({ slug: 'bea', displayName: 'Bea' }).ok).toBe(true);
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   const result = methods.channelCreate({
     name: 'Explicit Inbox collaboration',
     members: ['ada', 'bea'],
@@ -3002,7 +3012,7 @@ it('keeps a silent helper pending, does not admit later joiners on share retry, 
     inviterHuman: true,
     targetBotSlug: 'cee',
     targetBotCreatedAt: fx.core.registry.get('cee')!.createdAt,
-    targetDmChannelId: fx.core.channels.getOrCreateDm('cee', 'Cee')!.id,
+    targetDmChannelId: fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'cee', 'Cee')!.id,
   });
   expect(fx.core.externalMessaging.inbound.share('ada', source, id).alreadyShared).toBe(true);
   expect(
@@ -3010,7 +3020,7 @@ it('keeps a silent helper pending, does not admit later joiners on share retry, 
       `SELECT bot_slug FROM inbox_admissions WHERE source_event_id = '${source}' ORDER BY bot_slug`,
     ),
   ).toEqual([{ bot_slug: 'ada' }, { bot_slug: 'bea' }]);
-  const other = createBridgeMethods({ ...fx.core }).channelCreate({
+  const other = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).channelCreate({
     name: 'Other team',
     members: ['ada', 'bea'],
   });
@@ -3377,12 +3387,12 @@ it('ends only one local Channel route and purges its shared external source with
   const second = createRouteGroup(fx, 'Retained route');
   await addRoute(fx, first);
   await addRoute(fx, second);
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   await addRoute(fx, dm.id, 'inbox');
   const message = event({ at: new Date(Date.now() + 100).toISOString() });
   await fx.receive(message);
   await fx.idle();
-  const methods = createBridgeMethods({ ...fx.core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   expect(methods.channelGroupDelete({ channelId: first }).ok).toBe(true);
   expect(
     (await fx.core.externalMessaging.snapshot('ada')).grants[0]?.bridgeRoutes?.map(
@@ -3390,12 +3400,12 @@ it('ends only one local Channel route and purges its shared external source with
     ),
   ).toEqual([second, null]);
   expect(fx.core.channels.readMessages(second)[0]?.body).toBe(message.text);
-  const source = fx.core.contentPurge.sources(first).sources[0]!;
+  const source = fx.core.contentPurge.sources(OWNER_HUMAN_CONTEXT, first).sources[0]!;
   expect(source.refusal).toBeUndefined();
-  const preview = fx.core.contentPurge.preview(first, [source.sourceEventId]);
+  const preview = fx.core.contentPurge.preview(OWNER_HUMAN_CONTEXT, first, [source.sourceEventId]);
   expect(preview.placements).toHaveLength(2);
   expect(preview.admissions).toHaveLength(1);
-  fx.core.contentPurge.confirm(first, preview.sourceEventIds, preview.token);
+  fx.core.contentPurge.confirm(OWNER_HUMAN_CONTEXT, first, preview.sourceEventIds, preview.token);
   expect(fx.core.channels.readMessages(second)[0]?.body).toBe('');
   expect(() => fx.core.externalMessaging.inbound.read('ada', source.sourceEventId)).toThrow(
     'content-purged',
@@ -3406,7 +3416,7 @@ it('ends only one local Channel route and purges its shared external source with
   expect(fx.runs).toHaveLength(count);
   expect(fx.query('SELECT body FROM source_events')).toEqual([{ body: '' }]);
   await fx.restart();
-  expect(fx.core.contentPurge.sources(first).sources[0]?.body).toBe('');
+  expect(fx.core.contentPurge.sources(OWNER_HUMAN_CONTEXT, first).sources[0]?.body).toBe('');
 });
 
 it('keeps an already issued reply in flight and settles the actual receipt after purge without restoring text', async () => {
@@ -3427,12 +3437,14 @@ it('keeps an already issued reply in flight and settles the actual receipt after
   );
   const sending = fx.core.externalMessaging.reply('ada', sourceId, 'synthetic outgoing body');
   await expect.poll(() => fx.replies.length).toBe(1);
-  expect(createBridgeMethods({ ...fx.core }).channelGroupDelete({ channelId: channel }).ok).toBe(
-    true,
-  );
-  const preview = fx.core.contentPurge.preview(channel, [sourceId]);
+  expect(
+    createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).channelGroupDelete({
+      channelId: channel,
+    }).ok,
+  ).toBe(true);
+  const preview = fx.core.contentPurge.preview(OWNER_HUMAN_CONTEXT, channel, [sourceId]);
   expect(preview.effects).toMatchObject([{ kind: 'outbox', state: 'in-flight' }]);
-  fx.core.contentPurge.confirm(channel, preview.sourceEventIds, preview.token);
+  fx.core.contentPurge.confirm(OWNER_HUMAN_CONTEXT, channel, preview.sourceEventIds, preview.token);
   expect(fx.core.externalMessaging.history('ada')[0]).toMatchObject({
     state: 'in-flight',
     text: '',
@@ -3464,13 +3476,22 @@ it('fences running Bot admissions and retained tool callbacks after accepted sou
   try {
     await fx.receive(event({ at: new Date(Date.now() + 100).toISOString() }));
     await expect.poll(() => active !== undefined).toBe(true);
-    expect(createBridgeMethods({ ...fx.core }).channelGroupDelete({ channelId: channel }).ok).toBe(
-      true,
-    );
-    const source = fx.core.contentPurge.sources(channel).sources[0]!;
-    const preview = fx.core.contentPurge.preview(channel, [source.sourceEventId]);
+    expect(
+      createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).channelGroupDelete({
+        channelId: channel,
+      }).ok,
+    ).toBe(true);
+    const source = fx.core.contentPurge.sources(OWNER_HUMAN_CONTEXT, channel).sources[0]!;
+    const preview = fx.core.contentPurge.preview(OWNER_HUMAN_CONTEXT, channel, [
+      source.sourceEventId,
+    ]);
     expect(preview.admissions).toMatchObject([{ state: 'running' }]);
-    fx.core.contentPurge.confirm(channel, preview.sourceEventIds, preview.token);
+    fx.core.contentPurge.confirm(
+      OWNER_HUMAN_CONTEXT,
+      channel,
+      preview.sourceEventIds,
+      preview.token,
+    );
     expect(() => active!.requireContent!()).toThrow();
     await expect(
       active!.channels.send({ channelId: other, body: 'stale outgoing body' }),
@@ -3504,12 +3525,14 @@ it('ends running Channel effects only after its last reception path ends while r
   try {
     await fx.receive(event({ at: new Date(Date.now() + 100).toISOString() }));
     await expect.poll(() => active !== undefined).toBe(true);
-    const methods = createBridgeMethods({ ...fx.core });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
     expect(methods.channelGroupDelete({ channelId: first }).ok).toBe(true);
     expect(() => active!.requireContent!()).not.toThrow();
     expect(methods.channelGroupDelete({ channelId: second }).ok).toBe(true);
     expect(() => active!.requireContent!()).toThrow('Channel has ended');
-    expect(fx.core.contentPurge.sources(first).sources[0]?.body).toBe(event().text);
+    expect(fx.core.contentPurge.sources(OWNER_HUMAN_CONTEXT, first).sources[0]?.body).toBe(
+      event().text,
+    );
     expect(fx.query('SELECT attempt_state FROM inbox_admissions')[0]?.attempt_state).toBe(
       'needs-repair',
     );
@@ -3523,7 +3546,10 @@ function createRouteGroup(
   name: string,
   members = ['ada'],
 ) {
-  const result = createBridgeMethods({ ...fx.core }).channelCreate({ name, members });
+  const result = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).channelCreate({
+    name,
+    members,
+  });
   if (!result.ok) throw new Error(result.error.message);
   return result.value.channel.id;
 }
@@ -3537,7 +3563,7 @@ it('routes one source to two Groups, an explicit DM and Inbox with one member ad
   });
   const first = createRouteGroup(fx, 'First');
   const second = createRouteGroup(fx, 'Second');
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   await addRoute(fx, first);
   await addRoute(fx, second);
   await addRoute(fx, dm.id);
@@ -3590,7 +3616,7 @@ it.each(['channel', 'inbox'] as const)(
     const target =
       delivery === 'channel'
         ? createRouteGroup(fx, 'Context before live')
-        : fx.core.channels.getOrCreateDm('ada', 'Ada')!.id;
+        : fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
     await addRoute(fx, target, delivery);
     await fx.receive(event({ at: new Date(Date.now() + 100).toISOString() }));
     await fx.idle();
@@ -3768,9 +3794,9 @@ it('revokes one overlap independently and never backfills a newly added target o
 it('refuses implicit Bot-to-Bot DM targets and keeps Inbox-only sources out of the Human DM history', async () => {
   const fx = await fixture();
   expect(fx.core.registry.create({ slug: 'bea', displayName: 'Bea' }).ok).toBe(true);
-  const botDm = fx.core.channels.getOrCreateBotDm('ada', 'bea', 'Peers')!;
+  const botDm = fx.core.channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Peers')!;
   await expect(addRoute(fx, botDm.id)).rejects.toThrow('channel-unavailable');
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   await addRoute(fx, dm.id, 'inbox');
   await fx.receive(event({ at: new Date(Date.now() + 100).toISOString() }));
   await fx.idle();
@@ -4200,7 +4226,7 @@ it.each([undefined, 'unified-setup-message', 'setup-with-whitespace'])(
 
 function watchMessagingViews(core: BotHarnessCore) {
   const reader = core.live
-    .open(new Request('http://localhost/api/botharness/stream?scope=roster'))
+    .open(OWNER_HUMAN_CONTEXT, new Request('http://localhost/api/botharness/stream?scope=roster'))
     .body!.getReader();
   const frames: string[] = [];
   const draining = (async () => {

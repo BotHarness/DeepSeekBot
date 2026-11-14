@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
@@ -24,7 +25,7 @@ async function fixture() {
   const core = createCore({ dshHome: createTempRoot('bh-media-versions-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const bytes = await png(1200, 800);
   const ref = await core.attachments.upload({
     name: 'photo.png',
@@ -32,7 +33,7 @@ async function fixture() {
       yield bytes;
     })(),
   });
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'photo',
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },
@@ -108,7 +109,7 @@ it('versions files that are not images and refuses a thumbnail for them', async 
       yield Buffer.from('plain text');
     })(),
   });
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'notes',
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { writeFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { afterEach, expect, it } from 'vitest';
@@ -26,7 +27,7 @@ async function fixture() {
   const core = createCore({ dshHome: createTempRoot('bh-media-notify-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const handle = createAttachmentHttp(
     core.attachments,
     core.channels,
@@ -58,7 +59,7 @@ it('logs and pushes a new version when an original is edited outside the app (#4
       yield await png(200);
     })(),
   });
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'photo',
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },
@@ -69,7 +70,9 @@ it('logs and pushes a new version when an original is edited outside the app (#4
   const cursor = core.channels.changeCursor!();
   const abort = new AbortController();
   aborts.push(abort);
-  const frames = core.live.followChannel(dm.id, 0, abort.signal)[Symbol.asyncIterator]();
+  const frames = core.live
+    .followChannel(OWNER_HUMAN_CONTEXT, dm.id, 0, abort.signal)
+    [Symbol.asyncIterator]();
   const notifications: ChannelLiveFrame[] = [];
   const collect = (async () => {
     for (;;) {
@@ -84,7 +87,7 @@ it('logs and pushes a new version when an original is edited outside the app (#4
   const after = (await core.mediaVersions.ensure(ref.fileId!))!.version;
   expect(after).not.toBe(before);
 
-  const changes = core.channels.readHumanChanges!(dm.id, {
+  const changes = core.channels.readHumanChanges!(OWNER_HUMAN_CONTEXT, dm.id, {
     sinceSeq: cursor.seq,
     epoch: cursor.epoch,
   })!;

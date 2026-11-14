@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it, vi } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
@@ -39,15 +40,19 @@ it('counts a Tob send to a colleague as Tob Delegation and ignores other Bot DMs
     core.registry.create({ slug: 'bea', displayName: 'Bea' });
     for (const [channelId, id] of [
       [home.channelId, 'human-tob'],
-      [core.channels.getOrCreateDm('ada', 'Ada')!.id, 'human-ada'],
+      [core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id, 'human-ada'],
     ] as const) {
-      await core.channels.appendMessage(channelId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id,
         at: '2026-10-28T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Ask Bea',
       });
-      core.runtime.admitDmMessage({ channelId, messageId: id, body: 'Ask Bea' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId,
+        messageId: id,
+        body: 'Ask Bea',
+      });
       await core.runtime.whenIdle();
     }
     expect(

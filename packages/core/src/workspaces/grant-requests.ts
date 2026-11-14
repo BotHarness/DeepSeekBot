@@ -1,3 +1,4 @@
+import { type HumanContext } from '../humans/context.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -17,6 +18,7 @@ export interface GrantRequestApprovalResult {
 }
 
 export async function approveGrantRequest(
+  human: HumanContext,
   deps: {
     registry: PersonaBotRegistry;
     channels: ChannelStore;
@@ -76,7 +78,7 @@ export async function approveGrantRequest(
     grantRequestResolution: { requestMessageId, grantId: prepared.grant.id },
   };
   const result = await deps.channels
-    .appendMessageOnce(channelId, message, undefined, undefined, prepared.commit)
+    .appendMessageOnce(human, channelId, message, undefined, undefined, prepared.commit)
     .catch((error: unknown) => {
       if (error instanceof OperationalDatabaseError && error.cause instanceof WorkspaceGrantError)
         throw error.cause;
@@ -91,7 +93,7 @@ export async function approveGrantRequest(
     if (deps.channels.get(channelId)?.type === 'group')
       deps.runtime?.admitGroupMessage(channelId, result.message.id);
     else
-      deps.runtime?.admitDmMessage({
+      deps.runtime?.admitDmMessage(human, {
         channelId,
         messageId: result.message.id,
         body: result.message.body,

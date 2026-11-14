@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -50,8 +51,8 @@ async function fileScene(extra: Partial<Parameters<typeof mountContentPurge>[0]>
       yield Buffer.from('exclusive synthetic bytes');
     })(),
   });
-  const channel = core.channels.createGroup({ name: 'File QA', members: [] });
-  await core.channels.appendMessage(channel.id, {
+  const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'File QA', members: [] });
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'file-message',
     at: '2026-10-08T00:00:00.000Z',
     author: { kind: 'human' },
@@ -59,7 +60,7 @@ async function fileScene(extra: Partial<Parameters<typeof mountContentPurge>[0]>
     attachments: [file],
   });
   core.channels.deleteGroup(channel.id);
-  const source = core.purge.sources(channel.id).sources[0]!;
+  const source = core.purge.sources(OWNER_HUMAN_CONTEXT, channel.id).sources[0]!;
   const path = core.attachments.fileTarget(file.fileId!).path;
   return { ...core, file, channel, source, path };
 }
@@ -78,9 +79,9 @@ it('upgrades main generation 69 while preserving WeChat choices and replaying an
     database: port,
     rootDir: join(home, 'botharness', 'channels'),
   });
-  const channel = channels.createGroup({ name: 'Prior main', members: [] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Prior main', members: [] });
   const at = '2026-10-08T00:00:00.000Z';
-  await channels.appendMessage(channel.id, {
+  await channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'prior-text',
     at,
     author: { kind: 'human' },
@@ -123,7 +124,7 @@ it('upgrades main generation 69 while preserving WeChat choices and replaying an
   const current = mount(home);
   expect(current.database.mode).toBe('ready');
   expect(current.port.read((db) => messagingDefaults(db, 'weixin'))).toEqual(saved);
-  expect(current.purge.sources(channel.id).sources[0]?.body).toBe('');
+  expect(current.purge.sources(OWNER_HUMAN_CONTEXT, channel.id).sources[0]?.body).toBe('');
   expect(current.purge.checkpoint()).toEqual({
     format: 'botharness-purge',
     version: 1,
@@ -142,13 +143,20 @@ it('removes exclusive actual files after acceptance and reapplies destination un
   copyFileSync(core.database.databasePath, sqlite);
   cpSync(join(core.home, 'botharness', 'attachments'), archive, { recursive: true });
   const current = mount(core.home);
-  const preview = current.purge.preview(core.channel.id, [core.source.sourceEventId]);
+  const preview = current.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
   let published: ReturnType<typeof current.purge.redactions> = [];
   current.database.subscribe(({ topics }) => {
     if (topics.includes('content-purge')) published = current.purge.redactions();
   });
   expect(preview.files).toMatchObject([{ identity: core.file.fileId, disposition: 'remove' }]);
-  current.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token);
+  current.purge.confirm(
+    OWNER_HUMAN_CONTEXT,
+    core.channel.id,
+    preview.sourceEventIds,
+    preview.token,
+  );
   expect(published).toEqual([
     {
       sourceEventId: core.source.sourceEventId,
@@ -170,7 +178,7 @@ it('removes exclusive actual files after acceptance and reapplies destination un
     restoreCheckpoint: { format: 'botharness-purge', version: 1, facts: [] },
   });
   expect(restored.database.mode).toBe('ready');
-  expect(restored.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+  expect(restored.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe('');
   expect(existsSync(core.path)).toBe(false);
   expect(restored.purge.checkpoint()).toEqual(checkpoint);
   const destination = createTempRoot('purge-fresh-destination-');
@@ -179,7 +187,7 @@ it('removes exclusive actual files after acceptance and reapplies destination un
   cpSync(archive, join(destination, 'botharness', 'attachments'), { recursive: true });
   const fresh = mount(destination, { restoring: true, restoreCheckpoint: checkpoint });
   expect(fresh.database.mode).toBe('ready');
-  expect(fresh.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+  expect(fresh.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe('');
   expect(fresh.attachments.has(core.file)).toBe(false);
 });
 
@@ -191,10 +199,12 @@ it('resumes interrupted cleanup before Messaging after a cold restart without ch
   });
   const copy = join(core.home, 'human-workspace.txt');
   writeFileSync(copy, 'Human-owned independent copy');
-  const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
-  expect(() => core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token)).toThrow(
-    'unavailable',
-  );
+  const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
+  expect(() =>
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, preview.sourceEventIds, preview.token),
+  ).toThrow('unavailable');
   expect(core.database.mode).toBe('recovery');
   expect(existsSync(core.path)).toBe(true);
   core.database.close();
@@ -213,9 +223,12 @@ it('cleans reachable legacy CAS and its real-file migration binding with current
   const path = join(shard, hex);
   writeFileSync(path, bytes);
   const ref = { hash: 'sha256:' + hex, name: 'legacy.txt', mime: 'text/plain', size: bytes.length };
-  const channel = core.channels.createGroup({ name: 'Legacy file QA', members: [] });
+  const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Legacy file QA',
+    members: [],
+  });
   for (const id of ['one', 'two'])
-    await core.channels.appendMessage(channel.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
       id,
       at: '2026-10-08T00:00:00.000Z',
       author: { kind: 'human' },
@@ -231,19 +244,19 @@ it('cleans reachable legacy CAS and its real-file migration binding with current
   );
   expect(await core.channels.migrateAttachments!()).toMatchObject({ converted: 2, failed: 0 });
   core.channels.deleteGroup(channel.id);
-  const sources = core.purge.sources(channel.id).sources;
-  const first = core.purge.preview(channel.id, [sources[0]!.sourceEventId]);
+  const sources = core.purge.sources(OWNER_HUMAN_CONTEXT, channel.id).sources;
+  const first = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [sources[0]!.sourceEventId]);
   expect(first.files).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ identity: ref.hash, disposition: 'shared' }),
       expect.objectContaining({ disposition: 'remove' }),
     ]),
   );
-  core.purge.confirm(channel.id, first.sourceEventIds, first.token);
+  core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, first.sourceEventIds, first.token);
   expect(existsSync(path)).toBe(true);
-  const last = core.purge.preview(channel.id, [sources[1]!.sourceEventId]);
+  const last = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [sources[1]!.sourceEventId]);
   expect(last.files.every((file) => file.disposition === 'remove')).toBe(true);
-  core.purge.confirm(channel.id, last.sourceEventIds, last.token);
+  core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, last.sourceEventIds, last.token);
   expect(existsSync(path)).toBe(false);
   expect(
     core.port.read((db) => db.prepare('SELECT * FROM attachment_file_bindings').all()),
@@ -252,7 +265,9 @@ it('cleans reachable legacy CAS and its real-file migration binding with current
 
 it('holds the purge barrier through asynchronous snapshot success and failure', async () => {
   const core = await fileScene();
-  const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+  const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -261,9 +276,9 @@ it('holds the purge barrier through asynchronous snapshot success and failure', 
     await gate;
     return checkpoint;
   });
-  expect(() => core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token)).toThrow(
-    'unavailable',
-  );
+  expect(() =>
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, preview.sourceEventIds, preview.token),
+  ).toThrow('unavailable');
   release();
   expect((await exporting).facts).toEqual([]);
   await expect(
@@ -271,14 +286,19 @@ it('holds the purge barrier through asynchronous snapshot success and failure', 
       throw new Error('snapshot failure');
     }),
   ).rejects.toThrow('snapshot failure');
-  expect(core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token)).toEqual({
+  expect(
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, preview.sourceEventIds, preview.token),
+  ).toEqual({
     accepted: 1,
   });
 });
 
 it('previews a live shared placement and invalidates consent when its references change', async () => {
   const core = await fileScene();
-  const active = core.channels.createGroup({ name: 'Still active', members: [] });
+  const active = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Still active',
+    members: [],
+  });
   const share = () =>
     core.port.transaction((db) =>
       db
@@ -288,17 +308,21 @@ it('previews a live shared placement and invalidates consent when its references
         .run(active.id, 1, core.source.sourceEventId, core.source.messageId),
     );
   share();
-  const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+  const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
   expect(preview.placements).toHaveLength(2);
   core.port.transaction((db) =>
     db.prepare('DELETE FROM channel_placements WHERE channel_id = ?').run(active.id),
   );
-  expect(() => core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token)).toThrow(
-    'Scope changed',
-  );
+  expect(() =>
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, preview.sourceEventIds, preview.token),
+  ).toThrow('Scope changed');
   expect(core.purge.checkpoint().facts).toEqual([]);
-  const fresh = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
-  core.purge.confirm(core.channel.id, fresh.sourceEventIds, fresh.token);
+  const fresh = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
+  core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, fresh.sourceEventIds, fresh.token);
   expect(() => share()).toThrow();
   expect(() =>
     core.port.read((db) => requireSourceContent(db, core.source.sourceEventId)),
@@ -307,7 +331,10 @@ it('previews a live shared placement and invalidates consent when its references
 
 it('uses each shared placement message identity for reads and post-commit purge selectors', async () => {
   const core = await fileScene();
-  const active = core.channels.createGroup({ name: 'Shared identity', members: [] });
+  const active = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Shared identity',
+    members: [],
+  });
   core.port.transaction((db) =>
     db
       .prepare(
@@ -317,10 +344,10 @@ it('uses each shared placement message identity for reads and post-commit purge 
   );
   expect(core.channels.readMessages(active.id)[0]?.id).toBe('shared-message');
   expect(core.channels.queryMessages(active.id).messages[0]?.id).toBe('shared-message');
-  expect(core.channels.observeOutput(active.id, 'shared-message')?.message.id).toBe(
-    'shared-message',
-  );
-  await core.channels.appendMessage(active.id, {
+  expect(
+    core.channels.observeOutput(OWNER_HUMAN_CONTEXT, active.id, 'shared-message')?.message.id,
+  ).toBe('shared-message');
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, active.id, {
     id: 'retained-reply',
     at: '2026-10-08T00:01:00.000Z',
     author: { kind: 'human' },
@@ -332,8 +359,10 @@ it('uses each shared placement message identity for reads and post-commit purge 
       .queryMessages(active.id)
       .messages.find((message) => message.id === 'retained-reply');
   expect(reply()?.replyToPreview?.body).toBe('synthetic body');
-  const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
-  core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token);
+  const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
+  core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, preview.sourceEventIds, preview.token);
   expect(
     core.channels.readMessages(active.id).find((message) => message.id === 'shared-message'),
   ).toMatchObject({
@@ -357,8 +386,11 @@ it('reports a recorded Memory derivative through a deleted identity locator and 
   try {
     expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const root = core.registry.memoryDirFor('ada')!;
-    const channel = core.channels.createGroup({ name: 'Derived Memory QA', members: [] });
-    await core.channels.appendMessage(channel.id, {
+    const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Derived Memory QA',
+      members: [],
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
       id: 'remember-message',
       at: '2026-10-08T00:00:00.000Z',
       author: { kind: 'human' },
@@ -416,7 +448,7 @@ it('reports a recorded Memory derivative through a deleted identity locator and 
     const deleting = deletion.preview('ada');
     await deletion.confirm('ada', deleting.token, false);
     expect(core.registry.get('ada')).toBeUndefined();
-    const preview = core.contentPurge.preview(channel.id, [id]);
+    const preview = core.contentPurge.preview(OWNER_HUMAN_CONTEXT, channel.id, [id]);
     expect(preview.derivatives).toContainEqual({
       kind: 'memory',
       botSlug: 'ada',
@@ -424,7 +456,12 @@ it('reports a recorded Memory derivative through a deleted identity locator and 
       reference: commit!.sha,
       tracking: 'recorded',
     });
-    core.contentPurge.confirm(channel.id, preview.sourceEventIds, preview.token);
+    core.contentPurge.confirm(
+      OWNER_HUMAN_CONTEXT,
+      channel.id,
+      preview.sourceEventIds,
+      preview.token,
+    );
     expect(readFileSync(path, 'utf8')).toBe('synthetic retained Memory derivative');
     expect(
       execFileSync('git', ['show', commit!.sha + ':derived.md'], {

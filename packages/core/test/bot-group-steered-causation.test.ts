@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -46,9 +47,12 @@ async function secondReport(delivery: 'steered' | 'read') {
   try {
     core.registry.create({ slug: 'nexus', displayName: '总控 Nexus' });
     core.registry.create({ slug: 'aura', displayName: '美工 Aura' });
-    const group = core.channels.createGroup({ name: 'Studio', members: ['nexus', 'aura'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Studio',
+      members: ['nexus', 'aura'],
+    });
     groupId = group.id;
-    await core.channels.appendMessage(group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'task-1',
       at: '2026-10-14T00:00:00.000Z',
       author: { kind: 'human' },
@@ -65,7 +69,7 @@ async function secondReport(delivery: 'steered' | 'read') {
       ).toBe(true),
     );
 
-    await core.channels.appendMessage(group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'task-2',
       at: '2026-10-14T00:01:00.000Z',
       author: { kind: 'human' },

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { join } from 'node:path';
@@ -222,7 +223,7 @@ async function fixture() {
 }
 it('runs the native Tool through the direct RPC and records exactly one execution across concurrent calls and owner restart', async () => {
   const f = await fixture();
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: f.core.registry,
     channels: f.core.channels,
     runtime: f.core.runtime,

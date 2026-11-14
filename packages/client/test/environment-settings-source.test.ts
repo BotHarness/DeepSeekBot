@@ -15,6 +15,39 @@ afterEach(() => {
 });
 
 describe('Environment settings local owner adapter', () => {
+  it('keeps the first local identity binding and rejects reads or writes through a retired owner', async () => {
+    let finish: ((value: Awaited<ReturnType<BridgeCall>>) => void) | undefined;
+    const methods: string[] = [];
+    const call: BridgeCall = (method) => {
+      methods.push(method);
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    };
+    releases.push(
+      mountLocalEnvironmentSettings(
+        call,
+        () => {},
+        () => {},
+      ),
+    );
+    const source = localEnvironmentSettings();
+    if (source === undefined) throw Error('Missing local provider');
+    const first = source.resolveIdentity(undefined);
+    expect(source.resolveIdentity('a').models).toBe(first.models);
+    const pending = first.models.call('modelCatalog');
+    const rejected = expect(pending).rejects.toThrow('environment-settings-owner-changed');
+    const next = source.resolveIdentity('b');
+    expect(next.models).not.toBe(first.models);
+    expect(source.resolveIdentity(undefined).models).toBe(next.models);
+    finish?.({ ok: true, value: {} });
+    await rejected;
+    await expect(first.models.call('modelPresetCreate', { name: 'Old owner' })).rejects.toThrow(
+      'environment-settings-owner-changed',
+    );
+    expect(methods).toEqual(['modelCatalog']);
+  });
+
   it('uses the native owner and its observed revision without opening a remote connection', async () => {
     const calls: { method: string; args: Record<string, unknown> }[] = [];
     const route = { provider: 'deepseek', model: 'local' };

@@ -1,3 +1,4 @@
+import { type HumanContext } from '../humans/context.js';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
@@ -89,7 +90,13 @@ export function mountContentPurge(options: {
       barrier = false;
     }
   };
-  const readChannel = (db: DatabaseSync, channelId: string, ended = false, revision?: number) => {
+  const readChannel = (
+    human: HumanContext,
+    db: DatabaseSync,
+    channelId: string,
+    ended = false,
+    revision?: number,
+  ) => {
     const row = db
       .prepare('SELECT record_json FROM channel_records WHERE channel_id = ?')
       .get(channelId);
@@ -105,7 +112,7 @@ export function mountContentPurge(options: {
       .prepare(
         'SELECT visible_from_revision FROM channel_human_members WHERE channel_id = ? AND human_id = ? AND left_at IS NULL',
       )
-      .get(channelId, 'local-human');
+      .get(channelId, human.humanId);
     if (!member || (revision !== undefined && revision < Number(member.visible_from_revision)))
       throw unsupported();
     return record;
@@ -120,6 +127,7 @@ export function mountContentPurge(options: {
         .map((row) => String(row.channel_id)),
     );
   const inspect = (
+    human: HumanContext,
     db: DatabaseSync,
     row: SourceRow,
   ): { message?: ChannelMessage; refusal?: string } => {
@@ -138,7 +146,7 @@ export function mountContentPurge(options: {
       .prepare('SELECT channel_id, revision FROM channel_placements WHERE source_event_id = ?')
       .all(row.source_event_id)) {
       try {
-        readChannel(db, String(placement.channel_id), false, Number(placement.revision));
+        readChannel(human, db, String(placement.channel_id), false, Number(placement.revision));
       } catch {
         return { refusal: unsupported().message };
       }
@@ -315,7 +323,7 @@ export function mountContentPurge(options: {
   } catch {
     fail();
   }
-  const describe = (db: DatabaseSync, rows: readonly SourceRow[]) => {
+  const describe = (human: HumanContext, db: DatabaseSync, rows: readonly SourceRow[]) => {
     const ids = rows.map((row) => row.source_event_id);
     const placements: PurgePreview['placements'] = [];
     const admissions: PurgePreview['admissions'] = [];
@@ -328,6 +336,7 @@ export function mountContentPurge(options: {
         .prepare('SELECT * FROM channel_placements WHERE source_event_id = ? ORDER BY channel_id')
         .all(id)) {
         const channel = readChannel(
+          human,
           db,
           String(placement.channel_id),
           false,
@@ -414,9 +423,9 @@ export function mountContentPurge(options: {
         ]),
       )
       .digest('hex');
-  const scope = (channelId: string, ids: readonly string[]) =>
+  const scope = (human: HumanContext, channelId: string, ids: readonly string[]) =>
     port.read((db) => {
-      readChannel(db, channelId, true);
+      readChannel(human, db, channelId, true);
       const selected = [...new Set(ids)].sort();
       if (!selected.length || selected.length > 100 || selected.length !== ids.length)
         throw unsupported();
@@ -426,13 +435,13 @@ export function mountContentPurge(options: {
             'SELECT e.* FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND e.source_event_id = ?',
           )
           .get(channelId, id) as unknown as SourceRow | undefined;
-        if (!row || inspect(db, row).refusal) throw unsupported();
+        if (!row || inspect(human, db, row).refusal) throw unsupported();
         return row;
       });
-      const described = describe(db, rows);
+      const described = describe(human, db, rows);
       return { rows, ...described, fingerprint: fingerprint(channelId, rows, described) };
     });
-  const older = (input: TextCleanupScope) =>
+  const older = (human: HumanContext, input: TextCleanupScope) =>
     port.read((db) => {
       const before = new Date(Math.min(Date.parse(input.before), now().getTime())).toISOString();
       const channelIds = [...new Set(input.channelIds ?? [])].sort();
@@ -453,7 +462,7 @@ export function mountContentPurge(options: {
           .all(row.source_event_id)
           .filter((p) => !ended.has(String(p.channel_id)));
         if (chosen && !placed.some((p) => chosen.has(String(p.channel_id)))) continue;
-        if (inspect(db, row).refusal) continue;
+        if (inspect(human, db, row).refusal) continue;
         const reason: TextCleanupKeptReason | undefined =
           chosen && placed.some((p) => !chosen.has(String(p.channel_id)))
             ? 'shared'
@@ -480,9 +489,9 @@ export function mountContentPurge(options: {
         }
         rows.push(row);
         for (const p of placed)
-          names.set(String(p.channel_id), readChannel(db, String(p.channel_id)).name);
+          names.set(String(p.channel_id), readChannel(human, db, String(p.channel_id)).name);
       }
-      const described = describe(db, rows);
+      const described = describe(human, db, rows);
       const chats = new Map<string, number>();
       for (const placement of described.placements)
         if (!ended.has(placement.channelId))
@@ -502,7 +511,7 @@ export function mountContentPurge(options: {
         fingerprint: fingerprint([before, channelIds, more], rows, described),
       };
     });
-  const accept = (rows: readonly SourceRow[]) => {
+  const accept = (human: HumanContext, rows: readonly SourceRow[]) => {
     const acceptedAt = now().toISOString();
     try {
       ledger!.union({
@@ -513,7 +522,7 @@ export function mountContentPurge(options: {
           channelId: row.channel_id,
           messageId: row.message_id,
           eventAt: row.created_at,
-          author: port.read((db) => inspect(db, row).message!.author),
+          author: port.read((db) => inspect(human, db, row).message!.author),
           managedFiles: port.read((db) => [...managedSourceFiles(db, row.source_event_id).keys()]),
           ...(JSON.parse(row.payload_json).replyTo === undefined
             ? {}
@@ -521,7 +530,7 @@ export function mountContentPurge(options: {
           ...(JSON.parse(row.payload_json).botCausation === undefined
             ? {}
             : { causation: JSON.parse(row.payload_json).botCausation }),
-          actor: 'local-human',
+          actor: human.humanId,
           reason: 'human-request',
           acceptedAt,
         })),
@@ -585,7 +594,7 @@ export function mountContentPurge(options: {
           }),
       );
     },
-    history: () =>
+    history: (human: HumanContext) =>
       exclusive(() =>
         port.read((db) =>
           db
@@ -595,7 +604,7 @@ export function mountContentPurge(options: {
             .all()
             .flatMap((row) => {
               try {
-                const c = readChannel(db, String(row.channel_id), true);
+                const c = readChannel(human, db, String(row.channel_id), true);
                 return isDisbandedGroup(c)
                   ? []
                   : [{ id: c.id, name: c.name, deletedAt: c.deletedAt! }];
@@ -605,10 +614,10 @@ export function mountContentPurge(options: {
             }),
         ),
       ),
-    sources: (channelId, before) =>
+    sources: (human: HumanContext, channelId, before) =>
       exclusive(() =>
         port.read((db) => {
-          readChannel(db, channelId, true);
+          readChannel(human, db, channelId, true);
           if (before !== undefined && !/^\d+$/u.test(before)) throw unsupported();
           const rows = db
             .prepare(
@@ -622,7 +631,7 @@ export function mountContentPurge(options: {
                   'SELECT revision FROM channel_placements WHERE channel_id = ? AND source_event_id = ?',
                 )
                 .get(channelId, row.source_event_id)!;
-              readChannel(db, channelId, true, Number(placement.revision));
+              readChannel(human, db, channelId, true, Number(placement.revision));
               return true;
             } catch {
               return false;
@@ -650,7 +659,7 @@ export function mountContentPurge(options: {
                             ?.managedFiles?.filter((id) => pendingFiles.has(id)).length ?? 0,
                       }
                     : {}),
-                  ...(fact ? { purgedAt: String(fact.accepted_at) } : inspect(db, row)),
+                  ...(fact ? { purgedAt: String(fact.accepted_at) } : inspect(human, db, row)),
                 };
               })
               .map(({ sourceEventId, messageId, at, body, purgedAt, refusal, cleanupPending }) => ({
@@ -666,9 +675,9 @@ export function mountContentPurge(options: {
           };
         }),
       ),
-    preview: (channelId, ids) =>
+    preview: (human: HumanContext, channelId, ids) =>
       exclusive(() => {
-        const result = scope(channelId, ids);
+        const result = scope(human, channelId, ids);
         return {
           ...issue(5, result.fingerprint),
           channelId,
@@ -680,16 +689,16 @@ export function mountContentPurge(options: {
           derivatives: result.derivatives,
         };
       }),
-    confirm: (channelId, ids, token) =>
+    confirm: (human: HumanContext, channelId, ids, token) =>
       exclusive(() => {
-        const result = scope(channelId, ids);
+        const result = scope(human, channelId, ids);
         verify(token, result.fingerprint);
-        const cleanupPending = accept(result.rows);
+        const cleanupPending = accept(human, result.rows);
         return { accepted: result.rows.length, ...(cleanupPending ? { cleanupPending } : {}) };
       }),
-    textPreview: (input) =>
+    textPreview: (human: HumanContext, input) =>
       exclusive(() => {
-        const result = older(input);
+        const result = older(human, input);
         return {
           ...issue(10, result.fingerprint),
           scope: { before: result.before, channelIds: result.channelIds },
@@ -705,9 +714,9 @@ export function mountContentPurge(options: {
           more: result.more,
         };
       }),
-    textConfirm: (input, token) =>
+    textConfirm: (human: HumanContext, input, token) =>
       exclusive(() => {
-        const result = older(input);
+        const result = older(human, input);
         verify(token, result.fingerprint);
         if (!result.rows.length) return { messages: 0, freedBytes: 0 };
         const size = () =>
@@ -722,7 +731,7 @@ export function mountContentPurge(options: {
             };
           });
         const startUsed = size().used;
-        const cleanupPending = accept(result.rows);
+        const cleanupPending = accept(human, result.rows);
         try {
           port.read((db) => {
             if (db.isTransaction) return;
@@ -738,21 +747,21 @@ export function mountContentPurge(options: {
           ...(cleanupPending ? { cleanupPending } : {}),
         };
       }),
-    disband: (channelId): GroupDisbandResult =>
+    disband: (human: HumanContext, channelId): GroupDisbandResult =>
       exclusive(() => {
         const { rows, retained } = port.read((db) => {
-          readChannel(db, channelId, true);
+          readChannel(human, db, channelId, true);
           const candidates = db
             .prepare(
               'SELECT e.* FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND NOT EXISTS (SELECT 1 FROM channel_placements o WHERE o.source_event_id = e.source_event_id AND o.channel_id != ?) AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE f.source_event_id = e.source_event_id) ORDER BY p.rowid',
             )
             .all(channelId, channelId) as unknown as SourceRow[];
-          const accepted = candidates.filter((row) => !inspect(db, row).refusal);
+          const accepted = candidates.filter((row) => !inspect(human, db, row).refusal);
           return { rows: accepted, retained: candidates.length - accepted.length };
         });
         let cleanupPending = 0;
         for (let start = 0; start < rows.length; start += TEXT_CLEANUP_LIMIT)
-          cleanupPending += accept(rows.slice(start, start + TEXT_CLEANUP_LIMIT));
+          cleanupPending += accept(human, rows.slice(start, start + TEXT_CLEANUP_LIMIT));
         if (retained === 0)
           port.transaction(
             (db) =>

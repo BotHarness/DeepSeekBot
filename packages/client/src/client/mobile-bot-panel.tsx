@@ -148,7 +148,7 @@ export function mountMobileBotShell(node: HTMLElement): () => void {
 
 type MobileBotPanelProps = Parameters<typeof BotPanel>[0] & {
   useBotModePrefs: SnapshotSelectorHook<BotModePrefsSnapshot>;
-  exitBotMode(): void;
+  exitBotMode?: (() => void) | undefined;
   openBotSettings(): void;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   setSortMode(mode: BotModeSortMode): void;
@@ -199,23 +199,24 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
     store.select(undefined);
     setPage('list');
   };
-  const exitButton = (inHeader: boolean): ReactElement => (
-    <button
-      type="button"
-      {...hooked(
-        'bh-mobile-exit',
-        styles.touch,
-        styles.exit,
-        inHeader && styles.hover,
-        inHeader && styles.headerButton,
-      )}
-      onClick={props.exitBotMode}
-      aria-label={t('mobile.host')}
-      title={t('mobile.host')}
-    >
-      <BotIcon icon={botIcon} size={24} />
-    </button>
-  );
+  const exitButton = (inHeader: boolean): ReactElement | null =>
+    props.exitBotMode === undefined ? null : (
+      <button
+        type="button"
+        {...hooked(
+          'bh-mobile-exit',
+          styles.touch,
+          styles.exit,
+          inHeader && styles.hover,
+          inHeader && styles.headerButton,
+        )}
+        onClick={props.exitBotMode}
+        aria-label={t('mobile.host')}
+        title={t('mobile.host')}
+      >
+        <BotIcon icon={botIcon} size={24} />
+      </button>
+    );
   return (
     <div ref={shellMount} {...hooked('bh-root bh-mobile-shell', styles.shell)} data-page={page}>
       <style>{MOBILE_BOT_CSS}</style>

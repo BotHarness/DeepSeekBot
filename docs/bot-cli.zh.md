@@ -19,6 +19,8 @@
 
 `relationships` 通过已认证的本机 Host，使用与连接界面相同的审批所有者。每次 CLI 登记创建独立设备授权，本机 Host 不共享远端设备凭据。
 
+关系管理属于当前 Owner：成员、Admin 的连接及 `--as` 均不能管理或登记 Host 关系。派生设备授权保留邀请创建时的 Owner Human；转移 Owner 后，旧邀请和旧 Owner 设备准入均失效。私有 Bot 和频道仍使用既有的逐 Human 访问检查。E1 在已发布 Team141–143 后追加迁移144；内部 Environment 预览数据库不属于支持的升级来源。
+
 方向观测在 30 秒后过期，Host 重启后恢复为尚未验证；授权及已保存线路仍然保留。`list` 不建立网络连接。`sync` 独立验证本机出站方向，并请求已认证的对端验证其出站方向。缺少返回线路时保留已批准关系。在现有连接设置中准备 LAN、Tailscale 或隧道地址，再从可达一方执行 `sync`。恢复失效的对端地址时，用 `route` 提交对端的新链接；身份不符时保留原有固定身份。这些命令不签发新设备授权，也不启动线路进程；关闭连接设置不停止已准备线路。
 
 | 命令                                                                                                 | 用途                                                                     |
@@ -1911,3 +1913,48 @@ deepseekbot private-route remove custom --confirm
 QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set qq --input-stdin`，输入格式与 Discord 一致。配置 `collection: "all"` 和 `newConversations: "auto"` 后，新群继承全量收件；现有自定义身份与群保留覆盖值，直到显式恢复继承。配置成功不代表 QQ 已实际投递普通消息或未支持的媒体。第 138 代迁移保留历史 QQ 热修复的默认策略；回滚需要升级前新做的完整 Profile 备份。
 
 手机读取验收：`device-probe --device-file <私有配对文件>` 使用与手机相同的连接实现读取 Bot 和频道列表，并返回 `feedRead`。`acknowledged` 表示设备所有者已记录读取回报；旧 Host 返回 `unsupported`，回报失败返回 `unconfirmed`，均不表示新手引导完成。`devices.devices[].feedReadAt` 可读取首次成功回报时间。配对、批准或最近访问时间都不替代实际内容读取；本流程不发送消息，也不需要模型。
+
+### 团队模式与 Host 成员
+
+Owner CLI 也接受私有局域网 IPv4 的 HTTPS 地址，并正常验证证书；仍拒绝局域网明文 HTTP。测试用私有 CA 可通过机器本地的 `NODE_EXTRA_CA_CERTS` 指定。
+
+这些命令使用 `--host <url>` 和现有的私密 Host 令牌输入，默认以本地 Owner 身份执行。
+
+```sh
+deepseekbot team-mode status
+deepseekbot team-mode owner-password --password-stdin < owner-password.txt
+deepseekbot team-mode on
+deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
+deepseekbot members list
+deepseekbot members reset-password bob --initial-password-file ./bob-reset.txt
+deepseekbot channels set-public <channel-id> on
+deepseekbot --as bob members password --password-stdin < password-change.json
+deepseekbot --as bob channels browse-public
+deepseekbot --as bob channels join-public <channel-id>
+deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
+deepseekbot --as bob channel-messages <channel-id>
+deepseekbot team-mode insecure-http on --confirm
+deepseekbot team-mode insecure-http off --confirm
+deepseekbot team-mode off
+```
+
+Owner 密码从标准输入读取，可带一个结尾换行；修改已有密码时可输入 JSON `{ "password": "…", "current": "…" }`。成员修改密码输入 JSON `{ "current": "…", "next": "…" }`。密码至少 10 个字符。输入文件应保持私密，密码不能放入命令参数。`members create` 只创建新文件，权限为 `0600`；标准输出仅包含 `initialPasswordFile` 和成员记录，不含密码。目标文件已存在时，在创建成员之前拒绝操作。
+
+`--as <username>` 由已认证的 Owner 创建临时成员授权，通过该成员自己的 Peer 和 Gateway 策略执行命令，随后撤销授权。它要求在线适配器；不支持的 HTTP、流式和维护命令会拒绝，不会改用 Owner 权限。团队模式关闭、账号停用和首次改密限制同样生效；浏览频道前先修改初始密码。此本地验证功能仍要求 Owner 的 Host 令牌。
+
+非回环地址的密码登录要求 Host 已知的 TLS 或加密设备网关。明确确认的 `insecure-http` 例外允许明文 HTTP，直到关闭；客户端转发的协议请求头不能证明 TLS。关闭团队模式会撤销成员授权并关闭其流，但保留身份、密码和频道成员关系；重新开启后需要重新登录。
+
+```bash
+deepseekbot roles catalog
+deepseekbot roles list
+deepseekbot roles create --name reviewers --permissions audit.view,usage.view
+deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles delete <roleId> --confirm
+deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
+deepseekbot members roles bob --set member,<roleId>
+deepseekbot --as bob devices --member bob
+deepseekbot devices --member bob --revoke <grantId>
+deepseekbot team-mode transfer-owner bob --password-stdin --confirm
+```
+
+`members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。

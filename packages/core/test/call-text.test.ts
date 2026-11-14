@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { randomUUID } from 'node:crypto';
 
 import sharp from 'sharp';
@@ -45,8 +46,8 @@ function setup() {
   });
   core.registry.create({ slug: 'mira', displayName: 'Mira' });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('mira', 'Mira')!;
-  const other = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'mira', 'Mira')!;
+  const other = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   let clock = 3_000_000;
   const calls = createVoiceCalls({
     bot: (slug) =>
@@ -71,7 +72,7 @@ function setup() {
     now: () => clock,
   });
   cleanup.push(() => calls.dispose());
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: core.registry,
     states: core.states,
     channels: core.channels,

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
@@ -61,9 +62,9 @@ describe('Assignment report consumed by wait', () => {
     });
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     createTestWorkspaceGrants(core.operationalDatabase, home);
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     try {
-      const admission = core.runtime.admitDmMessage({
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-1',
         body: 'Draft the release notes and tell me when done',
@@ -166,13 +167,17 @@ describe('Assignment report consumed by wait', () => {
           )
           .get(),
       ) as { attempt_state: string } | undefined;
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     try {
       for (const [id, body] of [
         ['human-1', 'Draft the release notes'],
         ['human-2', 'Anything new?'],
       ] as const) {
-        const admission = core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body });
+        const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: id,
+          body,
+        });
         if (!admission.admitted) throw new Error('Not admitted');
         await admission.settled;
         await core.runtime.whenIdle();

@@ -84,6 +84,66 @@ const fixture = (routes?: string[]) => {
   return { sources, values, storage, lock };
 };
 
+it('preserves the central Owner refusal instead of presenting a storage recovery error', async () => {
+  const { sources } = fixture();
+  const api = vi.spyOn(sources.client('a')!, 'api');
+  vi.spyOn(sources, 'withConnectionOperation').mockRejectedValue(
+    Object.assign(new Error('owner-required'), { code: 'owner-required' }),
+  );
+  await expect(
+    manageConnections(
+      sources,
+      { action: 'stop-route', hostId: 'a', kind: 'lan', confirm: true },
+      request(),
+    ),
+  ).rejects.toMatchObject({ code: 'owner-required' });
+  expect(api).not.toHaveBeenCalled();
+});
+
+it('does not acknowledge local removal when a draft guard cancels it', async () => {
+  const { sources } = fixture();
+  const client = sources.client('a');
+  vi.spyOn(sources, 'forgetLocal').mockResolvedValue();
+  await expect(
+    manageConnections(sources, { action: 'forget-host', hostId: 'a', confirm: true }, request()),
+  ).resolves.toEqual({ hostId: 'a', removedLocally: false });
+  expect(sources.client('a')).toBe(client);
+});
+
+it.each([401, 403])(
+  'retains an unknown result when the original Host grant read is refused with %s',
+  async (status) => {
+    const { sources, values } = fixture();
+    const client = sources.client('a')!;
+    sources.setPendingConnection('a', client, {
+      generation: crypto.randomUUID(),
+      hostKey: '11'.repeat(32),
+      deviceId: 'device-a',
+      operation: { action: 'stop-route', kind: 'lan' },
+    });
+    const before = [...values];
+    const api = vi.spyOn(client, 'api').mockResolvedValue({
+      status,
+      body: { code: status === 401 ? 'device-revoked' : 'owner-required' },
+    });
+    const fallback = vi.spyOn(globalThis, 'fetch').mockRejectedValue(Error('No Native fallback'));
+    try {
+      await expect(
+        manageConnections(sources, { action: 'read-operation', hostId: 'a' }, request()),
+      ).rejects.toMatchObject({ code: 'connection-management-refused' });
+      expect([...values]).toEqual(before);
+      expect(sources.client('a')).toBe(client);
+      expect(api).toHaveBeenCalledExactlyOnceWith(
+        '/api/botharness/devices',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(fallback).not.toHaveBeenCalled();
+    } finally {
+      fallback.mockRestore();
+    }
+  },
+);
+
 it('groups only exact account Host identity and pinned key without rewriting manual provenance', () => {
   const hosts = [remote('a'), remote('b')];
   const listed = (id: string, hostId: string, key = '11'.repeat(32)) => ({

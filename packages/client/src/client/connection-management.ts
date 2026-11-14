@@ -313,6 +313,7 @@ export async function manageConnections(
           'connection-operation-limit',
           'connection-operation-owner-changed',
           'connection-operation-changed',
+          'owner-required',
         ].includes(error.message)
       )
         throw new AppearanceError(error.message);
@@ -360,7 +361,10 @@ async function executeConnections(
   if (input.action === 'forget-host') {
     if (input.confirm !== true) throw new AppearanceError('connection-confirmation-required');
     await sources.forgetLocal(remote.host.hostId);
-    return { hostId: remote.host.hostId, removedLocally: true };
+    return {
+      hostId: remote.host.hostId,
+      removedLocally: sources.client(remote.host.hostId) === undefined,
+    };
   }
   const previousOperations =
     input.action === 'read-previous-operation'

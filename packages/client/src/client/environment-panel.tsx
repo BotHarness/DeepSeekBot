@@ -16,6 +16,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { DockPanel } from './dock-panels.js';
 import { environmentUnread } from './environment-activity.js';
 import { WORKSPACE_CHANNELS } from './workspace-context.js';
+import { memberPage } from './member-page.js';
 
 export const ENVIRONMENT_PANEL = 'environments';
 
@@ -134,7 +135,11 @@ function EnvironmentRow({
   );
 }
 
-export function EnvironmentFilter({ t }: { t: BotHarnessTranslate }): ReactElement {
+export function EnvironmentFilter({ t }: { t: BotHarnessTranslate }): ReactElement | null {
+  return memberPage() ? null : <OwnerEnvironmentFilter t={t} />;
+}
+
+function OwnerEnvironmentFilter({ t }: { t: BotHarnessTranslate }): ReactElement {
   const snapshot = useRemoteHosts();
   const local = useThisHost();
   const sources = remoteHosts();
@@ -173,7 +178,11 @@ function EnvironmentName({ hostId, name }: { hostId: string; name: string }): Re
   );
 }
 
-export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement {
+export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement | null {
+  return memberPage() ? null : <OwnerEnvironmentPanel t={t} />;
+}
+
+function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement {
   const snapshot = useRemoteHosts();
   const local = useThisHost();
   const localUnread = useClientStore((state) =>

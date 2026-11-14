@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteHost } from '../src/client/remote-hosts.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
@@ -24,8 +24,32 @@ vi.mock('../src/client/remote-hosts.js', async (original) => ({
 }));
 
 import { RemoteHostRows } from '../src/client/host-tabs.js';
+import { EnvironmentFilter, EnvironmentPanel } from '../src/client/environment-panel.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
+import * as hostLooks from '../src/client/host-looks.js';
+
+afterEach(() => vi.unstubAllGlobals());
+
+it.each(['member', 'admin'])('hides Owner environment surfaces from the %s page', (role) => {
+  vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+  const read = vi.fn(() => {
+    throw new Error('Owner storage must not be read');
+  });
+  vi.stubGlobal('localStorage', { getItem: read });
+  const look = vi.spyOn(hostLooks, 'useHostLook');
+  const name = vi.spyOn(hostLooks, 'useHostName');
+  try {
+    expect(renderToStaticMarkup(createElement(EnvironmentPanel, { t: zhTranslate }))).toBe('');
+    expect(renderToStaticMarkup(createElement(EnvironmentFilter, { t: zhTranslate }))).toBe('');
+    expect(read).not.toHaveBeenCalled();
+    expect(look).not.toHaveBeenCalled();
+    expect(name).not.toHaveBeenCalled();
+  } finally {
+    look.mockRestore();
+    name.mockRestore();
+  }
+});
 
 const remote: RemoteHost = {
   host: {

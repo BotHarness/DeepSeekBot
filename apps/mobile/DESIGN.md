@@ -835,3 +835,11 @@ On Android 13 and later, the native call audio menu offers Call mode and Media m
 ## Linked-computer row hit targets (#4039)
 
 iOS linked-computer rows use a full-width SwiftUI Button label with a rectangular content shape, so the label, icon and empty part of the row invoke the same action. Keep native Dynamic Type and scrolling at accessibility sizes. The development-only account fixture includes `linked-computers-refresh-failure`: after synthetic unlink succeeds, one authoritative-list read fails; further removal stays disabled until Refresh succeeds. The existing `__DEV__` and `.dev` bundle gates remain mandatory. This fixture does not qualify live-service revocation or old-Host restart behavior.
+
+### Account connection failure diagnostics (#4128)
+
+The account environment list keeps its short, localized refusal summary. Failed computer attempts and account-list failures each expose independent View details and Copy diagnostics actions: SwiftUI Form Button/Text rows on iOS, the existing Android settings content and Material buttons on Android. Details expand inline in the same scrolling form; no second sheet or dialog is presented. Native text scaling stays enabled. Copy confirms on the action label and a failed clipboard write remains retryable.
+
+Capture each failure once, keeping its request phase, UTC timestamp, known reason and HTTP status when available. Only bounded allowlisted categories cross into the diagnostic snapshot or clipboard; never store raw exception text, response bodies, tokens, emails, computer names, URLs or request headers. Unknown causes are explicitly unavailable, not invented. Snapshots live only in the current account/pairing screen. Starting another attempt hides its previous details; Refresh clears the old per-computer result, and account/screen changes discard it. Late responses/copy completions cannot relabel another attempt. No new persistence, Host request, model call or telemetry is added.
+
+Performance: success paths add no requests and no mounted diagnostic controls. Failure parsing is bounded to four code segments and a fixed-size report; the affected-path regression guard verifies cold fixture requests, separate attempts and expansion/copy without a network retry. Simulator and Android device evidence remain separate qualification.

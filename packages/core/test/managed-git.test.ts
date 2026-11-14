@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -305,9 +306,9 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
   it('starts the install through the gitInstall bridge method', async () => {
     const { options } = setup();
     const git = createGitService(options);
-    const methods = createBridgeMethods({ git } as unknown as Parameters<
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { git } as unknown as Parameters<
       typeof createBridgeMethods
-    >[0]);
+    >[1]);
     expect(methods.gitInstall()).toMatchObject({
       ok: true,
       value: { install: { phase: 'downloading' } },

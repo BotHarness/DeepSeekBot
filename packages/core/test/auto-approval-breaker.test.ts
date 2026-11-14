@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -60,9 +61,9 @@ function fixture() {
       log: () => undefined,
     },
   );
-  const methods = createBridgeMethods({ ...core, toolApproval: broker });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, toolApproval: broker });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const channelId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
+  const channelId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
   const sessionId = 'qa-ada';
   core.ownership.claim({
     sessionId,

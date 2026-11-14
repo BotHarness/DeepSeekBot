@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { DatabaseSync } from 'node:sqlite';
 
 import { describe, expect, it } from 'vitest';
@@ -24,17 +25,21 @@ async function sendSelectedGroup(
   group: { id: string; name: string },
   messageId: string,
 ): Promise<void> {
-  const dm = core.channels.getOrCreateDm(botSlug, botSlug)!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, botSlug, botSlug)!;
   const body = 'Please join #' + group.name;
   const start = body.indexOf('#');
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: messageId,
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body,
     channelRefs: [{ channelId: group.id, label: group.name, start, end: body.length }],
   });
-  const admitted = core.runtime.admitDmMessage({ channelId: dm.id, messageId, body });
+  const admitted = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+    channelId: dm.id,
+    messageId,
+    body,
+  });
   expect(admitted.admitted).toBe(true);
 }
 
@@ -63,13 +68,13 @@ describe('selected #Group join request', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
       groupId = group.id;
       await sendSelectedGroup(core, 'ada', group, 'reference-human');
       await core.runtime.whenIdle();
       expect(requestId).toMatch(/^group-join-/u);
       expect(core.channels.get(group.id)?.members).toEqual([]);
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const decision = methods.channelGroupJoinDecide({
         channelId: group.id,
         requestId,
@@ -128,7 +133,7 @@ describe('selected #Group join request', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Team',
         members: ['bea'],
         ownerBotSlug: 'bea',
@@ -181,21 +186,24 @@ describe('selected #Group join request', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const other = core.channels.createGroup({ name: 'Team', members: [] });
-      const selected = core.channels.createGroup({ name: 'Team', members: [] });
+      const other = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
+      const selected = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: [],
+      });
       selectedId = selected.id;
       otherId = other.id;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'reference-duplicate',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: '#Team',
         channelRefs: [{ channelId: selected.id, label: 'Team', start: 0, end: 5 }],
       });
-      core.channels.rename(selected.id, 'Renamed');
+      core.channels.rename(OWNER_HUMAN_CONTEXT, selected.id, 'Renamed');
       expect(
-        core.runtime.admitDmMessage({
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dm.id,
           messageId: 'reference-duplicate',
           body: '#Team',
@@ -204,7 +212,7 @@ describe('selected #Group join request', () => {
       await core.runtime.whenIdle();
       expect(core.channels.get(other.id)?.joinRequests).toBeUndefined();
       expect(core.channels.get(selected.id)?.joinRequests).toHaveLength(1);
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(
         methods.channelGroupJoinDecide({
           channelId: selected.id,
@@ -241,11 +249,11 @@ describe('selected #Group join request', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
       await sendSelectedGroup(core, 'ada', group, 'reference-archive');
       await core.runtime.whenIdle();
       expect(requestId).toMatch(/^group-join-/u);
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.pause({ slug: 'ada' })).toMatchObject({ ok: true });
       expect(core.channels.get(group.id)?.joinRequests?.[0]?.status).toBe('cancelled');
       expect(
@@ -275,12 +283,12 @@ describe('selected #Group join request', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
       groupId = group.id;
       await sendSelectedGroup(core, 'ada', group, 'reference-delete');
       await core.runtime.whenIdle();
       expect(requestId).toMatch(/^group-join-/u);
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.channelGroupDelete({ channelId: groupId })).toMatchObject({ ok: true });
       expect(core.channels.get(groupId)).toBeUndefined();
       expect(
@@ -303,14 +311,14 @@ describe('selected #Group join request', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: [] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
       groupId = group.id;
       await sendSelectedGroup(core, 'ada', group, 'reference-decision-pause');
       await core.runtime.whenIdle();
       const request = core.channels.get(groupId)?.joinRequests?.[0];
       expect(request?.status).toBe('pending');
       const requester = core.registry.get('ada')!;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       core.channels.decideGroupJoin({
         channelId: groupId,
         requestId: request!.id,
@@ -331,7 +339,7 @@ describe('selected #Group join request', () => {
               .get() as { attempt_state: string } | undefined
           )?.attempt_state;
         expect(state()).toBe('pending');
-        const methods = createBridgeMethods({ ...core });
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
         expect(methods.pause({ slug: 'ada' })).toMatchObject({ ok: true });
         expect(state()).toBe('handled');
         expect(
@@ -362,7 +370,7 @@ describe('selected #Group join request', () => {
     });
     try {
       before.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = before.channels.createGroup({ name: 'Team', members: [] });
+      const group = before.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
       groupId = group.id;
       await sendSelectedGroup(before, 'ada', group, 'reference-restart');
       await before.runtime.whenIdle();
@@ -379,7 +387,7 @@ describe('selected #Group join request', () => {
     });
     try {
       expect(resumed.channels.get(groupId)?.joinRequests?.[0]?.id).toBe(requestId);
-      const methods = createBridgeMethods({ ...resumed });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...resumed });
       expect(
         methods.channelGroupJoinDecide({ channelId: groupId, requestId, accept: true }),
       ).toMatchObject({ ok: true });

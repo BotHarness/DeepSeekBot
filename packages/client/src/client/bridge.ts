@@ -1,3 +1,5 @@
+import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import { memberPage } from './member-page.js';
 import {
   isTakeoverRequestCard,
   isTakeoverResolution,
@@ -603,7 +605,13 @@ function remoteArgs(payload: Record<string, unknown>): Record<string, unknown> {
 }
 
 export function createBridgeCall(ctx: ClientContext): BridgeCall {
+  const member = memberPage();
   return async (endpoint, payload, signal) => {
+    if (member && !MEMBER_METHODS.has(endpoint))
+      return {
+        ok: false,
+        error: { code: 'member-unavailable', message: endpoint, details: {} },
+      };
     const rpc = connectionRpc(ctx);
     if (rpc === undefined) {
       return {
@@ -923,8 +931,15 @@ function parseAuthor(value: unknown): ChannelAuthor | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
   switch (record['kind']) {
-    case 'human':
-      return { kind: 'human' };
+    case 'human': {
+      const humanId = record['humanId'];
+      const displayName = record['displayName'];
+      return {
+        kind: 'human',
+        ...(typeof humanId === 'string' && humanId.length > 0 ? { humanId } : {}),
+        ...(typeof displayName === 'string' && displayName.length > 0 ? { displayName } : {}),
+      };
+    }
     case 'system':
       return { kind: 'system' };
     case 'bot':
