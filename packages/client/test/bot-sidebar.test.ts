@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const captured = vi.hoisted(() => ({
+  dock: false,
   menus: [] as Array<{
     open: boolean;
     items: readonly Record<string, unknown>[];
@@ -19,6 +20,11 @@ const captured = vi.hoisted(() => ({
     channelId: string;
     onSave(channelId: string, recipe: unknown): Promise<boolean>;
   }>,
+}));
+
+vi.mock('../src/client/bot-mode-sidebar-viewport.js', () => ({
+  botModeSidebarViewport: () => captured.dock,
+  subscribeBotModeSidebarViewport: () => () => {},
 }));
 
 vi.mock('../src/client/avatar-appearance-editor.js', () => ({
@@ -122,6 +128,8 @@ import type { RosterSection, RosterSnapshot } from '../src/client/roster.js';
 import { store } from '../src/client/store.js';
 import type { BotSummary, ChannelSummary } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
+import * as hostTabs from '../src/client/host-tabs.js';
+import * as hostLooks from '../src/client/host-looks.js';
 
 const AT = '2026-09-19T00:00:00.000Z';
 
@@ -701,6 +709,7 @@ function menuWithItem(id: string): {
 }
 
 beforeEach(() => {
+  captured.dock = false;
   captured.menus.length = 0;
   store.setMode('dsh');
   store.setQuery('');
@@ -738,6 +747,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   captured.menus.length = 0;
   store.setActivityList({ unreadCount: 0, hasAction: false, channelUnread: {} });
   store.setMode('dsh');
@@ -749,6 +759,77 @@ afterEach(() => {
 });
 
 describe('bot sidebar rows', () => {
+  it.each(['member', 'admin'])(
+    'retains local sections, pins and create actions for docked %s pages',
+    async (role) => {
+      vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      captured.dock = true;
+      const remote = vi
+        .spyOn(hostTabs, 'useRemoteHosts')
+        .mockReturnValue({ hosts: [], avatars: new Map(), tab: 'all' });
+      const look = vi.spyOn(hostLooks, 'useHostName');
+      setRoster({ pins: ['c-flat'], sections: [section('s1', '工作流', ['c-section'])] });
+      store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
+      const actions = stubActions();
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      try {
+        await act(async () =>
+          root.render(
+            createElement(BotSidebar, {
+              wide: true,
+              actions,
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              t: zhTranslate,
+            }),
+          ),
+        );
+        expect(host.querySelector('.bh-section-name')?.textContent).toContain('工作流');
+        expect(host.querySelector('.bh-pin-zone')).not.toBeNull();
+        expect(host.querySelector('[data-channel-id="c-section"]')?.getAttribute('draggable')).toBe(
+          'true',
+        );
+        const sectionMenu = captured.menus.find(
+          (menu) =>
+            menu.items.some((item) => item['id'] === 'bot') &&
+            menu.items.some((item) => item['id'] === 'channel') &&
+            !menu.items.some((item) => item['id'] === 'section'),
+        );
+        expect(sectionMenu?.items.find((item) => item['id'] === 'bot')?.['submenu']).toEqual([
+          expect.objectContaining({ id: 'bot:empty' }),
+        ]);
+        captured.menus.length = 0;
+        await act(async () =>
+          host
+            .querySelector('[data-channel-id="c-section"]')!
+            .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+        );
+        await act(async () => menuWithItem('pin').onSelect?.('pin'));
+        expect(actions.setChannelPinned).toHaveBeenCalledWith('c-section', true);
+        await act(async () => menuWithItem('section').onSelect?.('section'));
+        expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+          '创建频道分组',
+        );
+        const input = document.querySelector<HTMLInputElement>('[role="dialog"] input')!;
+        await typeInto(input, 'Member section');
+        await act(async () =>
+          document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit(),
+        );
+        expect(actions.createSection).toHaveBeenCalledWith('Member section');
+        expect(look).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => root.unmount());
+        host.remove();
+        remote.mockRestore();
+        look.mockRestore();
+      }
+    },
+  );
   it('shows only the latest message time at the right of DM and Group titles', () => {
     const latestAt = '2026-10-10T14:25:00.000Z';
     const latestMessage = {

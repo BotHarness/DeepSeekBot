@@ -1578,7 +1578,8 @@ export function BotSidebar({
       const remote = remoteHostsState.hosts.find(
         (entry) => entry.host.hostId === remoteHostsState.tab,
       );
-      if (hostTabs && remote)
+      if (member) setCreateRequest({ kind: 'section' });
+      else if (hostTabs && remote)
         setRemoteSectionsHost({ id: remote.host.hostId, name: remote.host.hostName });
       else if (!hostTabs || remoteHostsState.tab === 'local') setCreateRequest({ kind: 'section' });
     }
@@ -2027,7 +2028,7 @@ export function BotSidebar({
     useSectionDrag(commitSectionDrag);
   dragActiveRef.current = channelDragActive || sectionDragActive;
 
-  const allScope = hostTabs && remoteHostsState.tab === ALL_HOSTS;
+  const allScope = !member && hostTabs && remoteHostsState.tab === ALL_HOSTS;
   const showSource = allScope && remoteHostsState.hosts.length > 0;
   const renderChannelRow = (channel: ChannelSummary, scopeId: ScopeId): ReactElement => {
     const drag = allScope ? undefined : channelDragProps(scopeId, channel.id);
@@ -3026,7 +3027,7 @@ export function BotSidebar({
                               <IconPlusOutlineRegular />
                             </button>
                           }
-                          items={sectionCreateMenuItems(t, gitReady(state.git))}
+                          items={sectionCreateMenuItems(t, gitReady(state.git), member)}
                           onSelect={(id) => {
                             setSectionCreateMenuId(undefined);
                             const source = botCreateSource(id);
@@ -4130,8 +4131,12 @@ function menuItems(
   ];
 }
 
-function sectionCreateMenuItems(t: BotHarnessTranslate, gitAvailable: boolean): MenuEntry[] {
-  return menuItems(t, gitAvailable, false).filter(
+function sectionCreateMenuItems(
+  t: BotHarnessTranslate,
+  gitAvailable: boolean,
+  member: boolean,
+): MenuEntry[] {
+  return menuItems(t, gitAvailable, false, true, false, member).filter(
     (item) => item.id === 'bot' || item.id === 'channel',
   );
 }
