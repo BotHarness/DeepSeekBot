@@ -113,6 +113,8 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'team.account.signOut',
     'team.devices.mine',
     'team.roles.title',
+    'team.usage.title',
+    'team.usage.period',
   ],
   devices: [
     'devices.pair.title',

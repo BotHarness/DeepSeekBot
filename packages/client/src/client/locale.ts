@@ -5339,6 +5339,22 @@ export const zh = {
   'team.roles.summaryOne': '1 人 · {permissions} 项权限',
   'team.error.ownerTransferUnverified':
     '对方需先用你发出的一次性密码登录并设置新密码，然后才能成为所有者。',
+  'team.roles.models': '模型',
+  'team.roles.modelsAll': '全部模型',
+  'team.roles.modelsOnly': '仅限以下模型',
+  'team.roles.modelsLoading': '正在加载模型…',
+  'team.roles.modelsFailed': '无法加载模型，请重试。',
+  'team.roles.modelsNone': '只有此角色的人，其 Bot 将无法使用任何模型。',
+  'team.usage.title': '成员用量',
+  'team.usage.period': '时间范围',
+  'team.usage.loading': '正在加载用量…',
+  'team.usage.failed': '无法加载用量，请重试。',
+  'team.usage.empty': '此时间范围内没有用量。',
+  'team.usage.unknown': '未知',
+  'team.usage.partial': '{value}+',
+  'team.usage.deleted': '已删除',
+  'team.usage.legacy': '启用 Team 模式之前的用量计入 Owner。',
+  'team.error.modelNotAllowed': '你的角色不能使用此模型。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11034,6 +11050,22 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.roles.summaryOne': '1 person · {permissions} permissions',
   'team.error.ownerTransferUnverified':
     'They must first sign in with a one-time password from you and choose a new one before they can become Owner.',
+  'team.roles.models': 'Models',
+  'team.roles.modelsAll': 'All models',
+  'team.roles.modelsOnly': 'Only these models',
+  'team.roles.modelsLoading': 'Loading models…',
+  'team.roles.modelsFailed': "Couldn't load models. Try again.",
+  'team.roles.modelsNone': 'Bots of people with only this role can’t use any model.',
+  'team.usage.title': 'Usage by member',
+  'team.usage.period': 'Period',
+  'team.usage.loading': 'Loading usage…',
+  'team.usage.failed': "Couldn't load usage. Try again.",
+  'team.usage.empty': 'No usage in this period.',
+  'team.usage.unknown': 'Unknown',
+  'team.usage.partial': '{value}+',
+  'team.usage.deleted': 'Deleted',
+  'team.usage.legacy': 'Usage from before Team mode is counted under the Owner.',
+  'team.error.modelNotAllowed': 'Your role can’t use this model.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;

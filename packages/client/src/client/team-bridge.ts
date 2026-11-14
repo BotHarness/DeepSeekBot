@@ -68,6 +68,7 @@ export const TEAM_REFUSALS = [
   'member-suspended',
   'permission-not-grantable',
   'owner-transfer-target-unverified',
+  'model-not-allowed',
 ] as const;
 export type TeamRefusal = (typeof TEAM_REFUSALS)[number];
 
@@ -176,7 +177,7 @@ export function parsePublicChannel(value: unknown): PublicChannel | undefined {
   };
 }
 
-function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
+export function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
   const items = Array.isArray(value) ? value : (record(value)?.['items'] ?? []);
   return Array.isArray(items)
     ? items.flatMap((item: unknown) => {
