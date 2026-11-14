@@ -245,6 +245,60 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
 }
 
 describe('linked account computers', () => {
+  it.each(['refresh', 'relay'])(
+    'cancels a stalled health %s request and skips queued cancelled checks',
+    async (stage) => {
+      const services = fakeServices({ pending: 0 });
+      const { account } = setup(services);
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(account.status().state).toBe('signed-in');
+        const original = services.fetcher.getMockImplementation();
+        if (!original) throw new Error('missing-test-fetch');
+        let started = () => {};
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let blocked = 0;
+        services.fetcher.mockImplementation(async (input, init) => {
+          const url = String(input);
+          const selected =
+            stage === 'refresh' ? url.includes('/authenticate') : url === `${RELAY}/v1/hosts`;
+          if (!selected) return original(input, init);
+          blocked++;
+          started();
+          return new Promise<Response>((_resolve, reject) => {
+            const signal = init?.signal;
+            if (!signal) {
+              reject(new Error('missing-cancellation'));
+              return;
+            }
+            if (signal.aborted) reject(new Error('cancelled'));
+            else
+              signal.addEventListener('abort', () => reject(new Error('cancelled')), {
+                once: true,
+              });
+          });
+        });
+        const running = new AbortController();
+        const first = account.connectedHosts(running.signal);
+        await ready;
+        const queued = new AbortController();
+        const second = account.connectedHosts(queued.signal);
+        queued.abort();
+        running.abort();
+        expect(await first).toEqual({ ok: false, code: 'relay-unavailable' });
+        expect(await second).toEqual({ ok: false, code: 'relay-unavailable' });
+        expect(blocked).toBe(1);
+        services.fetcher.mockImplementation(original);
+        expect(await account.signOut()).toMatchObject({ ok: true });
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
   it('refuses signed-out operations without any network calls', async () => {
     const { account, services } = setup();
     try {

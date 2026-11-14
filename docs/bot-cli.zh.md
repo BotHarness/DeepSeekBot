@@ -1910,3 +1910,20 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
 `members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+
+### Tobs Connect 本机公网自检
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` 与连接对话框中的
+“重新检查”使用同一个 Host owner。登录完成及连接组件启动或恢复后会自动检查账号、连接组件、
+服务端报告的在线状态，然后通过公网设备通道进行正常 TLS 校验及绑定本机身份的全新 Noise 握手。
+检查不会创建配对设备或权限。
+
+返回的 `health` 也包含在 `connect-status` 中，状态为 `idle`、`checking`、`passed`、`failed` 或
+`stale`。完成后提供 `checkedAt`、`elapsedMs`；失败提供 `stage` 和有界错误码，
+例如 `dns`、`tls`、`http`、`timeout`、`handshake`、`identity`、`relay-offline` 或
+`connector-unavailable`，HTTP 拒绝只附带数字状态码。界面可复制这些字段，不含账号、地址、
+token 或原始响应。
+
+并发请求合用一次检查，整体上限 20 秒，公网握手上限 8 秒。成功结果五分钟后过期；打开或刷新
+对话框不会在后台持续探测。通过只证明这台电脑在检查时可经公网连回自己，不保证所有手机网络
+都可达；手机仍连不上时需结合手机诊断。账号或连接发生变化时，旧成功结果失效。

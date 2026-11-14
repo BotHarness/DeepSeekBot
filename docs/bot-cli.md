@@ -1601,6 +1601,27 @@ Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
 `connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
 the stored token; paired devices keep their credentials.
 
+### Check this computer's public connection
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` runs the same
+self-check as **Connections → Tobs Connect → Check again**. Signing in and starting or
+restarting the connector trigger it automatically. It checks the account, connector,
+relay-reported online state, then a fresh TLS-verified WebSocket and Noise handshake pinned
+to this Host's identity through the public device channel. It creates no device grant.
+
+The JSON `health` observation is also included in `connect-status`:
+`idle`, `checking` (with `stage`), `passed`, `failed`, or `stale`.
+Completed checks include `checkedAt` and `elapsedMs`; failures include `stage` and a bounded
+`code` such as `dns`, `tls`, `http`, `timeout`, `handshake`, `identity`, `relay-offline` or
+`connector-unavailable`. HTTP refusals add only a numeric `httpStatus`.
+The UI can copy these safe fields without account names, addresses, tokens or raw responses.
+
+Concurrent callers share one check. Each check has a 20-second overall budget and an
+8-second public handshake budget. Success expires after five minutes; opening or refreshing
+the dialog does not start a background probe. A passed check proves reachability from this
+computer at that time, not from every phone network. Use the phone's diagnostics separately
+if it still cannot connect. A stopped connector or changed account invalidates old success.
+
 ### Account sign-in
 
 ```sh
