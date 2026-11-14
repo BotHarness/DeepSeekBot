@@ -10,7 +10,7 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
-- Documented downstream ownership-verified recovery of an empty native credential writer lock after interrupted startup; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+- Documented downstream ownership-verified recovery, with task-owner exclusion of same-Home launchers/recovery attempts, of an empty native credential writer lock after interrupted startup; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
 
 - Documented downstream explicit recovery of interrupted copy preparation, retained dependency trees and shared-file safeguards; the stable DSH Skill version and upstream provenance are unchanged ([#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)).
 
