@@ -113,11 +113,18 @@ export function openPurgeLedger(path: string, required: boolean) {
             fact.sourceEventId,
             JSON.stringify(fact),
           );
-        for (const fact of parsed.deletedHumans ?? [])
+        for (const fact of parsed.deletedHumans ?? []) {
+          const serialized = JSON.stringify(fact);
+          const stored = db
+            .prepare('SELECT fact FROM deleted_humans WHERE human_id = ?')
+            .get(fact.humanId);
+          if (stored !== undefined && stored.fact !== serialized)
+            throw new Error('Conflicting deleted Human');
           db.prepare('INSERT OR IGNORE INTO deleted_humans VALUES (?, ?)').run(
             fact.humanId,
-            JSON.stringify(fact),
+            serialized,
           );
+        }
         db.exec('COMMIT');
       } catch (error) {
         if (db.isTransaction) db.exec('ROLLBACK');

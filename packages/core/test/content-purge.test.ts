@@ -471,6 +471,61 @@ describe('owning Content Purge tracer', () => {
 });
 
 describe('M9 Content Purge member deletion', () => {
+  it('rejects conflicting deleted-Human facts and rolls back the entire union', () => {
+    const home = createTempRoot('member-ledger-conflict-');
+    const ledger = openPurgeLedger(join(home, 'purge', 'ledger.db'), false);
+    const fact = {
+      humanId: 'bob',
+      deletedAt: '2026-11-14T00:00:00.000Z',
+      privateChannels: ['dm-bob'],
+      privateBots: ['bob-bot'],
+    };
+    const checkpoint = { format: 'botharness-purge', version: 3, facts: [], deletedHumans: [fact] };
+    try {
+      ledger.union(checkpoint);
+      ledger.union(checkpoint);
+      expect(ledger.checkpoint().deletedHumans).toEqual([fact]);
+      for (const changed of [
+        { ...fact, privateChannels: ['dm-other'] },
+        { ...fact, privateBots: ['other-bot'] },
+        { ...fact, deletedAt: '2026-11-15T00:00:00.000Z' },
+      ]) {
+        expect(() =>
+          ledger.union({
+            ...checkpoint,
+            facts: [
+              {
+                sourceEventId: 'rollback-source',
+                channelId: 'rollback-channel',
+                messageId: 'rollback-message',
+                eventAt: fact.deletedAt,
+                author: { kind: 'human' },
+                actor: 'local-human',
+                reason: 'human-request',
+                acceptedAt: fact.deletedAt,
+              },
+            ],
+            deletedHumans: [{ ...fact, humanId: 'alice' }, changed],
+          }),
+        ).toThrow('Conflicting');
+        expect(ledger.checkpoint().deletedHumans).toEqual([fact]);
+        expect(ledger.checkpoint().facts).toEqual([]);
+      }
+      expect(() =>
+        ledger.union({
+          ...checkpoint,
+          deletedHumans: [
+            { ...fact, humanId: 'carol' },
+            { ...fact, humanId: 'carol', privateChannels: [] },
+          ],
+        }),
+      ).toThrow('Conflicting');
+      expect(ledger.checkpoint().deletedHumans).toEqual([fact]);
+    } finally {
+      ledger.close();
+    }
+  });
+
   async function memberFixture(options: Partial<Parameters<typeof mountContentPurge>[0]> = {}) {
     const home = createTempRoot('m9-member-purge-');
     const f = mount(home, options);
@@ -635,4 +690,34 @@ describe('M9 Content Purge member deletion', () => {
     expect(f.channels.readMessages(f.dm.id)).toHaveLength(2);
     expect(f.attachments.has(f.file)).toBe(true);
   });
+
+  it.each(['retained-to-removable', 'removable-to-retained'])(
+    'rejects a changed private attachment disposition: %s',
+    async (change) => {
+      const f = await memberFixture();
+      const elsewhere = f.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Other', members: [] });
+      const reference = async () =>
+        f.channels.appendMessage(OWNER_HUMAN_CONTEXT, elsewhere.id, {
+          id: 'other-reference',
+          at: '2026-11-14T00:00:01.000Z',
+          author: { kind: 'human' },
+          body: 'other reference',
+          attachments: [f.file],
+        });
+      if (change === 'retained-to-removable') await reference();
+      const preview = f.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+      expect(preview.counts.files).toBe(change === 'retained-to-removable' ? 0 : 1);
+      if (change === 'retained-to-removable') {
+        f.channels.deleteGroup(elsewhere.id);
+        const source = f.purge.sources(OWNER_HUMAN_CONTEXT, elsewhere.id).sources[0]!;
+        const other = f.purge.preview(OWNER_HUMAN_CONTEXT, elsewhere.id, [source.sourceEventId]);
+        f.purge.confirm(OWNER_HUMAN_CONTEXT, elsewhere.id, other.sourceEventIds, other.token);
+      } else await reference();
+      expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrow(
+        'purge-token-invalid',
+      );
+      expect(f.attachments.has(f.file)).toBe(true);
+      expect(f.channels.readMessages(f.dm.id)[0]?.body).toBe('private body');
+    },
+  );
 });

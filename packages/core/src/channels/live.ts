@@ -194,6 +194,7 @@ export interface ChannelLiveHub {
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
+  publishHumanIdentityChanged(): void;
   close(): void;
 }
 
@@ -1032,6 +1033,10 @@ export function createChannelLiveHub(
     },
     publishRosterCommitted() {
       for (const subscriber of rosterSubscribers) subscriber.push();
+    },
+    publishHumanIdentityChanged() {
+      for (const group of subscribers.values())
+        for (const subscriber of [...group]) subscriber.close();
     },
     publishContentPurged() {
       const placements = redactions?.() ?? [];

@@ -188,70 +188,72 @@ export function mountContentPurge(options: {
   const applyDeletedHumans = () => {
     const deleted = ledger!.checkpoint().deletedHumans ?? [];
     if (!deleted.length) return;
-    port.transaction(
-      (db) => {
-        for (const fact of deleted) {
-          if (db.prepare('SELECT 1 FROM team_settings WHERE owner_human_id = ?').get(fact.humanId))
-            throw new Error('Cannot purge current Owner');
-          db.prepare('INSERT OR IGNORE INTO deleted_humans VALUES (?, ?)').run(
-            fact.humanId,
-            fact.deletedAt,
-          );
-          db.prepare(`UPDATE source_events SET payload_json = json_set(payload_json, '$.author', json_object('kind', 'human', 'humanId', ?, 'deleted', json('true')))
+    const topics = ['team', 'channel', 'human-identity'];
+    port.transaction((db) => {
+      let identityChanged = false;
+      for (const fact of deleted) {
+        if (db.prepare('SELECT 1 FROM team_settings WHERE owner_human_id = ?').get(fact.humanId))
+          throw new Error('Cannot purge current Owner');
+        const inserted = db
+          .prepare('INSERT OR IGNORE INTO deleted_humans VALUES (?, ?)')
+          .run(fact.humanId, fact.deletedAt);
+        const rewritten = db
+          .prepare(`UPDATE source_events SET payload_json = json_set(payload_json, '$.author', json_object('kind', 'human', 'humanId', ?, 'deleted', json('true')))
           WHERE json_extract(payload_json, '$.author.kind') = 'human'
           AND (human_id = ? OR json_extract(payload_json, '$.author.humanId') = ?)
-          AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE f.source_event_id = source_events.source_event_id)`).run(
-            fact.humanId,
-            fact.humanId,
-            fact.humanId,
-          );
-          for (const table of [
-            'human_roles',
-            'member_grants',
-            'member_credentials',
-            'team_mode_suspensions',
-            'local_human_names',
-            'channel_human_nicknames',
-            'channel_human_members',
-            'channel_read_positions',
-            'human_attention_decisions',
-            'human_inbox_dismissals',
-            'human_inbox_snoozes',
-            'genui_private_views',
-          ])
-            db.prepare(`DELETE FROM ${table} WHERE human_id = ?`).run(fact.humanId);
-          for (const table of [
-            'push_devices',
-            'push_sent',
-            'device_notification_preferences',
-            'device_live_activities',
-          ])
-            db.prepare(
-              `DELETE FROM ${table} WHERE device_id IN (SELECT device_id FROM paired_devices WHERE human_id = ?)`,
-            ).run(fact.humanId);
-          db.prepare('DELETE FROM paired_devices WHERE human_id = ?').run(fact.humanId);
-          for (const channelId of fact.privateChannels ?? [])
-            db.prepare(
-              `UPDATE channel_records SET record_json = json_set(record_json, '$.name', '', '$.deletedAt', ?) WHERE channel_id = ?`,
-            ).run(fact.deletedAt, channelId);
-          db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId',
+          AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE f.source_event_id = source_events.source_event_id)
+          AND (json_extract(payload_json, '$.author.deleted') IS NOT 1
+            OR json_type(payload_json, '$.author.displayName') IS NOT NULL
+            OR json_extract(payload_json, '$.author.humanId') IS NOT ?)`)
+          .run(fact.humanId, fact.humanId, fact.humanId, fact.humanId);
+        for (const table of [
+          'human_roles',
+          'member_grants',
+          'member_credentials',
+          'team_mode_suspensions',
+          'local_human_names',
+          'channel_human_nicknames',
+          'channel_human_members',
+          'channel_read_positions',
+          'human_attention_decisions',
+          'human_inbox_dismissals',
+          'human_inbox_snoozes',
+          'genui_private_views',
+        ])
+          db.prepare(`DELETE FROM ${table} WHERE human_id = ?`).run(fact.humanId);
+        for (const table of [
+          'push_devices',
+          'push_sent',
+          'device_notification_preferences',
+          'device_live_activities',
+        ])
+          db.prepare(
+            `DELETE FROM ${table} WHERE device_id IN (SELECT device_id FROM paired_devices WHERE human_id = ?)`,
+          ).run(fact.humanId);
+        db.prepare('DELETE FROM paired_devices WHERE human_id = ?').run(fact.humanId);
+        for (const channelId of fact.privateChannels ?? [])
+          db.prepare(
+            `UPDATE channel_records SET record_json = json_set(record_json, '$.name', '', '$.deletedAt', ?) WHERE channel_id = ?`,
+          ).run(fact.deletedAt, channelId);
+        db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId',
           (SELECT owner_human_id FROM team_settings)) WHERE json_extract(record_json, '$.ownerHumanId') = ?`).run(
-            fact.humanId,
-          );
-          for (const slug of fact.privateBots ?? [])
-            acceptMemberBotPurge({
-              db,
-              humanId: fact.humanId,
-              slug,
-              acceptedAt: fact.deletedAt,
-              rootDir: join(options.dshHome, 'botharness', 'bots'),
-            });
-          db.prepare('DELETE FROM tob_identity WHERE human_id = ?').run(fact.humanId);
-          db.prepare('DELETE FROM humans WHERE human_id = ?').run(fact.humanId);
-        }
-      },
-      ['team', 'channel', 'human-identity'],
-    );
+          fact.humanId,
+        );
+        for (const slug of fact.privateBots ?? [])
+          acceptMemberBotPurge({
+            db,
+            humanId: fact.humanId,
+            slug,
+            acceptedAt: fact.deletedAt,
+            rootDir: join(options.dshHome, 'botharness', 'bots'),
+          });
+        db.prepare('DELETE FROM tob_identity WHERE human_id = ?').run(fact.humanId);
+        const removed = db.prepare('DELETE FROM humans WHERE human_id = ?').run(fact.humanId);
+        identityChanged ||=
+          Number(inserted.changes) + Number(rewritten.changes) + Number(removed.changes) > 0;
+      }
+      if (identityChanged) topics.push('member-purged');
+    }, topics);
   };
   const apply = (recover = true, fresh?: ReadonlySet<string>): number => {
     const all = ledger!.checkpoint().facts;
@@ -725,7 +727,16 @@ export function mountContentPurge(options: {
         channels,
         counts,
         digest: createHash('sha256')
-          .update(JSON.stringify([channels, rows, [...files].sort(), bots, plans]))
+          .update(
+            JSON.stringify([
+              channels,
+              rows,
+              [...files].sort(),
+              [...files].filter((id) => !retained.has(id)).sort(),
+              bots,
+              plans,
+            ]),
+          )
           .digest('hex'),
       };
     });

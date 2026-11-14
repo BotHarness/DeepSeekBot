@@ -1003,7 +1003,9 @@ function initializeCore(
       durableAttention.cancel();
     });
     operationalDatabase.subscribe(({ topics }) => {
-      if (topics.includes('content-purge')) live?.publishContentPurged();
+      if (topics.some((topic) => ['content-purge', 'member-purged'].includes(topic)))
+        live?.publishContentPurged();
+      if (topics.includes('member-purged')) live?.publishHumanIdentityChanged();
       if (
         topics.some((topic) =>
           [
@@ -1011,6 +1013,7 @@ function initializeCore(
             'grants',
             'bot-schedules',
             'content-purge',
+            'member-purged',
             'assignment-report',
             'bot-ownership',
           ].includes(topic),

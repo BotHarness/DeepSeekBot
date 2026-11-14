@@ -97,6 +97,111 @@ async function send(f: ReturnType<typeof fixture>, slug: string, id: string) {
 }
 
 describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
+  it.each(['purge', 'transfer-first'])(
+    'scopes real channelDm, Tob and exclusive Bot DMs: %s',
+    async (operation) => {
+      const f = fixture();
+      expect(
+        f.core.registry.create({ slug: 'bob-bot', ownerHumanId: 'bob', displayName: 'Bob Bot' }).ok,
+      ).toBe(true);
+      const second = createBot(f, bob, 'bob-second');
+      const other = createBot(f, alice, 'alice-bot');
+      const opened = createBridgeMethodsForHumans(f.core)(bob).channelDm({ slug: 'bob-bot' });
+      if (!opened.ok) throw new Error('DM unavailable');
+      const tob = await f.core.tob.ensure(bob);
+      const exclusive = f.core.channels.getOrCreateBotDm(bob, 'bob-bot', 'bob-second', 'Exclusive');
+      const mixed = f.core.channels.getOrCreateBotDm(bob, 'bob-bot', 'alice-bot', 'Mixed');
+      if (!exclusive || !mixed) throw new Error('Bot DM unavailable');
+      const upload = (name: string) =>
+        f.core.attachments.upload({
+          name,
+          data: (async function* () {
+            yield Buffer.from(name);
+          })(),
+        });
+      const tobFile = await upload('tob-private.txt');
+      const botFile = await upload('bot-private.txt');
+      for (const channelId of [opened.value.channel.id, second.dm.id, tob.channelId])
+        await f.core.channels.appendMessage(bob, channelId, {
+          id: 'private-' + channelId,
+          at: new Date().toISOString(),
+          author: { kind: 'human', humanId: 'bob' },
+          body: 'private body',
+          attachments: [channelId === tob.channelId ? tobFile : botFile],
+        });
+      if (operation === 'transfer-first') await f.core.team.transfer(owner, 'bob', 'alice');
+      await f.core.team.deactivate(owner, 'bob');
+      const preview = f.core.team.purgePreview(owner, 'bob');
+      expect(preview.counts).toEqual(
+        operation === 'purge'
+          ? { channels: 4, bots: 3, messages: 3, files: 2 }
+          : { channels: 1, bots: 1, messages: 1, files: 1 },
+      );
+      await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
+      expect(f.core.channels.get(tob.channelId)).toBeUndefined();
+      expect(f.core.attachments.has(tobFile)).toBe(false);
+      for (const channelId of [opened.value.channel.id, second.dm.id, exclusive.id])
+        expect(Boolean(f.core.channels.get(channelId))).toBe(operation === 'transfer-first');
+      expect(f.core.attachments.has(botFile)).toBe(operation === 'transfer-first');
+      for (const channelId of [other.dm.id, mixed.id])
+        expect(f.core.channels.get(channelId)).toBeDefined();
+    },
+  );
+
+  it('publishes deleted authors after commit and repairs an already open shared Channel', async () => {
+    const f = fixture();
+    const shared = f.core.channels.createGroup(owner, { name: 'Shared', members: [] });
+    f.core.team.setPublic(owner, shared.id, true);
+    f.core.team.joinPublic(alice, shared.id);
+    await f.core.channels.appendMessage(owner, shared.id, {
+      id: 'shared-author',
+      at: new Date().toISOString(),
+      author: { kind: 'human', humanId: 'bob', displayName: 'Bob' },
+      body: 'body stays',
+    });
+    await f.core.team.deactivate(owner, 'bob');
+    const controller = new AbortController();
+    const stream = f.core.live
+      .followChannel(alice, shared.id, 50, controller.signal)
+      [Symbol.asyncIterator]();
+    await stream.next();
+    const authors: unknown[] = [];
+    const publish = f.core.live.publishRosterCommitted.bind(f.core.live);
+    vi.spyOn(f.core.live, 'publishRosterCommitted').mockImplementation(() => {
+      authors.push(f.core.channels.readMessages(shared.id)[0]?.author);
+      publish();
+    });
+    try {
+      const next = stream.next();
+      const preview = f.core.team.purgePreview(owner, 'bob');
+      await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
+      expect(authors).toContainEqual({ kind: 'human', humanId: 'bob', deleted: true });
+      let tail = await next;
+      for (let i = 0; !tail.done && i < 5; i++) tail = await stream.next();
+      expect(tail).toMatchObject({ done: true });
+      const repaired = f.core.live
+        .followChannel(alice, shared.id, 50, controller.signal)
+        [Symbol.asyncIterator]();
+      try {
+        expect(await repaired.next()).toMatchObject({
+          value: {
+            type: 'opened',
+            page: {
+              entries: [
+                { message: { body: 'body stays', author: { humanId: 'bob', deleted: true } } },
+              ],
+            },
+          },
+        });
+      } finally {
+        await repaired.return?.();
+      }
+    } finally {
+      controller.abort();
+      await stream.return?.();
+    }
+  });
+
   it.each(['tob', 'transferred', 'never-signed-in'])(
     'purges a %s member created through the real sign-in lifecycle under an aliased Profile path',
     async (scenario) => {
