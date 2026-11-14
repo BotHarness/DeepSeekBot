@@ -172,6 +172,7 @@ function createDelegationTool(
   provider: DelegationProvider,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig,
+  requireRoute?: (route: ModelRoute) => void,
 ): ToolDefinition {
   const name = BOT_SUBAGENT_TOOL_NAMES[provider];
   const presetDescription =
@@ -227,6 +228,7 @@ function createDelegationTool(
         parentAgentOptionsForDelegation(parent),
         args,
       );
+      requireRoute?.(decision.route);
       const options = agentOptions(parentAgentOptionsForDelegation(parent), decision.route);
       const llm = ctx.get('llm');
       if (llm === undefined) throw new Error('DSH LLM service is unavailable');
@@ -307,10 +309,11 @@ export function createBotSubagentModelTools(
   ctx: Context,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig = {},
+  requireRoute?: (route: ModelRoute) => void,
 ): ToolDefinition[] {
   return [
-    createDelegationTool(ctx, 'spawn', resolvePlan, config),
-    createDelegationTool(ctx, 'fork', resolvePlan, config),
+    createDelegationTool(ctx, 'spawn', resolvePlan, config, requireRoute),
+    createDelegationTool(ctx, 'fork', resolvePlan, config, requireRoute),
     defineTool({
       name: BOT_SUBAGENT_TOOL_NAMES.list,
       description: 'List this PersonaBot current Assignment model choices for DSH Subagents.',
@@ -353,6 +356,7 @@ export async function installBotSubagentModelTools(
   ctx: Context,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig = {},
+  requireRoute?: (route: ModelRoute) => void,
 ): Promise<void> {
   await validatePresetConfig(ctx, config);
   if (ctx.get('subagents') === undefined) {
@@ -372,6 +376,6 @@ export async function installBotSubagentModelTools(
     order: 10_360,
     text: 'For DSH Subagents in this PersonaBot, use bot_subagent or bot_subagent_fork. Call list_bot_subagent_models before an explicit model choice. The current Human-selected Assignment model set is checked when each child starts. Native Agent presets select child tools and persona, not the LLM route. Only bot_subagent can select an advertised agent_preset; otherwise use its configured default or the current system default Agent preset. A fork always inherits the parent preset.',
   });
-  for (const tool of createBotSubagentModelTools(ctx, resolvePlan, config))
+  for (const tool of createBotSubagentModelTools(ctx, resolvePlan, config, requireRoute))
     ctx.tools.register(tool);
 }

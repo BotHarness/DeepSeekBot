@@ -1,5 +1,9 @@
 export const MEMBER_GLOBAL_METHODS = [
   'teamMode',
+  'modelsAllowed',
+  'modelCatalog',
+  'usageByMember',
+  'overviewUsage',
   'permissionCatalog',
   'roles',
   'roleCreate',
@@ -48,7 +52,6 @@ export const MEMBER_GLOBAL_METHODS = [
   'onboarding',
   'create',
   'createLookup',
-  'modelCatalog',
   'modelPresets',
   'humanAttention',
   'humanAttentionStatus',
