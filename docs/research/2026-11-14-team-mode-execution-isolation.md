@@ -71,7 +71,7 @@
 
 **可用（已在类型里确认）：**
 
-1. **`ctx.sandbox`（`SandboxProvider.confine(argv, policy, signal) → { argv, enforcement, denialSignatures, runnerFailureRules }`）是可替换的抽象 Service。** 每次调用都会带上 `policy.sessionId`，所以我们自己的 provider 能通过 BotHarness 的 `ownership.resolve(sessionId)` 找到 Bot、owner 和受众，自己算出读写白名单，再返回 bwrap 或 sandbox-exec 的 argv。所有经过沙箱的消费者（bash、pwsh、terminal、PTC）都会自动走这条路。
+1. **`ctx.sandbox`（`SandboxProvider.confine(argv, policy, signal) → { argv, enforcement, denialSignatures, runnerFailureRules }`）是可替换的抽象 Service。** `policy.sessionId` 在类型里是**可选的**（`sessionId?: SessionId`，agentless 调用不带）。有 sessionId 时，我们自己的 provider 能通过 BotHarness 的 `ownership.resolve(sessionId)` 找到 Bot、owner 和受众，自己算出读写白名单，再返回 bwrap 或 sandbox-exec 的 argv。所有经过沙箱的消费者（bash、pwsh、terminal、PTC）都会自动走这条路。**没有 sessionId，或者解析不到所属 Bot 的调用，provider 必须直接拒绝（fail closed），不能退回到更宽的策略。** 各消费者是否总是传入 sessionId，要在 spike 里对照固定版本的 DSH 源码核实。
 2. **Cordis patch 可以停用 DSH 的行。** `cordis-plugin-include` 的 `PatchOptions` 支持 `{ id, disabled }`，所以 `packages/deepseekbot/cordis.patch.yml` 可以写 `- id: sandbox` + `disabled: true`，再 insert `@botharness/sandbox` 提供 `ctx.sandbox`。（需要用 spike 实测：停用后服务依赖能正确重新绑定，HMR 重组也正常。）
 3. **后备方案：`dsh-sandbox-local` 的 `runnerCommand` 配置**。可以指定一个自定义 runner；DSH 会把 bwrap 兼容的参数追加给它，并跳过探测。runner 只能从这些参数里的 bind 路径反推是哪个 Bot，比较脆弱，只在第 2 条走不通时使用。
 4. `dsh-sandbox-policy` 提供 `resolve({ session })` 和 `setSandboxMode`（BotHarness 已经在用），用来强制成员 Bot 不能进入 `danger-full-access`。
@@ -264,15 +264,18 @@ Vain 的决定：**共享 Bot 要提供，放在共享空间里**。重点是：
 
 ### 白名单（每次执行计算）
 
-- 可读写：这个 Bot 自己的 Memory（Orchestrator），或者当前 Assignment 的 Grant；`orchestratorWrite` 打开时加上可写的 Grant；一个私有 tmp。
-- 只读：其他有效 Grant；系统运行时目录（`/usr`、`/bin`、`/lib*`、`/etc` 中除敏感项以外的部分；macOS 上是 `/System`、`/usr`、`/Library` 的只读部分，以及 Homebrew 前缀）；托管 git（`$DSH_HOME/botharness/git`，只读）。
+- 白名单按 Session 类型和访问类型计算，与 `grant-native-tools.ts` 的 `currentRoots(session, kind)` 保持一致：
+  - Orchestrator：可读写自己的 Memory；可读这个 Bot 的有效 Grant；其中 `orchestratorWrite` 为 true 的 Grant 才可写。
+  - Assignment：只包含这次 Assignment 的 primary Grant（`permission.grantId`，并要求 cwd 匹配）。只有在 `orchestratorWrite` 为 true 时可写，否则只读；不包含这个 Bot 的其他 Grant。
+  - 两种 Session 都有一个私有 tmp。
+- 只读（所有 Session）：系统运行时目录（`/usr`、`/bin`、`/lib*`、`/etc` 中除敏感项以外的部分；macOS 上是 `/System`、`/usr`、`/Library` 的只读部分，以及 Homebrew 前缀）；托管 git（`$DSH_HOME/botharness/git`，只读）。
 - 隐藏：`$DSH_HOME` 的其余部分、所有其他 Memory、其他成员的根目录、服务账号的 `$HOME`（Linux 用 tmpfs 覆盖；Seatbelt 用 `deny file-read*` subpath）。
-- 网络：第一步至少挡住 Host 自己的回环端口（Linux 可以用独立的 netns 加 pasta/slirp4netns 只放行出站，或者用 Landlock ABI≥4 按端口拒绝 connect；macOS Seatbelt 用 `deny network-outbound` 加 localhost 端口过滤，**都要用 spike 验证**）。外部出站先保持开放，以后再做按 Bot 的出站策略。
+- 网络：第一步至少挡住 Host 自己的回环端口（Linux 可以用独立的 netns 加 pasta/slirp4netns 只放行出站，；Landlock ABI≥4 的 TCP 规则只按端口区分、不区分目标地址，所以**不能用来实现"只拒绝回环"**——Landlock 后备方案不满足这条网络策略，此时应报告 `partial`，成员 Bot 按"不可用"处理；macOS Seatbelt 用 `deny network-outbound` 加 localhost 端口过滤，**都要用 spike 验证**）。外部出站先保持开放，以后再做按 Bot 的出站策略。
 - 返回 `enforcement: 'full'`；做不到时（Windows ACL 只能部分生效、Landlock ABI 太旧）返回 `partial`，Team mode 对成员 Bot 视为"不可用"，回到过渡门槛。
 
 ### 平台
 
-- **Linux VPS**：Host 作为 systemd 服务，以独立用户 `deepseekbot` 运行（不是 root，也不是登录用户），`DSH_HOME=/var/lib/deepseekbot` 权限 0700，Workspace 根目录放在 `/srv/deepseekbot/workspaces/{members/<humanId>,shared/<rootId>}`；用 `ProtectSystem=strict`、`ProtectHome=yes`、`ReadWritePaths=` 限定这两处，不设置会禁止 user namespace 的 `RestrictNamespaces`。安装 bubblewrap；在 Ubuntu 23.10+ 上要确认 AppArmor 允许 bwrap 使用 userns，否则退到 Landlock（内核 ≥5.13，读写都能限制）。
+- **Linux VPS**：Host 作为 systemd 服务，以独立用户 `deepseekbot` 运行（不是 root，也不是登录用户），`DSH_HOME=/var/lib/deepseekbot` 权限 0700，Workspace 根目录放在 `/srv/deepseekbot/workspaces/{members/<humanId>,shared/<rootId>}`；用 `ProtectSystem=strict`、`ProtectHome=yes`、`ReadWritePaths=` 限定这两处，不设置会禁止 user namespace 的 `RestrictNamespaces`。安装 bubblewrap；在 Ubuntu 23.10+ 上要确认 AppArmor 允许 bwrap 使用 userns，否则退到 Landlock。注意：内核 5.13 的 Landlock ABI 1 **不能限制文件截断**（截断要 ABI≥3，内核 6.2+），所以只有 5.13 不足以提供完整的写保护。provider 要在运行时检测 ABI 版本和所需的访问权限；达不到要求时报告 `partial`，成员 Bot 视为不可用。
 - **Docker 封装（可选）**：一个 Host 一个容器，卷挂 `DSH_HOME` 和 workspaces。容器内的 bwrap 需要允许 userns 的 seccomp/AppArmor 配置，否则只能用 Landlock。不要把 Docker socket 交给 Host。
 - **macOS 桌面**：用 Seatbelt profile 做同样的白名单。`sandbox-exec` 已被标记为 deprecated，但 DSH 自己也在用；这个风险我们和 DSH 共同承担。Owner 的家目录必须在隐藏列表里。
 - **Windows**：DSH 的 ACL runner 只能部分生效（读不受限），Team mode 的成员 Bot 在 Windows 上一直使用过渡门槛。
