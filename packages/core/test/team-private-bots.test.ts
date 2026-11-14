@@ -256,6 +256,38 @@ describe('M2 private Bot boundaries', () => {
     expect(f.core.humanAttention.list(alice, { category: 'action' }).items).toHaveLength(1);
   });
 
+  it('attributes shared Group replies to the canonical Source Event Human before reading counts', async () => {
+    const f = fixture();
+    const group = f.core.channels.createGroup(owner, {
+      name: 'Shared replies',
+      members: ['owner-bot'],
+    });
+    f.team.setPublic(owner, group.id, true);
+    f.team.joinPublic(bob, group.id);
+    await f.core.channels.appendMessage(bob, group.id, {
+      id: 'bob-group-request',
+      at: new Date().toISOString(),
+      author: { kind: 'human' },
+      body: 'Bob asks',
+    });
+    await f.core.channels.appendMessage(owner, group.id, {
+      id: 'reply-for-bob',
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'owner-bot' },
+      body: 'Reply for Bob',
+      replyTo: 'bob-group-request',
+    });
+    expect(f.core.humanAttention.list(bob, { category: 'replies' }).items).toMatchObject([
+      { messageId: 'reply-for-bob' },
+    ]);
+    expect(f.core.humanAttention.list(owner, { category: 'replies' }).items).toEqual([]);
+    expect(f.core.humanAttention.list(alice, { category: 'replies' }).items).toEqual([]);
+    expect(f.core.humanAttention.status(bob, true).messageCounts).toMatchObject({ replies: 1 });
+    await f.core.channels.markRead(bob, group.id, 'reply-for-bob');
+    expect(f.core.humanAttention.status(bob).unreadCount).toBe(0);
+    expect(f.core.humanAttention.status(owner).unreadCount).toBe(1);
+  });
+
   it('runs the real member Bot tool path without exposing or messaging another member Bot', async () => {
     let core: ReturnType<typeof createCore>;
     const outcomes: unknown[] = [];

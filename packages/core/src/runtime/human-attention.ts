@@ -402,7 +402,7 @@ const channelAttentionCte = (
            CASE WHEN json_extract(c.record_json, '$.type') = 'group'
                  AND json_extract(e.payload_json, '$.author.kind') = 'bot'
                  AND json_extract(target.payload_json, '$.author.kind') = 'human'
-                 AND coalesce(json_extract(target.payload_json, '$.author.humanId'), 'local-human') = $humanId
+                 AND coalesce(target.human_id, json_extract(target.payload_json, '$.author.humanId'), 'local-human') = $humanId
                  AND original.revision >= m.visible_from_revision
                 THEN 1 ELSE 0 END AS is_reply,
            CASE WHEN json_extract(c.record_json, '$.type') = 'group'
