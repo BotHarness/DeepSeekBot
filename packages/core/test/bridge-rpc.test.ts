@@ -690,6 +690,8 @@ describe('bridge typert service', () => {
 
     expect(remoteMethods(service).map((marker) => marker.exportName ?? marker.method)).toEqual([
       'teamMode',
+      'modelsAllowed',
+      'usageByMember',
       'teamModeSet',
       'teamOwnerPasswordSet',
       'teamInsecureHttpSet',
