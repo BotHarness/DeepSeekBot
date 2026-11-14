@@ -25,7 +25,7 @@ Back navigation keeps prepared Host routes running. Quick Tunnel can coexist wit
 
 Updated phones save both explicitly admitted private addresses under one Host identity. Older phones use the invitation's primary address. A Quick Tunnel restart can change its address: rescan to replace the saved addresses without adding a second Host. A stopped or failed route does not prevent the other verified route from pairing. Private connections do not learn official-service fallback addresses.
 
-Docker relay remains a separate, exclusive private deployment mode. Its owner credentials and volumes must be retained during migration; there is no generic UI reset. Before upgrading an existing Host, take a protected complete Profile/credentials backup: the two-route credentials format is not readable by older packages, and rollback requires restoring the matching backup. See [migration and rollback](adr/0333-bounded-private-route-coexistence.md) and the [CLI route commands](bot-cli.md#independently-managed-private-routes).
+Docker relay remains a separate, exclusive private deployment mode. Its owner credentials and volumes must be retained during migration; there is no generic UI reset. Before upgrading an existing Host, take a protected complete Profile/credentials backup: the two-route credentials format is not readable by older packages, and rollback requires restoring the matching backup. See [migration and rollback](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0333-bounded-private-route-coexistence.md) and the [CLI route commands](bot-cli.md#independently-managed-private-routes).
 
 Tailscale needs the phone and computer in the same permitted tailnet. iOS and Android normally run only one VPN at a time, so enabling Tailscale can interrupt another VPN; see [Tailscale's platform guidance](https://tailscale.com/docs/reference/faq/other-vpns). LAN needs a reachable local network. HTTPS ingress needs DNS, a certificate trusted by both endpoints, WebSocket forwarding and a successful Host check before a QR is offered. Failure guidance names DNS, TLS or forwarding actions; it never disables certificate validation or silently switches to the official service.
 
@@ -37,11 +37,11 @@ Open **Mobile app → Start pairing → Quick Tunnel (no sign-in)** to create a 
 - **Fixed address (your Cloudflare Tunnel).** Create a Tunnel in your own Cloudflare account, copy its connector token and add a public hostname on a domain in that account. After you save the hostname and token, point that hostname's service at the `http://127.0.0.1:<port>` address the page shows. The address survives restarts. A free account without a payment method could create a Tunnel in our test (2026-11-09); a fixed hostname still needs a domain on that account. Verified end to end on 2026-11-09 with a free-plan domain: pairing, a real reply, and after `cloudflared` restarted the same address kept working without a new pairing code.
 - **Your own proxy or tunnel.** For nginx, Caddy, frp, ngrok or a company gateway that already serves HTTPS. See [Bring your own proxy or tunnel](private-ingress.md).
 
-Wait for **The public address reaches this computer**, choose **Show phone pairing code**, scan it on the phone, compare fingerprints and approve the exact phone. Turning the connection off stops `cloudflared`, forgets the connector token and the phone admission token; paired phones then need a new code.
+Wait for **The public address reaches this computer**, choose **Show phone pairing code**, scan it on the phone, compare fingerprints and approve the exact phone. **Stop** stops that route and retains its settings and connector token. **Remove** forgets the selected route and its connector token; it does not revoke the phone. Older releases expose a disable action that removes the private configuration, so enabling it again requires a new pairing code.
 
 The Host never falls back to the official relay. When the public check fails, the page shows the coded reason (for example `dns` while a new Quick address propagates) and keeps retrying.
 
-CLI: `deepseekbot private-tunnel-enable --quick --confirm`, `deepseekbot private-tunnel-enable --hostname <name> --token-stdin --confirm` (pipe the connector token) and `deepseekbot private-tunnel-disable --confirm`. `deepseekbot devices` shows `privateTunnel` status.
+CLI: `tobs private-tunnel-enable --quick --confirm`, `tobs private-tunnel-enable --hostname <name> --token-stdin --confirm` (pipe the connector token) and `tobs private-tunnel-disable --confirm`. `tobs devices` shows `privateTunnel` status.
 
 ## Advanced: Docker private relay
 
@@ -49,6 +49,6 @@ The server deployment, independent multi-Host claims, verification, recovery and
 
 ## Verify the selected route
 
-After Tobs confirms public readiness, pair locally, compare the Host fingerprint and approve the exact phone key. Use mobile data/outside Wi-Fi, send a uniquely identifiable Bot message and check the real reply. Verify reconnect and, when authorized, revocation. Keep QR codes and tokens out of agent chat and screenshots. A health response or running process alone does not prove phone access.
+After Tobs confirms public readiness, pair locally, compare the Host fingerprint and approve the exact phone key. For a public endpoint, use mobile data/outside Wi-Fi. For an internal-only HTTPS origin, keep the phone on its intended company network and verify internal DNS, system-trusted TLS and reachability from that phone; do not require public internet access. Send a uniquely identifiable Bot message and check the real reply. Verify reconnect and, when authorized, revocation. Keep QR codes and tokens out of agent chat and screenshots. A health response or running process alone does not prove phone access.
 
 [PR #3780](https://github.com/BotHarness/DeepSeekBot/pull/3780) records iOS Simulator pairing, real replies and revocation for Quick/Named, nginx/Caddy routing and multi-Host relay. frp/ngrok remain reference configurations. Physical cellular, mainland carrier, Android and media-feature qualification is separate.

@@ -63,7 +63,7 @@ export const zh = {
   'connections.deploymentGuide': '查看部署指南',
   'connections.privateGuideUrl': 'https://botharness.ai/zh/docs/private-connect',
   'connections.ingressGuideUrl': 'https://botharness.ai/zh/docs/private-ingress',
-  'connections.relayGuideUrl': 'https://botharness.ai/zh/docs/private-connect#部署',
+  'connections.relayGuideUrl': 'https://tobs.app/docs/private-relay/',
   'connections.recovery.address':
     '填写完整 HTTPS 地址，不带路径、账号或查询参数。Tailscale 地址使用 Tailscale 入口。',
   'connections.recovery.token': '检查 Cloudflare 主机名和 Tunnel 令牌后重试。',
@@ -5500,7 +5500,7 @@ export const en = {
   'connections.deploymentGuide': 'View deployment guide',
   'connections.privateGuideUrl': 'https://botharness.ai/docs/private-connect',
   'connections.ingressGuideUrl': 'https://botharness.ai/docs/private-ingress',
-  'connections.relayGuideUrl': 'https://botharness.ai/docs/private-connect#prepare-the-server',
+  'connections.relayGuideUrl': 'https://tobs.app/en/docs/private-relay/',
   'connections.recovery.address':
     'Enter an HTTPS origin without a path, credentials or query. Use the Tailscale option for a Tailscale address.',
   'connections.recovery.token': 'Check the Cloudflare hostname and Tunnel token, then retry.',

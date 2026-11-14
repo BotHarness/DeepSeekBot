@@ -6,7 +6,7 @@
 
 ## 部署
 
-打开与已安装 Host 匹配的 [Tobs Release](https://github.com/BotHarness/DeepSeekBot/releases)，下载源码归档，将完整 `deploy/private-relay` 目录复制到服务器并记录标签/提交。不要从任意移动分支部署或对现有部署重复初始化。该目录运行中继，不是将 Bot Host 装进 Docker 的镜像。
+中继部署文件与多 Host 配置要求 **Tobs 1.7.0 或更新版本**；Host 更旧时先按[安装/升级教程](https://tobs.app/docs/installation/)升级。打开与已安装 Host 匹配的 [Tobs Release](https://github.com/BotHarness/DeepSeekBot/releases)，下载源码归档，将完整 `deploy/private-relay` 目录复制到服务器并记录标签/提交。不要从任意移动分支部署或对现有部署重复初始化。该目录运行中继，不是将 Bot Host 装进 Docker 的镜像。
 
 服务器需安装 Docker Compose 和 Node 24。将发布版本的 `deploy/private-relay` 目录复制到你管理的绝对路径，配置已有域名指向服务器，确保公网 TCP 80/443 可达且未被其他服务占用。Caddy 自动申请和续期证书；证书签发与运营商连通性仍需检查。
 
@@ -43,13 +43,13 @@ node /opt/botharness-private/setup.mjs add-host office-mac
 
 它会写入 `host-office-mac.secret`（密钥，只留在服务器上），并只把它的哈希追加到 `hosts/keys`。中继每次认领时都会读取这个文件，不需要重启。在那台电脑上按上面的步骤认领，只是粘贴 `host-office-mac.secret` 的内容，而不是 `bootstrap.secret`。第一台电脑继续使用 `bootstrap.secret`。
 
-从单台电脑的部署升级：拉取新的 `deploy/private-relay` 文件，在同一个项目目录运行 `docker compose up -d --build`。原有认领、手机和数据卷都照常工作，之后再用 `add-host` 添加电脑。线上协议见[中继标准](private-relay-standard.zh.md)，附第三方中继可用的一致性测试脚本。
+从单台电脑的部署升级：拉取新的 `deploy/private-relay` 文件，在同一个项目目录运行 `docker compose --project-name botharness-private --project-directory /opt/botharness-private --file /opt/botharness-private/compose.yaml up --build --detach`。原有认领、手机和数据卷都照常工作，之后再用 `add-host` 添加电脑。线上协议见[中继标准](private-relay-standard.zh.md)，附第三方中继可用的一致性测试脚本。
 
 ## 失败恢复
 
 - **无法连接：**检查公网 DNS、端口、HTTPS 证书和容器状态。不要关闭证书校验；私有连接失败不会偷偷使用官方中继。
 - **已被认领：**回到原电脑和原 Profile，不要为了消除错误删除中继数据卷。
-- **认领时断网：**电脑会在请求前保存私有凭据。保留 Profile，重启同一 Host 后恢复连接，不自动重放认领。未知结果不会显示为成功。
+- **认领时断网：**电脑会在请求前保存私有凭据。只有中继已接受认领时，重启才可重连；认领从未到达中继时，Host 会持续重试控制连接并显示 `private-relay-unreachable`，使用该所有者凭据认证的 `GET /status` 返回 `404`，再次从界面认领可能返回 `private-relay-already-configured`。保留 Profile 和中继状态排查，不重复认领、删除凭据或重置卷来强行恢复。目前没有已定义的重复认领恢复流程。
 - **服务器重启：**保留 `relay-data`、Caddy 数据卷和电脑凭据。删除卷是破坏性重建，不是升级步骤。
 - **手机丢失：**在可信电脑撤销旧设备。若所有可信密钥均丢失，需要重建并重新配对；服务器账号无法恢复旧 Host 身份。
 

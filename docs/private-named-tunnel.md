@@ -24,11 +24,13 @@ An interactive Cloudflare Access login challenge can block the phone's WebSocket
 
 ## CLI alternative
 
+New installations provide `tobs`; existing `deepseekbot` users may keep their command.
+
 Use the existing local Host and its usual connection/token-file arguments. Read the connector token from a private file readable only by you:
 
 ```bash
-deepseekbot private-tunnel-enable --hostname bot.example.com --token-stdin --confirm < /absolute/private/connector-token.txt
-deepseekbot devices
+tobs private-tunnel-enable --hostname bot.example.com --token-stdin --confirm < /absolute/private/connector-token.txt
+tobs devices
 ```
 
 Inspect existing routes first. Do not overwrite an occupied custom slot. Newer Hosts also expose [independent route commands](bot-cli.md#independently-managed-private-routes).

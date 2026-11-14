@@ -23,13 +23,13 @@ Everything else may stay blocked; Tobs answers 404 to any other path on that por
 
 Bot settings → Connections → Add connection → Connect your phone to this computer → App installed, start connecting → Advanced methods → **Your own proxy or tunnel**. Enter the HTTPS address and choose **Save and check**. The page shows the local port to forward to. By default that port listens on `127.0.0.1`, so the proxy must run on the same computer; turn on **Accept forwarding from other LAN machines** when the proxy runs elsewhere on your LAN.
 
-CLI: `deepseekbot private-ingress-enable --origin https://bot.example.com --confirm` (add `--lan` for a proxy on another machine), `deepseekbot devices` for status (`privateTunnel.originPort` is the port to forward to), and `deepseekbot private-ingress-disable --confirm`.
+CLI: `tobs private-ingress-enable --origin https://bot.example.com --confirm` (add `--lan` for a proxy on another machine), `tobs devices` for status (`privateTunnel.originPort` is the port to forward to), and `tobs private-ingress-disable --confirm`.
 
 The port stays the same across restarts. If you move to a different address, enable the new one and scan a fresh pairing code on each phone; the phone moves to the new address only after this computer's pinned key admits it.
 
 ## Reference configs
 
-Replace `PORT` with the port Tobs shows and `bot.example.com` with your address. The nginx and Caddy checks ran the routing rules below behind a Cloudflare Quick Tunnel that terminated HTTPS; certificate setup on your own server is up to you.
+Replace `PORT` with the port Tobs shows and `bot.example.com` with your address. Both examples assume the proxy runs on the Host. For a proxy on another LAN machine, enable the authorized LAN bind and replace **every** `127.0.0.1:PORT` upstream in both channel and readiness routes with the Host's reachable LAN address and port (for example `192.168.1.20:PORT`); loopback on the proxy is not the Host. The nginx and Caddy checks ran the routing rules below behind a Cloudflare Quick Tunnel that terminated HTTPS; certificate setup on your own server is up to you.
 
 **nginx** (verified 2026-11-09: pairing, a real reply and revocation through this config)
 
@@ -42,11 +42,15 @@ server {
   location /botharness-device/channel {
     proxy_pass http://127.0.0.1:PORT;
     proxy_http_version 1.1;
+    proxy_set_header Host $host;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
     proxy_read_timeout 300s;
   }
-  location /.well-known/botharness-tunnel/ { proxy_pass http://127.0.0.1:PORT; }
+  location /.well-known/botharness-tunnel/ {
+    proxy_pass http://127.0.0.1:PORT;
+    proxy_set_header Host $host;
+  }
   location / { return 404; }
 }
 ```
@@ -65,7 +69,7 @@ bot.example.com {
 }
 ```
 
-**frp** (reference, not yet verified): the Host-side `frpc` initiates an outbound connection to your public `frps`. An `http` proxy with `customDomains = ["bot.example.com"]` and `localPort = PORT` can sit behind an HTTPS reverse proxy on the server. Forward the two paths above, including the WebSocket upgrade and admission header. Merely setting `vhostHTTPSPort` does not add certificate termination to an HTTP proxy; frp's HTTPS/https2http mode is a different configuration. Follow the [official HTTPS example](https://gofrp.org/en/docs/examples/https2http/). frp is a generic tunnel, not an implementation of Tobs's [private relay protocol](private-relay-standard.md).
+**frp** (reference, not yet verified): the Host-side `frpc` initiates an outbound connection to your public `frps`. An `http` proxy with `customDomains = ["bot.example.com"]` and `localPort = PORT` can sit behind an HTTPS reverse proxy on the server. Forward the two paths above, including the WebSocket upgrade and admission header, and preserve the public `Host` header so frps can match `customDomains` (nginx: `proxy_set_header Host $host;`; Caddy preserves Host by default). Merely setting `vhostHTTPSPort` does not add certificate termination to an HTTP proxy; frp's HTTPS/https2http mode is a different configuration. Follow the [official HTTPS example](https://gofrp.org/en/docs/examples/https2http/). frp is a generic tunnel, not an implementation of Tobs's [private relay protocol](private-relay-standard.md).
 
 **ngrok** (reference, not yet verified): `ngrok http PORT --url https://<your-ngrok-domain>`; enter that `https://` address in Tobs.
 
@@ -88,7 +92,7 @@ Set up my existing Tobs Host through my own HTTPS proxy/tunnel. Read https://tob
 
 ## Verify and maintain
 
-Complete [route verification](private-connect.md#verify-the-selected-route) through the chosen HTTPS origin, not a localhost shortcut. Record the configured upstream port so proxy reloads/restarts keep using it. Retain the previous proxy configuration for rollback. On versions with per-route controls, Stop preserves configuration; removing an ingress does not revoke the phone. Remove only its proxy rules/DNS after checking ownership; do not stop shared nginx/Caddy services to retire one route.
+Complete [route verification](private-connect.md#verify-the-selected-route) through the chosen HTTPS origin, not a localhost shortcut. For an internal-only origin, test from the phone on the intended internal network with internal DNS and trusted certificates; external Wi-Fi/cellular is not a requirement. Bot model connectivity is a separate dependency. Record the configured upstream port so proxy reloads/restarts keep using it. Retain the previous proxy configuration for rollback. On versions with per-route controls, Stop preserves configuration; removing an ingress does not revoke the phone. Remove only its proxy rules/DNS after checking ownership; do not stop shared nginx/Caddy services to retire one route.
 
 ## Company network without internet
 
@@ -103,4 +107,4 @@ Verified 2026-11-09 on an iOS 27 Simulator with a test company CA: refusal witho
 
 ## When something fails
 
-The settings page and `deepseekbot devices` show a coded reason: `dns` (the name does not resolve), `tls` (the certificate is not trusted), `http-404` or `http-502` (the proxy did not forward the check path), `timeout`. Tobs keeps rechecking and never falls back to the official relay.
+The settings page and `tobs devices` show a coded reason: `dns` (the name does not resolve), `tls` (the certificate is not trusted), `http-404` or `http-502` (the proxy did not forward the check path), `timeout`. Tobs keeps rechecking and never falls back to the official relay.

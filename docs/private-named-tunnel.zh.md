@@ -24,11 +24,13 @@
 
 ## CLI 方式
 
+新安装提供 `tobs` 命令；已有 `deepseekbot` 用户可继续使用原命令。
+
 使用现有本机 Host 及平常的连接参数和私有令牌文件。连接器令牌从仅本人可读的私有文件传入：
 
 ```bash
-deepseekbot private-tunnel-enable --hostname bot.example.com --token-stdin --confirm < /absolute/private/connector-token.txt
-deepseekbot devices
+tobs private-tunnel-enable --hostname bot.example.com --token-stdin --confirm < /absolute/private/connector-token.txt
+tobs devices
 ```
 
 先检查已有连接，不覆盖已占用的 custom 位置。较新 Host 还提供[独立连接命令](bot-cli.zh.md)。

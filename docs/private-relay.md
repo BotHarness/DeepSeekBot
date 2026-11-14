@@ -6,7 +6,7 @@ Run the Tobs relay on a server you control. One deployment supports up to 16 com
 
 ## Prepare the server
 
-Open the [Tobs release](https://github.com/BotHarness/DeepSeekBot/releases) matching your installed Host, download its source archive and copy the complete `deploy/private-relay` directory to your server. Record its tag/commit. Do not deploy an arbitrary moving branch or initialize over an existing deployment. This runs a relay, not a Docker image of the Bot Host.
+Relay deployment files and multi-Host setup require **Tobs 1.7.0 or later**. If the installed Host is older, follow the [installation/upgrade guide](https://tobs.app/en/docs/installation/) first. Open the [Tobs release](https://github.com/BotHarness/DeepSeekBot/releases) matching your installed Host, download its source archive and copy the complete `deploy/private-relay` directory to your server. Record its tag/commit. Do not deploy an arbitrary moving branch or initialize over an existing deployment. This runs a relay, not a Docker image of the Bot Host.
 
 Install Docker Compose and Node 24 on the server. Copy the released `deploy/private-relay` directory to an absolute directory you control. Point an existing DNS name to that server and make inbound TCP 80/443 reachable. Other applications must not already own these ports. Caddy obtains and renews the HTTPS certificate; certificate issuance and carrier reachability can fail independently.
 
@@ -43,13 +43,13 @@ node /opt/botharness-private/setup.mjs add-host office-mac
 
 This writes `host-office-mac.secret` (the key, private to the server) and appends only its hash to `hosts/keys`, which the relay reads on every claim, so no restart is needed. On that computer, claim with the same steps as above but paste the contents of `host-office-mac.secret` instead of `bootstrap.secret`. The first computer keeps using `bootstrap.secret`.
 
-Upgrading a single-computer deployment: pull the new `deploy/private-relay` files, then `docker compose up -d --build` with the same project directory. The existing claim, phones and volumes keep working unchanged; add more computers with `add-host` afterwards. The wire protocol is documented in [the relay standard](private-relay-standard.md), with a conformance script for third-party relays.
+Upgrading a single-computer deployment: pull the new `deploy/private-relay` files, then `docker compose --project-name botharness-private --project-directory /opt/botharness-private --file /opt/botharness-private/compose.yaml up --build --detach` with the same project directory. The existing claim, phones and volumes keep working unchanged; add more computers with `add-host` afterwards. The wire protocol is documented in [the relay standard](private-relay-standard.md), with a conformance script for third-party relays.
 
 ## Failures and recovery
 
 - **Cannot reach the service:** check public DNS, inbound ports, HTTPS certificate and Docker status. Do not disable certificate validation. The app does not silently use the official relay.
 - **Already claimed:** continue from the original desktop/Profile. Do not delete the relay data volume to make the error disappear.
-- **Connection interrupted during claim:** the desktop saves private owner credentials before claiming. Keep its Profile and restart the same Host; it reconnects without replaying the claim. An unknown result is not reported as success.
+- **Connection interrupted during claim:** the desktop saves private owner credentials before claiming. Restart reconnects only if the relay accepted that claim. If the claim never reached the relay, the Host keeps retrying its control connection with `private-relay-unreachable`; an authenticated `GET /status` with that owner credential returns `404`. Repeating the in-app claim can report `private-relay-already-configured`. Preserve the Profile and relay state for diagnosis; do not repeat the claim, delete credentials or reset volumes to force recovery. No repeat-claim recovery procedure is currently defined.
 - **Server restart:** retain the `relay-data` and Caddy volumes and the desktop credential store. The same owner and phone pairing should reconnect. Removing a volume is destructive recovery, not an upgrade step.
 - **Phone lost:** use the Host's existing paired-device revoke control. If all trusted Host credentials are lost, rebuild and re-pair; a server account cannot recover the original Host identity.
 

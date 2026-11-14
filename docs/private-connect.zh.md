@@ -25,7 +25,7 @@ Control Rail、Bot 设置和可跳过的新手手机步骤都打开同一个连�
 
 新版手机在同一 Host 身份下保存两个明确授权的私有地址，旧版手机使用邀请里的主地址。Quick Tunnel 重启后地址可能变化，重新扫码可替换保存的地址，不会新增一个 Host。某条连接停止或失败时，另一条已验证的连接仍可配对。私有连接不会自动学习官方服务的回退地址。
 
-Docker 中继仍是独立且互斥的私有部署方式，迁移时必须保留所有者凭据和数据卷，不提供通用重置操作。升级已有 Host 前，请备份受保护的完整 Profile 和凭据；旧软件包无法读取双连接凭据格式，降级必须恢复匹配的备份。见[迁移与回滚](adr/0333-bounded-private-route-coexistence.md)和 [CLI 连接命令](bot-cli.zh.md#独立管理私有连接)。
+Docker 中继仍是独立且互斥的私有部署方式，迁移时必须保留所有者凭据和数据卷，不提供通用重置操作。升级已有 Host 前，请备份受保护的完整 Profile 和凭据；旧软件包无法读取双连接凭据格式，降级必须恢复匹配的备份。见[迁移与回滚](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0333-bounded-private-route-coexistence.md)和 [CLI 连接命令](bot-cli.zh.md#独立管理私有连接)。
 
 Tailscale 要求手机和电脑位于可互访的同一 tailnet。iOS 和 Android 通常只能同时运行一个 VPN，开启 Tailscale 可能中断其他 VPN，详见 [Tailscale 官方说明](https://tailscale.com/docs/reference/faq/other-vpns)。局域网要求网络可达；HTTPS 入口要求 DNS、双方信任的证书、WebSocket 转发及 Host 检查通过后才显示配对码。失败时提供 DNS、证书或转发的下一步操作，不关闭证书验证，也不自动切换官方服务。
 
@@ -37,11 +37,11 @@ Tailscale 要求手机和电脑位于可互访的同一 tailnet。iOS 和 Androi
 - **固定地址（自己的 Cloudflare Tunnel）**。在自己的 Cloudflare 账号中创建 Tunnel，复制连接器令牌，并在该账号的域名上添加公共主机名。保存主机名和令牌后，把该主机名的服务指向页面显示的 `http://127.0.0.1:<端口>`。重启后地址不变。2026-11-09 实测：未绑付款方式的免费账号可以创建 Tunnel；固定主机名仍需要该账号下有域名。2026-11-09 用免费套餐的域名端到端实测：配对、收到真实回复；`cloudflared` 重启后地址不变，手机无需新配对码即可继续使用。
 - **自己的代理或隧道**。适用于已经提供 HTTPS 的 nginx、Caddy、frp、ngrok 或公司网关。见[使用自己的代理或隧道](private-ingress.zh.md)。
 
-等页面显示 **公网地址已确认可以连到这台电脑**，选择 **显示手机配对码**，在手机上扫码、核对指纹并批准这台手机。关闭私有连接会停止 `cloudflared`，并删除连接器令牌和手机准入令牌；已配对的手机需要新的配对码。
+等页面显示 **公网地址已确认可以连到这台电脑**，选择 **显示手机配对码**，在手机上扫码、核对指纹并批准这台手机。**停止**结束这条连接，但保留配置和连接器令牌；**移除**忘记所选连接及其连接器令牌，不会撤销手机。旧版本的关闭操作会移除私有配置，重新启用后需要新的配对码。
 
 Host 不会改用官方中继。公网检查失败时，页面会显示原因代码（例如新 Quick 地址尚未生效时的 `dns`），并自动重试。
 
-CLI：`deepseekbot private-tunnel-enable --quick --confirm`、`deepseekbot private-tunnel-enable --hostname <主机名> --token-stdin --confirm`（通过 stdin 传入令牌）和 `deepseekbot private-tunnel-disable --confirm`。`deepseekbot devices` 会显示 `privateTunnel` 状态。
+CLI：`tobs private-tunnel-enable --quick --confirm`、`tobs private-tunnel-enable --hostname <主机名> --token-stdin --confirm`（通过 stdin 传入令牌）和 `tobs private-tunnel-disable --confirm`。`tobs devices` 会显示 `privateTunnel` 状态。
 
 ## 高级：Docker 私有中继
 
@@ -49,6 +49,6 @@ CLI：`deepseekbot private-tunnel-enable --quick --confirm`、`deepseekbot priva
 
 ## 验证所选连接
 
-等 Tobs 确认公网可达后，在本机扫码配对、核对 Host 指纹并批准准确手机公钥。手机使用流量或外部 Wi-Fi，发送一条容易辨认的 Bot 消息并核对真实回复，再验证重连；经授权后检查撤销。配对码和令牌不发送到 agent 聊天或截图分享。仅有健康检查或进程运行不能证明手机可达。
+等 Tobs 确认公网可达后，在本机扫码配对、核对 Host 指纹并批准准确手机公钥。公网入口使用手机流量或外部 Wi-Fi；仅内网 HTTPS 入口则让手机留在目标公司网络，验证手机侧内网 DNS、系统信任的 TLS 和所选地址的可达性，不要求公网访问。发送一条容易辨认的 Bot 消息并核对真实回复，再验证重连；经授权后检查撤销。配对码和令牌不发送到 agent 聊天或截图分享。仅有健康检查或进程运行不能证明手机可达。
 
 [PR #3780](https://github.com/BotHarness/DeepSeekBot/pull/3780) 记录了 iOS 模拟器上 Quick/Named、nginx/Caddy 转发、多 Host Relay 的配对、真实回复与撤销。frp/ngrok 仍为参考配置；真机蜂窝网、中国大陆运营商、Android 和媒体功能的验收另行跟踪。

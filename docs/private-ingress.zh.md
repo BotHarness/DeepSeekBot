@@ -23,15 +23,15 @@
 
 Bot 设置 → 连接 → 添加连接 → 用手机连接这台电脑 → 已安装 App，开始连接 → 进阶方式 → **自己的代理或隧道**。填写 HTTPS 地址，选择 **保存并检查**，页面会显示要转发到的本机端口。这个端口默认只监听 `127.0.0.1`，所以代理要装在同一台电脑上；代理在局域网另一台机器上时，打开 **允许局域网内其他机器转发**。
 
-CLI：`deepseekbot private-ingress-enable --origin https://bot.example.com --confirm`（代理在其他机器上时加 `--lan`），用 `deepseekbot devices` 查看状态（`privateTunnel.originPort` 就是要转发到的端口），关闭用 `deepseekbot private-ingress-disable --confirm`。
+CLI：`tobs private-ingress-enable --origin https://bot.example.com --confirm`（代理在其他机器上时加 `--lan`），用 `tobs devices` 查看状态（`privateTunnel.originPort` 就是要转发到的端口），关闭用 `tobs private-ingress-disable --confirm`。
 
 端口在重启后保持不变。换成新地址时，先开启新地址，再让每台手机扫描新的配对码；只有经过这台电脑的固定密钥校验后，手机才会迁移到新地址。
 
 ## 参考配置
 
-把 `PORT` 换成 Tobs 显示的端口，把 `bot.example.com` 换成你的地址。配置内容见[英文版](private-ingress.md#reference-configs)：nginx 和 Caddy 已于 2026-11-09 实测（配对、真实回复、撤销均通过；测试时由 Cloudflare Quick Tunnel 终止 HTTPS，证书需你自己配置）；frp、ngrok 为参考配置，尚未实测；自己的 Cloudflare Named Tunnel 建议直接用内置的 **固定地址** 选项。
+把 `PORT` 换成 Tobs 显示的端口，把 `bot.example.com` 换成你的地址。示例默认代理就在 Host 上；代理位于其他局域网机器时，启用已授权的 LAN 监听，并将通道和探测两条规则里的所有 `127.0.0.1:PORT` 替换为 Host 可达的局域网地址与端口（例如 `192.168.1.20:PORT`）。代理机器的 loopback 不是 Host。配置内容见[英文版](private-ingress.md#reference-configs)：nginx 和 Caddy 已于 2026-11-09 实测（配对、真实回复、撤销均通过；测试时由 Cloudflare Quick Tunnel 终止 HTTPS，证书需你自己配置）；frp、ngrok 为参考配置，尚未实测；自己的 Cloudflare Named Tunnel 建议直接用内置的 **固定地址** 选项。
 
-frp 的常规代理由 Host 旁的 `frpc` 主动连接公网服务器的 `frps`，再转发到本机网关端口。在服务器上用 HTTPS 反向代理承接其 HTTP 代理时，必须透传上面的两条路径、WebSocket 升级和准入头。仅设置 `vhostHTTPSPort` 不会自动为 HTTP 代理终止证书；HTTPS/https2http 是另一种配置，参见 [frp 官方示例](https://gofrp.org/en/docs/examples/https2http/)。frp 是通用隧道，不是 Tobs [私有 Relay 协议](private-relay-standard.zh.md)的实现。Named 的完整步骤见 [Named Tunnel 教程](private-named-tunnel.zh.md)。
+frp 的常规代理由 Host 旁的 `frpc` 主动连接公网服务器的 `frps`，再转发到本机网关端口。在服务器上用 HTTPS 反向代理承接其 HTTP 代理时，必须透传上面的两条路径、WebSocket 升级和准入头，同时保留公开 `Host` 头，frps 才能匹配 `customDomains`（nginx 使用 `proxy_set_header Host $host;`，Caddy 默认保留 Host）。仅设置 `vhostHTTPSPort` 不会自动为 HTTP 代理终止证书；HTTPS/https2http 是另一种配置，参见 [frp 官方示例](https://gofrp.org/en/docs/examples/https2http/)。frp 是通用隧道，不是 Tobs [私有 Relay 协议](private-relay-standard.zh.md)的实现。Named 的完整步骤见 [Named Tunnel 教程](private-named-tunnel.zh.md)。
 
 ## 复制给你的 agent
 
@@ -50,7 +50,7 @@ frp 的常规代理由 Host 旁的 `frpc` 主动连接公网服务器的 `frps`�
 
 ## 验证与维护
 
-通过所选 HTTPS 地址完成[连接验证](private-connect.zh.md#验证所选连接)，不能用 localhost 捷径代替。记下上游端口，确保代理重载/重启后仍使用它，并保留旧代理配置用于回退。支持单条连接控制的版本中，停止保留配置，移除入口不等于撤销手机。清理前核对归属，只移除本条代理规则/DNS，不为退役一条连接而停止共享 nginx/Caddy。
+通过所选 HTTPS 地址完成[连接验证](private-connect.zh.md#验证所选连接)，不能用 localhost 捷径代替。仅内网入口应从手机所在的目标内网验证内网 DNS、可信证书与连接，不要求外部 Wi-Fi/蜂窝网；Bot 模型连通性另算。记下上游端口，确保代理重载/重启后仍使用它，并保留旧代理配置用于回退。支持单条连接控制的版本中，停止保留配置，移除入口不等于撤销手机。清理前核对归属，只移除本条代理规则/DNS，不为退役一条连接而停止共享 nginx/Caddy。
 
 ## 没有外网的公司内网
 
@@ -65,4 +65,4 @@ frp 的常规代理由 Host 旁的 `frpc` 主动连接公网服务器的 `frps`�
 
 ## 出错时
 
-设置页和 `deepseekbot devices` 会显示原因代码：`dns`（域名解析不到）、`tls`（证书不受信任）、`http-404` 或 `http-502`（代理没有转发检查路径）、`timeout`。Tobs 会持续重试，不会改用官方中继。
+设置页和 `tobs devices` 会显示原因代码：`dns`（域名解析不到）、`tls`（证书不受信任）、`http-404` 或 `http-502`（代理没有转发检查路径）、`timeout`。Tobs 会持续重试，不会改用官方中继。
