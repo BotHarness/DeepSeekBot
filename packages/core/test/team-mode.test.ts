@@ -4,6 +4,7 @@ import { createAttachmentStore } from '../src/attachments/store.js';
 import { DatabaseSync } from 'node:sqlite';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
+import { RELATIONSHIP_ACTIONS } from '../src/devices/relationship-http.js';
 import { createServer, IncomingMessage, request as httpRequest } from 'node:http';
 import { Socket } from 'node:net';
 import { readFileSync } from 'node:fs';
@@ -1185,7 +1186,10 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
       const http = await memberHttp(f);
       const cookie =
         (await http.signIn('bob', 'member-password-1')).headers.get('set-cookie') ?? '';
-      for (const action of ['list', 'initiate', 'approve', 'sync', 'enroll', 'disconnect']) {
+      expect(RELATIONSHIP_ACTIONS).toEqual(
+        expect.arrayContaining(['initiate', 'approve', 'enroll', 'disconnect']),
+      );
+      for (const action of ['list', ...RELATIONSHIP_ACTIONS]) {
         const response = await fetch(`${http.origin}${TEAM_PATH}/api/botharness/relationships`, {
           method: action === 'list' ? 'GET' : 'POST',
           headers: { cookie, 'content-type': 'application/json' },
