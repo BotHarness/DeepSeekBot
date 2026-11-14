@@ -15,6 +15,7 @@ import { parsePurgedPlacements } from './content-redactions.js';
 import { createStore, type ClientStore } from './store.js';
 import { fetchMessageResource, type MessageHost } from './message-host.js';
 import { conversationKey, remoteHosts, type RemoteConversationTarget } from './remote-hosts.js';
+import { remoteFolderAccess } from './remote-folder-access.js';
 import { hostBridgeCall } from './host-bridge-call.js';
 
 export function createHostChannelFollow(client: HostClient, call: BridgeCall): ChannelFollow {
@@ -126,30 +127,40 @@ export function createRemoteNativeConversation(
     () => running && current() && client.getSnapshot().connection.status === 'connected',
   );
   isolateTeamIdentity(call);
-  const actions = createActions(call, store, undefined, {
-    async download(path, name) {
-      const signal = lifetime.signal;
-      if (!host.current(store.getSnapshot().conversation.channel?.id ?? ''))
-        throw new Error('remote-conversation-unavailable');
-      const response = await fetchMessageResource(path, signal, host);
-      if (!response.ok) throw new Error(`attachment-download-${response.status}`);
-      const blob = await response.blob();
-      signal.throwIfAborted();
-      if (!host.current(store.getSnapshot().conversation.channel?.id ?? ''))
-        throw new Error('remote-conversation-unavailable');
-      const url = URL.createObjectURL(blob);
-      try {
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = name;
-        document.body.append(anchor);
-        anchor.click();
-        anchor.remove();
-      } finally {
-        URL.revokeObjectURL(url);
-      }
+  const actions = createActions(
+    call,
+    store,
+    remoteFolderAccess(client, () => running && current()),
+    {
+      async download(path, name) {
+        const signal = lifetime.signal;
+        if (!host.current(store.getSnapshot().conversation.channel?.id ?? ''))
+          throw new Error('remote-conversation-unavailable');
+        const response = await fetchMessageResource(path, signal, host);
+        if (!response.ok) throw new Error(`attachment-download-${response.status}`);
+        const blob = await response.blob();
+        signal.throwIfAborted();
+        if (!host.current(store.getSnapshot().conversation.channel?.id ?? ''))
+          throw new Error('remote-conversation-unavailable');
+        const url = URL.createObjectURL(blob);
+        try {
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = name;
+          document.body.append(anchor);
+          anchor.click();
+          anchor.remove();
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      },
     },
-  });
+  );
+  const listHostFolders = actions.listHostFolders;
+  actions.listHostFolders = async (...args) => {
+    const { nativePicker: _nativePicker, ...listing } = await listHostFolders(...args);
+    return listing;
+  };
   const subscribePurges: NonNullable<MessageHost['subscribePurges']> = (listener) =>
     client.onPurged?.((raw) => {
       if (!Array.isArray(raw)) return;
