@@ -1052,7 +1052,7 @@ async function memberHttp(
         headers,
       )
     ).json();
-  return { origin, signIn, password, wire, rpc };
+  return { origin, signIn, password, wire, rpc, server };
 }
 
 describe('member HTTP carrier', { timeout: 60_000 }, () => {
@@ -1147,14 +1147,20 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
   });
 
   it('reserves stream keys and peer/global capacity while gateway opens are pending', async () => {
+    const started = performance.now();
+    const phases: Array<{ phase: string; elapsedMs: number }> = [];
+    const phase = (value: string) =>
+      phases.push({ phase: value, elapsedMs: performance.now() - started });
     let now = 0;
     const f = await enabledFixture({ now: () => now });
+    phase('fixture-ready');
     await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
     const cookies: string[] = [];
     for (let i = 0; i < 17; i++) {
       now += 60_000;
       const login = await f.team.signIn('bob', 'member-password-1', `ip-${i}`);
       cookies.push(`botharness-member=${login.token}`);
+      phase(`signed-in-${i + 1}`);
     }
     const releases: Array<() => void> = [];
     const opened = vi
@@ -1166,6 +1172,8 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
           ),
       );
     const http = await memberHttp(f);
+    phase('server-listening');
+    http.server.once('close', () => phase('server-closed'));
     const open = (cookie: string, id: number) =>
       http.wire(cookie, {
         op: 'stream-open',
@@ -1173,19 +1181,57 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
         endpoint: 'botharness/followRoster',
         payload: { args: {} },
       });
-    const requests: Promise<Response>[] = [];
+    const requests: Array<Promise<PromiseSettledResult<Response>>> = [];
+    const observe = async (request: Promise<Response>): Promise<PromiseSettledResult<Response>> => {
+      try {
+        return { status: 'fulfilled', value: await request };
+      } catch (reason) {
+        return { status: 'rejected', reason };
+      }
+    };
+    let primary: unknown;
     try {
-      for (const cookie of cookies.slice(0, 16))
-        for (let id = 1; id <= 16; id++) requests.push(open(cookie, id));
-      await vi.waitFor(() => expect(opened).toHaveBeenCalledTimes(256), { timeout: 10000 });
+      const deadline = performance.now() + 10000;
+      for (const [index, cookie] of cookies.slice(0, 16).entries()) {
+        for (let id = 1; id <= 16; id++) requests.push(observe(open(cookie, id)));
+        const remaining = deadline - performance.now();
+        if (remaining <= 0) throw new Error('pending-stream-capacity-deadline');
+        await vi.waitFor(
+          () => {
+            expect(performance.now()).toBeLessThanOrEqual(deadline);
+            expect(opened).toHaveBeenCalledTimes((index + 1) * 16);
+          },
+          { timeout: remaining, interval: 10 },
+        );
+        phase(`pending-${(index + 1) * 16}`);
+      }
+      phase('all-pending-open');
+      expect(opened).toHaveBeenCalledTimes(256);
       expect((await open(cookies[0]!, 1)).status).toBe(429);
       expect((await open(cookies[0]!, 17)).status).toBe(429);
       expect((await open(cookies[16]!, 1)).status).toBe(429);
       expect(opened).toHaveBeenCalledTimes(256);
+    } catch (error) {
+      primary = error;
     } finally {
       for (const release of releases) release();
-      await Promise.all(requests);
     }
+    const results = await Promise.all(requests);
+    const failures = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    phase('requests-settled');
+    if (primary !== undefined || failures.length)
+      throw new AggregateError(
+        [
+          new Error(
+            JSON.stringify({ phases, opened: opened.mock.calls.length, refused: failures.length }),
+          ),
+          ...(primary === undefined ? [] : [primary]),
+          ...failures,
+        ],
+        'pending-stream-capacity-failed',
+      );
   });
 
   it('releases a failed or cancelled pending stream reservation', async () => {

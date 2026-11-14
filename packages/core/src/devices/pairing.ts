@@ -194,28 +194,28 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       }
   };
 
-  const row = (deviceId: string): Row | undefined =>
-    database.read(
+  const row = (deviceId: string) => {
+    const current = database.read(
       (connection) =>
-        connection.prepare('SELECT * FROM paired_devices WHERE device_id = ?').get(deviceId) as
-          | Row
-          | undefined,
+        connection
+          .prepare(`SELECT device.*, EXISTS (
+          SELECT 1 FROM relationship_device_grants AS grant_ref
+          JOIN host_relationships AS relationship ON relationship.relationship_id = grant_ref.relationship_id
+          WHERE grant_ref.device_id = device.device_id AND relationship.state != 'active'
+        ) AS relationship_inactive FROM paired_devices AS device WHERE device.device_id = ?`)
+          .get(deviceId) as Row | undefined,
     );
+    if (current === undefined) return undefined;
+    if (!('relationship_inactive' in current) || typeof current.relationship_inactive !== 'number')
+      throw new Error('device-admission-state-invalid');
+    return { ...current, relationshipInactive: current.relationship_inactive !== 0 };
+  };
 
-  const active = (current: Row): Admission => {
-    const disconnected = database.read((connection) =>
-      connection
-        .prepare(
-          `SELECT 1 FROM relationship_device_grants AS grant_ref
-       JOIN host_relationships AS relationship ON relationship.relationship_id = grant_ref.relationship_id
-       WHERE grant_ref.device_id = ? AND relationship.state != 'active'`,
-        )
-        .get(current.device_id),
-    );
+  const active = (current: NonNullable<ReturnType<typeof row>>): Admission => {
     if (
       current.revoked_at !== null ||
       current.human_id !== ownerHumanId() ||
-      disconnected !== undefined
+      current.relationshipInactive
     ) {
       record({ phase: 'device-refused', code: 'device-revoked', deviceId: current.device_id });
       return { ok: false, code: 'device-revoked' };
@@ -319,7 +319,13 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       sweep();
       const key = digest(offer).toString('hex');
       const open = offers.get(key);
-      if (!open || open.publicKey !== undefined || open.verifierHash !== undefined) return false;
+      if (
+        !open ||
+        open.humanId !== ownerHumanId() ||
+        open.publicKey !== undefined ||
+        open.verifierHash !== undefined
+      )
+        return false;
       offers.delete(key);
       settle(open.receipt, { state: 'superseded' });
       return true;

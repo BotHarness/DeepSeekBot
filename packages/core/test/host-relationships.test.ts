@@ -69,7 +69,9 @@ describe('Host relationship authorization', () => {
       publicKey: 'ef'.repeat(32),
       name: 'Late Client',
     });
+    const unclaimedInvitation = host.pairing.createOffer();
     test.transferOwner('next-owner');
+    expect(host.pairing.claimRelationshipOffer(unclaimedInvitation.offer)).toBe(false);
     expect(host.pairing.admit(`Device ${oldClient.credential}`)).toEqual({
       ok: false,
       code: 'device-revoked',
