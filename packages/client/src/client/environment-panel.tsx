@@ -109,12 +109,11 @@ const styles = stylex.create({
   },
   moreOpen: { opacity: 1 },
   pickerLabel: {
-    display: 'inline-flex',
+    display: 'flex',
     alignItems: 'center',
     gap: space.x2,
     minWidth: 0,
     maxWidth: '100%',
-    verticalAlign: 'middle',
     lineHeight: text.bodyLine,
   },
   pickerName: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },

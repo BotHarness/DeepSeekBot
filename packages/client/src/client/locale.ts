@@ -7,7 +7,7 @@ export const zh = {
   'environment.title': '环境',
   'environment.scope': '浏览环境',
   'environment.manageNamed': '管理 {name}',
-  'environment.moreNamed': '{name}的更多操作',
+  'environment.moreNamed': '{name} 的更多操作',
   'environment.settings': '设置',
   'environment.reconnect': '重新连接',
   'environment.loading': '正在加载',
