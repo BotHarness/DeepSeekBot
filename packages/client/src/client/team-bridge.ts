@@ -67,6 +67,7 @@ export const TEAM_REFUSALS = [
   'device-not-found',
   'member-suspended',
   'permission-not-grantable',
+  'owner-transfer-target-unverified',
 ] as const;
 export type TeamRefusal = (typeof TEAM_REFUSALS)[number];
 

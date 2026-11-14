@@ -112,6 +112,7 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'device-not-found': 'team.error.deviceNotFound',
   'member-suspended': 'team.error.memberSuspended',
   'permission-not-grantable': 'team.error.permissionNotGrantable',
+  'owner-transfer-target-unverified': 'team.error.ownerTransferUnverified',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
