@@ -97,3 +97,27 @@ describe('Team Channel access client', () => {
     ).toEqual([{ humanId: 'b', displayName: 'Zoe' }]);
   });
 });
+
+describe('Human DM classification', () => {
+  it('treats a two-person Human DM as writable and lists it in the roster', async () => {
+    const { isHumanDmChannel, isHumanReadOnlyDmChannel, isBotDmChannel } =
+      await import('../src/client/channel-kind.js');
+    const { flatRosterChannelIds } = await import('../src/client/roster-order.js');
+    const human = {
+      id: 'dm-humans-1',
+      type: 'dm' as const,
+      name: 'Bob',
+      members: [],
+      humanParticipants: ['a', 'b'],
+      createdAt: '',
+      updatedAt: '',
+    };
+    const { humanParticipants: _ignored, ...base } = human;
+    const botPair = { ...base, id: 'dm-bots', members: ['x', 'y'] };
+    expect(isHumanDmChannel(human)).toBe(true);
+    expect(isHumanReadOnlyDmChannel(human)).toBe(false);
+    expect(isBotDmChannel(human)).toBe(false);
+    expect(isBotDmChannel(botPair)).toBe(true);
+    expect(flatRosterChannelIds([human, botPair], new Set())).toEqual(['dm-humans-1']);
+  });
+});

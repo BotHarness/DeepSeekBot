@@ -1,11 +1,10 @@
 import type { BotHarnessTranslate } from './locale.js';
-import type { ChannelAccess, ChannelVisibility } from './team-channels-bridge.js';
-import type { TeamRole } from './team-roles-bridge.js';
+import type { ChannelAccess, ChannelVisibility, RoleChoice } from './team-channels-bridge.js';
 
 export function visibilitySummary(
   t: BotHarnessTranslate,
   visibility: ChannelVisibility,
-  roles: readonly TeamRole[],
+  roles: readonly RoleChoice[],
 ): string {
   if (visibility.kind === 'public') return t('channelAccess.publicHint');
   if (visibility.kind === 'private') return t('channelAccess.privateHint');

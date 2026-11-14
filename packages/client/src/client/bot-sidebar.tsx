@@ -1,5 +1,6 @@
 import { MessagePersonDialog } from './message-person-dialog.js';
 import { PublicChannelsDialog } from './public-channels-dialog.js';
+import { isHumanDmChannel } from './channel-kind.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
 import { useTeamMode } from './team-state.js';
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
@@ -840,15 +841,21 @@ function ChannelRow({
       }}
     >
       <span className="bh-row-avatar">
-        <GroupChannelIcon
-          channel={channel}
-          bots={bots}
-          className="bh-channel-slot"
-          groupClassName="bh-group-channel-slot"
-          size={34}
-          hashSize={18}
-          t={t}
-        />
+        {isHumanDmChannel(channel) ? (
+          <span className="bh-channel-slot" aria-hidden="true">
+            <ChannelSidebarIcon name="user" size={18} />
+          </span>
+        ) : (
+          <GroupChannelIcon
+            channel={channel}
+            bots={bots}
+            className="bh-channel-slot"
+            groupClassName="bh-group-channel-slot"
+            size={34}
+            hashSize={18}
+            t={t}
+          />
+        )}
         <UnreadCount count={unread} muted={muted} corner t={t} />
       </span>
       <span className="bh-body">
@@ -2259,7 +2266,11 @@ export function BotSidebar({
             </Tooltip>
           }
           items={menuItems(t, gitReady(state.git), hostTabs, teamMode?.enabled === true).filter(
-            (item) => teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id),
+            (item) =>
+              (teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id)) &&
+              (item.id !== 'message-person' ||
+                teamMode?.viewer.owner === true ||
+                teamMode?.viewer.permissions.includes('dm.humans') === true),
           )}
           onSelect={selectMenu}
           onClose={() => {

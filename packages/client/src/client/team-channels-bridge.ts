@@ -184,3 +184,21 @@ export async function openHumanDm(call: BridgeCall, humanId: string): Promise<st
   if (typeof channelId !== 'string') throw new Error('invalid humanDm response');
   return channelId;
 }
+
+export interface RoleChoice {
+  readonly roleId: string;
+  readonly name: string;
+}
+
+export async function loadChannelRoles(
+  call: BridgeCall,
+  channelId: string,
+  signal?: AbortSignal,
+): Promise<RoleChoice[]> {
+  return list(await unwrap(call, 'channelRoleDirectory', { channelId }, signal), (item) => {
+    const row = record(item);
+    const roleId = row?.['roleId'];
+    const name = row?.['name'];
+    return typeof roleId === 'string' && typeof name === 'string' ? { roleId, name } : undefined;
+  });
+}

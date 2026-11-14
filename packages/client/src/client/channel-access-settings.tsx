@@ -13,6 +13,7 @@ import { useMountedResource } from './mounted-resource.js';
 import type { ChannelHumanMember } from './store.js';
 import {
   loadChannelAccess,
+  loadChannelRoles,
   POLICY_KEYS,
   setChannelAdmins,
   setChannelPolicy,
@@ -21,8 +22,8 @@ import {
   type ChannelVisibility,
   type PolicyKey,
   type PolicyValue,
+  type RoleChoice,
 } from './team-channels-bridge.js';
-import { loadRoles, type TeamRole } from './team-roles-bridge.js';
 import { teamErrorText } from './team-settings.js';
 import { useTeamMode } from './team-state.js';
 import { visibilitySummary } from './channel-access.js';
@@ -46,7 +47,7 @@ export function ChannelAccessSettings({
 }): ReactElement | null {
   const team = useTeamMode(call);
   const [access, setAccess] = useState<ChannelAccess>();
-  const [roles, setRoles] = useState<readonly TeamRole[]>([]);
+  const [roles, setRoles] = useState<readonly RoleChoice[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [dialog, setDialog] = useState<Dialog>();
@@ -56,7 +57,7 @@ export function ChannelAccessSettings({
     const version = ++request.current;
     Promise.all([
       loadChannelAccess(call, channelId, controller.signal),
-      loadRoles(call, controller.signal).catch(() => []),
+      loadChannelRoles(call, channelId, controller.signal).catch(() => []),
     ])
       .then(([next, list]) => {
         if (controller.signal.aborted || version !== request.current) return;
@@ -200,7 +201,9 @@ export function ChannelAccessSettings({
           title={t('channelAccess.adminsTitle')}
           description={t('channelAccess.adminsBody')}
           empty={t('channelAccess.adminsEmpty')}
-          options={humans.map((human) => ({ id: human.humanId, label: human.displayName }))}
+          options={humans
+            .filter((human) => human.humanId !== team.viewer.humanId)
+            .map((human) => ({ id: human.humanId, label: human.displayName }))}
           initial={current.admins.map((admin) => admin.humanId)}
           busy={busy}
           error={errorNote}
