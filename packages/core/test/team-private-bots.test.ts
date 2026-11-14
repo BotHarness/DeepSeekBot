@@ -59,6 +59,80 @@ function fixture(run: (input: OrchestratorAgentRun) => Promise<void> = async () 
 }
 
 describe('M2 private Bot boundaries', () => {
+  it.each([
+    ['tobHome', {}],
+    ['onboarding', {}],
+    ['create', { displayName: 'Bobs new Bot' }],
+    ['createLookup', { operationKey: 'missing-operation-0001' }],
+    ['modelCatalog', {}],
+    ['modelPresets', {}],
+    ['humanAttention', {}],
+    ['humanAttentionStatus', { messageCounts: true }],
+    ['humanAttentionDismiss', {}],
+    ['humanAttentionDismissAll', {}],
+    ['humanAttentionIgnore', {}],
+    ['humanAttentionSnooze', { until: null }],
+    ['humanAttentionRestore', {}],
+    ['activitySnapshot', {}],
+    ['botSessionIds', {}],
+    ['channelGet', { channelId: 'dm-bob-bot' }],
+    ['channelSendStatus', { channelId: 'dm-bob-bot', operationKey: 'missing-send-0001' }],
+  ] as const)(
+    'keeps newly allowed %s responses free of other Humans data',
+    async (method, payload) => {
+      const f = fixture();
+      for (const human of [owner, alice]) {
+        const slug = human === owner ? 'owner-bot' : 'alice-bot';
+        await f.core.channels.appendMessage(human, 'dm-' + slug, {
+          id: 'private-reply-' + slug,
+          at: new Date().toISOString(),
+          author: { kind: 'bot', slug },
+          body: 'confidential-content-' + slug,
+          grantRequest: true,
+        });
+      }
+      const foreign = f.core.humanAttention.list(alice, { category: 'action' }).items[0]!;
+      const input = {
+        ...payload,
+        ...(method.startsWith('humanAttention') &&
+        !['humanAttention', 'humanAttentionStatus', 'humanAttentionDismissAll'].includes(method)
+          ? {
+              itemId: foreign.id,
+              sourceKey: foreign.sourceEventId ?? '',
+              sourceEventId: foreign.sourceEventId ?? 'missing-source',
+            }
+          : {}),
+      };
+      const bridge = f.methods(bob);
+      const result: unknown = await Reflect.apply(bridge[method], bridge, [input]);
+      const serialized = JSON.stringify(result);
+      for (const marker of ['alice-bot', 'owner-bot', 'confidential-content', foreign.id])
+        expect(serialized).not.toContain(marker);
+      expect(f.core.humanAttention.list(alice, { category: 'action' }).items).toHaveLength(1);
+      expect(f.core.humanAttention.list(owner, { category: 'action' }).items).toHaveLength(1);
+    },
+  );
+
+  it('scopes newly allowed followActivity baseline and changes to the subscribing Human', async () => {
+    const f = fixture();
+    const abort = new AbortController();
+    const frames = f.core.live.followActivity(bob, abort.signal)[Symbol.asyncIterator]();
+    try {
+      const baseline = await frames.next();
+      expect(JSON.stringify(baseline.value)).toContain('bob-bot');
+      expect(JSON.stringify(baseline.value)).not.toMatch(/alice-bot|owner-bot/);
+      f.core.states.setApprovalCount('alice-bot', 7);
+      f.core.states.setApprovalCount('bob-bot', 1);
+      const changed = await frames.next();
+      expect(changed.value).toMatchObject({ type: 'changed' });
+      expect(JSON.stringify(changed.value)).toContain('bob-bot');
+      expect(JSON.stringify(changed.value)).not.toMatch(/alice-bot|owner-bot/);
+    } finally {
+      abort.abort();
+      await frames.return?.();
+    }
+  });
+
   it.each(MEMBER_BOT_METHODS)(
     'refuses %s against another member before reading or mutating it',
     async (method) => {
