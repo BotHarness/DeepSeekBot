@@ -5513,6 +5513,7 @@ export const zh = {
   'approval.state.closed': '已不再等待。',
   'approval.decidedBy': '由{name}处理',
   'approval.opaqueWarning': '这条命令能访问整台 Host，不只是这个 Bot 的文件。',
+  'team.someBot': 'Bot',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11397,6 +11398,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'approval.decidedBy': 'Decided by {name}',
   'approval.opaqueWarning':
     'This command runs with access to the whole Host, not just this Bot’s files.',
+  'team.someBot': 'Bot',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
