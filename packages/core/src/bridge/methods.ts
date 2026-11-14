@@ -827,7 +827,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
   channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
-  channelGet(payload: unknown): BridgeResult<ChannelManagementResult>;
+  channelGet(payload: unknown): BridgeResult<{ channel: ChannelRecord } | ChannelManagementResult>;
   channelCreate(
     payload: unknown,
   ): BridgeResult<{ channel: ChannelRecord } | ChannelManagementResult>;
@@ -5670,6 +5670,12 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
     channelGet(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
+      if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) {
+        const channel = deps.channels.get(channelId);
+        if (channel === undefined || channel.deletedAt !== undefined)
+          return unknownChannel(channelId);
+        return { ok: true, value: { channel: channelView(channel) } };
+      }
       if (!deps.channelManagement)
         return {
           ok: false,

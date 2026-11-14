@@ -1662,7 +1662,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 
-  channelGet(channelId: string): ChannelManagementResult {
+  channelGet(channelId: string): { channel: ChannelRecord } | ChannelManagementResult {
     return unwrap(this.methods.channelGet({ channelId }));
   }
 

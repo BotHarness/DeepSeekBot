@@ -18,9 +18,13 @@ afterEach(async () => {
   for (const close of closes.splice(0).reverse()) await close();
 });
 
-function fixture(run: (input: OrchestratorAgentRun) => Promise<void> = async () => {}) {
+function fixture(
+  run: (input: OrchestratorAgentRun) => Promise<void> = async () => {},
+  autoAcceptGroupInvitations = () => true,
+) {
   const core = createCore({
     dshHome: createTempRoot('team-private-bots-'),
+    autoAcceptGroupInvitations,
     agents: {
       runOrchestrator: run,
       async runAssignment() {},
@@ -59,6 +63,109 @@ function fixture(run: (input: OrchestratorAgentRun) => Promise<void> = async () 
 }
 
 describe('M2 private Bot boundaries', () => {
+  it('projects a joined public Group without Owner management or third-party pending data', () => {
+    let autoAccept = false;
+    const f = fixture(undefined, () => autoAccept);
+    const carol = humanContext('carol');
+    f.database.transaction((db) => {
+      db.prepare("INSERT INTO humans VALUES (?, ?, 'active', ?)").run(
+        carol.humanId,
+        'Carol',
+        new Date().toISOString(),
+      );
+    });
+    f.core.registry.create({ slug: 'carol-bot', displayName: 'Carol Bot', ownerHumanId: 'carol' });
+    const group = f.core.channels.createGroup(owner, {
+      name: 'Public working group',
+      members: ['owner-bot', 'bob-bot'],
+    });
+    f.team.setPublic(owner, group.id, true);
+    f.team.joinPublic(bob, group.id);
+    f.core.channels.setGroupWakePolicy(group.id, 'owner-bot', {
+      mode: 'digest',
+      count: 17,
+      intervalSeconds: 43,
+    });
+    const invited = f.core.registry.get('alice-bot')!;
+    const invitation = f.core.channels.inviteGroupBot({
+      channelId: group.id,
+      inviterHuman: true,
+      targetBotSlug: invited.slug,
+      targetBotCreatedAt: invited.createdAt,
+      targetDmChannelId: 'dm-alice-bot',
+    });
+    const requester = f.core.registry.get('carol-bot')!;
+    const request = f.core.channels.requestGroupJoin({
+      channelId: group.id,
+      requesterBotSlug: requester.slug,
+      requesterBotCreatedAt: requester.createdAt,
+    });
+    expect(invitation.status).toBe('pending');
+    expect(request.status).toBe('pending');
+    const administrative = f.methods(owner).channelGet({ channelId: group.id });
+    expect(administrative).toMatchObject({
+      ok: true,
+      value: {
+        channel: {
+          members: ['owner-bot'],
+          invitations: [invitation],
+          joinRequests: [request],
+        },
+        invitationPolicy: { autoAccept: false },
+        wakePolicies: expect.arrayContaining([
+          expect.objectContaining({
+            botSlug: 'owner-bot',
+            policy: expect.objectContaining({ count: 17 }),
+          }),
+        ]),
+      },
+    });
+    const visible = f.methods(bob).channelGet({ channelId: group.id });
+    expect(visible).toMatchObject({
+      ok: true,
+      value: { channel: { id: group.id, name: group.name, members: ['bob-bot'] } },
+    });
+    if (!visible.ok) throw new Error('member-group-read-refused');
+    expect(Object.keys(visible.value)).toEqual(['channel']);
+    for (const key of ['invitations', 'joinRequests', 'wakePolicies', 'ownerBotSlug'])
+      expect(visible.value.channel).not.toHaveProperty(key);
+    for (const marker of [
+      'owner-bot',
+      'alice-bot',
+      'carol-bot',
+      invitation.id,
+      request.id,
+      'digest',
+      '"humanId":"alice"',
+      '"humanId":"carol"',
+    ])
+      expect(JSON.stringify(visible.value)).not.toContain(marker);
+    expect(visible.value.channel).toHaveProperty(
+      'humanMembers',
+      expect.arrayContaining([expect.objectContaining({ humanId: 'bob' })]),
+    );
+    autoAccept = true;
+    f.core.channels.setGroupWakePolicy(group.id, 'owner-bot', {
+      mode: 'silent',
+      count: 29,
+      intervalSeconds: 71,
+    });
+    const after = f.methods(bob).channelGet({ channelId: group.id });
+    if (!after.ok) throw new Error('member-group-read-refused');
+    expect(Object.keys(after.value)).toEqual(['channel']);
+    expect(after.value.channel.members).toEqual(['bob-bot']);
+    expect(after.value).not.toHaveProperty('channelFingerprint');
+    expect(
+      f.methods(bob).channelSendStatus({ channelId: group.id, messageId: 'owner-private-request' }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    for (const method of ['channelGet', 'channelSendStatus'] as const)
+      expect(
+        f.methods(alice)[method]({ channelId: group.id, messageId: 'owner-private-request' }),
+      ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+    expect(f.core.channels.get(group.id)?.invitations).toContainEqual(invitation);
+    expect(f.core.channels.get(group.id)?.joinRequests).toContainEqual(request);
+  });
+
   it.each([
     ['tobHome', {}],
     ['onboarding', {}],
