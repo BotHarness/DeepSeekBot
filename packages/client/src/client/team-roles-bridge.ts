@@ -10,8 +10,13 @@ export interface PermissionEntry {
 
 export type BuiltinRole = 'admin' | 'member';
 
+export type RoleModels =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'only'; readonly routes: readonly string[] };
+
 export interface TeamRole {
   readonly roleId: string;
+  readonly models: RoleModels;
   readonly name: string;
   readonly builtin: BuiltinRole | null;
   readonly permissions: readonly string[];
@@ -55,7 +60,26 @@ export function parseRole(row: Record<string, unknown>): TeamRole | undefined {
     name,
     builtin: builtin === 'admin' || builtin === 'member' ? builtin : null,
     permissions: strings(row['permissions']),
+    models: parseRoleModels(row['models']),
     memberCount: typeof count === 'number' && count >= 0 ? count : 0,
+  };
+}
+
+export function parseRoleModels(value: unknown): RoleModels {
+  const row = record(value);
+  return row?.['kind'] === 'only'
+    ? { kind: 'only', routes: strings(row['routes']) }
+    : { kind: 'all' };
+}
+
+export function routeKey(provider: string, model: string): string {
+  return `${provider}/${model}`;
+}
+
+function modelsPayload(models: RoleModels | undefined): Record<string, unknown> {
+  if (models === undefined) return {};
+  return {
+    models: models.kind === 'all' ? { kind: 'all' } : { kind: 'only', routes: [...models.routes] },
   };
 }
 
@@ -99,22 +123,27 @@ export async function loadRoles(call: BridgeCall, signal?: AbortSignal): Promise
 
 export async function createRole(
   call: BridgeCall,
-  input: { name: string; permissions: readonly string[] },
+  input: { name: string; permissions: readonly string[]; models?: RoleModels },
 ): Promise<TeamRole> {
   return roleOf(
-    await unwrap(call, 'roleCreate', { name: input.name, permissions: [...input.permissions] }),
+    await unwrap(call, 'roleCreate', {
+      name: input.name,
+      permissions: [...input.permissions],
+      ...modelsPayload(input.models),
+    }),
   );
 }
 
 export async function updateRole(
   call: BridgeCall,
-  input: { roleId: string; name?: string; permissions?: readonly string[] },
+  input: { roleId: string; name?: string; permissions?: readonly string[]; models?: RoleModels },
 ): Promise<TeamRole> {
   return roleOf(
     await unwrap(call, 'roleUpdate', {
       roleId: input.roleId,
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.permissions === undefined ? {} : { permissions: [...input.permissions] }),
+      ...modelsPayload(input.models),
     }),
   );
 }

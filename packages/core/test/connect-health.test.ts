@@ -418,3 +418,25 @@ it('rejects oversized public handshake messages before delivering them to the No
   ).resolves.toMatchObject({ ok: false });
   expect(delivered).toBe(0);
 });
+
+it('retains successful application DNS recovery in the public check receipt', async () => {
+  const health = createConnectHealth({
+    account: {
+      status: () => ({ state: 'signed-in', hostId: 'account-qa' }),
+      connectedHosts: async () => ({
+        ok: true,
+        hosts: [{ id: 'account-qa', current: true, connected: true }],
+      }),
+    },
+    connect: {
+      status: () => ({ state: 'connected' }),
+      route: () => ({ url: 'https://qa.deepseekbot.dev' }),
+    },
+    identity: async () => ({ hostId: 'qa-host', publicKey: 'a'.repeat(64) }),
+    probe: async () => ({ ok: true, dnsRecovery: 'fresh-query' }),
+  });
+  await expect(health.check()).resolves.toMatchObject({
+    state: 'passed',
+    dnsRecovery: 'fresh-query',
+  });
+});

@@ -39,6 +39,7 @@ export interface BotSummary {
   primaryColor?: BotPrimaryColor;
   avatarSeed?: 2;
   paused?: boolean;
+  modelAllowed?: false;
   deleted?: boolean;
   standingLimits?: StandingLimitsView;
   aggregateState: string;
