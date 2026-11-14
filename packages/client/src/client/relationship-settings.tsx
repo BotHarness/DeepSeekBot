@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { relationshipListSchema } from '../../../core/src/devices/relationship-contract.js';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
@@ -7,11 +7,17 @@ import type { BotHarnessTranslate } from './locale.js';
 import { relationshipRequest, type ClientRelationship } from './relationships.js';
 import { remoteHosts } from './remote-hosts.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { ConfirmDialog } from './ds/form-dialog.js';
+import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
+import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
+  const source = remoteHosts();
+  const snapshot = useSyncExternalStore(source.subscribe, source.getSnapshot);
+  const [enrolling, setEnrolling] = useState<ClientRelationship>();
+  const [clientName, setClientName] = useState('');
+  const enrollment = useRef<AbortController>();
   const [items, setItems] = useState<ClientRelationship[]>([]);
   const [confirm, setConfirm] = useState<{
     item: ClientRelationship;
@@ -23,17 +29,16 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
   const abort = useRef<AbortController>();
   const approved = useRef<string>();
   const working = useRef(false);
-  const join = async (item: ClientRelationship) => {
-    const source = remoteHosts();
+  const join = async (
+    item: ClientRelationship,
+    name = 'Desktop browser',
+    signal = abort.current?.signal,
+  ) => {
     if (source.getSnapshot().hosts.some((entry) => entry.host.hostId === item.peer.id)) {
       source.select(item.peer.id);
       return;
     }
-    const result = await source.enrollRelationship(
-      item.id,
-      'Desktop browser',
-      abort.current?.signal,
-    );
+    const result = await source.enrollRelationship(item, name, signal);
     if (!result.ok && result.code !== 'already-paired') throw new Error('enrollment-failed');
   };
   const load = async () => {
@@ -68,6 +73,7 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
     return () => {
       clearInterval(timer);
       abort.current?.abort();
+      enrollment.current?.abort();
     };
   }, []);
   const perform = async () => {
@@ -87,6 +93,25 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
       }
     } catch {
       if (!abort.current?.signal.aborted) setFailed(true);
+    } finally {
+      if (!abort.current?.signal.aborted) setBusy(false);
+    }
+  };
+  const cancelEnrollment = () => {
+    enrollment.current?.abort();
+    setEnrolling(undefined);
+  };
+  const enroll = async () => {
+    if (!enrolling || busy || !clientName.trim()) return;
+    const controller = new AbortController();
+    enrollment.current = controller;
+    setBusy(true);
+    setFailed(false);
+    try {
+      await join(enrolling, clientName.trim(), controller.signal);
+      if (!controller.signal.aborted) setEnrolling(undefined);
+    } catch {
+      if (!controller.signal.aborted) setFailed(true);
     } finally {
       if (!abort.current?.signal.aborted) setBusy(false);
     }
@@ -129,18 +154,24 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
                       variant="outline"
                       disabled={busy}
                       onClick={() => {
-                        setBusy(true);
                         setFailed(false);
-                        void join(item)
-                          .catch(() => {
-                            if (!abort.current?.signal.aborted) setFailed(true);
-                          })
-                          .finally(() => {
-                            if (!abort.current?.signal.aborted) setBusy(false);
-                          });
+                        if (
+                          source
+                            .getSnapshot()
+                            .hosts.some((entry) => entry.host.hostId === item.peer.id)
+                        ) {
+                          source.select(item.peer.id);
+                        } else {
+                          setClientName(t('relationships.clientDefault'));
+                          setEnrolling(item);
+                        }
                       }}
                     >
-                      {t('relationships.open')}
+                      {t(
+                        snapshot.hosts.some((entry) => entry.host.hostId === item.peer.id)
+                          ? 'relationships.open'
+                          : 'relationships.useClient',
+                      )}
                     </Button>
                   ) : null}
                   {item.state !== 'disconnected' ? (
@@ -163,6 +194,31 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
         </SettingsSection>
       ) : null}
       {failed || loadFailed ? <Note tone="warning">{t('relationships.failed')}</Note> : null}
+      {enrolling ? (
+        <FormDialog
+          title={t('relationships.useClient')}
+          description={t('relationships.clientHint', { name: enrolling.peer.name })}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t('relationships.open')}
+          submitDisabled={!clientName.trim()}
+          busy={busy}
+          onCancel={cancelEnrollment}
+          onClose={cancelEnrollment}
+          onSubmit={() => {
+            void enroll();
+          }}
+          error={failed ? t('relationships.failed') : undefined}
+        >
+          <TextField
+            label={t('relationships.clientName')}
+            value={clientName}
+            onChange={setClientName}
+            maxLength={60}
+            disabled={busy}
+            initialFocus
+          />
+        </FormDialog>
+      ) : null}
       {confirm ? (
         <ConfirmDialog
           title={t(

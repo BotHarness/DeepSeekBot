@@ -5,6 +5,7 @@ import { nodeDeviceCarrier } from '../devices/node-carrier.js';
 import { enrollRelationshipClient } from '../devices/relationship-enrollment.js';
 import { serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
+import { relationshipListSchema } from '../devices/relationship-contract.js';
 
 export const RELATIONSHIP_COMMANDS = [
   {
@@ -20,6 +21,7 @@ export async function runRelationshipCommand(
     confirm?: boolean;
     'link-file'?: string;
     out?: string;
+    'device-name'?: string;
   },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
@@ -50,6 +52,13 @@ export async function runRelationshipCommand(
     throw new CliLiveError('usage', 'Only initiate requires --link-file.');
   if ((action === 'enroll') !== (values.out !== undefined))
     throw new CliLiveError('usage', 'Only enroll requires --out.');
+  if (
+    values['device-name'] !== undefined &&
+    (action !== 'enroll' ||
+      !values['device-name'].trim() ||
+      values['device-name'].trim().length > 60)
+  )
+    throw new CliLiveError('usage', 'Only enroll accepts --device-name (1–60 characters).');
   if (values.out && (!isAbsolute(values.out) || existsSync(values.out)))
     throw new CliLiveError('output-invalid', 'Choose a new absolute private --out file.');
   let link: string | undefined;
@@ -70,9 +79,15 @@ export async function runRelationshipCommand(
   };
   if (action === 'list') return request();
   if (action === 'enroll') {
+    const relationship = relationshipListSchema
+      .parse(await request())
+      .relationships.find((item) => item.id === id);
+    if (!relationship || relationship.state !== 'active')
+      throw new CliLiveError('relationship-inactive', 'Choose an active relationship.');
     const result = await enrollRelationshipClient({
       relationshipId: id!,
-      name: 'CLI desktop',
+      expectedPeer: relationship.peer,
+      name: values['device-name']?.trim() ?? 'CLI desktop',
       carrier: nodeDeviceCarrier(),
       request,
       ...(signal ? { signal } : {}),
