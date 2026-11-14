@@ -14,13 +14,22 @@ export function privateBotRegistry(
   human: HumanContext,
 ): PersonaBotRegistry {
   const own = (bot: PersonaBotRecord | undefined) => (ownsBot(human, bot) ? bot : undefined);
-  return {
-    ...registry,
+  const scoped = {
     get: (slug) => own(registry.get(slug)),
     getHistorical: (slug) => own(registry.getHistorical(slug)),
     list: () => registry.list(human.humanId),
     listHistorical: () => registry.listHistorical(human.humanId),
     findByWorkspace: (path) => own(registry.findByWorkspace(path)),
     create: (input) => registry.create({ ...input, ownerHumanId: human.humanId }),
-  };
+  } satisfies Pick<
+    PersonaBotRegistry,
+    'get' | 'getHistorical' | 'list' | 'listHistorical' | 'findByWorkspace' | 'create'
+  >;
+  return new Proxy(registry, {
+    get(target, key, receiver) {
+      return Reflect.has(scoped, key)
+        ? Reflect.get(scoped, key)
+        : Reflect.get(target, key, receiver);
+    },
+  });
 }
