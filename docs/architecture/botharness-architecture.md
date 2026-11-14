@@ -4,7 +4,7 @@ Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、�
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
-E9 的远端频道「管理 Bot」固定捕获所属 Host、Bot 与原 HostClient，在独立 `shell.overlay` SettingsDialog 中管理资料、模型、Workspace Grant 与审批模板。Environment Scope 和后续聊天选择不改变此目标。Client 草稿只属此设置会话；共享 exact-Host draft guard 在离开前等待保存、放弃或取消，真正写入仍经过原 Host 的 Registry、模型、Workspace 和审批 owners 与既有 Device Gateway/API Gateway。每次调用前后检查原 Client 及连接状态，移除、撤销、同 Host ID 换 Client 后不把旧草稿转交新授权；关闭再打开才建立新会话。名称沿用 profile fingerprint，模型沿用 Bot／preset revision，目录检查与撤销确认沿用原 owner。无新增持久数据、代理权限层或 Bot 协作成员授权。
+E9 的远端 Bot 设置复用原有 ConversationView 内的资料、模型、Workspace Grant 与审批控件，来源上下文固定捕获所属 Host、Bot 与原 HostClient。写入仍经过原 Host 的 Registry、模型、Workspace 和审批 owners 与既有 Device Gateway/API Gateway；每次调用前后检查原 Client 及连接状态，离开来源、撤销或同 Host ID 换 Client 后，旧结果不能提交后续操作。Workspace 目录选择沿用目标 Host 的目录浏览与 Workspace owner，保留分页而不向远端暴露本机 OS picker。纯 Human 会话不显示 Bot 控件。删除独立远端 SettingsDialog，不增加持久数据、代理权限层或 Bot 协作成员授权。
 
 私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
 

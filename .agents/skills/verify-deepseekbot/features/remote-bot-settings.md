@@ -1,32 +1,34 @@
-# Exact remote Bot settings
+# Native remote Bot settings
 
 ## Sub-features
 
 | Sub-feature | Visible result | Canonical proof |
 | --- | --- | --- |
-| Channel owner | Manage Bot opens the owning Bot and named Host, including Group ownership | Original Host `show`; another same-name/same-slug Host is unchanged |
-| Name draft | Save, Discard and Cancel preserve the selected Bot; failed saves retain the draft | `show` and `profileFingerprint` from the original Host |
-| Model and preset | Model/effort changes and preset application appear after owner readback | `model-plan` including Bot revision; preset application checks both revisions |
-| Workspace | Browse the remote filesystem, authorize a disposable folder, then confirm revoke | `workspace-options` and `grants` on the original Host |
-| Approval template | Selection changes for this Bot | `approval-template list --bot` on the original Host |
-| Isolation | Offline/revoked/replaced access cannot write elsewhere or replay a draft | Original Host and other Host readbacks; no network membership change |
+| Profile | Existing Bot profile controls show the selected remote Bot | Original Host show; serving Host's same-name Bot stays unchanged |
+| Model | Native composer model controls retain the target choices | Original Host model-plan and Bot/preset revisions |
+| Workspace | Native folder browser lists the target and grants its folder | Original Host workspace-options and grants |
+| Approval | Existing approval controls apply to the selected Bot | Original Host approval-template list --bot |
+| Isolation | Leaving, replacing or disconnecting the source prevents further writes | Both Host readbacks; no fallback or replay |
+| Human chat | Files remain available without Bot settings or model controls | Human DM and Group visible controls |
 
 ## How to get to it (user POV)
 
-Connect two isolated Hosts, select the remote Host in **Environments**, then open **Channels**. Open a remote Bot DM or a Group whose owning Bot is listed, then choose **Manage Bot** in the chat header. The modal names the Host and Bot and stays independent of Environment Scope and later chat selection. Change Bot name, Models and execution, Authorized folders, and Auto approval. Use the remote folder browser rather than a local OS picker. Confirm folder grant/revoke explicitly. A dirty name prompts before closing or changing section; Save must finish on the original owner, Discard drops the draft, and Cancel keeps editing.
+Connect two isolated Hosts, select the remote Environment and open a Bot DM. Use the same profile, model, folder and approval controls as a local Bot conversation. There is no separate remote settings dialog. Browse folders on the target computer; remote chat must not open the serving computer's OS picker. Confirm folder authorization and revocation through the existing controls.
 
 ## Driving it with verify-app
 
-Use separate task-owned instances through `scripts/verify-app.mjs` and the documented isolated two-Host connection path. Record parent/product/helper SHAs, launch homes and ports privately. Seed disposable Bots with equal names on each Host and a remote Workspace through direct CLI; cover equal slugs across Hosts in the target-controller regression. Enable both Hosts' LAN routes before proposing their reciprocal relationship, compare both complete Host fingerprints, and retain the dialog until the remote Feed is connected. Capture matched Before (remote chat without Manage Bot) and After in light/dark, English/Chinese and narrow layout; publish only reviewed R2 derivatives.
+Use task-owned instances through scripts/verify-app.mjs. Record source SHAs, launch homes and ports privately. Seed disposable Bots with equal names on both Hosts and a disposable target folder. Establish the documented reciprocal relationship and verify both fingerprints before opening remote chat.
 
-Drive each mutation in the Web Client by accessible name, then use direct CLI against its owning Host: `show`, `model-plan`, `grants` and `approval-template list --bot`. Verify the serving Host’s same-name Bot and Bot collaboration membership remain unchanged. Switch Environment Scope while settings are open and repeat owner readback. Delay a read/save, disconnect/revoke the source and separately re-register the same Host ID with a different Client: old callbacks cannot update a new settings session or submit through the replacement. Failed name saves keep the draft; read-only Refresh settings does not replay them. Restore the original connection for Save or explicitly Discard.
+Drive each mutation by accessible name, then read the owning Host through direct CLI: show, model-plan, workspace-options, grants and approval-template list --bot. Verify the serving Host's same-name Bot stays unchanged. Browse and authorize the target folder, then revoke the task-owned grant. Preserve native confirmation and revision checks.
 
-Run three alternating base/head pairs with the same open-settings, read, rename and close intent; retain elapsed time and bounded request counts. A two-Host local Web run does not qualify installed Desktop or native mobile. Clean up only task-owned grants, Bots, observers and Hosts after both canonical and visible evidence is retained.
+Disconnect or replace the captured Client while folder resolution is pending. Its result must not trigger a grant or readback against a replacement Client. Failed or uncertain mutations must not be automatically retried. Regression coverage: packages/client/test/remote-folder-access.test.ts, packages/client/test/remote-conversation-source.test.tsx and apps/mobile/test/bot-settings.test.ts.
+
+Capture matched light/dark, English/Chinese and supported narrow desktop views after finite message animations settle. Compare the same native control intent in three alternating base/head pairs; retain all failures and bounded request counts. Web evidence does not qualify installed Desktop or native mobile. Clean up only task-owned grants, Bots, observers and Hosts after retaining visible and canonical evidence.
 
 ## Gotchas
 
-- Source connection authentication and canonical permission/directory checks remain authoritative. Visibility is not a new admin/read-only access tier.
-- A replaced Client requires closing and reopening settings; its old draft stays bound to the captured Client and cannot migrate to fresh authorization.
-- Unsupported system-local interactions are performed on the Bot’s computer. Remote settings never use the serving computer’s picker.
-- A lost mutation reply is uncertain. Refresh reads the same owner; it never retries a mutation automatically.
-- Native device and Human acceptance are separate from these Web checks. Preserve failed evidence before retrying.
+- Source authentication and canonical permissions stay authoritative; UI visibility grants no access.
+- A changed source requires a fresh conversation context; old callbacks cannot migrate to new authorization.
+- Folder browsing retains target entries and pagination while removing its native-picker hint.
+- Pure Human chat retains Files and hides Bot-only panels, model, workspace and token controls.
+- Preserve failed evidence before retrying; Human acceptance and native device checks remain separate.
