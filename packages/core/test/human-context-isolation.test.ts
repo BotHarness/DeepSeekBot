@@ -136,6 +136,13 @@ describe('explicit Human context', () => {
   it('records the speaking Human separately from the unchanged message JSON', async () => {
     const { database, channels } = fixture();
     const human = humanContext('human-test-b');
+    database.transaction((db) =>
+      db
+        .prepare(
+          "INSERT INTO humans(human_id,display_name,status,created_at) VALUES (?, 'Second Human', 'active', '2026-11-14T00:00:00Z')",
+        )
+        .run(human.humanId),
+    );
     const group = channels.createGroup(human, { name: 'Second Human', members: [] });
     await channels.appendMessage(human, group.id, {
       id: 'spoken',

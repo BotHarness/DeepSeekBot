@@ -1,3 +1,5 @@
+import { channelPolicySchema } from '../src/team/channel-contract.js';
+import { createAttachmentStore } from '../src/attachments/store.js';
 import { DatabaseSync } from 'node:sqlite';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
@@ -52,15 +54,22 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   const registry = createTestRegistry({ rootDir: root });
   const db = registryDatabase(root);
   const database = attachOperationalModule(db, 'team');
-  const channels = createSqliteChannelStore({ database, rootDir: join(root, 'channels') });
+  const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
+  const channels = createSqliteChannelStore({
+    database,
+    rootDir: join(root, 'channels'),
+    attachments,
+  });
   let placements: Array<{ sourceEventId: string; channelId: string; messageId: string }> = [];
   const purge = mountContentPurge({
     dshHome: root,
     database: db,
     ...(options.now ? { now: () => new Date(options.now!()) } : {}),
   });
+  const diagnostics = vi.fn();
   const team = new TeamService(database, channels, {
     purge,
+    log: diagnostics,
     now: options.now ?? (() => Date.parse('2026-11-14T00:00:00Z')),
   });
   const live = createChannelLiveHub(
@@ -69,7 +78,11 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     () => placements,
     undefined,
     (human) => team.isOwner(human),
+    undefined,
+    (human, id) => team.channelAccess.canRead(human, id, true),
+    (human, id) => team.channelAccess.canKnow(human, id),
   );
+  team.onAccessChanged(() => live.refreshAccess());
   const ctx = new Context();
   const peers: Peer[] = [];
   const invalidate = vi.fn();
@@ -92,6 +105,7 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   const methods = createBridgeMethodsForHumans({
     registry,
     channels,
+    attachments,
     team,
     states: createBotStateTracker(),
     ownership: createTestOwnership(),
@@ -150,6 +164,7 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     purge,
     root,
     channels,
+    attachments,
     database,
     db,
     methods,
@@ -158,6 +173,7 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     gateway,
     access,
     invalidate,
+    diagnostics,
     registry,
     live,
     setPlacements(value: typeof placements) {
@@ -421,10 +437,17 @@ describe('Host members', { timeout: 60_000 }, () => {
     const group = f.channels.createGroup(owner, { name: 'Public', members: [] });
     const privateGroup = f.channels.createGroup(owner, { name: 'Private', members: [] });
     expect(() => f.team.joinPublic(f.human, 'missing')).toThrow('channel-not-found');
-    expect(() => f.team.joinPublic(f.human, group.id)).toThrow('channel-not-public');
+    expect(() => f.team.joinPublic(f.human, group.id)).toThrow('channel-not-found');
     f.team.setPublic(owner, group.id, true);
     expect(f.team.publicChannels(f.human)).toEqual([
-      { channelId: group.id, name: 'Public', memberCount: 1, joined: false },
+      {
+        channelId: group.id,
+        name: 'Public',
+        memberCount: 1,
+        joined: false,
+        visibility: 'public',
+        description: undefined,
+      },
     ]);
     f.team.joinPublic(f.human, group.id);
     f.team.joinPublic(f.human, group.id);
@@ -679,6 +702,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   });
   it('scopes both roster carriers to current membership, including purges and queued frames', async () => {
     const f = await enabledFixture();
+    f.registry.create({ slug: 'secret-bot', displayName: 'Secret Bot' });
     const dm = f.channels.getOrCreateDm(owner, 'secret-bot', 'Owner secret DM')!;
     const group = f.channels.createGroup(owner, { name: 'Shared public', members: [] });
     f.team.setPublic(owner, group.id, true);
@@ -890,7 +914,30 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       'Owner private file',
     ];
     const streams = new Set(['followRoster', 'followChannel', 'followActivity']);
-    const table = [...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS];
+    const m4 = new Set([
+      'channelRoleDirectory',
+      'browsableChannels',
+      'channelJoin',
+      'channelVisibilitySet',
+      'channelAdminsSet',
+      'channelPolicySet',
+      'teamDirectory',
+      'humanDm',
+      'humanDmByUsername',
+      'channelCreate',
+      'messageSearch',
+      'channelGet',
+      'channelRename',
+      'channelDescriptionSet',
+      'channelHumanAdd',
+      'channelGroupInvite',
+      'channelAllBotPreview',
+      'composerValidate',
+      'channelSendStatus',
+    ]);
+    const table = [...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS].filter(
+      (method) => !m4.has(method),
+    );
     for (const method of table) {
       const abort = new AbortController();
       const request = {
@@ -981,6 +1028,22 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         streams.has(method) ? f.gateway.stream(request) : f.gateway.invoke(request),
       ).rejects.toMatchObject({ code: 'remote-access/denied' });
     }
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelGet',
+        args: { channelId: memberGroup.id },
+        peer: login.peer,
+      }),
+    ).resolves.toMatchObject({ role: 'owner' });
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelSendStatus',
+        args: { channelId: memberGroup.id, messageId: `message-${memberGroup.id}` },
+        peer: login.peer,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
     for (const method of ['channelGroupDelete', 'channelGroupWakeSet'])
       await expect(
         f.gateway.invoke({
@@ -995,6 +1058,14 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         namespace: 'botharness',
         method: 'channelListChanges',
         args: { sinceSeq: start.seq, epoch: start.epoch },
+        peer: new Peer(f.ctx, { principal: { kind: 'owner' } }),
+      }),
+    ).toMatchObject({ reset: true });
+    expect(
+      await f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channels',
+        args: {},
         peer: new Peer(f.ctx, { principal: { kind: 'owner' } }),
       }),
     ).toMatchObject({ channels: expect.arrayContaining([expect.objectContaining({ id: dm.id })]) });
@@ -1591,8 +1662,11 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     );
     const bobLogin = await f.team.signIn('bob', 'member-password-1', 'bob-ip');
     const aliceLogin = await f.team.signIn('alice', 'alice-password-1', 'alice-ip');
-    const invoke = (method: string, args: Record<string, unknown> = {}, peer = bobLogin.peer) =>
-      f.gateway.invoke({ namespace: 'botharness', method, args, peer });
+    const invoke = (
+      method: string,
+      args: Record<string, unknown> = {},
+      peer = f.team.admit(bobLogin.token) ?? bobLogin.peer,
+    ) => f.gateway.invoke({ namespace: 'botharness', method, args, peer });
     return { ...f, alice, bobLogin, aliceLogin, invoke };
   }
 
@@ -1736,6 +1810,12 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     await f.invoke('teamInsecureHttpSet', { allowed: true });
     expect(f.team.mode(f.human).insecureHttpAllowed).toBe(true);
     const group = f.channels.createGroup(owner, { name: 'Publish', members: [] });
+    await expect(
+      f.invoke('channelPublicSet', { channelId: group.id, public: true }),
+    ).rejects.toMatchObject({ code: 'channel-not-found' });
+    f.team.roles.update(owner, role.roleId, {
+      permissions: [...role.permissions, 'channels.manageAll'],
+    });
     await f.invoke('channelPublicSet', { channelId: group.id, public: true });
     expect(f.team.publicChannels(f.human).map((c) => c.channelId)).toContain(group.id);
     await expect(f.invoke('members')).rejects.toMatchObject({ code: 'permission-required' });
@@ -2157,7 +2237,11 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
   ] as const)('removes former Owner-wide live visibility after transfer: %s', async (path) => {
     const f = await actors();
     const alice = humanContext(f.alice.member.humanId);
-    const secret = f.channels.getOrCreateDm(alice, 'alice-private', 'Alice private');
+    const secret = f.channels.getOrCreateRemoteBotDm('local-bot', {
+      hostId: 'remote-host',
+      botSlug: 'remote-bot',
+      displayName: 'Remote Bot',
+    });
     if (!secret) throw new Error('missing private DM');
     const placement = {
       sourceEventId: 'alice-secret-source',
@@ -2176,17 +2260,15 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     );
     const reader = opened.body?.getReader();
     const publish = async () => {
-      const message = await f.channels.appendMessage(alice, secret.id, {
-        id: 'alice-secret-message',
-        at: '2026-11-14T00:00:00Z',
-        author: { kind: 'human', humanId: alice.humanId },
-        body: 'Alice private text',
-      });
-      if (!message) throw new Error('missing private message');
       f.live.publishCommitted({
         channelId: secret.id,
-        message,
-        revision: f.channels.revision(secret.id),
+        message: {
+          id: 'alice-secret-message',
+          at: '2026-11-14T00:00:00Z',
+          author: { kind: 'bot', slug: 'remote-bot' },
+          body: 'Remote private text',
+        },
+        revision: 1,
       });
     };
     try {
@@ -2399,7 +2481,6 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     ['teamModeSet', { enabled: true }, 'team.settings'],
     ['teamInsecureHttpSet', { allowed: true }, 'team.settings'],
     ['teamOwnerPasswordSet', { password: 'password' }, 'owner'],
-    ['channelPublicSet', { channelId: 'private-channel', public: true }, 'team.settings'],
   ] as const)(
     'scopes newly allowed %s with no other Human content or counts',
     async (method, args, permission) => {
@@ -2424,6 +2505,688 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
         expect(encoded).not.toContain(secret);
     },
   );
+});
+
+describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
+  it.each(['private', 'roles-nonmember', 'roles-member'] as const)(
+    'hides %s through every read path',
+    async (kind) => {
+      const f = await enabledFixture();
+      const secret = f.channels.createGroup(owner, { name: 'm4-confidential', members: [] });
+      await f.channels.appendMessage(owner, secret.id, {
+        id: 'm4-secret',
+        at: '2026-11-14T00:00:00Z',
+        author: { kind: 'human', humanId: owner.humanId },
+        body: 'm4-confidential-content',
+      });
+      if (kind === 'roles-member')
+        f.team.channelAccess.addMember(owner, secret.id, f.human.humanId);
+      if (kind !== 'private') {
+        const { role } = f.team.roles.create(owner, 'restricted', []);
+        f.team.channelAccess.visibilitySet(owner, secret.id, {
+          kind: 'roles',
+          roleIds: [role.roleId],
+        });
+      }
+      const methods = f.methods(f.human);
+      const cursor = f.channels.changeCursor!();
+      f.setPlacements([
+        { channelId: secret.id, messageId: 'm4-secret', sourceEventId: 'm4-source' },
+      ]);
+      const results = [
+        await methods.channels({}),
+        await methods.browsableChannels({}),
+        await methods.messageSearch({ text: 'm4-confidential' }),
+        await methods.channelListChanges({ sinceSeq: 0, epoch: cursor.epoch }),
+        methods.channelUnreadCounts({}),
+      ];
+      for (const [index, result] of results.entries())
+        expect(JSON.stringify(result), `read path ${index}`).not.toContain('m4-confidential');
+      for (const method of [
+        'channelGet',
+        'channelMessages',
+        'channelTimeline',
+        'channelSearch',
+        'channelAllBotPreview',
+        'channelReadPosition',
+      ] as const) {
+        const result = await methods[method]({ channelId: secret.id, text: 'm4-confidential' });
+        expect(result, method).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+      }
+      expect(await methods.channelJoin({ channelId: secret.id })).toMatchObject({
+        ok: false,
+        error: { code: 'channel-not-found' },
+      });
+      expect(
+        f.channels.readHumanJournalPage(f.human, secret.id, { through: 10, limit: 10 }),
+      ).toBeUndefined();
+      expect(f.channels.readHumanFilesPage(f.human, secret.id, {})).toBeUndefined();
+      expect(
+        f.channels.searchHumanMessages?.(f.human, secret.id, {
+          text: 'm4-confidential',
+          limit: 10,
+        }),
+      ).toBeUndefined();
+      f.registry.create({ slug: 'm4-bot', displayName: 'M4 Bot', ownerHumanId: f.human.humanId });
+      const dm = f.channels.getOrCreateDm(f.human, 'm4-bot', 'M4 Bot');
+      if (!dm) throw new Error('missing dm');
+      expect(
+        await methods.channelSend({
+          channelId: dm.id,
+          body: '#m4-confidential',
+          channelRefs: [{ channelId: secret.id, label: 'm4-confidential', start: 0, end: 16 }],
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+      const abort = new AbortController();
+      const roster = f.live.followRoster(f.human, abort.signal)[Symbol.asyncIterator]();
+      const channel = f.live
+        .followChannel(f.human, secret.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      try {
+        expect((await roster.next()).value).toEqual({ type: 'baseline', placements: [] });
+        await expect(channel.next()).rejects.toMatchObject({ code: 'not-found' });
+        const response = f.live.open(
+          f.human,
+          new Request(`http://localhost/api/botharness/stream?channelId=${secret.id}`),
+        );
+        expect(response.status).toBe(404);
+        await response.body?.cancel();
+      } finally {
+        abort.abort();
+        await roster.return?.();
+        await channel.return?.();
+      }
+    },
+  );
+
+  it('browses, previews and explicitly joins public and eligible role Channels', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Public preview', members: [] });
+    for (const visibility of [
+      { kind: 'public' },
+      { kind: 'roles', roleIds: ['member'] },
+    ] as const) {
+      f.team.channelAccess.visibilitySet(
+        owner,
+        group.id,
+        visibility.kind === 'public'
+          ? visibility
+          : { kind: 'roles', roleIds: [...visibility.roleIds] },
+      );
+      expect(f.team.channelAccess.browse(f.human)).toContainEqual(
+        expect.objectContaining({ channelId: group.id, visibility: visibility.kind }),
+      );
+      expect(await f.methods(f.human).channelGet({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { role: 'member', visibility },
+      });
+      expect(
+        await f.methods(f.human).channelSend({ channelId: group.id, body: 'not joined' }),
+      ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+    }
+    f.team.channelAccess.join(f.human, group.id);
+    f.team.channelAccess.join(f.human, group.id);
+    expect(f.channels.listHumanMembers(f.human, group.id)).toHaveLength(2);
+    expect(
+      await f.methods(f.human).channelSend({ channelId: group.id, body: 'joined' }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('enforces each policy, owner-only admins and exact member metadata', async () => {
+    const f = await enabledFixture();
+    f.registry.create({
+      slug: 'policy-bot',
+      displayName: 'Policy Bot',
+      ownerHumanId: f.human.humanId,
+    });
+    const group = f.channels.createGroup(owner, { name: 'Policy', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+    const allAdmins = {
+      addMembers: 'admins',
+      post: 'admins',
+      mentionAll: 'admins',
+      addBots: 'admins',
+      editDetails: 'admins',
+    } as const;
+    f.team.channelAccess.policySet(owner, group.id, allAdmins);
+    const methods = f.methods(f.human);
+    expect(methods.channelGet({ channelId: group.id })).toEqual({
+      ok: true,
+      value: {
+        channel: expect.any(Object),
+        role: 'member',
+        policy: allAdmins,
+        policyRevision: expect.any(String),
+        visibility: { kind: 'private' },
+        admins: [],
+      },
+    });
+    expect(methods.channelGet({ channelId: group.id })).not.toHaveProperty(
+      'value.channelFingerprint',
+    );
+    for (const [method, payload, key] of [
+      ['channelSend', { body: 'announcement' }, 'post'],
+      ['channelHumanAdd', { humanId: 'absent' }, 'addMembers'],
+      ['channelGroupInvite', { botSlug: 'policy-bot' }, 'addBots'],
+      ['channelRename', { name: 'edited' }, 'editDetails'],
+      ['channelDescriptionSet', { description: 'edited' }, 'editDetails'],
+    ] as const) {
+      const result = await methods[method]({ channelId: group.id, ...payload });
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          code: key === 'post' ? 'channel-post-restricted' : 'permission-required',
+          details: { permission: key },
+        },
+      });
+    }
+    f.team.channelAccess.policySet(owner, group.id, { ...allAdmins, post: 'everyone' });
+    expect(
+      await methods.channelSend({
+        channelId: group.id,
+        body: '@All Bots',
+        allBotMention: {
+          start: 0,
+          end: 9,
+          label: 'All Bots',
+          preview: f.channels.previewAllBotMention(group.id),
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'channel-mention-restricted' } });
+    expect(await methods.channelAdminsSet({ channelId: group.id, humanIds: [] })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    expect(
+      await methods.channelPolicySet({ channelId: group.id, policy: allAdmins }),
+    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    expect(
+      await methods.channelVisibilitySet({ channelId: group.id, visibility: { kind: 'public' } }),
+    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    expect(await methods.channelRoleDirectory({ channelId: group.id })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+    expect(await methods.channelRoleDirectory({ channelId: group.id })).toMatchObject({
+      ok: true,
+      value: expect.arrayContaining([{ roleId: 'member', name: 'member' }]),
+    });
+    expect(methods.channelGet({ channelId: group.id })).toMatchObject({
+      ok: true,
+      value: { role: 'admin', admins: [{ humanId: f.human.humanId, displayName: 'Bob' }] },
+    });
+    f.team.channelAccess.policySet(f.human, group.id, allAdmins);
+    expect(
+      await methods.channelSend({ channelId: group.id, body: 'admin announcement' }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await methods.channelVisibilitySet({
+        channelId: group.id,
+        visibility: { kind: 'roles', roleIds: ['absent'] },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'role-not-found' } });
+    expect(
+      await methods.channelVisibilitySet({ channelId: 'absent', visibility: { kind: 'public' } }),
+    ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+  });
+
+  it('creates member-owned groups and keeps Host-wide management separate from private reading', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(f.human, { name: 'Member-owned', members: [] });
+    expect(f.team.channelAccess.view(f.human, group.id).role).toBe('owner');
+    expect(f.team.channelAccess.canRead(owner, group.id)).toBe(false);
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
+    expect(f.team.channelAccess.browse(owner)).toContainEqual(
+      expect.objectContaining({ channelId: group.id }),
+    );
+    expect(() => f.team.channelAccess.adminsSet(f.human, group.id, [owner.humanId])).toThrow(
+      'member-not-found',
+    );
+    const { role } = f.team.roles.create(owner, 'no channel creation', []);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    expect(f.methods(f.human).channelCreate({ name: 'denied', members: [] })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'channels.create' } },
+    });
+  });
+
+  it('opens one Human DM per pair, permits files and denies every other Human including Owner', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'm4alice', 'Alice');
+    const other = humanContext(alice.member.humanId);
+    const first = f.team.channelAccess.dm(f.human, other.humanId).channel;
+    expect(f.team.channelAccess.dm(other, f.human.humanId).channel.id).toBe(first.id);
+    expect(first).toMatchObject({
+      type: 'dm',
+      members: [],
+      humanParticipants: expect.arrayContaining([f.human.humanId, other.humanId]),
+    });
+    expect(
+      await f.methods(f.human).channelSend({ channelId: first.id, body: 'DM secret' }),
+    ).toMatchObject({ ok: true });
+    expect(await f.methods(other).channelMessages({ channelId: first.id })).toMatchObject({
+      ok: true,
+      value: { messages: [expect.objectContaining({ body: 'DM secret' })] },
+    });
+    expect(
+      f.channels.searchAllHumanMessages?.(other, { text: 'DM secret', limit: 10 }),
+    ).toMatchObject({ hits: [expect.objectContaining({ channelId: first.id })] });
+    expect(await f.methods(owner).channelMessages({ channelId: first.id })).toMatchObject({
+      ok: false,
+      error: { code: 'channel-not-found' },
+    });
+    expect(
+      f.channels.readHumanJournalPage(owner, first.id, { through: 10, limit: 10 }),
+    ).toBeUndefined();
+    const attachment = await f.attachments.upload({
+      name: 'human-dm.txt',
+      data: (async function* () {
+        yield Buffer.from('private file bytes');
+      })(),
+    });
+    expect(
+      await f
+        .methods(f.human)
+        .channelSend({ channelId: first.id, body: 'file', attachments: [attachment] }),
+    ).toMatchObject({ ok: true });
+    expect(JSON.stringify(f.channels.readHumanFilesPage(other, first.id, {}))).toContain(
+      'human-dm.txt',
+    );
+    expect(f.channels.readHumanFilesPage(owner, first.id, {})).toBeUndefined();
+    expect(JSON.stringify(await f.methods(owner).channels({}))).not.toContain(first.id);
+    expect(f.team.channelAccess.directory(f.human)).toContainEqual({
+      humanId: other.humanId,
+      displayName: 'Alice',
+    });
+    for (const row of f.team.channelAccess.directory(f.human))
+      expect(Object.keys(row).sort()).toEqual(['displayName', 'humanId']);
+    expect(() => f.team.channelAccess.dm(f.human, 'missing')).toThrow('member-not-found');
+    expect(() => f.team.channelAccess.dm(f.human, f.human.humanId)).toThrow('member-not-found');
+    await f.team.suspend(owner, other.humanId);
+    expect(() => f.team.channelAccess.dm(f.human, other.humanId)).toThrow('member-not-found');
+    expect(f.team.channelAccess.directory(f.human)).not.toContainEqual(
+      expect.objectContaining({ humanId: other.humanId }),
+    );
+    const { role } = f.team.roles.create(owner, 'No DMs', []);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    expect(await f.methods(f.human).humanDm({ humanId: other.humanId })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'dm.humans' } },
+    });
+    expect(await f.methods(f.human).teamDirectory({})).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'dm.humans' } },
+    });
+  });
+
+  it.each(['visibility', 'role'] as const)(
+    'immediately closes browser Peers, paired mux and queued streams on %s revocation',
+    async (cause) => {
+      const f = await enabledFixture();
+      await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+      const group = f.channels.createGroup(owner, { name: 'Revoked', members: [] });
+      f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+      f.team.channelAccess.join(f.human, group.id);
+      const first = await f.team.signIn('bob', 'member-password-1', 'one');
+      const second = await f.team.signIn('bob', 'member-password-1', 'two');
+      const pairing = createDevicePairing({
+        database: f.database,
+        hostName: 'M4',
+        ownerHumanId: () => f.human.humanId,
+      });
+      f.team.bindPairing(pairing);
+      const device = pairing.redeem({ offer: pairing.createOffer().offer });
+      if (!device.ok) throw new Error('pair failed');
+      const close = vi.fn();
+      pairing.attachStream(device.device.id, close);
+      const abort = new AbortController();
+      const channel = f.live
+        .followChannel(f.human, group.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      const roster = f.live.followRoster(f.human, abort.signal)[Symbol.asyncIterator]();
+      try {
+        await channel.next();
+        await roster.next();
+        const message = await f.channels.appendMessage(f.human, group.id, {
+          id: 'queued-secret',
+          at: '2026-11-14',
+          author: { kind: 'human', humanId: f.human.humanId },
+          body: 'queued-secret',
+        });
+        if (!message) throw new Error('missing message');
+        f.live.publishCommitted({
+          channelId: group.id,
+          message,
+          revision: f.channels.revision(group.id),
+        });
+        if (cause === 'visibility')
+          f.team.channelAccess.visibilitySet(owner, group.id, {
+            kind: 'roles',
+            roleIds: ['admin'],
+          });
+        else {
+          const { role } = f.team.roles.create(owner, 'Revoked', []);
+          f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+        }
+        await f.team.accessSettled();
+        expect(first.peer.signal.aborted).toBe(true);
+        expect(second.peer.signal.aborted).toBe(true);
+        expect(close).toHaveBeenCalledOnce();
+        expect((await channel.next()).done).toBe(true);
+        expect((await roster.next()).done).toBe(true);
+        expect(await f.methods(f.human).channelMessages({ channelId: group.id })).toMatchObject({
+          ok: false,
+          error: { code: 'channel-not-found' },
+        });
+        expect(
+          f.live.open(
+            f.human,
+            new Request(`http://localhost/api/botharness/stream?channelId=${group.id}`),
+          ).status,
+        ).toBe(404);
+      } finally {
+        abort.abort();
+        await channel.return?.();
+        await roster.return?.();
+      }
+    },
+  );
+});
+
+describe('M4 migration and query budgets', () => {
+  it('migrates public booleans and existing group owners without changing records or memberships', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(`CREATE TABLE humans(human_id TEXT PRIMARY KEY); INSERT INTO humans VALUES ('owner');
+        CREATE TABLE team_settings(owner_human_id TEXT); INSERT INTO team_settings VALUES ('owner');
+        CREATE TABLE channel_records(channel_id TEXT PRIMARY KEY,record_json TEXT,public INTEGER);
+        INSERT INTO channel_records VALUES ('public','{"type":"group"}',1),('private','{"type":"group"}',0);`);
+      const migration = BOT_HARNESS_SCHEMA_PLAN.migrations.find(
+        (m) => m.description === 'Channel visibility, Human ownership, policy and admins',
+      );
+      if (!migration) throw new Error('missing migration');
+      migration.migrate(db);
+      expect(
+        db
+          .prepare(
+            'SELECT channel_id,visibility_json,owner_human_id FROM channel_records ORDER BY channel_id',
+          )
+          .all(),
+      ).toEqual([
+        { channel_id: 'private', visibility_json: '{"kind":"private"}', owner_human_id: 'owner' },
+        { channel_id: 'public', visibility_json: '{"kind":"public"}', owner_human_id: 'owner' },
+      ]);
+      expect(db.prepare('SELECT record_json FROM channel_records').all()).toEqual([
+        { record_json: '{"type":"group"}' },
+        { record_json: '{"type":"group"}' },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+  it('bounds audience and browse queries independently of the Channel count', async () => {
+    const f = await enabledFixture();
+    f.database.transaction((db) => {
+      const insert = db.prepare(
+        'INSERT INTO channel_records(channel_id,record_json,owner_human_id,visibility_json) VALUES (?, ?, ?, ?)',
+      );
+      for (let index = 0; index < 1000; index++)
+        insert.run(
+          `scale-group-${index}`,
+          JSON.stringify({
+            id: `scale-group-${index}`,
+            type: 'group',
+            name: 'scale',
+            members: [],
+            createdAt: '2026-11-14',
+            updatedAt: '2026-11-14',
+          }),
+          owner.humanId,
+          '{"kind":"public"}',
+        );
+    });
+    let before = f.db.diagnostics().metrics.reads;
+    expect(f.team.channelAccess.visibleIds(f.human, false).size).toBe(1000);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+    before = f.db.diagnostics().metrics.reads;
+    expect(f.team.channelAccess.browse(f.human)).toHaveLength(1000);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+    before = f.db.diagnostics().metrics.reads;
+    expect(f.team.channelAccess.canRead(f.human, 'scale-group-999')).toBe(true);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+  });
+});
+
+describe('M4 Channel admin delegation ceiling', { timeout: 60_000 }, () => {
+  it('checks removed admins against a non-Owner Channel owner ceiling', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'ceiling-alice', 'Alice');
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    f.team.roles.set(owner, alice.member.humanId, ['admin']);
+    const group = f.channels.createGroup(f.human, { name: 'Owned group', members: [] });
+    f.team.channelAccess.addMember(f.human, group.id, alice.member.humanId);
+    f.team.channelAccess.adminsSet(f.human, group.id, [alice.member.humanId]);
+    f.team.roles.set(owner, f.human.humanId, ['member']);
+    expect(() => f.team.channelAccess.adminsSet(f.human, group.id, [])).toThrow(
+      'permission-required',
+    );
+    expect(f.team.channelAccess.view(f.human, group.id).admins).toEqual([
+      { humanId: alice.member.humanId, displayName: 'Alice' },
+    ]);
+  });
+});
+
+describe('M4 review regressions', { timeout: 60_000 }, () => {
+  const restrictedPolicy = {
+    addMembers: 'admins',
+    post: 'admins',
+    mentionAll: 'admins',
+    addBots: 'admins',
+    editDetails: 'admins',
+  } as const;
+
+  it('retains joined Channel owners/admins while hiding an ordinary member after role loss', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'design-alice', 'Alice');
+    const human = humanContext(alice.member.humanId);
+    const group = f.channels.createGroup(owner, { name: 'Design Room', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, 'bob');
+    expect(() => f.team.channelAccess.adminsSet(owner, group.id, ['design-alice'])).toThrow(
+      'member-not-found',
+    );
+    f.team.channelAccess.adminsSet(owner, group.id, ['bob']);
+    f.team.channelAccess.addMember(owner, group.id, human.humanId);
+    const { role } = f.team.roles.create(owner, 'Design', ['channels.create', 'dm.humans']);
+    f.team.roles.set(owner, human.humanId, [role.roleId]);
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: [role.roleId] });
+    expect(f.team.mode(owner).viewer.roleIds).not.toContain(role.roleId);
+    expect(f.team.mode(f.human).viewer.roleIds).not.toContain(role.roleId);
+    expect(() => f.team.channelAccess.addMember(owner, group.id, 'bob')).not.toThrow();
+    expect(
+      await f.methods(owner).channelSend({ channelId: group.id, body: 'design-review-secret' }),
+    ).toMatchObject({ ok: true });
+    expect(f.team.channelAccess.canRead(human, group.id)).toBe(true);
+    f.team.roles.set(owner, human.humanId, ['member']);
+    await f.team.accessSettled();
+    for (const manager of [owner, f.human]) {
+      expect(f.team.channelAccess.canRead(manager, group.id, true)).toBe(true);
+      expect(f.team.channelAccess.browse(manager)).toContainEqual(
+        expect.objectContaining({ channelId: group.id, joined: true }),
+      );
+      expect(await f.methods(manager).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: expect.arrayContaining([expect.objectContaining({ id: group.id })]) },
+      });
+      expect(f.methods(manager).channelGet({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { role: manager === owner ? 'owner' : 'admin' },
+      });
+      expect(
+        f.channels.searchAllHumanMessages?.(manager, { text: 'design-review-secret', limit: 10 }),
+      ).toMatchObject({ hits: [expect.objectContaining({ channelId: group.id })] });
+      const abort = new AbortController();
+      const stream = f.live
+        .followChannel(manager, group.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      try {
+        expect((await stream.next()).value).toMatchObject({ type: 'opened' });
+      } finally {
+        abort.abort();
+        await stream.return?.();
+      }
+    }
+    expect(f.team.channelAccess.canRead(human, group.id)).toBe(false);
+    expect(f.team.channelAccess.browse(human)).toEqual([]);
+    expect(await f.methods(human).channels({})).toMatchObject({
+      ok: true,
+      value: { channels: [] },
+    });
+    expect(
+      f.channels.searchAllHumanMessages?.(human, { text: 'design-review-secret', limit: 10 }),
+    ).toMatchObject({ hits: [] });
+    expect(() => f.team.channelAccess.join(human, group.id)).toThrow('channel-not-found');
+    expect(f.channels.hasHumanMembership?.(human, group.id)).toBe(true);
+  });
+
+  it('transfers a role-restricted Channel owner through M9 and closes revoked access immediately', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'transfer-alice', 'Alice');
+    const target = humanContext(alice.member.humanId);
+    const group = f.channels.createGroup(f.human, { name: 'Transferred Design', members: [] });
+    f.team.channelAccess.visibilitySet(f.human, group.id, { kind: 'roles', roleIds: ['admin'] });
+    await f.team.changePassword(f.human, f.initialPassword, 'transfer-password-1');
+    const login = await f.team.signIn('bob', 'transfer-password-1', 'transfer-ip');
+    const response = f.live.open(
+      f.human,
+      new Request(`http://localhost/api/botharness/stream?channelId=${group.id}`),
+    );
+    expect(response.status).toBe(200);
+    const reader = response.body!.getReader();
+    await reader.read();
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain(
+      'channel/draft-baseline',
+    );
+    await f.team.transfer(owner, f.human.humanId, target.humanId);
+    await f.team.accessSettled();
+    expect(login.peer.signal.aborted).toBe(true);
+    expect((await reader.read()).done).toBe(true);
+    expect(f.team.channelAccess.canRead(f.human, group.id)).toBe(false);
+    expect(f.team.channelAccess.view(target, group.id).role).toBe('owner');
+    expect(f.team.transferPreview(owner, target.humanId).channels).toEqual([
+      { channelId: group.id, name: 'Transferred Design' },
+    ]);
+    expect(f.channels.get(group.id)?.ownerHumanId).toBe(target.humanId);
+    await reader.cancel();
+  });
+
+  it('uses the same active/group/management guard for policy and visibility writes', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(f.human, { name: 'Member managed', members: [] });
+    const dm = f.channels.getOrCreateDm(owner, 'review-dm', 'Review DM');
+    if (!dm) throw new Error('missing dm');
+    const { role } = f.team.roles.create(owner, 'Channel managers', ['channels.manageAll']);
+    const manager = await f.team.createMember(owner, 'policy-manager', 'Manager', [role.roleId]);
+    const actor = humanContext(manager.member.humanId);
+    for (const human of [owner, actor]) {
+      expect(f.team.channelAccess.policySet(human, group.id, restrictedPolicy)).toBeNull();
+      expect(() => f.team.channelAccess.policySet(human, dm.id, restrictedPolicy)).toThrow(
+        'channel-not-found',
+      );
+      expect(() => f.team.channelAccess.policySet(human, 'missing', restrictedPolicy)).toThrow(
+        'channel-not-found',
+      );
+    }
+    f.database.transaction((db) =>
+      db.prepare("UPDATE humans SET status = 'suspended' WHERE human_id = ?").run(actor.humanId),
+    );
+    expect(() =>
+      f.team.channelAccess.policySet(actor, group.id, { ...restrictedPolicy, post: 'everyone' }),
+    ).toThrow('permission-required');
+    expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual(restrictedPolicy);
+  });
+
+  it.each(['owner', 'admin'] as const)(
+    'treats a joined Host %s as an admin for every policy',
+    async (kind) => {
+      const f = await enabledFixture();
+      const creator = await f.team.createMember(owner, 'announcement-creator', 'Creator');
+      const human = humanContext(creator.member.humanId);
+      const group = f.channels.createGroup(human, { name: 'Member announcement', members: [] });
+      f.team.channelAccess.visibilitySet(human, group.id, { kind: 'public' });
+      const actor = kind === 'owner' ? owner : f.human;
+      if (kind === 'admin') f.team.roles.set(owner, actor.humanId, ['admin']);
+      f.team.channelAccess.join(actor, group.id);
+      f.team.channelAccess.policySet(human, group.id, restrictedPolicy);
+      expect(f.team.channelAccess.view(actor, group.id).role).toBe('member');
+      for (const key of Object.keys(restrictedPolicy)) {
+        const parsed = z
+          .enum(['addMembers', 'post', 'mentionAll', 'addBots', 'editDetails'])
+          .parse(key);
+        expect(() => f.team.channelAccess.requirePolicy(actor, group.id, parsed)).not.toThrow();
+      }
+      expect(
+        await f.methods(actor).channelSend({ channelId: group.id, body: 'admin-policy-bypass' }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await f.methods(actor).channelRename({ channelId: group.id, name: 'Managed announcement' }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await f
+          .methods(actor)
+          .channelDescriptionSet({ channelId: group.id, description: 'managed' }),
+      ).toMatchObject({ ok: true });
+      expect(() =>
+        f.team.channelAccess.requirePolicy(humanContext('missing'), group.id, 'post'),
+      ).toThrow('channel-not-found');
+    },
+  );
+
+  it('resolves usernames inside authorized Channel operations and keeps Human IDs working', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'lookup-alice', 'Alice');
+    const group = f.channels.createGroup(owner, { name: 'References', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, 'BOB');
+    f.team.channelAccess.addMember(owner, group.id, alice.member.humanId);
+    f.team.channelAccess.adminsSet(owner, group.id, ['bob', alice.member.humanId]);
+    expect(
+      f.team.channelAccess
+        .view(owner, group.id)
+        .admins.map((row) => row.humanId)
+        .sort(),
+    ).toEqual([f.human.humanId, alice.member.humanId].sort());
+    expect(() => f.team.channelAccess.adminsSet(owner, group.id, ['missing'])).toThrow(
+      'member-not-found',
+    );
+    expect(() => f.team.channelAccess.addMember(owner, group.id, 'missing')).toThrow(
+      'member-not-found',
+    );
+    expect(() => f.team.channelAccess.adminsSet(f.human, group.id, ['missing'])).toThrow(
+      'permission-required',
+    );
+    expect(f.team.channelAccess.view(owner, group.id).admins).toHaveLength(2);
+  });
+
+  it('returns the identical Gateway refusal for an invisible and nonexistent Channel id', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'review-member-password-1');
+    const group = f.channels.createGroup(owner, { name: 'Hidden Design', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['admin'] });
+    const login = await f.team.signIn('bob', 'review-member-password-1', 'review-ip');
+    for (const channelId of [group.id, 'nonexistent-design-room']) {
+      await expect(
+        f.gateway.invoke({
+          namespace: 'botharness',
+          method: 'channelGet',
+          args: { channelId },
+          peer: login.peer,
+        }),
+      ).rejects.toMatchObject({
+        code: 'remote-access/denied',
+        details: { reason: 'channel-not-found' },
+      });
+    }
+  });
 });
 
 describe('M9 member lifecycle', { timeout: 60_000 }, () => {
@@ -2720,5 +3483,263 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
     await expect(
       f.team.purgeConfirm(owner, f.human.humanId, expiring.token, 'bob'),
     ).rejects.toThrowError('purge-token-invalid');
+  });
+});
+
+describe('M4 review integrity', { timeout: 60_000 }, () => {
+  it('rejects overlapping policy edits using the observed revision without losing another field', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Concurrent settings', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+    f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+    const snapshot = z.object({
+      policy: channelPolicySchema,
+      policyRevision: z.string().regex(/^[a-f0-9]{64}$/u),
+    });
+    const observe = (actor: typeof owner) => {
+      const result = f.methods(actor).channelGet({ channelId: group.id });
+      if (!result.ok) throw new Error(result.error.code);
+      return snapshot.parse(result.value);
+    };
+    const first = observe(owner);
+    const second = observe(f.human);
+    expect(second.policyRevision).toBe(first.policyRevision);
+    expect(
+      await f.methods(owner).channelPolicySet({
+        channelId: group.id,
+        policy: { ...first.policy, addMembers: 'admins' },
+        expectedRevision: first.policyRevision,
+      }),
+    ).toEqual({ ok: true, value: null });
+    const cursor = f.channels.changeCursor!();
+    expect(
+      await f.methods(f.human).channelPolicySet({
+        channelId: group.id,
+        policy: { ...second.policy, post: 'admins' },
+        expectedRevision: second.policyRevision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'stale-channel-policy' } });
+    expect(f.channels.changeCursor!()).toEqual(cursor);
+    const current = observe(f.human);
+    expect(current.policy).toMatchObject({ addMembers: 'admins', post: 'everyone' });
+    expect(current.policyRevision).not.toBe(first.policyRevision);
+    expect(
+      await f.methods(f.human).channelPolicySet({
+        channelId: group.id,
+        policy: { ...current.policy, post: 'admins' },
+        expectedRevision: current.policyRevision,
+      }),
+    ).toEqual({ ok: true, value: null });
+    expect(observe(owner).policy).toMatchObject({ addMembers: 'admins', post: 'admins' });
+    expect(
+      await f.methods(owner).channelPolicySet({ channelId: group.id, policy: first.policy }),
+    ).toEqual({ ok: true, value: null });
+    expect(observe(owner).policy).toEqual(first.policy);
+    expect(
+      await f
+        .methods(owner)
+        .channelPolicySet({ channelId: group.id, policy: first.policy, expectedRevision: 1 }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+  });
+
+  it.each(['roles', 'visibility', 'leave'] as const)(
+    'resets cached Channel lists after %s revocation without disclosing invisible ids',
+    async (cause) => {
+      const f = await enabledFixture();
+      const group = f.channels.createGroup(owner, { name: 'Revoked cached Channel', members: [] });
+      f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+      f.team.channelAccess.join(f.human, group.id);
+      expect(await f.methods(f.human).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: [{ id: group.id }] },
+      });
+      const cursor = f.channels.changeCursor!();
+      if (cause === 'roles') {
+        const { role } = f.team.roles.create(owner, 'No audience', []);
+        f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+      } else if (cause === 'visibility')
+        f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['admin'] });
+      else
+        f.database.transaction(
+          (db) =>
+            db
+              .prepare(
+                'UPDATE channel_human_members SET left_at = ? WHERE channel_id = ? AND human_id = ?',
+              )
+              .run('after', group.id, f.human.humanId),
+          ['channels'],
+        );
+      await f.team.accessSettled();
+      const delta = await f
+        .methods(f.human)
+        .channelListChanges({ sinceSeq: cursor.seq, epoch: cursor.epoch });
+      expect(delta).toMatchObject({ ok: true, value: { reset: true } });
+      expect(JSON.stringify(delta)).not.toContain(group.id);
+      expect(f.channels.changeCursor!().seq).toBeGreaterThan(cursor.seq);
+      expect(await f.methods(f.human).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: [] },
+      });
+    },
+  );
+
+  it('keeps visible ordinary Channel changes incremental', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(f.human, { name: 'Before', members: [] });
+    const cursor = f.channels.changeCursor!();
+    f.channels.rename(f.human, group.id, 'After');
+    expect(
+      await f.methods(f.human).channelListChanges({ sinceSeq: cursor.seq, epoch: cursor.epoch }),
+    ).toMatchObject({
+      ok: true,
+      value: { channels: [{ id: group.id, name: 'After' }], removed: [] },
+    });
+  });
+
+  it('denies opening observed output after role loss despite retained membership', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Observed output', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+    f.team.channelAccess.join(f.human, group.id);
+    await f.channels.appendMessage(owner, group.id, {
+      id: 'observed-message',
+      at: '2026-11-14',
+      author: { kind: 'human' },
+      body: 'Scoped output',
+    });
+    const reads = f.db.diagnostics().metrics.reads;
+    expect(f.channels.observeOutput(f.human, group.id, 'observed-message')).toMatchObject({
+      canRead: true,
+      humanParticipant: true,
+    });
+    expect(f.db.diagnostics().metrics.reads - reads).toBeLessThanOrEqual(8);
+    const { role } = f.team.roles.create(owner, 'No output audience', []);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    await f.team.accessSettled();
+    expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(true);
+    expect(f.channels.observeOutput(f.human, group.id, 'observed-message')).toMatchObject({
+      canRead: false,
+      humanParticipant: false,
+    });
+  });
+
+  it.each(['owner', 'admin', 'member'] as const)(
+    'admits avatar writes from a Channel %s through the member Gateway and enforces editDetails',
+    async (role) => {
+      const f = await enabledFixture();
+      const group = f.channels.createGroup(role === 'owner' ? f.human : owner, {
+        name: 'Avatar policy',
+        members: [],
+      });
+      if (role !== 'owner') f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+      if (role === 'admin') f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+      await f.team.changePassword(f.human, f.initialPassword, 'avatar-password-1');
+      const login = await f.team.signIn('bob', 'avatar-password-1', 'avatar-ip');
+      const avatar = 'data:image/png;base64,iVBORw0KGgo=';
+      const result = f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelGroupAvatarSet',
+        args: { channelId: group.id, avatar },
+        peer: login.peer,
+      });
+      if (role === 'member') {
+        await expect(result).rejects.toMatchObject({
+          code: 'permission-required',
+          details: { permission: 'editDetails' },
+        });
+        expect(f.channels.get(group.id)?.avatar).toBeUndefined();
+        f.team.channelAccess.policySet(owner, group.id, {
+          ...f.team.channelAccess.view(owner, group.id).policy,
+          editDetails: 'everyone',
+        });
+        await f.team.accessSettled();
+        const allowed = await f.team.signIn('bob', 'avatar-password-1', 'avatar-allowed');
+        await expect(
+          f.gateway.invoke({
+            namespace: 'botharness',
+            method: 'channelGroupAvatarSet',
+            args: { channelId: group.id, avatar },
+            peer: allowed.peer,
+          }),
+        ).resolves.toMatchObject({ channel: { id: group.id, avatar } });
+      } else {
+        await expect(result).resolves.toMatchObject({ channel: { id: group.id, avatar } });
+        expect(f.channels.get(group.id)?.avatar).toBe(avatar);
+      }
+    },
+  );
+
+  it('settles every peer disposal and recovers Team calls after a disposal failure', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Recover disposal', members: [] });
+    const first = await f.team.signIn('bob', f.initialPassword, 'dispose-first');
+    const second = await f.team.signIn('bob', f.initialPassword, 'dispose-second');
+    let failed: () => void = () => {};
+    const failureObserved = new Promise<void>((resolve) => {
+      failed = resolve;
+    });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = first.peer.dispose.bind(first.peer);
+    const secondOriginal = second.peer.dispose.bind(second.peer);
+    vi.spyOn(first.peer, 'dispose').mockImplementationOnce(async () => {
+      await original();
+      failed();
+      throw new Error('private-disposal-error');
+    });
+    vi.spyOn(second.peer, 'dispose').mockImplementationOnce(async () => {
+      await gate;
+      await secondOriginal();
+    });
+    const policy = f.team.channelAccess.view(owner, group.id).policy;
+    let settled = false;
+    const mutation = f
+      .methods(owner)
+      .channelPolicySet({ channelId: group.id, policy: { ...policy, post: 'admins' } });
+    void mutation.then(() => {
+      settled = true;
+    });
+    try {
+      await failureObserved;
+      await Promise.resolve();
+      expect(settled).toBe(false);
+    } finally {
+      release();
+    }
+    expect(await mutation).toEqual({ ok: true, value: null });
+    expect(first.peer.signal.aborted).toBe(true);
+    expect(second.peer.signal.aborted).toBe(true);
+    await expect(f.team.accessSettled()).resolves.toBeUndefined();
+    expect(f.diagnostics).toHaveBeenCalledWith('access-disposal-failed', {
+      initiator: 'host',
+      reason: 'peer-disposal-failed',
+    });
+    expect(await f.methods(owner).teamMode({})).toMatchObject({ ok: true });
+    expect(await f.methods(owner).channelPolicySet({ channelId: group.id, policy })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(f.team.channelAccess.view(owner, group.id).policy).toEqual(policy);
+  });
+
+  it('returns a participating Host Owner Human DM without Group management and denies outsiders', async () => {
+    const f = await enabledFixture();
+    const other = await f.team.createMember(owner, 'dm-outsider', 'Outsider');
+    const dm = f.team.channelAccess.dm(owner, f.human.humanId).channel;
+    for (const actor of [owner, f.human])
+      expect(f.methods(actor).channelGet({ channelId: dm.id })).toMatchObject({
+        ok: true,
+        value: {
+          channel: {
+            id: dm.id,
+            humanParticipants: expect.arrayContaining([owner.humanId, f.human.humanId]),
+          },
+        },
+      });
+    expect(
+      f.methods(humanContext(other.member.humanId)).channelGet({ channelId: dm.id }),
+    ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
   });
 });

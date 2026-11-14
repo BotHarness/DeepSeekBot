@@ -19,7 +19,10 @@ export function memberPolicy(team: TeamService): RemoteAccessPolicy<MemberPrinci
           return { kind: 'deny', reason: 'password-change-required' };
         if (channelMethods.has(method) && request.args !== undefined) {
           const id = request.args['channelId'];
-          if (typeof id !== 'string' || !team.belongs(humanContext(principal.humanId), id))
+          if (
+            typeof id !== 'string' ||
+            !team.channelAccess.canRead(humanContext(principal.humanId), id)
+          )
             return { kind: 'deny', reason: 'channel-not-found' };
         }
         return { kind: 'allow' };
