@@ -3,7 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
-import { FieldStack, TextField } from './ds/field.js';
+import { Field, FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
@@ -245,39 +245,45 @@ function SpaceDialog({
           maxLength={60}
           initialFocus
         />
-        <Select
-          label={t('team.spaces.audience')}
-          value={audience.kind}
-          disabled={busy}
-          options={[
-            { value: 'everyone', label: t('team.spaces.audienceEveryone') },
-            { value: 'roles', label: t('team.spaces.audienceRoles') },
-            { value: 'members', label: t('team.spaces.audienceMembers') },
-          ]}
-          onChange={(kind) =>
-            setAudience(
-              kind === 'roles'
-                ? { kind: 'roles', roleIds: [] }
-                : kind === 'members'
-                  ? { kind: 'members', humanIds: [] }
-                  : { kind: 'everyone' },
-            )
-          }
-        />
-        {options.length === 0 ? null : (
-          <div {...stylex.props(styles.checks)}>
-            {options.map((option) => (
-              <div key={option.id} data-space-audience={option.id}>
-                <Checkbox
-                  label={option.label}
-                  checked={chosen.includes(option.id)}
-                  disabled={busy}
-                  onChange={(checked) => toggle(option.id, checked)}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <Field label={t('team.spaces.audience')} group>
+          {() => (
+            <>
+              <Select
+                label={t('team.spaces.audience')}
+                value={audience.kind}
+                disabled={busy}
+                options={[
+                  { value: 'everyone', label: t('team.spaces.audienceEveryone') },
+                  { value: 'roles', label: t('team.spaces.audienceRoles') },
+                  { value: 'members', label: t('team.spaces.audienceMembers') },
+                ]}
+                onChange={(kind) =>
+                  setAudience(
+                    kind === 'roles'
+                      ? { kind: 'roles', roleIds: [] }
+                      : kind === 'members'
+                        ? { kind: 'members', humanIds: [] }
+                        : { kind: 'everyone' },
+                  )
+                }
+              />
+              {options.length === 0 ? null : (
+                <div {...stylex.props(styles.checks)}>
+                  {options.map((option) => (
+                    <div key={option.id} data-space-audience={option.id}>
+                      <Checkbox
+                        label={option.label}
+                        checked={chosen.includes(option.id)}
+                        disabled={busy}
+                        onChange={(checked) => toggle(option.id, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </Field>
       </FieldStack>
     </FormDialog>
   );
