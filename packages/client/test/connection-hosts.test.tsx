@@ -8,6 +8,7 @@ import { ConnectionHosts, HostDetails } from '../src/client/connection-hosts.js'
 import {
   createRemoteHosts,
   REMOTE_HOSTS_STORAGE_KEY,
+  type HostStorage,
   type RemoteHosts,
 } from '../src/client/remote-hosts.js';
 import { zhTranslate as t } from '../src/client/locale.js';
@@ -52,6 +53,7 @@ let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 let api: ReturnType<typeof vi.fn<HostClient['api']>>;
 let values: Map<string, string>;
+let storage: HostStorage;
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const fake = new FakeHost();
@@ -70,18 +72,19 @@ beforeEach(() => {
     },
   ]);
   values = new Map([[REMOTE_HOSTS_STORAGE_KEY, stored]]);
+  storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+    removeItem: (key) => {
+      values.delete(key);
+    },
+  };
   sources = createRemoteHosts({
     connectionOperationLock: async (_name, run) => run(),
     carrier: fake.carrier,
-    storage: {
-      getItem: (key) => values.get(key) ?? null,
-      setItem: (key, value) => {
-        values.set(key, value);
-      },
-      removeItem: (key) => {
-        values.delete(key);
-      },
-    },
+    storage,
   });
   api = vi.fn<HostClient['api']>(async () => ({
     status: 200,
@@ -120,6 +123,14 @@ const open = async () => {
   await act(async () =>
     host.querySelector<HTMLButtonElement>('[data-connection-host="target"]')!.click(),
   );
+};
+const notifyStoredHosts = () => {
+  const event = new Event('storage');
+  Object.defineProperties(event, {
+    storageArea: { value: storage },
+    key: { value: REMOTE_HOSTS_STORAGE_KEY },
+  });
+  globalThis.dispatchEvent(event);
 };
 
 it('keeps local removal separate from target device revocation and confirms the target', async () => {
@@ -215,3 +226,77 @@ it('keeps new-grant management disabled until the previous result is checked', a
   expect(revoke.disabled).toBe(true);
   expect(readback.disabled).toBe(false);
 });
+
+it.each(['prepared', 'preparing'])(
+  'discards a %s confirmation when the same pinned Host receives a new Client grant',
+  async (phase) => {
+    await open();
+    let finishPlan: (() => void) | undefined;
+    if (phase === 'preparing') {
+      const pending = new Promise<void>((resolve) => {
+        finishPlan = resolve;
+      });
+      api.mockImplementationOnce(async () => {
+        await pending;
+        return {
+          status: 200,
+          body: {
+            host: { id: 'target', name: 'Studio' },
+            devices: [],
+            lan: { state: 'listening' },
+          },
+        };
+      });
+    }
+    await click(t('connections.hosts.stop'));
+    if (phase === 'prepared') expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    const previousApi = api;
+    const previousSources = sources;
+    const previousClient = sources.client('target');
+    if (phase === 'prepared') {
+      await act(async () => notifyStoredHosts());
+      expect(sources.client('target')).toBe(previousClient);
+      expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    }
+    const previousHost = sources.getSnapshot().hosts[0]!.host;
+    const fake = new FakeHost();
+    values.set(
+      REMOTE_HOSTS_STORAGE_KEY,
+      JSON.stringify([{ ...previousHost, deviceId: 'new-browser', credential: fake.credential }]),
+    );
+    const replacementApi = vi.fn<HostClient['api']>(async () => ({
+      status: 200,
+      body: {
+        host: { id: 'target', name: 'Studio' },
+        devices: [{ id: 'phone', name: 'Test phone' }],
+        lan: { state: 'listening' },
+      },
+    }));
+    await act(async () => {
+      notifyStoredHosts();
+      const client = sources.client('target')!;
+      expect(sources).toBe(previousSources);
+      expect(client).not.toBe(previousClient);
+      const snapshot = client.getSnapshot();
+      vi.spyOn(client, 'api').mockImplementation(replacementApi);
+      vi.spyOn(client, 'getSnapshot').mockImplementation(() => ({
+        ...snapshot,
+        connection: { status: 'connected', route: 'http://127.0.0.1:47001' },
+      }));
+      sources.setPendingConnection('target', client, undefined);
+    });
+    await act(async () => finishPlan?.());
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(previousApi.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
+    expect(replacementApi.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(
+      true,
+    );
+    await click(t('connections.hosts.stop'));
+    await click(t('connections.hosts.stop'));
+    expect(replacementApi).toHaveBeenCalledWith(
+      '/api/botharness/devices/lan',
+      expect.objectContaining({ body: { action: 'disable', confirm: true } }),
+    );
+    expect(previousApi.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
+  },
+);

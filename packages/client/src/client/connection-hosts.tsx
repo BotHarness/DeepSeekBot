@@ -1,6 +1,7 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
+import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { remoteHosts, type RemoteHost } from './remote-hosts.js';
 import {
@@ -34,6 +35,24 @@ function routeLabel(route: string, t: BotHarnessTranslate) {
 }
 
 export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTranslate }) {
+  const client = remoteHosts().client(remote.host.hostId);
+  const [owner, setOwner] = useState({ client, generation: 0 });
+  if (owner.client !== client) {
+    setOwner({ client, generation: owner.generation + 1 });
+    return null;
+  }
+  return <HostDetailsSession key={owner.generation} remote={remote} client={client} t={t} />;
+}
+
+function HostDetailsSession({
+  remote,
+  client,
+  t,
+}: {
+  remote: RemoteHost;
+  client: HostClient | undefined;
+  t: BotHarnessTranslate;
+}) {
   const name = shownHostName(useHostLook(remote.host.hostId), remote.host.hostName);
   const [managed, setManaged] = useState<ManagedHost>();
   const [failed, setFailed] = useState(false);
@@ -52,8 +71,10 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
   const live = useRef(false);
   const abort = useRef<AbortController>();
   const source = remoteHosts();
-  const run = (input: Record<string, unknown>) =>
-    manageConnections(
+  const run = async (input: Record<string, unknown>) => {
+    if (!client || source.client(remote.host.hostId) !== client)
+      throw new Error('connection-host-changed');
+    return manageConnections(
       source,
       { ...input, hostId: remote.host.hostId },
       {
@@ -61,6 +82,7 @@ export function HostDetails({ remote, t }: { remote: RemoteHost; t: BotHarnessTr
         signal: abort.current?.signal ?? AbortSignal.abort(),
       },
     );
+  };
   const load = async () => {
     setFailed(false);
     try {
