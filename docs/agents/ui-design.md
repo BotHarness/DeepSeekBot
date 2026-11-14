@@ -13,7 +13,7 @@ These apply to every implementation, not only one feature.
 1. **Common actions within easy reach.** Design from how people use the product: the frequent action is the most visible one. Buttons, cards and lists read clearly; separate areas with background colour and spacing rather than borders.
 2. **Layout tells the story.** Use arrangement and icons to show what a feature does instead of long descriptions. When an explanation is genuinely needed, put it behind an info icon button as a tooltip or popover shown on hover or click.
 3. **Shortest natural path.** The flow follows what people are trying to do, so the common 80% of tasks take the fewest steps.
-4. **Never leave people lost.** Every empty state guides to the next useful action. Split a hard configuration into a stepper so each step asks for one decision.
+4. **Never leave people lost.** Every empty state guides to the next useful action. Split a hard configuration with sequential decisions into a stepper; keep related decisions together on one step.
 5. **Help is one click away.** Link to the relevant documentation, or offer a one-click copyable prompt that people can ask a Bot directly.
 
 ## Design rules
