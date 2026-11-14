@@ -750,10 +750,16 @@ export function createConnectAccount(options: {
                 signal: controller.signal,
               });
               if (response.status !== 200)
-                throw new Refused('host-refused', `connect:http-${response.status}`, {
-                  phase: 'pairing-offer',
-                  status: response.status,
-                });
+                throw new Refused(
+                  response.status >= 500 || response.status === 408 || response.status === 429
+                    ? 'unreachable'
+                    : 'host-refused',
+                  `connect:http-${response.status}`,
+                  {
+                    phase: 'pairing-offer',
+                    status: response.status,
+                  },
+                );
               if (response.url && response.url !== url)
                 throw new Refused('host-refused', 'connect:invalid-response', {
                   phase: 'pairing-offer',

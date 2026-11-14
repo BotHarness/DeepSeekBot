@@ -256,16 +256,19 @@ describe('phone Connect account', () => {
     });
   });
 
-  it('reports a failed phone-to-Host request as a Host failure', async () => {
-    const relay = fakeRelay({ direct: true, hostStatus: 530 });
-    await relay.account.signIn();
-    expect(await relay.account.offer('hstudio', 'iPhone')).toMatchObject({
-      ok: false,
-      code: 'host-refused',
-      detail: 'connect:http-530',
-      diagnostic: { phase: 'pairing-offer', status: 530 },
-    });
-  });
+  it.each([408, 429, 500, 502, 503, 530])(
+    'reports a temporary phone-to-Host HTTP %i failure as unreachable',
+    async (status) => {
+      const relay = fakeRelay({ direct: true, hostStatus: status });
+      await relay.account.signIn();
+      expect(await relay.account.offer('hstudio', 'iPhone')).toMatchObject({
+        ok: false,
+        code: 'unreachable',
+        detail: `connect:http-${status}`,
+        diagnostic: { phase: 'pairing-offer', status },
+      });
+    },
+  );
 
   it.each([{ redirected: true }, { badIdentity: true }, { malformed: true }])(
     'refuses a redirected or malformed Host identity: %j',
