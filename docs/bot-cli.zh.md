@@ -11,9 +11,13 @@
 
 ### 电脑双向关系
 
+`relationships cancel <关系ID> --confirm` 仅在所属 Host 仍将关系视为待批准时取消提议。同步回复丢失但关系已激活时，返回 `relationship-already-active`，保留已批准关系及授权。浏览器取消登记时使用相同条件；清理回复不可用时不改为无条件重试。
+
 私有隧道的浏览器 Client 复用原有线路准入与固定身份的 Noise 通道。浏览器通过 WebSocket 子协议传递准入，入口消费该信息后只转发固定的公开协议标记，token 不进入 URL。Docker 私有中继需要升级到匹配的服务端版本才能支持浏览器；本功能不会部署或更新运行中的中继。旧服务端拒绝该浏览器握手，原生与 CLI 的请求头通路保持原样。
 
 使用 `route --device-file` 时，已认证的 Host 先验证新链接，CLI 再原子替换该 Client 的私密文件。新线路不含手动选定的线路时，返回 `relationship-route-preference-unavailable`，保留原文件。命令不输出设备凭据、密钥或线路准入信息。
+
+Client 线路偏好检查或文件替换失败时，Host 线路可能已经更新。重试前先运行 `relationships list` 并检查私密 Client 文件；Client 文件失败不会回滚 Host。
 
 私有 relay/隧道 admission 保存在 Host 既有受保护凭据 owner 中，`list`、发起结果及 CLI 登记输出不打印 token。固定身份的加密控制交换与当前 Client 的已认证 ticket 将其交给既有 Noise 配对路径。等待对端确认撤销时保留线路引用；确认后仅删除该关系引用。私密存储失败返回 `relationship-route-secret-unavailable`。Tailscale HTTPS 登记同样走固定 Noise，后续 Feed 沿用既有 Host client 线路策略。
 
@@ -927,6 +931,7 @@ DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 
 ### 加密局域网手机连接
 
 无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。等待批准时，配对进程向标准错误输出一条 `device-key-confirmation-required` JSON 状态，只包含本端公钥指纹。在另一个 CLI 进程将其与 `devices.pendingKeys[].fingerprint` 完整逐位比较，再用 `device-approve-key` 批准该条目的准确公钥；不得只按设备名或列表位置批准。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。
+`device-account-pair --account-file <私有账号会话.json> --host-id <Connect注册ID> --out <新私有配对.json> --confirm` 复用手机的账号授权、客户端 HTTPS 身份读取和加密配对，无需指纹确认。会话文件是 Connect 会话的私有副本（`clientId`、`subject`、`refreshToken`、可选 `sessionId`），刷新只更新该文件；不要与运行中的客户端共用，token 不得放在参数中。默认使用官方 Relay，`DEEPSEEKBOT_CONNECT_RELAY` 可指定隔离测试服务。服务端观察到的离线状态不会阻止尝试；随后用 `device-probe` 验证真实 Host Feed 读取。
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 
@@ -1947,4 +1952,37 @@ deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
-`members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+`members reset-password <username> --initial-password-file <path>` 需要 `members.manage`，且调用者的权限覆盖目标角色的全部权限；Admin 目标仅限 Owner。用于恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+
+```sh
+deepseekbot --as bob members change-password --password-stdin --sign-out-others=false < password-change.json
+deepseekbot members deactivate bob
+deepseekbot members reactivate bob
+deepseekbot members transfer bob --preview
+deepseekbot members transfer bob --to alice
+deepseekbot members purge bob --preview
+deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
+```
+
+改密默认注销其他所有浏览器和配对设备；`false` 保留其他设备，首次强制改密除外。生命周期操作需要 `members.manage` 并遵循目标角色的权限上限；不能操作 Owner 或自己，Admin 目标仅限 Owner。停用保留数据并撤销全部授权，重新激活后需要重新登录。移交会把群 Channel 所有权以及该成员的私有 Bot（连同其 Memory 和私信记录）交给活跃成员或 Owner；预览会先列出两者。成员的 Tob 在永久删除前仍归其本人。永久删除要求先停用并完成移交，再使用预览返回的五分钟内有效、一次性令牌。用户名参数提供精确的用户名确认，stdin 仅提供令牌。共享消息保留 `author.humanId`，增加 `author.deleted: true` 并移除显示名。`team-mode status` 返回 `activeMembers`，`team-mode off` 另返回 `suspendedMembers`；关闭再开启不会激活原本已停用的账户。永久删除还会移除该成员的 Tob 以及仍归其所有的私有 Bot 和对应 Memory；有其他人参与过的私信会保留。
+
+### Tobs Connect 本机公网自检
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` 与连接对话框中的
+“重新检查”使用同一个 Host owner。登录完成及连接组件启动或恢复后会自动检查账号、连接组件、
+服务端报告的在线状态，然后通过公网设备通道进行正常 TLS 校验及绑定本机身份的全新 Noise 握手。
+检查不会创建配对设备或权限。
+
+返回的 `health` 也包含在 `connect-status` 中，状态为 `idle`、`checking`、`passed`、`failed` 或
+`stale`。完成后提供 `checkedAt`、`elapsedMs`；失败提供 `stage` 和有界错误码，
+例如 `dns`、`tls`、`http`、`timeout`、`handshake`、`identity`、`relay-offline` 或
+`connector-unavailable`，HTTP 拒绝只附带数字状态码。界面可复制这些字段，不含账号、地址、
+token 或原始响应。
+
+并发请求合用一次检查，整体上限 20 秒，公网握手上限 8 秒。成功结果五分钟后过期；打开或刷新
+对话框不会在后台持续探测。通过只证明这台电脑在检查时可经公网连回自己，不保证所有手机网络
+都可达；手机仍连不上时需结合手机诊断。账号或连接发生变化时，旧成功结果失效。
+
+Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。公网 WebSocket 在验证 Host 身份前将握手消息限制为 1 KiB，并禁用压缩。
+
+公网阶段仅对 DNS、网络、超时及 HTTP 429/5xx 短暂失败重试：最多四次，间隔 1/3/6 秒，仍受同一个 20 秒总时限约束。证书或身份失败不重试。每次自检完成后，界面刷新一次账号电脑列表。

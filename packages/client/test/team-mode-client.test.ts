@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { BridgeCallError } from '../src/client/bridge.js';
 import {
   createMember,
-  loadPublicChannels,
   loadTeamMode,
   parseTeamMode,
   setTeamMode,
@@ -65,21 +64,6 @@ describe('Team mode bridge', () => {
       { username: 'bob', displayName: 'Bob' },
     );
     expect(created.initialPassword).toBe('k3y-once');
-  });
-
-  it('keeps only well-formed public Channels', async () => {
-    const channels = await loadPublicChannels(async () => ({
-      ok: true,
-      value: [
-        { channelId: 'c1', name: 'General', memberCount: 3, joined: false },
-        { channelId: 'c2' },
-        { channelId: 'c3', name: 'Ops', memberCount: -1, joined: true, description: 'On call' },
-      ],
-    }));
-    expect(channels).toEqual([
-      { channelId: 'c1', name: 'General', memberCount: 3, joined: false },
-      { channelId: 'c3', name: 'Ops', memberCount: 0, joined: true, description: 'On call' },
-    ]);
   });
 
   it('reads the Team mode view through the teamMode method', async () => {

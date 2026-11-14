@@ -904,6 +904,11 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
           }),
         }
       : {}),
+    ...(type === 'dm' &&
+    Array.isArray(record['humanParticipants']) &&
+    stringArray(record['humanParticipants']).length === 2
+      ? { humanParticipants: stringArray(record['humanParticipants']) }
+      : {}),
     createdAt: typeof createdAt === 'string' ? createdAt : '',
     updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
     ...(typeof botSlug === 'string' ? { botSlug } : {}),
@@ -938,6 +943,7 @@ function parseAuthor(value: unknown): ChannelAuthor | undefined {
         kind: 'human',
         ...(typeof humanId === 'string' && humanId.length > 0 ? { humanId } : {}),
         ...(typeof displayName === 'string' && displayName.length > 0 ? { displayName } : {}),
+        ...(record['deleted'] === true ? { deleted: true } : {}),
       };
     }
     case 'system':
