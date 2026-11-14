@@ -170,7 +170,11 @@ export function mountTeamGateway(
           } catch (error) {
             const failure =
               error instanceof TeamError
-                ? { code: error.code, message: error.code }
+                ? {
+                    code: error.code,
+                    message: error.code,
+                    ...(error.details ? { details: error.details } : {}),
+                  }
                 : gateway.wireStream.failure(error);
             return Response.json({ ok: false, error: failure });
           }

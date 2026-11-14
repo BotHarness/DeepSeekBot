@@ -7,7 +7,6 @@ import { viewerCarrierScript } from '@deepseek-ai/dsh-experimental-liveshare-pro
 import { z } from 'zod';
 import { renderTeamSignInPage } from '../../../client/src/shared/team-sign-in-page.js';
 import { isConnectRequest } from '../devices/route-context.js';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { TeamError, type TeamService } from './service.js';
 
 export const TEAM_PATH = '/botharness-device/team';
@@ -63,7 +62,7 @@ export function passwordTransportAllowed(
     (!proxy && (ip === '::1' || (isIPv4(address ?? '') && address?.startsWith('127.')))) ||
     options.tls() ||
     isConnectRequest(request) ||
-    options.team.mode(OWNER_HUMAN_CONTEXT).insecureHttpAllowed
+    options.team.mode(options.team.ownerContext()).insecureHttpAllowed
   );
 }
 function token(request: IncomingMessage): string | undefined {

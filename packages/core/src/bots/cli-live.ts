@@ -1008,7 +1008,11 @@ export async function runLiveCli(
       DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
   )
     throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
-  if (TEAM_COMMANDS.some((entry) => entry.command === command) || command === 'channels') {
+  if (
+    TEAM_COMMANDS.some((entry) => entry.command === command) ||
+    command === 'channels' ||
+    (command === 'devices' && values.member !== undefined)
+  ) {
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
     return runTeamCommand(command, rest, values, io, host.rpc);
   }

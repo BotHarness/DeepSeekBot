@@ -334,7 +334,7 @@ export function resolveInvocationHuman(
   connection: unknown,
   team?: TeamService,
 ): HumanContext | undefined {
-  if (isAuthenticatedOwner(peer, connection)) return OWNER_HUMAN_CONTEXT;
+  if (isAuthenticatedOwner(peer, connection)) return team?.ownerContext() ?? OWNER_HUMAN_CONTEXT;
   if (peer !== null && typeof peer === 'object' && 'principal' in peer) {
     const principal = peer.principal;
     if (
@@ -373,7 +373,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
         this.team.assertCall(invocation.peer.principal, invocation.request?.method ?? '');
       } catch (error) {
         if (error instanceof TeamError)
-          throw toRemoteError({ code: error.code, message: error.code });
+          throw toRemoteError({
+            code: error.code,
+            message: error.code,
+            ...(error.details ? { details: error.details } : {}),
+          });
         throw error;
       }
     }
@@ -412,8 +416,41 @@ export class BotharnessBridgeService extends TypertRemoteService {
   members() {
     return unwrapAsync(this.methods.members({}));
   }
-  memberCreate(username: string, displayName: string) {
-    return unwrapAsync(this.methods.memberCreate({ username, displayName }));
+  memberCreate(username: string, displayName: string, roleIds?: string[]) {
+    return unwrapAsync(this.methods.memberCreate({ username, displayName, roleIds }));
+  }
+  permissionCatalog() {
+    return unwrapAsync(this.methods.permissionCatalog({}));
+  }
+  roles() {
+    return unwrapAsync(this.methods.roles({}));
+  }
+  roleCreate(name: string, permissions: string[]) {
+    return unwrapAsync(this.methods.roleCreate({ name, permissions }));
+  }
+  roleUpdate(roleId: string, name?: string, permissions?: string[]) {
+    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions }));
+  }
+  roleDelete(roleId: string) {
+    return unwrapAsync(this.methods.roleDelete({ roleId }));
+  }
+  memberRolesSet(humanId: string, roleIds: string[]) {
+    return unwrapAsync(this.methods.memberRolesSet({ humanId, roleIds }));
+  }
+  memberDevices(humanId: string) {
+    const principal = this.ctx.invocation?.peer.principal;
+    return unwrapAsync(
+      this.methods.memberDevices(
+        { humanId },
+        principal?.kind === 'botharness-member' ? principal.grantId : undefined,
+      ),
+    );
+  }
+  memberDeviceRevoke(humanId: string, grantId: string) {
+    return unwrapAsync(this.methods.memberDeviceRevoke({ humanId, grantId }));
+  }
+  ownerTransfer(humanId: string, password: string) {
+    return unwrapAsync(this.methods.ownerTransfer({ humanId, password }));
   }
   memberPasswordChange(current: string, next: string) {
     const principal = this.ctx.invocation?.peer.principal;
@@ -2950,6 +2987,15 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'teamInsecureHttpSet',
   'members',
   'memberCreate',
+  'permissionCatalog',
+  'roles',
+  'roleCreate',
+  'roleUpdate',
+  'roleDelete',
+  'memberRolesSet',
+  'memberDevices',
+  'memberDeviceRevoke',
+  'ownerTransfer',
   'memberPasswordChange',
   'memberPasswordReset',
   'publicChannels',
