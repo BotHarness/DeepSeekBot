@@ -149,9 +149,10 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
     try {
       const next = await loadTeamMode(call, signal);
       const admin = canManage(next.viewer, MANAGE_MEMBERS) || canManage(next.viewer, MANAGE_ROLES);
+      const canMembers = canManage(next.viewer, MANAGE_MEMBERS);
       const [list, roleList, permissions] = admin
         ? await Promise.all([
-            loadMembers(call, signal),
+            canMembers ? loadMembers(call, signal) : Promise.resolve([]),
             loadRoles(call, signal).catch(() => []),
             loadPermissionCatalog(call, signal).catch(() => []),
           ])
@@ -277,6 +278,25 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             onChanged={() => void refresh()}
           />
         )}
+        {dialog?.kind === 'add-member' ? (
+          <AddMemberDialog
+            t={t}
+            onCancel={() => setDialog(undefined)}
+            onCreate={async (input) => {
+              const created = await createMember(call, input);
+              setDialog({ kind: 'created', created });
+              await refresh();
+            }}
+          />
+        ) : null}
+        {dialog?.kind === 'created' ? (
+          <InitialPasswordDialog
+            t={t}
+            created={dialog.created}
+            urls={view.memberUrls}
+            onDone={() => setDialog(undefined)}
+          />
+        ) : null}
       </>
     ) : null;
 
@@ -457,25 +477,6 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
           }}
         />
       ) : null}
-      {dialog?.kind === 'add-member' ? (
-        <AddMemberDialog
-          t={t}
-          onCancel={() => setDialog(undefined)}
-          onCreate={async (input) => {
-            const created = await createMember(call, input);
-            setDialog({ kind: 'created', created });
-            await refresh();
-          }}
-        />
-      ) : null}
-      {dialog?.kind === 'created' ? (
-        <InitialPasswordDialog
-          t={t}
-          created={dialog.created}
-          urls={view.memberUrls}
-          onDone={() => setDialog(undefined)}
-        />
-      ) : null}
     </SettingsRows>
   );
 }
@@ -486,19 +487,21 @@ function memberMeta(
   roles: readonly TeamRole[] = [],
 ): string {
   const parts = [`@${member.username}`];
-  if (member.owner) parts.push(t('team.members.owner'));
-  else
-    for (const role of roles)
-      if (member.roleIds.includes(role.roleId))
-        parts.push(
-          role.builtin === 'admin'
-            ? t('team.role.admin')
-            : role.builtin === 'member'
-              ? t('team.role.member')
-              : role.name,
-        );
-      else if (member.status === 'suspended') parts.push(t('team.members.suspended'));
-      else if (member.mustChangePassword) parts.push(t('team.members.pendingPassword'));
+  if (member.owner) {
+    parts.push(t('team.members.owner'));
+    return parts.join(' · ');
+  }
+  for (const role of roles)
+    if (member.roleIds.includes(role.roleId))
+      parts.push(
+        role.builtin === 'admin'
+          ? t('team.role.admin')
+          : role.builtin === 'member'
+            ? t('team.role.member')
+            : role.name,
+      );
+  if (member.status === 'suspended') parts.push(t('team.members.suspended'));
+  else if (member.mustChangePassword) parts.push(t('team.members.pendingPassword'));
   return parts.join(' · ');
 }
 

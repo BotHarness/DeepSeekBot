@@ -203,6 +203,7 @@ function RoleDialog({
         confirmLabel={t('common.delete')}
         danger
         busy={busy}
+        error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => run(() => deleteRole(call, role.roleId))}
       />
@@ -478,7 +479,7 @@ export function DeviceList({
           })}
         </div>
       )}
-      {error === undefined ? null : <Note tone="danger">{error}</Note>}
+      {error === undefined || revoking !== undefined ? null : <Note tone="danger">{error}</Note>}
       {revoking === undefined ? null : (
         <ConfirmDialog
           title={t('team.devices.revokeTitle')}
@@ -489,6 +490,7 @@ export function DeviceList({
           confirmLabel={t('team.devices.revoke')}
           danger
           busy={busy}
+          error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}
           onCancel={() => setRevoking(undefined)}
           onConfirm={() => {
             setBusy(true);
