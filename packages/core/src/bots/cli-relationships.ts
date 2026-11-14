@@ -126,9 +126,8 @@ export async function runRelationshipCommand(
   }
   if (action === 'initiate') return request({ action, link, confirmedKey: id, confirm: true });
   if (action === 'route') {
-    const result = await request({ action, id, link });
     const deviceFile = values['device-file'];
-    if (!deviceFile) return result;
+    if (!deviceFile) return request({ action, id, link });
     let saved: ReturnType<typeof parseSavedHost>;
     try {
       saved = parseSavedHost(JSON.parse(readFileSync(deviceFile, 'utf8')));
@@ -139,6 +138,7 @@ export async function runRelationshipCommand(
     const parsed = parsePairingLink(link!);
     if (!parsed.ok)
       throw new CliLiveError('relationship-link-invalid', 'The new connection link is invalid.');
+    const result = await request({ action, id, link });
     const { relationship } = relationshipReplySchema.parse(result);
     const privateRelay = parsed.payload.encryption?.privateRelay;
     const updated = updateRelationshipClientRoute({

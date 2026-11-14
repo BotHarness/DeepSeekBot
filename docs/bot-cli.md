@@ -17,6 +17,8 @@ Private tunnels also support the browser Client through the same existing route 
 
 With `route --device-file`, the authenticated Host verifies the new link before the CLI atomically replaces that private Client file. A manual route preference omitted by the new routes returns `relationship-route-preference-unavailable` and leaves the file intact. The command never prints the device credential, key or route admission.
 
+The Host route may already be updated when a Client preference check or file replacement fails. Read back `relationships list` and inspect the private Client file before retrying; a Client-file failure does not roll back the Host.
+
 Private relay/tunnel admissions stay in the Host's protected credential owner; `list`, initiation results and CLI enrollment output never print those tokens. Pinned control exchange and the enrolling Client's authenticated ticket carry them to the existing Noise path. Pending peer revocation retains its route reference; acknowledged disconnection removes only that relationship reference. Secret storage failure is coded `relationship-route-secret-unavailable`. Tailscale HTTPS enrollment also uses pinned Noise; its subsequent Feed follows the existing Host client route policy.
 
 `relationships` uses the authenticated local Host and the same approval owner as Connections. Each CLI enrollment creates its own device grant; no remote credential is shared through the local Host.
