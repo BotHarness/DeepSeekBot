@@ -49,6 +49,7 @@ const styles = stylex.create({
   devices: { display: 'flex', flexDirection: 'column', minWidth: 0 },
   danger: { color: color.danger },
   fieldset: { borderWidth: 0, padding: 0, margin: 0, minWidth: 0 },
+  sheet: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
 });
 
 const GROUP_ORDER: readonly PermissionGroup[] = [
@@ -381,7 +382,7 @@ export function MemberSheet({
           }
         : {})}
     >
-      <div ref={mount} {...stylex.props(styles.group)}>
+      <div ref={mount} {...stylex.props(styles.sheet)}>
         {member.owner ? (
           <Note>{t('team.owner.noRoles')}</Note>
         ) : (
@@ -511,7 +512,8 @@ function deviceName(t: BotHarnessTranslate, device: MemberDevice): string {
 function shortTime(iso: string): string {
   const at = Date.parse(iso);
   if (!Number.isFinite(at)) return '';
-  return new Date(at).toLocaleString(undefined, {
+  const language = typeof document === 'undefined' ? undefined : document.documentElement.lang;
+  return new Date(at).toLocaleString(language || undefined, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
