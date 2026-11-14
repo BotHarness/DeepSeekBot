@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -133,9 +134,15 @@ describe('Trusted Channel attachment file Tools', () => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bob', displayName: 'Bob' });
       grantId = (await core.grants.create('ada', 'project')).id;
-      sourceId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
-      joinedId = core.channels.createGroup({ name: 'Joined', members: ['ada'] }).id;
-      hiddenId = core.channels.createGroup({ name: 'Hidden', members: ['bob'] }).id;
+      sourceId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
+      joinedId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Joined',
+        members: ['ada'],
+      }).id;
+      hiddenId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Hidden',
+        members: ['bob'],
+      }).id;
       original = await core.attachments.upload({
         data: (async function* () {
           yield Buffer.from('source bytes');
@@ -149,7 +156,7 @@ describe('Trusted Channel attachment file Tools', () => {
         name: 'other.zip',
       });
       for (const channelId of [sourceId, joinedId, hiddenId]) {
-        await core.channels.appendMessage(channelId, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
           id: 'source',
           at: new Date().toISOString(),
           author: { kind: 'human' },
@@ -158,7 +165,7 @@ describe('Trusted Channel attachment file Tools', () => {
         });
       }
       expect(
-        core.runtime.admitDmMessage({
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: sourceId,
           messageId: 'source',
           body: 'Process file',

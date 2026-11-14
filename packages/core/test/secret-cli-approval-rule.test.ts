@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { rmSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -57,7 +58,7 @@ function broker(rules: ToolApprovalRuleStore) {
   const channels = {
     get: vi.fn((id: string) => (id === channelId ? channel : undefined)),
     getOrCreateDm: vi.fn(() => channel),
-    appendMessage: vi.fn(async (id: string, message: ChannelMessage) => {
+    appendMessage: vi.fn(async (_human: unknown, id: string, message: ChannelMessage) => {
       if (id !== channelId) return undefined;
       messages.push(message);
       return message;
@@ -235,8 +236,12 @@ describe('secret_cli approval card', () => {
         toolName: 'secret_cli',
         externalDecision: 'operation',
       });
-      expect(await state.approval.decide(botSlug, card.id, 'allowed-always-all')).toBe(false);
-      expect(await state.approval.decide(botSlug, card.id, 'allowed-always-exact')).toBe(true);
+      expect(
+        await state.approval.decide(OWNER_HUMAN_CONTEXT, botSlug, card.id, 'allowed-always-all'),
+      ).toBe(false);
+      expect(
+        await state.approval.decide(OWNER_HUMAN_CONTEXT, botSlug, card.id, 'allowed-always-exact'),
+      ).toBe(true);
       expect(await first.answer).toBe('allowed-once');
       const [rule] = rules.list(botSlug);
       expect(rule).toMatchObject({
@@ -253,15 +258,27 @@ describe('secret_cli approval card', () => {
 
       const other = state.run(call({ account: 'github-personal' }));
       await vi.waitFor(() => expect(state.messages).toHaveLength(3));
-      expect(await state.approval.decide(botSlug, state.messages[2]!.id, 'rejected')).toBe(true);
+      expect(
+        await state.approval.decide(
+          OWNER_HUMAN_CONTEXT,
+          botSlug,
+          state.messages[2]!.id,
+          'rejected',
+        ),
+      ).toBe(true);
       expect(await other.answer).toBe('rejected');
 
       rules.revoke(botSlug, rule!.id);
       const again = state.run(call({ args: ['issue', 'list'] }));
       await vi.waitFor(() => expect(state.messages).toHaveLength(5));
-      expect(await state.approval.decide(botSlug, state.messages[4]!.id, 'allowed-once')).toBe(
-        true,
-      );
+      expect(
+        await state.approval.decide(
+          OWNER_HUMAN_CONTEXT,
+          botSlug,
+          state.messages[4]!.id,
+          'allowed-once',
+        ),
+      ).toBe(true);
       expect(await again.answer).toBe('allowed-once');
       state.approval.close();
     }));
@@ -286,7 +303,7 @@ describe('secret_cli approval card', () => {
       };
       const saved = vi.fn();
       expect(
-        await state.approval.decide(botSlug, card.id, 'allowed-always-exact', {
+        await state.approval.decide(OWNER_HUMAN_CONTEXT, botSlug, card.id, 'allowed-always-exact', {
           actor,
           authorized: () => true,
           rule: { kind: 'exact', scopeKey: scope!.scopeKey, authorized: () => true },

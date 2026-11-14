@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createChannelStore } from '../src/channels/store.js';
@@ -31,7 +32,7 @@ async function fixture(
   const registry = createTestRegistry({ database: owner, rootDir: join(home, 'bots') });
   registry.create({ slug: 'ada', displayName: 'Ada' });
   const channels = createChannelStore({ rootDir: join(home, 'channels') });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const first = gate();
   const ready = gate();
   const native = gate();
@@ -76,7 +77,7 @@ async function fixture(
     sessionArchived: (sessionId) => archived.has(sessionId),
     warn: (message) => warnings.push(message),
   });
-  const admission = runtime.admitDmMessage({
+  const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'human-question-origin',
     body: 'Ask one formal question',

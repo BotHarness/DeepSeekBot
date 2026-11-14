@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
@@ -35,9 +36,12 @@ describe('reply Channel in a turn that carries several Channels', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessageOnce(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'group-mention',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
@@ -50,13 +54,13 @@ describe('reply Channel in a turn that carries several Channels', () => {
       const before = await run.channels.send({ body: 'Group reply' });
       expect(core.channels.message(group.id, before.id)?.body).toBe('Group reply');
 
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'steered-dm',
         at: '2026-09-25T00:00:01.000Z',
         author: { kind: 'human' },
         body: 'Private question',
       });
-      const admission = core.runtime.admitDmMessage({
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'steered-dm',
         body: 'Private question',

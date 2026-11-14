@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createHash } from 'node:crypto';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import type { ChannelStore } from '../channels/store.js';
@@ -394,7 +395,7 @@ export function createQuestionMessaging(options: {
     write({ ...value, submission: 'submitting' });
     queueMicrotask(() => {
       void owner
-        ?.answer(value.botSlug, value.id, answer, {
+        ?.answer(value.botSlug, value.id, answer, OWNER_HUMAN_CONTEXT, {
           actor,
           authorized: () => !signal.aborted && authorized(value, providerId, event),
         })

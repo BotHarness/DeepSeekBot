@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -188,7 +189,7 @@ describe('Approval Template bridge methods', () => {
     return {
       registry,
       library,
-      bridge: createBridgeMethods({
+      bridge: createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry,
         approvalTemplates: library,
       } as unknown as BridgeMethodsDeps),

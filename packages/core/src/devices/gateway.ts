@@ -1,3 +1,4 @@
+import { TEAM_PATH, type TeamHttp } from '../team/http.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -82,6 +83,7 @@ export type GatewayRefusal =
   | 'not-found';
 
 export interface DeviceGatewayOptions {
+  team?: TeamHttp;
   pairing: DevicePairing;
   port: () => number;
   authenticatedUrl: (baseUrl: string) => string;
@@ -649,6 +651,10 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
   return {
     async handle(request, response) {
       const path = new URL(request.url ?? '/', 'http://device').pathname;
+      if (path === TEAM_PATH || path.startsWith(`${TEAM_PATH}/`)) {
+        if (options.team) return options.team.handle(request, response);
+        return refuse(response, 404, 'not-found');
+      }
       let decodedPath: string;
       try {
         decodedPath = new URL(`http://device${decodeURIComponent(path)}`).pathname

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -81,9 +82,12 @@ const bot = (slug: string) => ({ author: { kind: 'bot', slug } });
 describe('latest Bot activity', () => {
   it('reports each Bot’s newest visible message without scanning history', () => {
     const { channels, database, statements, seed } = fixture();
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    const group = channels.createGroup({ name: 'Group', members: ['ada', 'bea'] });
-    const gone = channels.createGroup({ name: 'Gone', members: ['bea'] });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Group',
+      members: ['ada', 'bea'],
+    });
+    const gone = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Gone', members: ['bea'] });
     seed(dm.id, 'ada-old', '2026-11-01T00:00:01.000Z', bot('ada'), 'ada');
     seed(dm.id, 'ada-dm', '2026-11-01T00:00:05.000Z', bot('ada'), 'ada');
     seed(
@@ -107,7 +111,7 @@ describe('latest Bot activity', () => {
       ).run('2026-11-01T00:01:00.000Z', gone.id);
     });
     statements.length = 0;
-    expect(Object.fromEntries(channels.latestBotActivity!())).toEqual({
+    expect(Object.fromEntries(channels.latestBotActivity!(OWNER_HUMAN_CONTEXT))).toEqual({
       ada: Date.parse('2026-11-01T00:00:05.000Z'),
       bea: Date.parse('2026-11-01T00:00:03.000Z'),
     });

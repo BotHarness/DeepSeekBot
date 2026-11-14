@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import sharp from 'sharp';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -17,7 +18,7 @@ async function upgradedHost(images: number) {
   const core = createCore({ dshHome: createTempRoot('bh-media-backfill-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const files = [];
   for (let index = 0; index < images; index += 1) {
     const bytes = await sharp({
@@ -34,7 +35,7 @@ async function upgradedHost(images: number) {
       }),
     );
   }
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'old',
     at: new Date().toISOString(),
     author: { kind: 'bot', slug: 'ada' },

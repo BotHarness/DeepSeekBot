@@ -9,6 +9,32 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 The pinned native credentials service accepts lowercase letter/digit/hyphen key segments. An opaque application ID can contain uppercase letters or underscores: hash the exact ID for its protected-record key and bind the original identity in the payload. Lowercasing the ID can merge distinct owners. Use `modifyRecord` for writes and keep route admission separate from per-device credentials. Verify protected writes and readback through the running Host, with secret-free output.
 
+### GenUI preview browser startup diagnostics (#4030)
+
+A passing plain timeline opens the Puppeteer driver, not the Host's separate GenUI
+preview browser. Record both executable versions and the runner image before
+comparing them. The preview uses system discovery by default; the core Plugin's
+`genuiPreviewBrowserPath` selects an absolute executable through the same Browser
+runtime and refuses an invalid explicit path. `dev-instance.mjs` and `verify-app.mjs`
+accept `--genui-preview-browser <absolute-executable>` and apply a Patch only to that
+isolated launch. They do not change system PATH or another Profile.
+
+Ordinary CI selects the lockfile-installed Puppeteer executable for preview too,
+so the preview no longer depends on the runner image's independently updated
+system Chrome. Its exact executable receives a temporary AppArmor profile allowing
+user namespaces; the workflow unloads it after stopping its owned Hosts. A quick
+`startup-sandbox` refusal is a separate setup error from `startup-timeout`; preserve
+Chrome sandboxing when correcting that permission. Merely setting
+`CHROME_DEVEL_SANDBOX` did not repair the controlled Ubuntu 26 runner (#4030).
+
+`genui-preview-browser-startup-timeout` means no DevTools endpoint appeared within
+the existing eight-second startup deadline, before CDP connection or document
+rendering. Inspect the retained bounded/redacted preview owner log; do not infer a
+rich-document rendering regression from an empty rich sample set. The verify
+workflow's `genui_browser_diagnostic` dispatch input runs system and controlled
+browser journeys sequentially on the same runner; both outcomes remain required.
+No budget increase, product retry or incident-root-cause fix is implied.
+
 ### DSH 0.2.2-rc.1 qualification
 
 Use [the recurring RC workflow](../../../docs/agents/dsh-upgrade.md) and
@@ -627,3 +653,8 @@ In #4024 both official rc.2 npm packages were absent while Desktop was available
 Optional Desktop zoom uses the product's packaged, hash-checked Theme via a local
 link, not an rc.2 npm Theme download. Do not change pins, weaken integrity checks,
 or treat the metadata probe as installation/runtime qualification.
+
+
+### Packaged member carrier checks (#4140)
+
+A bundled consumer can contain a second DSH Connection class. Its `instanceof` check then refuses the live Host's compatible service, leaving the member entry at `member-carrier-unavailable` while Owner RPC works. Check the required service capabilities at the boundary and invoke the Host's own `createPeer`, Gateway and resource APIs. Qualify the built package in an isolated Host; source tests sharing one constructor do not expose this failure. Keep the first refusal and verify the member's opening access snapshot, calls and streams before claiming shell readiness.

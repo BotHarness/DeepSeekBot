@@ -1,3 +1,4 @@
+import { type HumanContext } from '../humans/context.js';
 import { z } from 'zod';
 import { ATTACHMENT_FILE_ID_PATTERN, ATTACHMENT_HASH_PATTERN } from '../attachments/ref.js';
 
@@ -25,7 +26,7 @@ export const purgeFactSchema = z
       .strict()
       .optional(),
     acceptedAt: z.iso.datetime(),
-    actor: z.literal('local-human'),
+    actor: identity,
     reason: z.literal('human-request'),
     managedFiles: z
       .array(
@@ -120,17 +121,22 @@ export interface GroupDisbandResult {
 
 export interface ContentPurge {
   redactions(): PurgedPlacement[];
-  history(): ChannelHistoryItem[];
-  sources(channelId: string, before?: string): { sources: PurgeSource[]; before?: string };
-  preview(channelId: string, sourceEventIds: readonly string[]): PurgePreview;
+  history(human: HumanContext): ChannelHistoryItem[];
+  sources(
+    human: HumanContext,
+    channelId: string,
+    before?: string,
+  ): { sources: PurgeSource[]; before?: string };
+  preview(human: HumanContext, channelId: string, sourceEventIds: readonly string[]): PurgePreview;
   confirm(
+    human: HumanContext,
     channelId: string,
     sourceEventIds: readonly string[],
     token: string,
   ): { accepted: number; cleanupPending?: number };
-  textPreview(scope: TextCleanupScope): TextCleanupPreview;
-  textConfirm(scope: TextCleanupScope, token: string): TextCleanupResult;
-  disband(channelId: string): GroupDisbandResult;
+  textPreview(human: HumanContext, scope: TextCleanupScope): TextCleanupPreview;
+  textConfirm(human: HumanContext, scope: TextCleanupScope, token: string): TextCleanupResult;
+  disband(human: HumanContext, channelId: string): GroupDisbandResult;
   checkpoint(): PurgeCheckpoint;
   withCheckpoint<T>(exportSnapshot: (checkpoint: PurgeCheckpoint) => T): T;
   close(): void;

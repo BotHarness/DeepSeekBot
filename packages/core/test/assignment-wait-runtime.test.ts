@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
@@ -61,12 +62,12 @@ async function fixture(home = createTempRoot('botharness-assignment-attention-')
   if (core.registry.get('ada') === undefined)
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
   createTestWorkspaceGrants(core.operationalDatabase, home);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
   const channelId = dm.id;
-  const methods = createBridgeMethods({ ...core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   async function start(state: 'waiting-human' | 'blocked', expectsReply = true) {
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId,
       messageId: 'human-' + crypto.randomUUID(),
       body: 'Start',

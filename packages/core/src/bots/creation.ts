@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, humanContext, type HumanContext } from '../humans/context.js';
 import type { ZipEntry } from './zip-archive.js';
 import type { HttpsFallback } from '../memory/clone.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -211,7 +212,7 @@ export function createBotCreation(options: {
         httpsFallback = result.httpsFallback;
       }
       authorize?.();
-      const channel = channels.getOrCreateDm(record.slug, record.displayName);
+      const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, record.slug, record.displayName);
       if (!channel)
         throw new BotCreationError(
           'creation-dm-unavailable',
@@ -327,7 +328,11 @@ export function createBotCreation(options: {
           );
         record = created.record;
       }
-      const channel = channels.getOrCreateDm(slug, record.displayName);
+      const channel = channels.getOrCreateDm(
+        humanContext(record.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId),
+        slug,
+        record.displayName,
+      );
       if (!channel)
         throw new BotCreationError(
           'creation-dm-unavailable',
@@ -352,6 +357,45 @@ export function createBotCreation(options: {
                 channelId: channel.id,
               },
             }),
+      };
+    },
+  };
+}
+
+export function privateBotCreations(
+  service: BotCreationService,
+  human: HumanContext,
+): BotCreationService {
+  if (human.humanId === OWNER_HUMAN_CONTEXT.humanId) return service;
+  const key = (value: string): string => {
+    checkedKey(value);
+    return (
+      'member:' +
+      createHash('sha256')
+        .update(JSON.stringify([human.humanId, value]))
+        .digest('hex')
+    );
+  };
+  const inputFor = (input: BotCreationInput): BotCreationInput => ({
+    ...input,
+    ownerHumanId: human.humanId,
+  });
+  return {
+    ...service,
+    lookup(operationKey, input) {
+      const found = service.lookup(key(operationKey), inputFor(input));
+      return found === undefined ? undefined : { ...found, operationKey };
+    },
+    create(input, operationKey) {
+      const created = service.create(
+        inputFor(input),
+        operationKey === undefined ? undefined : key(operationKey),
+      );
+      return {
+        ...created,
+        ...(created.receipt && operationKey
+          ? { receipt: { ...created.receipt, operationKey } }
+          : {}),
       };
     },
   };

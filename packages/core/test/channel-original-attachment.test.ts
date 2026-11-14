@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -127,8 +128,8 @@ async function scenario(missing: boolean) {
     }),
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  channelId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
-  groupId = core.channels.createGroup({ name: 'Source', members: ['ada'] }).id;
+  channelId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
+  groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Source', members: ['ada'] }).id;
   const upload = () =>
     core.attachments.upload({
       name: 'status.txt',
@@ -140,7 +141,7 @@ async function scenario(missing: boolean) {
   independent = await upload();
   expect(original.fileId).not.toBe(independent.fileId);
   for (const target of [channelId, groupId]) {
-    await core.channels.appendMessage(target, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, target, {
       id: 'source',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -148,14 +149,14 @@ async function scenario(missing: boolean) {
       attachments: [original],
     });
   }
-  await core.channels.appendMessage(channelId, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
     id: 'shared',
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Shared reference',
     attachments: [original],
   });
-  core.runtime.admitDmMessage({
+  core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId,
     messageId: 'source',
     body: 'Explicitly edit this original',

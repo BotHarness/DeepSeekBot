@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTempRoot } from './helpers.js';
@@ -40,11 +41,11 @@ async function seeded(schemaPlan: SchemaPlan = BOT_HARNESS_SCHEMA_PLAN, members:
     memoryDirs: () => [],
     memoryReferences: () => [],
   });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const group = channels.createGroup({ name: 'Trip', members });
-  channels.setGroupAvatar(group.id, 'data:image/png;base64,iVBORw0KGgo=');
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Trip', members });
+  channels.setGroupAvatar(OWNER_HUMAN_CONTEXT, group.id, 'data:image/png;base64,iVBORw0KGgo=');
   const send = (channelId: string, id: string, body: string) =>
-    channels.appendMessage(channelId, {
+    channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
       id,
       at: '2026-10-01T00:00:00.000Z',
       author: { kind: 'human' },
@@ -81,7 +82,7 @@ const body = (core: Awaited<ReturnType<typeof seeded>>, messageId: string) =>
 describe('Group Disband (ADR-0274)', () => {
   const addReply = async (core: Awaited<ReturnType<typeof seeded>>) => {
     const parent = core.source('plan');
-    await core.channels.appendMessage(core.group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, core.group.id, {
       id: 'reply',
       at: '2026-10-01T00:00:01.000Z',
       author: { kind: 'bot', slug: 'ada' },
@@ -96,8 +97,10 @@ describe('Group Disband (ADR-0274)', () => {
     core.channels.deleteGroup(core.group.id);
     for (const message of ['plan', 'reply']) {
       const ids = [core.source(message)];
-      const preview = core.purge.preview(core.group.id, ids);
-      expect(core.purge.confirm(core.group.id, ids, preview.token)).toEqual({ accepted: 1 });
+      const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.group.id, ids);
+      expect(core.purge.confirm(OWNER_HUMAN_CONTEXT, core.group.id, ids, preview.token)).toEqual({
+        accepted: 1,
+      });
       expect(body(core, message)).toBe('');
     }
     expect(core.database.mode).toBe('ready');
@@ -119,10 +122,15 @@ describe('Group Disband (ADR-0274)', () => {
     await addReply(core);
     core.channels.deleteGroup(core.group.id);
     const parent = [core.source('plan')];
-    core.purge.confirm(core.group.id, parent, core.purge.preview(core.group.id, parent).token);
+    core.purge.confirm(
+      OWNER_HUMAN_CONTEXT,
+      core.group.id,
+      parent,
+      core.purge.preview(OWNER_HUMAN_CONTEXT, core.group.id, parent).token,
+    );
     const child = [core.source('reply')];
-    const token = core.purge.preview(core.group.id, child).token;
-    expect(() => core.purge.confirm(core.group.id, child, token)).toThrow();
+    const token = core.purge.preview(OWNER_HUMAN_CONTEXT, core.group.id, child).token;
+    expect(() => core.purge.confirm(OWNER_HUMAN_CONTEXT, core.group.id, child, token)).toThrow();
     expect(core.database.mode).toBe('recovery');
     core.database.close();
 
@@ -153,7 +161,7 @@ describe('Group Disband (ADR-0274)', () => {
     const core = await seeded();
     core.channels.deleteGroup(core.group.id);
 
-    expect(core.purge.disband(core.group.id)).toEqual({ messages: 1 });
+    expect(core.purge.disband(OWNER_HUMAN_CONTEXT, core.group.id)).toEqual({ messages: 1 });
 
     expect(body(core, 'plan')).toBe('');
     expect(body(core, 'shared')).toBe('also in the DM');
@@ -176,20 +184,20 @@ describe('Group Disband (ADR-0274)', () => {
       createdAt: core.group.createdAt,
       updatedAt: expect.any(String),
     });
-    expect(core.purge.history()).toEqual([]);
+    expect(core.purge.history(OWNER_HUMAN_CONTEXT)).toEqual([]);
     expect(core.storage.usage().chats.map((chat) => chat.channelId)).toEqual([core.dm.id]);
-    expect(core.purge.disband(core.group.id)).toEqual({ messages: 0 });
+    expect(core.purge.disband(OWNER_HUMAN_CONTEXT, core.group.id)).toEqual({ messages: 0 });
   });
 
   it('treats a shared message as only the DM message once the group is disbanded', async () => {
     const core = await seeded();
     core.channels.deleteGroup(core.group.id);
-    core.purge.disband(core.group.id);
+    core.purge.disband(OWNER_HUMAN_CONTEXT, core.group.id);
     core.port.transaction((db) =>
       db.prepare("UPDATE inbox_admissions SET attempt_state = 'handled'").run(),
     );
 
-    const preview = core.purge.textPreview({
+    const preview = core.purge.textPreview(OWNER_HUMAN_CONTEXT, {
       before: '2026-10-02T00:00:00.000Z',
       channelIds: [core.dm.id],
     });
@@ -204,14 +212,16 @@ describe('Group Disband (ADR-0274)', () => {
   it('keeps a group in Ended Channel history until its content is deleted', async () => {
     const core = await seeded();
     core.channels.deleteGroup(core.group.id);
-    expect(core.purge.history()).toMatchObject([{ id: core.group.id, name: 'Trip' }]);
-    core.purge.disband(core.group.id);
-    expect(core.purge.history()).toEqual([]);
+    expect(core.purge.history(OWNER_HUMAN_CONTEXT)).toMatchObject([
+      { id: core.group.id, name: 'Trip' },
+    ]);
+    core.purge.disband(OWNER_HUMAN_CONTEXT, core.group.id);
+    expect(core.purge.history(OWNER_HUMAN_CONTEXT)).toEqual([]);
   });
 
   it('refuses a group that is still active', async () => {
     const core = await seeded();
-    expect(() => core.purge.disband(core.group.id)).toThrow();
+    expect(() => core.purge.disband(OWNER_HUMAN_CONTEXT, core.group.id)).toThrow();
     expect(body(core, 'plan')).toBe('the secret plan');
   });
 
@@ -220,7 +230,7 @@ describe('Group Disband (ADR-0274)', () => {
     const plan = core.source('plan');
     const dmOnly = core.source('dm-only');
     core.channels.deleteGroup(core.group.id);
-    core.purge.disband(core.group.id);
+    core.purge.disband(OWNER_HUMAN_CONTEXT, core.group.id);
 
     core.port.read((db) => {
       expect(() => requireSourceEffects(db, plan, 'ada')).toThrow('purged');

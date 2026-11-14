@@ -1,6 +1,6 @@
+import { type HumanContext } from '../humans/context.js';
 import { createHash } from 'node:crypto';
 import { notChannelNoticeSql } from '../channels/channel-notice.js';
-import { LOCAL_HUMAN_ID } from '../channels/channel.js';
 import {
   readHumanAssignmentContext,
   type HumanAssignmentContext,
@@ -77,42 +77,46 @@ export interface HumanAttentionStatus {
 }
 
 export interface HumanAttentionQuery {
-  item(id: string, sourceKey?: string): HumanAttentionItem | undefined;
+  item(human: HumanContext, id: string, sourceKey?: string): HumanAttentionItem | undefined;
   assignmentContext(
     botSlug: string,
     sessionId: string,
     sourceEventId: string,
   ): HumanAssignmentContext | undefined;
-  list(input: {
-    itemId?: string;
-    includeDismissed?: boolean;
-    snoozed?: boolean;
-    dismissed?: boolean;
-    category?: HumanAttentionCategory;
-    kind?: HumanAttentionItem['kind'];
-    sort?: HumanAttentionSort;
-    search?: string;
-    unreadOnly?: boolean;
-    botSlug?: string;
-    channelId?: string;
-    cursor?: string;
-    limit?: number;
-  }): HumanAttentionPage;
-  status(messageCounts?: boolean): HumanAttentionStatus;
-  unreadByChannel(): Array<{ channelId: string; unreadCount: number }>;
+  list(
+    human: HumanContext,
+    input: {
+      itemId?: string;
+      includeDismissed?: boolean;
+      snoozed?: boolean;
+      dismissed?: boolean;
+      category?: HumanAttentionCategory;
+      kind?: HumanAttentionItem['kind'];
+      sort?: HumanAttentionSort;
+      search?: string;
+      unreadOnly?: boolean;
+      botSlug?: string;
+      channelId?: string;
+      cursor?: string;
+      limit?: number;
+    },
+  ): HumanAttentionPage;
+  status(human: HumanContext, messageCounts?: boolean): HumanAttentionStatus;
+  unreadByChannel(human: HumanContext): Array<{ channelId: string; unreadCount: number }>;
   dmReplies(
+    human: HumanContext,
     limit: number,
     before?: { createdAt: string; sourceEventId: string },
   ): HumanAttentionItem[];
-  durableAttention(): Array<{
+  durableAttention(human: HumanContext): Array<{
     botSlug: string;
     waitingHumanCount: number;
     blockedCount: number;
     workspaceGrantCount: number;
     informationalCount: number;
   }>;
-  actionCount(): number;
-  actionSummary(): { count: number; botSlugs: string[] };
+  actionCount(human: HumanContext): number;
+  actionSummary(human: HumanContext): { count: number; botSlugs: string[] };
   openTimedQuestionCards(): Array<{ channelId: string; messageId: string }>;
 }
 
@@ -141,7 +145,12 @@ interface Cursor {
   id: string;
 }
 
-const ACTION_ATTENTION_CTE = `WITH attention AS (
+const attentionBotOwner = (slug: string): string =>
+  `coalesce((SELECT b.owner_human_id FROM persona_bots b WHERE b.slug = ${slug}), 'local-human') = $humanId`;
+const attentionDmOwner = (channel: string): string =>
+  attentionBotOwner(`json_extract(${channel}.record_json, '$.botSlug')`);
+
+const ACTION_ATTENTION_CTE = `WITH all_attention AS (
           SELECT 'pairing:' || pairing.id AS id,
                  'action' AS category, 'pairing-request' AS kind,
                  json_extract(pairing.body, '$.createdAt') AS created_at,
@@ -154,7 +163,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                  pairing.id AS request_id, NULL AS message_id, NULL AS assignment_session_id,
                  NULL AS source_event_id
             FROM messaging_pairings pairing
-           WHERE pairing.status = 'pending'
+           WHERE pairing.status = 'pending' AND $humanId IS NOT NULL
              AND json_extract(pairing.body, '$.expiresAt') > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
           UNION ALL
           SELECT 'join:' || json_extract(j.value, '$.id') AS id,
@@ -180,7 +189,8 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
             JOIN channel_placements p ON p.source_event_id = e.source_event_id
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
-               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') IS NOT NULL))
+               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
+             AND ${attentionDmOwner('c')}))
              AND json_extract(c.record_json, '$.deletedAt') IS NULL
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.userQuestionRequest') IS NOT NULL
@@ -202,7 +212,8 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
             JOIN channel_placements p ON p.source_event_id = e.source_event_id
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
-               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') IS NOT NULL))
+               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
+             AND ${attentionDmOwner('c')}))
              AND json_extract(c.record_json, '$.deletedAt') IS NULL
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.toolApprovalRequest') IS NOT NULL
@@ -368,9 +379,15 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                  AND latest.source_kind = 'assignment-report'
                ORDER BY latest.rowid DESC LIMIT 1
             )
-            LEFT JOIN human_attention_decisions d ON d.source_event_id = e.source_event_id
+            LEFT JOIN human_attention_decisions d ON d.source_event_id = e.source_event_id AND d.human_id = $humanId
            WHERE a.latest_report_state = 'completed'
              AND d.source_event_id IS NULL
+        ), attention AS (
+          SELECT * FROM all_attention candidate
+          WHERE ${attentionBotOwner('candidate.bot_slug')}
+            AND ($humanId = 'local-human' OR candidate.channel_id IS NULL
+              OR NOT EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = candidate.channel_id AND json_extract(c.record_json, '$.type') = 'group')
+              OR EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL))
         )`;
 
 const channelAttentionCte = (
@@ -385,6 +402,7 @@ const channelAttentionCte = (
            CASE WHEN json_extract(c.record_json, '$.type') = 'group'
                  AND json_extract(e.payload_json, '$.author.kind') = 'bot'
                  AND json_extract(target.payload_json, '$.author.kind') = 'human'
+                 AND coalesce(target.human_id, json_extract(target.payload_json, '$.author.humanId'), 'local-human') = $humanId
                  AND original.revision >= m.visible_from_revision
                 THEN 1 ELSE 0 END AS is_reply,
            CASE WHEN json_extract(c.record_json, '$.type') = 'group'
@@ -397,9 +415,9 @@ const channelAttentionCte = (
         scope !== 'all'
           ? `FROM channel_records c
       LEFT JOIN channel_read_positions r
-        ON r.channel_id = c.channel_id AND r.human_id = ?
+        ON r.channel_id = c.channel_id AND r.human_id = $humanId
       LEFT JOIN channel_human_members m
-        ON m.channel_id = c.channel_id AND m.human_id = ?
+        ON m.channel_id = c.channel_id AND m.human_id = $humanId
       CROSS JOIN channel_placements p
         ON p.channel_id = c.channel_id AND ${
           scope === 'unread'
@@ -419,13 +437,14 @@ const channelAttentionCte = (
         AND original.message_id = json_extract(e.payload_json, '$.replyTo')
       LEFT JOIN source_events target ON target.source_event_id = original.source_event_id
       LEFT JOIN channel_read_positions r
-        ON r.channel_id = p.channel_id AND r.human_id = ?
+        ON r.channel_id = p.channel_id AND r.human_id = $humanId
       LEFT JOIN channel_human_members m
-        ON m.channel_id = p.channel_id AND m.human_id = ?`
+        ON m.channel_id = p.channel_id AND m.human_id = $humanId`
       }
      WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
        AND ((json_extract(c.record_json, '$.type') = 'dm'
-             AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
+             AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
+             AND ${attentionDmOwner('c')})
          OR (json_extract(c.record_json, '$.type') = 'group'
              AND m.left_at IS NULL AND m.visible_from_revision IS NOT NULL
              AND p.revision >= m.visible_from_revision))
@@ -513,16 +532,16 @@ export function createHumanAttentionQuery(
 ): HumanAttentionQuery {
   let lowerRegistered = false;
   const activeSnooze = (id: string, source: string, at: string): string =>
-    `EXISTS (SELECT 1 FROM human_inbox_snoozes s WHERE s.human_id = '${LOCAL_HUMAN_ID}' AND s.item_id = ${id} AND s.source_key = coalesce(${source}, '') AND s.until > '${at}')`;
-  const snoozedUntil = (items: HumanAttentionItem[]): HumanAttentionItem[] => {
+    `EXISTS (SELECT 1 FROM human_inbox_snoozes s WHERE s.human_id = $humanId AND s.item_id = ${id} AND s.source_key = coalesce(${source}, '') AND s.until > '${at}')`;
+  const snoozedUntil = (human: HumanContext, items: HumanAttentionItem[]): HumanAttentionItem[] => {
     if (items.length === 0) return items;
     const rows = database.read(
       (db) =>
         db
           .prepare(
-            `SELECT item_id, source_key, until FROM human_inbox_snoozes WHERE human_id = '${LOCAL_HUMAN_ID}' AND item_id IN (SELECT value FROM json_each(?))`,
+            `SELECT item_id, source_key, until FROM human_inbox_snoozes WHERE human_id = $humanId AND item_id IN (SELECT value FROM json_each(?))`,
           )
-          .all(JSON.stringify(items.map((item) => item.id))) as Array<{
+          .all({ humanId: human.humanId }, JSON.stringify(items.map((item) => item.id))) as Array<{
           item_id: string;
           source_key: string;
           until: string;
@@ -572,7 +591,7 @@ export function createHumanAttentionQuery(
     });
   };
   return {
-    item(id, sourceKey) {
+    item(human: HumanContext, id, sourceKey) {
       if (id.startsWith('unread:') && sourceKey !== undefined) {
         const row = database.read(
           (db) =>
@@ -584,9 +603,8 @@ export function createHumanAttentionQuery(
             FROM visible_messages WHERE ('unread:' || channel_id) = ? AND source_event_id = ? AND is_reply = 0 AND is_mention = 0 LIMIT 1
         `)
               .get(
-                LOCAL_HUMAN_ID,
-                LOCAL_HUMAN_ID,
-                JSON.stringify(mutedChannelIds()),
+                { humanId: human.humanId },
+                JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
                 id,
                 sourceKey,
               ) as AttentionRow | undefined,
@@ -604,12 +622,12 @@ export function createHumanAttentionQuery(
               : prefix === 'handled'
                 ? 'handled'
                 : 'action';
-      return this.list({ category, itemId: id, includeDismissed: true, limit: 1 }).items[0];
+      return this.list(human, { category, itemId: id, includeDismissed: true, limit: 1 }).items[0];
     },
     assignmentContext(botSlug, sessionId, sourceEventId) {
       return readHumanAssignmentContext(database, botSlug, sessionId, sourceEventId);
     },
-    list(input) {
+    list(human: HumanContext, input) {
       const limit = input.limit ?? 30;
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
         throw new Error('Human attention limit must be 1-100');
@@ -665,10 +683,10 @@ export function createHumanAttentionQuery(
       const at = now().toISOString();
       const dismissFilter = (id: string, source: string): string =>
         dismissedOnly
-          ? `AND EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, ''))`
+          ? `AND EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = ${id} AND d.source_key = coalesce(${source}, ''))`
           : input.includeDismissed
             ? ''
-            : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
+            : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
       const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, filters);
       if (
         sort === 'mentions-first' &&
@@ -713,6 +731,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             JOIN channel_placements reply_placement ON reply_placement.source_event_id = response.source_event_id
               AND reply_placement.channel_id = c.channel_id
            WHERE response.source_kind = 'human-message'
+             AND ${attentionBotOwner('request.bot_slug')}
              AND json_extract(response.payload_json, '$.author.kind') = 'human'
              AND ((json_extract(request.payload_json, '$.userQuestionRequest') IS NOT NULL
                    AND json_extract(response.payload_json, '$.userQuestionResolution.requestMessageId') = request.message_id
@@ -722,7 +741,9 @@ SELECT 'handled:' || request.source_event_id AS id,
                OR (json_extract(request.payload_json, '$.grantRequest') = 1
                    AND json_extract(response.payload_json, '$.grantRequestResolution.requestMessageId') = request.message_id))
              AND json_extract(c.record_json, '$.deletedAt') IS NULL
-             AND (json_extract(c.record_json, '$.type') = 'group'
+             AND ((json_extract(c.record_json, '$.type') = 'group'
+                   AND ($humanId = 'local-human' OR EXISTS (SELECT 1 FROM channel_human_members m
+                     WHERE m.channel_id = c.channel_id AND m.human_id = $humanId AND m.left_at IS NULL)))
                OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = request.bot_slug))
              AND request.source_kind = 'bot-message'
              AND NOT EXISTS (SELECT 1 FROM source_events earlier INDEXED BY source_events_human_native_response
@@ -758,6 +779,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             JOIN channel_placements placement ON placement.source_event_id = response.source_event_id
             JOIN channel_records c ON c.channel_id = placement.channel_id
            WHERE response.source_kind = 'human-message'
+             AND ${attentionBotOwner('request.bot_slug')}
              AND json_extract(response.payload_json, '$.author.kind') = 'human'
              AND json_extract(c.record_json, '$.type') = 'dm'
              AND json_extract(c.record_json, '$.botSlug') = a.bot_slug
@@ -782,7 +804,13 @@ SELECT 'handled:' || request.source_event_id AS id,
           )
           SELECT * FROM native_handled UNION ALL SELECT * FROM assignment_handled
           ORDER BY created_at ${direction}, id ${direction} LIMIT ?`)
-            .all(search, ...pageParameters, ...pageParameters, limit + 1),
+            .all(
+              { humanId: human.humanId },
+              search,
+              ...pageParameters,
+              ...pageParameters,
+              limit + 1,
+            ),
         ) as unknown as AttentionRow[];
         const page = rows.slice(0, limit);
         const last = page.at(-1);
@@ -825,10 +853,9 @@ SELECT 'handled:' || request.source_event_id AS id,
            LIMIT ?
         `)
             .all(
+              { humanId: human.humanId },
               search,
-              LOCAL_HUMAN_ID,
-              LOCAL_HUMAN_ID,
-              JSON.stringify(mutedChannelIds()),
+              JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
               input.itemId ?? null,
               input.itemId ?? null,
               input.botSlug ?? null,
@@ -872,7 +899,7 @@ SELECT 'handled:' || request.source_event_id AS id,
           isUnread: row.is_unread === 1,
         }));
         return {
-          items: snoozedOnly ? snoozedUntil(items) : items,
+          items: snoozedOnly ? snoozedUntil(human, items) : items,
           ...(rows.length > limit && last !== undefined
             ? {
                 nextCursor: Buffer.from(
@@ -894,7 +921,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             db
               .prepare(`${channelCte},
           filtered_unread AS (
-            SELECT * FROM visible_unread v WHERE ${dismissedOnly ? `EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND` : input.includeDismissed ? '' : `NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND`} is_reply = 0 AND is_mention = 0 AND (? IS NULL OR bot_slug = ?)
+            SELECT * FROM visible_unread v WHERE ${dismissedOnly ? `EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND` : input.includeDismissed ? '' : `NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND`} is_reply = 0 AND is_mention = 0 AND (? IS NULL OR bot_slug = ?)
             ${match('body', 'channel_name', 'bot_slug')}
           ),
           unread_channels AS (
@@ -915,10 +942,9 @@ SELECT 'handled:' || request.source_event_id AS id,
            LIMIT ?
         `)
               .all(
+                { humanId: human.humanId },
                 search,
-                LOCAL_HUMAN_ID,
-                LOCAL_HUMAN_ID,
-                JSON.stringify(mutedChannelIds()),
+                JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
                 input.botSlug ?? null,
                 input.botSlug ?? null,
                 input.itemId ?? null,
@@ -991,6 +1017,7 @@ SELECT 'handled:' || request.source_event_id AS id,
          LIMIT ?
       `)
             .all(
+              { humanId: human.humanId },
               search,
               JSON.stringify(activeQuestionMessageIds()),
               JSON.stringify(activeToolApprovalMessageIds()),
@@ -1013,7 +1040,7 @@ SELECT 'handled:' || request.source_event_id AS id,
       );
       const page = rows.slice(0, limit);
       const mapped = withAutoRejection(page.map(attentionItem));
-      const items = snoozedOnly ? snoozedUntil(mapped) : mapped;
+      const items = snoozedOnly ? snoozedUntil(human, mapped) : mapped;
       const last = page.at(-1);
       return {
         items,
@@ -1054,7 +1081,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             .all() as Array<{ channelId: string; messageId: string }>,
       );
     },
-    durableAttention() {
+    durableAttention(human: HumanContext) {
       return database.read(
         (db) =>
           db
@@ -1071,11 +1098,11 @@ SELECT 'handled:' || request.source_event_id AS id,
                  AND handled.bot_slug = attention.bot_slug
                  AND handled.attempt_state = 'handled'))
              AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d
-               WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = attention.id
+               WHERE d.human_id = $humanId AND d.item_id = attention.id
                  AND d.source_key = coalesce(attention.source_event_id, ''))
              AND NOT ${activeSnooze('attention.id', 'attention.source_event_id', now().toISOString())}
            GROUP BY bot_slug`)
-            .all('[]', '[]') as Array<{
+            .all({ humanId: human.humanId }, '[]', '[]') as Array<{
             botSlug: string;
             waitingHumanCount: number;
             blockedCount: number;
@@ -1084,17 +1111,18 @@ SELECT 'handled:' || request.source_event_id AS id,
           }>,
       );
     },
-    actionCount() {
-      return this.actionSummary().count;
+    actionCount(human: HumanContext) {
+      return this.actionSummary(human).count;
     },
-    actionSummary() {
+    actionSummary(human: HumanContext) {
       const rows = database.read(
         (db) =>
           db
             .prepare(
-              `${ACTION_ATTENTION_CTE} SELECT bot_slug, count(DISTINCT id) AS count FROM attention WHERE category = 'action' AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = attention.id AND d.source_key = coalesce(attention.source_event_id, '')) AND NOT ${activeSnooze('attention.id', 'attention.source_event_id', now().toISOString())} GROUP BY bot_slug`,
+              `${ACTION_ATTENTION_CTE} SELECT bot_slug, count(DISTINCT id) AS count FROM attention WHERE category = 'action' AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = attention.id AND d.source_key = coalesce(attention.source_event_id, '')) AND NOT ${activeSnooze('attention.id', 'attention.source_event_id', now().toISOString())} GROUP BY bot_slug`,
             )
             .all(
+              { humanId: human.humanId },
               JSON.stringify(activeQuestionMessageIds()),
               JSON.stringify(activeToolApprovalMessageIds()),
               JSON.stringify(activePrivateInputMessageIds()),
@@ -1105,43 +1133,52 @@ SELECT 'handled:' || request.source_event_id AS id,
         botSlugs: rows.map((row) => row.bot_slug),
       };
     },
-    status(messageCounts = false) {
-      const muted = JSON.stringify(mutedChannelIds());
-      const count = (sql: string) =>
+    status(human: HumanContext, messageCounts = false) {
+      const muted = JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []);
+      const count = (human: HumanContext, sql: string) =>
         database.read(
           (db) =>
             (
-              db.prepare(sql).get(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, muted, UNREAD_COUNT_LIMIT) as {
+              db.prepare(sql).get({ humanId: human.humanId }, muted, UNREAD_COUNT_LIMIT) as {
                 count: number;
               }
             ).count,
         );
-      const total = count(`${INBOX_CHANNEL_UNREAD_CTE}
-        SELECT count(*) AS count FROM (SELECT DISTINCT source_event_id FROM visible_unread LIMIT ?)`);
+      const total = count(
+        human,
+        `${INBOX_CHANNEL_UNREAD_CTE}
+        SELECT count(*) AS count FROM (SELECT DISTINCT source_event_id FROM visible_unread LIMIT ?)`,
+      );
       if (!messageCounts)
         return {
           unreadCount: total,
-          hasAction: this.list({ category: 'action', limit: 1 }).items.length > 0,
+          hasAction: this.list(human, { category: 'action', limit: 1 }).items.length > 0,
         };
-      const replies = count(`${INBOX_CHANNEL_UNREAD_REPLIES_CTE}
+      const replies = count(
+        human,
+        `${INBOX_CHANNEL_UNREAD_REPLIES_CTE}
         SELECT count(*) AS count FROM (
           SELECT DISTINCT source_event_id FROM visible_unread WHERE is_reply OR is_mention LIMIT ?
-        )`);
+        )`,
+      );
       const other =
         total < UNREAD_COUNT_LIMIT || replies < UNREAD_COUNT_LIMIT
           ? total - replies
-          : count(`${INBOX_CHANNEL_UNREAD_CTE}
+          : count(
+              human,
+              `${INBOX_CHANNEL_UNREAD_CTE}
         SELECT count(*) AS count FROM (
           SELECT DISTINCT source_event_id FROM visible_unread
            WHERE NOT (is_reply OR is_mention) LIMIT ?
-        )`);
+        )`,
+            );
       return {
         unreadCount: total,
-        hasAction: this.list({ category: 'action', limit: 1 }).items.length > 0,
+        hasAction: this.list(human, { category: 'action', limit: 1 }).items.length > 0,
         messageCounts: { replies, other },
       };
     },
-    dmReplies(limit, before) {
+    dmReplies(human: HumanContext, limit, before) {
       const rows = database.read(
         (db) =>
           db
@@ -1153,15 +1190,14 @@ SELECT 'handled:' || request.source_event_id AS id,
          WHERE json_extract(c.record_json, '$.type') = 'dm'
            AND json_extract(e.payload_json, '$.author.kind') = 'bot'
            AND ${DM_CARD_FIELDS.map((field) => `json_extract(e.payload_json, '$.${field}') IS NULL`).join(' AND ')}
-           AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision)
+           AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision)
            AND (? IS NULL OR v.created_at < ? OR (v.created_at = ? AND v.source_event_id < ?))
          ORDER BY v.created_at DESC, v.source_event_id DESC
          LIMIT ?
       `)
             .all(
-              LOCAL_HUMAN_ID,
-              LOCAL_HUMAN_ID,
-              JSON.stringify(mutedChannelIds()),
+              { humanId: human.humanId },
+              JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
               before?.createdAt ?? null,
               before?.createdAt ?? null,
               before?.createdAt ?? null,
@@ -1189,7 +1225,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         isUnread: true,
       }));
     },
-    unreadByChannel() {
+    unreadByChannel(human: HumanContext) {
       return database.read((db) =>
         (
           db
@@ -1199,12 +1235,13 @@ SELECT 'handled:' || request.source_event_id AS id,
                  m.visible_from_revision AS visible_from
             FROM channel_records c
             LEFT JOIN channel_read_positions r
-              ON r.channel_id = c.channel_id AND r.human_id = ?
+              ON r.channel_id = c.channel_id AND r.human_id = $humanId
             LEFT JOIN channel_human_members m
-              ON m.channel_id = c.channel_id AND m.human_id = ?
+              ON m.channel_id = c.channel_id AND m.human_id = $humanId
            WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
              AND ((json_extract(c.record_json, '$.type') = 'dm'
-                   AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
+                   AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
+             AND ${attentionDmOwner('c')})
                OR (json_extract(c.record_json, '$.type') = 'group'
                    AND m.left_at IS NULL AND m.visible_from_revision IS NOT NULL))
         ), counts AS MATERIALIZED (
@@ -1224,7 +1261,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         )
         SELECT channel_id, unread_count FROM counts
          WHERE unread_count > 0 ORDER BY channel_id`)
-            .all(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, UNREAD_COUNT_LIMIT) as {
+            .all({ humanId: human.humanId }, UNREAD_COUNT_LIMIT) as {
             channel_id: string;
             unread_count: number;
           }[]
@@ -1237,10 +1274,10 @@ SELECT 'handled:' || request.source_event_id AS id,
 export const HUMAN_INBOX_SNOOZE_MAX_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface HumanAttentionDecisions {
-  dismiss(item: HumanAttentionItem): boolean;
-  restore(item: HumanAttentionItem): boolean;
-  snooze(item: HumanAttentionItem, until: string | null): boolean;
-  ignoreAssignmentReport(sourceEventId: string): boolean;
+  dismiss(human: HumanContext, item: HumanAttentionItem): boolean;
+  restore(human: HumanContext, item: HumanAttentionItem): boolean;
+  snooze(human: HumanContext, item: HumanAttentionItem, until: string | null): boolean;
+  ignoreAssignmentReport(human: HumanContext, sourceEventId: string): boolean;
 }
 
 export function createHumanAttentionDecisions(
@@ -1248,7 +1285,7 @@ export function createHumanAttentionDecisions(
   now: () => Date = () => new Date(),
 ): HumanAttentionDecisions {
   return {
-    dismiss(item) {
+    dismiss(human: HumanContext, item) {
       return database.transaction(
         (db) => {
           const revision =
@@ -1267,7 +1304,7 @@ export function createHumanAttentionDecisions(
           db.prepare(
             'INSERT OR IGNORE INTO human_inbox_dismissals (human_id, item_id, source_key, through_revision, dismissed_at) VALUES (?, ?, ?, ?, ?)',
           ).run(
-            LOCAL_HUMAN_ID,
+            human.humanId,
             item.id,
             item.sourceEventId ?? '',
             revision ?? null,
@@ -1278,23 +1315,25 @@ export function createHumanAttentionDecisions(
         ['human-attention'],
       );
     },
-    restore(item) {
+    restore(human: HumanContext, item) {
       return database.transaction(
         (db) =>
           (item.kind === 'channel-unread'
             ? db
-                .prepare('DELETE FROM human_inbox_dismissals WHERE human_id = ? AND item_id = ?')
-                .run(LOCAL_HUMAN_ID, item.id)
+                .prepare(
+                  'DELETE FROM human_inbox_dismissals WHERE human_id = $humanId AND item_id = ?',
+                )
+                .run({ humanId: human.humanId }, item.id)
             : db
                 .prepare(
-                  'DELETE FROM human_inbox_dismissals WHERE human_id = ? AND item_id = ? AND source_key = ?',
+                  'DELETE FROM human_inbox_dismissals WHERE human_id = $humanId AND item_id = ? AND source_key = ?',
                 )
-                .run(LOCAL_HUMAN_ID, item.id, item.sourceEventId ?? '')
+                .run({ humanId: human.humanId }, item.id, item.sourceEventId ?? '')
           ).changes > 0,
         ['human-attention'],
       );
     },
-    snooze(item, until) {
+    snooze(human: HumanContext, item, until) {
       if (
         item.kind === 'channel-unread' ||
         item.category === 'unread' ||
@@ -1305,19 +1344,19 @@ export function createHumanAttentionDecisions(
         (db) => {
           if (until === null) {
             db.prepare(
-              'DELETE FROM human_inbox_snoozes WHERE human_id = ? AND item_id = ? AND source_key = ?',
-            ).run(LOCAL_HUMAN_ID, item.id, item.sourceEventId ?? '');
+              'DELETE FROM human_inbox_snoozes WHERE human_id = $humanId AND item_id = ? AND source_key = ?',
+            ).run({ humanId: human.humanId }, item.id, item.sourceEventId ?? '');
             return true;
           }
           db.prepare(
             'INSERT OR REPLACE INTO human_inbox_snoozes (human_id, item_id, source_key, until, snoozed_at) VALUES (?, ?, ?, ?, ?)',
-          ).run(LOCAL_HUMAN_ID, item.id, item.sourceEventId ?? '', until, now().toISOString());
+          ).run(human.humanId, item.id, item.sourceEventId ?? '', until, now().toISOString());
           return true;
         },
         ['human-attention'],
       );
     },
-    ignoreAssignmentReport(sourceEventId) {
+    ignoreAssignmentReport(human: HumanContext, sourceEventId) {
       return database.transaction(
         (db) => {
           const latest = db
@@ -1326,6 +1365,7 @@ export function createHumanAttentionDecisions(
               FROM source_events e
               JOIN assignments a ON a.session_id = e.assignment_session_id
              WHERE e.source_event_id = ?
+               AND ${attentionBotOwner('e.bot_slug')}
                AND e.source_kind = 'assignment-report'
                AND a.latest_report_state = 'completed'
                AND e.source_event_id = (
@@ -1335,12 +1375,12 @@ export function createHumanAttentionDecisions(
                   ORDER BY newer.rowid DESC LIMIT 1
                )
           `)
-            .get(sourceEventId);
+            .get({ humanId: human.humanId }, sourceEventId);
           if (latest === undefined) return false;
           db.prepare(`
             INSERT OR IGNORE INTO human_attention_decisions
-              (source_event_id, decision, decided_at) VALUES (?, 'ignored', ?)
-          `).run(sourceEventId, now().toISOString());
+              (human_id, source_event_id, decision, decided_at) VALUES (?, ?, 'ignored', ?)
+          `).run(human.humanId, sourceEventId, now().toISOString());
           return true;
         },
         ['human-attention'],

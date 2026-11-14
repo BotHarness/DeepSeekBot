@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 
 import type { ChannelMessage } from '../channels/channel.js';
@@ -198,19 +199,23 @@ export function createTakeoverHandoffs(options: TakeoverHandoffOptions): Takeove
       if (timer !== undefined) clearTimeout(timer);
       timers.delete(key);
       const started = now();
-      const result = await options.channels.appendMessageOnce(handoff.channelId, {
-        id: takeoverResolutionId(handoff.id),
-        at: new Date(now()).toISOString(),
-        author:
-          by === 'human'
-            ? { kind: 'human' }
-            : by === 'bot'
-              ? { kind: 'bot', slug: handoff.botSlug }
-              : { kind: 'system' },
-        body: resolutionBody(outcome, by),
-        replyTo: handoff.id,
-        takeoverResolution: { requestMessageId: handoff.id, outcome, by },
-      });
+      const result = await options.channels.appendMessageOnce(
+        OWNER_HUMAN_CONTEXT,
+        handoff.channelId,
+        {
+          id: takeoverResolutionId(handoff.id),
+          at: new Date(now()).toISOString(),
+          author:
+            by === 'human'
+              ? { kind: 'human' }
+              : by === 'bot'
+                ? { kind: 'bot', slug: handoff.botSlug }
+                : { kind: 'system' },
+          body: resolutionBody(outcome, by),
+          replyTo: handoff.id,
+          takeoverResolution: { requestMessageId: handoff.id, outcome, by },
+        },
+      );
       if (result.status !== 'appended' && result.status !== 'existing') {
         log(
           'resolve-failed',
@@ -346,18 +351,22 @@ export function createTakeoverHandoffs(options: TakeoverHandoffOptions): Takeove
           );
         const id = createId();
         const expiresAt = new Date(now() + minutes * 60_000).toISOString();
-        const result = await options.channels.appendMessageOnce(input.channelId, {
-          id,
-          at: new Date(now()).toISOString(),
-          author: { kind: 'bot', slug: input.botSlug },
-          body: message,
-          takeoverRequest: {
-            target: input.target,
-            title,
-            expiresAt,
-            ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        const result = await options.channels.appendMessageOnce(
+          OWNER_HUMAN_CONTEXT,
+          input.channelId,
+          {
+            id,
+            at: new Date(now()).toISOString(),
+            author: { kind: 'bot', slug: input.botSlug },
+            body: message,
+            takeoverRequest: {
+              target: input.target,
+              title,
+              expiresAt,
+              ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+            },
           },
-        });
+        );
         if (result.status !== 'appended')
           throw new TakeoverError('channel-unavailable', 'The takeover card could not be posted');
         const handoff = find(input.channelId, id) ?? {
