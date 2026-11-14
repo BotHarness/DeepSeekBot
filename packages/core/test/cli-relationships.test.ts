@@ -1,5 +1,12 @@
 import { expect, it, vi } from 'vitest';
 import { runRelationshipCommand } from '../src/bots/cli-relationships.js';
+import { enrollRelationshipClient } from '../src/devices/relationship-enrollment.js';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+vi.mock('../src/devices/relationship-enrollment.js', () => ({
+  enrollRelationshipClient: vi.fn(async () => ({ ok: false, code: 'cancelled' })),
+}));
 
 const id = 'a'.repeat(32);
 const publicKey = 'ab'.repeat(32);
@@ -8,6 +15,21 @@ const fixture = () => {
   const http = vi.fn(async () => ({ bytes: new TextEncoder().encode(JSON.stringify(response)) }));
   return { http, connect: async () => ({ http }) };
 };
+it('passes the command deadline into encrypted relationship enrollment', async () => {
+  const { connect } = fixture();
+  const abort = new AbortController();
+  await expect(
+    runRelationshipCommand(
+      ['enroll', id],
+      { out: join(tmpdir(), `e1-enroll-${crypto.randomUUID()}.json`) },
+      connect,
+      abort.signal,
+    ),
+  ).rejects.toMatchObject({ code: 'cancelled' });
+  expect(enrollRelationshipClient).toHaveBeenCalledWith(
+    expect.objectContaining({ signal: abort.signal }),
+  );
+});
 it('lists relationships through the authenticated owning Host', async () => {
   const { http, connect } = fixture();
   expect(await runRelationshipCommand(['list'], {}, connect)).toEqual(response);
