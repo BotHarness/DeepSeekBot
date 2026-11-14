@@ -1,5 +1,6 @@
 import type { RemoteHosts } from './remote-hosts.js';
 import { AppearanceError, object } from './appearance.js';
+import { pairReciprocalHost } from './relationships.js';
 
 export interface ConnectionAttempt {
   attemptId: string;
@@ -23,6 +24,7 @@ interface Attempt {
 export function createConnectionControl(
   sources: RemoteHosts,
   local: () => { id?: string; name?: string },
+  pair: RemoteHosts['pair'] = (...args) => pairReciprocalHost(sources, ...args),
 ) {
   const attempts = new Map<string, Attempt>();
   let disposed = false;
@@ -106,69 +108,63 @@ export function createConnectionControl(
         attempts.set(input.attemptId, entry);
         bindDelivery(entry, request.signal);
         const current = local();
-        void sources
-          .pair(input.link, `Browser on ${current.name ?? 'Host'}`, current.id, {
-            signal: abort.signal,
-            confirmFingerprint: (fingerprint, hostName) =>
-              new Promise<boolean>((resolve) => {
-                if (abort.signal.aborted) {
-                  resolve(false);
-                  return;
-                }
-                entry.confirm = resolve;
-                entry.snapshot = {
-                  ...entry.snapshot,
-                  state: 'verify-host',
-                  hostName,
-                  hostFingerprint: fingerprint,
-                };
-                notify();
-              }),
-            onPending: (fingerprint) => {
-              if (abort.signal.aborted) return;
+        void pair(input.link, `Browser on ${current.name ?? 'Host'}`, current.id, {
+          signal: abort.signal,
+          confirmFingerprint: (fingerprint, hostName) =>
+            new Promise<boolean>((resolve) => {
+              if (abort.signal.aborted) {
+                resolve(false);
+                return;
+              }
+              entry.confirm = resolve;
               entry.snapshot = {
                 ...entry.snapshot,
-                state: 'approve-device',
-                deviceFingerprint: fingerprint,
+                state: 'verify-host',
+                hostName,
+                hostFingerprint: fingerprint,
               };
               notify();
-            },
-          })
-          .then(
-            (result) => {
-              if (!result.ok) {
-                if (!abort.signal.aborted)
-                  entry.snapshot = { ...entry.snapshot, state: 'failed', code: result.code };
-                clearTimeout(entry.timer);
-              } else {
-                const remote = sources
-                  .getSnapshot()
-                  .hosts.find((item) => item.host.hostId === result.host.hostId);
-                const connected =
-                  remote?.snapshot.connection.status === 'connected' &&
-                  remote.snapshot.roster !== undefined;
-                entry.snapshot = {
-                  ...entry.snapshot,
-                  hostId: result.host.hostId,
-                  hostName: result.host.hostName,
-                  saved: true,
-                  state: abort.signal.aborted
-                    ? 'cancelled'
-                    : connected
-                      ? 'connected'
-                      : 'connecting',
-                };
-                if (connected) clearTimeout(entry.timer);
-              }
-              notify();
-            },
-            () => {
+            }),
+          onPending: (fingerprint) => {
+            if (abort.signal.aborted) return;
+            entry.snapshot = {
+              ...entry.snapshot,
+              state: 'approve-device',
+              deviceFingerprint: fingerprint,
+            };
+            notify();
+          },
+        }).then(
+          (result) => {
+            if (!result.ok) {
               if (!abort.signal.aborted)
-                entry.snapshot = { ...entry.snapshot, state: 'failed', code: 'connection-failed' };
+                entry.snapshot = { ...entry.snapshot, state: 'failed', code: result.code };
               clearTimeout(entry.timer);
-              notify();
-            },
-          );
+            } else {
+              const remote = sources
+                .getSnapshot()
+                .hosts.find((item) => item.host.hostId === result.host.hostId);
+              const connected =
+                remote?.snapshot.connection.status === 'connected' &&
+                remote.snapshot.roster !== undefined;
+              entry.snapshot = {
+                ...entry.snapshot,
+                hostId: result.host.hostId,
+                hostName: result.host.hostName,
+                saved: true,
+                state: abort.signal.aborted ? 'cancelled' : connected ? 'connected' : 'connecting',
+              };
+              if (connected) clearTimeout(entry.timer);
+            }
+            notify();
+          },
+          () => {
+            if (!abort.signal.aborted)
+              entry.snapshot = { ...entry.snapshot, state: 'failed', code: 'connection-failed' };
+            clearTimeout(entry.timer);
+            notify();
+          },
+        );
         notify();
         return entry.snapshot;
       }

@@ -259,7 +259,7 @@ export function apply(ctx: ClientContext): void {
       ? undefined
       : takeHmrView(window as unknown as Record<string, unknown>);
   const t = ctx.locale.bind(LOCALE_NS);
-  remoteHosts(t);
+  if (!member) remoteHosts(t);
   const zoom = mountWindowZoom({
     document: typeof document === 'undefined' ? undefined : document,
     window: typeof window === 'undefined' ? undefined : window,
@@ -290,7 +290,7 @@ export function apply(ctx: ClientContext): void {
     return { profileId: value.profileId };
   };
   const actions: BridgeActions = createActions(call, store, {
-    nativeFiles: createNativeHostFiles(ctx.remote.session),
+    ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
     fileOpenPreferences: createFileOpenPreferences({ storage, context: profileContext }),
     pickDirectory: () => {
       const picker = ctx.get('uiWorkspace');

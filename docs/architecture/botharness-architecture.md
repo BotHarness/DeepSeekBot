@@ -1,10 +1,14 @@
 # BotHarness 架构与数据流
 
-## 已确认目标：环境面板与双向 Host 关系（尚未实现）
+## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
 2026-11-13 的整体确认扩展了 #4069 原先仅 Client 配对的范围。Control Rail Environment 面板在 Simple 模式替换当前面板，在 Advanced 模式增加独立列；Channels 与 Activity 共用 Client 本地 Environment Scope，Settings Target 独立且写入绑定精确 Host。Host Relationship 属于双端持久应用权威，每个 Client 仍取得自己的设备凭据，手机不自动继承，Bot 协作独立授权。每个方向的可达性和离线撤销确认分别呈现，不把账号退出、断开关系、关闭线路或删除远端数据混为一谈。通过现有 Device Pairing、凭据、operational database 与 API Gateway 边界交付，不能用布局状态或 Cordis Event 代替持久授权。
 
 完整交互、权限边界及验收见[环境面板设计](environment-panel.zh.md)、[ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md)及 ADR-0327 的桌面修订。以下既有实现记录不代表该新目标已完成；原九切片验收也不覆盖新增双向关系。
+
+E1 将手动电脑连接接入 `host-relationships` 应用 owner：Operational Database generation 140 保存双端关系、固定对端身份及派生设备关联；现有受保护 Noise Host 密钥只用于关系控制，不能直接读取 Feed。发起端核对对端指纹、接收端核对发起端指纹并批准双向权限后，两端经加密控制通道激活关系。每个 Web/CLI Client 本地生成自己的密钥，Host 只转交绑定该公钥的短期 enrollment offer；现有 pairing owner 兑换、保存并准入独立设备，远端私钥不交给本机 Host。Client 复用 RemoteHosts、HostClient、Feed 与 Channel 路径，不建立内容镜像或第二套连接存储。
+
+本地认证的 `/api/botharness/relationships` 与 `relationships` CLI 共用同一 owner；普通 Device Gateway 拒绝转发关系管理，手机不因已配对而继承关系。撤销先持久化关系失效，再撤销关联设备；每次设备准入也检查关系，避免清理中断继续放行。独立设备授权及 Channel 数据保留，远端未确认撤销时保留 pending 状态。E1 不实现 Environment 面板、账号自动准入、多线路恢复或离线撤销后台重试；这些仍按 hub 的后续切片交付。
 
 手机 Connect 账号管理直接使用 relay 现有的电脑列表和会话撤销接口，无需已配对或在线 Host（ADR-0241、#4039）。手机账号 owner 在串行操作中验证确认时的账号 action key 后刷新凭据并撤销目标；relay 仍是关联和撤销状态的持久权威。界面刷新列表并保留手机配对；旧关联明确提示可能自动重新关联。不改变 LAN/Tailscale 配对权限或本地 Bot 数据。
 
@@ -1601,7 +1605,11 @@ Connections groups a paired Remote Host with an account entry only when the auth
 
 ### Optional phone onboarding
 
-The shared Connections dialog distinguishes phone invitation from joining a Remote Host with smartphone/computer choices. Joining keeps the existing Client-owned `ConnectionControl` and `RemoteHosts` enrollment inside that dialog: Back disposes unfinished work, full Host/device identity checks remain explicit, and connected requires saved credentials plus a readable Host Feed. The serving Host gains no reciprocal route or remote credential authority (ADR-0253).
+The shared Connections dialog distinguishes independent phone invitation from reciprocal computer enrollment. Computer enrollment uses the Host relationship owner described above (ADR-0334), while `ConnectionControl` and `RemoteHosts` retain Client-local confirmation, credentials and Feed readiness. Back cancels unfinished work; a late initiation is retired rather than enrolled. Connected requires saved credentials plus a readable Host Feed. The serving Host does not retain a Client's remote credential; ADR-0253 still governs independent pairing.
+
+Reciprocal relationship management remains a current-Owner capability, separate from Team member/Admin carriers. Every derived pairing offer captures that Owner Human; redemption writes the captured `human_id` and relationship provenance atomically. Admission requires both the current Owner Human and an active relationship. Owner transfer invalidates old invitations and credentials without transferring private Bots or member identity; the existing per-Human bridge and private-Bot visibility checks still own Feed and Channel access. Published Team migrations141–143 precede the unpublished E1 relationship migration144; internal Environment preview Profiles are not supported upgrade sources.
+
+Member pages disable the existing RemoteHosts provider before Owner storage, key or HostClient initialization and do not compose the native Owner file provider. They retain normal member BridgeCall/RPC operations; their empty remote view does not delete or replace Owner connection storage. Remote pairing, enrollment and mutations refuse with `owner-required` in that disabled provider.
 
 The Desktop intro includes an optional phone step that opens the existing Connections dialog. Every phone entry first shows shared App download guidance and requires explicit installed confirmation before preparing a route or creating an invitation, including when a usable route already exists. Its completion derives from the exact redeemed device's first successful Feed acknowledgement in the device-pairing owner, not from approval or transport admission. The mobile Host client reports only after loading and publishing the Bot/Channel roster; the authenticated gateway supplies device identity. `device-probe` shares that client and `devices` reads the same receipt. Skip creates no resources; Back and Close preserve existing routes and grants. See [ADR-0335](../adr/0335-phone-onboarding-confirms-device-feed-read.md).
 
