@@ -219,7 +219,8 @@ describe('confirmed terminal PersonaBot deletion', () => {
       ok: true,
       value: { channel: { members: ['b'] }, wakePolicies: [{ botSlug: 'b' }] },
     });
-    if (!result.ok) throw new Error('Group read failed');
+    if (!result.ok || !('channelFingerprint' in result.value))
+      throw new Error('Owner Group management read failed');
     expect(result.value.channel.ownerBotSlug).toBeUndefined();
     expect(result.value.channel.wakePolicies?.a).toBeUndefined();
     expect(await methods.channels({})).toMatchObject({

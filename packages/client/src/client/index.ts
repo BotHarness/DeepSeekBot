@@ -78,6 +78,8 @@ import { searchSettings } from './settings-search.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
 import { createImApps, ImAppsSection } from './im-apps-section.js';
+import { TeamSection } from './team-settings.js';
+import { memberPage } from './member-page.js';
 import {
   AboutSection,
   AdvancedSection,
@@ -217,9 +219,10 @@ export function installStyles(): () => void {
 }
 
 export function apply(ctx: ClientContext): void {
+  const member = memberPage();
   ctx.effect(() => clearConversationDrafts);
   ctx.effect(() => {
-    if (typeof window === 'undefined') return () => {};
+    if (typeof window === 'undefined' || member) return () => {};
     installClientLog({ window, surface: telemetrySurface() });
     const offStore = watchClientLogState(store);
     return () => {
@@ -243,7 +246,7 @@ export function apply(ctx: ClientContext): void {
     const offColors = appearance.subscribe(refreshBotPrimaryColors);
     refreshBotPrimaryColors();
     const offWallpaper = mountWallpaper(wallpaper);
-    const offControl = mountAppearanceControl(appearance, wallpaper);
+    const offControl = member ? () => {} : mountAppearanceControl(appearance, wallpaper);
     return () => {
       offControl();
       offWallpaper();
@@ -257,7 +260,7 @@ export function apply(ctx: ClientContext): void {
       ? undefined
       : takeHmrView(window as unknown as Record<string, unknown>);
   const t = ctx.locale.bind(LOCALE_NS);
-  remoteHosts(t);
+  if (!member) remoteHosts(t);
   const zoom = mountWindowZoom({
     document: typeof document === 'undefined' ? undefined : document,
     window: typeof window === 'undefined' ? undefined : window,
@@ -288,7 +291,7 @@ export function apply(ctx: ClientContext): void {
     return { profileId: value.profileId };
   };
   const actions: BridgeActions = createActions(call, store, {
-    nativeFiles: createNativeHostFiles(ctx.remote.session),
+    ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
     fileOpenPreferences: createFileOpenPreferences({ storage, context: profileContext }),
     pickDirectory: () => {
       const picker = ctx.get('uiWorkspace');
@@ -325,6 +328,7 @@ export function apply(ctx: ClientContext): void {
     },
   });
   ctx.effect(() => {
+    if (member) return () => {};
     void companion.start();
     return () => companion.dispose();
   }, 'botharness: independent Window Companion owner');
@@ -440,7 +444,7 @@ export function apply(ctx: ClientContext): void {
     typeof window === 'undefined'
       ? undefined
       : consumeLastView(window as unknown as Record<string, unknown>, storage);
-  let restoreBotMode = hmrView === undefined && lastView?.mode === 'bot';
+  let restoreBotMode = member || (hmrView === undefined && lastView?.mode === 'bot');
   const nativeSessions = {
     refresh: () => ctx.sessions.refresh(),
     subscribe: (listener: () => void) => ctx.sessions.list.subscribe(listener),
@@ -538,7 +542,7 @@ export function apply(ctx: ClientContext): void {
           () => createElement('div', { ref: setTarget }),
         ),
       ),
-    exitBotMode: () => ctx.layout.selectPanel(null),
+    exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
     openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
     quickSwitcherSettings,
   };
@@ -577,7 +581,7 @@ export function apply(ctx: ClientContext): void {
           channelSidebar.register(entry),
         ),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
-        dockPanels.register(createEnvironmentPanel(t)),
+        ...(member ? [] : [dockPanels.register(createEnvironmentPanel(t))]),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };
@@ -741,7 +745,7 @@ export function apply(ctx: ClientContext): void {
     });
   }, 'botharness: desktop notifications');
   ctx.effect(() => {
-    if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+    if (typeof document === 'undefined' || typeof window === 'undefined' || member) return () => {};
     const clientId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('');
@@ -1068,6 +1072,19 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.team,
+          order: 44,
+          label: () => t('botSettings.section.team'),
+          locale: LOCALE_NS,
+          inject: () => ({ call }),
+        },
+        TeamSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.devices,
           order: 45,
           label: () => t('botSettings.section.devices'),
@@ -1202,7 +1219,7 @@ export function apply(ctx: ClientContext): void {
           telemetryNotice,
           workspace,
           ...botModePrefsFace(prefs),
-          exitBotMode: () => ctx.layout.selectPanel(null),
+          exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
           quickSwitcherSettings,
         }),
@@ -1290,7 +1307,7 @@ export function apply(ctx: ClientContext): void {
               dockPanels,
               shortcutBindings,
               ...botModePrefsFace(prefs),
-              exitBotMode: () => ctx.layout.selectPanel(null),
+              exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
               toggleSidebar: () => ctx.layout.toggleSidebar(),
               openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
               quickSwitcherSettings,

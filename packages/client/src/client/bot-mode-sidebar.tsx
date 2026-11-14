@@ -44,7 +44,7 @@ export interface BotModeSidebarProps {
   useBotModePrefs: SnapshotSelectorHook<BotModePrefsSnapshot>;
   setSortMode: (mode: BotModeSortMode) => void;
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
-  exitBotMode: () => void;
+  exitBotMode?: (() => void) | undefined;
   toggleSidebar: () => void;
   openBotSettings: (sectionId?: string) => void;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
@@ -129,30 +129,38 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
     >
       {darwin && wide ? <div {...stylex.props(styles.darwinStrip)} data-window-drag /> : null}
       <div {...stylex.props(styles.logoRow, collapsed && styles.logoRowCollapsed)} data-window-drag>
-        <Tooltip label={exitLabel} side={wide ? 'bottom' : 'right'} delayMs={300}>
-          <button
-            type="button"
-            {...hooked('bh-mode-sidebar-logo', styles.logo, collapsed && styles.logoCollapsed)}
-            data-bh-tour="bot-mode"
-            data-exit={morph ? 'true' : undefined}
-            aria-label={exitLabel}
-            onClick={props.exitBotMode}
-            onPointerEnter={() => setLogoHover(true)}
-            onPointerLeave={() => setLogoHover(false)}
-            onFocus={(event) => setLogoFocus(event.currentTarget.matches(':focus-visible'))}
-            onBlur={() => setLogoFocus(false)}
-          >
-            <span {...stylex.props(styles.morph, morph && styles.morphHidden)}>
+        {props.exitBotMode === undefined ? (
+          <span {...hooked('bh-mode-sidebar-logo', styles.logo, collapsed && styles.logoCollapsed)}>
+            <span {...stylex.props(styles.morph)}>
               <BotIcon icon={icon} size={24} />
             </span>
-            <span
-              {...stylex.props(styles.morph, styles.morphExit, !morph && styles.morphHidden)}
-              aria-hidden
+          </span>
+        ) : (
+          <Tooltip label={exitLabel} side={wide ? 'bottom' : 'right'} delayMs={300}>
+            <button
+              type="button"
+              {...hooked('bh-mode-sidebar-logo', styles.logo, collapsed && styles.logoCollapsed)}
+              data-bh-tour="bot-mode"
+              data-exit={morph ? 'true' : undefined}
+              aria-label={exitLabel}
+              onClick={props.exitBotMode}
+              onPointerEnter={() => setLogoHover(true)}
+              onPointerLeave={() => setLogoHover(false)}
+              onFocus={(event) => setLogoFocus(event.currentTarget.matches(':focus-visible'))}
+              onBlur={() => setLogoFocus(false)}
             >
-              <ExitIcon size={18} />
-            </span>
-          </button>
-        </Tooltip>
+              <span {...stylex.props(styles.morph, morph && styles.morphHidden)}>
+                <BotIcon icon={icon} size={24} />
+              </span>
+              <span
+                {...stylex.props(styles.morph, styles.morphExit, !morph && styles.morphHidden)}
+                aria-hidden
+              >
+                <ExitIcon size={18} />
+              </span>
+            </button>
+          </Tooltip>
+        )}
         {wide ? <span {...stylex.props(styles.brandName)}>{t('panel.brand')}</span> : null}
         <Tooltip label={toggleLabel} side="right" delayMs={500}>
           <button

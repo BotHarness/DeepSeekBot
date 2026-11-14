@@ -119,7 +119,72 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
 });
+
+it.each(['member', 'admin'])(
+  'creates a local Channel in the %s page without Owner target state',
+  async (role) => {
+    vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+    const storage = vi.spyOn(Storage.prototype, 'getItem');
+    const actions = createActions(localCall, createStore());
+    const create = vi.spyOn(actions, 'createGroup').mockResolvedValue({
+      id: 'member-channel',
+      type: 'group',
+      name: 'Member local',
+      members: [],
+      createdAt: '2026-11-14T00:00:00Z',
+      updatedAt: '2026-11-14T00:00:00Z',
+    });
+    try {
+      await act(async () =>
+        root.render(
+          createElement(EnvironmentCreation, {
+            request: { kind: 'channel' },
+            scope: 'all',
+            actions,
+            t: zhTranslate,
+            onClose: close,
+          }),
+        ),
+      );
+      expect(document.querySelector('select')).toBeNull();
+      expect(storage).not.toHaveBeenCalled();
+      await typeInto(fieldNamed('频道名称'), 'Member local');
+      await act(async () => buttonNamed('创建').click());
+      expect(create).toHaveBeenCalledExactlyOnceWith('Member local', undefined);
+      expect(fixture.call).not.toHaveBeenCalled();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      storage.mockRestore();
+      create.mockRestore();
+    }
+  },
+);
+
+it.each(['member', 'admin'])(
+  'retains the authenticated %s Bot creation actions without Owner target state',
+  (role) => {
+    vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+    const storage = vi.spyOn(Storage.prototype, 'getItem');
+    const actions = createActions(localCall, createStore());
+    try {
+      expect(
+        EnvironmentCreation({
+          request: { kind: 'bot', source: 'empty' },
+          actions,
+          t: zhTranslate,
+          scope: 'all',
+          onClose: close,
+        }),
+      ).toMatchObject({ props: { actions, source: 'empty' } });
+      expect(storage).not.toHaveBeenCalled();
+      expect(fixture.call).not.toHaveBeenCalled();
+    } finally {
+      storage.mockRestore();
+    }
+  },
+);
 
 it('keeps the offline last Host visible and requires an explicit online choice', async () => {
   fixture.online = false;

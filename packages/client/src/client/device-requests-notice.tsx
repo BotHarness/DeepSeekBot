@@ -1,3 +1,4 @@
+import { memberPage } from './member-page.js';
 import { useState, type ReactNode } from 'react';
 import { useMountedResource } from './mounted-resource.js';
 import { PairedDevicesSettings } from './paired-devices.js';
@@ -55,7 +56,10 @@ export function DeviceRequestsNotice({
 }) {
   const [pending, setPending] = useState(pendingRequests);
   const [reviewing, setReviewing] = useState(false);
-  const mount = useMountedResource<HTMLSpanElement>(() => watchPendingRequests(setPending), []);
+  const mount = useMountedResource<HTMLSpanElement>(
+    () => (memberPage() ? undefined : watchPendingRequests(setPending)),
+    [],
+  );
   return (
     <span ref={mount}>
       {pending ? (

@@ -4,6 +4,7 @@ import { Field } from './ds/field.js';
 import { Select } from './ds/select.js';
 import { useRemoteHosts, HostMark } from './host-tabs.js';
 import { remoteHosts } from './remote-hosts.js';
+import { memberPage } from './member-page.js';
 import { useThisHost } from './this-host.js';
 import { hostLooks, useHostName } from './host-looks.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
@@ -28,7 +29,36 @@ export type EnvironmentCreateRequest =
   | { kind: 'bot'; source: 'empty' | 'git'; sectionId?: string }
   | { kind: 'channel'; sectionId?: string };
 
-export function EnvironmentCreation({
+export function EnvironmentCreation(
+  props: Parameters<typeof OwnerEnvironmentCreation>[0],
+): ReactElement {
+  if (!memberPage()) return <OwnerEnvironmentCreation {...props} />;
+  const { request, actions, t, onClose, sectionName } = props;
+  if (request.kind === 'channel')
+    return (
+      <CreateChannelModal
+        t={t}
+        sectionName={sectionName}
+        onCancel={onClose}
+        onCreate={async (name) => {
+          if (await actions.createGroup(name, request.sectionId)) onClose();
+        }}
+      />
+    );
+  return (
+    <CreatePersonaBotModal
+      actions={actions}
+      source={request.source}
+      {...(request.sectionId === undefined ? {} : { sectionId: request.sectionId })}
+      {...(sectionName === undefined ? {} : { sectionName })}
+      t={t}
+      onCancel={onClose}
+      onCreated={onClose}
+    />
+  );
+}
+
+function OwnerEnvironmentCreation({
   request,
   actions,
   t,
