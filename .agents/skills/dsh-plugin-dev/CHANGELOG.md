@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented the downstream selected-Host usage/storage journey and fresh published149 verification boundary; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4119](https://github.com/BotHarness/DeepSeekBot/issues/4119)).
+
 - Documented the downstream exact-Environment Settings journey with its verified More → Settings entry; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4117](https://github.com/BotHarness/DeepSeekBot/issues/4117)).
 
 - Documented downstream evidence checks against the current advertised Client artifact revision after a task-owned swap; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
