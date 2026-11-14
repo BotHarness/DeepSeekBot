@@ -384,7 +384,7 @@ function StorageSettingsView({
       setPreview(undefined);
       if (
         (failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
-        failure.code === 'storage-preview-stale'
+        (failure.code === 'storage-preview-stale' || failure.code === 'purge-preview-stale')
       ) {
         setError(t('storage.stale'));
       } else {
