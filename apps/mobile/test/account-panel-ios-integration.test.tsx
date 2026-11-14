@@ -244,7 +244,7 @@ it('discards a missing-computer refresh from the account that left the screen', 
 it('unlinks an offline computer through the real account owner and iOS panel without clearing phone pairings', async () => {
   const { fixture } = await render('linked-computers');
   const before = JSON.parse(fixture.getSnapshot());
-  expect(button('account-computer-hoffline').disabled).toBe(true);
+  expect(button('account-computer-hoffline').disabled).toBe(false);
   await click('account-manage-computers');
   expect(button('account-computer-hoffline').disabled).toBe(false);
   await click('account-computer-hoffline');

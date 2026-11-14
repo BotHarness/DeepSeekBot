@@ -10,7 +10,7 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
-- Documented downstream offline retirement after published Team lifecycle145, safe pending cancellation and fresh generation146 qualification; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)).
+- Documented downstream offline retirement after published Channel access146, safe pending cancellation and fresh generation147 qualification; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)).
 
 - Documented downstream ownership-verified recovery, with task-owner exclusion of same-Home launchers/recovery attempts, of an empty native credential writer lock after interrupted startup; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
 

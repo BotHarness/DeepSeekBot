@@ -236,7 +236,9 @@ describe('confirmed terminal PersonaBot deletion', () => {
       core.channelManagement.removeMember(OWNER_HUMAN_CONTEXT, {
         channelId: group.id,
         botSlug: 'b',
-        expectedChannel: result.value.channelFingerprint,
+        ...(result.value.channelFingerprint === undefined
+          ? {}
+          : { expectedChannel: result.value.channelFingerprint }),
       }).channel.members,
     ).toEqual(['a']);
   });

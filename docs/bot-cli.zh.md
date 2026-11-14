@@ -929,6 +929,7 @@ DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 
 ### 加密局域网手机连接
 
 无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。等待批准时，配对进程向标准错误输出一条 `device-key-confirmation-required` JSON 状态，只包含本端公钥指纹。在另一个 CLI 进程将其与 `devices.pendingKeys[].fingerprint` 完整逐位比较，再用 `device-approve-key` 批准该条目的准确公钥；不得只按设备名或列表位置批准。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。
+`device-account-pair --account-file <私有账号会话.json> --host-id <Connect注册ID> --out <新私有配对.json> --confirm` 复用手机的账号授权、客户端 HTTPS 身份读取和加密配对，无需指纹确认。会话文件是 Connect 会话的私有副本（`clientId`、`subject`、`refreshToken`、可选 `sessionId`），刷新只更新该文件；不要与运行中的客户端共用，token 不得放在参数中。默认使用官方 Relay，`DEEPSEEKBOT_CONNECT_RELAY` 可指定隔离测试服务。服务端观察到的离线状态不会阻止尝试；随后用 `device-probe` 验证真实 Host Feed 读取。
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 

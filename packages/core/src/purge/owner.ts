@@ -241,6 +241,14 @@ export function mountContentPurge(options: {
           (SELECT owner_human_id FROM team_settings)) WHERE json_extract(record_json, '$.ownerHumanId') = ?`).run(
           fact.humanId,
         );
+        if (
+          db
+            .prepare('PRAGMA table_info(channel_records)')
+            .all()
+            .some((column) => column.name === 'owner_human_id')
+        )
+          db.prepare(`UPDATE channel_records SET owner_human_id =
+            (SELECT owner_human_id FROM team_settings) WHERE owner_human_id = ?`).run(fact.humanId);
         for (const slug of fact.privateBots ?? [])
           acceptMemberBotPurge({
             db,
