@@ -1,3 +1,6 @@
+import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
+import { humanContext } from '../src/humans/context.js';
+import { DEFAULT_CHANNEL_POLICY } from '../src/team/channel-contract.js';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,11 +11,78 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-describe('published Human and Team schemas through M9 lifecycle145', () => {
+describe('published Human and Team schemas through M4 Channel access146', () => {
   const e1SchemaPlan = defineSchemaPlan(
-    BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 145),
+    BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 146),
   );
-  it.each([138, 139, 140, 141, 142, 143, 144])(
+  it('upgrades main generation 145 after legacy Channel writes and preserves M9 ownership', () => {
+    const home = createTempRoot('schema-main-m4-');
+    const previous = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 145),
+      ),
+    });
+    expect(previous.mode).toBe('ready');
+    const port = attachOperationalModule(previous, 'main-channel-fixture');
+    port.transaction((db) =>
+      db.exec("INSERT INTO humans VALUES ('member', 'Member', 'active', 'before')"),
+    );
+    const channels = createSqliteChannelStore({ database: port, rootDir: join(home, 'channels') });
+    const group = channels.createGroup(humanContext('member'), {
+      name: 'Member owned',
+      members: [],
+    });
+    const record = port.read(
+      (db) =>
+        db.prepare('SELECT record_json FROM channel_records WHERE channel_id = ?').get(group.id)
+          ?.record_json,
+    );
+    port.transaction((db) =>
+      db.prepare('UPDATE channel_records SET public = 1 WHERE channel_id = ?').run(group.id),
+    );
+    previous.close();
+    const current = trackTestOwner(
+      mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
+    );
+    expect(current.mode).toBe('ready');
+    expect(current.generation).toBe(146);
+    const migrated = attachOperationalModule(current, 'm4-channel-fixture');
+    expect(
+      migrated.read((db) =>
+        db
+          .prepare(
+            'SELECT record_json, owner_human_id, visibility_json, policy_json FROM channel_records WHERE channel_id = ?',
+          )
+          .get(group.id),
+      ),
+    ).toEqual({
+      record_json: record,
+      owner_human_id: 'member',
+      visibility_json: '{"kind":"public"}',
+      policy_json: JSON.stringify(DEFAULT_CHANNEL_POLICY),
+    });
+    expect(
+      migrated.read((db) =>
+        db.prepare('SELECT human_id FROM channel_human_members WHERE channel_id = ?').all(group.id),
+      ),
+    ).toEqual([{ human_id: 'member' }]);
+    const upgraded = createSqliteChannelStore({
+      database: migrated,
+      rootDir: join(home, 'channels'),
+    });
+    const next = upgraded.createGroup(humanContext('member'), {
+      name: 'After upgrade',
+      members: [],
+    });
+    expect(
+      migrated.read((db) =>
+        db.prepare('SELECT owner_human_id FROM channel_records WHERE channel_id = ?').get(next.id),
+      ),
+    ).toEqual({ owner_human_id: 'member' });
+  });
+
+  it.each([138, 139, 140, 141, 142, 143, 144, 145])(
     'upgrades supported generation %i with Human data and independent pairing intact',
     (generation) => {
       const home = createTempRoot('schema-main-e1-');
@@ -60,7 +130,7 @@ describe('published Human and Team schemas through M9 lifecycle145', () => {
           mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
         );
         expect(owner.mode).toBe('ready');
-        expect(owner.generation).toBe(145);
+        expect(owner.generation).toBe(146);
         const current = attachOperationalModule(owner, 'migration-fixture');
         const reopened = createDevicePairing({ database: current, hostName: 'Existing' });
         expect(reopened.admit(`Device ${deviceId}.${secret}`).ok).toBe(true);

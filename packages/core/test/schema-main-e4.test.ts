@@ -8,11 +8,11 @@ import { createHostRelationships } from '../src/devices/relationships.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const e4SchemaPlan = defineSchemaPlan(
-  BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 146),
+  BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 147),
 );
 
-it.each([144, 145])(
-  'upgrades published generation %i to E4 revocation146 without losing Human, Team or independent device data',
+it.each([144, 145, 146])(
+  'upgrades published generation %i to E4 revocation147 without losing Human, Team or independent device data',
   (generation) => {
     const home = createTempRoot('schema-main-e4-');
     const previous = trackTestOwner(
@@ -48,7 +48,7 @@ it.each([144, 145])(
       INSERT INTO persona_bots(slug, body, owner_human_id)
       VALUES ('member-bot', '{"slug":"member-bot","ownerHumanId":"human-other"}', 'human-other');
       INSERT INTO tob_identity VALUES ('human-other', 'member-bot')`);
-      if (generation === 145)
+      if (generation >= 145)
         db.exec(`INSERT INTO humans VALUES ('suspended-member', 'Suspended', 'suspended', 'before');
       INSERT INTO team_mode_suspensions VALUES ('suspended-member', 'deactivated');
       INSERT INTO deleted_humans VALUES ('deleted-member', 'before')`);
@@ -65,7 +65,7 @@ it.each([144, 145])(
         mountOperationalDatabase({ dshHome: home, schemaPlan: e4SchemaPlan }),
       );
       expect(owner.mode).toBe('ready');
-      expect(owner.generation).toBe(146);
+      expect(owner.generation).toBe(147);
       const current = attachOperationalModule(owner, 'migration-fixture');
       const reopened = createDevicePairing({ database: current, hostName: 'Existing' });
       expect(reopened.admit(`Device ${deviceId}.${secret}`).ok).toBe(true);
@@ -117,7 +117,7 @@ it.each([144, 145])(
         expect(
           db.prepare("SELECT bot_slug FROM tob_identity WHERE human_id = 'human-other'").get(),
         ).toEqual({ bot_slug: 'member-bot' });
-        if (generation === 145) {
+        if (generation >= 145) {
           expect(
             db.prepare("SELECT status FROM humans WHERE human_id = 'suspended-member'").get(),
           ).toEqual({ status: 'suspended' });
