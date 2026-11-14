@@ -358,6 +358,7 @@ it('keeps saved computers disabled but lets the phone attempt an offline compute
   );
   expect(button('Other').disabled).toBe(true);
   expect(button('Spare').disabled).toBe(false);
+  expect(host.textContent).not.toContain('same Wi-Fi or tailnet');
 });
 it('ignores an old account lookup after the account owner changes', async () => {
   let resolve!: (value: string) => void;

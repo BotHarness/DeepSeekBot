@@ -298,7 +298,12 @@ export function AccountHosts(props: {
             : result === 'cancelled'
               ? t.pairAccount.cancelled
               : result && result !== 'added'
-                ? [t.pairRefused[result], props.failures?.[host.id]?.detail]
+                ? [
+                    result === 'unreachable'
+                      ? t.pairAccount.connectionFailed
+                      : t.pairRefused[result],
+                    props.failures?.[host.id]?.detail,
+                  ]
                     .filter((part) => part !== undefined)
                     .map((part, index) => (index === 0 ? part : t.pairFailureDetail(part)))
                     .join('\n')
