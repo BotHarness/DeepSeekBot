@@ -1,3 +1,5 @@
+import { ConnectHealthCard } from './connect-health-card.js';
+import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
 import { ConnectAccountHosts } from './connect-account-hosts.js';
 import { RelationshipSettings } from './relationship-settings.js';
 import { ConnectionProgressLog } from './connection-progress-log.js';
@@ -59,6 +61,7 @@ interface PairedDevice {
 type RouteStatus = PhoneRouteStatus;
 
 interface ConnectStatus {
+  health?: ConnectHealthStatus;
   encryption?: { fingerprint: string; state: string };
   state: 'off' | 'starting' | 'connected' | 'error';
   hostname?: string;
@@ -250,8 +253,11 @@ export function PairedDevicesSettings({
   const [remoteFooter, setRemoteFooter] = useState<HTMLDivElement | null>(null);
   const [tunnelStep, setTunnelStep] = useState<PrivateTunnelStep>('choose');
   const phoneAppReady = useRef(false);
+  const preparingRelationshipRoute = useRef(false);
   const setupVersion = useRef(0);
   const setSetup = (next: Setup) => {
+    if (next === 'direction' || next === 'app' || next === 'remote')
+      preparingRelationshipRoute.current = false;
     setupVersion.current += 1;
     setSetupState(next);
   };
@@ -384,6 +390,11 @@ export function PairedDevicesSettings({
   };
 
   const createOffer = async (): Promise<void> => {
+    if (preparingRelationshipRoute.current) {
+      preparingRelationshipRoute.current = false;
+      setSetup('closed');
+      return;
+    }
     if (!phoneAppReady.current) {
       setSetup('app');
       return;
@@ -633,7 +644,16 @@ export function PairedDevicesSettings({
   const overview = !standalone || (setup === 'closed' && !pairing && !reviewing);
   const content = (
     <div ref={mount} data-paired-devices="">
-      {section === 'devices' && setup !== 'remote' ? <RelationshipSettings t={t} /> : null}
+      {section === 'devices' && setup !== 'remote' ? (
+        <RelationshipSettings
+          t={t}
+          onPrepareRoute={() => {
+            close();
+            preparingRelationshipRoute.current = true;
+            setSetup('method');
+          }}
+        />
+      ) : null}
       {!standalone && section === 'devices' && overview ? (
         <SettingsSection>
           <SettingsRow
@@ -739,10 +759,21 @@ export function PairedDevicesSettings({
           {signIn && (signIn.state === 'signed-in' || signIn.issue === 'host-limit') ? (
             <StatusStack title="Tobs Connect">
               <Note>{signIn.email}</Note>
+              <ConnectHealthCard
+                t={t}
+                health={snapshot?.connect?.health}
+                reloadSnapshot={load}
+                fresh={freshSnapshot}
+              />
               <ConnectAccountHosts
                 t={t}
                 account={signIn}
                 reloadSnapshot={load}
+                refreshOn={
+                  snapshot?.connect?.health && 'checkedAt' in snapshot.connect.health
+                    ? snapshot.connect.health.checkedAt
+                    : undefined
+                }
                 allowCurrentSignOut
                 onHostsChanged={setAccountHosts}
                 details={(host) => <AccountHostConnectionDetails host={host} t={t} />}
@@ -847,7 +878,10 @@ export function PairedDevicesSettings({
           secondary={setupBack}
           closeLabel={t('common.close')}
           size="small"
-          onClose={() => setSetup('closed')}
+          onClose={() => {
+            preparingRelationshipRoute.current = false;
+            setSetup('closed');
+          }}
         >
           <div {...stylex.props(styles.pairing)}>
             {readState === 'loading' && setup !== 'direction' ? (
@@ -1548,6 +1582,7 @@ export function PairedDevicesSettings({
               if (overview) onClose?.();
               else {
                 setReviewing(false);
+                preparingRelationshipRoute.current = false;
                 setSetup('closed');
               }
             }}

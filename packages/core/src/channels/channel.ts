@@ -76,9 +76,12 @@ export interface ChannelRecord {
   avatar?: string;
   members: string[];
   botSlug?: string;
+  humanParticipants?: string[];
+  description?: string;
   remoteBot?: RemoteBotParticipant;
 
   ownerBotSlug?: string;
+  ownerHumanId?: string;
   invitations?: GroupInvitation[];
   joinRequests?: GroupJoinRequest[];
   wakePolicies?: Record<string, GroupWakePolicy>;
@@ -644,6 +647,7 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
   switch (author['kind']) {
     case 'human':
       return (
+        (author['deleted'] === undefined || typeof author['deleted'] === 'boolean') &&
         (author['humanId'] === undefined || typeof author['humanId'] === 'string') &&
         (author['displayName'] === undefined || typeof author['displayName'] === 'string')
       );
@@ -684,6 +688,18 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
   if (typeof record['updatedAt'] !== 'string') return false;
   const members = record['members'];
   if (!Array.isArray(members) || !members.every((entry) => typeof entry === 'string')) return false;
+  const participants = record['humanParticipants'];
+  if (
+    participants !== undefined &&
+    (record['type'] !== 'dm' ||
+      members.length !== 0 ||
+      !Array.isArray(participants) ||
+      participants.length !== 2 ||
+      participants[0] === participants[1] ||
+      !participants.every((id) => typeof id === 'string' && id.length > 0) ||
+      record['botSlug'] !== undefined)
+  )
+    return false;
   const botSlug = record['botSlug'];
   if (botSlug !== undefined && typeof botSlug !== 'string') return false;
   const remote = record['remoteBot'];
@@ -711,6 +727,9 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
     )
       return false;
   }
+  const ownerHumanId = record['ownerHumanId'];
+  if (ownerHumanId !== undefined && (typeof ownerHumanId !== 'string' || !ownerHumanId))
+    return false;
   const ownerBotSlug = record['ownerBotSlug'];
   if (ownerBotSlug !== undefined) {
     if (

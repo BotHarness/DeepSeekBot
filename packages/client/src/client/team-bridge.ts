@@ -20,7 +20,7 @@ export interface TeamModeView {
   readonly viewer: TeamViewer;
 }
 
-export type TeamMemberStatus = 'active' | 'suspended';
+export type TeamMemberStatus = 'active' | 'suspended' | 'deactivated';
 
 export interface TeamMember {
   readonly humanId: string;
@@ -37,14 +37,6 @@ export interface TeamMember {
 export interface CreatedMember {
   readonly member: TeamMember;
   readonly initialPassword: string;
-}
-
-export interface PublicChannel {
-  readonly channelId: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly memberCount: number;
-  readonly joined: boolean;
 }
 
 export const TEAM_REFUSALS = [
@@ -68,6 +60,14 @@ export const TEAM_REFUSALS = [
   'member-suspended',
   'permission-not-grantable',
   'owner-transfer-target-unverified',
+  'transfer-target-invalid',
+  'transfer-required',
+  'member-active',
+  'purge-token-invalid',
+  'role-not-found',
+  'channel-post-restricted',
+  'channel-mention-restricted',
+  'stale-channel-policy',
 ] as const;
 export type TeamRefusal = (typeof TEAM_REFUSALS)[number];
 
@@ -150,7 +150,8 @@ export function parseTeamMember(value: unknown): TeamMember | undefined {
     humanId,
     username,
     displayName: text(row['displayName']) ?? username,
-    status: row['status'] === 'suspended' ? 'suspended' : 'active',
+    status:
+      row['status'] === 'suspended' || row['status'] === 'deactivated' ? row['status'] : 'active',
     mustChangePassword: row['mustChangePassword'] === true,
     createdAt: text(row['createdAt']) ?? '',
     owner: row['owner'] === true,
@@ -160,23 +161,7 @@ export function parseTeamMember(value: unknown): TeamMember | undefined {
   };
 }
 
-export function parsePublicChannel(value: unknown): PublicChannel | undefined {
-  const row = record(value);
-  const channelId = text(row?.['channelId']);
-  const name = text(row?.['name']);
-  if (row === undefined || channelId === undefined || name === undefined) return undefined;
-  const description = text(row['description']);
-  const count = row['memberCount'];
-  return {
-    channelId,
-    name,
-    ...(description === undefined ? {} : { description }),
-    memberCount: typeof count === 'number' && Number.isFinite(count) && count >= 0 ? count : 0,
-    joined: row['joined'] === true,
-  };
-}
-
-function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
+export function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
   const items = Array.isArray(value) ? value : (record(value)?.['items'] ?? []);
   return Array.isArray(items)
     ? items.flatMap((item: unknown) => {
@@ -231,27 +216,13 @@ export async function changeOwnPassword(
   call: BridgeCall,
   current: string,
   next: string,
+  signOutOthers?: boolean,
 ): Promise<void> {
-  await unwrap(call, 'memberPasswordChange', { current, next });
-}
-
-export async function loadPublicChannels(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<PublicChannel[]> {
-  return list(await unwrap(call, 'publicChannels', {}, signal), parsePublicChannel);
-}
-
-export async function joinPublicChannel(call: BridgeCall, channelId: string): Promise<void> {
-  await unwrap(call, 'publicChannelJoin', { channelId });
-}
-
-export async function setChannelPublic(
-  call: BridgeCall,
-  channelId: string,
-  open: boolean,
-): Promise<void> {
-  await unwrap(call, 'channelPublicSet', { channelId, public: open });
+  await unwrap(call, 'memberPasswordChange', {
+    current,
+    next,
+    ...(signOutOthers === undefined ? {} : { signOutOthers }),
+  });
 }
 
 export function validUsername(value: string): boolean {

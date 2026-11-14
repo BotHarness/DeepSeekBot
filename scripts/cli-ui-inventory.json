@@ -7,9 +7,10 @@
       "scope": "Local Host",
       "surfaces": [
         "route:packages/core/src/devices/mount.ts:RELATIONSHIPS_PATH",
-        "setting:packages/client/src/client/relationship-settings.tsx:{item.peer.name}"
+        "setting:packages/client/src/client/relationship-settings.tsx:{item.peer.name}",
+        "setting:packages/client/src/client/relationship-settings.tsx:{t('relationships.prepareReturn')}"
       ],
-      "commands": ["relationships", "device-probe"]
+      "commands": ["relationships", "device-probe", "device-lan"]
     },
     {
       "id": "client-preferences",
@@ -77,7 +78,7 @@
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/private`, ['POST']], [`${DEVICES_PATH}/private-tunnel`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/connect-health`, ['POST']], [`${DEVICES_PATH}/private`, ['POST']], [`${DEVICES_PATH}/private-tunnel`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
         "setting:packages/client/src/client/private-tunnel-settings.tsx:{t('privateTunnel.ingressLan')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
         "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
@@ -1090,13 +1091,15 @@
         "setting:packages/client/src/client/team-settings.tsx:{t('team.mode.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.ownerPassword.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{view.viewer.displayName}",
-        "setting:packages/client/src/client/channel-public-setting.tsx:{t('team.channelPublic.title')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.admins')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.visibility')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t(`channelAccess.policy.${key}`)}",
         "setting:packages/client/src/client/team-roles.tsx:{name}",
         "setting:packages/client/src/client/team-roles.tsx:{roleLabel(t, role)}",
         "setting:packages/client/src/client/team-roles.tsx:{t('team.roles.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}"
       ],
-      "commands": ["team-mode", "members", "channels", "roles", "devices"]
+      "commands": ["team-mode", "members", "channels", "roles", "devices", "dm"]
     },
     {
       "id": "team-member-browser-sign-out",

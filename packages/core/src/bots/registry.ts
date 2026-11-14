@@ -199,7 +199,8 @@ function isDirectory(path: string): boolean {
 }
 
 export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): PersonaBotRegistry {
-  const rootDir = options.rootDir;
+  mkdirSync(options.rootDir, { recursive: true });
+  const rootDir = realpathSync(options.rootDir);
   const now = options.now ?? (() => new Date());
   const botDir = (slug: string): string => join(rootDir, slug);
   const botFile = (slug: string): string => join(botDir(slug), 'bot.json');

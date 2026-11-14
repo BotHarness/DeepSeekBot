@@ -538,13 +538,42 @@ export const PAGES = [
     order: 15,
     en: {
       source: 'docs/private-connect.md',
-      title: 'Docker private connection',
-      description: 'Deploy your private relay, verify public reachability and pair your phone.',
+      title: 'Choose a private connection',
+      description:
+        'Choose Named Tunnel, your own HTTPS ingress or a Docker relay, with agent setup prompts.',
     },
     zh: {
       source: 'docs/private-connect.zh.md',
-      title: 'Docker 私有连接',
-      description: '部署私有中继，检查公网可达性并配对手机。',
+      title: '选择私有连接',
+      description: '选择 Named Tunnel、自带 HTTPS 入口或 Docker Relay，含 agent 部署提示词。',
+    },
+  },
+  {
+    slug: 'docs/private-named-tunnel',
+    order: 15,
+    en: {
+      source: 'docs/private-named-tunnel.md',
+      title: 'Cloudflare Named Tunnel',
+      description: 'Set up your own fixed tunnel, manually or with your agent.',
+    },
+    zh: {
+      source: 'docs/private-named-tunnel.zh.md',
+      title: 'Cloudflare Named Tunnel',
+      description: '手动或通过自己的 agent 配置固定隧道。',
+    },
+  },
+  {
+    slug: 'docs/private-relay',
+    order: 15,
+    en: {
+      source: 'docs/private-relay.md',
+      title: 'Docker private relay',
+      description: 'Deploy a multi-Host relay on your server, manually or with your agent.',
+    },
+    zh: {
+      source: 'docs/private-relay.zh.md',
+      title: 'Docker 私有 Relay',
+      description: '手动或通过 agent 在自己的服务器上部署多 Host 中继。',
     },
   },
   {
