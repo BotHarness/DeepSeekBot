@@ -483,6 +483,7 @@ export interface InterruptedToolCall {
 }
 
 export interface AssignmentAgentRun {
+  beginTurn?(): void;
   acceptNativeInput?: () => boolean;
   setExecutionReady?(ready: boolean): void;
   requireContent?(): void;
@@ -6908,7 +6909,7 @@ class BotRuntimeImplementation implements BotRuntime {
         refuseStopped();
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#requestAssignment(bot, input, trackDelivery);
+        const outcome = this.#requestAssignment(bot, input, trackDelivery, sourceEventId);
         if (outcome.delivery !== 'capacity' && outcome.delivery !== 'refused') {
           markSideEffect();
           if (sourceEventId !== undefined)
@@ -9511,7 +9512,6 @@ class BotRuntimeImplementation implements BotRuntime {
     if (input.model !== undefined && plan === undefined)
       throw new Error('Apply a Model Preset before choosing an Assignment model');
     const modelRoute = plan === undefined ? undefined : selectAssignmentRoute(plan, input.model);
-    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
     if (this.#grants === undefined) throw new Error('Workspace Grants are unavailable');
     const grant = this.#grants.requireActive(bot.slug, grantId);
     const access = this.#assignmentAccessPresetStore?.get(bot.slug) ?? {
@@ -9545,6 +9545,7 @@ class BotRuntimeImplementation implements BotRuntime {
           bot,
           { sessionId: holder.session_id, mode: 'next-turn', text },
           trackDelivery,
+          sourceEventId,
         );
         if (request.delivery === 'capacity') {
           const { assignment: _assignment, delivery: _delivery, ...refusal } = request;
@@ -9563,6 +9564,7 @@ class BotRuntimeImplementation implements BotRuntime {
         };
       }
     }
+    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
     const refusal = this.#assignmentCapacityRefusal('created');
     if (refusal !== undefined) return refusal;
     const sessionId = this.#createSessionId();
@@ -9663,6 +9665,7 @@ class BotRuntimeImplementation implements BotRuntime {
       model?: ModelRoute;
     },
     trackDelivery?: (sessionId: string, pending: boolean) => void,
+    sourceEventId?: string,
   ): AssignmentRequestOutcome {
     let row = this.#assignmentRow(bot.slug, input.sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
@@ -9738,7 +9741,33 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#setActivity(input.sessionId, 'working');
     }
     const interrupted = this.#interruptedTools.get(input.sessionId);
+    const initiatingHuman = this.#database.read((db) => {
+      const source = db
+        .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
+        .get(sourceEventId ?? null);
+      if (typeof source?.['human_id'] === 'string') return source['human_id'];
+      const parentSessionId = this.#turnSources.get(bot.slug)?.sessionId;
+      const parent = db
+        .prepare(
+          'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 ORDER BY turn DESC LIMIT 1',
+        )
+        .get(parentSessionId ?? null);
+      return typeof parent?.['human_id'] === 'string' ? parent['human_id'] : undefined;
+    });
     const run: AssignmentAgentRun = {
+      beginTurn: () => {
+        if (typeof initiatingHuman !== 'string') return;
+        this.#database.transaction(
+          (db) => {
+            db.prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)').run(
+              input.sessionId,
+              initiatingHuman,
+              this.#now().getTime(),
+            );
+          },
+          ['usage'],
+        );
+      },
       setExecutionReady: (ready) => this.#setAssignmentExecutionReady(input.sessionId, ready),
       requireContent: () =>
         this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug)),

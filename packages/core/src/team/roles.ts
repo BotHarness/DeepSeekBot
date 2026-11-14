@@ -141,9 +141,37 @@ export class TeamRoles {
   }
 
   private authority(human: HumanContext): RoleAuthority {
-    return this.isOwner(human)
-      ? { kind: 'owner' }
-      : { kind: 'member', permissions: new Set(this.permissions(human)) };
+    const rows = z
+      .array(z.object({ permissions: z.string().nullable(), owner: z.coerce.boolean() }))
+      .parse(
+        this.db.read((db) =>
+          db
+            .prepare(`SELECT r.permissions_json AS permissions, s.owner_human_id = h.human_id AS owner
+        FROM humans h CROSS JOIN team_settings s LEFT JOIN human_roles m ON m.human_id = h.human_id
+        LEFT JOIN host_roles r ON r.role_id = m.role_id
+        WHERE h.human_id = ? AND (h.status = 'active' OR s.owner_human_id = h.human_id)`)
+            .all(human.humanId),
+        ),
+      );
+    if (rows.some((row) => row.owner)) return { kind: 'owner' };
+    const effective = new Set(
+      rows.flatMap((row) =>
+        row.permissions === null ? [] : z.array(z.string()).parse(JSON.parse(row.permissions)),
+      ),
+    );
+    return {
+      kind: 'member',
+      permissions: new Set(ALL_PERMISSIONS.filter((permission) => effective.has(permission))),
+    };
+  }
+
+  private checkModelGrant(actor: ModelsAllowed, models: RoleModels): void {
+    if (actor.all) return;
+    if (models.kind === 'all')
+      throw new TeamError('model-not-allowed', undefined, { route: 'all' });
+    const outside = models.routes.find((route) => !actor.routes.includes(route));
+    if (outside !== undefined)
+      throw new TeamError('model-not-allowed', undefined, { route: outside });
   }
 
   private checkPermissions(
@@ -160,19 +188,30 @@ export class TeamRoles {
       throw new TeamError('permission-not-grantable', undefined, { permission });
   }
 
-  create(human: HumanContext, name: string, permissions: string[]): { role: HostRole } {
+  create(
+    human: HumanContext,
+    name: string,
+    permissions: string[],
+    models: RoleModels = { kind: 'all' },
+  ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const normalized = this.name(name);
     const grants = this.validatePermissions(permissions);
-    this.checkPermissions(this.authority(human), grants, 'grant');
+    const authority = this.authority(human);
+    this.checkPermissions(authority, grants, 'grant');
+    const modelPolicy = roleModelsSchema.parse(models);
+    this.checkModelGrant(
+      authority.kind === 'owner' ? { all: true } : this.modelsAllowed(human),
+      modelPolicy,
+    );
     const id = randomUUID();
     this.db.transaction(
       (db) =>
         db
           .prepare(
-            'INSERT INTO host_roles (role_id, name, builtin, permissions_json) VALUES (?, ?, NULL, ?)',
+            'INSERT INTO host_roles (role_id, name, builtin, permissions_json, models_json) VALUES (?, ?, NULL, ?, ?)',
           )
-          .run(id, normalized, JSON.stringify(grants)),
+          .run(id, normalized, JSON.stringify(grants), JSON.stringify(modelPolicy)),
       ['team'],
     );
     this.invalidate();
@@ -189,6 +228,11 @@ export class TeamRoles {
     const authority = this.authority(human);
     this.checkPermissions(authority, role.permissions, 'manage');
     const models = patch.models === undefined ? role.models : roleModelsSchema.parse(patch.models);
+    if (patch.models !== undefined)
+      this.checkModelGrant(
+        authority.kind === 'owner' ? { all: true } : this.modelsAllowed(human),
+        models,
+      );
     if (role.builtin === 'admin' && models.kind !== 'all') throw new TeamError('role-builtin');
     const name = patch.name === undefined ? role.name : this.name(patch.name, roleId);
     const grants =
@@ -249,8 +293,11 @@ export class TeamRoles {
       LIMIT 1`)
           .get(roleId),
       )
-    )
-      this.checkPermissions(authority, this.role('member').permissions, 'grant');
+    ) {
+      const fallback = this.role('member');
+      this.checkPermissions(authority, fallback.permissions, 'grant');
+      this.checkModelGrant(this.modelsAllowed(human), fallback.models);
+    }
     this.db.transaction(
       (db) => {
         db.prepare('DELETE FROM human_roles WHERE role_id = ?').run(roleId);
@@ -271,7 +318,11 @@ export class TeamRoles {
     const authority = this.authority(human);
     if (ids.includes('admin') && authority.kind !== 'owner')
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
-    for (const role of roles) this.checkPermissions(authority, role.permissions, 'grant');
+    const models = authority.kind === 'owner' ? { all: true as const } : this.modelsAllowed(human);
+    for (const role of roles) {
+      this.checkPermissions(authority, role.permissions, 'grant');
+      this.checkModelGrant(models, role.models);
+    }
     return ids;
   }
 

@@ -8,6 +8,8 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
 import { scopeTarget } from '@deepseek-ai/dsh-scope';
+import { SessionId } from '@deepseek-ai/dsh-session';
+import { SubagentRunId } from '@deepseek-ai/dsh-subagent';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -35,6 +37,7 @@ interface Stubs {
   sessions: { list: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
   agents: {
     create: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
     resume: ReturnType<typeof vi.fn>;
     list: ReturnType<typeof vi.fn>;
   };
@@ -62,7 +65,7 @@ function createStubContext(): { ctx: Context; stubs: Stubs } {
     tools: { register: vi.fn(() => () => undefined), guard: vi.fn(() => () => undefined) },
     systemPrompt: { section: vi.fn(() => () => undefined) },
     sessions: { list: vi.fn(() => []), get: vi.fn() },
-    agents: { create: vi.fn(), resume: vi.fn(), list: vi.fn(() => []) },
+    agents: { create: vi.fn(), get: vi.fn(), resume: vi.fn(), list: vi.fn(() => []) },
     skills: { register: vi.fn(() => () => undefined) },
   };
   ctx.provide('tools', stubs.tools);
@@ -80,6 +83,97 @@ function logsSkill(stubs: { skills: { register: { mock: { calls: unknown[][] } }
 }
 
 describe('plugin entry', () => {
+  it('binds a native Subagent activation before a later parent turn can take its usage', () => {
+    const { ctx, stubs } = createStubContext();
+    apply(ctx, { enabled: true });
+    const core: BotHarnessCore | undefined = ctx.get('botharness');
+    if (!core?.usage) throw new Error('Usage unavailable');
+    expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+    const db = attachOperationalModule(core.operationalDatabase, 'subagent-attribution-test');
+    const at = Date.now();
+    core.ownership.claim({
+      sessionId: 'parent',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: new Date(at).toISOString(),
+    });
+    core.ownership.claim({
+      sessionId: 'child',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      provenance: 'subagent',
+      parentSessionId: 'parent',
+      at: new Date(at).toISOString(),
+    });
+    const parentTurn = (human: string, turn: number) => {
+      db.transaction((connection) =>
+        connection
+          .prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)')
+          .run('parent', human, at),
+      );
+      core.usage!.handleSessionEvent('parent', {
+        type: 'turn/start',
+        seq: turn,
+        time: at,
+        data: { turn },
+      });
+    };
+    parentTurn('alice', 1);
+    stubs.agents.get.mockReturnValue({ session: { header: { parentSession: 'parent' } } });
+    ctx.emit('subagent/start', {
+      id: SessionId('child'),
+      runId: SubagentRunId('activation'),
+      provider: 'spawn',
+      local: true,
+    });
+    parentTurn('bob', 2);
+    core.usage.handleSessionEvent('child', {
+      type: 'turn/start',
+      seq: 1,
+      time: at + 1,
+      data: { turn: 1 },
+    });
+    core.usage.handleSessionEvent('child', {
+      type: 'assistant/message',
+      seq: 2,
+      time: at + 2,
+      data: {
+        turn: 1,
+        usage: {
+          inputTokens: 10,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 10,
+        },
+      },
+    });
+    core.usage.handleSessionEvent('child', {
+      type: 'turn/start',
+      seq: 3,
+      time: at + 3,
+      data: { turn: 2 },
+    });
+    core.usage.handleSessionEvent('child', {
+      type: 'assistant/message',
+      seq: 4,
+      time: at + 4,
+      data: {
+        turn: 2,
+        usage: {
+          inputTokens: 10,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 10,
+        },
+      },
+    });
+    expect(core.usage.byMember('today', 'local-human', (slug) => slug).members).toMatchObject([
+      { humanId: 'alice', totals: { totalTokens: 20 } },
+    ]);
+  });
+
   it('drains member cleanup before closing the operational database on actual Cordis disposal', async () => {
     const { ctx } = createStubContext();
     apply(ctx, { enabled: true });

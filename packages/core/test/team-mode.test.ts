@@ -1,3 +1,4 @@
+import { roleModelsSchema } from '../src/team/permissions.js';
 import { channelPolicySchema } from '../src/team/channel-contract.js';
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -1908,6 +1909,156 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
   });
 
   describe('role delegation ceiling', () => {
+    it.each([
+      'create-all',
+      'create-default',
+      'create-outside',
+      'update-all',
+      'update-outside',
+      'assign-all',
+      'assign-outside',
+      'assign-default',
+      'member-create',
+      'delete-fallback',
+    ] as const)('refuses model grants beyond a restricted manager ceiling: %s', async (path) => {
+      const f = await actors();
+      const base = f.team.roles.permissions(f.human);
+      const manager = f.team.roles.create(
+        owner,
+        'Restricted managers',
+        [...base, 'roles.manage', 'members.manage'],
+        { kind: 'only', routes: ['provider/allowed'] },
+      ).role;
+      f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+      const models = path.includes('outside')
+        ? { kind: 'only' as const, routes: ['provider/outside'] }
+        : { kind: 'all' as const };
+      const unrestricted = f.team.roles.create(owner, 'Outside', [], models).role;
+      const limited = f.team.roles.create(owner, 'Limited', [], {
+        kind: 'only',
+        routes: ['provider/allowed'],
+      }).role;
+      if (path === 'delete-fallback')
+        f.team.roles.set(owner, f.alice.member.humanId, [limited.roleId]);
+      const roles = f.team.roles.list(owner);
+      const members = f.team.members(owner);
+      const invalidations = f.invalidate.mock.calls.length;
+      const run = () => {
+        switch (path) {
+          case 'create-all':
+          case 'create-outside':
+            return f.invoke('roleCreate', { name: 'Escalated models', permissions: [], models });
+          case 'create-default':
+            return f.invoke('roleCreate', { name: 'Default models', permissions: [] });
+          case 'update-all':
+          case 'update-outside':
+            return f.invoke('roleUpdate', { roleId: limited.roleId, models });
+          case 'assign-all':
+          case 'assign-outside':
+            return f.invoke('memberRolesSet', {
+              humanId: f.alice.member.humanId,
+              roleIds: [unrestricted.roleId],
+            });
+          case 'assign-default':
+            return f.invoke('memberRolesSet', { humanId: f.alice.member.humanId, roleIds: [] });
+          case 'member-create':
+            return f.invoke('memberCreate', {
+              username: 'model-escalation',
+              displayName: 'New member',
+              roleIds: [unrestricted.roleId],
+            });
+          case 'delete-fallback':
+            return f.invoke('roleDelete', { roleId: limited.roleId });
+        }
+      };
+      await expect(run()).rejects.toMatchObject({
+        code: 'model-not-allowed',
+        details: { route: path.includes('outside') ? 'provider/outside' : 'all' },
+      });
+      expect(f.team.roles.list(owner)).toEqual(roles);
+      expect(f.team.members(owner)).toEqual(members);
+      expect(f.invalidate.mock.calls).toHaveLength(invalidations);
+    });
+
+    it.each(['owner', 'all-manager', 'restricted-manager'] as const)(
+      'permits model grants within the acting %s policy',
+      async (actorKind) => {
+        const f = await actors();
+        const manager = f.team.roles.create(
+          owner,
+          'Model managers',
+          [...f.team.roles.permissions(f.human), 'roles.manage', 'members.manage'],
+          actorKind === 'restricted-manager'
+            ? { kind: 'only', routes: ['provider/allowed'] }
+            : { kind: 'all' },
+        ).role;
+        f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+        const human = actorKind === 'owner' ? owner : f.human;
+        const models =
+          actorKind === 'restricted-manager'
+            ? { kind: 'only' as const, routes: ['provider/allowed'] }
+            : { kind: 'all' as const };
+        const peer =
+          actorKind === 'owner'
+            ? new Peer(f.ctx, { principal: { kind: 'owner' } })
+            : f.bobLogin.peer;
+        const created = z
+          .object({ role: z.object({ roleId: z.string(), models: roleModelsSchema }) })
+          .parse(
+            await f.invoke(
+              'roleCreate',
+              { name: 'Delegated models', permissions: [], models },
+              peer,
+            ),
+          ).role;
+        expect(created.models).toEqual(models);
+        expect(f.team.roles.update(human, created.roleId, { models }).role.models).toEqual(models);
+        f.team.roles.set(human, f.alice.member.humanId, [created.roleId]);
+        expect(f.team.mode(humanContext(f.alice.member.humanId)).viewer.models).toEqual(
+          models.kind === 'all' ? { all: true } : { all: false, routes: models.routes },
+        );
+        const member = await f.team.createMember(human, 'delegated-models', 'Delegated', [
+          created.roleId,
+        ]);
+        expect(member.member.roleIds).toEqual([created.roleId]);
+        const existing = f.team.roles.create(owner, 'Existing all', []).role;
+        expect(
+          f.team.roles.update(human, existing.roleId, { name: 'Existing renamed' }).role.models,
+        ).toEqual({ kind: 'all' });
+      },
+    );
+
+    it.each(['actor-policy', 'assigned-role'] as const)(
+      'rechecks model grants after member password hashing yields: %s',
+      async (changed) => {
+        const f = await actors();
+        const manager = f.team.roles.create(
+          owner,
+          'Limited managers',
+          [...f.team.roles.permissions(f.human), 'members.manage'],
+          { kind: 'only', routes: ['provider/allowed'] },
+        ).role;
+        const assigned = f.team.roles.create(owner, 'Limited grant', [], {
+          kind: 'only',
+          routes: ['provider/allowed'],
+        }).role;
+        f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+        const pending = f.team.createMember(f.human, 'late-models', 'Late models', [
+          assigned.roleId,
+        ]);
+        if (changed === 'actor-policy')
+          f.team.roles.update(owner, manager.roleId, { models: { kind: 'only', routes: [] } });
+        else f.team.roles.update(owner, assigned.roleId, { models: { kind: 'all' } });
+        await expect(pending).rejects.toMatchObject({
+          code: 'model-not-allowed',
+          details: { route: changed === 'actor-policy' ? 'provider/allowed' : 'all' },
+        });
+        expect(f.team.members(owner).some((member) => member.username === 'late-models')).toBe(
+          false,
+        );
+      },
+    );
+
     const paths = [
       'create',
       'update-grant',

@@ -173,12 +173,12 @@ describe('M10 with M2 private ownership, M4 Channels and M9 lifecycle', () => {
       members: [privateBot.slug],
     });
     f.core.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
-    f.core.team.channelAccess.join(member, group.id);
+    f.core.team.channelAccess.join(recipient, group.id);
     const label = '@' + privateBot.displayName;
-    await f.core.channels.appendMessage(member, group.id, {
+    await f.core.channels.appendMessage(recipient, group.id, {
       id: 'member-mention',
       at: new Date().toISOString(),
-      author: { kind: 'human', humanId: member.humanId },
+      author: { kind: 'human', humanId: recipient.humanId },
       body: label + ' work',
       mentions: [
         { botSlug: privateBot.slug, label: privateBot.displayName, start: 0, end: label.length },
@@ -198,18 +198,27 @@ describe('M10 with M2 private ownership, M4 Channels and M9 lifecycle', () => {
     const report = f.report();
     expect(report.legacy).toBe(true);
     expect(report.members.find((row) => row.humanId === member.humanId)).toMatchObject({
-      totals: { totalTokens: 30 },
+      totals: { totalTokens: 20 },
       bots: expect.arrayContaining([
         {
           slug: privateBot.slug,
           displayName: privateBot.displayName,
-          totals: expect.objectContaining({ totalTokens: 20 }),
+          totals: expect.objectContaining({ totalTokens: 10 }),
         },
         expect.objectContaining({
           slug: tob.botSlug,
           totals: expect.objectContaining({ totalTokens: 10 }),
         }),
       ]),
+    });
+    expect(report.members.find((row) => row.humanId === recipient.humanId)).toMatchObject({
+      totals: { totalTokens: 10 },
+      bots: [
+        expect.objectContaining({
+          slug: privateBot.slug,
+          totals: expect.objectContaining({ totalTokens: 10 }),
+        }),
+      ],
     });
     expect(report.members.find((row) => row.humanId === owner.humanId)?.totals.totalTokens).toBe(
       17,

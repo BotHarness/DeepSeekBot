@@ -445,8 +445,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
   roles() {
     return unwrapAsync(this.methods.roles({}));
   }
-  roleCreate(name: string, permissions: string[]) {
-    return unwrapAsync(this.methods.roleCreate({ name, permissions }));
+  roleCreate(
+    name: string,
+    permissions: string[],
+    models?: import('../team/permissions.js').RoleModels,
+  ) {
+    return unwrapAsync(this.methods.roleCreate({ name, permissions, models }));
   }
   roleUpdate(
     roleId: string,

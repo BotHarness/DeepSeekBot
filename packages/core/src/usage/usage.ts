@@ -16,7 +16,7 @@ import {
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
 import type { IdleCompactionRecord } from '../runtime/idle-compaction.js';
-import type { SessionOwnership } from '../sessions/ownership.js';
+import type { SessionOwnership, SessionOwnershipRecord } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
 
 export interface UsageDayRow {
@@ -64,6 +64,8 @@ export interface UsageProjection {
   handleSessionEvent(sessionId: string, event: DshSessionEvent): void;
 
   primeSession(sessionId: string, events: readonly DshSessionEvent[]): void;
+
+  bindParentTurn(sessionId: string, parentSessionId: string): void;
 
   latestRoute(
     sessionId: string,
@@ -293,6 +295,38 @@ export function createUsageProjection(options: {
           .owner_human_id,
     );
 
+  const humanAt = (connection: DatabaseSync, sessionId: string, at: number, turn?: number) =>
+    z
+      .object({ human_id: z.string() })
+      .optional()
+      .parse(
+        connection
+          .prepare(
+            'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 AND at_ms <= ? AND (? IS NULL OR turn = ?) ORDER BY at_ms DESC, turn DESC LIMIT 1',
+          )
+          .get(sessionId, at, turn ?? null, turn ?? null),
+      )?.human_id;
+  const descendantCreator = (
+    connection: DatabaseSync,
+    owner: SessionOwnershipRecord,
+    seen = new Set<string>(),
+  ): string | undefined => {
+    if (!owner.parentSessionId || seen.has(owner.sessionId)) return undefined;
+    seen.add(owner.sessionId);
+    const existing = humanAt(connection, owner.sessionId, Number.MAX_SAFE_INTEGER, 0);
+    if (existing) return existing;
+    const parent = ownership.resolve(owner.parentSessionId);
+    if (!parent || parent.botSlug !== owner.botSlug) return undefined;
+    const at = Date.parse(owner.createdAt);
+    if (!Number.isFinite(at)) return undefined;
+    const humanId =
+      humanAt(connection, parent.sessionId, at) ?? descendantCreator(connection, parent, seen);
+    if (humanId)
+      connection
+        .prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, 0, ?, ?)')
+        .run(owner.sessionId, humanId, at);
+    return humanId;
+  };
   const routes = new Map<string, Array<[number, UsageRoute]>>();
   const fingerprintKey = database.read((connection) =>
     connection.prepare('SELECT fingerprint_key FROM usage_receipt_state WHERE singleton = 1').get(),
@@ -395,18 +429,11 @@ export function createUsageProjection(options: {
     const fingerprint = createHmac('sha256', fingerprintKey.fingerprint_key)
       .update(JSON.stringify([sessionId, event.seq]))
       .digest('hex');
-    const rootTurn = sessionId === root.sessionId ? (event.turn ?? null) : null;
-    const attributed = z
-      .object({ human_id: z.string() })
-      .optional()
-      .parse(
-        connection
-          .prepare(
-            'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 AND at_ms <= ? AND (? IS NULL OR turn = ?) ORDER BY at_ms DESC, turn DESC LIMIT 1',
-          )
-          .get(root.sessionId, event.time, rootTurn, rootTurn),
-      );
-    const humanId = attributed?.human_id ?? options.botOwner?.(owner.botSlug) ?? hostOwner();
+    const humanId =
+      humanAt(connection, sessionId, event.time, event.turn) ??
+      (owner.parentSessionId ? descendantCreator(connection, owner) : undefined) ??
+      options.botOwner?.(owner.botSlug) ??
+      hostOwner();
     const receipt = connection
       .prepare(
         'INSERT OR IGNORE INTO usage_receipts (fingerprint, bot_slug, human_id) VALUES (?, ?, ?)',
@@ -547,7 +574,37 @@ export function createUsageProjection(options: {
         return { totalTokens: null, status: incomplete ? 'unavailable' : 'unknown' };
       return { totalTokens, status: unknown || incomplete ? 'partial' : 'ready' };
     },
+    bindParentTurn(sessionId, parentSessionId) {
+      const owner = ownership.resolve(sessionId);
+      const parent = ownership.resolve(parentSessionId);
+      if (
+        !owner ||
+        !parent ||
+        owner.parentSessionId !== parentSessionId ||
+        owner.botSlug !== parent.botSlug
+      )
+        return;
+      database.transaction(
+        (connection) => {
+          const humanId =
+            humanAt(connection, parentSessionId, Number.MAX_SAFE_INTEGER) ??
+            options.botOwner?.(owner.botSlug) ??
+            hostOwner();
+          const at = (options.now?.() ?? new Date()).getTime();
+          connection
+            .prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, 0, ?, ?)')
+            .run(sessionId, humanId, at);
+          connection
+            .prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)')
+            .run(sessionId, humanId, at);
+        },
+        ['usage'],
+      );
+    },
     primeSession(sessionId, events) {
+      const owner = ownership.resolve(sessionId);
+      if (owner?.parentSessionId)
+        database.transaction((connection) => descendantCreator(connection, owner), ['usage']);
       for (const event of events) observe(sessionId, event);
     },
     latestRoute(sessionId) {
@@ -585,6 +642,23 @@ export function createUsageProjection(options: {
                     )
                     .get(sessionId),
                 );
+              const previous =
+                !pending && owner.parentSessionId
+                  ? z
+                      .object({ human_id: z.string() })
+                      .optional()
+                      .parse(
+                        db
+                          .prepare(
+                            'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn > 0 AND turn < ? AND at_ms <= ? ORDER BY turn DESC LIMIT 1',
+                          )
+                          .get(sessionId, turn, event.time),
+                      )
+                  : undefined;
+              const inherited =
+                !pending && !previous && owner.parentSessionId
+                  ? descendantCreator(db, owner)
+                  : undefined;
               const creator =
                 owner.rootRole === 'assignment'
                   ? z
@@ -600,7 +674,9 @@ export function createUsageProjection(options: {
                   : undefined;
               const humanId =
                 pending?.human_id ??
+                previous?.human_id ??
                 creator?.human_id ??
+                inherited ??
                 options.botOwner?.(owner.botSlug) ??
                 hostOwner();
               db.prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, ?, ?, ?)').run(

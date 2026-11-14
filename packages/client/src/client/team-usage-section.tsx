@@ -62,7 +62,7 @@ export function TeamUsageSection({
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
-    setLoad((current) => (current.state === 'ready' ? current : { state: 'loading' }));
+    setLoad({ state: 'loading' });
     loadMemberUsage(call, period, controller.signal)
       .then((view) => {
         if (!controller.signal.aborted) setLoad({ state: 'ready', period, view });

@@ -203,7 +203,18 @@ export async function runTeamCommand(
     if (action === 'list' && rest.length === 1) return rpc('roles', {});
     if (action === 'catalog' && rest.length === 1) return rpc('permissionCatalog', {});
     if (action === 'create' && rest.length === 1 && values.name && values.permissions !== undefined)
-      return rpc('roleCreate', { name: values.name, permissions: ids(values.permissions) });
+      return rpc('roleCreate', {
+        name: values.name,
+        permissions: ids(values.permissions),
+        ...(values.models === undefined
+          ? {}
+          : {
+              models:
+                values.models === 'all'
+                  ? { kind: 'all' }
+                  : { kind: 'only', routes: ids(values.models) },
+            }),
+      });
     if (
       action === 'update' &&
       argument &&

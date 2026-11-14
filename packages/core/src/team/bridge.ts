@@ -92,10 +92,14 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
     roles: (_payload: unknown) => call((service) => service.roles.list(human)),
     roleCreate: (payload: unknown) =>
       call((service) => {
-        const { name, permissions } = z
-          .object({ name: z.string(), permissions: z.array(z.string()) })
+        const { name, permissions, models } = z
+          .object({
+            name: z.string(),
+            permissions: z.array(z.string()),
+            models: roleModelsSchema.optional(),
+          })
           .parse(payload);
-        return service.roles.create(human, name, permissions);
+        return service.roles.create(human, name, permissions, models);
       }),
     roleUpdate: (payload: unknown) =>
       call((service) => {
