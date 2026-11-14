@@ -60,6 +60,7 @@ export function createRemoteNotifications(options: {
   hostName?(hostId: string, fallback: string): string;
   prepareEnable(hostId: string, signal: AbortSignal): Promise<void>;
   diagnostic?(code: NotificationDiagnostic): void;
+  requireOwner?(): void;
 }) {
   const { api, storage } = options;
   let hosts: Record<string, Choice> = {};
@@ -128,6 +129,7 @@ export function createRemoteNotifications(options: {
     choice,
     cancel,
     forget(hostId: string) {
+      options.requireOwner?.();
       cancel(hostId);
       const updated = { ...hosts };
       delete updated[hostId];
@@ -156,6 +158,7 @@ export function createRemoteNotifications(options: {
       patch: { enabled?: boolean; preferences?: Partial<PushPreferences> },
       request?: ControlRequest,
     ) {
+      options.requireOwner?.();
       checkRequest(request);
       cancel(hostId);
       const controller = new AbortController();

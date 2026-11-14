@@ -18,6 +18,7 @@ const client = { publicKey: 'cd'.repeat(32), name: 'Desktop A' };
 function fixture() {
   const home = createTempRoot('relationship-');
   let clock = Date.now();
+  let ownerHumanId = 'local-human';
   const open = () => {
     const owner = trackTestOwner(
       mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
@@ -25,6 +26,7 @@ function fixture() {
     const pairing = createDevicePairing({
       database: attachOperationalModule(owner, 'device-pairing'),
       hostName: 'A',
+      ownerHumanId: () => ownerHumanId,
       now: () => clock,
     });
     const relationships = createHostRelationships({
@@ -32,10 +34,18 @@ function fixture() {
       pairing,
       now: () => clock,
     });
-    return { owner, pairing, relationships };
+    return {
+      owner,
+      pairing,
+      relationships,
+      database: attachOperationalModule(owner, 'relationship-test'),
+    };
   };
   return {
     open,
+    transferOwner(humanId: string) {
+      ownerHumanId = humanId;
+    },
     advance: (ms: number) => {
       clock += ms;
     },
@@ -65,6 +75,64 @@ describe('Host relationship authorization', () => {
       },
     ]);
     expect(restarted.pairing.list()).toEqual([]);
+  });
+  it('binds derived offers and credentials to the current Owner while retaining relationship admission', () => {
+    const test = fixture();
+    const host = test.open();
+    const relationship = host.relationships.propose({ peer, direction: 'incoming' });
+    host.relationships.approve(relationship.id, peer.publicKey);
+    host.relationships.activate(relationship.id, peer.publicKey);
+    const before = host.relationships.enrollment(relationship.id, peer.publicKey, client);
+    const oldClient = host.pairing.redeem({
+      offer: before.offer,
+      publicKey: client.publicKey,
+    });
+    if (!oldClient.ok) throw new Error(oldClient.code);
+    const late = host.relationships.enrollment(relationship.id, peer.publicKey, {
+      publicKey: 'ef'.repeat(32),
+      name: 'Late Client',
+    });
+    const unclaimedInvitation = host.pairing.createOffer();
+    test.transferOwner('next-owner');
+    expect(host.pairing.claimRelationshipOffer(unclaimedInvitation.offer)).toBe(false);
+    expect(host.pairing.admit(`Device ${oldClient.credential}`)).toEqual({
+      ok: false,
+      code: 'device-revoked',
+    });
+    expect(host.pairing.redeem({ offer: late.offer, publicKey: 'ef'.repeat(32) })).toEqual({
+      ok: false,
+      code: 'offer-invalid',
+    });
+    const next = host.relationships.enrollment(relationship.id, peer.publicKey, {
+      publicKey: '12'.repeat(32),
+      name: 'New Owner Client',
+    });
+    const newClient = host.pairing.redeem({ offer: next.offer, publicKey: '12'.repeat(32) });
+    if (!newClient.ok) throw new Error(newClient.code);
+    const independent = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+    if (!independent.ok) throw new Error(independent.code);
+    host.database.read((db) => {
+      expect(
+        db
+          .prepare('SELECT human_id FROM paired_devices WHERE device_id = ?')
+          .get(newClient.device.id),
+      ).toEqual({ human_id: 'next-owner' });
+      expect(
+        db
+          .prepare('SELECT relationship_id FROM relationship_device_grants WHERE device_id = ?')
+          .get(newClient.device.id),
+      ).toEqual({ relationship_id: relationship.id });
+      expect(
+        db.prepare('SELECT count(*) AS count FROM relationship_device_grants').get()?.count,
+      ).toBe(2);
+    });
+    expect(host.pairing.admit(`Device ${newClient.credential}`).ok).toBe(true);
+    host.relationships.disconnect(relationship.id);
+    expect(host.pairing.admit(`Device ${newClient.credential}`)).toEqual({
+      ok: false,
+      code: 'device-revoked',
+    });
+    expect(host.pairing.admit(`Device ${independent.credential}`).ok).toBe(true);
   });
   it('requires exact approval, persists it and issues independently revocable grants through pairing', () => {
     const test = fixture();

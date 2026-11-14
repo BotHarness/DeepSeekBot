@@ -77,9 +77,15 @@ function text(value: unknown, limit = 512): string {
 function result<T>(value: BridgeResult<T>): T {
   if (!value.ok)
     throw new TobError(
-      ['protected-bot', 'unknown-bot', 'stale-setting', 'stale-profile', 'unavailable'].includes(
-        value.error.code,
-      )
+      [
+        'protected-bot',
+        'unknown-bot',
+        'bot-not-found',
+        'permission-required',
+        'stale-setting',
+        'stale-profile',
+        'unavailable',
+      ].includes(value.error.code)
         ? value.error.code
         : 'invalid-input',
     );
