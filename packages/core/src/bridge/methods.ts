@@ -650,7 +650,7 @@ export interface OwnedSessionBot {
 }
 
 export interface BridgeError {
-  details?: { preview: AllBotPreview };
+  details?: { preview?: AllBotPreview; permission?: string };
   code: string;
   message: string;
 }

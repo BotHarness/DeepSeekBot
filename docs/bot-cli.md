@@ -1949,3 +1949,16 @@ Owner password input is a password with an optional final newline, or JSON `{ "p
 `--as <username>` creates a short-lived member grant on the authenticated Host, dispatches the command through that member's Peer and Gateway policy, then revokes the grant. It requires an online adapter; unsupported HTTP, streaming and maintenance commands refuse instead of using Owner authority. Team mode off, suspended members and the initial-password gate are enforced. Change the initial password before browsing Channels. The Owner's existing Host token remains required for this local verification feature.
 
 Non-loopback password sign-in requires Host-known TLS or the encrypted device gateway. The explicitly confirmed `insecure-http` exception permits plain HTTP until disabled. Forwarded protocol headers do not establish TLS. Turning Team mode off revokes member grants and closes their streams while retaining identities, passwords and Channel membership. Re-enabling requires fresh sign-in.
+
+```bash
+deepseekbot roles catalog
+deepseekbot roles list
+deepseekbot roles create --name reviewers --permissions audit.view,usage.view
+deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles delete <roleId>
+deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
+deepseekbot members roles bob --set member,<roleId>
+deepseekbot --as bob devices --member bob
+deepseekbot devices --member bob --revoke <grantId>
+deepseekbot team-mode transfer-owner bob --password-stdin --confirm
+```

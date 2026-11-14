@@ -9,6 +9,10 @@
 - S5: Browse channels lists public channels with member counts; Join adds the member and opens the channel. Owner and member messages show each other's names; each sees only their own messages as their own bubbles.
 - S6: Refusals: wrong password, rate limit, non-loopback plain HTTP (`insecure-transport`, also with a forged `x-forwarded-proto: https`) unless the Owner allowed it, a private group opened by ID, Team mode off (all members disconnect, Owner keeps working).
 
+- S7 (M3 Host/CLI): role catalog, built-in roles, custom role CRUD and union permissions. `permission-required` carries `details.permission`; removing a role permission refuses the same member's next call.
+- S8 (M3 Host/CLI): `memberDevices { humanId }` is self-scoped without management permission; other targets require `members.manage`. `memberDeviceRevoke { humanId, grantId }` closes only that grant. `current` comes from the authenticated principal.
+- S9 (M3 Host/CLI): `ownerTransfer { humanId, password }` verifies the current Owner password; the outgoing Owner gets Admin and the target has no roles. The outgoing Owner's paired devices and pending offers cannot inherit the new Owner.
+
 ## How to get to it (user POV)
 
 Owner: Bot settings › Team. Member: open the address under Team › Sign-in › Address in a browser on another machine, sign in, choose a new password, then New (+) › Browse channels.
@@ -36,3 +40,5 @@ Canonical state: `deepseekbot members list` shows Bob without `mustChangePasswor
 - Member and Owner must use separate browser contexts: one browser holds one identity per Host.
 - M1 returns an empty member Bot roster; private Bots and per-member Activity arrive in M2. Legacy Human authors without a Human ID denote the Owner.
 - Packaged consumers may bundle another copy of DSH's Connection class: test capabilities at the boundary, since `instanceof` does not establish the live service's API.
+
+M3 canonical verification: `roles catalog`, `roles list|create|update|delete`, `members roles <username> --set <roleIds>`, `devices --member <username> [--revoke <grantId>]`, and `team-mode transfer-owner <username> --password-stdin --confirm`. Run allowed and refused operations with `--as`. Browser admission and device revocation must also be exercised through the member HTTP carrier. M3 rendered Client dialogs/sheets are a separate UI-owner gate.
