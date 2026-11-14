@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   existsSync,
+  linkSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -14,7 +15,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { pnpmCommand } from '../dev-package-manager.mjs';
-import { installCopyDependencies, reuseLegacyDependencies } from '../dev-isolated-imports.mjs';
+import {
+  installCopyDependencies,
+  recoverInterruptedCopyDependencies,
+  reuseLegacyDependencies,
+} from '../dev-isolated-imports.mjs';
 import { dshCommand } from '../dev-instance.mjs';
 import { fileURLToPath } from 'node:url';
 
@@ -134,6 +139,80 @@ it('real offline pnpm copy imports isolate executable files and leave legacy har
       '--package-import-method=copy',
     ]);
     expect(snapshot(legacy)).toEqual(legacyBefore);
+
+    const recoveryHome = join(root, 'recovery-home');
+    const interrupted = join(recoveryHome, 'ax-cli');
+    mkdirSync(interrupted, { recursive: true });
+    writeFileSync(
+      join(recoveryHome, 'retained-state'),
+      'fixture database and credentials stay here',
+    );
+    writeFileSync(
+      join(interrupted, 'package.json'),
+      JSON.stringify({
+        name: 'interrupted-copy',
+        private: true,
+        packageManager,
+        dependencies: { 'bh-copy-proof': `file:${archive.replaceAll('\\', '/')}` },
+      }),
+    );
+    const runOffline = (command, args, options) =>
+      execFileSync(command, [...args, '--offline', '--ignore-scripts', '--store-dir', store], {
+        ...options,
+        encoding: 'utf8',
+        windowsHide: true,
+        shell: false,
+      });
+    let interruption;
+    try {
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `
+        const { installCopyDependencies } = await import(process.argv[1]);
+        const { execFileSync } = await import('node:child_process');
+        await installCopyDependencies(process.argv[2], async (command, args, options) => {
+          execFileSync(command, [...args, '--offline', '--ignore-scripts', '--store-dir', process.argv[3]], {
+            ...options, encoding: 'utf8', windowsHide: true, shell: false,
+          });
+          process.exit(23);
+        });
+      `,
+          new URL('../dev-isolated-imports.mjs', import.meta.url).href,
+          interrupted,
+          store,
+        ],
+        {
+          encoding: 'utf8',
+          windowsHide: true,
+          shell: false,
+        },
+      );
+    } catch (error) {
+      interruption = error;
+    }
+    expect(interruption?.status).toBe(23);
+    const interruptedFile = realpathSync(
+      join(interrupted, 'node_modules', 'bh-copy-proof', 'client.js'),
+    );
+    const observer = join(root, 'shared-observer.js');
+    linkSync(interruptedFile, observer);
+    const observedBefore = snapshot(observer);
+    const stateBefore = snapshot(join(recoveryHome, 'retained-state'));
+    expect(observedBefore.nlink).toBe(2n);
+    const recovered = recoverInterruptedCopyDependencies(interrupted, { home: recoveryHome });
+    expect(snapshot(observer)).toEqual(observedBefore);
+    await installCopyDependencies(interrupted, runOffline);
+    const freshFile = realpathSync(join(interrupted, 'node_modules', 'bh-copy-proof', 'client.js'));
+    const fresh = snapshot(freshFile);
+    expect(snapshot(observer)).toEqual(observedBefore);
+    expect(snapshot(join(recoveryHome, 'retained-state'))).toEqual(stateBefore);
+    expect(fresh.sha).toBe(observedBefore.sha);
+    expect(fresh.nlink).toBe(1n);
+    expect([fresh.dev, fresh.ino]).not.toEqual([observedBefore.dev, observedBefore.ino]);
+    expect(existsSync(join(recovered.quarantine, 'node_modules'))).toBe(true);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

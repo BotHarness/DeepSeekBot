@@ -123,6 +123,17 @@ a fresh `--home`; `isolated-imports-required` preserves the old data and depende
 installs remain preserved rather than receiving an implicit hardlink migration. The copy option
 does not retroactively detach existing files. Keep the old Home for backup or explicit migration.
 
+An interruption during copy preparation leaves `installing`, including during a normal restart.
+After checking the exact Home's current processes, use the ordinary launcher with the same
+`--home`, `--worktree` and `--port` plus `--recover-copy-install`. The launcher still acquires
+the normal Home lease and refuses live or unknown owners. It only recovers a recognized
+interrupted copy install: it checks canonical paths, refuses symlinks/junctions, retains the
+old dependency tree and preparation records under `.botharness-copy-recovery-*` inside that
+installation directory, then performs a fresh copy install. Database, credentials and Profile
+data remain in place. The launch summary lists retained quarantine paths; never remove those
+trees without the normal shared-file/ownership audit. A failure remains incomplete and may
+need the explicit flag again. Never manually change the marker to `complete` (#4172).
+
 On Windows, two isolated runtimes shared native Client artifact inodes. An experiment on a private
 copy confirmed that another hardlink changes ctime and the installed DSH metadata-based artifact
 revision without changing bytes or mtime. Removing an existing live hardlink can itself affect
