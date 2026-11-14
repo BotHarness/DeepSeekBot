@@ -1,4 +1,5 @@
 import { AnnouncementGate } from './announcement-gate.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { humanIdOf, useSelfHumanId, SelfHumanContext } from './self-human.js';
 import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
@@ -3158,14 +3159,17 @@ function ConversationView({
               <LoadingSkeleton kind="messages" label={t('messages.loading')} />
             ) : null}
             {conversation.status === 'error' && conversation.error !== undefined ? (
-              <div className="bh-error">
-                {t('messages.error', { error: conversation.error })}{' '}
-                {onRetryConversation === undefined ? null : (
-                  <button type="button" onClick={onRetryConversation}>
-                    {t('messages.retry')}
-                  </button>
-                )}
-              </div>
+              <ReadFailure
+                retryLabel={t('messages.retry')}
+                onRetry={() => onRetryConversation?.()}
+                disabled={onRetryConversation === undefined}
+              >
+                {t('messages.loadFailed')}
+                <details className="bh-session-failure-details">
+                  <summary>{t('failure.details')}</summary>
+                  <div>{conversation.error}</div>
+                </details>
+              </ReadFailure>
             ) : null}
             {conversation.draftNotice !== undefined ? (
               <div className="bh-note" role="status">

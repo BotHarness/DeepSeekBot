@@ -2616,31 +2616,33 @@ it('keeps a successfully created section when the subsequent move fails, without
 });
 
 describe('All Environment local row interactions', () => {
-  async function mountMixed(pinned = true) {
+  async function mountMixed(pinned = true, includeRemote = true) {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     environmentProbe.snapshot = {
       tab: 'all',
       avatars: new Map(),
-      hosts: [
-        {
-          host: {
-            hostId: 'remote',
-            hostName: 'Remote',
-            routes: ['http://localhost:12345'],
-            credential: 'fixture',
-            deviceId: 'device',
-          },
-          snapshot: {
-            connection: { status: 'connected', route: 'http://localhost:12345' },
-            roster: { bots: [], channels: [] },
-          },
-          inbox: {
-            status: 'ready',
-            sections: { action: [], replies: [], unread: [], handled: [] },
-            unread: {},
-          },
-        },
-      ],
+      hosts: includeRemote
+        ? [
+            {
+              host: {
+                hostId: 'remote',
+                hostName: 'Remote',
+                routes: ['http://localhost:12345'],
+                credential: 'fixture',
+                deviceId: 'device',
+              },
+              snapshot: {
+                connection: { status: 'connected', route: 'http://localhost:12345' },
+                roster: { bots: [], channels: [] },
+              },
+              inbox: {
+                status: 'ready',
+                sections: { action: [], replies: [], unread: [], handled: [] },
+                unread: {},
+              },
+            },
+          ]
+        : [],
     };
     store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
     setRoster({
@@ -2666,6 +2668,15 @@ describe('All Environment local row interactions', () => {
     );
     return { node, root, actions };
   }
+  it('keeps pinned channels visible in All after the last remote is removed', async () => {
+    const { node, root } = await mountMixed(true, false);
+    try {
+      expect(node.querySelector('[data-channel-id="c-flat"]')).not.toBeNull();
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
   it('keeps Host-owned Section membership unchanged when dragging in All', async () => {
     const { node, root, actions } = await mountMixed(false);
     const dispatch = (target: Element, type: string) => {

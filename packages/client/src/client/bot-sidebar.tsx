@@ -1352,8 +1352,7 @@ export function BotSidebar({
     if (query.length > 0) return blocks.filter((block) => block.channels.length > 0);
     return blocks;
   })();
-  const showSource =
-    hostTabs && remoteHostsState.tab === ALL_HOSTS && remoteHostsState.hosts.length > 0;
+  const showSource = hostTabs && remoteHostsState.tab === ALL_HOSTS;
   const environmentChannels = showSource
     ? mixedEnvironmentChannels([...pinnedChannels, ...channels], remoteHostsState.hosts, query)
     : [];

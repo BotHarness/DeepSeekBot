@@ -1,4 +1,4 @@
-import { useId, useState, type ReactElement, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { Button, Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -161,6 +161,8 @@ export function CreatePersonaBotModal({
   const [creating, setCreating] = useState(false);
   const [cause, setCause] = useState<unknown | undefined>(undefined);
   const [fallback, setFallback] = useState<CreatedBot | undefined>(undefined);
+  const folderTarget = useRef({ actions, remote });
+  folderTarget.current = { actions, remote };
   const fieldsLocked = creating || committed || submitted;
   const chosenLocation = memoryLocation.trim();
   const locationInvalid = chosenLocation.length > 0 && !isAbsoluteHostPath(chosenLocation);
@@ -171,13 +173,18 @@ export function CreatePersonaBotModal({
     targetUnavailable;
 
   const chooseFolder = (): void => {
-    if (pickingFolder || creating) return;
+    if (pickingFolder || fieldsLocked || remote) return;
     setPickingFolder(true);
     void actions
       .pickWorkspaceFolder()
       .then(
         (path) => {
-          if (path !== null) setMemoryLocation(path);
+          if (
+            path !== null &&
+            !folderTarget.current.remote &&
+            folderTarget.current.actions === actions
+          )
+            setMemoryLocation(path);
         },
         (rejection: unknown) => setCause(rejection),
       )
@@ -242,7 +249,7 @@ export function CreatePersonaBotModal({
         showCancel={false}
         busy={creating}
         error={cause === undefined ? undefined : personaBotCreateError(cause, t)}
-        onCancel={done}
+        onCancel={onCancel}
         onSubmit={done}
       >
         {target}
