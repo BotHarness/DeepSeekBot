@@ -4,7 +4,7 @@
 
 E11 执行保护与 E6 凭据事务的顺序固定为：执行 Web Lock → 短配置事务；配置 writer 不反向取得执行锁。事务只 fresh-read/CAS 原 SavedHost 配置，完成后重新派生执行状态，不将未知操作字段写入凭据数组。自动登记沿用自己的每 Host intent lock → 同一短配置事务。
 
-远程连接执行保护及其兼容性限制见 [ADR-0339](../adr/0339-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
+远程连接执行保护及其兼容性限制见 [ADR-0340](../adr/0340-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
 
 E11 在独立 Settings Target 下复用目标 Host 的设备、单条私有路由和账号 owner。计划切换先验证既有替代路由，明确保存本 Client 的手动偏好，等待实际连接切换并回读精确 Host 后才执行一次；没有替代路由则明确确认断开。Client 既有 HostStorage 所有者下的独立执行键绑定 Host 公钥、设备、操作/路由及代次，结果未知时跨重载保留，不成为 Host 配置权威，也不自动重放，其他 SavedHost 数组写入不能擦除它。共享 Web Lock 覆盖准备、保护持久化、一次写入、确认及回读 CAS；缺少 Web Locks 时拒绝危险写入。最多保留 32 条未解决事实而不自动清除。新独立授权可明确通过同一 Host 公钥核对旧操作的结果，但不继承或重发操作；公钥变化拒绝核对，清除仍按代次 CAS。退出登录、关系断开、单设备撤销和单路由停止保持独立权限和效果，不操作外部 Tailscale 映射或无关 Host 进程。
 

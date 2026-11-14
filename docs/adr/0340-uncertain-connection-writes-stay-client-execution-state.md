@@ -1,4 +1,4 @@
-# ADR-0339: Uncertain connection writes stay Client execution state
+# ADR-0340: Uncertain connection writes stay Client execution state
 
 Accepted for Environment E11 ([#4120](https://github.com/BotHarness/DeepSeekBot/issues/4120)). Stopping the route or revoking the grant carrying a management request can lose its acknowledgement after the owning Host has acted. The Client records an execution guard before one transmission and requires the same pinned Host’s canonical readback before resolving an uncertain result; it never converts ordinary management writes into a replay queue. Device Pairing, private-route and account capabilities remain the configuration and authorization authorities.
 
