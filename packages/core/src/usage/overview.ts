@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 
 export const usageOverviewPeriodDays = { today: 1, week: 7, month: 28, quarter: 84 } as const;
@@ -32,7 +33,7 @@ export interface UsageOverviewResult {
 function dayOf(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
-const columns = [
+export const usageOverviewColumns = [
   ...[
     ['input_tokens', 'unknown_input', 'inputTokens'],
     ['output_tokens', 'unknown_output', 'outputTokens'],
@@ -67,7 +68,10 @@ export function queryOverviewUsage(
   after: string | undefined,
   now: Date,
   freshness: Pick<UsageOverviewResult, 'freshness' | 'reconciledAt'>,
+  botSlugs?: readonly string[],
 ): UsageOverviewResult {
+  const scope = botSlugs === undefined ? '' : ` AND bot_slug IN (SELECT value FROM json_each(?))`;
+  const scopeArgs = botSlugs === undefined ? [] : [JSON.stringify(botSlugs)];
   const end = dayOf(now);
   const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   date.setDate(date.getDate() - (usageOverviewPeriodDays[period] - 1));
@@ -79,20 +83,22 @@ export function queryOverviewUsage(
   const start = days[0]!;
   const totals = bucketsOf(
     db
-      .prepare(`SELECT ${columns} FROM usage_daily WHERE day >= ? AND day <= ?`)
-      .get(start, end) as unknown as Row,
+      .prepare(
+        `SELECT ${usageOverviewColumns} FROM usage_daily WHERE day >= ? AND day <= ?${scope}`,
+      )
+      .get(start, end, ...scopeArgs) as unknown as Row,
   );
   const daily = db
     .prepare(
-      `SELECT day, ${columns} FROM usage_daily WHERE day >= ? AND day <= ? GROUP BY day ORDER BY day`,
+      `SELECT day, ${usageOverviewColumns} FROM usage_daily WHERE day >= ? AND day <= ?${scope} GROUP BY day ORDER BY day`,
     )
-    .all(start, end)
+    .all(start, end, ...scopeArgs)
     .map((row) => bucketsOf(row as unknown as Row & { day: string }));
   const bots = db
     .prepare(
-      `SELECT bot_slug AS slug, ${columns} FROM usage_daily WHERE day >= ? AND day <= ? AND bot_slug > ? GROUP BY bot_slug ORDER BY bot_slug LIMIT 21`,
+      `SELECT bot_slug AS slug, ${usageOverviewColumns} FROM usage_daily WHERE day >= ? AND day <= ?${scope} AND bot_slug > ? GROUP BY bot_slug ORDER BY bot_slug LIMIT 21`,
     )
-    .all(start, end, after ?? '')
+    .all(start, end, ...scopeArgs, after ?? '')
     .map((row) => bucketsOf(row as unknown as Row & { slug: string }));
   return {
     period,
@@ -107,5 +113,93 @@ export function queryOverviewUsage(
     legacyBaseline: db.prepare('SELECT 1 FROM usage_legacy_baselines LIMIT 1').get() !== undefined,
     readAt: now.toISOString(),
     ...freshness,
+  };
+}
+
+export interface UsageByMemberResult {
+  period: UsageOverviewPeriod;
+  start: string;
+  end: string;
+  timezone: string;
+  legacy: boolean;
+  members: Array<{
+    humanId: string;
+    displayName: string;
+    deleted?: true;
+    totals: UsageOverviewBuckets;
+    bots: Array<{ slug: string; displayName: string; totals: UsageOverviewBuckets }>;
+  }>;
+}
+const bucketRow = z.object({
+  inputTokens: z.number().nullable(),
+  outputTokens: z.number().nullable(),
+  cacheReadTokens: z.number().nullable(),
+  cacheWriteTokens: z.number().nullable(),
+  totalTokens: z.number().nullable(),
+  partial: z.coerce.boolean(),
+});
+export function queryUsageByMember(
+  db: DatabaseSync,
+  period: UsageOverviewPeriod,
+  now: Date,
+  ownerId: string,
+  botName: (slug: string) => string,
+): UsageByMemberResult {
+  const end = dayOf(now);
+  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  date.setDate(date.getDate() - usageOverviewPeriodDays[period] + 1);
+  const start = dayOf(date);
+  const source = `(SELECT *, COALESCE(NULLIF(human_id, ''), ?) AS member_id FROM usage_daily WHERE day >= ? AND day <= ?)`;
+  const members = z
+    .array(bucketRow.extend({ humanId: z.string() }))
+    .parse(
+      db
+        .prepare(
+          `SELECT member_id AS humanId, ${usageOverviewColumns} FROM ${source} GROUP BY member_id ORDER BY member_id`,
+        )
+        .all(ownerId, start, end),
+    );
+  const bots = z
+    .array(bucketRow.extend({ humanId: z.string(), slug: z.string() }))
+    .parse(
+      db
+        .prepare(
+          `SELECT member_id AS humanId, bot_slug AS slug, ${usageOverviewColumns} FROM ${source} GROUP BY member_id, bot_slug ORDER BY member_id, bot_slug`,
+        )
+        .all(ownerId, start, end),
+    );
+  const names = new Map(
+    z
+      .array(z.object({ humanId: z.string(), displayName: z.string() }))
+      .parse(
+        db.prepare('SELECT human_id AS humanId, display_name AS displayName FROM humans').all(),
+      )
+      .map((row) => [row.humanId, row.displayName]),
+  );
+  const memberBots = new Map<string, UsageByMemberResult['members'][number]['bots']>();
+  for (const { humanId, slug, ...totals } of bots) {
+    let group = memberBots.get(humanId);
+    if (!group) {
+      group = [];
+      memberBots.set(humanId, group);
+    }
+    group.push({ slug, displayName: botName(slug), totals });
+  }
+  return {
+    period,
+    start,
+    end,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    legacy:
+      db
+        .prepare('SELECT 1 FROM usage_daily WHERE day >= ? AND day <= ? AND legacy = 1 LIMIT 1')
+        .get(start, end) !== undefined,
+    members: members.map(({ humanId, ...totals }) => ({
+      humanId,
+      displayName: names.get(humanId) ?? humanId,
+      ...(names.has(humanId) ? {} : { deleted: true as const }),
+      totals,
+      bots: memberBots.get(humanId) ?? [],
+    })),
   };
 }

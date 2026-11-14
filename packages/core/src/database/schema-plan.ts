@@ -3379,6 +3379,46 @@ const TEAM_ROLES_MIGRATION: SchemaMigration = {
   },
 };
 
+const TEAM_MODELS_MIGRATION: SchemaMigration = {
+  generation: 143,
+  module: 'team',
+  description: 'Role model route policy',
+  migrate(db) {
+    db.exec(`ALTER TABLE host_roles ADD COLUMN models_json TEXT NOT NULL DEFAULT '{"kind":"all"}'`);
+  },
+};
+const MEMBER_USAGE_MIGRATION: SchemaMigration = {
+  generation: 144,
+  module: 'usage',
+  description: 'Human-attributed usage receipts and daily buckets',
+  migrate(db) {
+    db.exec(`
+      ALTER TABLE usage_daily RENAME TO usage_daily_old;
+      CREATE TABLE usage_daily (
+        bot_slug TEXT NOT NULL, day TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens INTEGER NOT NULL DEFAULT 0, cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+        unknown_input INTEGER NOT NULL DEFAULT 0, unknown_output INTEGER NOT NULL DEFAULT 0,
+        unknown_cache_read INTEGER NOT NULL DEFAULT 0, unknown_cache_write INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0, unknown_total INTEGER NOT NULL DEFAULT 0,
+        human_id TEXT NOT NULL DEFAULT '', legacy INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (bot_slug, day, provider, model, purpose, human_id, legacy)
+      );
+      INSERT INTO usage_daily SELECT *, (SELECT owner_human_id FROM team_settings WHERE singleton = 1), 1 FROM usage_daily_old;
+      DROP TABLE usage_daily_old;
+      CREATE INDEX usage_daily_bot_day ON usage_daily(bot_slug, day);
+      CREATE INDEX usage_daily_period_human ON usage_daily(day, human_id, bot_slug);
+      ALTER TABLE usage_receipts ADD COLUMN human_id TEXT;
+      UPDATE usage_receipts SET human_id = (SELECT owner_human_id FROM team_settings WHERE singleton = 1);
+      ALTER TABLE usage_idle_compactions ADD COLUMN human_id TEXT;
+      ALTER TABLE bot_schedules ADD COLUMN creator_human_id TEXT;
+      CREATE TABLE usage_turn_humans (session_id TEXT NOT NULL, turn INTEGER NOT NULL, human_id TEXT NOT NULL, at_ms INTEGER NOT NULL,
+        PRIMARY KEY(session_id, turn));
+      CREATE INDEX usage_turn_humans_time ON usage_turn_humans(session_id, at_ms DESC, turn DESC) WHERE turn >= 0;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3521,4 +3561,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SOURCE_EVENT_HUMAN_MIGRATION,
   TEAM_MEMBERS_MIGRATION,
   TEAM_ROLES_MIGRATION,
+  TEAM_MODELS_MIGRATION,
+  MEMBER_USAGE_MIGRATION,
 ]);

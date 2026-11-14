@@ -163,6 +163,22 @@ async function enabledFixture(options: Parameters<typeof teamFixture>[0] = {}) {
   return { ...fixture, ...created, human: humanContext(created.member.humanId) };
 }
 
+class NativeProviderKeys extends TypertRemoteService {
+  constructor(ctx: Context) {
+    super(ctx, 'nativeProviderKeys', { namespace: 'settings' });
+  }
+  describe() {
+    return { apiKey: 'test-secret-only' };
+  }
+}
+Object.defineProperty(
+  NativeProviderKeys.prototype,
+  '@deepseek-ai/dsh-typert-protocol/remote-methods',
+  {
+    value: { version: 1, methods: [{ method: 'describe', invocation: { kind: 'direct' } }] },
+  },
+);
+
 class NativeSession extends TypertRemoteService {
   constructor(ctx: Context) {
     super(ctx, 'nativeSession', { namespace: 'session' });
@@ -767,6 +783,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       { sourceEventId: 'secret-source', channelId: dm.id, messageId: `message-${dm.id}` },
     ]);
     const args: Record<string, Record<string, unknown>> = {
+      usageByMember: { period: 'week' },
+      overviewUsage: { period: 'week' },
+      get: { slug: 'owner-secret-bot' },
+      modelPlan: { slug: 'owner-secret-bot' },
+      modelPlanInherit: { slug: 'owner-secret-bot', expectedRevision: 0 },
       roleCreate: { name: 'Operators', permissions: [] },
       roleUpdate: { roleId: 'member' },
       roleDelete: { roleId: 'member' },
@@ -827,26 +848,44 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           await iterator.return?.();
         } else result = await f.gateway.invoke(request);
       } catch (error) {
-        expect([
-          'roles',
-          'roleCreate',
-          'roleUpdate',
-          'roleDelete',
-          'members',
-          'memberCreate',
-          'memberRolesSet',
-          'memberPasswordReset',
-          'memberDevices',
-          'memberDeviceRevoke',
-          'ownerTransfer',
-          'teamModeSet',
-          'teamInsecureHttpSet',
-          'teamOwnerPasswordSet',
-          'channelPublicSet',
-        ]).toContain(method);
-        expect(error).toMatchObject({
-          code: expect.stringMatching(/^(permission-required|device-not-found)$/u),
-        });
+        const m10: Record<string, string[]> = {
+          modelCatalog: ['storage-unavailable'],
+          modelPlan: ['permission-required'],
+          modelPresetApply: ['storage-unavailable'],
+          modelPlanCustomize: ['storage-unavailable'],
+          modelPlanSet: ['storage-unavailable'],
+          modelPlanAssignmentsSet: ['storage-unavailable'],
+          modelPlanInherit: ['permission-required'],
+          get: ['permission-required'],
+          usageByMember: ['permission-required'],
+          overviewUsage: ['storage-unavailable'],
+        };
+        if (m10[method])
+          expect(error).toMatchObject({
+            code: expect.stringMatching(new RegExp(`^(${m10[method].join('|')})$`, 'u')),
+          });
+        else {
+          expect([
+            'roles',
+            'roleCreate',
+            'roleUpdate',
+            'roleDelete',
+            'members',
+            'memberCreate',
+            'memberRolesSet',
+            'memberPasswordReset',
+            'memberDevices',
+            'memberDeviceRevoke',
+            'ownerTransfer',
+            'teamModeSet',
+            'teamInsecureHttpSet',
+            'teamOwnerPasswordSet',
+            'channelPublicSet',
+          ]).toContain(method);
+          expect(error).toMatchObject({
+            code: expect.stringMatching(/^(permission-required|device-not-found)$/u),
+          });
+        }
         result = error instanceof Error ? { message: error.message } : error;
       } finally {
         abort.abort();
@@ -1466,6 +1505,40 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       expect(() => f.team.roles.create(owner, name, [])).toThrow('role-name-invalid');
     },
   );
+
+  it('refuses every credentials and provider-key method on both existing member devices', async () => {
+    const f = await actors();
+    const second = await f.team.signIn('bob', 'member-password-1', 'second-device');
+    new NativeProviderKeys(f.ctx);
+    const ownerPeer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+    await expect(
+      f.gateway.invoke({ namespace: 'settings', method: 'describe', args: {}, peer: ownerPeer }),
+    ).resolves.toEqual({ apiKey: 'test-secret-only' });
+    const sensitive = [
+      'privateInputStatus',
+      'privateInputSubmit',
+      'privateInputCancel',
+      'privateAccountStatus',
+      'privateInputReplace',
+      'privateAccountRevoke',
+      'privateAccounts',
+      'privateMcpServerRemove',
+      'privateMcpServerEnable',
+      'voiceProviders',
+      'voiceProviderAdd',
+      'voiceProviderRemove',
+      'voiceProviderTest',
+    ];
+    for (const peer of [f.bobLogin.peer, second.peer]) {
+      for (const method of sensitive)
+        await expect(f.invoke(method, {}, peer), method).rejects.toMatchObject({
+          code: 'remote-access/denied',
+        });
+      await expect(
+        f.gateway.invoke({ namespace: 'settings', method: 'describe', args: {}, peer }),
+      ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    }
+  });
 
   it('validates names and permissions and preserves built-ins', async () => {
     const f = await enabledFixture();

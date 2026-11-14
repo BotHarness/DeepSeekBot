@@ -14,6 +14,7 @@ import type { PromptLimitValues } from '../prompts/prompt-limits.js';
 import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface PersonaBotRecord {
+  ownerHumanId?: string;
   slug: string;
   displayName: string;
   displayNameCustomized?: true;

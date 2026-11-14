@@ -1965,3 +1965,10 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
 `members reset-password <username> --initial-password-file <path>` is Owner-only recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+
+```sh
+deepseekbot usage members --period week [--as <username>]
+deepseekbot roles update <roleId> --models all [--as <username>]
+deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
+deepseekbot models allowed [--as <username>]
+```

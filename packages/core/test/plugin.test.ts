@@ -611,6 +611,8 @@ describe('plugin entry', () => {
       remoteMethods(bridge as object).map((marker) => marker.exportName ?? marker.method),
     ).toEqual([
       'teamMode',
+      'modelsAllowed',
+      'usageByMember',
       'teamModeSet',
       'teamOwnerPasswordSet',
       'teamInsecureHttpSet',

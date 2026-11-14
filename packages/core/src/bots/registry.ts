@@ -221,6 +221,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       createdAt: record.createdAt,
     };
     for (const key of [
+      'ownerHumanId',
       'displayNameCustomized',
       'avatarCustomized',
       'roles',
