@@ -21,7 +21,7 @@ type RoleAuthority = { kind: 'owner' } | { kind: 'member'; permissions: Readonly
 export class TeamRoles {
   constructor(
     private readonly db: OperationalDatabaseModulePort,
-    private readonly invalidate: () => void,
+    private readonly invalidate: (revoke?: boolean) => void,
   ) {}
 
   ownerContext(): HumanContext {
@@ -209,7 +209,7 @@ export class TeamRoles {
           .run(name, JSON.stringify(grants), JSON.stringify(models), roleId),
       ['team'],
     );
-    this.invalidate();
+    this.invalidate(role.permissions.some((permission) => !grants.includes(permission)));
     return { role: this.role(roleId) };
   }
 
@@ -241,7 +241,7 @@ export class TeamRoles {
       },
       ['team'],
     );
-    this.invalidate();
+    this.invalidate(true);
     return null;
   }
 
@@ -255,6 +255,29 @@ export class TeamRoles {
     return ids;
   }
 
+  requireManagementTarget(human: HumanContext, humanId: string): void {
+    this.require(human, 'members.manage');
+    if (this.isOwner(humanContext(humanId))) throw new TeamError('owner-protected');
+    if (human.humanId === humanId)
+      throw new TeamError('permission-required', undefined, { permission: 'owner' });
+    const rows = this.db.read((db) =>
+      db
+        .prepare(`SELECT r.role_id, r.permissions_json
+      FROM human_roles h JOIN host_roles r USING(role_id) WHERE h.human_id = ?`)
+        .all(humanId),
+    );
+    const authority = this.authority(human);
+    if (authority.kind === 'owner') return;
+    if (rows.some((row) => row.role_id === 'admin'))
+      throw new TeamError('permission-required', undefined, { permission: 'owner' });
+    for (const row of rows)
+      this.checkPermissions(
+        authority,
+        z.array(z.string()).parse(JSON.parse(String(row.permissions_json))),
+        'manage',
+      );
+  }
+
   set(human: HumanContext, humanId: string, roleIds: string[]): null {
     if (human.humanId === humanId && !this.isOwner(human))
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
@@ -263,6 +286,13 @@ export class TeamRoles {
       throw new TeamError('member-not-found');
     if (this.isOwner(humanContext(humanId))) throw new TeamError('owner-protected');
     const ids = this.validateAssignments(human, roleIds);
+    const previous = z
+      .array(z.object({ role_id: z.string() }))
+      .parse(
+        this.db.read((db) =>
+          db.prepare('SELECT role_id FROM human_roles WHERE human_id = ?').all(humanId),
+        ),
+      );
     this.db.transaction(
       (db) => {
         db.prepare('DELETE FROM human_roles WHERE human_id = ?').run(humanId);
@@ -270,7 +300,7 @@ export class TeamRoles {
       },
       ['team'],
     );
-    this.invalidate();
+    this.invalidate(previous.some((row) => !ids.includes(row.role_id)));
     return null;
   }
 }

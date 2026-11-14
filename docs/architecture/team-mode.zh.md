@@ -18,10 +18,17 @@ Human 在 2026-11-13 完成 Q1–Q35 并确认的目标设计，不代表已实�
 - **离职**：停用 → 移交 → 单独确认后永久删除。
 - **Host Relationship** 在团队模式下仅授权 Owner 的 Client。
 
-## OS 沙箱（未来）
+## 执行隔离（2026-11-14 修订）
 
-可选路线为按次执行的进程沙箱（Linux Landlock/bubblewrap、macOS Seatbelt、Windows AppContainer），文件白名单 = 授权目录 + Memory，接入 DSH Execution World Provider。代价：三平台分别实现，工具需要的缓存与配置需要放行，需要配套网络策略，故障难排查，且挡不住 Host 进程自身的漏洞。本次不在范围内。
+[调研](../research/2026-11-14-team-mode-execution-isolation.md)发现，DSH 自带的沙箱只限制写，不限制读和网络。按 ADR-0205，`workspace-write` 下成员 Bot 的 Shell 不弹审批，所以它能读到其他 Bot 的 Memory、数据库、凭据和其他空间。DSH 只提供本机执行后端；DSH 里也没有单一的 "Execution World Provider"，`ctx.sandbox`、`ctx.fs`、`ctx.subprocess` 和 `ctx.shell` 是各自可以替换的提供者。
+
+敲定的范围：
+
+- M12 之前，Team mode 以轻量**试用**形态开放：只显示一句告知"成员的 Bot 技术上能读到这台 Host 上其他 Bot 的数据"，不对 Shell 做逐次审批；成员 Bot 不能升级，也不能用 `danger-full-access`（M5）。
+- **M12**：Linux 执行隔离。给 DSH 的 bwrap 包一层 `runnerCommand` 脚本，隐藏 `DSH_HOME`、各空间目录和 `/home`，只挂回这个 Session 有权访问的目录；网络命名空间拒绝本机、链路本地地址、私有网段和 tailnet；解析不到 Session 时拒绝执行。机密放在 Host 上，所以结束试用之前必须完成 M12。
+- 账号空间（`spaces/<humanId>`）和按受众划分的共享空间（如 `shared/team`、`shared/finance`）；每个空间里，Bot 的 Memory（`bots/<slug>/memory`）和可以授权的 `files/` 目录分开存放。
+- 不在范围内：账号配额，macOS 和 Windows 的隔离（macOS 上的 Team Host 一直显示试用告知），部署检查脚本，microVM，每个成员一个 OS 用户或容器。高敏感数据建议放在单独的 Host 上。
 
 ## 交付切片
 
-M0 去硬编码 → **M1 首个端到端 tracer**（开启团队模式、创建成员、内网 HTTPS 登录、加入公开 Channel 互发消息、CLI）→ M2 私有 Bot、Tob 与 Activity（M11 之前 Owner 不能查看成员私有内容）→ M3 角色与成员管理 → M4 Channel 可见性与 Human DM → M5 审批 → M6 Workspace → M7 Bot 可见性与角色策略 → M8 移动端 → M9 密码与离职 → M10 用量 → M11 审计。依赖关系见[英文版](team-mode.md#delivery)。M1 完成后先取得 Human 反馈，再扩展。
+M0 去硬编码 → **M1 首个端到端 tracer**（开启团队模式、创建成员、内网 HTTPS 登录、加入公开 Channel 互发消息、CLI）→ M2 私有 Bot、Tob 与 Activity（M11 之前 Owner 不能查看成员私有内容）→ M3 角色与成员管理 → M4 Channel 可见性与 Human DM → M5 审批 → M6 Workspace → M7 Bot 可见性与角色策略 → M8 移动端 → M9 密码与离职 → M10 用量 → M11 审计 → M12 Linux 执行隔离（结束试用告知）。依赖关系见[英文版](team-mode.md#delivery)。M1 完成后先取得 Human 反馈，再扩展。

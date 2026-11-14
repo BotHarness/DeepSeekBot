@@ -1,10 +1,22 @@
 # BotHarness 架构与数据流
 
-## 已确认目标：环境面板与双向 Host 关系（尚未实现）
+Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、连接组件、relay 在线状态及公网设备通道的 TLS 与本机身份绑定 Noise 握手。它不创建 Device grant 或持久在线权威；结果五分钟后过期，账号或连接变化时失效，登录及组件恢复自动触发，手动检查走同一个已认证 Host API 与 CLI。并发合并、整体 20 秒及公网 8 秒上限，无新增后台轮询。检查通过仅证明本机当时可经公网连回自己，不能保证手机网络可达（#4170）。
+
+## 已确认目标：环境面板与双向 Host 关系（逐片交付）
+
+私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
+
+E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。
+
+E3 在既有关系 owner 内保留缺少返回地址的已批准关系；固定 Noise 身份的状态交换学习既有线路，另一次独立对端探测验证返回方向。可达性为 30 秒有效的进程观测，重启后回到尚未验证；授权与线路仍持久化。Connections 和 CLI 共用方向检查及固定身份线路恢复；不重新批准、不新增设备授权，也不接管 LAN、Tailscale 或隧道进程。关闭线路准备窗口不停止已完成的线路。
 
 2026-11-13 的整体确认扩展了 #4069 原先仅 Client 配对的范围。Control Rail Environment 面板在 Simple 模式替换当前面板，在 Advanced 模式增加独立列；Channels 与 Activity 共用 Client 本地 Environment Scope，Settings Target 独立且写入绑定精确 Host。Host Relationship 属于双端持久应用权威，每个 Client 仍取得自己的设备凭据，手机不自动继承，Bot 协作独立授权。每个方向的可达性和离线撤销确认分别呈现，不把账号退出、断开关系、关闭线路或删除远端数据混为一谈。通过现有 Device Pairing、凭据、operational database 与 API Gateway 边界交付，不能用布局状态或 Cordis Event 代替持久授权。
 
 完整交互、权限边界及验收见[环境面板设计](environment-panel.zh.md)、[ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md)及 ADR-0327 的桌面修订。以下既有实现记录不代表该新目标已完成；原九切片验收也不覆盖新增双向关系。
+
+E1 将手动电脑连接接入 `host-relationships` 应用 owner：Operational Database generation 140 保存双端关系、固定对端身份及派生设备关联；现有受保护 Noise Host 密钥只用于关系控制，不能直接读取 Feed。发起端核对对端指纹、接收端核对发起端指纹并批准双向权限后，两端经加密控制通道激活关系。每个 Web/CLI Client 本地生成自己的密钥，Host 只转交绑定该公钥的短期 enrollment offer；现有 pairing owner 兑换、保存并准入独立设备，远端私钥不交给本机 Host。Client 复用 RemoteHosts、HostClient、Feed 与 Channel 路径，不建立内容镜像或第二套连接存储。
+
+本地认证的 `/api/botharness/relationships` 与 `relationships` CLI 共用同一 owner；普通 Device Gateway 拒绝转发关系管理，手机不因已配对而继承关系。撤销先持久化关系失效，再撤销关联设备；每次设备准入也检查关系，避免清理中断继续放行。独立设备授权及 Channel 数据保留，远端未确认撤销时保留 pending 状态。E1 不实现 Environment 面板、账号自动准入、多线路恢复或离线撤销后台重试；这些仍按 hub 的后续切片交付。
 
 手机 Connect 账号管理直接使用 relay 现有的电脑列表和会话撤销接口，无需已配对或在线 Host（ADR-0241、#4039）。手机账号 owner 在串行操作中验证确认时的账号 action key 后刷新凭据并撤销目标；relay 仍是关联和撤销状态的持久权威。界面刷新列表并保留手机配对；旧关联明确提示可能自动重新关联。不改变 LAN/Tailscale 配对权限或本地 Bot 数据。
 
@@ -561,6 +573,8 @@ Soniox 每句识别只接受明确的完成标记。异常断流（1006）可在
 [ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` TTS 和 ASR Provider，并绑定 Bot 的语音与语音识别（`voice-set`、`voice-asr-set`），写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。Bot 用哪个语音服务、服务是否健康只在一处决定：`VoiceProviders.resolve` 依次应用 Bot 绑定、Host 默认、该类型的回退规则（语音输入仍可回退到任意 ASR，流式优先；通话不回退），最后检查这个本地服务是否在运行。通话 readiness 和语音输入的 `readiness`/`open` 都用它，所以本地服务停止时语音输入会报告未就绪（`local-voice-off`），而不是在第一次推送时才失败，手机也会改用系统识别（[#3786](https://github.com/BotHarness/DeepSeekBot/issues/3786)）。
 
 ### GenUI as ordinary message content — accepted target
+
+The application-defined core configuration `genuiPreviewBrowserPath` optionally selects an absolute executable for the existing isolated preview Browser runtime. Empty configuration retains system discovery; an invalid explicit executable is refused without fallback. The same preview owner forwards bounded redacted Browser startup diagnostics through its existing developer log callback. This changes neither document execution policy nor publication authority; system/controlled CI comparison is opt-in and requires both full journeys under the existing budgets (#4030).
 
 iOS GenUI 的原生页面桥接仅向当前会话报告有界、绑定渲染实例的输入框位置。会话沿用现有滚动控制，在键盘打开后测量聊天输入栏并露出当前控件；失焦、切换 scope 和卸载会清除位置。该消息不包含输入正文，不调用 Host 或模型，不改变 Source Event、私有视图 CAS、HTML 执行隔离或持久化边界。
 
@@ -1583,7 +1597,9 @@ Android text playback has an independent opt-in native pacing experiment (`EXPO_
 
 ### Same-account Connect enrollment
 
-The application-defined Connect account owner authorizes a fresh device after verifying signed-in state, the relay signature, exact account and Host registration, freshness and verifier hash. The encrypted gateway validates the phone verifier and approves only its exact Noise key through the existing paired-device owner. The mobile account-list path trusts and pins the Host key returned by its authenticated relay request without a manual fingerprint comparison. Unsigned offers and LAN/private pairing retain manual device approval. Account authentication and the relay are trusted enrollment authorities: compromise can authorize a new device, unlike ADR-0244's earlier guarantee. Existing grants persist across sign-out or code rollback and require explicit revocation; securing compromised account access is also necessary to prevent re-enrollment. No review-only configuration or second persistence owner exists. See [ADR-0327](../adr/0327-connect-account-ownership-authorizes-enrollment.md).
+The application-defined Connect account owner authorizes a fresh device after verifying signed-in state, the relay signature, exact account and Host registration, freshness and verifier hash. The encrypted gateway validates the phone verifier and approves only its exact Noise key through the existing paired-device owner. The mobile account-list path pins the Host key obtained through authenticated account enrollment without a manual fingerprint comparison. Unsigned offers and LAN/private pairing retain manual device approval. Account authentication and the relay are trusted enrollment authorities: compromise can authorize a new device, unlike ADR-0244's earlier guarantee. Existing grants persist across sign-out or code rollback and require explicit revocation; securing compromised account access is also necessary to prevent re-enrollment. No review-only configuration or second persistence owner exists. See [ADR-0327](../adr/0327-connect-account-ownership-authorizes-enrollment.md).
+
+In the opt-in `identitySource: client` offer mode, the application-defined Relay verifies account/Host ownership and returns the canonical official HTTPS hostname and verifier-bound signed enrollment without fetching the Host. The phone retrieves and validates Device identity on that exact HTTPS route, refuses redirects, pins the key and completes the existing Noise pairing and Host Feed path. Connector observations are advisory and never gate an existing route; saved-device reconnect adds no background probe. Legacy Relay-fetched identity offers remain supported. The trust and compatibility boundaries are recorded in the ADR-0327 client reachability amendment.
 
 ### Core startup diagnostic evidence (#4056)
 
@@ -1599,11 +1615,17 @@ Connections groups a paired Remote Host with an account entry only when the auth
 
 ### Optional phone onboarding
 
-The shared Connections dialog distinguishes phone invitation from joining a Remote Host with smartphone/computer choices. Joining keeps the existing Client-owned `ConnectionControl` and `RemoteHosts` enrollment inside that dialog: Back disposes unfinished work, full Host/device identity checks remain explicit, and connected requires saved credentials plus a readable Host Feed. The serving Host gains no reciprocal route or remote credential authority (ADR-0253).
+The shared Connections dialog distinguishes independent phone invitation from reciprocal computer enrollment. Computer enrollment uses the Host relationship owner described above (ADR-0334), while `ConnectionControl` and `RemoteHosts` retain Client-local confirmation, credentials and Feed readiness. Back cancels unfinished work; a late initiation is retired rather than enrolled. Connected requires saved credentials plus a readable Host Feed. The serving Host does not retain a Client's remote credential; ADR-0253 still governs independent pairing.
+
+Reciprocal relationship management remains a current-Owner capability, separate from Team member/Admin carriers. Every derived pairing offer captures that Owner Human; redemption writes the captured `human_id` and relationship provenance atomically. Admission requires both the current Owner Human and an active relationship. Owner transfer invalidates old invitations and credentials without transferring private Bots or member identity; the existing per-Human bridge and private-Bot visibility checks still own Feed and Channel access. Published Team migrations141–143 precede the unpublished E1 relationship migration144; internal Environment preview Profiles are not supported upgrade sources.
+
+Member pages disable the existing RemoteHosts provider before Owner storage, key or HostClient initialization and do not compose the native Owner file provider. They retain normal member BridgeCall/RPC operations; their empty remote view does not delete or replace Owner connection storage. Remote pairing, enrollment and mutations refuse with `owner-required` in that disabled provider.
 
 The Desktop intro includes an optional phone step that opens the existing Connections dialog. Every phone entry first shows shared App download guidance and requires explicit installed confirmation before preparing a route or creating an invitation, including when a usable route already exists. Its completion derives from the exact redeemed device's first successful Feed acknowledgement in the device-pairing owner, not from approval or transport admission. The mobile Host client reports only after loading and publishing the Bot/Channel roster; the authenticated gateway supplies device identity. `device-probe` shares that client and `devices` reads the same receipt. Skip creates no resources; Back and Close preserve existing routes and grants. See [ADR-0335](../adr/0335-phone-onboarding-confirms-device-feed-read.md).
 
 ### Bounded private route coexistence
+
+The browser carrier conveys the same opaque private-route admission in a WebSocket credential subprotocol alongside a fixed public framing label. Existing tunnel ingress and Docker relay owners validate their existing token, reject conflicting credential sources, and consume the credential protocol before forwarding or selecting only the public label. The Noise gateway accepts only that public label and retains pinned Noise and device authorization; no new encryption protocol, credential store or application authority is introduced. Admission stays out of URLs, public peer/Feed projections, response protocols and diagnostics. The shared stateless wire helper lives with the portable private relay runtime and is bundled into the Host and Client. Older external Docker relays require an explicit operator upgrade; local source qualification does not deploy them.
 
 The application-defined Devices private connection owner manages a Quick Tunnel and one Named Tunnel/private HTTPS ingress as independently enabled stable slots. Both use the existing encrypted device gateway, Host identity, pairing grants and revocation authority. The existing credentials Provider stores a versioned protected envelope; lifecycle serialization and metadata writes preserve disabled intent across restart. Explicit Add/Replace and targeted Start/Stop/Remove share the authenticated API and CLI. Private invitations retain one primary route for older clients and may explicitly admit one additional origin for updated clients; secure SavedHost persists that bounded list without learning official-service fallbacks. Migration and backup-based rollback constraints are specified in [ADR-0333](../adr/0333-bounded-private-route-coexistence.md).
 
@@ -1611,6 +1633,12 @@ The application-defined Devices private connection owner manages a Quick Tunnel 
 
 The application-defined Team member owner separates durable identity, password credentials and revocable grants from the DSH-native Peer lifetime. Member page resources render for that Peer, and unary/stream operations dispatch through the API Gateway with an explicit member principal and default-deny access policy. Existing Owner devices retain `local-human`. Group public visibility reuses canonical Channel membership. See [Team mode M1 runtime boundaries](team-mode-m1-runtime.md) for persistence, transport, CLI and performance constraints; later Team slices remain separate.
 
+M2 adds application-defined private Bot ownership, one Tob per Human, scoped Activity projections and Human-bound push/Live Activity delivery. The member Peer remains the API Gateway principal; no Owner cookie is used by member traffic or a member Tob. See [Team mode M2 runtime boundaries](team-mode-m2-runtime.md) for persistence, authorization, CLI integration and regression budgets.
+
 The [M3 Host/CLI runtime](team-mode-m3-runtime.md) adds persistent Host Roles, union permissions, target-scoped device management and transferable Owner authority without rewriting Human identity. The Core shares its canonical Team Service with the live hub so delivery gates follow current ownership. Credential issuance provenance restricts transfer targets; suspension removes effective permissions, and transfers invalidate outstanding pairing offers.
+
+The [M9 lifecycle runtime](team-mode-m9-runtime.md) adds permission-scoped password resets, other-device sign-out, reversible mode suspension, deactivation/reactivation, group ownership transfer and permanent member deletion through Content Purge. Shared messages keep anonymous deleted-Human authorship; M2 private Bots and Tob participate in transfer, stop and Content Purge Memory erasure; shared roots and member mobile carriers retain their own qualification gates.
+
+The [M4 Host/CLI runtime](team-mode-m4-runtime.md) adds canonical Channel visibility, ownership/admins and policy, plus two-Human DM identity. The same audience Service scopes reads, SQL search, unread lists and live delivery; revocation closes existing browser Peers and paired-device streams. Private-content auditing remains M11.
 
 The Team usage and Role model policy runtime is described in [M10 Host and CLI logic](team-mode-m10-runtime.md).

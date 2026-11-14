@@ -99,17 +99,18 @@ describe('explicit Human context', () => {
     expect(query.list(a, { category: 'action' }).items).toEqual([]);
     expect(query.list(a, { category: 'action', snoozed: true }).items).toHaveLength(1);
     expect(query.list(b, { category: 'action', snoozed: true }).items).toEqual([]);
-    expect(query.list(b, { category: 'action' }).items).toHaveLength(1);
+    expect(query.list(b, { category: 'action' }).items).toEqual([]);
     expect(query.actionCount(a)).toBe(0);
-    expect(query.actionCount(b)).toBe(1);
-    expect(decisions.dismiss(b, action)).toBe(true);
-    expect(query.list(b, { category: 'action', dismissed: true }).items).toHaveLength(1);
-    expect(query.list(a, { category: 'action', dismissed: true }).items).toEqual([]);
+    expect(query.actionCount(b)).toBe(0);
+    expect(decisions.dismiss(a, action)).toBe(true);
+    expect(query.list(b, { category: 'action', dismissed: true }).items).toEqual([]);
+    expect(query.list(a, { category: 'action', dismissed: true }).items).toHaveLength(1);
+    expect(decisions.restore(a, action)).toBe(true);
     expect(decisions.snooze(a, action, null)).toBe(true);
     expect(query.list(a, { category: 'action' }).items).toHaveLength(1);
   });
 
-  it('keeps ignored Assignment reports separate for each Human', () => {
+  it('refuses another Human’s private Assignment report', () => {
     const { database, query, decisions } = fixture();
     const second = humanContext('human-test-b');
     database.transaction(
@@ -126,8 +127,8 @@ describe('explicit Human context', () => {
       ['source-event'],
     );
     expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toHaveLength(1);
-    expect(query.list(second, { category: 'info' }).items).toHaveLength(1);
-    expect(decisions.ignoreAssignmentReport(second, 'report')).toBe(true);
+    expect(query.list(second, { category: 'info' }).items).toEqual([]);
+    expect(decisions.ignoreAssignmentReport(second, 'report')).toBe(false);
     expect(query.list(second, { category: 'info' }).items).toEqual([]);
     expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toHaveLength(1);
   });
@@ -135,6 +136,13 @@ describe('explicit Human context', () => {
   it('records the speaking Human separately from the unchanged message JSON', async () => {
     const { database, channels } = fixture();
     const human = humanContext('human-test-b');
+    database.transaction((db) =>
+      db
+        .prepare(
+          "INSERT INTO humans(human_id,display_name,status,created_at) VALUES (?, 'Second Human', 'active', '2026-11-14T00:00:00Z')",
+        )
+        .run(human.humanId),
+    );
     const group = channels.createGroup(human, { name: 'Second Human', members: [] });
     await channels.appendMessage(human, group.id, {
       id: 'spoken',
@@ -210,13 +218,13 @@ describe('explicit Human context', () => {
       )?.human_id,
     ).toBe(OWNER_HUMAN_CONTEXT.humanId);
     const decisions = createHumanAttentionDecisions(database);
-    expect(decisions.ignoreAssignmentReport(humanContext('human-test-b'), 'report')).toBe(true);
+    expect(decisions.ignoreAssignmentReport(humanContext('human-test-b'), 'report')).toBe(false);
     expect(
       database.read((db) =>
         db
           .prepare('SELECT human_id FROM human_attention_decisions WHERE source_event_id = ?')
           .all('report'),
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 });

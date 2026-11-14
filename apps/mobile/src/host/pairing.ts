@@ -177,6 +177,7 @@ export type Redemption =
   | { ok: false; code: PairingRefusal; detail?: string; diagnostic?: ConnectionDiagnostic };
 
 export async function redeemPairing(options: {
+  deviceKey?: string;
   payload: PairingPayload;
   deviceName: string;
   carrier: HostCarrier;
@@ -187,14 +188,15 @@ export async function redeemPairing(options: {
   signal?: AbortSignal;
 }): Promise<Redemption> {
   const { payload } = options;
+  const privateRelay = payload.encryption?.privateRelay;
   if (
-    payload.encryption?.privateRelay &&
-    (payload.routes.length !== 1 || payload.routes[0] !== payload.encryption.privateRelay.origin)
+    privateRelay &&
+    payload.routes.some((route) => !privateRouteOrigins(privateRelay).includes(route))
   )
     return { ok: false, code: 'no-route' };
   if (
     payload.routes.length === 0 ||
-    payload.routes.some((route) => !checkRoute(route, payload.encryption?.privateRelay?.origin).ok)
+    payload.routes.some((route) => !checkRoute(route, payload.encryption?.privateRelay).ok)
   )
     return { ok: false, code: 'no-route' };
   if (payload.enrollment && payload.routes.some((route) => !isConnectRoute(route)))
@@ -550,6 +552,7 @@ function pause(ms: number, signal?: AbortSignal): Promise<boolean> {
 }
 
 async function redeemEncrypted(options: {
+  deviceKey?: string;
   payload: PairingPayload;
   deviceName: string;
   carrier: HostCarrier;
@@ -573,7 +576,7 @@ async function redeemEncrypted(options: {
     ...(advertised.loopback === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
     protocol: advertised.protocol,
     hostKey: advertised.publicKey,
-    deviceKey: keyHex(secureRandom(options.carrier)),
+    deviceKey: options.deviceKey ?? keyHex(secureRandom(options.carrier)),
   };
   const lan = payload.routes.filter(isLanRoute);
   const remote = payload.routes.filter((route) => !isLanRoute(route));
@@ -592,7 +595,12 @@ async function redeemEncrypted(options: {
     if (result.ok) return result;
     if (result.detail !== undefined) details.push(result.detail);
     if (result.code === 'lan-permission-denied') lanDenied = true;
-    if (result.code !== 'lan-unreachable' && result.code !== 'lan-permission-denied') break;
+    if (
+      result.code !== 'lan-unreachable' &&
+      result.code !== 'lan-permission-denied' &&
+      !(advertised.privateRelay && result.code === 'unreachable')
+    )
+      break;
   }
   if (lanDenied && (await pause(options.lanRetryDelayMs ?? LAN_PROMPT_RETRY_MS, options.signal))) {
     lanDenied = false;

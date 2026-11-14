@@ -17,7 +17,9 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
 import { createBotRuntime, type OrchestratorAssignmentAccess } from '../src/runtime/bot-runtime.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
-import { DatabaseSync } from 'node:sqlite';
+import { mountOperationalDatabase } from '../src/database/owner.js';
+import { defineSchemaPlan } from '../src/database/schema.js';
+import { trackTestOwner } from './helpers.js';
 
 const permitted = { provider: 'provider', model: 'allowed' };
 const denied = { provider: 'provider', model: 'denied' };
@@ -37,20 +39,12 @@ function fixture() {
         "INSERT INTO humans (human_id, display_name, status, created_at) VALUES (?, 'Member', 'active', ?)",
       ).run(member.humanId, now.toISOString());
       db.prepare("INSERT INTO human_roles VALUES (?, 'member')").run(member.humanId);
+      db.prepare('UPDATE team_settings SET enabled = 1').run();
     },
     ['team'],
   );
-  registry.create({ slug: 'ada', displayName: 'Ada' });
+  registry.create({ slug: 'ada', displayName: 'Ada', ownerHumanId: member.humanId });
   registry.create({ slug: 'bob', displayName: 'Bob' });
-  database.transaction(
-    (db) =>
-      db
-        .prepare(
-          "UPDATE persona_bots SET body = json_set(body, '$.ownerHumanId', ?) WHERE slug = 'ada'",
-        )
-        .run(member.humanId),
-    ['bot-registry'],
-  );
   const ownership = createTestOwnership({ session: { botSlug: 'ada', rootRole: 'orchestrator' } });
   const usage = createUsageProjection({
     database: db,
@@ -246,7 +240,7 @@ describe('M10 member usage and role models', () => {
         (db) =>
           db
             .prepare(
-              "UPDATE persona_bots SET body = json_remove(body, '$.ownerHumanId') WHERE slug = 'ada'",
+              "UPDATE persona_bots SET owner_human_id = 'local-human', body = json_set(body, '$.ownerHumanId', 'local-human') WHERE slug = 'ada'",
             )
             .run(),
         ['bot-registry'],
@@ -299,10 +293,10 @@ describe('M10 member usage and role models', () => {
       const reportStart = performance.now();
       expect(f.usage.byMember('today', owner.humanId, (slug) => slug).members).toHaveLength(1000);
       const reportMs = performance.now() - reportStart;
-      expect(queries).toHaveBeenCalledTimes(4);
+      expect(queries).toHaveBeenCalledTimes(3);
       queries.mockClear();
       f.team.usageByMember(owner, 'today', f.usage, (slug) => slug);
-      expect(queries).toHaveBeenCalledTimes(6);
+      expect(queries).toHaveBeenCalledTimes(5);
       queries.mockClear();
       expect(f.ownerMethods.usageByMember({ period: 'today' }).ok).toBe(true);
       expect(queries).toHaveBeenCalledTimes(7);
@@ -311,7 +305,7 @@ describe('M10 member usage and role models', () => {
       expect(queries).toHaveBeenCalledOnce();
       queries.mockRestore();
       process.stdout.write(
-        `M10 query diagnostic: overview=${baseMs.toFixed(2)}ms scoped=${scopedMs.toFixed(2)}ms members=${reportMs.toFixed(2)}ms, 1000 rows, report=4 reads policy=1 read\n`,
+        `M10 query diagnostic: overview=${baseMs.toFixed(2)}ms scoped=${scopedMs.toFixed(2)}ms members=${reportMs.toFixed(2)}ms, 1000 rows, report=3 reads policy=1 read\n`,
       );
     });
   });
@@ -564,7 +558,7 @@ describe('M10 member usage and role models', () => {
     });
     expect(f.methods.get({ slug: 'bob' })).toMatchObject({
       ok: false,
-      error: { code: 'permission-required' },
+      error: { code: 'bot-not-found' },
     });
     expect(f.registry.get('ada')?.modelPlan?.orchestrator).toEqual(denied);
     const result = await f.methods.modelCatalog({});
@@ -598,25 +592,59 @@ describe('M10 member usage and role models', () => {
     }
   });
 
-  it('migrates existing receipt and usage rows without rewriting or losing buckets', () => {
-    const db = new DatabaseSync(':memory:');
-    try {
-      for (const migration of BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 142))
-        migration.migrate(db);
+  it('upgrades main generation 146 to 148 without rewriting or losing buckets', () => {
+    const home = createTempRoot('m10-main-upgrade-');
+    const previous = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 146),
+      ),
+    });
+    expect(previous.mode).toBe('ready');
+    const old = attachOperationalModule(previous, 'm10-main-fixture');
+    old.transaction((db) => {
       db.prepare(
         "INSERT INTO usage_daily (bot_slug, day, provider, model, purpose, input_tokens, total_tokens) VALUES ('ada', '2026-11-14', 'p', 'm', 'orchestrator', 13, 13)",
       ).run();
       db.prepare("INSERT INTO usage_receipts VALUES ('fingerprint', 'ada')").run();
-      for (const migration of BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation > 142))
-        migration.migrate(db);
-      expect(db.prepare('SELECT human_id, legacy, total_tokens FROM usage_daily').all()).toEqual([
-        { human_id: 'local-human', legacy: 1, total_tokens: 13 },
-      ]);
-      expect(db.prepare('SELECT * FROM usage_receipts').all()).toEqual([
-        { fingerprint: 'fingerprint', bot_slug: 'ada', human_id: 'local-human' },
-      ]);
-    } finally {
-      db.close();
+      db.prepare("INSERT INTO humans VALUES ('member', 'Member', 'deactivated', 'before')").run();
+      db.prepare("INSERT INTO persona_bots VALUES ('ada', ?, 'member')").run(
+        JSON.stringify({ slug: 'ada', ownerHumanId: 'member' }),
+      );
+      db.prepare("INSERT INTO tob_identity VALUES ('member', 'ada')").run();
+    });
+    previous.close();
+    for (let restart = 0; restart < 2; restart++) {
+      const upgraded = trackTestOwner(
+        mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      );
+      expect(upgraded.mode).toBe('ready');
+      expect(upgraded.generation).toBe(148);
+      attachOperationalModule(upgraded, 'm10-upgraded-fixture').read((db) => {
+        expect(db.prepare('SELECT human_id, legacy, total_tokens FROM usage_daily').all()).toEqual([
+          { human_id: 'local-human', legacy: 1, total_tokens: 13 },
+        ]);
+        expect(db.prepare('SELECT * FROM usage_receipts').all()).toEqual([
+          { fingerprint: 'fingerprint', bot_slug: 'ada', human_id: 'local-human' },
+        ]);
+        expect(
+          db
+            .prepare('SELECT models_json FROM host_roles')
+            .all()
+            .every((row) => row.models_json === '{"kind":"all"}'),
+        ).toBe(true);
+        expect(
+          db.prepare("SELECT status FROM humans WHERE human_id = 'member'").get(),
+        ).toMatchObject({ status: 'deactivated' });
+        expect(
+          db.prepare("SELECT owner_human_id FROM persona_bots WHERE slug = 'ada'").get(),
+        ).toMatchObject({ owner_human_id: 'member' });
+        expect(db.prepare('SELECT * FROM tob_identity').all()).toEqual([
+          { human_id: 'member', bot_slug: 'ada' },
+        ]);
+        expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+      });
+      upgraded.close();
     }
   });
 });

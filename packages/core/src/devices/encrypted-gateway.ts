@@ -4,6 +4,7 @@ import { request } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
+import { BROWSER_ADMISSION_PROTOCOL } from '../../../../deploy/private-relay/admission.mjs';
 import { ConnectChannel, CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import { noisePublicKey } from './noise/xk.js';
 import type { DevicePairing } from './pairing.js';
@@ -120,11 +121,14 @@ export function createEncryptedGateway(options: {
     signal: AbortSignal;
   }) => Promise<VoiceCallResult>;
   verifyEnrollment?: (body: string, signature: string) => Promise<OfferVerification>;
+  relationship?: (peerKey: string, command: unknown) => Promise<Record<string, unknown>>;
 }) {
   const server = new WebSocketServer({
     noServer: true,
     maxPayload: 70_000,
     perMessageDeflate: false,
+    handleProtocols: (protocols) =>
+      protocols.has(BROWSER_ADMISSION_PROTOCOL) ? BROWSER_ADMISSION_PROTOCOL : false,
   });
   const active = new Set<() => void>();
   let disposed = false;
@@ -629,6 +633,12 @@ export function createEncryptedGateway(options: {
       const type = input['type'];
       if (!admitted) {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
+        if (type === 'relationship') {
+          if (!options.relationship) return refuse('relationship-unavailable');
+          const result = await options.relationship(publicKey, input['command']);
+          if (!closed) send({ type: 'relationship-result', ...result });
+          return;
+        }
         if (type === 'pair') {
           let offer = field(input, 'offer');
           let accountAutoApprove = false;
@@ -813,7 +823,8 @@ export function createEncryptedGateway(options: {
         request.url !== CONNECT_CHANNEL_PATH ||
         request.headers.authorization ||
         request.headers.cookie ||
-        request.headers['sec-websocket-protocol'] ||
+        (request.headers['sec-websocket-protocol'] !== undefined &&
+          request.headers['sec-websocket-protocol'] !== BROWSER_ADMISSION_PROTOCOL) ||
         active.size + upgrading >= 32
       ) {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');

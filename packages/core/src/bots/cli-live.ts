@@ -18,6 +18,7 @@ import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-
 import { PRESENCE_COMMANDS, PRESENCE_OPTIONS, runPresenceCommand } from './cli-presence.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import { RELATIONSHIP_COMMANDS, runRelationshipCommand } from './cli-relationships.js';
 import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
 import {
   DEVICE_NOTIFICATION_COMMANDS,
@@ -190,6 +191,7 @@ export const LIVE_OPTIONS = {
   'connection-id': { type: 'string' },
   fingerprint: { type: 'string' },
   'link-file': { type: 'string' },
+  'account-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
@@ -328,6 +330,7 @@ export const LIVE_COMMANDS = [
   ...PRESENCE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
+  ...RELATIONSHIP_COMMANDS,
   ...DEVICE_CLIENT_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
@@ -628,6 +631,7 @@ interface LiveValues
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
+  'account-file'?: string;
   'connection-id'?: string;
   fingerprint?: string;
   'remote-host-id'?: string;
@@ -828,7 +832,10 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
     );
     const details = record(error['details']);
-    if (failure.code === 'permission-required' && typeof details['permission'] === 'string')
+    if (
+      ['permission-required', 'permission-not-grantable'].includes(failure.code) &&
+      typeof details['permission'] === 'string'
+    )
       failure.details = { permission: scrub(details['permission']) };
     if (failure.code === 'model-not-allowed' && typeof details['route'] === 'string')
       failure.details = { route: scrub(details['route']) };
@@ -1010,7 +1017,9 @@ export async function runLiveCli(
 ): Promise<unknown> {
   if (
     values.as !== undefined &&
-    (['device-activity', 'device-notifications', 'phone-notifications'].includes(command) ||
+    (['relationships', 'device-activity', 'device-notifications', 'phone-notifications'].includes(
+      command,
+    ) ||
       DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
   )
     throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
@@ -1123,6 +1132,10 @@ export async function runLiveCli(
     return runDevicesCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (command === 'relationships') {
+    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+    return runRelationshipCommand(rest, values, () => connectLiveHost(values, io, signal), signal);
+  }
   if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
     return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {

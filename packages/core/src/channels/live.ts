@@ -193,7 +193,9 @@ export interface ChannelLiveHub {
   publishAttachments(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
+  refreshAccess(): void;
   publishContentPurged(): void;
+  publishHumanIdentityChanged(): void;
   close(): void;
 }
 
@@ -234,10 +236,9 @@ function combineLiveResponses(channel: Response, roster: Response): Response {
             if (ended) return;
             if (chunk.done) {
               completed++;
-              if (completed === readers.length) {
-                ended = true;
-                resume();
+              if (reader === readers[0] || completed === readers.length) {
                 controller.close();
+                await stop();
               }
               return;
             }
@@ -268,21 +269,37 @@ export function createChannelLiveHub(
   watchAttention?: (changed: () => void) => () => void,
   isOwner: (human: HumanContext) => boolean = (human) =>
     human.humanId === OWNER_HUMAN_CONTEXT.humanId,
+  ownsBot?: (human: HumanContext, slug: string) => boolean,
+  canRead?: (human: HumanContext, channelId: string) => boolean,
+  canKnow?: (human: HumanContext, channelId: string) => boolean,
 ): ChannelLiveHub {
-  const visibleChannel = (human: HumanContext, channelId: string): boolean =>
-    isOwner(human) ||
-    (channels.get(channelId)?.type === 'group' &&
-      channels
-        .listHumanMembers(human, channelId)
-        .some((member) => member.humanId === human.humanId));
+  const visibleChannel = (human: HumanContext, channelId: string): boolean => {
+    if (canRead) return canRead(human, channelId);
+    if (!ownsBot && isOwner(human)) return true;
+    const channel = channels.get(channelId);
+    if (!channel || channel.deletedAt) return false;
+    if (channel.type === 'dm' && channel.remoteBot !== undefined) return isOwner(human);
+    if (channel.type === 'dm')
+      return ownsBot ? channel.members.every((slug) => ownsBot(human, slug)) : isOwner(human);
+    return (
+      isOwner(human) ||
+      channels.listHumanMembers(human, channelId).some((member) => member.humanId === human.humanId)
+    );
+  };
   const visiblePlacements = (human: HumanContext, placements: PurgedPlacement[]) =>
-    isOwner(human)
-      ? placements
-      : placements.filter(
-          (placement) =>
-            channels.hasHumanMembership?.(human, placement.channelId) ??
-            visibleChannel(human, placement.channelId),
-        );
+    placements.filter((placement) => {
+      if (canRead) return (canKnow ?? canRead)(human, placement.channelId);
+      const channel = channels.get(placement.channelId);
+      if (channel?.type === 'dm')
+        return channel.remoteBot !== undefined || !ownsBot
+          ? isOwner(human)
+          : channel.members.every((slug) => ownsBot(human, slug));
+      return (
+        isOwner(human) ||
+        (channels.hasHumanMembership?.(human, placement.channelId) ??
+          visibleChannel(human, placement.channelId))
+      );
+    });
   const subscribers = new Map<string, Set<Subscriber>>();
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();
@@ -845,6 +862,11 @@ export function createChannelLiveHub(
   };
 
   return {
+    refreshAccess() {
+      for (const group of subscribers.values())
+        for (const subscriber of [...group]) subscriber.close();
+      for (const subscriber of [...rosterSubscribers]) subscriber.close();
+    },
     followRoster,
     followActivity,
     followChannel,
@@ -1020,6 +1042,10 @@ export function createChannelLiveHub(
     },
     publishRosterCommitted() {
       for (const subscriber of rosterSubscribers) subscriber.push();
+    },
+    publishHumanIdentityChanged() {
+      for (const group of subscribers.values())
+        for (const subscriber of [...group]) subscriber.close();
     },
     publishContentPurged() {
       const placements = redactions?.() ?? [];

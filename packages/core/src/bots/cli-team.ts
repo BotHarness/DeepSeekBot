@@ -1,3 +1,8 @@
+import {
+  channelPolicySchema,
+  channelVisibilitySchema,
+  channelPolicyRevisionSchema,
+} from '../team/channel-contract.js';
 import { closeSync, fchmodSync, openSync, unlinkSync, writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { CliLiveError } from './cli-live-error.js';
@@ -6,6 +11,16 @@ import type { BotCreateCliIo } from './bot-create-cli.js';
 export const TEAM_OPTIONS = {
   as: { type: 'string' },
   models: { type: 'string' },
+  'human-id': { type: 'string' },
+  post: { type: 'string' },
+  'add-members': { type: 'string' },
+  'mention-all': { type: 'string' },
+  'add-bots': { type: 'string' },
+  'edit-details': { type: 'string' },
+  to: { type: 'string' },
+  preview: { type: 'boolean' },
+  'token-stdin': { type: 'boolean' },
+  'sign-out-others': { type: 'string' },
   permissions: { type: 'string' },
   set: { type: 'string' },
   revoke: { type: 'string' },
@@ -18,6 +33,8 @@ export const TEAM_OPTIONS = {
 export const TEAM_COMMANDS = [
   { command: 'usage', description: 'members --period today|week|month|quarter' },
   { command: 'models', description: 'allowed' },
+  { command: 'dm', description: '<username>' },
+  { command: 'team-directory', description: 'active DM recipients' },
   {
     command: 'roles',
     description:
@@ -31,13 +48,23 @@ export const TEAM_COMMANDS = [
   {
     command: 'members',
     description:
-      'list | create --username --display-name --initial-password-file [--role-ids] | roles <username> --set | reset-password <username> --initial-password-file | password --password-stdin',
+      'list | create --username --display-name --initial-password-file [--role-ids] | roles <username> --set | reset-password <username> --initial-password-file | deactivate|reactivate <username> | transfer <username> --to <username> [--preview] | purge <username> --preview | purge <username> --token-stdin --confirm | change-password --password-stdin [--sign-out-others=true|false]',
   },
 ] as const;
 
 type TeamValues = {
   models?: string;
   period?: string;
+  'human-id'?: string;
+  post?: string;
+  'add-members'?: string;
+  'mention-all'?: string;
+  'add-bots'?: string;
+  'edit-details'?: string;
+  to?: string;
+  preview?: boolean;
+  'token-stdin'?: boolean;
+  'sign-out-others'?: string;
   username?: string;
   name?: string;
   permissions?: string;
@@ -207,11 +234,39 @@ export async function runTeamCommand(
         roleIds: ids(values.set),
       });
     if (action === 'list' && rest.length === 1) return rpc('members', {});
-    if (action === 'password' && rest.length === 1 && values['password-stdin'])
-      return rpc(
-        'memberPasswordChange',
-        secretJson(z.object({ current: z.string(), next: z.string() }), await secret(io)),
+    if (
+      (action === 'password' || action === 'change-password') &&
+      rest.length === 1 &&
+      values['password-stdin']
+    ) {
+      const signOut = values['sign-out-others'];
+      if (signOut !== undefined && signOut !== 'true' && signOut !== 'false') return usage();
+      const input = secretJson(
+        z.object({ current: z.string(), next: z.string() }),
+        await secret(io),
       );
+      return rpc('memberPasswordChange', { ...input, signOutOthers: signOut !== 'false' });
+    }
+    if ((action === 'deactivate' || action === 'reactivate') && argument && rest.length === 2)
+      return rpc(action === 'deactivate' ? 'memberDeactivate' : 'memberReactivate', {
+        humanId: await memberId(argument, rpc, values.as),
+      });
+    if (action === 'transfer' && argument && rest.length === 2) {
+      const humanId = await memberId(argument, rpc, values.as);
+      if (values.preview) return rpc('memberTransferPreview', { humanId });
+      if (!values.to) return usage();
+      return rpc('memberTransfer', {
+        humanId,
+        toHumanId: await memberId(values.to, rpc, values.as),
+      });
+    }
+    if (action === 'purge' && argument && rest.length === 2) {
+      const humanId = await memberId(argument, rpc, values.as);
+      if (values.preview) return rpc('memberPurgePreview', { humanId });
+      if (!values.confirm) throw new CliLiveError('confirm-required', 'confirm-required');
+      if (!values['token-stdin']) return usage();
+      return rpc('memberPurgeConfirm', { humanId, token: await secret(io), username: argument });
+    }
     if (
       action === 'reset-password' &&
       argument &&
@@ -249,12 +304,61 @@ export async function runTeamCommand(
     }
     return usage();
   }
+  if (command === 'team-directory' && rest.length === 0) return rpc('teamDirectory', {});
+  if (command === 'dm' && rest.length === 0 && values['human-id'])
+    return rpc('humanDm', { humanId: values['human-id'] });
+  if (command === 'dm' && rest.length === 1) return rpc('humanDmByUsername', { username: action });
   if (command === 'channels') {
     if (rest.length === 0) return rpc('channels', {});
     if (action === 'send' && argument && rest.length === 2 && values['body-stdin']) {
       const body = await io.readStdin?.();
       if (!body?.trim()) return usage();
       return rpc('channelSend', { channelId: argument, body });
+    }
+    if (action === 'roles' && argument && rest.length === 2)
+      return rpc('channelRoleDirectory', { channelId: argument });
+    if (action === 'browse' && rest.length === 1) return rpc('browsableChannels', {});
+    if (action === 'join' && argument && rest.length === 2)
+      return rpc('channelJoin', { channelId: argument });
+    if (action === 'get' && argument && rest.length === 2)
+      return rpc('channelGet', { channelId: argument });
+    if (action === 'visibility' && argument && rest.length === 3) {
+      const value = rest[2]!;
+      const parsed = channelVisibilitySchema.safeParse(
+        value.startsWith('roles:')
+          ? { kind: 'roles', roleIds: ids(value.slice(6)) }
+          : { kind: value },
+      );
+      if (!parsed.success) return usage();
+      return rpc('channelVisibilitySet', { channelId: argument, visibility: parsed.data });
+    }
+    if (action === 'admins' && argument && rest.length === 2 && values.set !== undefined)
+      return rpc('channelAdminsSet', { channelId: argument, humanIds: ids(values.set) });
+    if (action === 'add-member' && argument && rest.length === 3)
+      return rpc('channelHumanAdd', { channelId: argument, humanId: rest[2] });
+    if (action === 'description' && argument && rest.length === 2 && values['body-stdin'])
+      return rpc('channelDescriptionSet', {
+        channelId: argument,
+        description: (await io.readStdin?.()) ?? '',
+      });
+    if (action === 'policy' && argument && rest.length === 2) {
+      const snapshot = z
+        .object({ policy: channelPolicySchema, policyRevision: channelPolicyRevisionSchema })
+        .parse(await rpc('channelGet', { channelId: argument }));
+      const policy = channelPolicySchema.safeParse({
+        ...snapshot.policy,
+        ...(values.post === undefined ? {} : { post: values.post }),
+        ...(values['add-members'] === undefined ? {} : { addMembers: values['add-members'] }),
+        ...(values['mention-all'] === undefined ? {} : { mentionAll: values['mention-all'] }),
+        ...(values['add-bots'] === undefined ? {} : { addBots: values['add-bots'] }),
+        ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
+      });
+      if (!policy.success) return usage();
+      return rpc('channelPolicySet', {
+        channelId: argument,
+        policy: policy.data,
+        expectedRevision: snapshot.policyRevision,
+      });
     }
     if (action === 'browse-public' && rest.length === 1) return rpc('publicChannels', {});
     if (action === 'join-public' && argument && rest.length === 2)

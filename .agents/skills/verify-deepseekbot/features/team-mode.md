@@ -38,7 +38,7 @@ Canonical state: `deepseekbot members list` shows Bob without `mustChangePasswor
 - Password sign-in from anywhere other than loopback needs HTTPS or the encrypted device gateway; a plain `http://<lan-ip>` page shows the insecure notice and a disabled form.
 - The first-run "Switch views" tutorial covers the sidebar in a fresh Host; click `Skip` first.
 - Member and Owner must use separate browser contexts: one browser holds one identity per Host.
-- M1 returns an empty member Bot roster; private Bots and per-member Activity arrive in M2. Legacy Human authors without a Human ID denote the Owner.
+- M2 Host methods return only the calling Human's private Bots, private Tob and Activity. Verify `ownerHumanId`/`owner`, `bots list|create|show|delete --as <member>` and `activity list --as <member>`. A private target refuses with `bot-not-found`; Host administration by a member Tob refuses with `permission-required`. Client activation and rendered acceptance remain separate from the logic branch. Legacy Human authors without a Human ID denote the Owner.
 - Packaged consumers may bundle another copy of DSH's Connection class: test capabilities at the boundary, since `instanceof` does not establish the live service's API.
 
 M3 canonical verification: `roles catalog`, `roles list|create|update|delete`, `members roles <username> --set <roleIds>`, `devices --member <username> [--revoke <grantId>]`, and `team-mode transfer-owner <username> --password-stdin --confirm`. Run allowed and refused operations with `--as`. Browser admission and device revocation must also be exercised through the member HTTP carrier. M3 rendered Client dialogs/sheets are a separate UI-owner gate.

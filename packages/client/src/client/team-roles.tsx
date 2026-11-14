@@ -29,6 +29,7 @@ import {
   type RoleModels,
   type TeamRole,
 } from './team-roles-bridge.js';
+import { MemberActions } from './team-offboarding.js';
 import { teamErrorText } from './team-settings.js';
 
 const styles = stylex.create({
@@ -303,12 +304,16 @@ export function MemberSheet({
   canTransfer,
   self,
   viewer,
+  members = [],
+  canOffboard = false,
   onClose,
   onChanged,
 }: {
   call: BridgeCall;
   t: BotHarnessTranslate;
   member: TeamMember;
+  members?: readonly TeamMember[];
+  canOffboard?: boolean;
   roles: readonly TeamRole[];
   viewer: GrantingViewer;
   canManageRoles: boolean;
@@ -432,6 +437,18 @@ export function MemberSheet({
           self={self}
           onRevoked={() => refresh()}
         />
+        {canOffboard && !self && !member.owner ? (
+          <MemberActions
+            call={call}
+            t={t}
+            member={member}
+            members={members}
+            onChanged={() => {
+              refresh();
+              onChanged();
+            }}
+          />
+        ) : null}
       </div>
     </FormDialog>
   );

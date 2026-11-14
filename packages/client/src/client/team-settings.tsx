@@ -6,7 +6,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { BridgeCall } from './bridge.js';
 import { Callout } from './ds/callout.js';
 import { FieldStack, TextField } from './ds/field.js';
-import { FormDialog } from './ds/form-dialog.js';
+import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
@@ -115,6 +115,14 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'member-suspended': 'team.error.memberSuspended',
   'permission-not-grantable': 'team.error.permissionNotGrantable',
   'owner-transfer-target-unverified': 'team.error.ownerTransferUnverified',
+  'transfer-target-invalid': 'team.error.transferTargetInvalid',
+  'transfer-required': 'team.error.transferRequired',
+  'member-active': 'team.error.memberActive',
+  'purge-token-invalid': 'team.error.purgeTokenInvalid',
+  'role-not-found': 'team.error.roleNotFound',
+  'channel-post-restricted': 'team.error.channelPostRestricted',
+  'channel-mention-restricted': 'team.error.channelMentionRestricted',
+  'stale-channel-policy': 'team.error.staleChannelPolicy',
   'model-not-allowed': 'team.error.modelNotAllowed',
 };
 
@@ -126,6 +134,7 @@ export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
 type Dialog =
   | { kind: 'owner-password'; thenEnable: boolean }
   | { kind: 'insecure-http' }
+  | { kind: 'team-off' }
   | { kind: 'add-member' }
   | { kind: 'created'; created: CreatedMember }
   | { kind: 'own-password' }
@@ -195,6 +204,10 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
     if (view === undefined) return;
     if (enabled && !view.ownerPasswordSet) {
       setDialog({ kind: 'owner-password', thenEnable: true });
+      return;
+    }
+    if (!enabled) {
+      setDialog({ kind: 'team-off' });
       return;
     }
     void apply(() => setTeamMode(call, enabled));
@@ -280,6 +293,8 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             canTransfer={viewer.owner && viewer.kind === 'owner'}
             self={sheetMember.humanId === viewer.humanId}
             viewer={viewer}
+            members={members ?? []}
+            canOffboard={manageMembers}
             onClose={() => setDialog(undefined)}
             onChanged={() => void refresh()}
           />
@@ -470,6 +485,21 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
           }}
         />
       ) : null}
+      {dialog?.kind === 'team-off' ? (
+        <ConfirmDialog
+          title={t('team.mode.offTitle')}
+          description={t('team.mode.offBody')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          confirmLabel={t('team.mode.offConfirm')}
+          danger
+          busy={busy}
+          onCancel={() => setDialog(undefined)}
+          onConfirm={() => {
+            setDialog(undefined);
+            void apply(() => setTeamMode(call, false));
+          }}
+        />
+      ) : null}
       {dialog?.kind === 'insecure-http' ? (
         <FormDialog
           title={t('team.insecureHttp.confirmTitle')}
@@ -509,6 +539,7 @@ function memberMeta(
             : role.name,
       );
   if (member.status === 'suspended') parts.push(t('team.members.suspended'));
+  else if (member.status === 'deactivated') parts.push(t('team.members.deactivated'));
   else if (member.mustChangePassword) parts.push(t('team.members.pendingPassword'));
   return parts.join(' · ');
 }

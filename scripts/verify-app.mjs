@@ -16,7 +16,8 @@ export const usage = `Usage: node scripts/verify-app.mjs <command> [--name <inst
 Drive an isolated DeepSeekBot instance the way a user does and keep the evidence.
 
 Commands:
-  launch [--port <n>] [--build] [--dsh-version <version>]   Start an isolated DSH Host through dev-instance.mjs.
+  launch [--port <n>] [--build] [--dsh-version <version>] [--genui-preview-browser <absolute-executable>]
+                                  Start an isolated DSH Host through dev-instance.mjs.
   doctor                          Check that the recorded instance is ours, alive and authenticated.
   observe                         Save Host health and browser-reported Client diagnostics as JSON.
   rpc <namespace/method> [json]   Call one authenticated /api method with JSON args.
@@ -83,6 +84,9 @@ export function parseVerifyArgs(argv) {
         break;
       case '--build':
         options.build = true;
+        break;
+      case '--genui-preview-browser':
+        options.genuiPreviewBrowser = value();
         break;
       case '--bot-mode':
         options.botMode = true;
@@ -233,6 +237,8 @@ async function launch(options, paths) {
   const args = ['scripts/dev-instance.mjs', '--home', paths.home, '--port', String(port), '--json'];
   if (options.build) args.push('--build');
   if (options.dshVersion) args.push('--dsh-version', options.dshVersion);
+  if (options.genuiPreviewBrowser)
+    args.push('--genui-preview-browser', options.genuiPreviewBrowser);
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
     encoding: 'utf8',

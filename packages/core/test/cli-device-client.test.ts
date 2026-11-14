@@ -51,3 +51,67 @@ it('requires trusted-file confirmation and never returns saved device secrets on
   ).rejects.toThrow('new --out');
   expect(paired).toHaveBeenCalledOnce();
 });
+
+it('uses authenticated account enrollment for an offline Host without a trusted pasted link', async () => {
+  const root = createTempRoot('account-cli-');
+  const file = join(root, 'account.json');
+  const out = join(root, 'device.json');
+  writeFileSync(
+    file,
+    JSON.stringify({
+      clientId: 'client_01TEST',
+      subject: 'user_alice',
+      refreshToken: 'private-refresh',
+    }),
+    { mode: 0o600 },
+  );
+  const request = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    if (String(url).includes('authenticate'))
+      return Response.json({
+        access_token: 'private-access',
+        refresh_token: 'private-refresh',
+        user: { id: 'user_alice' },
+      });
+    if (String(url).endsWith('/offer'))
+      return Response.json({
+        identitySource: 'client',
+        hostname: 'hstudio.deepseekbot.dev',
+        enrollment: { body: 'private-proof', signature: 'private-signature' },
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      });
+    if (String(url).endsWith('/botharness-device/channel'))
+      return Response.json({
+        host: { id: 'host', name: 'Studio' },
+        encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+      });
+    throw new Error('Unexpected request');
+  });
+  try {
+    paired.mockImplementationOnce(async (options) => {
+      expect(options.method).toBe('account');
+      const offer = await options.text();
+      expect(offer).toMatchObject({
+        ok: true,
+        payload: { host: { id: 'host' }, enrollment: { body: 'private-proof' } },
+      });
+      await options.save({
+        hostId: 'host',
+        deviceId: 'device',
+        credential: 'private-device',
+        routes: ['https://hstudio.deepseekbot.dev'],
+        encryption: {},
+      });
+      return { ok: true };
+    });
+    const result = await runDeviceClientCommand('device-account-pair', [], {
+      'account-file': file,
+      'host-id': 'hstudio',
+      out,
+      confirm: true,
+    });
+    expect(result).toMatchObject({ hostId: 'host', deviceId: 'device' });
+    expect(JSON.stringify(result)).not.toContain('private-');
+  } finally {
+    request.mockRestore();
+  }
+});

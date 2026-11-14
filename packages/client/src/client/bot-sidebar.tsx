@@ -1,4 +1,6 @@
+import { MessagePersonDialog } from './message-person-dialog.js';
 import { PublicChannelsDialog } from './public-channels-dialog.js';
+import { isHumanDmChannel } from './channel-kind.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
 import { useTeamMode } from './team-state.js';
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
@@ -568,9 +570,11 @@ function channelPreview(
       t('roster.latestActivity'));
   const author =
     message.author.kind === 'human'
-      ? humanIdOf(message.author) === selfHumanId()
-        ? t('rail.you')
-        : (message.author.displayName ?? t('channelActivity.human'))
+      ? message.author.deleted === true
+        ? t('team.deletedMember')
+        : humanIdOf(message.author) === selfHumanId()
+          ? t('rail.you')
+          : (message.author.displayName ?? t('team.otherMember'))
       : message.author.kind === 'bot'
         ? (bots.get(message.author.slug)?.displayName ?? message.author.slug)
         : message.author.kind === 'bridged'
@@ -839,15 +843,21 @@ function ChannelRow({
       }}
     >
       <span className="bh-row-avatar">
-        <GroupChannelIcon
-          channel={channel}
-          bots={bots}
-          className="bh-channel-slot"
-          groupClassName="bh-group-channel-slot"
-          size={34}
-          hashSize={18}
-          t={t}
-        />
+        {isHumanDmChannel(channel) ? (
+          <span className="bh-channel-slot" aria-hidden="true">
+            <ChannelSidebarIcon name="user" size={18} />
+          </span>
+        ) : (
+          <GroupChannelIcon
+            channel={channel}
+            bots={bots}
+            className="bh-channel-slot"
+            groupClassName="bh-group-channel-slot"
+            size={34}
+            hashSize={18}
+            t={t}
+          />
+        )}
         <UnreadCount count={unread} muted={muted} corner t={t} />
       </span>
       <span className="bh-body">
@@ -1016,7 +1026,8 @@ type CreateRequest =
     }
   | { kind: 'channel'; sectionId?: string }
   | { kind: 'marketplace' }
-  | { kind: 'public-channels' };
+  | { kind: 'public-channels' }
+  | { kind: 'message-person' };
 
 type FlatBlockView =
   | { kind: 'section'; section: RosterSection; channels: ChannelSummary[] }
@@ -1228,12 +1239,12 @@ export function BotSidebar({
   const hasPinnableChannels = state.channels.some(
     (channel) =>
       !hiddenChannelSet.has(channel.id) &&
-      (channel.type === 'group' || channel.botSlug !== undefined),
+      (channel.type === 'group' || channel.botSlug !== undefined || isHumanDmChannel(channel)),
   );
   const pinnedChannels = pinnedChannelIds.flatMap((channelId) => {
     const channel = state.channels.find((candidate) => candidate.id === channelId);
     if (channel === undefined) return [];
-    if (channel.type === 'group') {
+    if (channel.type === 'group' || isHumanDmChannel(channel)) {
       return matchesQuery(query, channel.name) ? [channel] : [];
     }
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
@@ -1242,11 +1253,12 @@ export function BotSidebar({
   const arrangedChannels = state.channels.filter(
     (channel) =>
       !allPinnedChannelSet.has(channel.id) &&
-      (channel.type === 'group' || channel.botSlug !== undefined),
+      (channel.type === 'group' || channel.botSlug !== undefined || isHumanDmChannel(channel)),
   );
   const rosterChannels = arrangedChannels.filter((channel) => !hiddenChannelSet.has(channel.id));
   const channels = rosterChannels.filter((channel) => {
-    if (channel.type === 'group') return matchesQuery(query, channel.name);
+    if (channel.type === 'group' || isHumanDmChannel(channel))
+      return matchesQuery(query, channel.name);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
     return bot !== undefined && matchesQuery(query, bot.displayName, ...bot.roles);
   });
@@ -1551,6 +1563,7 @@ export function BotSidebar({
     if (id === 'section') setCreateRequest({ kind: 'section' });
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
     if (id === 'public-channels') setCreateRequest({ kind: 'public-channels' });
+    if (id === 'message-person') setCreateRequest({ kind: 'message-person' });
     if (id === 'remote') setAddingRemote(true);
   };
 
@@ -2255,8 +2268,22 @@ export function BotSidebar({
               </button>
             </Tooltip>
           }
-          items={menuItems(t, gitReady(state.git), hostTabs, teamMode?.enabled === true).filter(
-            (item) => teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id),
+          items={menuItems(
+            t,
+            gitReady(state.git),
+            hostTabs,
+            teamMode?.enabled === true &&
+              !(
+                hostTabs &&
+                remoteHostsState.hosts.some((remote) => remote.host.hostId === remoteHostsState.tab)
+              ),
+            teamMode?.viewer.kind === 'member',
+          ).filter(
+            (item) =>
+              (teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id)) &&
+              (item.id !== 'message-person' ||
+                teamMode?.viewer.owner === true ||
+                teamMode?.viewer.permissions.includes('dm.humans') === true),
           )}
           onSelect={selectMenu}
           onClose={() => {
@@ -2361,7 +2388,7 @@ export function BotSidebar({
         <div className="bh-error">{t('roster.error', { error: state.error })}</div>
       ) : null}
       {state.roster.readOnly ? <div className="bh-note">{t('roster.readOnly')}</div> : null}
-      {state.status === 'ready' && state.bots.length === 0 && teamMode?.viewer.kind !== 'member' ? (
+      {state.status === 'ready' && state.bots.length === 0 ? (
         <PanelEmptyState
           icon="hash"
           action={
@@ -3034,6 +3061,20 @@ export function BotSidebar({
               setBatchError('failed');
             }
             return true;
+          }}
+        />
+      ) : null}
+      {createRequest?.kind === 'message-person' && actions.teamCall !== undefined ? (
+        <MessagePersonDialog
+          call={actions.teamCall}
+          t={t}
+          onClose={() => {
+            setCreateRequest(undefined);
+          }}
+          onOpened={(channelId) => {
+            setCreateRequest(undefined);
+            openLocalConversation();
+            void actions.refreshRoster().then(() => actions.openChannel(channelId));
           }}
         />
       ) : null}
@@ -3974,7 +4015,13 @@ export function ChannelMoveMenu({
   );
 }
 
-const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set(['channel', 'section', 'public-channels']);
+const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set([
+  'bot',
+  'channel',
+  'section',
+  'public-channels',
+  'message-person',
+]);
 
 function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
   if (id === 'bot' || id === 'bot:empty') return 'empty';
@@ -3988,6 +4035,7 @@ function menuItems(
   gitAvailable: boolean,
   remotes: boolean,
   team = false,
+  member = false,
 ): MenuEntry[] {
   const disabled = !gitAvailable;
   return [
@@ -3997,8 +4045,12 @@ function menuItems(
       icon: <IconAgentPresetOutlineRegular size={16} />,
       submenu: [
         { id: 'bot:empty', label: t('roster.menu.createBot.empty'), disabled },
-        { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
-        { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+        ...(member
+          ? []
+          : [
+              { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
+              { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+            ]),
       ],
     },
     {
@@ -4012,6 +4064,11 @@ function menuItems(
             id: 'public-channels',
             label: t('team.channels.browse'),
             icon: <ChannelSidebarIcon name="hash" size={16} />,
+          },
+          {
+            id: 'message-person',
+            label: t('team.dm.menu'),
+            icon: <ChannelSidebarIcon name="user" size={16} />,
           },
         ]
       : []),

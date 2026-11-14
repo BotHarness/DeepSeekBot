@@ -1,3 +1,6 @@
+import { acceptMemberBotPurge, type PersonaBotDeletions } from '../bots/deletion.js';
+import { z } from 'zod';
+import { TeamError } from '../team/error.js';
 import { type HumanContext } from '../humans/context.js';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
@@ -10,6 +13,7 @@ import {
 } from '../database/owner.js';
 import {
   isChannelMessage,
+  isChannelMessageAuthor,
   isChannelRecord,
   isDisbandedGroup,
   type ChannelMessage,
@@ -18,6 +22,7 @@ import {
   ContentPurgeError,
   purgeCheckpointSchema,
   type ContentPurge,
+  type DeletedHuman,
   type GroupDisbandResult,
   type PurgeFact,
   type PurgePreview,
@@ -38,8 +43,22 @@ interface SourceRow {
   body: string;
   created_at: string;
   payload_json: string;
-  position: number;
+  position?: number;
 }
+const zSourceRows = (rows: unknown) =>
+  z
+    .array(
+      z.object({
+        source_event_id: z.string(),
+        channel_id: z.string(),
+        message_id: z.string(),
+        source_kind: z.string(),
+        body: z.string(),
+        created_at: z.string(),
+        payload_json: z.string(),
+      }),
+    )
+    .parse(rows);
 const unsupported = () =>
   new ContentPurgeError(
     'purge-scope-unsupported',
@@ -69,6 +88,9 @@ export function mountContentPurge(options: {
     createAttachmentStore({ rootDir: join(options.dshHome, 'botharness', 'attachments') });
   let ledger: ReturnType<typeof openPurgeLedger> | undefined;
   let barrier = false;
+  let memberBots: Pick<PersonaBotDeletions, 'memberPreview' | 'retry'> | undefined;
+  const memberWork = new Map<string, Promise<void>>();
+  let startupMemberWork: Promise<void> = Promise.resolve();
   const pendingFiles = new Set<string>();
   const secret = randomBytes(32);
   const unavailable = () =>
@@ -162,6 +184,86 @@ export function mountContentPurge(options: {
       ...(fact.causation === undefined ? {} : { botCausation: fact.causation }),
       contentPurge: { actor: fact.actor, at: fact.acceptedAt, reason: fact.reason },
     });
+  };
+  const applyDeletedHumans = () => {
+    const deleted = ledger!.checkpoint().deletedHumans ?? [];
+    if (!deleted.length) return;
+    const topics = ['team', 'channel', 'human-identity'];
+    port.transaction((db) => {
+      let identityChanged = false;
+      for (const fact of deleted) {
+        if (db.prepare('SELECT 1 FROM team_settings WHERE owner_human_id = ?').get(fact.humanId))
+          throw new Error('Cannot purge current Owner');
+        const inserted = db
+          .prepare('INSERT OR IGNORE INTO deleted_humans VALUES (?, ?)')
+          .run(fact.humanId, fact.deletedAt);
+        const rewritten = db
+          .prepare(`UPDATE source_events SET payload_json = json_set(payload_json, '$.author', json_object('kind', 'human', 'humanId', ?, 'deleted', json('true')))
+          WHERE json_extract(payload_json, '$.author.kind') = 'human'
+          AND (human_id = ? OR json_extract(payload_json, '$.author.humanId') = ?)
+          AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE f.source_event_id = source_events.source_event_id)
+          AND (json_extract(payload_json, '$.author.deleted') IS NOT 1
+            OR json_type(payload_json, '$.author.displayName') IS NOT NULL
+            OR json_extract(payload_json, '$.author.humanId') IS NOT ?)`)
+          .run(fact.humanId, fact.humanId, fact.humanId, fact.humanId);
+        for (const table of [
+          'human_roles',
+          'member_grants',
+          'member_credentials',
+          'team_mode_suspensions',
+          'local_human_names',
+          'channel_human_nicknames',
+          'channel_human_members',
+          'channel_read_positions',
+          'human_attention_decisions',
+          'human_inbox_dismissals',
+          'human_inbox_snoozes',
+          'genui_private_views',
+        ])
+          db.prepare(`DELETE FROM ${table} WHERE human_id = ?`).run(fact.humanId);
+        for (const table of [
+          'push_devices',
+          'push_sent',
+          'device_notification_preferences',
+          'device_live_activities',
+        ])
+          db.prepare(
+            `DELETE FROM ${table} WHERE device_id IN (SELECT device_id FROM paired_devices WHERE human_id = ?)`,
+          ).run(fact.humanId);
+        db.prepare(`DELETE FROM relationship_device_grants WHERE device_id IN
+          (SELECT device_id FROM paired_devices WHERE human_id = ?)`).run(fact.humanId);
+        db.prepare('DELETE FROM paired_devices WHERE human_id = ?').run(fact.humanId);
+        for (const channelId of fact.privateChannels ?? [])
+          db.prepare(
+            `UPDATE channel_records SET record_json = json_set(record_json, '$.name', '', '$.deletedAt', ?) WHERE channel_id = ?`,
+          ).run(fact.deletedAt, channelId);
+        db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId',
+          (SELECT owner_human_id FROM team_settings)) WHERE json_extract(record_json, '$.ownerHumanId') = ?`).run(
+          fact.humanId,
+        );
+        if (
+          db
+            .prepare('PRAGMA table_info(channel_records)')
+            .all()
+            .some((column) => column.name === 'owner_human_id')
+        )
+          db.prepare(`UPDATE channel_records SET owner_human_id =
+            (SELECT owner_human_id FROM team_settings) WHERE owner_human_id = ?`).run(fact.humanId);
+        for (const slug of fact.privateBots ?? [])
+          acceptMemberBotPurge({
+            db,
+            humanId: fact.humanId,
+            slug,
+            acceptedAt: fact.deletedAt,
+            rootDir: join(options.dshHome, 'botharness', 'bots'),
+          });
+        db.prepare('DELETE FROM tob_identity WHERE human_id = ?').run(fact.humanId);
+        const removed = db.prepare('DELETE FROM humans WHERE human_id = ?').run(fact.humanId);
+        identityChanged ||=
+          Number(inserted.changes) + Number(rewritten.changes) + Number(removed.changes) > 0;
+      }
+      if (identityChanged) topics.push('member-purged');
+    }, topics);
   };
   const apply = (recover = true, fresh?: ReadonlySet<string>): number => {
     const all = ledger!.checkpoint().facts;
@@ -277,6 +379,7 @@ export function mountContentPurge(options: {
       },
       ['content-purge', 'channel', 'bot-inbox', 'outbox'],
     );
+    applyDeletedHumans();
     if (facts.length)
       port.read((db) => {
         const result = db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
@@ -511,18 +614,27 @@ export function mountContentPurge(options: {
         fingerprint: fingerprint([before, channelIds, more], rows, described),
       };
     });
-  const accept = (human: HumanContext, rows: readonly SourceRow[]) => {
+  const purgeAuthor = (author: unknown): PurgeFact['author'] => {
+    if (!isChannelMessageAuthor(author)) throw unsupported();
+    return author.kind === 'human' ? { kind: 'human' } : author;
+  };
+  const accept = (human: HumanContext, rows: readonly SourceRow[], deletedHuman?: DeletedHuman) => {
     const acceptedAt = now().toISOString();
     try {
       ledger!.union({
         format: 'botharness-purge',
-        version: 2,
+        version: deletedHuman ? 3 : 2,
+        ...(deletedHuman ? { deletedHumans: [deletedHuman] } : {}),
         facts: rows.map((row): PurgeFact => ({
           sourceEventId: row.source_event_id,
           channelId: row.channel_id,
           messageId: row.message_id,
           eventAt: row.created_at,
-          author: port.read((db) => inspect(human, db, row).message!.author),
+          author: purgeAuthor(
+            deletedHuman
+              ? (JSON.parse(row.payload_json).author ?? { kind: 'system' })
+              : port.read((db) => inspect(human, db, row).message!.author),
+          ),
           managedFiles: port.read((db) => [...managedSourceFiles(db, row.source_event_id).keys()]),
           ...(JSON.parse(row.payload_json).replyTo === undefined
             ? {}
@@ -567,7 +679,175 @@ export function mountContentPurge(options: {
     return { token: value + '/' + sign(value), expiresAt };
   };
   const sign = (value: string): string => createHmac('sha256', secret).update(value).digest('hex');
+  const memberTokens = new Map<
+    string,
+    { actor: string; humanId: string; digest: string; expires: number }
+  >();
+  const memberScope = (humanId: string) =>
+    port.read((db) => {
+      const bots = db
+        .prepare('SELECT slug, body FROM persona_bots WHERE owner_human_id = ? ORDER BY slug')
+        .all(humanId);
+      const plans = bots.map((bot) => {
+        if (!memberBots) throw unavailable();
+        const plan = memberBots.memberPreview(humanId, String(bot.slug));
+        if (!plan.eraseAvailable) throw unsupported();
+        return plan;
+      });
+      const channels = db
+        .prepare(`SELECT c.channel_id, c.record_json FROM channel_records c
+      WHERE json_extract(c.record_json, '$.type') = 'dm'
+      AND (json_extract(c.record_json, '$.ownerHumanId') = ? OR
+        json_extract(c.record_json, '$.botSlug') IN (SELECT slug FROM persona_bots WHERE owner_human_id = ?) OR
+        (json_extract(c.record_json, '$.remoteBot') IS NULL AND json_array_length(c.record_json, '$.members') > 0
+          AND NOT EXISTS (SELECT 1 FROM json_each(c.record_json, '$.members') m
+            LEFT JOIN persona_bots b ON b.slug = m.value WHERE b.owner_human_id IS NULL OR b.owner_human_id <> ?)) OR (
+        EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ?)
+        AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id <> ?)))
+      AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id <> ?)
+      ORDER BY c.channel_id`)
+        .all(humanId, humanId, humanId, humanId, humanId, humanId);
+      const rows = zSourceRows(
+        db
+          .prepare(`SELECT e.* FROM source_events e
+        WHERE e.channel_id IN (SELECT value FROM json_each(?))
+          AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE f.source_event_id = e.source_event_id)
+          AND NOT EXISTS (SELECT 1 FROM channel_placements p WHERE p.source_event_id = e.source_event_id
+            AND p.channel_id NOT IN (SELECT value FROM json_each(?)))
+        ORDER BY e.source_event_id`)
+          .all(
+            JSON.stringify(channels.map((row) => row.channel_id)),
+            JSON.stringify(channels.map((row) => row.channel_id)),
+          ),
+      );
+      const files = new Set(
+        rows.flatMap((row) => [...managedSourceFiles(db, row.source_event_id).keys()]),
+      );
+      const retained = files.size
+        ? retainedManagedFiles(db, new Set(rows.map((row) => row.source_event_id)))
+        : new Set<string>();
+      const counts = {
+        channels: channels.length,
+        bots: bots.length,
+        messages: rows.length,
+        files: [...files].filter((id) => !retained.has(id)).length,
+      };
+      return {
+        rows,
+        bots,
+        channels,
+        counts,
+        digest: createHash('sha256')
+          .update(
+            JSON.stringify([
+              channels,
+              rows,
+              [...files].sort(),
+              [...files].filter((id) => !retained.has(id)).sort(),
+              bots,
+              plans,
+            ]),
+          )
+          .digest('hex'),
+      };
+    });
+  const startMemberCleanup = (fact: DeletedHuman): Promise<void> => {
+    const active = memberWork.get(fact.humanId);
+    if (active) return active;
+    const slugs = fact.privateBots ?? [];
+    if (!slugs.length) return Promise.resolve();
+    const provider = memberBots;
+    if (!provider) return Promise.reject(unavailable());
+    const work = (async () => {
+      for (const slug of slugs) {
+        const eligible = port.read((db) => {
+          const bot = db
+            .prepare('SELECT owner_human_id FROM persona_bots WHERE slug = ?')
+            .get(slug);
+          if (bot) return bot.owner_human_id === fact.humanId;
+          return (
+            db.prepare('SELECT 1 FROM persona_bot_deletions WHERE slug = ?').get(slug) !== undefined
+          );
+        });
+        if (!eligible) continue;
+        const state = await provider.retry(slug);
+        if (state.phase !== 'complete' || state.memory !== 'erased') throw unavailable();
+        port.transaction(
+          (db) => {
+            db.prepare(`UPDATE persona_bots SET body = json_object('slug', slug, 'displayName', '',
+            'createdAt', json_extract(body, '$.createdAt'), 'ownerHumanId', owner_human_id, 'workspaces', json('[]')) WHERE slug = ?`).run(
+              slug,
+            );
+            db.prepare(
+              "UPDATE persona_bot_deletions SET body = json_set(body, '$.displayName', '') WHERE slug = ?",
+            ).run(slug);
+          },
+          ['bot-registry', 'content-purge'],
+        );
+      }
+    })();
+    memberWork.set(fact.humanId, work);
+    void work.then(
+      () => memberWork.delete(fact.humanId),
+      () => {
+        memberWork.delete(fact.humanId);
+        fail();
+      },
+    );
+    return work;
+  };
   return {
+    bindMemberBots(provider) {
+      memberBots = provider;
+      const facts = ledger?.checkpoint().deletedHumans ?? [];
+      startupMemberWork = (async () => {
+        for (const fact of facts) await startMemberCleanup(fact);
+      })();
+      void startupMemberWork.catch(() => fail());
+    },
+    async memberSettled(humanId) {
+      await startupMemberWork;
+      if (options.database.mode !== 'ready') throw unavailable();
+      if (humanId) {
+        const fact = ledger?.checkpoint().deletedHumans?.find((entry) => entry.humanId === humanId);
+        if (fact) await startMemberCleanup(fact);
+      } else await Promise.all([...memberWork.values()]);
+    },
+    memberPreview: (human, humanId) =>
+      exclusive(() => {
+        for (const [token, value] of memberTokens)
+          if (value.expires <= now().getTime()) memberTokens.delete(token);
+        if (memberTokens.size >= 128) throw new TeamError('rate-limited');
+        const scope = memberScope(humanId);
+        const token = randomBytes(32).toString('base64url');
+        memberTokens.set(token, {
+          actor: human.humanId,
+          humanId,
+          digest: scope.digest,
+          expires: now().getTime() + 5 * 60_000,
+        });
+        return { token, counts: scope.counts };
+      }),
+    memberConfirm: (human, humanId, token) =>
+      exclusive(() => {
+        const issued = memberTokens.get(token);
+        memberTokens.delete(token);
+        if (
+          !issued ||
+          issued.actor !== human.humanId ||
+          issued.humanId !== humanId ||
+          issued.expires <= now().getTime()
+        )
+          throw new TeamError('purge-token-invalid');
+        const scope = memberScope(humanId);
+        if (issued.digest !== scope.digest) throw new TeamError('purge-token-invalid');
+        accept(human, scope.rows, {
+          humanId,
+          deletedAt: now().toISOString(),
+          privateChannels: scope.channels.map((channel) => String(channel.channel_id)),
+          privateBots: scope.bots.map((bot) => String(bot.slug)),
+        });
+      }),
     redactions: () => {
       const files = new Map(
         (ledger?.checkpoint().facts ?? []).flatMap((fact) =>

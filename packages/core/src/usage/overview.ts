@@ -151,11 +151,11 @@ export function queryUsageByMember(
   const start = dayOf(date);
   const source = `(SELECT *, COALESCE(NULLIF(human_id, ''), ?) AS member_id FROM usage_daily WHERE day >= ? AND day <= ?)`;
   const members = z
-    .array(bucketRow.extend({ humanId: z.string() }))
+    .array(bucketRow.extend({ humanId: z.string(), legacy: z.coerce.boolean() }))
     .parse(
       db
         .prepare(
-          `SELECT member_id AS humanId, ${usageOverviewColumns} FROM ${source} GROUP BY member_id ORDER BY member_id`,
+          `SELECT member_id AS humanId, ${usageOverviewColumns}, MAX(legacy) AS legacy FROM ${source} GROUP BY member_id ORDER BY member_id`,
         )
         .all(ownerId, start, end),
     );
@@ -190,11 +190,8 @@ export function queryUsageByMember(
     start,
     end,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    legacy:
-      db
-        .prepare('SELECT 1 FROM usage_daily WHERE day >= ? AND day <= ? AND legacy = 1 LIMIT 1')
-        .get(start, end) !== undefined,
-    members: members.map(({ humanId, ...totals }) => ({
+    legacy: members.some((member) => member.legacy),
+    members: members.map(({ humanId, legacy: _legacy, ...totals }) => ({
       humanId,
       displayName: names.get(humanId) ?? humanId,
       ...(names.has(humanId) ? {} : { deleted: true as const }),

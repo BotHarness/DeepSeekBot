@@ -799,6 +799,13 @@ export function createRelay(options: RelayOptions) {
       issuedAt: now().toISOString(),
     });
     const signature = await hmac(await options.hostKey(row.id), payload);
+    if (body?.['identitySource'] === 'client')
+      return json(200, {
+        identitySource: 'client',
+        enrollment: { body: payload, signature },
+        expiresAt: new Date(now().getTime() + 5 * 60 * 1000).toISOString(),
+        hostname: hostname(row),
+      });
     let reply: Response;
     try {
       reply = await (options.fetchHost ?? fetch)(`https://${hostname(row)}${OFFER_PATH}`, {

@@ -1,4 +1,12 @@
 import { hostLooks } from './host-looks.js';
+import { memberPage } from './member-page.js';
+import { browserAdmissionProtocols } from '../../../../deploy/private-relay/admission.mjs';
+import { isPrivateRoute } from '../../../../apps/mobile/src/host/route.js';
+import {
+  enrollRelationshipClient,
+  updateRelationshipClientRoute,
+} from '../../../core/src/devices/relationship-enrollment.js';
+import { relationshipRequest, type ClientRelationship } from './relationships.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
 import {
@@ -14,6 +22,7 @@ import {
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
+  type PrivateAdmission,
 } from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
@@ -73,6 +82,7 @@ export type HostPairResult =
         | 'pairing-in-progress'
         | 'this-host'
         | 'storage-failure'
+        | 'owner-required'
         | 'cancelled';
     };
 
@@ -83,6 +93,15 @@ export interface RemotePairTrust {
 }
 
 export interface RemoteHosts {
+  learnRelationshipRoutes(
+    peer: ClientRelationship['peer'],
+    privateRelay?: PrivateAdmission,
+  ): Promise<void>;
+  enrollRelationship(
+    relationship: Pick<ClientRelationship, 'id' | 'peer'>,
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<HostPairResult>;
   notifications: RemoteNotifications;
   getSnapshot(): RemoteHostsSnapshot;
   subscribe(listener: () => void): () => void;
@@ -171,6 +190,7 @@ export type RemoteHostTelemetry = (
 ) => void;
 
 export function createRemoteHosts(options: {
+  enabled?: boolean;
   storage?: HostStorage | undefined;
   record?: RemoteHostTelemetry;
   carrier: HostCarrier;
@@ -179,7 +199,12 @@ export function createRemoteHosts(options: {
   translate?: NotificationTranslate;
   hostName?: (hostId: string, fallback: string) => string;
 }): RemoteHosts {
-  const { storage, carrier, loadImage, releaseImage } = options;
+  const { carrier, loadImage, releaseImage } = options;
+  const enabled = options.enabled !== false;
+  const storage = enabled ? options.storage : undefined;
+  const requireOwner = () => {
+    if (!enabled) throw Object.assign(new Error('owner-required'), { code: 'owner-required' });
+  };
   const record = options.record ?? (() => {});
   const listeners = new Set<() => void>();
   const clients = new Map<string, HostEntry>();
@@ -193,6 +218,7 @@ export function createRemoteHosts(options: {
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
   const notifications = createRemoteNotifications({
+    requireOwner,
     ...(options.hostName === undefined ? {} : { hostName: options.hostName }),
     storage,
     api: browserNotificationApi(),
@@ -376,6 +402,70 @@ export function createRemoteHosts(options: {
 
   return {
     notifications,
+    async learnRelationshipRoutes(peer, privateRelay) {
+      requireOwner();
+      const entry = clients.get(peer.id);
+      if (!entry || peer.routes.length === 0) return;
+      if (entry.host.encryption?.hostKey !== peer.publicKey) throw new Error('host-key-mismatch');
+      const updated = updateRelationshipClientRoute({
+        host: entry.host,
+        peer,
+        ...(privateRelay ? { privateRelay } : {}),
+      });
+      if (!updated.ok) {
+        if (!privateRelay && updated.code === 'relationship-route-admission-required') return;
+        throw new Error(updated.code);
+      }
+      await saveHostChange(peer.id, entry.client, () => updated.host);
+      entry.client.updateRoutes?.(updated.host.routes, updated.host.encryption);
+      entry.client.retryNow('manual_retry', { preserveConnected: true });
+    },
+    async enrollRelationship(relationship, name, signal) {
+      if (!enabled) return { ok: false, code: 'owner-required' };
+      const target = relationship.peer.id;
+      if (signal?.aborted) return { ok: false, code: 'cancelled' };
+      if (clients.has(target)) return { ok: false, code: 'already-paired' };
+      if (pairing.has(target)) return { ok: false, code: 'pairing-in-progress' };
+      pairing.add(target);
+      try {
+        const result = await enrollRelationshipClient({
+          relationshipId: relationship.id,
+          expectedPeer: relationship.peer,
+          name,
+          carrier,
+          request: (body) => relationshipRequest(body, signal),
+          ...(signal ? { signal } : {}),
+        });
+        if (!result.ok) return result;
+        if (signal?.aborted || clients.has(result.host.hostId)) {
+          await revokePairing({ host: result.host, carrier });
+          return { ok: false, code: signal?.aborted ? 'cancelled' : 'already-paired' };
+        }
+        try {
+          if (!storage) throw new Error('storage-unavailable');
+          storage.setItem(
+            REMOTE_HOSTS_STORAGE_KEY,
+            JSON.stringify(
+              [...[...clients.values()].map(({ host }) => host), result.host].map(
+                serializeSavedHost,
+              ),
+            ),
+          );
+        } catch {
+          await revokePairing({ host: result.host, carrier });
+          return { ok: false, code: 'storage-failure' };
+        }
+        attach(result.host);
+        tab = result.host.hostId;
+        try {
+          storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+        } catch {}
+        publish();
+        return result;
+      } finally {
+        pairing.delete(target);
+      }
+    },
     getSnapshot: () => snapshot,
     client: (hostId) => clients.get(hostId)?.client,
     activity(hostId, query) {
@@ -408,6 +498,7 @@ export function createRemoteHosts(options: {
       };
     },
     async pair(link, deviceName, localHostId, trust) {
+      if (!enabled) return { ok: false, code: 'owner-required' };
       if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
       const parsed = parsePairingLink(link);
       const refused = (code: 'this-host' | 'already-paired') => {
@@ -469,6 +560,7 @@ export function createRemoteHosts(options: {
       }
     },
     async forgetLocal(hostId) {
+      requireOwner();
       const entry = clients.get(hostId);
       if (entry === undefined) return;
       if (!storage) throw new Error('storage-unavailable');
@@ -482,6 +574,7 @@ export function createRemoteHosts(options: {
       await releasing;
     },
     async remove(hostId) {
+      requireOwner();
       const entry = clients.get(hostId);
       if (entry === undefined) return;
       const releasing = releaseRemoteHostViewers(entry.client);
@@ -490,6 +583,7 @@ export function createRemoteHosts(options: {
       await revokePairing({ host: entry.host, carrier });
     },
     select(next) {
+      requireOwner();
       if (tab !== next) notifications.cancel();
       tab = next;
       try {
@@ -498,6 +592,7 @@ export function createRemoteHosts(options: {
       publish();
     },
     open(target) {
+      requireOwner();
       open = target;
       record('remote_host:conversation_open');
       publish();
@@ -508,6 +603,7 @@ export function createRemoteHosts(options: {
       publish();
     },
     async markRead(target, messageId) {
+      requireOwner();
       const entry = clients.get(target.hostId);
       if (entry === undefined) return;
       const channelId =
@@ -558,10 +654,30 @@ export function browserCarrier(): HostCarrier {
     },
     openSocket(url, events, headers = {}) {
       if (new URL(url).pathname === '/botharness-device/channel') {
-        const socket = new WebSocket(url);
+        const admission = headers['X-BotHarness-Admission'];
+        const target = new URL(url);
+        if (
+          admission !== undefined &&
+          (target.protocol !== 'wss:' ||
+            target.username ||
+            target.password ||
+            target.search ||
+            target.hash ||
+            !isPrivateRoute(url.replace(/^ws/u, 'http')))
+        )
+          throw new Error('private-admission-route-invalid');
+        const socket =
+          admission === undefined
+            ? new WebSocket(url)
+            : new WebSocket(url, browserAdmissionProtocols(admission));
         socket.onopen = () => events.open();
         socket.onmessage = (event) => events.message(String(event.data));
-        socket.onerror = () => events.closed('channel-disconnected');
+        socket.onerror = () =>
+          events.closed(
+            admission === undefined
+              ? 'channel-disconnected'
+              : 'private-route-browser-admission-unavailable',
+          );
         socket.onclose = (event) => events.closed(event.reason);
         return {
           get bufferedAmount() {
@@ -636,8 +752,11 @@ export function recordRemoteHosts(record: RemoteHostTelemetry): void {
 export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
   if (translator !== undefined) translate = translator;
   if (shared !== undefined) return shared;
+  const enabled = !memberPage();
   shared = createRemoteHosts({
+    enabled,
     storage: (() => {
+      if (!enabled) return undefined;
       try {
         return globalThis.localStorage;
       } catch {
