@@ -2769,7 +2769,7 @@ export function BotSidebar({
           ? environmentChannels.map((entry) => (
               <div key={entry.key} data-environment-channel={entry.key}>
                 {entry.kind === 'local' ? (
-                  renderChannelRow(entry.channel, undefined)
+                  renderChannelRow(entry.channel, sectionOfChannel(entry.channel.id))
                 ) : (
                   <RemoteHostRows
                     remote={entry.remote}

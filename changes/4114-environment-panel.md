@@ -8,7 +8,7 @@ section: Added
 
 - Document the verified, task-scoped recovery for an empty native credential writer lock after interrupted development startup ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
 
-- Use the same Channel chat for connected computers, including Group avatars, Human authors, Bot reading indicators and the composer. Existing Human DMs appear in their computer's Channel list with the usual person icon. Human-only conversations omit Bot controls, and each computer keeps its own files, model and workspace state ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+- Use the same Channel chat for connected computers, including Group avatars, Human authors, Bot reading indicators and the composer. Existing Human DMs appear in their computer's Channel list with the usual person icon. Human-only conversations omit Bot controls, and each computer keeps its own files, model and workspace state. Reconnect preserves the current chat, failed reads can be retried, and offline file drops keep the draft intact ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
 
 ## zh
 
@@ -16,4 +16,4 @@ section: Added
 
 - 记录开发启动中断后空原生凭据写锁的已验证任务范围恢复方法（[#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)）。
 
-- 已连接电脑的会话复用原有频道聊天，包括群组头像、Human 作者、Bot 读取状态与输入框；已有 Human 私聊显示在对应电脑的频道列表中，沿用人物图标；纯 Human 会话隐藏 Bot 控件，各电脑的文件、模型和工作区状态分别保留（[#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)）。
+- 已连接电脑的会话复用原有频道聊天，包括群组头像、Human 作者、Bot 读取状态与输入框；已有 Human 私聊显示在对应电脑的频道列表中，沿用人物图标；纯 Human 会话隐藏 Bot 控件，各电脑的文件、模型和工作区状态分别保留；重连保留当前聊天，读取失败可重试，离线拖入文件不会破坏草稿（[#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)）。
