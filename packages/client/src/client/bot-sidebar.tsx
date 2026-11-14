@@ -2272,7 +2272,11 @@ export function BotSidebar({
             t,
             gitReady(state.git),
             hostTabs,
-            teamMode?.enabled === true,
+            teamMode?.enabled === true &&
+              !(
+                hostTabs &&
+                remoteHostsState.hosts.some((remote) => remote.host.hostId === remoteHostsState.tab)
+              ),
             teamMode?.viewer.kind === 'member',
           ).filter(
             (item) =>
@@ -3069,6 +3073,7 @@ export function BotSidebar({
           }}
           onOpened={(channelId) => {
             setCreateRequest(undefined);
+            openLocalConversation();
             void actions.refreshRoster().then(() => actions.openChannel(channelId));
           }}
         />

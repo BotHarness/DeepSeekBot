@@ -26,11 +26,13 @@ const styles = stylex.create({
 export function AnnouncementGate({
   call,
   channelId,
+  refreshKey,
   t,
   children,
 }: {
   readonly call: BridgeCall | undefined;
   readonly channelId: string;
+  readonly refreshKey: unknown;
   readonly t: BotHarnessTranslate;
   readonly children: ReactNode;
 }): ReactElement {
@@ -46,12 +48,15 @@ export function AnnouncementGate({
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [call, channelId, active]);
+  }, [call, channelId, active, refreshKey]);
   if (active && restricted?.channelId === channelId && restricted.value)
     return (
-      <p role="status" data-announcement-only="" {...stylex.props(styles.note)}>
-        {t('channelAccess.announcementNote')}
-      </p>
+      <>
+        <span ref={mount} hidden />
+        <p role="status" data-announcement-only="" {...stylex.props(styles.note)}>
+          {t('channelAccess.announcementNote')}
+        </p>
+      </>
     );
   return (
     <>

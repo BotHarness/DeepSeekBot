@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -73,7 +73,9 @@ export function MessagePersonDialog({
   const [query, setQuery] = useState('');
   const [opening, setOpening] = useState<string>();
   const [error, setError] = useState<string>();
+  const alive = useRef(false);
   const mount = useMountedResource<HTMLDivElement>(() => {
+    alive.current = true;
     const controller = new AbortController();
     loadTeamDirectory(call, controller.signal)
       .then((people) => {
@@ -82,14 +84,20 @@ export function MessagePersonDialog({
       .catch(() => {
         if (!controller.signal.aborted) setLoad({ state: 'failed' });
       });
-    return () => controller.abort();
+    return () => {
+      alive.current = false;
+      controller.abort();
+    };
   }, [call]);
   const open = (person: DirectoryEntry): void => {
     setOpening(person.humanId);
     setError(undefined);
     openHumanDm(call, person.humanId)
-      .then(onOpened)
+      .then((channelId) => {
+        if (alive.current) onOpened(channelId);
+      })
       .catch((failure: unknown) => {
+        if (!alive.current) return;
         setError(teamErrorText(t, failure));
         setOpening(undefined);
       });

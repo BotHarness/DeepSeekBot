@@ -3491,6 +3491,7 @@ function ConversationView({
                 <AnnouncementGate
                   call={channel?.type === 'group' ? actions.teamCall : undefined}
                   channelId={channelId ?? ''}
+                  refreshKey={channel}
                   t={t}
                 >
                   <ChannelComposer
