@@ -87,7 +87,7 @@ describe('plugin entry', () => {
       const created = await core.team.createMember(OWNER_HUMAN_CONTEXT, 'bob', 'Bob');
       const human = humanContext(created.member.humanId);
       await core.team.changePassword(human, created.initialPassword, 'member-password-1');
-      const channel = core.channels.getOrCreateDm(human, 'private-bot', 'Private');
+      const channel = core.channels.createGroup(human, { name: 'Private', members: [] });
       if (!channel) throw new Error('missing DM');
       const request = () =>
         new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}`);

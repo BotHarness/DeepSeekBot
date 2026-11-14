@@ -1,3 +1,4 @@
+import type { PersonaBotDeletions } from '../bots/deletion.js';
 import { type HumanContext } from '../humans/context.js';
 import { z } from 'zod';
 import { ATTACHMENT_FILE_ID_PATTERN, ATTACHMENT_HASH_PATTERN } from '../attachments/ref.js';
@@ -48,6 +49,7 @@ export const deletedHumanSchema = z
     humanId: identity,
     deletedAt: z.iso.datetime(),
     privateChannels: z.array(identity).max(1_000_000).optional(),
+    privateBots: z.array(identity).max(1_000_000).optional(),
   })
   .strict();
 
@@ -135,6 +137,8 @@ export interface GroupDisbandResult {
 }
 
 export interface ContentPurge {
+  bindMemberBots(deletions: Pick<PersonaBotDeletions, 'memberPreview' | 'retry'>): void;
+  memberSettled(humanId?: string): Promise<void>;
   memberPreview(
     human: HumanContext,
     humanId: string,

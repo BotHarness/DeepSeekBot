@@ -117,11 +117,13 @@ export class TeamService {
     ip: string | undefined;
   }>();
   private readonly purge: ContentPurge | undefined;
+  private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
   private readonly limiter: SignInRateLimit;
   private peerFactory: ((principal: MemberPrincipal) => PeerScope) | undefined;
   private invalidate: () => void = () => {};
   private urls: () => string[] = () => [];
+  private readonly ensureTob: ((human: HumanContext) => Promise<unknown>) | undefined;
   private readonly now: () => number;
   private readonly log: (phase: string, facts: Record<string, string | number | boolean>) => void;
 
@@ -130,11 +132,15 @@ export class TeamService {
     private readonly channels: ChannelStore,
     options: {
       purge?: ContentPurge;
+      stopBots?: (slugs: readonly string[]) => Promise<void>;
       now?: () => number;
+      ensureTob?: (human: HumanContext) => Promise<unknown>;
       log?: (phase: string, facts: Record<string, string | number | boolean>) => void;
     } = {},
   ) {
     this.purge = options.purge;
+    this.stopBots = options.stopBots;
+    this.ensureTob = options.ensureTob;
     this.roles = new TeamRoles(db, () => this.invalidate());
     this.now = options.now ?? Date.now;
     this.log = options.log ?? (() => {});
@@ -292,7 +298,12 @@ export class TeamService {
       ['team'],
     );
     this.invalidate();
-    if (!enabled) for (const member of members) await this.revokeMember(member.humanId);
+    if (!enabled) {
+      await Promise.all(members.map((member) => this.revokeMember(member.humanId)));
+      await this.stopBots?.(
+        members.flatMap((member) => this.ownedBots(member.humanId).map((bot) => bot.slug)),
+      );
+    }
 
     this.log('mode-changed', { initiator: 'owner', enabled });
     return { ...this.mode(human), suspendedMembers };
@@ -420,6 +431,10 @@ export class TeamService {
     const credential = member ? this.credential(member.humanId) : undefined;
     const valid = await verifyPassword(password, credential?.hash ?? DUMMY_PASSWORD_HASH);
     if (!valid || !member) throw new TeamError('credentials-invalid');
+    if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
+      throw new TeamError('credentials-invalid');
+    this.active(this.member(member.humanId));
+    await this.ensureTob?.(humanContext(member.humanId));
     if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
       throw new TeamError('credentials-invalid');
     this.active(this.member(member.humanId));
@@ -742,6 +757,7 @@ export class TeamService {
       ['team'],
     );
     await this.revokeMember(humanId);
+    await this.stopBots?.(this.ownedBots(humanId).map((bot) => bot.slug));
     this.log('member-deactivated', { initiator: human.humanId, humanId });
     return null;
   }
@@ -764,6 +780,19 @@ export class TeamService {
     return null;
   }
 
+  private ownedBots(humanId: string, transferable = false) {
+    return z.array(z.object({ slug: z.string(), displayName: z.string() })).parse(
+      this.db.read((db) =>
+        db
+          .prepare(`SELECT b.slug, json_extract(b.body, '$.displayName') AS displayName FROM persona_bots b
+        WHERE b.owner_human_id = ?
+        ${transferable ? 'AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = b.slug) AND NOT EXISTS (SELECT 1 FROM tob_identity t WHERE t.bot_slug = b.slug)' : ''}
+        ORDER BY b.slug`)
+          .all(humanId),
+      ),
+    );
+  }
+
   transferPreview(human: HumanContext, humanId: string) {
     this.manageTarget(human, humanId);
     const channels = z.array(z.object({ channelId: z.string(), name: z.string() })).parse(
@@ -777,37 +806,48 @@ export class TeamService {
           .all(humanId),
       ),
     );
-    const bots: { slug: string; displayName: string }[] = [];
+    const bots = this.ownedBots(humanId, true);
     return { channels, bots };
   }
 
-  transfer(human: HumanContext, humanId: string, toHumanId: string): null {
+  async transfer(human: HumanContext, humanId: string, toHumanId: string): Promise<null> {
     this.manageTarget(human, humanId);
     const target = this.member(toHumanId);
     if (!target) throw new TeamError('member-not-found');
     if (target.humanId === humanId || (!target.owner && target.status !== 'active'))
       throw new TeamError('transfer-target-invalid');
-    const transferred = JSON.stringify(
-      this.transferPreview(human, humanId).channels.map((channel) => channel.channelId),
-    );
+    const preview = this.transferPreview(human, humanId);
+    const transferred = JSON.stringify(preview.channels.map((channel) => channel.channelId));
     this.db.transaction(
       (db) => {
+        db.prepare(`UPDATE persona_bots SET owner_human_id = ?, body = json_set(body, '$.ownerHumanId', ?)
+          WHERE slug IN (SELECT value FROM json_each(?)) AND owner_human_id = ?`).run(
+          toHumanId,
+          toHumanId,
+          JSON.stringify(preview.bots.map((bot) => bot.slug)),
+          humanId,
+        );
         db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId', ?)
         WHERE json_extract(record_json, '$.type') = 'group'
         AND json_extract(record_json, '$.ownerHumanId') = ?`).run(toHumanId, humanId);
         db.prepare(`INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at)
         SELECT channel_id, ?, ?, 1, ? FROM channel_records
         WHERE channel_id IN (SELECT value FROM json_each(?))
+          OR (json_extract(record_json, '$.type') = 'group' AND EXISTS
+            (SELECT 1 FROM json_each(record_json, '$.members') m
+              WHERE m.value IN (SELECT value FROM json_each(?))))
         ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL`).run(
           toHumanId,
           target.displayName,
           new Date(this.now()).toISOString(),
           transferred,
+          JSON.stringify(preview.bots.map((bot) => bot.slug)),
         );
       },
-      ['team', 'channel'],
+      ['team', 'channel', 'bot-registry', 'bot-ownership'],
     );
     this.invalidate();
+    await this.stopBots?.(preview.bots.map((bot) => bot.slug));
     return null;
   }
 
@@ -815,7 +855,7 @@ export class TeamService {
     const member = this.manageTarget(human, humanId);
     if (member.status !== 'deactivated') throw new TeamError('member-active');
     const owned = this.transferPreview(human, humanId);
-    if (owned.channels.length || owned.bots.length) throw new TeamError('transfer-required');
+    if (owned.channels.length) throw new TeamError('transfer-required');
     if (!this.purge) throw new TeamError('unavailable');
     return member;
   }
@@ -825,7 +865,12 @@ export class TeamService {
     return this.purge!.memberPreview(human, humanId);
   }
 
-  purgeConfirm(human: HumanContext, humanId: string, token: string, username: string): null {
+  async purgeConfirm(
+    human: HumanContext,
+    humanId: string,
+    token: string,
+    username: string,
+  ): Promise<null> {
     this.roles.requireManagementTarget(human, humanId);
     if (
       !this.member(humanId) &&
@@ -837,6 +882,7 @@ export class TeamService {
     const member = this.purgeTarget(human, humanId);
     if (username !== member.username) throw new TeamError('purge-token-invalid');
     this.purge!.memberConfirm(human, humanId, token);
+    await this.purge!.memberSettled(humanId);
     this.invalidate();
     this.log('member-purged', { initiator: human.humanId, humanId });
     return null;
@@ -994,11 +1040,13 @@ export class TeamService {
     return (
       this.db.read((db) =>
         db
-          .prepare(`SELECT 1 FROM channel_human_members m
-      JOIN channel_records c USING(channel_id) WHERE m.channel_id = ? AND m.human_id = ?
-      AND m.left_at IS NULL AND json_extract(c.record_json, '$.type') = 'group'
-      AND json_extract(c.record_json, '$.deletedAt') IS NULL`)
-          .get(channelId, human.humanId),
+          .prepare(`SELECT 1 FROM channel_records c WHERE c.channel_id = ?
+      AND json_extract(c.record_json, '$.deletedAt') IS NULL
+      AND ((json_extract(c.record_json, '$.type') = 'group' AND EXISTS (
+        SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ? AND m.left_at IS NULL))
+        OR (json_extract(c.record_json, '$.type') = 'dm' AND EXISTS (
+          SELECT 1 FROM persona_bots b WHERE b.slug = json_extract(c.record_json, '$.botSlug') AND b.owner_human_id = ?)))`)
+          .get(channelId, human.humanId, human.humanId),
       ) !== undefined
     );
   }

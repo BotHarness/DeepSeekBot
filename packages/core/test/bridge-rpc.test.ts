@@ -1058,7 +1058,7 @@ describe('bridge typert service', () => {
   it('keeps every method signature parseable by the gateway SRC resolver', () => {
     const { service } = setup();
 
-    expect(parameterNames(service.list)).toEqual(['query']);
+    expect(parameterNames(service.list)).toEqual(['query', 'administration']);
     expect(parameterNames(service.get)).toEqual(['slug']);
     expect(parameterNames(service.create)).toEqual([
       'displayName',

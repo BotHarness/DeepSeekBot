@@ -836,10 +836,13 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       const result = await readResponse(answer);
       if (result['ok'] !== true) {
         const error = record(result['error']);
-        throw new CliLiveError(
+        const failure = new CliLiveError(
           typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
           scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
         );
+        const permission = record(error['details'])['permission'];
+        if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
+        throw failure;
       }
       return result['value'] as T;
     }
@@ -862,7 +865,10 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       const code = typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error';
       const message =
         typeof error['message'] === 'string' ? error['message'] : 'The Host refused the command.';
-      throw new CliLiveError(code, scrub(message));
+      const failure = new CliLiveError(code, scrub(message));
+      const permission = record(error['details'])['permission'];
+      if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
+      throw failure;
     }
     return result['value'] as T;
   };

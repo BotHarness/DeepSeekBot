@@ -1,3 +1,4 @@
+import { acceptMemberBotPurge, type PersonaBotDeletions } from '../bots/deletion.js';
 import { z } from 'zod';
 import { TeamError } from '../team/error.js';
 import { type HumanContext } from '../humans/context.js';
@@ -87,6 +88,9 @@ export function mountContentPurge(options: {
     createAttachmentStore({ rootDir: join(options.dshHome, 'botharness', 'attachments') });
   let ledger: ReturnType<typeof openPurgeLedger> | undefined;
   let barrier = false;
+  let memberBots: Pick<PersonaBotDeletions, 'memberPreview' | 'retry'> | undefined;
+  const memberWork = new Map<string, Promise<void>>();
+  let startupMemberWork: Promise<void> = Promise.resolve();
   const pendingFiles = new Set<string>();
   const secret = randomBytes(32);
   const unavailable = () =>
@@ -234,6 +238,15 @@ export function mountContentPurge(options: {
           (SELECT owner_human_id FROM team_settings)) WHERE json_extract(record_json, '$.ownerHumanId') = ?`).run(
             fact.humanId,
           );
+          for (const slug of fact.privateBots ?? [])
+            acceptMemberBotPurge({
+              db,
+              humanId: fact.humanId,
+              slug,
+              acceptedAt: fact.deletedAt,
+              rootDir: join(options.dshHome, 'botharness', 'bots'),
+            });
+          db.prepare('DELETE FROM tob_identity WHERE human_id = ?').run(fact.humanId);
           db.prepare('DELETE FROM humans WHERE human_id = ?').run(fact.humanId);
         }
       },
@@ -607,7 +620,7 @@ export function mountContentPurge(options: {
           eventAt: row.created_at,
           author: purgeAuthor(
             deletedHuman
-              ? JSON.parse(row.payload_json).author
+              ? (JSON.parse(row.payload_json).author ?? { kind: 'system' })
               : port.read((db) => inspect(human, db, row).message!.author),
           ),
           managedFiles: port.read((db) => [...managedSourceFiles(db, row.source_event_id).keys()]),
@@ -660,14 +673,27 @@ export function mountContentPurge(options: {
   >();
   const memberScope = (humanId: string) =>
     port.read((db) => {
+      const bots = db
+        .prepare('SELECT slug, body FROM persona_bots WHERE owner_human_id = ? ORDER BY slug')
+        .all(humanId);
+      const plans = bots.map((bot) => {
+        if (!memberBots) throw unavailable();
+        const plan = memberBots.memberPreview(humanId, String(bot.slug));
+        if (!plan.eraseAvailable) throw unsupported();
+        return plan;
+      });
       const channels = db
         .prepare(`SELECT c.channel_id, c.record_json FROM channel_records c
       WHERE json_extract(c.record_json, '$.type') = 'dm'
-      AND (json_extract(c.record_json, '$.ownerHumanId') = ? OR (
+      AND (json_extract(c.record_json, '$.ownerHumanId') = ? OR
+        json_extract(c.record_json, '$.botSlug') IN (SELECT slug FROM persona_bots WHERE owner_human_id = ?) OR
+        (json_extract(c.record_json, '$.remoteBot') IS NULL AND json_array_length(c.record_json, '$.members') > 0
+          AND NOT EXISTS (SELECT 1 FROM json_each(c.record_json, '$.members') m
+            LEFT JOIN persona_bots b ON b.slug = m.value WHERE b.owner_human_id IS NULL OR b.owner_human_id <> ?)) OR (
         EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ?)
         AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id <> ?)))
       ORDER BY c.channel_id`)
-        .all(humanId, humanId, humanId);
+        .all(humanId, humanId, humanId, humanId, humanId);
       const rows = zSourceRows(
         db
           .prepare(`SELECT e.* FROM source_events e
@@ -689,20 +715,72 @@ export function mountContentPurge(options: {
         : new Set<string>();
       const counts = {
         channels: channels.length,
-        bots: 0,
+        bots: bots.length,
         messages: rows.length,
         files: [...files].filter((id) => !retained.has(id)).length,
       };
       return {
         rows,
+        bots,
         channels,
         counts,
         digest: createHash('sha256')
-          .update(JSON.stringify([channels, rows, [...files].sort()]))
+          .update(JSON.stringify([channels, rows, [...files].sort(), bots, plans]))
           .digest('hex'),
       };
     });
+  const startMemberCleanup = (fact: DeletedHuman): Promise<void> => {
+    const active = memberWork.get(fact.humanId);
+    if (active) return active;
+    const slugs = fact.privateBots ?? [];
+    if (!slugs.length) return Promise.resolve();
+    const provider = memberBots;
+    if (!provider) return Promise.reject(unavailable());
+    const work = (async () => {
+      for (const slug of slugs) {
+        const state = await provider.retry(slug);
+        if (state.phase !== 'complete' || state.memory !== 'erased') throw unavailable();
+        port.transaction(
+          (db) => {
+            db.prepare(`UPDATE persona_bots SET body = json_object('slug', slug, 'displayName', '',
+            'createdAt', json_extract(body, '$.createdAt'), 'ownerHumanId', owner_human_id, 'workspaces', json('[]')) WHERE slug = ?`).run(
+              slug,
+            );
+            db.prepare(
+              "UPDATE persona_bot_deletions SET body = json_set(body, '$.displayName', '') WHERE slug = ?",
+            ).run(slug);
+          },
+          ['bot-registry', 'content-purge'],
+        );
+      }
+    })();
+    memberWork.set(fact.humanId, work);
+    void work.then(
+      () => memberWork.delete(fact.humanId),
+      () => {
+        memberWork.delete(fact.humanId);
+        fail();
+      },
+    );
+    return work;
+  };
   return {
+    bindMemberBots(provider) {
+      memberBots = provider;
+      const facts = ledger?.checkpoint().deletedHumans ?? [];
+      startupMemberWork = (async () => {
+        for (const fact of facts) await startMemberCleanup(fact);
+      })();
+      void startupMemberWork.catch(() => fail());
+    },
+    async memberSettled(humanId) {
+      await startupMemberWork;
+      if (options.database.mode !== 'ready') throw unavailable();
+      if (humanId) {
+        const fact = ledger?.checkpoint().deletedHumans?.find((entry) => entry.humanId === humanId);
+        if (fact) await startMemberCleanup(fact);
+      } else await Promise.all([...memberWork.values()]);
+    },
     memberPreview: (human, humanId) =>
       exclusive(() => {
         for (const [token, value] of memberTokens)
@@ -735,6 +813,7 @@ export function mountContentPurge(options: {
           humanId,
           deletedAt: now().toISOString(),
           privateChannels: scope.channels.map((channel) => String(channel.channel_id)),
+          privateBots: scope.bots.map((bot) => String(bot.slug)),
         });
       }),
     redactions: () => {

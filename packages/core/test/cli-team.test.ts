@@ -18,7 +18,12 @@ afterEach(async () => {
     ),
   );
 });
-async function host() {
+async function host(
+  memberFailure: { code: string; message: string; details?: { permission: string } } = {
+    code: 'remote-access/denied',
+    message: 'member-call-refused',
+  },
+) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(async (request, response) => {
     if (request.method === 'GET') {
@@ -56,7 +61,7 @@ async function host() {
       response.end(
         JSON.stringify({
           ok: false,
-          error: { code: 'remote-access/denied', message: 'member-call-refused' },
+          error: memberFailure,
         }),
       );
     else
@@ -451,5 +456,63 @@ describe('M9 lifecycle CLI', () => {
         ].includes(String(call.input.method)),
       ),
     ).toBe(false);
+  });
+});
+
+describe('M2 CLI member Bot and Activity dispatch', () => {
+  it.each([
+    {
+      code: 'permission-required',
+      message: 'permission-required',
+      details: { permission: 'bots.create' },
+    },
+    { code: 'member-suspended', message: 'member-suspended' },
+  ])('preserves $code from bots create --as without Owner fallback', async (failure) => {
+    const f = await host(failure);
+    const result = await run(f.url, [
+      'bots',
+      'create',
+      '--as',
+      'bob',
+      '--name',
+      'Denied Bot',
+      '--operation-key',
+      'denied-bot-create-0001',
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.output).toMatchObject({ error: failure });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]).toMatchObject({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', method: 'create' },
+    });
+  });
+
+  it.each([
+    { argv: ['bots', 'list'], method: 'list', stdin: '' },
+    { argv: ['bots', 'list', '--administration'], method: 'list', stdin: '' },
+    { argv: ['bots', 'show', 'alice-bot'], method: 'get', stdin: '' },
+    {
+      argv: ['bots', 'create', '--name', 'Member Bot', '--operation-key', 'member-cli-0001'],
+      method: 'create',
+      stdin: '',
+    },
+    {
+      argv: ['bots', 'delete', 'alice-bot', '--confirm', '--confirmation-stdin'],
+      method: 'deletionConfirm',
+      stdin: '{"token":"reviewed-deletion-token"}',
+    },
+    { argv: ['activity', 'list'], method: 'humanAttention', stdin: '' },
+  ])('keeps $method on the member Peer without Owner fallback', async ({ argv, method, stdin }) => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', ...argv], stdin);
+    expect(result.status).not.toBe(0);
+    expect(result.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls).toEqual([
+      expect.objectContaining({
+        path: '/api/botharness/team-as',
+        input: expect.objectContaining({ username: 'bob', namespace: 'botharness', method }),
+      }),
+    ]);
   });
 });

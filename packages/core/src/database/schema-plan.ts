@@ -3379,8 +3379,28 @@ const TEAM_ROLES_MIGRATION: SchemaMigration = {
   },
 };
 
-const MEMBER_LIFECYCLE_MIGRATION: SchemaMigration = {
+const PRIVATE_BOTS_MIGRATION: SchemaMigration = {
   generation: 143,
+  module: 'team',
+  description: 'Private Bot ownership and one durable Tob identity per Human',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE persona_bots ADD COLUMN owner_human_id TEXT NOT NULL DEFAULT 'local-human';
+      CREATE INDEX persona_bots_owner ON persona_bots(owner_human_id, slug);
+      UPDATE persona_bots SET body = json_set(body, '$.ownerHumanId', owner_human_id);
+      ALTER TABLE tob_identity RENAME TO tob_identity_owner;
+      CREATE TABLE tob_identity (
+        human_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL UNIQUE
+      );
+      INSERT INTO tob_identity SELECT 'local-human', bot_slug FROM tob_identity_owner;
+      DROP TABLE tob_identity_owner;
+    `);
+  },
+};
+
+const MEMBER_LIFECYCLE_MIGRATION: SchemaMigration = {
+  generation: 144,
   module: 'team',
   description: 'Deactivation, mode suspension and deleted member identities',
   rebuildsReferencedTables: true,
@@ -3551,5 +3571,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SOURCE_EVENT_HUMAN_MIGRATION,
   TEAM_MEMBERS_MIGRATION,
   TEAM_ROLES_MIGRATION,
+  PRIVATE_BOTS_MIGRATION,
   MEMBER_LIFECYCLE_MIGRATION,
 ]);
