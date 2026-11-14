@@ -215,14 +215,14 @@ function some<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
 }
 
 export async function loadBotModel(
-  client: HostClient,
+  client: ModelSettingsClient,
   slug: string,
   requirePresets = false,
 ): Promise<BotModel> {
   const [state, catalog, presets] = await Promise.all([
-    client.call<unknown>('modelPlan', { slug }),
-    client.call<unknown>('modelCatalog', {}),
-    client.call<unknown>('modelPresets', {}).catch((cause: unknown) => {
+    client.call('modelPlan', { slug }),
+    client.call('modelCatalog', {}),
+    client.call('modelPresets', {}).catch((cause: unknown) => {
       if (requirePresets) throw cause;
       return { presets: [] };
     }),
@@ -244,10 +244,14 @@ export async function loadBotModel(
   };
 }
 
-export async function loadGlobalModel(client: HostClient): Promise<BotModel> {
+export interface ModelSettingsClient {
+  call(method: string, args?: Record<string, unknown>): Promise<unknown>;
+}
+
+export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotModel> {
   const [catalog, presets] = await Promise.all([
-    client.call<unknown>('modelCatalog', {}),
-    client.call<unknown>('modelPresets', {}),
+    client.call('modelCatalog', {}),
+    client.call('modelPresets', {}),
   ]);
   const models = record(catalog)?.['models'];
   if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');

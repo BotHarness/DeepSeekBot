@@ -5,6 +5,21 @@ export const LOCALE_NS = 'botharness';
 
 export const zh = {
   'environment.title': '环境',
+  'environment.settings.target': '设置目标环境',
+  'environment.settings.saveAndSwitch': '保存并切换',
+  'environment.settings.createUnknown': '创建结果尚未确认。请检查预设列表；放弃只会清除本地草稿。',
+  'environment.settings.checkCreatedPreset': '检查已创建的预设',
+  'environment.settings.app': '本应用偏好',
+  'environment.settings.appPicker': '本应用偏好：{section}',
+  'environment.settings.moreHost': '更多设置',
+  'environment.settings.device': '当前设备',
+  'environment.settings.clientScope': '偏好只保存在当前设备。',
+  'environment.settings.legacyScope': '主机选项只作用于本机 Host；设备偏好只保存在当前设备。',
+  'environment.settings.appearance': '本应用中的外观',
+  'environment.settings.unsupported': '此环境暂不支持这项设置。',
+  'environment.settings.defaultLocked': '此环境的默认模型由启动设置固定。',
+  'environment.settings.loadingIdentity': '正在加载此环境，稍后可设置名称和图标。',
+  'environment.settings.disconnected': '已断开此环境。设置未保存到其他环境。',
   'environment.scope': '浏览环境',
   'environment.manageNamed': '管理 {name}',
   'environment.moreNamed': '{name} 的更多操作',
@@ -314,6 +329,24 @@ export const zh = {
   'connections.hosts.removeTitle': '移除 {name}？',
   'connections.hosts.revokeTitle': '撤销 {name} 的授权？',
   'connections.hosts.stopTitle': '停止 {name}？',
+  'connections.remote.title': '连接',
+  'connections.remote.ownerChanged': '{name} 的旧授权操作尚未确认。请先核对结果，再更改此环境。',
+  'connections.remote.readPrevious': '核对之前的操作结果',
+  'connections.remote.storageUnavailable':
+    '连接操作记录缺失或无法读取。更改已停用；请恢复本应用记录，或在此环境所在电脑上管理。',
+  'connections.remote.lockUnavailable':
+    '更改连接需要支持 Web Locks 的安全页面。请在此环境所在电脑上打开，或使用其命令行管理连接。',
+  'connections.remote.unknown':
+    '{name} 的操作结果未知。请先读取此环境的状态，不要重复提交。已加载内容会保留。',
+  'connections.remote.readback': '读取操作结果',
+  'connections.remote.signOut': '退出登录',
+  'connections.remote.signOutTitle': '在 {name} 上退出登录？',
+  'connections.remote.signOutScope':
+    '停止此环境的账号发现和官方连接服务。已授权设备和独立路由保留。',
+  'connections.remote.disconnectHint':
+    '此操作可能断开你与 {name} 的连接。可明确选择并验证其他路由，或确认断开。已加载内容保留，可通过已信任的路由恢复。',
+  'connections.remote.handover': '执行前的连接方式',
+  'connections.remote.disconnect': '确认断开当前连接',
   'connections.hosts.removeHint': '仅从此浏览器移除连接。电脑上的数据和设备授权保留。',
   'connections.hosts.targetHint':
     '操作目标：{name}。可能断开当前管理连接；其他线路和电脑数据保留。',
@@ -5530,6 +5563,26 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 
 export const en = {
   'environment.title': 'Environments',
+  'environment.settings.target': 'Settings target environment',
+  'environment.settings.saveAndSwitch': 'Save and switch',
+  'environment.settings.createUnknown':
+    'Creation is unconfirmed. Check the preset list; discarding only clears this draft.',
+  'environment.settings.checkCreatedPreset': 'Check saved preset',
+  'environment.settings.app': 'App preferences',
+  'environment.settings.appPicker': 'App preferences: {section}',
+  'environment.settings.moreHost': 'More settings',
+  'environment.settings.device': 'This device',
+  'environment.settings.clientScope': 'Preferences stay on this device.',
+  'environment.settings.legacyScope':
+    'Host controls use This Host. Device preferences stay on this device.',
+  'environment.settings.appearance': 'Appearance in this app',
+  'environment.settings.unsupported': 'This setting is unavailable for this environment.',
+  'environment.settings.defaultLocked':
+    "This Host's default model is fixed by its launch settings.",
+  'environment.settings.loadingIdentity':
+    'Wait for this environment to load before changing its name or icon.',
+  'environment.settings.disconnected':
+    'This environment was disconnected. Settings were not saved elsewhere.',
   'environment.scope': 'Browse environments',
   'environment.manageNamed': 'Manage {name}',
   'environment.moreNamed': 'More for {name}',
@@ -5870,6 +5923,25 @@ export const en = {
   'connections.hosts.removeTitle': 'Remove {name}?',
   'connections.hosts.revokeTitle': 'Revoke {name}?',
   'connections.hosts.stopTitle': 'Stop {name}?',
+  'connections.remote.title': 'Connections',
+  'connections.remote.ownerChanged':
+    'A previous grant has an unconfirmed operation on {name}. Check its result before changing this environment.',
+  'connections.remote.readPrevious': 'Check previous operation result',
+  'connections.remote.storageUnavailable':
+    'Connection operation history is incomplete or cannot be read. Changes are blocked; restore this app’s history, or manage the environment on its computer.',
+  'connections.remote.lockUnavailable':
+    'Connection changes need a secure page with Web Locks. Open this environment on its computer, or manage its connections with its CLI.',
+  'connections.remote.unknown':
+    'The result on {name} is unknown. Read this environment’s state before trying again. Loaded content is kept.',
+  'connections.remote.readback': 'Read operation result',
+  'connections.remote.signOut': 'Sign out',
+  'connections.remote.signOutTitle': 'Sign out on {name}?',
+  'connections.remote.signOutScope':
+    'Stops account discovery and the official connection service on this environment. Device grants and independent routes are kept.',
+  'connections.remote.disconnectHint':
+    'This may disconnect you from {name}. Choose and verify another route, or confirm disconnection. Loaded content stays available; reconnect through a trusted route.',
+  'connections.remote.handover': 'Connection before applying',
+  'connections.remote.disconnect': 'Confirm disconnection',
   'connections.hosts.removeHint':
     'Remove this browser connection only. Computer data and device authorizations stay in place.',
   'connections.hosts.targetHint':

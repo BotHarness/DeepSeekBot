@@ -1065,14 +1065,18 @@
     },
     {
       "id": "remote-connection-management",
-      "description": "One selected browser Client observes routes and uses its target Host authorization; local removal is separate from Host revocation and route stop.",
+      "description": "One selected Client observes routes and uses its exact Host owner for device revocation, individual route stop and account sign-out; Web-Locked execution guards and owner readback prevent unknown writes being replayed.",
       "scope": "Client",
       "surfaces": [
         "setting:packages/client/src/client/connection-hosts.tsx:{device.name}",
         "setting:packages/client/src/client/connection-hosts.tsx:{t('connections.hosts.preference')}",
         "setting:packages/client/src/client/connection-hosts.tsx:{host.name}",
         "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
-        "setting:packages/client/src/client/connection-hosts.tsx:{t(kind === 'lan' ? 'connections.lan' : 'privateTunnel.title')}"
+        "setting:packages/client/src/client/connection-hosts.tsx:{label}",
+        "setting:packages/client/src/client/connection-hosts.tsx:\"Tobs Connect\"",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(executionKey)",
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem(executionKey)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(CONNECTION_OPERATIONS_INDEX)"
       ],
       "commands": ["connection-hosts", "connection-host", "connect-account-hosts"]
     },

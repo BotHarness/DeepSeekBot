@@ -4,6 +4,12 @@ Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、�
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
+E11 执行保护与 E6 凭据事务的顺序固定为：执行 Web Lock → 短配置事务；配置 writer 不反向取得执行锁。事务只 fresh-read/CAS 原 SavedHost 配置，完成后重新派生执行状态，不将未知操作字段写入凭据数组。自动登记沿用自己的每 Host intent lock → 同一短配置事务。
+
+远程连接执行保护及其兼容性限制见 [ADR-0340](../adr/0340-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
+
+E11 在独立 Settings Target 下复用目标 Host 的设备、单条私有路由和账号 owner。计划切换先验证既有替代路由，明确保存本 Client 的手动偏好，等待实际连接切换并回读精确 Host 后才执行一次；没有替代路由则明确确认断开。Client 既有 HostStorage 所有者下的独立执行键绑定 Host 公钥、设备、操作/路由及代次，结果未知时跨重载保留，不成为 Host 配置权威，也不自动重放，其他 SavedHost 数组写入不能擦除它。共享 Web Lock 覆盖准备、保护持久化、一次写入、确认及回读 CAS；缺少 Web Locks 时拒绝危险写入。最多保留 32 条未解决事实而不自动清除。新独立授权可明确通过同一 Host 公钥核对旧操作的结果，但不继承或重发操作；公钥变化拒绝核对，清除仍按代次 CAS。退出登录、关系断开、单设备撤销和单路由停止保持独立权限和效果，不操作外部 Tailscale 映射或无关 Host 进程。
+
 E6 通过现有已认证账号列表与 `/offer` 发现同账号 Host：两端各自验证本机注册与 Noise 身份，接收端使用自己的账号会话重新读取准确的来源注册；HMAC、账号、目标注册、新鲜度和包含双方身份的固定角色 transcript 一并校验。按稳定注册 ID 选唯一发起端，异步返回后复查账号代际、原有 pin 和主动断开抑制；当前账号资格保存在 canonical relationship 的 account_origin。完整双边证明也可为已有手动批准的 active 关系附加资格，以原 NULL 值 CAS 保留同一 ID、审批、授权、独立线路和私有 admission，不绕过待处理的手动审批。只有具备该验证资格的关系自动为桌面/Web Client 登记，其余手动关系仍需「在此 Client 使用」。每 Host 成功独立发布，扫描轮转、并发和重试有界；不切换 Environment Scope、打开的会话或 Settings Target，不借用 Bot 协作授权，也不需要部署 relay。
 
 发现由既有 Host 关系 owner 启停，初始及每三十秒调度一次，不依赖排序较小的 Host 上打开 Client；无账号不触网，退出账号同步使旧代请求取消，关闭后不再调度。重新登录改变注册 ID 时，只在双方新鲜权威 offer、原账号资格与准确 Host/pin 全部一致后，以旧资格 CAS 更新原 active 关系，不新建关系或改变审批，旧响应不得覆盖新代。资格同时记录各端用自己已认证 offer 取得的 officialOrigin；同一 CAS 事务只替换此前明确记录的官方地址，首次资格只添加新地址，不猜测或删除手动线路，容量超限时资格与线路均不提交。单端成功但回复丢失时可重新证明并收敛到原关系，主动断开抑制始终有效。已有 public-only Client 沿原线路 owner 学习新地址，不新造授权或改变偏好/浏览范围；私有 admission 仍沿原路径。正式链保留已发布的 Human 140、Team/私有 Bot 141–143，再追加关系 144、已发布 Team 生命周期 145、Channel 权限 146、离线撤销 147、已发布 Team 模型 148 与 Human 用量归属 149、账号登记 150；未发布的旧 Environment 140–143 及 offline145/account146、offline146/account147、offline147/account148 分叉只作闭合归档，最终验证使用全新 Profile，不复制账号凭据。
