@@ -293,12 +293,16 @@ export function createConnectAccount(options: {
     operation: RelayOperation | IdentityOperation,
     failure:
       | { reason: 'transport'; error: unknown }
-      | { reason: 'http' | 'invalid-response'; status: number },
+      | {
+          reason: 'http' | 'invalid-response';
+          status: number;
+          validation?: 'offer' | 'payload' | 'identity' | 'route' | 'freshness';
+        },
   ): AccountError => {
     const evidence =
       failure.reason === 'transport'
         ? `transport=${transportCode(failure.error)}`
-        : `httpStatus=${failure.status}`;
+        : `httpStatus=${failure.status}${failure.validation === undefined ? '' : ` validation=${failure.validation}`}`;
     record(
       'account-request-error',
       `service=${service} operation=${operation} reason=${failure.reason} ${evidence}`,
@@ -1162,9 +1166,29 @@ export function createConnectAccount(options: {
               signal,
               { verifierHash },
             );
-            if (reply.status !== 200) throw new AccountError('relay-unavailable');
-            const offered = accountRelationshipOfferSchema.parse(reply.body);
+            if (reply.status !== 200)
+              throw requestError('relay', 'relationship-offer', {
+                reason: 'http',
+                status: reply.status,
+              });
+            const invalid = (
+              validation: 'offer' | 'payload' | 'identity' | 'route' | 'freshness',
+            ) =>
+              requestError('relay', 'relationship-offer', {
+                reason: 'invalid-response',
+                status: reply.status,
+                validation,
+              });
+            const parsed = accountRelationshipOfferSchema.safeParse(reply.body);
+            if (!parsed.success) throw invalid('offer');
+            const offered = parsed.data;
             const route = checkRoute(`https://${offered.hostname}`);
+            let body: unknown;
+            try {
+              body = JSON.parse(offered.enrollment.body);
+            } catch {
+              throw invalid('payload');
+            }
             const payload = z
               .object({
                 hostId: z.literal(peerRegistrationId),
@@ -1172,15 +1196,19 @@ export function createConnectAccount(options: {
                 verifierHash: z.literal(verifierHash),
                 issuedAt: z.iso.datetime(),
               })
-              .parse(JSON.parse(offered.enrollment.body));
+              .safeParse(body);
+            if (!payload.success) throw invalid('identity');
             if (
               !route.ok ||
               !isConnectRoute(route.origin) ||
-              new URL(route.origin).hostname !== offered.hostname ||
-              Date.parse(offered.expiresAt) <= Date.now() ||
-              Math.abs(Date.now() - Date.parse(payload.issuedAt)) > OFFER_FRESH_MS
+              new URL(route.origin).hostname !== offered.hostname
             )
-              throw new AccountError('relay-unavailable');
+              throw invalid('route');
+            if (
+              Date.parse(offered.expiresAt) <= Date.now() ||
+              Math.abs(Date.now() - Date.parse(payload.data.issuedAt)) > OFFER_FRESH_MS
+            )
+              throw invalid('freshness');
             return offered;
           },
         };

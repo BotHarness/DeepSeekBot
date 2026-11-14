@@ -235,7 +235,13 @@ async function settle(account: { status(): { state: string } }) {
     await new Promise((done) => setImmediate(done));
 }
 
-function setup(services = fakeServices(), port = 41001, watchMs = 60_000, onReady?: () => void) {
+function setup(
+  services = fakeServices(),
+  port = 41001,
+  watchMs = 60_000,
+  onReady?: () => void,
+  record?: Parameters<typeof createConnectAccount>[0]['record'],
+) {
   const credentials = memoryCredentials();
   const tunnel = fakeConnect(port);
   const account = createConnectAccount({
@@ -248,6 +254,7 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000, onRead
     sleep: async () => {},
     watchMs,
     ...(onReady === undefined ? {} : { onReady }),
+    ...(record === undefined ? {} : { record }),
   });
   return { account, credentials, tunnel, services };
 }
@@ -335,7 +342,10 @@ describe('linked account computers', () => {
           });
         },
       });
-      const { account } = setup(services);
+      const events: { phase: string; detail: string | undefined }[] = [];
+      const { account } = setup(services, 41001, 60_000, undefined, (phase, detail) =>
+        events.push({ phase, detail }),
+      );
       try {
         await account.signIn();
         await settle(account);
@@ -345,6 +355,13 @@ describe('linked account computers', () => {
           session?.offer(registrationId, 'a'.repeat(43), new AbortController().signal),
         ).rejects.toThrow();
         expect(services.calls.at(-1)?.auth).toMatch(/^Bearer /u);
+        const failure = events.findLast((event) => event.phase === 'account-request-error');
+        expect(failure?.detail).toContain(
+          'service=relay operation=relationship-offer reason=invalid-response httpStatus=200',
+        );
+        expect(failure?.detail).not.toContain('another-account');
+        expect(failure?.detail).not.toContain(RELAY_KEY);
+        expect(failure?.detail).not.toContain('a'.repeat(43));
       } finally {
         await account.close();
       }

@@ -19,7 +19,7 @@ import type {
 } from '../src/devices/connect-account.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-function fixture(relayKey = randomBytes(32)) {
+function fixture(relayKey = randomBytes(32), hostnames = new Map<string, string>()) {
   const home = createTempRoot('account-relationships-');
   const owner = trackTestOwner(
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
@@ -59,7 +59,7 @@ function fixture(relayKey = randomBytes(32)) {
     });
     return {
       host: { id: host.id, name: host.name },
-      hostname: `${registrationId}.deepseekbot.dev`,
+      hostname: hostnames.get(registrationId) ?? `${registrationId}.deepseekbot.dev`,
       enrollment: { body, signature: sign(body) },
       encryption: { protocol: 'connect-noise-xk-v1' as const, publicKey: host.publicKey },
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -91,12 +91,14 @@ function fixture(relayKey = randomBytes(32)) {
       throw new Error('unexpected outgoing request');
     },
   );
-  const authority = createAccountRelationships({
-    account: () => account,
-    relationships,
-    identity: async () => local,
-    request,
-  });
+  const createAuthority = () =>
+    createAccountRelationships({
+      account: () => account,
+      relationships,
+      identity: async () => local,
+      request,
+    });
+  let authority = createAuthority();
   const proof: AccountRelationshipProof = {
     purpose: 'account-host-relationship-v1',
     relationshipId: 'a'.repeat(32),
@@ -128,7 +130,13 @@ function fixture(relayKey = randomBytes(32)) {
     source,
     local,
     session,
-    authority,
+    get authority() {
+      return authority;
+    },
+    restart() {
+      authority.close();
+      authority = createAuthority();
+    },
     proof,
     proposal,
     offer,
@@ -179,6 +187,73 @@ it('lets the smaller Host discover in the background with no Client and converge
     b.authority.close();
   }
 });
+
+it.each(['initiator', 'peer', 'initiator-restart'] as const)(
+  'refreshes a changed %s hostname under the same registrations without replacing grants or independent routes',
+  async (changed) => {
+    const relayKey = randomBytes(32);
+    const hostnames = new Map<string, string>();
+    const smaller = fixture(relayKey, hostnames);
+    const larger = fixture(relayKey, hostnames);
+    smaller.session.registrationId = 'haaaaaaaaaaaa';
+    larger.local.publicKey = 'ef'.repeat(32);
+    smaller.peers.set(larger.session.registrationId, larger.local);
+    larger.peers.set(smaller.session.registrationId, smaller.local);
+    const listed = [smaller, larger].map((test) => ({
+      id: test.session.registrationId,
+      name: 'Host',
+      hostname: `${test.session.registrationId}.deepseekbot.dev`,
+      createdAt: new Date().toISOString(),
+      current: false,
+      sessionKnown: true,
+    }));
+    smaller.session.hosts = larger.session.hosts = async () => listed;
+    smaller.request.mockImplementation(async (_peer, command) =>
+      command.action === 'account-propose'
+        ? larger.authority.receive(smaller.local.publicKey, command)
+        : {
+            ok: true,
+            state: larger.relationships.activate(command.id, smaller.local.publicKey).state,
+          },
+    );
+    try {
+      await smaller.authority.discover();
+      const id = smaller.relationships.list()[0]!.id;
+      const independent = larger.pairing.redeem({ offer: larger.pairing.createOffer().offer });
+      expect(independent.ok).toBe(true);
+      const grants = larger.pairing.list();
+      const independentRoute = 'https://independent.ts.net';
+      const initial = larger.relationships.read(id);
+      larger.relationships.updateRoutes(id, smaller.local.publicKey, [
+        ...initial.peer.routes,
+        independentRoute,
+      ]);
+      const selected = changed === 'peer' ? larger : smaller;
+      const origin = 'https://hcccccccccccc.tobs.app';
+      hostnames.set(selected.session.registrationId, new URL(origin).hostname);
+      listed.find((item) => item.id === selected.session.registrationId)!.hostname = new URL(
+        origin,
+      ).hostname;
+      if (changed === 'initiator-restart') smaller.restart();
+      await Promise.all([smaller.authority.discover(), larger.authority.discover()]);
+      const observer = changed === 'peer' ? smaller : larger;
+      expect(observer.relationships.read(id).accountOrigin?.officialOrigin).toBe(origin);
+      expect(observer.relationships.read(id).peer.routes).toContain(origin);
+      expect(larger.relationships.read(id).peer.routes).toContain(independentRoute);
+      expect(larger.relationships.read(id).peer.publicKey).toBe(smaller.local.publicKey);
+      expect(larger.pairing.list()).toEqual(grants);
+      expect(smaller.relationships.list()).toHaveLength(1);
+      expect(larger.relationships.list()).toHaveLength(1);
+      expect(larger.relationships.read(id).state).toBe('active');
+      const writes = smaller.request.mock.calls.length;
+      await smaller.authority.discover();
+      expect(smaller.request).toHaveBeenCalledTimes(writes);
+    } finally {
+      smaller.authority.close();
+      larger.authority.close();
+    }
+  },
+);
 
 function manualActive(test: ReturnType<typeof fixture>) {
   const item = test.relationships.propose({

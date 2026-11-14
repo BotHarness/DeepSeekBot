@@ -75,6 +75,7 @@ export function createAccountRelationships(options: {
   let closed = false;
   let lastOutcome: 'idle' | 'running' | 'complete' | 'unavailable' = 'idle';
   const retries = new Map<string, { attempts: number; retryAt: number }>();
+  const announcedOrigins = new Map<string, { generation: string; origin: string }>();
   let retryGeneration: string | undefined;
   let discoveryCursor = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -103,7 +104,7 @@ export function createAccountRelationships(options: {
       ?.verifyOffer(offered.enrollment.body, offered.enrollment.signature);
     guard(session, signal);
     if (!verified?.ok) throw new RelationshipRefused('account-enrollment-proof-invalid');
-    return local;
+    return { ...local, officialOrigin: `https://${offered.hostname}` };
   };
   const peer = (offer: AccountRelationshipOffer): RelationshipPeer => ({
     id: offer.host.id,
@@ -349,11 +350,23 @@ export function createAccountRelationships(options: {
       if (discovery) return discovery;
       discovery = (async () => {
         const session = await options.account()?.relationshipSession();
-        if (!session) throw new RelationshipRefused('account-enrollment-unavailable');
+        if (!session) {
+          announcedOrigins.clear();
+          throw new RelationshipRefused('account-enrollment-unavailable');
+        }
         if (retryGeneration !== session.generation) {
           retries.clear();
+          announcedOrigins.clear();
           retryGeneration = session.generation;
         }
+        const activeIds = new Set(
+          relationships
+            .list()
+            .filter((item) => item.state === 'active')
+            .map((item) => item.id),
+        );
+        for (const id of announcedOrigins.keys())
+          if (!activeIds.has(id)) announcedOrigins.delete(id);
         const { local, candidates } = await operation(async (signal) => {
           const local = await own(session, signal);
           const candidates = await session.hosts(signal);
@@ -395,7 +408,9 @@ export function createAccountRelationships(options: {
                 existing?.state === 'active' &&
                 originMatches(existing.accountOrigin, session, peerRegistrationId) &&
                 existing.accountOrigin?.officialOrigin === remote.routes[0] &&
-                existing.peer.routes.includes(remote.routes[0]!)
+                existing.peer.routes.includes(remote.routes[0]!) &&
+                announcedOrigins.get(existing.id)?.generation === session.generation &&
+                announcedOrigins.get(existing.id)?.origin === local.officialOrigin
               )
                 return;
               if (existing && existing.state !== 'active' && existing.expiresAt <= Date.now()) {
@@ -466,6 +481,11 @@ export function createAccountRelationships(options: {
                   },
                   expectedOrigin: relationship.accountOrigin,
                 });
+                guard(session, signal);
+                announcedOrigins.set(relationship.id, {
+                  generation: session.generation,
+                  origin: local.officialOrigin,
+                });
                 retries.delete(peerRegistrationId);
                 options.record?.({
                   phase: 'account-refreshed',
@@ -483,6 +503,11 @@ export function createAccountRelationships(options: {
               guard(session, signal);
               eligible(remote);
               relationships.activate(relationship.id, remote.publicKey);
+              guard(session, signal);
+              announcedOrigins.set(relationship.id, {
+                generation: session.generation,
+                origin: local.officialOrigin,
+              });
               retries.delete(peerRegistrationId);
               options.record?.({
                 phase: 'account-active',
@@ -517,6 +542,7 @@ export function createAccountRelationships(options: {
       if (initialTimer !== undefined) clearTimeout(initialTimer);
       closed = true;
       retries.clear();
+      announcedOrigins.clear();
       for (const abort of running) abort.abort();
     },
   };
