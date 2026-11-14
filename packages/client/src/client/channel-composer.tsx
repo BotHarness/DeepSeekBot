@@ -1187,8 +1187,14 @@ export function ChannelComposer({
                 ).find((item) => item.dataset.attachmentCard === badge.dataset.attachmentId);
                 card?.querySelector<HTMLButtonElement>('button')?.focus();
               }}
-              onInput={(event) => emitRichChange(event.currentTarget)}
+              onInput={(event) => {
+                if (!locked && !voice.active) emitRichChange(event.currentTarget);
+              }}
               onPasteCapture={(event) => {
+                if (locked || voice.active) {
+                  event.preventDefault();
+                  return;
+                }
                 if (handleFilePaste(event)) return;
                 event.preventDefault();
                 insertRichPlainText(
@@ -1199,7 +1205,7 @@ export function ChannelComposer({
               }}
               onDrop={(event) => {
                 event.preventDefault();
-                if (voice.active) return;
+                if (locked || voice.active) return;
                 const text = event.dataTransfer.getData('text/plain');
                 if (text.length > 0) {
                   insertRichPlainText(event.currentTarget, text.replace(/\r\n?/gu, '\n'));

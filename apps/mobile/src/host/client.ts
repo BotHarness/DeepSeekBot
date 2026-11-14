@@ -274,6 +274,7 @@ export class MethodRefused extends Error {
   constructor(
     readonly code: string,
     message: string,
+    readonly details?: unknown,
   ) {
     super(message);
   }
@@ -753,6 +754,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw new MethodRefused(
           typeof error['code'] === 'string' ? error['code'] : 'refused',
           typeof error['message'] === 'string' ? error['message'] : `${name} was refused.`,
+          error['details'],
         );
       }
       return result['value'] as T;
