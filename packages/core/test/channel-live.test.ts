@@ -54,7 +54,7 @@ describe('Channel post-commit stream', () => {
       .body!.getReader();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      await roster.read();
+      expect(new TextDecoder().decode((await roster.read()).value)).toContain('retry: 1500');
       hub.publishHumanIdentityChanged();
       const ended = (async () => {
         for (;;) {
