@@ -20,6 +20,10 @@ const command = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cancel'), id, confirm: z.literal(true) }),
 ]);
 
+export const RELATIONSHIP_ACTIONS: readonly string[] = command.options.map(
+  (option) => option.shape.action.value,
+);
+
 export function createRelationshipHttp(control: RelationshipControl) {
   return async (request: Request): Promise<Response> => {
     const reply = (body: unknown, status = 200) =>

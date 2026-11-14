@@ -52,6 +52,7 @@ async function fakeDsh(
     token: 'launch-token',
     seen: [] as Record<string, unknown>[],
     upgrades: [] as string[],
+    mints: 0,
   };
   const cookie = () => `dsh=${String(state.secret)}`;
   let gateway: ReturnType<typeof createDeviceGateway> | undefined;
@@ -59,6 +60,7 @@ async function fakeDsh(
     const url = new URL(req.url ?? '/', 'http://x');
     if (url.pathname.startsWith(DEVICE_GATEWAY_PREFIX)) return void gateway!.handle(req, res);
     if (url.pathname === '/' && url.searchParams.get('token') === state.token) {
+      state.mints++;
       res.writeHead(303, { 'set-cookie': `${cookie()}; HttpOnly`, location: '/' });
       return res.end();
     }
@@ -315,6 +317,55 @@ it('does not let a paired device manage or inherit Host relationships', async ()
   }
   expect(host.state.seen).toEqual([]);
   expect(host.pairing.admit(`Device ${paired.credential}`).ok).toBe(true);
+});
+
+it('never uses the Owner session for a grant that is not bound to the current Owner', async () => {
+  let ownerHumanId = OWNER_HUMAN_CONTEXT.humanId;
+  const host = await fakeDsh(
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    () => ownerHumanId,
+  );
+  const paired = await pair(host.base, host.pairing.createOffer().offer);
+  const authorization = `Device ${paired.body.credential}`;
+  const ticket = (await (
+    await fetch(`${host.base}/botharness-device/stream-ticket`, {
+      method: 'POST',
+      headers: { authorization },
+    })
+  ).json()) as { ticket: string };
+  // The grant now belongs to a Human who is not the Host Owner (a member grant or a transferred Owner).
+  ownerHumanId = 'not-the-owner';
+  const refused = { code: 'device-revoked' };
+  const unary = await fetch(`${host.base}/botharness-device/api/botharness/list`, {
+    method: 'POST',
+    headers: { authorization, 'content-type': 'application/json' },
+    body: '{"type":"client-request"}',
+  });
+  expect([unary.status, await unary.json()]).toEqual([401, refused]);
+  const avatar = await fetch(
+    `${host.base}/botharness-device/api/botharness/bot-avatar?slug=ada&v=portrait-1`,
+    { headers: { authorization } },
+  );
+  expect([avatar.status, await avatar.json()]).toEqual([401, refused]);
+  const issued = await fetch(`${host.base}/botharness-device/stream-ticket`, {
+    method: 'POST',
+    headers: { authorization },
+  });
+  expect([issued.status, await issued.json()]).toEqual([401, refused]);
+  expect(await stream(host.port, { authorization })).toEqual({
+    status: 401,
+    body: JSON.stringify(refused),
+  });
+  expect(
+    await stream(host.port, {}, `/botharness-device/api/remote.mux?ticket=${ticket.ticket}`),
+  ).toEqual({ status: 401, body: JSON.stringify(refused) });
+  expect(host.state.mints).toBe(0);
+  expect(host.state.seen).toEqual([]);
+  expect(host.state.upgrades).toEqual([]);
 });
 
 it('attributes Feed acknowledgement to the authenticated device and refuses revoked or missing credentials', async () => {
