@@ -148,6 +148,7 @@ import {
   botDmTitle,
   hasChannelBots,
   isBotDmChannel,
+  isHumanDmChannel,
   isHumanReadOnlyDmChannel,
 } from './channel-kind.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
@@ -652,6 +653,7 @@ const MessageGroupView = memo(function MessageGroupView({
   group,
   arrivals,
   channelId,
+  channelType,
   bots,
   focusMessageId,
   currentDmBotSlug,
@@ -679,6 +681,7 @@ const MessageGroupView = memo(function MessageGroupView({
   group: MessageGroup;
   arrivals?: ReadonlySet<string> | undefined;
   channelId?: string | undefined;
+  channelType?: ChannelSummary['type'] | undefined;
   focusMessageId?: string | undefined;
   currentDmBotSlug?: string | undefined;
   remoteBot?: ChannelSummary['remoteBot'] | undefined;
@@ -797,7 +800,15 @@ const MessageGroupView = memo(function MessageGroupView({
       style={bubbleStyle}
       ref={surface.probe}
     >
-      {avatar === undefined || author.kind !== 'bot' ? null : (
+      {otherHuman && channelType === 'group' ? (
+        <span ref={follow} className="bh-message-group-avatar">
+          {withAuthorCard(
+            <span className="bh-message-group-human-avatar" aria-label={authorName}>
+              <IconUserOutlineRegular />
+            </span>,
+          )}
+        </span>
+      ) : avatar === undefined || author.kind !== 'bot' ? null : (
         <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
             <button
@@ -1153,9 +1164,11 @@ function EmptyConversation({
   return (
     <div className="bh-chat-empty" {...stylex.props(messageStyles.emptyContainer)}>
       <PanelEmptyState icon="messages-circle">
-        {channel?.type === 'group'
-          ? `${channel.name} · ${t('main.group.note')}`
-          : `${bot === undefined ? t('main.localChat') : t('main.localChat.with', { name: bot.displayName })} · ${t('main.localChat.hint')}`}
+        {isHumanDmChannel(channel)
+          ? t('main.humanChat.hint')
+          : channel?.type === 'group'
+            ? `${channel.name} · ${t('main.group.note')}`
+            : `${bot === undefined ? t('main.localChat') : t('main.localChat.with', { name: bot.displayName })} · ${t('main.localChat.hint')}`}
       </PanelEmptyState>
     </div>
   );
@@ -3321,6 +3334,7 @@ function ConversationView({
                               arrivals={arrivals}
                               reading={reading}
                               channelId={channelId}
+                              channelType={channel?.type}
                               remoteBot={channel?.remoteBot}
                               remoteContact={channel?.remoteContact}
                               remoteAvailability={channel?.remoteAvailability}

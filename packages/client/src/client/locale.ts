@@ -2685,6 +2685,7 @@ export const zh = {
   'main.localChat': '本地对话',
   'main.localChat.with': '这是与 {name} 的本地对话',
   'main.localChat.hint': '直接发消息即可；Bot 会自行安排事项，并在这里回复结果。',
+  'main.humanChat.hint': '发条消息，开始聊天。',
   'main.group.title': '群聊',
   'main.activity.bots': '{count} 个 Bot 有状态更新',
   'main.activity.more': '另有 {count} 个',
@@ -8373,6 +8374,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.restoreBlocked':
     'Finish or clear the current draft before restoring the failed message.',
   'main.localChat.hint': 'Just send a message; the Bot schedules work and replies here.',
+  'main.humanChat.hint': 'Send a message to start chatting.',
   'main.group.title': 'Group chat',
   'main.activity.bots': '{count} Bots have updates',
   'main.activity.more': '+{count} more',
