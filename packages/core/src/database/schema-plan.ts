@@ -1,3 +1,4 @@
+import { DEFAULT_CHANNEL_POLICY } from '../team/channel-contract.js';
 import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../team/permissions.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
@@ -3459,8 +3460,43 @@ const MEMBER_LIFECYCLE_MIGRATION: SchemaMigration = {
   },
 };
 
-const WORKSPACE_SPACES_MIGRATION: SchemaMigration = {
+const CHANNEL_ACCESS_MIGRATION: SchemaMigration = {
   generation: 146,
+  module: 'team',
+  description: 'Channel visibility, Human ownership, policy and admins',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_records ADD COLUMN visibility_json TEXT NOT NULL DEFAULT '{"kind":"private"}';
+      ALTER TABLE channel_records ADD COLUMN policy_json TEXT NOT NULL DEFAULT '${JSON.stringify(DEFAULT_CHANNEL_POLICY)}';
+      ALTER TABLE channel_records ADD COLUMN owner_human_id TEXT REFERENCES humans(human_id) ON DELETE SET NULL;
+      UPDATE channel_records SET visibility_json = '{"kind":"public"}' WHERE public = 1;
+      UPDATE channel_records SET owner_human_id = COALESCE(json_extract(record_json, '$.ownerHumanId'), (SELECT owner_human_id FROM team_settings));
+      CREATE TABLE channel_admins (
+        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
+        human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+        PRIMARY KEY(channel_id, human_id)
+      );
+    `);
+  },
+};
+
+const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
+  generation: 147,
+  module: 'host-relationships',
+  description: 'Retain bounded offline reciprocal disconnect retries across Host restart',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE host_relationships ADD COLUMN revocation_attempts INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE host_relationships ADD COLUMN revocation_retry_at INTEGER;
+      ALTER TABLE host_relationships ADD COLUMN automatic_enrollment_suppressed INTEGER NOT NULL DEFAULT 0;
+      UPDATE host_relationships SET revocation_retry_at = 0 WHERE peer_revocation_pending = 1;
+      UPDATE host_relationships SET automatic_enrollment_suppressed = 1 WHERE state = 'disconnected';
+    `);
+  },
+};
+
+const WORKSPACE_SPACES_MIGRATION: SchemaMigration = {
+  generation: 150,
   module: 'workspace-spaces',
   description:
     'Account and audience-contained shared Workspace roots and resumable Memory relocation',
@@ -3638,5 +3674,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PRIVATE_BOTS_MIGRATION,
   HOST_RELATIONSHIP_MIGRATION,
   MEMBER_LIFECYCLE_MIGRATION,
+  CHANNEL_ACCESS_MIGRATION,
+  HOST_RELATIONSHIP_REVOCATION_MIGRATION,
   WORKSPACE_SPACES_MIGRATION,
 ]);

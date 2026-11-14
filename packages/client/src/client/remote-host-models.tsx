@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
 import * as stylex from '@stylexjs/stylex';
 import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
@@ -31,19 +32,36 @@ const styles = stylex.create({
 
 type HostModelScope = Exclude<ModelScope, { kind: 'bot' }>;
 
-export function RemoteHostModels({ client, t }: { client: HostClient; t: BotHarnessTranslate }) {
+export function RemoteHostModels({
+  hostId,
+  client,
+  t,
+}: {
+  hostId: string;
+  client: HostClient;
+  t: BotHarnessTranslate;
+}) {
   const [scope, setScope] = useState<HostModelScope>({ kind: 'global' });
   return (
-    <Models key={modelScopeKey(scope)} client={client} scope={scope} onScope={setScope} t={t} />
+    <Models
+      key={modelScopeKey(scope)}
+      hostId={hostId}
+      client={client}
+      scope={scope}
+      onScope={setScope}
+      t={t}
+    />
   );
 }
 
 function Models({
+  hostId,
   client,
   scope,
   onScope,
   t,
 }: {
+  hostId: string;
   client: HostClient;
   scope: HostModelScope;
   onScope: (scope: HostModelScope) => void;
@@ -107,6 +125,46 @@ function Models({
       () => setName(undefined),
     );
   };
+  const draft = useRef({ name, value, scope });
+  draft.current = { name, value, scope };
+  const draftMount = useMountedResource<HTMLSpanElement>(
+    () =>
+      hostSettingsDrafts.register(hostId, {
+        dirty: () =>
+          draft.current.scope.kind === 'preset' &&
+          draft.current.name !== undefined &&
+          draft.current.name.trim() !== draft.current.value?.preset?.name,
+        async save() {
+          const { name, value, scope } = draft.current;
+          if (
+            scope.kind !== 'preset' ||
+            name === undefined ||
+            value === undefined ||
+            pending.current
+          )
+            return false;
+          if (client.getSnapshot().connection.status !== 'connected') return false;
+          try {
+            await resource.write(async () => {
+              await saveModelPreset(client, value, name, true);
+            });
+            if (draft.current.name === name) {
+              draft.current.name = undefined;
+              setName(undefined);
+            }
+            return true;
+          } catch {
+            setError(true);
+            return false;
+          }
+        },
+        discard: () => {
+          draft.current.name = undefined;
+          setName(undefined);
+        },
+      }),
+    [hostId, client, resource],
+  );
   const routes = value === undefined ? undefined : modelRoutes(value);
   const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
     value === undefined ? null : (
@@ -155,6 +213,7 @@ function Models({
     );
   return (
     <div ref={mount} {...stylex.props(styles.stack)} data-remote-models="">
+      <span ref={draftMount} hidden />
       {error ? <Note tone="danger">{t('remoteHosts.settings.error')}</Note> : null}
       <PillButton disabled={busy} onClick={() => void refresh()}>
         {t('onboarding.refreshModels')}
@@ -232,7 +291,6 @@ function Models({
             value={name ?? value.preset?.name ?? ''}
             disabled={busy}
             onChange={setName}
-            onBlur={saveName}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                 event.preventDefault();
@@ -240,6 +298,14 @@ function Models({
               }
             }}
           />
+          {scope.kind === 'preset' ? (
+            <PillButton
+              disabled={busy || name === undefined || name.trim() === value.preset?.name}
+              onClick={saveName}
+            >
+              {t('relationships.save')}
+            </PillButton>
+          ) : null}
           {scope.kind === 'global' ? (
             <PillButton
               disabled={

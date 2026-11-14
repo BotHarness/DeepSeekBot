@@ -27,7 +27,7 @@ export async function pairAccountSelection(options: {
     if (options.signal.aborted) break;
     if (seen.has(host.id)) continue;
     seen.add(host.id);
-    const result = host.online ? await options.pair(host) : 'host-offline';
+    const result = await options.pair(host);
     if (options.signal.aborted) break;
     options.result(host, result ?? 'added');
     if (result === 'cancelled' || result === 'host-key-confirmation-required') break;

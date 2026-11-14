@@ -163,7 +163,12 @@ describe('plugin entry', () => {
       const created = await core.team.createMember(OWNER_HUMAN_CONTEXT, 'bob', 'Bob');
       const human = humanContext(created.member.humanId);
       await core.team.changePassword(human, created.initialPassword, 'member-password-1');
-      const channel = core.channels.createGroup(human, { name: 'Private', members: [] });
+      core.registry.create({ slug: 'owner-bot', displayName: 'Owner Bot' });
+      const channel = core.channels.getOrCreateRemoteBotDm('owner-bot', {
+        hostId: 'remote-host',
+        botSlug: 'remote-bot',
+        displayName: 'Remote',
+      });
       if (!channel) throw new Error('missing DM');
       const request = () =>
         new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}`);
@@ -707,6 +712,17 @@ describe('plugin entry', () => {
       'ownerTransfer',
       'memberPasswordChange',
       'memberPasswordReset',
+      'channelRoleDirectory',
+      'browsableChannels',
+      'channelJoin',
+      'channelVisibilitySet',
+      'channelAdminsSet',
+      'channelPolicySet',
+      'channelHumanAdd',
+      'channelDescriptionSet',
+      'teamDirectory',
+      'humanDm',
+      'humanDmByUsername',
       'memberDeactivate',
       'memberReactivate',
       'memberTransferPreview',

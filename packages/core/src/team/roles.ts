@@ -13,7 +13,7 @@ type RoleAuthority = { kind: 'owner' } | { kind: 'member'; permissions: Readonly
 export class TeamRoles {
   constructor(
     private readonly db: OperationalDatabaseModulePort,
-    private readonly invalidate: () => void,
+    private readonly invalidate: (revoke?: boolean) => void,
   ) {}
 
   ownerContext(): HumanContext {
@@ -162,7 +162,7 @@ export class TeamRoles {
           .run(name, JSON.stringify(grants), roleId),
       ['team'],
     );
-    this.invalidate();
+    this.invalidate(role.permissions.some((permission) => !grants.includes(permission)));
     return { role: this.role(roleId) };
   }
 
@@ -172,6 +172,26 @@ export class TeamRoles {
     const authority = this.authority(human);
     this.checkPermissions(authority, role.permissions, 'manage');
     if (role.builtin) throw new TeamError('role-builtin');
+    if (
+      this.db.read((db) => {
+        if (
+          !db
+            .prepare(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'workspace_spaces'",
+            )
+            .get()
+        )
+          return false;
+        return (
+          db
+            .prepare(`SELECT 1 FROM workspace_spaces s, json_each(s.audience_json, '$.roleIds') r
+          WHERE s.kind = 'shared' AND json_extract(s.audience_json, '$.kind') = 'roles'
+          AND r.value = ? LIMIT 1`)
+            .get(roleId) !== undefined
+        );
+      })
+    )
+      throw new TeamError('role-in-use');
     if (
       authority.kind === 'member' &&
       this.db.read((db) =>
@@ -194,7 +214,7 @@ export class TeamRoles {
       },
       ['team'],
     );
-    this.invalidate();
+    this.invalidate(true);
     return null;
   }
 
@@ -239,6 +259,13 @@ export class TeamRoles {
       throw new TeamError('member-not-found');
     if (this.isOwner(humanContext(humanId))) throw new TeamError('owner-protected');
     const ids = this.validateAssignments(human, roleIds);
+    const previous = z
+      .array(z.object({ role_id: z.string() }))
+      .parse(
+        this.db.read((db) =>
+          db.prepare('SELECT role_id FROM human_roles WHERE human_id = ?').all(humanId),
+        ),
+      );
     this.db.transaction(
       (db) => {
         db.prepare('DELETE FROM human_roles WHERE human_id = ?').run(humanId);
@@ -246,7 +273,7 @@ export class TeamRoles {
       },
       ['team'],
     );
-    this.invalidate();
+    this.invalidate(previous.some((row) => !ids.includes(row.role_id)));
     return null;
   }
 }

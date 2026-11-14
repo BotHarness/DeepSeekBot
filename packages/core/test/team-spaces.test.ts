@@ -214,6 +214,38 @@ describe('M6 spaces and current authority', () => {
     });
   });
 
+  it('uses the same Host Role ID for Channel visibility and shared spaces, refusing deletion until the space releases it', async () => {
+    const f = fixture();
+    const role = f.core.team.roles.create(owner, 'Finance', ['models.use']).role;
+    f.core.team.roles.set(owner, alice.humanId, [role.roleId]);
+    const group = f.core.channels.createGroup(owner, { name: 'Finance', members: [] });
+    f.core.team.channelAccess.visibilitySet(owner, group.id, {
+      kind: 'roles',
+      roleIds: [role.roleId],
+    });
+    const shared = f.core.spaces.create(owner, 'Finance files', {
+      kind: 'roles',
+      roleIds: [role.roleId],
+    });
+    expect(f.core.team.channelAccess.canRead(alice, group.id)).toBe(true);
+    expect(f.core.team.channelAccess.canRead(bob, group.id)).toBe(false);
+    expect(f.core.spaces.list(alice).some((space) => space.spaceId === shared.spaceId)).toBe(true);
+    expect(f.core.spaces.list(bob).some((space) => space.spaceId === shared.spaceId)).toBe(false);
+    const before = f.core.team.roles.list(owner);
+    expect(await f.bridge(owner).roleDelete({ roleId: role.roleId })).toMatchObject({
+      ok: false,
+      error: { code: 'role-in-use' },
+    });
+    expect(f.core.team.roles.list(owner)).toEqual(before);
+    expect(f.core.team.channelAccess.canRead(alice, group.id)).toBe(true);
+    f.core.spaces.update(owner, shared.spaceId, { audience: { kind: 'everyone' } });
+    expect(f.core.team.roles.delete(owner, role.roleId)).toBeNull();
+    expect(f.core.team.channelAccess.canRead(alice, group.id)).toBe(false);
+    expect(f.core.spaces.list(bob).some((space) => space.spaceId === shared.spaceId)).toBe(true);
+    const unused = f.core.team.roles.create(owner, 'Unused', []).role;
+    expect(f.core.team.roles.delete(owner, unused.roleId)).toBeNull();
+  });
+
   it('grants own account subdirectories and covered shared roots; refuses all other boundaries even to the Owner', async () => {
     const f = fixture();
     f.createBot();
@@ -418,87 +450,121 @@ describe('M6 path-addressed tools', () => {
 });
 
 describe('M6 Memory migration and offboarding', () => {
-  it('upgrades the latest main generation, moves member Tob/private Memory and rewrites exclusive proofs without changing repository identities', async () => {
-    const home = realpathSync(createTempRoot('m6-upgrade-'));
-    const prior = mountOperationalDatabase({
-      dshHome: home,
-      schemaPlan: defineSchemaPlan(
-        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 146),
-      ),
-    });
-    const db = attachOperationalModule(prior, 'm6-old');
-    db.transaction((connection) =>
-      connection
-        .prepare("INSERT INTO humans VALUES ('alice', 'Alice', 'active', '2026-11-14')")
-        .run(),
-    );
-    const registry = createTestRegistry({
-      database: prior,
-      rootDir: join(home, 'botharness/bots'),
-      initializeMemory: (memoryDir) => {
-        mkdirSync(join(memoryDir, '.git'));
-        return { ok: true };
-      },
-    });
-    for (const slug of ['old-private', 'old-tob', 'old-retained'])
-      expect(registry.create({ slug, displayName: slug, ownerHumanId: 'alice' }).ok).toBe(true);
-    db.transaction((connection) =>
-      connection.prepare("INSERT INTO tob_identity VALUES ('alice', 'old-tob')").run(),
-    );
-    const retainedPath = registry.memoryDirFor('old-retained')!;
-    db.transaction((connection) =>
-      connection.prepare('INSERT INTO persona_bot_deletions VALUES (?, ?)').run(
-        'old-retained',
-        JSON.stringify({
-          slug: 'old-retained',
-          displayName: 'Retained',
-          acceptedAt: '2026-11-14',
-          memoryDir: retainedPath,
-          eraseMemory: false,
-          phase: 'complete',
-          memory: 'retained',
-          ownership: memoryOwnership(retainedPath),
-        }),
-      ),
-    );
-    const before = memoryOwnership(registry.memoryDirFor('old-private')!);
-    writeFileSync(join(before.path, 'kept'), 'preserved');
-    prior.close();
-    const f = fixture(home);
-    expect(f.core.operationalDatabase.generation).toBe(146);
-    const target = accountMemoryPath(home, 'alice', 'old-private');
-    expect(f.core.registry.memoryDirFor('old-private')).toBe(target);
-    expect(readFileSync(join(target, 'kept'), 'utf8')).toBe('preserved');
-    expect(memoryOwnership(target)).toEqual({ ...before, path: target });
-    expect(
-      f.db.read((connection) =>
+  it.each([147, 149])(
+    'upgrades generation %s through the required migrations, preserving Channel access and Memory ownership',
+    async (generation) => {
+      const home = realpathSync(createTempRoot('m6-upgrade-'));
+      const prior = mountOperationalDatabase({
+        dshHome: home,
+        schemaPlan: defineSchemaPlan(
+          BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
+            (migration) => migration.generation <= generation,
+          ),
+        ),
+      });
+      expect(prior.generation).toBe(generation);
+      const db = attachOperationalModule(prior, 'm6-old');
+      db.transaction((connection) =>
         connection
-          .prepare('SELECT body FROM persona_bot_memory_ownership WHERE slug = ?')
-          .get('old-private'),
-      ),
-    ).toEqual({ body: JSON.stringify({ ...before, path: target }) });
-    expect(f.core.registry.memoryDirFor('old-tob')).toBe(
-      accountMemoryPath(home, 'alice', 'old-tob'),
-    );
-    expect(f.core.tob.slug(alice)).toBe('old-tob');
-    const retained = f.core.deletions.get('old-retained');
-    expect(retained).toMatchObject({
-      phase: 'complete',
-      memory: 'retained',
-      memoryDir: accountMemoryPath(home, 'alice', 'old-retained'),
-      ownership: memoryOwnership(accountMemoryPath(home, 'alice', 'old-retained')),
-    });
-    await f.core.team.deactivate(owner, 'alice');
-    expect(f.core.deletions.memberPreview('alice', 'old-retained').eraseAvailable).toBe(true);
-    await f.core.team.reactivate(owner, 'alice');
-    expect(f.db.read((connection) => connection.prepare('PRAGMA foreign_key_check').all())).toEqual(
-      [],
-    );
-    expect(existsSync(before.path)).toBe(false);
-    expect(f.createBot(alice, 'new-private').memoryDir).toBe(
-      accountMemoryPath(home, 'alice', 'new-private'),
-    );
-  });
+          .prepare("INSERT INTO humans VALUES ('alice', 'Alice', 'active', '2026-11-14')")
+          .run(),
+      );
+      db.transaction((connection) => {
+        connection
+          .prepare(`INSERT INTO channel_records(channel_id, record_json, visibility_json, owner_human_id)
+        VALUES ('main-role-channel', ?, ?, 'alice')`)
+          .run(
+            JSON.stringify({
+              id: 'main-role-channel',
+              type: 'group',
+              name: 'Main roles',
+              members: [],
+              ownerHumanId: 'alice',
+              createdAt: '2026-11-14',
+            }),
+            JSON.stringify({ kind: 'roles', roleIds: ['member'] }),
+          );
+      });
+      const registry = createTestRegistry({
+        database: prior,
+        rootDir: join(home, 'botharness/bots'),
+        initializeMemory: (memoryDir) => {
+          mkdirSync(join(memoryDir, '.git'));
+          return { ok: true };
+        },
+      });
+      for (const slug of ['old-private', 'old-tob', 'old-retained'])
+        expect(registry.create({ slug, displayName: slug, ownerHumanId: 'alice' }).ok).toBe(true);
+      db.transaction((connection) =>
+        connection.prepare("INSERT INTO tob_identity VALUES ('alice', 'old-tob')").run(),
+      );
+      const retainedPath = registry.memoryDirFor('old-retained')!;
+      db.transaction((connection) =>
+        connection.prepare('INSERT INTO persona_bot_deletions VALUES (?, ?)').run(
+          'old-retained',
+          JSON.stringify({
+            slug: 'old-retained',
+            displayName: 'Retained',
+            acceptedAt: '2026-11-14',
+            memoryDir: retainedPath,
+            eraseMemory: false,
+            phase: 'complete',
+            memory: 'retained',
+            ownership: memoryOwnership(retainedPath),
+          }),
+        ),
+      );
+      const before = memoryOwnership(registry.memoryDirFor('old-private')!);
+      writeFileSync(join(before.path, 'kept'), 'preserved');
+      prior.close();
+      const f = fixture(home);
+      expect(f.core.operationalDatabase.generation).toBe(150);
+      expect(
+        f.db.read((connection) =>
+          connection
+            .prepare(
+              "SELECT owner_human_id, visibility_json FROM channel_records WHERE channel_id = 'main-role-channel'",
+            )
+            .get(),
+        ),
+      ).toEqual({
+        owner_human_id: 'alice',
+        visibility_json: JSON.stringify({ kind: 'roles', roleIds: ['member'] }),
+      });
+      const target = accountMemoryPath(home, 'alice', 'old-private');
+      expect(f.core.registry.memoryDirFor('old-private')).toBe(target);
+      expect(readFileSync(join(target, 'kept'), 'utf8')).toBe('preserved');
+      expect(memoryOwnership(target)).toEqual({ ...before, path: target });
+      expect(
+        f.db.read((connection) =>
+          connection
+            .prepare('SELECT body FROM persona_bot_memory_ownership WHERE slug = ?')
+            .get('old-private'),
+        ),
+      ).toEqual({ body: JSON.stringify({ ...before, path: target }) });
+      expect(f.core.registry.memoryDirFor('old-tob')).toBe(
+        accountMemoryPath(home, 'alice', 'old-tob'),
+      );
+      expect(f.core.tob.slug(alice)).toBe('old-tob');
+      const retained = f.core.deletions.get('old-retained');
+      expect(retained).toMatchObject({
+        phase: 'complete',
+        memory: 'retained',
+        memoryDir: accountMemoryPath(home, 'alice', 'old-retained'),
+        ownership: memoryOwnership(accountMemoryPath(home, 'alice', 'old-retained')),
+      });
+      await f.core.team.deactivate(owner, 'alice');
+      expect(f.core.deletions.memberPreview('alice', 'old-retained').eraseAvailable).toBe(true);
+      await f.core.team.reactivate(owner, 'alice');
+      expect(
+        f.db.read((connection) => connection.prepare('PRAGMA foreign_key_check').all()),
+      ).toEqual([]);
+      expect(existsSync(before.path)).toBe(false);
+      expect(f.createBot(alice, 'new-private').memoryDir).toBe(
+        accountMemoryPath(home, 'alice', 'new-private'),
+      );
+    },
+  );
 
   it('recovers a Memory rename interrupted before the ownership transaction and rejects substituted repositories', () => {
     const f = fixture();

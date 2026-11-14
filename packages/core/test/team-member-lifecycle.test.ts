@@ -46,7 +46,12 @@ function fixture(
 ) {
   const dshHome = options.dshHome ?? createTempRoot('m2-m9-lifecycle-');
   const pending = new Map<string, () => void>();
+  let notifyFirstRun: (() => void) | undefined;
+  const firstRun = new Promise<void>((resolve) => {
+    notifyFirstRun = resolve;
+  });
   const runs = vi.fn(async (run: OrchestratorAgentRun) => {
+    notifyFirstRun?.();
     if (options.running) await new Promise<void>((resolve) => pending.set(run.bot.slug, resolve));
   });
   const stop = vi.fn(async (slug: string) => {
@@ -88,7 +93,7 @@ function fixture(
       }
       connection.prepare('UPDATE team_settings SET enabled = 1').run();
     });
-  return { core, dshHome, db, runs, stop };
+  return { core, dshHome, db, runs, stop, firstRun };
 }
 
 async function restoreDeletionFact(f: ReturnType<typeof fixture>, privateBots: string[]) {
@@ -674,7 +679,12 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     });
     previous.close();
     const upgraded = trackTestOwner(
-      mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      mountOperationalDatabase({
+        dshHome: home,
+        schemaPlan: defineSchemaPlan(
+          BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 145),
+        ),
+      }),
     );
     expect(upgraded.mode).toBe('ready');
     expect(upgraded.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
@@ -743,10 +753,7 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     const changed = rosters.map((roster) => roster.next());
     try {
       await f.core.team.transfer(owner, 'bob', 'alice');
-      expect(await Promise.all(changed)).toMatchObject([
-        { value: { type: 'changed' } },
-        { value: { type: 'changed' } },
-      ]);
+      expect(await Promise.all(changed)).toMatchObject([{ done: true }, { done: true }]);
     } finally {
       controller.abort();
       await Promise.all(rosters.map((roster) => roster.return?.()));
@@ -783,8 +790,11 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     const options = { running: true };
     const f = fixture(options);
     createBot(f);
-    await send(f, 'bob-bot', 'first-turn');
-    await vi.waitFor(() => expect(f.runs).toHaveBeenCalledOnce());
+    const admission = await send(f, 'bob-bot', 'first-turn');
+    expect(admission.admitted).toBe(true);
+    if (!admission.admitted) throw new Error(admission.reason);
+    await Promise.race([f.firstRun, admission.settled]);
+    expect(f.runs).toHaveBeenCalledOnce();
     await send(f, 'bob-bot', 'queued-turn');
     await f.core.team.transfer(owner, 'bob', 'alice');
     expect(f.runs).toHaveBeenCalledOnce();
@@ -969,7 +979,9 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       );
       const result = await send(f, 'bob-bot', 'running');
       expect(result.admitted).toBe(true);
-      await vi.waitFor(() => expect(f.runs).toHaveBeenCalledOnce());
+      if (!result.admitted) throw new Error(result.reason);
+      await Promise.race([f.firstRun, result.settled]);
+      expect(f.runs).toHaveBeenCalledOnce();
       if (operation === 'deactivate') await f.core.team.deactivate(owner, 'bob');
       else await f.core.team.setMode(owner, false);
       expect(f.stop.mock.calls.map(([slug]) => slug)).toContain('bob-bot');
@@ -977,13 +989,15 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       expect(f.core.registry.get('bob-bot')?.paused).toBeUndefined();
       expect((await send(f, 'bob-bot', 'blocked')).admitted).toBe(false);
       expect((await send(f, tob.botSlug, 'blocked-tob')).admitted).toBe(false);
-      await f.core.channels.appendMessage(bob, group.id, {
-        id: 'blocked-mention',
-        at: new Date().toISOString(),
-        author: { kind: 'human', humanId: 'bob' },
-        body: '@bob-bot must not run',
-        mentions: [{ botSlug: 'bob-bot', label: 'bob-bot', start: 0, end: 8 }],
-      });
+      await expect(
+        f.core.channels.appendMessage(bob, group.id, {
+          id: 'blocked-mention',
+          at: new Date().toISOString(),
+          author: { kind: 'human', humanId: 'bob' },
+          body: '@bob-bot must not run',
+          mentions: [{ botSlug: 'bob-bot', label: 'bob-bot', start: 0, end: 8 }],
+        }),
+      ).rejects.toMatchObject({ code: 'channel-not-found' });
       f.core.runtime.admitGroupMessage(group.id, 'blocked-mention');
       f.core.schedules.runNow('bob-bot', schedule.id);
       await f.core.runtime.whenIdle();
