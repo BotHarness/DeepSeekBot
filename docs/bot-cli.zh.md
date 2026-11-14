@@ -1594,6 +1594,8 @@ deepseekbot connect-disable --host <host> --token-file <private-file>
 `deepseekbot.dev` 下一级）、`connect-token-invalid`、`credential-unavailable`。
 `connect-disable` 停掉隧道并删除已存的 token，已配对设备的凭据不受影响。
 
+Node 公网自检成功时可能包含 `dnsRecovery: "fresh-query"`：官方隧道域名的 ENOTFOUND 经有界 DNS 查询后恢复，并通过证书和固定公钥的 Noise 握手。这表示应用请求恢复，不代表系统缓存已清空。`device-account-pair`、`device-pair`、`device-probe` 共用此传输；原生手机 DNS 不变，产品不会修改全局 DNS 或 VPN。
+
 ### 账号登录
 
 ```sh
