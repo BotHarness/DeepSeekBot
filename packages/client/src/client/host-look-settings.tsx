@@ -158,10 +158,12 @@ function HostNameField({
 export function HostLookSettings({
   hostId,
   name,
+  available = true,
   t,
 }: {
   hostId: string;
   name: string;
+  available?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const scheme = useBotColorScheme();
@@ -170,6 +172,7 @@ export function HostLookSettings({
   const [error, setError] = useState(false);
   const storageError = useHostLookError();
   const change = async (transform: (current: HostLook) => HostLook): Promise<boolean> => {
+    if (!available) return false;
     try {
       await hostLooks().update(hostId, transform);
       setError(false);

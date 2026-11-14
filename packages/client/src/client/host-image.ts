@@ -61,6 +61,8 @@ function imageSource(host: MessageHost | undefined, source: string | undefined) 
         retry = () => {
           controller?.abort();
           controller = undefined;
+          if (url !== undefined) URL.revokeObjectURL(url);
+          url = undefined;
           value = { src: undefined, failed: false };
           for (const notify of listeners) notify();
           load();

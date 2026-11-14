@@ -395,8 +395,7 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
         </div>
       </div>
       {adding ? <ConnectionsDialog joinComputer t={t} onClose={() => setAdding(false)} /> : null}
-      {settings &&
-      (settings.local || snapshot.hosts.some(({ host }) => host.hostId === settings.hostId)) ? (
+      {settings ? (
         <HostSettings
           key={settings.hostId}
           {...settings}

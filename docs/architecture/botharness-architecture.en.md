@@ -2,6 +2,8 @@
 
 <!-- Maintained source, not generated: this is the English translation of `docs/architecture/botharness-architecture.md`. Edit this file (and its `diagrams/en/*.mmd` sources), not `apps/docs`. -->
 
+E7’s creation target also scopes Message a person. The existing Team directory and Human DM owner enforce permissions and reuse one DM for the two participants on that Host. Contact discovery, creation, roster refresh and conversation navigation use the captured HostClient; an offline or replaced source cannot fall back to the serving Host. Closing the dialog cancels its pending continuation. Member pages retain their authenticated Host without Owner environment selection. Human DMs use the shared conversation renderer, generic Channel files and ordinary message bubbles, with Bot-only panels and controls absent.
+
 Tobs Connect self-checks are ephemeral observations owned by the existing Devices module: account, connector, relay-reported online state, then TLS and a Host-pinned Noise handshake through the public device channel. They create no Device grant or durable presence authority. Observations expire after five minutes and invalidate on account or connector changes. Sign-in and connector recovery trigger the same owner used by the authenticated Host API and CLI. Concurrent calls coalesce; the overall budget is 20 seconds and the public handshake budget is eight seconds, with no added background polling. Passing proves this computer could reach itself publicly at that time, not that every phone network can reach it (#4170).
 
 ## Accepted target: Environment Panel and reciprocal Host relationships (delivered incrementally)

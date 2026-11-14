@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -63,44 +63,58 @@ export function MessagePersonDialog({
   t,
   onClose,
   onOpened,
+  onOpening,
+  target,
+  unavailable = false,
 }: {
-  call: BridgeCall;
+  call?: BridgeCall | undefined;
   t: BotHarnessTranslate;
   onClose(): void;
-  onOpened(channelId: string): void;
+  onOpened(channelId: string, person: DirectoryEntry, signal: AbortSignal): void | Promise<void>;
+  onOpening?(): void;
+  target?: ReactNode;
+  unavailable?: boolean;
 }): ReactElement {
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [query, setQuery] = useState('');
   const [opening, setOpening] = useState<string>();
   const [error, setError] = useState<string>();
-  const alive = useRef(false);
+  const active = useRef<AbortController>();
   const mount = useMountedResource<HTMLDivElement>(() => {
-    alive.current = true;
     const controller = new AbortController();
-    loadTeamDirectory(call, controller.signal)
-      .then((people) => {
-        if (!controller.signal.aborted) setLoad({ state: 'ready', people });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setLoad({ state: 'failed' });
-      });
+    active.current = controller;
+    setLoad({ state: 'loading' });
+    setQuery('');
+    setOpening(undefined);
+    setError(undefined);
+    if (call !== undefined && !unavailable)
+      loadTeamDirectory(call, controller.signal)
+        .then((people) => {
+          if (!controller.signal.aborted) setLoad({ state: 'ready', people });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setLoad({ state: 'failed' });
+        });
     return () => {
-      alive.current = false;
       controller.abort();
+      if (active.current === controller) active.current = undefined;
     };
-  }, [call]);
-  const open = (person: DirectoryEntry): void => {
+  }, [call, unavailable]);
+  const open = async (person: DirectoryEntry): Promise<void> => {
+    const signal = active.current?.signal;
+    if (call === undefined || unavailable || signal === undefined || signal.aborted) return;
     setOpening(person.humanId);
     setError(undefined);
-    openHumanDm(call, person.humanId)
-      .then((channelId) => {
-        if (alive.current) onOpened(channelId);
-      })
-      .catch((failure: unknown) => {
-        if (!alive.current) return;
+    try {
+      onOpening?.();
+      const channelId = await openHumanDm(call, person.humanId, signal);
+      if (!signal.aborted) await onOpened(channelId, person, signal);
+    } catch (failure) {
+      if (!signal.aborted) {
         setError(teamErrorText(t, failure));
         setOpening(undefined);
-      });
+      }
+    }
   };
   const people = load.state === 'ready' ? filterDirectory(load.people, query) : [];
   return (
@@ -116,7 +130,8 @@ export function MessagePersonDialog({
       error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}
     >
       <div ref={mount}>
-        {load.state === 'loading' ? (
+        {target}
+        {unavailable ? null : load.state === 'loading' ? (
           <Note>{t('team.dm.loading')}</Note>
         ) : load.state === 'failed' ? (
           <Note tone="danger">{t('team.dm.loadFailed')}</Note>
@@ -141,7 +156,7 @@ export function MessagePersonDialog({
                       type="button"
                       disabled={opening !== undefined}
                       aria-busy={opening === person.humanId || undefined}
-                      onClick={() => open(person)}
+                      onClick={() => void open(person)}
                       {...stylex.props(styles.row)}
                     >
                       <span {...stylex.props(styles.icon)}>
