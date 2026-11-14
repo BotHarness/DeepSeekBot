@@ -25,7 +25,7 @@ export function memberPolicy(team: TeamService): RemoteAccessPolicy<MemberPrinci
           const id = request.args['channelId'];
           if (
             typeof id !== 'string' ||
-            (!team.belongs(humanContext(principal.humanId), id) &&
+            (!team.channelAccess.canRead(humanContext(principal.humanId), id) &&
               !(
                 MEMBER_APPROVAL_METHODS.some((name) => name === method) &&
                 typeof request.args['messageId'] === 'string' &&

@@ -1,6 +1,11 @@
 import { hostLooks } from './host-looks.js';
 import { memberPage } from './member-page.js';
-import { enrollRelationshipClient } from '../../../core/src/devices/relationship-enrollment.js';
+import { browserAdmissionProtocols } from '../../../../deploy/private-relay/admission.mjs';
+import { isPrivateRoute } from '../../../../apps/mobile/src/host/route.js';
+import {
+  enrollRelationshipClient,
+  updateRelationshipClientRoute,
+} from '../../../core/src/devices/relationship-enrollment.js';
 import { relationshipRequest, type ClientRelationship } from './relationships.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
@@ -17,6 +22,7 @@ import {
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
+  type PrivateAdmission,
 } from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
@@ -39,6 +45,8 @@ import { releaseRemoteHostViewers } from './remote-host-viewer.js';
 import { browserNotificationApi } from './desktop-notifications.js';
 import { createRemoteNotifications, type RemoteNotifications } from './remote-notifications.js';
 import { en } from './locale.js';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
+import { relationshipListSchema } from '../../../core/src/devices/relationship-contract.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -87,6 +95,11 @@ export interface RemotePairTrust {
 }
 
 export interface RemoteHosts {
+  retireRelationship(relationshipId: string): Promise<void>;
+  learnRelationshipRoutes(
+    peer: ClientRelationship['peer'],
+    privateRelay?: PrivateAdmission,
+  ): Promise<void>;
   enrollRelationship(
     relationship: Pick<ClientRelationship, 'id' | 'peer'>,
     name: string,
@@ -207,6 +220,38 @@ export function createRemoteHosts(options: {
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
+  let relationshipTimer: ReturnType<typeof setInterval> | undefined;
+  let relationshipPoll: AbortController | undefined;
+  const reconcileRelationships = async () => {
+    if (
+      relationshipPoll ||
+      listeners.size === 0 ||
+      ![...clients.values()].some((entry) => entry.host.relationshipId)
+    )
+      return;
+    const abort = new AbortController();
+    relationshipPoll = abort;
+    try {
+      const result = relationshipListSchema.parse(
+        await relationshipRequest(undefined, abort.signal),
+      );
+      if (abort.signal.aborted) return;
+      for (const entry of [...clients.values()]) {
+        if (clients.get(entry.host.hostId) !== entry) continue;
+        if (!entry.host.relationshipId) continue;
+        const relationship = result.relationships.find(
+          (item) => item.id === entry.host.relationshipId,
+        );
+        if (relationship?.state !== 'disconnected') continue;
+        const releasing = releaseRemoteHostViewers(entry.client);
+        forget(entry.host.hostId);
+        await releasing;
+      }
+    } catch {
+    } finally {
+      if (relationshipPoll === abort) relationshipPoll = undefined;
+    }
+  };
   const notifications = createRemoteNotifications({
     requireOwner,
     ...(options.hostName === undefined ? {} : { hostName: options.hostName }),
@@ -386,12 +431,45 @@ export function createRemoteHosts(options: {
         conversations.delete(key);
       }
     if (open?.hostId === hostId) open = undefined;
+    if (tab === hostId) {
+      tab = ALL_HOSTS;
+      try {
+        storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+      } catch {}
+    }
     save();
     publish();
   };
 
   return {
+    async retireRelationship(relationshipId) {
+      for (const entry of [...clients.values()]) {
+        if (clients.get(entry.host.hostId) !== entry) continue;
+        if (entry.host.relationshipId !== relationshipId) continue;
+        const releasing = releaseRemoteHostViewers(entry.client);
+        forget(entry.host.hostId);
+        await releasing;
+      }
+    },
     notifications,
+    async learnRelationshipRoutes(peer, privateRelay) {
+      requireOwner();
+      const entry = clients.get(peer.id);
+      if (!entry || peer.routes.length === 0) return;
+      if (entry.host.encryption?.hostKey !== peer.publicKey) throw new Error('host-key-mismatch');
+      const updated = updateRelationshipClientRoute({
+        host: entry.host,
+        peer,
+        ...(privateRelay ? { privateRelay } : {}),
+      });
+      if (!updated.ok) {
+        if (!privateRelay && updated.code === 'relationship-route-admission-required') return;
+        throw new Error(updated.code);
+      }
+      await saveHostChange(peer.id, entry.client, () => updated.host);
+      entry.client.updateRoutes?.(updated.host.routes, updated.host.encryption);
+      entry.client.retryNow('manual_retry', { preserveConnected: true });
+    },
     async enrollRelationship(relationship, name, signal) {
       if (!enabled) return { ok: false, code: 'owner-required' };
       const target = relationship.peer.id;
@@ -461,10 +539,19 @@ export function createRemoteHosts(options: {
     subscribe(listener) {
       const first = listeners.size === 0;
       listeners.add(listener);
-      if (first) for (const entry of clients.values()) start(entry);
+      if (first) {
+        for (const entry of clients.values()) start(entry);
+        relationshipTimer = setInterval(() => {
+          void reconcileRelationships();
+        }, 2000);
+        void reconcileRelationships();
+      }
       return () => {
         listeners.delete(listener);
         if (listeners.size > 0) return;
+        if (relationshipTimer !== undefined) clearInterval(relationshipTimer);
+        relationshipTimer = undefined;
+        relationshipPoll?.abort();
         for (const entry of clients.values()) stop(entry);
         notifications.stop();
       };
@@ -535,6 +622,9 @@ export function createRemoteHosts(options: {
       requireOwner();
       const entry = clients.get(hostId);
       if (entry === undefined) return;
+      if (hostSettingsDrafts.hasDirty(hostId) && !(await hostSettingsDrafts.prepare(hostId)))
+        return;
+      if (clients.get(hostId) !== entry) return;
       if (!storage) throw new Error('storage-unavailable');
       const remaining = [...clients.values()]
         .filter(({ host }) => host.hostId !== hostId)
@@ -549,6 +639,9 @@ export function createRemoteHosts(options: {
       requireOwner();
       const entry = clients.get(hostId);
       if (entry === undefined) return;
+      if (hostSettingsDrafts.hasDirty(hostId) && !(await hostSettingsDrafts.prepare(hostId)))
+        return;
+      if (clients.get(hostId) !== entry) return;
       const releasing = releaseRemoteHostViewers(entry.client);
       forget(hostId);
       await releasing;
@@ -626,10 +719,30 @@ export function browserCarrier(): HostCarrier {
     },
     openSocket(url, events, headers = {}) {
       if (new URL(url).pathname === '/botharness-device/channel') {
-        const socket = new WebSocket(url);
+        const admission = headers['X-BotHarness-Admission'];
+        const target = new URL(url);
+        if (
+          admission !== undefined &&
+          (target.protocol !== 'wss:' ||
+            target.username ||
+            target.password ||
+            target.search ||
+            target.hash ||
+            !isPrivateRoute(url.replace(/^ws/u, 'http')))
+        )
+          throw new Error('private-admission-route-invalid');
+        const socket =
+          admission === undefined
+            ? new WebSocket(url)
+            : new WebSocket(url, browserAdmissionProtocols(admission));
         socket.onopen = () => events.open();
         socket.onmessage = (event) => events.message(String(event.data));
-        socket.onerror = () => events.closed('channel-disconnected');
+        socket.onerror = () =>
+          events.closed(
+            admission === undefined
+              ? 'channel-disconnected'
+              : 'private-route-browser-admission-unavailable',
+          );
         socket.onclose = (event) => events.closed(event.reason);
         return {
           get bufferedAmount() {

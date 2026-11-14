@@ -1,3 +1,5 @@
+import { TeamError } from './team/error.js';
+import { requireBotModel } from './team/models.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -1070,8 +1072,11 @@ function initializeCore(
       ),
     (human) => team.isOwner(human),
     (human, slug) => ownsBot(human, registry.getHistorical(slug)),
+    (human, id) => team.channelAccess.canRead(human, id, true),
+    (human, id) => team.channelAccess.canKnow(human, id),
     (human, value, channelId) => team.approvals.project(human, value, channelId),
   );
+  team.onAccessChanged(() => live?.refreshAccess());
   startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
     for (const bot of registry.list())
@@ -1130,6 +1135,9 @@ function initializeCore(
       ? createUsageProjection({
           ownership,
           database: operationalDatabase,
+          ownerHumanId: () => team.ownerContext().humanId,
+          botOwner: (slug) =>
+            registry.getHistorical(slug)?.ownerHumanId ?? team.ownerContext().humanId,
           botCreatedAt: (slug) => registry.getHistorical(slug)?.createdAt,
         })
       : undefined;
@@ -1278,6 +1286,7 @@ function initializeCore(
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
     messagePerf,
+    requireModelRoute: (slug, route) => requireBotModel(team, registry.get(slug), route),
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
     assignmentConcurrencyLimit: () =>
@@ -1615,11 +1624,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         core.registry.migrateLegacyModel(slug, expectedModel, route),
     },
     modelCatalog,
+    (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
   );
   const privateExecution = new ProtectedExecution(
     privateInputLog((format, value) => ctx.logger.info(format, value), diagnosticEvents),
   );
-  const turnRefusals = new Map<string, string>();
+  const turnRefusals = new Map<string, string | TeamError>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
     ...(config.genuiPreviewBrowserPath === undefined
@@ -1634,7 +1644,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     subagentTools: (slug) =>
-      createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
+      createBotSubagentModelTools(
+        ctx,
+        () => core.registry.get(slug)?.modelPlan,
+        config.subagent,
+        (route) => requireBotModel(core.team, core.registry.get(slug), route),
+      ),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
         | { stat(id: string): Promise<unknown> }
@@ -2270,6 +2285,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await core.runtime.ensureAssignmentCapacity?.(agent.session.id, signal);
       } catch {
         return { kind: 'reject' };
+      }
+      const modelOwner = core.ownership.resolve(agent.session.id);
+      if (modelOwner) {
+        const selection = agentAdapter.modelSelection(agent.session.id) ?? agent.options;
+        if (selection.provider && selection.model) {
+          try {
+            requireBotModel(core.team, core.registry.get(modelOwner.botSlug), {
+              provider: selection.provider,
+              model: selection.model,
+            });
+          } catch (error) {
+            if (!(error instanceof TeamError)) throw error;
+            turnRefusals.set(agent.session.id, error);
+            return { kind: 'reject' };
+          }
+        }
       }
       const repairs = new Set<BotSessionRepair>();
       const denial = admitBotSession(
@@ -4056,6 +4087,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),
   );
 
+  ctx.on(
+    'subagent/start',
+    (info) => {
+      const parentSessionId = ctx.agents.get(info.id)?.session.header.parentSession;
+      if (parentSessionId) core.usage?.bindParentTurn(info.id, parentSessionId);
+    },
+    { global: true },
+  );
+
   const turnLog = createTurnLog({
     events: diagnosticEvents,
     owner: (sessionId) => core.ownership.resolve(sessionId),
@@ -4103,6 +4143,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
+          (route) => requireBotModel(core.team, core.registry.get(owner.botSlug), route),
         );
       }
     },

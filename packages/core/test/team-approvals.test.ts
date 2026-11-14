@@ -212,6 +212,7 @@ async function seed(
   f: ReturnType<typeof fixture>,
   kind: 'tool' | 'question' | 'secret',
   slug = 'alice-bot',
+  channelId = f.group.id,
 ) {
   const message: ChannelMessage = {
     id: randomUUID(),
@@ -245,7 +246,7 @@ async function seed(
             },
           }),
   };
-  await f.channels.appendMessage(owner, f.group.id, message);
+  await f.channels.appendMessage(owner, channelId, message);
   f.active.push(message.id);
   return message;
 }
@@ -359,6 +360,71 @@ describe('M5 approval projections and decisions', () => {
             }),
           ).rejects.toMatchObject({ code: 'approval-not-allowed' });
       }
+    },
+  );
+
+  it.each(['tool', 'question', 'secret'] as const)(
+    'retains M4 Human DM access and masks %s cards',
+    async (kind) => {
+      const f = fixture();
+      const dm = f.team.channelAccess.dm(alice, bob.humanId).channel;
+      const request = await seed(f, kind, 'alice-bot', dm.id);
+      const project = vi.spyOn(f.team.approvals, 'project');
+      expect(await f.invoke(bob, 'channelGet', { channelId: dm.id })).toMatchObject({
+        channel: { id: dm.id },
+      });
+      expect(project).toHaveBeenCalled();
+      for (const method of ['channelMessages', 'channelTimeline'])
+        masked(await f.invoke(bob, method, { channelId: dm.id }), request.id);
+      const method =
+        kind === 'tool'
+          ? 'toolApprovalStatus'
+          : kind === 'question'
+            ? 'userQuestionStatus'
+            : 'privateInputStatus';
+      masked(await f.invoke(bob, method, { channelId: dm.id, messageId: request.id }));
+      masked(f.attention.list(bob, { category: 'action' }), request.id);
+      for (const outsider of [owner, admin])
+        await expect(
+          f.invoke(outsider, 'channelMessages', { channelId: dm.id }),
+        ).rejects.toMatchObject({
+          code: expect.stringMatching(/channel-not-found|remote-access\/denied/),
+        });
+      if (kind !== 'tool')
+        expect(f.team.approvals.card(alice, dm.id, request)).toMatchObject({ masked: false });
+    },
+  );
+
+  it.each(['tool', 'question', 'secret'] as const)(
+    'preserves role-restricted access around %s approval projections',
+    async (kind) => {
+      const f = fixture();
+      f.team.channelAccess.addMember(bob, f.group.id, alice.humanId);
+      f.team.channelAccess.visibilitySet(bob, f.group.id, { kind: 'roles', roleIds: ['member'] });
+      const request = await seed(f, kind);
+      const project = vi.spyOn(f.team.approvals, 'project');
+      expect(await f.invoke(bob, 'channelGet', { channelId: f.group.id })).toMatchObject({
+        role: 'owner',
+        visibility: { kind: 'roles' },
+      });
+      expect(project).toHaveBeenCalled();
+      masked(await f.invoke(bob, 'channelMessages', { channelId: f.group.id }), request.id);
+      if (kind !== 'tool') {
+        expect(f.team.approvals.card(alice, f.group.id, request)).toMatchObject({ masked: false });
+        expect(() => f.team.approvals.requireRequest(alice, f.group.id, request.id)).not.toThrow();
+      }
+      const { role } = f.team.roles.create(owner, 'Outside Channel', []);
+      f.team.roles.set(owner, alice.humanId, [role.roleId]);
+      await f.team.accessSettled();
+      expect(f.methods(alice).channelMessages({ channelId: f.group.id })).toMatchObject({
+        ok: false,
+        error: { code: 'channel-not-found' },
+      });
+      expect(() => f.team.approvals.requireRequest(alice, f.group.id, request.id)).toThrow(
+        'approval-not-allowed',
+      );
+      expect(f.attention.list(alice, { category: 'action' }).items).toHaveLength(0);
+      expect(f.attention.list(admin, { category: 'action' }).items).toHaveLength(0);
     },
   );
 
@@ -529,6 +595,17 @@ describe('M5 approval projections and decisions', () => {
 
   it('commits a real question answer and retains its decider', async () => {
     const f = fixture();
+    f.team.channelAccess.addMember(bob, f.group.id, alice.humanId);
+    f.team.channelAccess.policySet(bob, f.group.id, {
+      addMembers: 'everyone',
+      post: 'admins',
+      mentionAll: 'admins',
+      addBots: 'admins',
+      editDetails: 'admins',
+    });
+    await expect(
+      f.invoke(alice, 'channelSend', { channelId: f.group.id, body: 'ordinary post' }),
+    ).rejects.toMatchObject({ code: 'channel-post-restricted' });
     const sessionId = 'm5-real-question';
     f.ownership.claim({
       sessionId,

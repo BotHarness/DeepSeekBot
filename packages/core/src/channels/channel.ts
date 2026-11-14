@@ -77,6 +77,8 @@ export interface ChannelRecord {
   avatar?: string;
   members: string[];
   botSlug?: string;
+  humanParticipants?: string[];
+  description?: string;
   remoteBot?: RemoteBotParticipant;
 
   ownerBotSlug?: string;
@@ -688,6 +690,18 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
   if (typeof record['updatedAt'] !== 'string') return false;
   const members = record['members'];
   if (!Array.isArray(members) || !members.every((entry) => typeof entry === 'string')) return false;
+  const participants = record['humanParticipants'];
+  if (
+    participants !== undefined &&
+    (record['type'] !== 'dm' ||
+      members.length !== 0 ||
+      !Array.isArray(participants) ||
+      participants.length !== 2 ||
+      participants[0] === participants[1] ||
+      !participants.every((id) => typeof id === 'string' && id.length > 0) ||
+      record['botSlug'] !== undefined)
+  )
+    return false;
   const botSlug = record['botSlug'];
   if (botSlug !== undefined && typeof botSlug !== 'string') return false;
   const remote = record['remoteBot'];

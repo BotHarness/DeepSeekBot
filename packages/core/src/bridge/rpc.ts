@@ -1,4 +1,5 @@
 import type { ApprovalCard } from '../team/approval-contract.js';
+import type { ChannelVisibility, ChannelPolicy } from '../team/channel-contract.js';
 import { TeamError, type TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BotImportsService } from '../bots/imports.js';
@@ -402,6 +403,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     this.invocationMethods = methods;
   }
 
+  modelsAllowed() {
+    return unwrapAsync(this.methods.modelsAllowed({}));
+  }
+  usageByMember(period: UsageOverviewPeriod) {
+    return unwrap(this.methods.usageByMember({ period }));
+  }
   teamMode() {
     return unwrapAsync(this.methods.teamMode({}));
   }
@@ -426,11 +433,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
   roles() {
     return unwrapAsync(this.methods.roles({}));
   }
-  roleCreate(name: string, permissions: string[]) {
-    return unwrapAsync(this.methods.roleCreate({ name, permissions }));
+  roleCreate(
+    name: string,
+    permissions: string[],
+    models?: import('../team/permissions.js').RoleModels,
+  ) {
+    return unwrapAsync(this.methods.roleCreate({ name, permissions, models }));
   }
-  roleUpdate(roleId: string, name?: string, permissions?: string[]) {
-    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions }));
+  roleUpdate(
+    roleId: string,
+    name?: string,
+    permissions?: string[],
+    models?: import('../team/permissions.js').RoleModels,
+  ) {
+    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions, models }));
   }
   roleDelete(roleId: string) {
     return unwrapAsync(this.methods.roleDelete({ roleId }));
@@ -463,6 +479,45 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   memberPasswordReset(humanId: string) {
     return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
+  }
+  channelRoleDirectory(channelId: string) {
+    return unwrapAsync(this.methods.channelRoleDirectory({ channelId }));
+  }
+  browsableChannels() {
+    return unwrapAsync(this.methods.browsableChannels({}));
+  }
+  channelJoin(channelId: string) {
+    return unwrapAsync(this.methods.channelJoin({ channelId }));
+  }
+  channelVisibilitySet(channelId: string, visibility: ChannelVisibility) {
+    return unwrapAsync(this.methods.channelVisibilitySet({ channelId, visibility }));
+  }
+  channelAdminsSet(channelId: string, humanIds: string[]) {
+    return unwrapAsync(this.methods.channelAdminsSet({ channelId, humanIds }));
+  }
+  channelPolicySet(channelId: string, policy: ChannelPolicy, expectedRevision?: string) {
+    return unwrapAsync(
+      this.methods.channelPolicySet({
+        channelId,
+        policy,
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      }),
+    );
+  }
+  channelHumanAdd(channelId: string, humanId: string) {
+    return unwrapAsync(this.methods.channelHumanAdd({ channelId, humanId }));
+  }
+  channelDescriptionSet(channelId: string, description: string) {
+    return unwrapAsync(this.methods.channelDescriptionSet({ channelId, description }));
+  }
+  teamDirectory() {
+    return unwrapAsync(this.methods.teamDirectory({}));
+  }
+  humanDm(humanId: string) {
+    return unwrapAsync(this.methods.humanDm({ humanId }));
+  }
+  humanDmByUsername(username: string) {
+    return unwrapAsync(this.methods.humanDmByUsername({ username }));
   }
   memberDeactivate(humanId: string) {
     return unwrapAsync(this.methods.memberDeactivate({ humanId }));
@@ -1756,7 +1811,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 
-  channelGet(channelId: string): { channel: ChannelRecord } | ChannelManagementResult {
+  channelGet(channelId: string) {
     return unwrap(this.methods.channelGet({ channelId }));
   }
 
@@ -3034,6 +3089,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
 markRemoteMethods(BotharnessBridgeService.prototype, [
   'teamMode',
+  'modelsAllowed',
+  'usageByMember',
   'teamModeSet',
   'teamOwnerPasswordSet',
   'teamInsecureHttpSet',
@@ -3050,6 +3107,17 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'ownerTransfer',
   'memberPasswordChange',
   'memberPasswordReset',
+  'channelRoleDirectory',
+  'browsableChannels',
+  'channelJoin',
+  'channelVisibilitySet',
+  'channelAdminsSet',
+  'channelPolicySet',
+  'channelHumanAdd',
+  'channelDescriptionSet',
+  'teamDirectory',
+  'humanDm',
+  'humanDmByUsername',
   'memberDeactivate',
   'memberReactivate',
   'memberTransferPreview',

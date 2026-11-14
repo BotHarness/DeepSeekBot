@@ -113,9 +113,12 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'team.account.signOut',
     'team.devices.mine',
     'team.roles.title',
+    'team.usage.title',
+    'team.usage.period',
   ],
   devices: [
     'relationships.title',
+    'relationships.prepareReturn',
     'devices.pair.title',
     'devices.list.title',
     'devices.connect.title',
@@ -152,6 +155,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
 };
 
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'relationships.prepareReturn': 'relationships.prepareReturnHint',
   'connections.methods': 'connections.hosts.local',
   'devices.lan.title': 'devices.lan.notice',
   'connections.hosts.preference': 'connections.hosts.preferenceScope',

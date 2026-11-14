@@ -1,3 +1,4 @@
+import { channelRoleEligibleSql } from './channel-contract.js';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -112,18 +113,37 @@ export class TeamApprovals {
     return message && kinds.some((key) => message[key] !== undefined) ? message : undefined;
   }
 
+  private audience(human: HumanContext, channelId: string): boolean {
+    return (
+      this.database.read((db) =>
+        db
+          .prepare(`SELECT 1 FROM channel_records c WHERE c.channel_id = $channelId
+      AND (json_extract(c.record_json, '$.type') <> 'group' OR ${channelRoleEligibleSql('c', '$humanId')})
+      AND (json_extract(c.record_json, '$.humanParticipants') IS NULL OR EXISTS (
+        SELECT 1 FROM json_each(c.record_json, '$.humanParticipants') participant WHERE participant.value = $humanId))`)
+          .get({ channelId, humanId: human.humanId }),
+      ) !== undefined
+    );
+  }
+
   ownsRequest(human: HumanContext, channelId: string, messageId: string): boolean {
     const message = this.request(channelId, messageId);
-    return message?.author.kind === 'bot' && this.botOwner(message.author.slug) === human.humanId;
+    return (
+      message?.author.kind === 'bot' &&
+      this.botOwner(message.author.slug) === human.humanId &&
+      this.audience(human, channelId)
+    );
   }
 
   requireRequest(human: HumanContext, channelId: string, messageId: string): void {
     const message = this.request(channelId, messageId);
-    if (message?.author.kind !== 'bot') throw new TeamError('approval-not-allowed');
+    if (message?.author.kind !== 'bot' || !this.audience(human, channelId))
+      throw new TeamError('approval-not-allowed');
     const channel = this.channels.get(channelId);
     const owner = this.botOwner(message.author.slug);
     if (
       owner !== human.humanId &&
+      !channel?.humanParticipants?.includes(human.humanId) &&
       (channel?.type !== 'group' ||
         !this.channels
           .listHumanMembers(human, channelId)

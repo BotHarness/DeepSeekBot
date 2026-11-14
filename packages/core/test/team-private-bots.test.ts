@@ -483,7 +483,14 @@ describe('M2 private Bot boundaries', () => {
       value: { channel: { id: group.id, name: group.name, members: ['bob-bot'] } },
     });
     if (!visible.ok) throw new Error('member-group-read-refused');
-    expect(Object.keys(visible.value)).toEqual(['channel']);
+    expect(Object.keys(visible.value).sort()).toEqual([
+      'admins',
+      'channel',
+      'policy',
+      'policyRevision',
+      'role',
+      'visibility',
+    ]);
     for (const key of ['invitations', 'joinRequests', 'wakePolicies', 'ownerBotSlug'])
       expect(visible.value.channel).not.toHaveProperty(key);
     for (const marker of [
@@ -509,16 +516,28 @@ describe('M2 private Bot boundaries', () => {
     });
     const after = f.methods(bob).channelGet({ channelId: group.id });
     if (!after.ok) throw new Error('member-group-read-refused');
-    expect(Object.keys(after.value)).toEqual(['channel']);
+    expect(Object.keys(after.value).sort()).toEqual([
+      'admins',
+      'channel',
+      'policy',
+      'policyRevision',
+      'role',
+      'visibility',
+    ]);
     expect(after.value.channel.members).toEqual(['bob-bot']);
     expect(after.value).not.toHaveProperty('channelFingerprint');
     expect(
       f.methods(bob).channelSendStatus({ channelId: group.id, messageId: 'owner-private-request' }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
-    for (const method of ['channelGet', 'channelSendStatus'] as const)
-      expect(
-        f.methods(alice)[method]({ channelId: group.id, messageId: 'owner-private-request' }),
-      ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+    expect(f.methods(alice).channelGet({ channelId: group.id })).toMatchObject({
+      ok: true,
+      value: { channel: { members: [] }, visibility: { kind: 'public' } },
+    });
+    expect(
+      f
+        .methods(alice)
+        .channelSendStatus({ channelId: group.id, messageId: 'owner-private-request' }),
+    ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
     expect(f.core.channels.get(group.id)?.invitations).toContainEqual(invitation);
     expect(f.core.channels.get(group.id)?.joinRequests).toContainEqual(request);
   });
@@ -669,6 +688,65 @@ describe('M2 private Bot boundaries', () => {
       ok: true,
       value: { bot: { displayName: 'Bobby' } },
     });
+  });
+
+  it('filters private Bot DMs from cross-Channel search, activity and message counts', async () => {
+    const f = fixture();
+    await f.roster.attach(createFakeRosterDomain().facility);
+    for (const [human, slug] of [
+      [owner, 'owner-bot'],
+      [alice, 'alice-bot'],
+      [bob, 'bob-bot'],
+    ] as const)
+      await f.core.channels.appendMessage(human, 'dm-' + slug, {
+        id: 'search-' + slug,
+        at: '2026-11-14T00:00:00Z',
+        author: { kind: 'bot', slug },
+        body: 'private-search-needle',
+      });
+    for (const [human, slug] of [
+      [owner, 'owner-bot'],
+      [alice, 'alice-bot'],
+      [bob, 'bob-bot'],
+    ] as const) {
+      expect(
+        f.core.channels.searchAllHumanMessages?.(human, { text: 'private-search', limit: 20 }),
+      ).toMatchObject({ hits: [{ channelId: 'dm-' + slug }] });
+      const result = f.methods(human).messageSearch({ text: 'private-search', limit: 20 });
+      if (!result.ok) throw new Error(JSON.stringify(result.error));
+      expect(result).toMatchObject({
+        ok: true,
+        value: { hits: [{ channelId: 'dm-' + slug }] },
+      });
+      expect([...(f.core.channels.latestBotActivity?.(human) ?? new Map()).keys()]).toEqual([slug]);
+      expect(
+        f.core.channels.humanMessageCounts?.(human, '2026-11-13T00:00:00Z', '2026-11-15T00:00:00Z'),
+      ).toEqual([{ channelId: 'dm-' + slug, author: { kind: 'bot', slug }, count: 1 }]);
+      expect(f.core.channels.latestHumanMessageId?.(human, 'dm-alice-bot')).toBe(
+        human === alice ? 'search-alice-bot' : undefined,
+      );
+    }
+  });
+
+  it('requires both Bot ownership and the Channel addBots policy for member invitations', () => {
+    const f = fixture();
+    const group = f.core.channels.createGroup(owner, { name: 'Invitations', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, bob.humanId);
+    const invite = (botSlug: string) =>
+      f.methods(bob).channelGroupInvite({ channelId: group.id, botSlug });
+    expect(invite('bob-bot')).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'addBots' } },
+    });
+    expect(invite('alice-bot')).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
+    f.team.channelAccess.policySet(owner, group.id, {
+      ...f.team.channelAccess.view(owner, group.id).policy,
+      addBots: 'everyone',
+    });
+    expect(invite('alice-bot')).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
+    expect(invite('bob-bot')).toMatchObject({ ok: true });
+    expect(f.core.channels.get(group.id)?.members).toContain('bob-bot');
+    expect(f.core.channels.get(group.id)?.members).not.toContain('alice-bot');
   });
 
   it('namespaces creation receipts, ignores supplied ownership and prepares only the member DM', () => {

@@ -11,6 +11,8 @@ import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { TeamUsageSection } from './team-usage-section.js';
+import { USAGE_VIEW } from './team-usage.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
   TEAM_ENTRY_PATH,
@@ -117,6 +119,11 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'transfer-required': 'team.error.transferRequired',
   'member-active': 'team.error.memberActive',
   'purge-token-invalid': 'team.error.purgeTokenInvalid',
+  'role-not-found': 'team.error.roleNotFound',
+  'channel-post-restricted': 'team.error.channelPostRestricted',
+  'channel-mention-restricted': 'team.error.channelMentionRestricted',
+  'stale-channel-policy': 'team.error.staleChannelPolicy',
+  'model-not-allowed': 'team.error.modelNotAllowed',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
@@ -221,6 +228,8 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
   const viewer = view.viewer;
   const manageMembers = canManage(viewer, MANAGE_MEMBERS);
   const manageRoles = canManage(viewer, MANAGE_ROLES);
+  const usage =
+    view.enabled && canManage(viewer, USAGE_VIEW) ? <TeamUsageSection call={call} t={t} /> : null;
   const sheetMember =
     dialog?.kind === 'member' ? members?.find((row) => row.humanId === dialog.humanId) : undefined;
   const admin =
@@ -361,6 +370,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
           {rowError === undefined ? null : <Note tone="danger">{rowError}</Note>}
         </SettingsSection>
         {admin}
+        {usage}
         {dialog?.kind === 'my-devices' ? (
           <MyDevicesDialog
             call={call}
@@ -461,6 +471,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
       ) : null}
 
       {admin}
+      {usage}
 
       {dialog?.kind === 'owner-password' ? (
         <OwnerPasswordDialog

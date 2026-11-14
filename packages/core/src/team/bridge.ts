@@ -1,5 +1,10 @@
+import { roleModelsSchema, PERMISSION_CATALOG } from './permissions.js';
+import {
+  channelVisibilitySchema,
+  channelPolicySchema,
+  channelPolicyRevisionSchema,
+} from './channel-contract.js';
 import { ContentPurgeError } from '../purge/contracts.js';
-import { PERMISSION_CATALOG } from './permissions.js';
 import { z } from 'zod';
 import type { HumanContext } from '../humans/context.js';
 import type { BridgeResult } from '../bridge/methods.js';
@@ -11,7 +16,9 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
   ): Promise<BridgeResult<T>> => {
     try {
       if (!team) throw new TeamError('unavailable');
-      return { ok: true, value: await run(team) };
+      const value = await run(team);
+      await team.accessSettled();
+      return { ok: true, value };
     } catch (error) {
       const code =
         error instanceof TeamError || error instanceof ContentPurgeError
@@ -48,13 +55,18 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
       ),
     permissionCatalog: (_payload: unknown) =>
       call(() => PERMISSION_CATALOG.map((entry) => ({ ...entry }))),
+    modelsAllowed: (_payload: unknown) => call((service) => service.roles.modelsAllowed(human)),
     roles: (_payload: unknown) => call((service) => service.roles.list(human)),
     roleCreate: (payload: unknown) =>
       call((service) => {
-        const { name, permissions } = z
-          .object({ name: z.string(), permissions: z.array(z.string()) })
+        const { name, permissions, models } = z
+          .object({
+            name: z.string(),
+            permissions: z.array(z.string()),
+            models: roleModelsSchema.optional(),
+          })
           .parse(payload);
-        return service.roles.create(human, name, permissions);
+        return service.roles.create(human, name, permissions, models);
       }),
     roleUpdate: (payload: unknown) =>
       call((service) => {
@@ -63,9 +75,11 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
             roleId: z.string(),
             name: z.string().optional(),
             permissions: z.array(z.string()).optional(),
+            models: roleModelsSchema.optional(),
           })
           .parse(payload);
         return service.roles.update(human, roleId, {
+          ...(patch.models === undefined ? {} : { models: patch.models }),
           ...(patch.name === undefined ? {} : { name: patch.name }),
           ...(patch.permissions === undefined ? {} : { permissions: patch.permissions }),
         });
@@ -168,6 +182,77 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .object({ humanId: z.string().min(1), token: z.string().max(1024), username: z.string() })
           .parse(payload);
         return service.purgeConfirm(human, humanId, token, username);
+      }),
+    channelRoleDirectory: (payload: unknown) =>
+      call((service) =>
+        service.channelAccess.roleDirectory(
+          human,
+          z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
+        ),
+      ),
+    browsableChannels: (_payload: unknown) =>
+      call((service) => service.channelAccess.browse(human)),
+    channelJoin: (payload: unknown) =>
+      call((service) =>
+        service.channelAccess.join(
+          human,
+          z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
+        ),
+      ),
+    channelVisibilitySet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, visibility } = z
+          .object({ channelId: z.string().min(1), visibility: channelVisibilitySchema })
+          .parse(payload);
+        return service.channelAccess.visibilitySet(human, channelId, visibility);
+      }),
+    channelAdminsSet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, humanIds } = z
+          .object({ channelId: z.string().min(1), humanIds: z.array(z.string()).max(1000) })
+          .parse(payload);
+        return service.channelAccess.adminsSet(human, channelId, humanIds);
+      }),
+    channelPolicySet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, policy, expectedRevision } = z
+          .object({
+            channelId: z.string().min(1),
+            policy: channelPolicySchema,
+            expectedRevision: channelPolicyRevisionSchema.optional(),
+          })
+          .parse(payload);
+        return service.channelAccess.policySet(human, channelId, policy, expectedRevision);
+      }),
+    teamDirectory: (_payload: unknown) => call((service) => service.channelAccess.directory(human)),
+    humanDm: (payload: unknown) =>
+      call((service) =>
+        service.channelAccess.dm(
+          human,
+          z.object({ humanId: z.string().min(1) }).parse(payload).humanId,
+        ),
+      ),
+    humanDmByUsername: (payload: unknown) =>
+      call((service) => {
+        service.roles.require(human, 'dm.humans');
+        const { username } = z.object({ username: z.string().min(1) }).parse(payload);
+        const target = service.memberByUsername(username);
+        if (!target) throw new TeamError('member-not-found');
+        return service.channelAccess.dm(human, target.humanId);
+      }),
+    channelHumanAdd: (payload: unknown) =>
+      call((service) => {
+        const { channelId, humanId } = z
+          .object({ channelId: z.string().min(1), humanId: z.string().min(1) })
+          .parse(payload);
+        return service.channelAccess.addMember(human, channelId, humanId);
+      }),
+    channelDescriptionSet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, description } = z
+          .object({ channelId: z.string().min(1), description: z.string().max(4096) })
+          .parse(payload);
+        return service.channelAccess.descriptionSet(human, channelId, description);
       }),
     publicChannels: (_payload: unknown) => call((service) => service.publicChannels(human)),
     publicChannelJoin: (payload: unknown) =>

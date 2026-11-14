@@ -191,6 +191,7 @@ export const LIVE_OPTIONS = {
   'connection-id': { type: 'string' },
   fingerprint: { type: 'string' },
   'link-file': { type: 'string' },
+  'account-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
@@ -630,6 +631,7 @@ interface LiveValues
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
+  'account-file'?: string;
   'connection-id'?: string;
   fingerprint?: string;
   'remote-host-id'?: string;
@@ -824,6 +826,21 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   };
   const scrub = (value: string) =>
     value.replaceAll(secret, '[redacted]').replaceAll(encodeURIComponent(secret), '[redacted]');
+  const rpcFailure = (error: Record<string, unknown>): CliLiveError => {
+    const failure = new CliLiveError(
+      typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
+      scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
+    );
+    const details = record(error['details']);
+    if (
+      ['permission-required', 'permission-not-grantable'].includes(failure.code) &&
+      typeof details['permission'] === 'string'
+    )
+      failure.details = { permission: scrub(details['permission']) };
+    if (failure.code === 'model-not-allowed' && typeof details['route'] === 'string')
+      failure.details = { route: scrub(details['route']) };
+    return failure;
+  };
   const rpc = async <T>(method: string, args: Record<string, unknown>): Promise<T> => {
     const name = method.includes('/') ? method : `botharness/${method}`;
     if (values.as !== undefined) {
@@ -838,13 +855,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       const result = await readResponse(answer);
       if (result['ok'] !== true) {
         const error = record(result['error']);
-        const failure = new CliLiveError(
-          typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
-          scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
-        );
-        const permission = record(error['details'])['permission'];
-        if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
-        throw failure;
+        throw rpcFailure(error);
       }
       return result['value'] as T;
     }
@@ -864,13 +875,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     const result = record(payload['result']);
     if (result['ok'] !== true) {
       const error = record(result['error']);
-      const code = typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error';
-      const message =
-        typeof error['message'] === 'string' ? error['message'] : 'The Host refused the command.';
-      const failure = new CliLiveError(code, scrub(message));
-      const permission = record(error['details'])['permission'];
-      if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
-      throw failure;
+      throw rpcFailure(error);
     }
     return result['value'] as T;
   };
@@ -1128,8 +1133,16 @@ export async function runLiveCli(
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (command === 'relationships') {
-    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-    return runRelationshipCommand(rest, values, () => connectLiveHost(values, io, signal), signal);
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runRelationshipCommand(
+      rest,
+      values,
+      () => connectLiveHost(values, io, signal),
+      signal,
+      expiresAt,
+    );
   }
   if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
     return runDeviceClientCommand(command, rest, values);
