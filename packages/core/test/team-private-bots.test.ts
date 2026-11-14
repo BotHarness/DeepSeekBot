@@ -481,6 +481,7 @@ describe('M2 private Bot boundaries', () => {
       'admins',
       'channel',
       'policy',
+      'policyRevision',
       'role',
       'visibility',
     ]);
@@ -513,6 +514,7 @@ describe('M2 private Bot boundaries', () => {
       'admins',
       'channel',
       'policy',
+      'policyRevision',
       'role',
       'visibility',
     ]);

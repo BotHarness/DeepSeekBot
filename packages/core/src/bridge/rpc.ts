@@ -479,8 +479,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelAdminsSet(channelId: string, humanIds: string[]) {
     return unwrapAsync(this.methods.channelAdminsSet({ channelId, humanIds }));
   }
-  channelPolicySet(channelId: string, policy: ChannelPolicy) {
-    return unwrapAsync(this.methods.channelPolicySet({ channelId, policy }));
+  channelPolicySet(channelId: string, policy: ChannelPolicy, expectedRevision?: string) {
+    return unwrapAsync(
+      this.methods.channelPolicySet({
+        channelId,
+        policy,
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      }),
+    );
   }
   channelHumanAdd(channelId: string, humanId: string) {
     return unwrapAsync(this.methods.channelHumanAdd({ channelId, humanId }));

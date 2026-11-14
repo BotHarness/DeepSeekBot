@@ -1,4 +1,8 @@
-import { channelPolicySchema, channelVisibilitySchema } from '../team/channel-contract.js';
+import {
+  channelPolicySchema,
+  channelVisibilitySchema,
+  channelPolicyRevisionSchema,
+} from '../team/channel-contract.js';
 import { closeSync, fchmodSync, openSync, unlinkSync, writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { CliLiveError } from './cli-live-error.js';
@@ -319,7 +323,7 @@ export async function runTeamCommand(
       });
     if (action === 'policy' && argument && rest.length === 2) {
       const snapshot = z
-        .object({ policy: channelPolicySchema })
+        .object({ policy: channelPolicySchema, policyRevision: channelPolicyRevisionSchema })
         .parse(await rpc('channelGet', { channelId: argument }));
       const policy = channelPolicySchema.safeParse({
         ...snapshot.policy,
@@ -330,7 +334,11 @@ export async function runTeamCommand(
         ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
       });
       if (!policy.success) return usage();
-      return rpc('channelPolicySet', { channelId: argument, policy: policy.data });
+      return rpc('channelPolicySet', {
+        channelId: argument,
+        policy: policy.data,
+        expectedRevision: snapshot.policyRevision,
+      });
     }
     if (action === 'browse-public' && rest.length === 1) return rpc('publicChannels', {});
     if (action === 'join-public' && argument && rest.length === 2)

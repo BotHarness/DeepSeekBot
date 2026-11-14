@@ -5660,6 +5660,14 @@ function buildBridgeMethods(
       const ids = new Set(changed.channelIds);
       const present = new Set(listed.map((channel) => channel.id));
       if (
+        deps.team &&
+        (changed.all ||
+          changed.channelIds.some(
+            (id) => !present.has(id) && !deps.team!.channelAccess.canKnow(human, id),
+          ))
+      )
+        return { ok: true, value: { reset: true, cursor: changed.cursor } };
+      if (
         !isHostOwner() &&
         changed.channelIds.some(
           (id) =>
@@ -5714,6 +5722,9 @@ function buildBridgeMethods(
     channelGet(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
+      const participantDm = deps.channels.get(channelId);
+      if (participantDm?.type === 'dm' && participantDm.humanParticipants?.includes(human.humanId))
+        return { ok: true, value: { channel: channelView(participantDm) } };
       if (!isHostOwner()) {
         const channel = deps.channels.get(channelId);
         if (channel === undefined || channel.deletedAt !== undefined)

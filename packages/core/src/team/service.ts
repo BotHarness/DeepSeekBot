@@ -108,7 +108,21 @@ export class TeamService {
     if (!revoke) return;
     for (const listener of this.accessListeners) listener();
     this.pairing?.closeStreams?.();
-    this.pendingAccess = Promise.all([this.pendingAccess, this.disposePeers()]).then(() => {});
+    this.db.transaction(
+      (db) =>
+        db
+          .prepare(
+            "INSERT INTO channel_changes(channel_id, message_id, kind) VALUES ('*', NULL, 'channel')",
+          )
+          .run(),
+      ['channel'],
+    );
+    this.pendingAccess = Promise.allSettled([this.pendingAccess, this.disposePeers()]).then(
+      (settled) => {
+        if (settled.some((result) => result.status === 'rejected'))
+          this.log('access-disposal-failed', { initiator: 'host', reason: 'peer-disposal-failed' });
+      },
+    );
   }
   private pairing:
     | (Pick<DevicePairing, 'revoke' | 'clearOffers'> & Partial<Pick<DevicePairing, 'closeStreams'>>)
@@ -1032,9 +1046,15 @@ export class TeamService {
       )
         continue;
       this.peers.delete(id);
-      disposals.push(peer.dispose());
+      try {
+        disposals.push(peer.dispose());
+      } catch (error) {
+        disposals.push(Promise.reject(error));
+      }
     }
-    await Promise.all(disposals);
+    const settled = await Promise.allSettled(disposals);
+    const failure = settled.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
     if (disposals.length)
       this.log('peers-disposed', { initiator: 'host', count: disposals.length });
   }

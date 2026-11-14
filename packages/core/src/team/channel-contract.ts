@@ -13,6 +13,7 @@ export const channelPolicySchema = z.object({
   addBots: z.enum(['everyone', 'admins']),
   editDetails: z.enum(['everyone', 'admins']),
 });
+export const channelPolicyRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 export type ChannelPolicy = z.infer<typeof channelPolicySchema>;
 export const DEFAULT_CHANNEL_POLICY: ChannelPolicy = {
   addMembers: 'everyone',
