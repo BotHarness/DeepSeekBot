@@ -1,5 +1,6 @@
 import { channelRoleEligibleSql } from '../team/channel-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
+import type { ChannelMessageAuthor } from '../channels/message-author.js';
 import { type HumanContext } from '../humans/context.js';
 import { createHash } from 'node:crypto';
 import { notChannelNoticeSql } from '../channels/channel-notice.js';
@@ -23,6 +24,7 @@ export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 
 export type HumanAttentionSort = 'newest' | 'oldest' | 'mentions-first';
 
 export interface HumanAttentionItem {
+  author?: Extract<ChannelMessageAuthor, { kind: 'bot' }>;
   approval?: ApprovalCard;
   id: string;
   category: HumanAttentionCategory;
@@ -918,19 +920,22 @@ SELECT 'handled:' || request.source_event_id AS id,
         }>;
         const page = rows.slice(0, limit);
         const last = page.at(-1);
-        const items = page.map((row): HumanAttentionItem => ({
-          id: row.id,
-          category: 'replies',
-          kind: row.is_mention === 1 ? 'channel-mention' : 'channel-reply',
-          createdAt: row.created_at,
-          channelId: row.channel_id,
-          channelName: row.channel_name,
-          botSlug: row.bot_slug,
-          summary: attentionSummary(row.summary),
-          messageId: row.message_id,
-          sourceEventId: row.source_event_id,
-          isUnread: row.is_unread === 1,
-        }));
+        const items = project(
+          human,
+          page.map((row): HumanAttentionItem => ({
+            id: row.id,
+            category: 'replies',
+            kind: row.is_mention === 1 ? 'channel-mention' : 'channel-reply',
+            createdAt: row.created_at,
+            channelId: row.channel_id,
+            channelName: row.channel_name,
+            botSlug: row.bot_slug,
+            summary: attentionSummary(row.summary),
+            messageId: row.message_id,
+            sourceEventId: row.source_event_id,
+            isUnread: row.is_unread === 1,
+          })),
+        );
         return {
           items: snoozedOnly ? snoozedUntil(human, items) : items,
           ...(rows.length > limit && last !== undefined
@@ -1004,19 +1009,22 @@ SELECT 'handled:' || request.source_event_id AS id,
         const page = rows.slice(0, limit);
         const last = page.at(-1);
         return {
-          items: page.map((row) => ({
-            id: row.id,
-            category: 'unread' as const,
-            kind: 'channel-unread' as const,
-            createdAt: row.created_at,
-            channelId: row.channel_id,
-            channelName: row.channel_name,
-            botSlug: row.bot_slug,
-            summary: attentionSummary(row.summary),
-            messageId: row.message_id,
-            sourceEventId: row.source_event_id,
-            unreadCount: row.unread_count,
-          })),
+          items: project(
+            human,
+            page.map((row) => ({
+              id: row.id,
+              category: 'unread' as const,
+              kind: 'channel-unread' as const,
+              createdAt: row.created_at,
+              channelId: row.channel_id,
+              channelName: row.channel_name,
+              botSlug: row.bot_slug,
+              summary: attentionSummary(row.summary),
+              messageId: row.message_id,
+              sourceEventId: row.source_event_id,
+              unreadCount: row.unread_count,
+            })),
+          ),
           ...(rows.length > limit && last !== undefined
             ? {
                 nextCursor: Buffer.from(
@@ -1245,18 +1253,21 @@ SELECT 'handled:' || request.source_event_id AS id,
             bot_slug: string;
           }>,
       );
-      return rows.map((row) => ({
-        id: `dm-reply:${row.source_event_id}`,
-        category: 'replies',
-        kind: 'channel-reply',
-        createdAt: row.created_at,
-        channelId: row.channel_id,
-        botSlug: row.bot_slug,
-        summary: attentionSummary(row.body),
-        messageId: row.message_id,
-        sourceEventId: row.source_event_id,
-        isUnread: true,
-      }));
+      return project(
+        human,
+        rows.map<HumanAttentionItem>((row) => ({
+          id: `dm-reply:${row.source_event_id}`,
+          category: 'replies',
+          kind: 'channel-reply',
+          createdAt: row.created_at,
+          channelId: row.channel_id,
+          botSlug: row.bot_slug,
+          summary: attentionSummary(row.body),
+          messageId: row.message_id,
+          sourceEventId: row.source_event_id,
+          isUnread: true,
+        })),
+      );
     },
     unreadByChannel(human: HumanContext) {
       return database.read((db) =>

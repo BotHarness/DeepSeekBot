@@ -19,12 +19,13 @@ import { memberPolicy } from '../src/team/policy.js';
 import { DUMMY_PASSWORD_HASH } from '../src/team/password.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import type { ChannelMessage } from '../src/channels/channel.js';
+import { createChannelLiveHub } from '../src/channels/live.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { registerBridge } from '../src/bridge/rpc.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
-import { createTestRosterStore } from './roster-fixture.js';
+import { createFakeRosterDomain, createTestRosterStore } from './roster-fixture.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTempRoot, createTestOwnership } from './helpers.js';
 import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
@@ -116,6 +117,7 @@ function fixture() {
     () => group.id,
     team.approvals,
   );
+  const roster = createTestRosterStore({ database: db });
   const methods = createBridgeMethodsForHumans({
     registry,
     channels,
@@ -126,7 +128,7 @@ function fixture() {
     humanAttention: attention,
     assignmentAccess,
     states: createBotStateTracker(),
-    roster: createTestRosterStore({ database: db }),
+    roster,
   });
   const ctx = new Context();
   const off = team.bindRuntime({
@@ -188,6 +190,7 @@ function fixture() {
     database,
     db,
     channels,
+    roster,
     team,
     group,
     attention,
@@ -259,6 +262,158 @@ function masked(value: unknown, id?: string) {
 }
 
 describe('M5 approval projections and decisions', () => {
+  it.each(['ordinary', 'tool', 'question', 'secret'] as const)(
+    'names a private participant through every %s message projection without exposing its profile',
+    async (kind) => {
+      const f = fixture();
+      await f.roster.attach(createFakeRosterDomain().facility);
+      f.registry.update('alice-bot', { displayName: 'Planner', description: 'PRIVATE_PERSONA' });
+      f.database.transaction((db) =>
+        db
+          .prepare(`UPDATE persona_bots SET body = json_set(body,
+        '$.memoryDir', 'PRIVATE_MEMORY', '$.promptPreset', 'PRIVATE_PROMPT',
+        '$.approvalTemplate', 'PRIVATE_SETTINGS') WHERE slug = 'alice-bot'`)
+          .run(),
+      );
+      expect(await f.invoke(bob, 'list', {})).not.toMatchObject({
+        bots: expect.arrayContaining([expect.objectContaining({ slug: 'alice-bot' })]),
+      });
+      const request =
+        kind === 'ordinary'
+          ? {
+              id: randomUUID(),
+              at: new Date().toISOString(),
+              author: { kind: 'bot' as const, slug: 'alice-bot' },
+              body: 'participant-message',
+            }
+          : await seed(f, kind);
+      if (kind === 'ordinary') await f.channels.appendMessage(owner, f.group.id, request);
+      const input = { channelId: f.group.id };
+      const author = { kind: 'bot', slug: 'alice-bot', displayName: 'Planner' };
+      const check = (value: unknown) => {
+        const wire = JSON.stringify(value);
+        expect(wire).toContain('"displayName":"Planner"');
+        for (const secret of [
+          'PRIVATE_PERSONA',
+          'PRIVATE_MEMORY',
+          'PRIVATE_PROMPT',
+          'PRIVATE_SETTINGS',
+        ])
+          expect(wire).not.toContain(secret);
+        if (kind !== 'ordinary') masked(value);
+      };
+      for (const [method, args] of [
+        ['channels', {}],
+        ['channelMessages', input],
+        ['channelTimeline', input],
+        ['channelJournalPage', { ...input, through: 1 }],
+        [
+          'channelSearch',
+          { ...input, text: kind === 'ordinary' ? 'participant-message' : 'CONFIDENTIAL' },
+        ],
+        ['messageSearch', { text: kind === 'ordinary' ? 'participant-message' : 'CONFIDENTIAL' }],
+      ] as const)
+        check(await f.invoke(bob, method, args));
+      const projected = f.team.approvals.project(bob, request, f.group.id);
+      expect(projected.author).toEqual(author);
+      expect(
+        f.team.approvals.project(
+          bob,
+          {
+            ...request,
+            author: { ...request.author, settings: 'PRIVATE_SETTINGS' },
+          },
+          f.group.id,
+        ).author,
+      ).toEqual(author);
+      expect(f.channels.message(f.group.id, request.id)?.author).toEqual({
+        kind: 'bot',
+        slug: 'alice-bot',
+      });
+      const activity = f.attention.list(bob, {
+        category: kind === 'ordinary' ? 'unread' : 'action',
+      });
+      check(activity);
+      expect(activity.items[0]?.author).toEqual(author);
+      if (kind !== 'ordinary') {
+        const push = activityListPushSource(f.attention, () => undefined).pending(bob);
+        check(push);
+        expect(push.items[0]?.author).toEqual(author);
+      }
+      await f.team.asMember('bob', async (peer) => {
+        const controller = new AbortController();
+        const iterator = (
+          await f.gateway.stream({
+            namespace: 'botharness',
+            method: 'followChannel',
+            args: input,
+            peer,
+            signal: controller.signal,
+          })
+        )[Symbol.asyncIterator]();
+        try {
+          check((await iterator.next()).value);
+        } finally {
+          controller.abort();
+          await iterator.return?.();
+        }
+      });
+      const live = createChannelLiveHub(
+        f.channels,
+        undefined,
+        undefined,
+        undefined,
+        (human) => f.team.isOwner(human),
+        undefined,
+        (human, id) => f.team.channelAccess.canRead(human, id, true),
+        (human, id) => f.team.channelAccess.canKnow(human, id),
+        (human, value, channelId) => f.team.approvals.project(human, value, channelId),
+      );
+      const controller = new AbortController();
+      const frames = live
+        .followChannel(bob, f.group.id, 20, controller.signal)
+        [Symbol.asyncIterator]();
+      try {
+        check((await frames.next()).value);
+      } finally {
+        controller.abort();
+        await frames.return?.();
+        live.close();
+      }
+      f.registry.update('alice-bot', { displayName: 'Planner renamed' });
+      expect(f.team.approvals.project(bob, request, f.group.id).author).toEqual({
+        ...author,
+        displayName: 'Planner renamed',
+      });
+    },
+  );
+
+  it('names a private Bot reply in Activity and push without exposing its profile', async () => {
+    const f = fixture();
+    f.registry.update('alice-bot', { displayName: 'Planner', description: 'PRIVATE_PERSONA' });
+    const questionId = randomUUID();
+    await f.channels.appendMessage(bob, f.group.id, {
+      id: questionId,
+      at: new Date().toISOString(),
+      author: { kind: 'human' },
+      body: 'Question',
+    });
+    const messageId = randomUUID();
+    await f.channels.appendMessage(owner, f.group.id, {
+      id: messageId,
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'alice-bot' },
+      replyTo: questionId,
+      body: 'Reply',
+    });
+    const author = { kind: 'bot', slug: 'alice-bot', displayName: 'Planner' };
+    const activity = f.attention.list(bob, { category: 'replies' });
+    expect(activity.items).toContainEqual(expect.objectContaining({ messageId, author }));
+    const push = activityListPushSource(f.attention, () => undefined).pending(bob);
+    expect(push.items).toContainEqual(expect.objectContaining({ messageId, author }));
+    expect(JSON.stringify([activity, push])).not.toContain('PRIVATE_PERSONA');
+  });
+
   it.each(['tool', 'question', 'secret'] as const)(
     'masks %s cards through every projection without mutating canonical content',
     async (kind) => {
@@ -459,11 +614,17 @@ describe('M5 approval projections and decisions', () => {
       platform: 'ios',
     });
     const request = await seed(f, 'tool');
+    f.registry.update('alice-bot', { displayName: 'Planner' });
     await delivery.reconcile();
     await delivery.reconcile();
     expect(sent.filter((message) => message.data.itemId)).toHaveLength(1);
     masked(sent);
-    expect(sent[0]?.data).toMatchObject({ messageId: request.id, approval: { masked: true } });
+    expect(sent[0]?.data).toMatchObject({
+      messageId: request.id,
+      approval: { masked: true },
+      sender: 'Planner',
+      author: { kind: 'bot', slug: 'alice-bot', displayName: 'Planner' },
+    });
     expect(sent[0]?.categoryId).toBeUndefined();
   });
 
@@ -719,7 +880,7 @@ describe('M5 approval projections and decisions', () => {
     );
   });
 
-  it('does not query the database for ordinary message projection and bounds repeated approval lookups', async () => {
+  it('bounds author lookups per Bot and approval lookups per request within a projection', async () => {
     const f = fixture();
     const request = await seed(f, 'question');
     const ordinary = Array.from({ length: 200 }, (_, index) => ({
@@ -733,14 +894,22 @@ describe('M5 approval projections and decisions', () => {
     expect(scan).not.toHaveBeenCalled();
     const before = f.db.diagnostics().metrics.reads;
     f.team.approvals.project(bob, ordinary, f.group.id);
-    expect(f.db.diagnostics().metrics.reads - before).toBe(0);
+    const authorReads = f.db.diagnostics().metrics.reads - before;
+    expect(authorReads).toBe(1);
+    const humanStart = f.db.diagnostics().metrics.reads;
+    f.team.approvals.project(
+      bob,
+      ordinary.map((message) => ({ ...message, author: { kind: 'human' } })),
+      f.group.id,
+    );
+    expect(f.db.diagnostics().metrics.reads - humanStart).toBe(0);
     const start = f.db.diagnostics().metrics.reads;
     f.team.approvals.project(
       bob,
       Array.from({ length: 200 }, () => request),
       f.group.id,
     );
-    expect(f.db.diagnostics().metrics.reads - start).toBeLessThanOrEqual(9);
+    expect(f.db.diagnostics().metrics.reads - start).toBeLessThanOrEqual(9 + authorReads);
   });
 
   it('requires current roles, refuses suspended deciders and never grants an unjoined administrator access', async () => {
