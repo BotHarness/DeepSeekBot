@@ -78,6 +78,7 @@ const REFUSAL_TEXT: Record<string, readonly [BotHarnessKey, BotHarnessKey?]> = {
     'failure.refused.permissionServicesHint',
   ],
   BOT_UNAVAILABLE: ['failure.refused.bot'],
+  'model-not-allowed': ['failure.refused.modelNotAllowed', 'failure.refused.modelNotAllowedHint'],
   SESSION_OWNER_MISSING: ['failure.refused.owner', 'failure.refused.ownerHint'],
   SESSION_REFUSED: ['failure.refused.generic'],
   HOST_INCOMPATIBLE: ['failure.hostIncompatible', 'failure.hostIncompatibleHint'],

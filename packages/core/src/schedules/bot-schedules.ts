@@ -92,7 +92,12 @@ export class BotScheduleError extends Error {
 
 export interface BotScheduleStore {
   list(botSlug: string): BotSchedule[];
-  create(botSlug: string, input: BotScheduleInput, creator: BotScheduleCreator): BotSchedule;
+  create(
+    botSlug: string,
+    input: BotScheduleInput,
+    creator: BotScheduleCreator,
+    creatorHumanId?: string,
+  ): BotSchedule;
   update(
     botSlug: string,
     id: string,
@@ -127,6 +132,7 @@ interface ScheduleRow {
   record_json: string;
   enabled: number;
   creator: BotScheduleCreator;
+  creator_human_id: string | null;
   locked: number;
   created_at: string;
   updated_at: string;
@@ -480,9 +486,9 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
     }
     const sourceEventId = createId();
     db.prepare(`
-      INSERT INTO source_events (source_event_id, source_kind, bot_slug, body, created_at, payload_json)
-      VALUES (?, 'schedule', ?, ?, ?, ?)
-    `).run(sourceEventId, row.bot_slug, record.title, at, payload);
+      INSERT INTO source_events (source_event_id, source_kind, bot_slug, body, created_at, payload_json, human_id)
+      VALUES (?, 'schedule', ?, ?, ?, ?, ?)
+    `).run(sourceEventId, row.bot_slug, record.title, at, payload, row.creator_human_id);
     db.prepare(`
       INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_wake_mode)
       VALUES (?, ?, 'schedule', 'immediate')
@@ -605,7 +611,7 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
       );
     },
 
-    create(botSlug, input, creator) {
+    create(botSlug, input, creator, creatorHumanId) {
       const title = normalizeText(input.title, 'title', 120);
       const prompt = normalizeText(input.prompt, 'prompt', 4000);
       const id = createId();
@@ -619,8 +625,8 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
         if (enabled) requireCapacity(db, botSlug);
         db.prepare(`
           INSERT INTO bot_schedules
-            (schedule_id, bot_slug, record_json, enabled, creator, locked, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (schedule_id, bot_slug, record_json, enabled, creator, locked, created_at, updated_at, creator_human_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           id,
           botSlug,
@@ -630,6 +636,7 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
           locked ? 1 : 0,
           at.toISOString(),
           at.toISOString(),
+          creatorHumanId ?? null,
         );
         return view(db, readRow(db, botSlug, id));
       });
