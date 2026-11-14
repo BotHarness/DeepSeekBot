@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented downstream same-registration official-address recovery and privacy-safe account-offer diagnostics; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)).
+
 - Aligned the downstream remote Bot CLI journey with the verified native Profile, model, Workspace and approval controls; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4118](https://github.com/BotHarness/DeepSeekBot/issues/4118)).
 
 - Documented the downstream selected-Host usage/storage journey and fresh published149 verification boundary; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4119](https://github.com/BotHarness/DeepSeekBot/issues/4119)).

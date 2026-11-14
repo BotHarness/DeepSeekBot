@@ -9,6 +9,7 @@ import { pairingLink } from '../../core/src/devices/http.js';
 import { en, zh } from '../src/client/locale.js';
 import { REMOTE_NOTIFICATION_KEY } from '../src/client/remote-notifications.js';
 import { hostSettingsDrafts, type HostDraftChoice } from '../src/client/host-settings-drafts.js';
+import { withRemoteHostStorageLock } from '../src/client/remote-host-storage-lock.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -71,6 +72,142 @@ const link = (hostId = 'host-b') =>
   });
 
 describe('remote hosts', () => {
+  it.each(['cancel', 'new-forget'] as const)(
+    'preserves Human intent when manual pairing waits for storage and receives %s',
+    async (mode) => {
+      const choice = {
+        kind: 'automatic-enrollment-suppressed',
+        hostId: 'host-b',
+        publicKey: null,
+        generation: 'earlier-forget',
+      };
+      const storage = memoryStorage({ [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([choice]) });
+      const { carrier, calls } = fakeCarrier();
+      const sources = createRemoteHosts({ storage, carrier });
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const held = withRemoteHostStorageLock({ storage, name: 'credentials', run: () => gate });
+      const abort = new AbortController();
+      const pending = sources.pair(link(), 'Cancelled browser', undefined, {
+        signal: abort.signal,
+      });
+      await vi.waitFor(() => expect(calls.some((call) => call.url.endsWith('/pair'))).toBe(true));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const newerChoice = { ...choice, generation: 'newer-forget' };
+      if (mode === 'cancel') abort.abort();
+      else storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([newerChoice]));
+      release();
+      await held;
+      expect((await pending).ok).toBe(false);
+      expect(sources.getSnapshot().hosts).toEqual([]);
+      expect(JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+        mode === 'cancel' ? choice : newerChoice,
+      ]);
+      expect(calls.some((call) => call.url.endsWith('/unpair'))).toBe(true);
+    },
+  );
+
+  it('keeps mixed saved credentials and local automatic choices separate, preserves unrelated choices and clears only an explicit manual add', async () => {
+    const a = {
+      hostId: 'host-a',
+      hostName: 'A',
+      deviceId: 'a',
+      credential: 'a.private',
+      routes: ['http://127.0.0.1:47001'],
+    };
+    const c = { ...a, hostId: 'host-c', hostName: 'C', deviceId: 'c', credential: 'c.private' };
+    const choice = { kind: 'automatic-enrollment-suppressed', hostId: 'host-b', publicKey: null };
+    const storage = memoryStorage({
+      [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([
+        a,
+        choice,
+        { kind: 'broken-record', hostId: 5 },
+        c,
+      ]),
+    });
+    const { carrier, calls } = fakeCarrier();
+    const sources = createRemoteHosts({ storage, carrier });
+    expect(sources.getSnapshot().hosts.map((item) => item.host.hostId)).toEqual([
+      'host-a',
+      'host-c',
+    ]);
+    await sources.forgetLocal('host-a');
+    expect(calls).toEqual([]);
+    const restored = createRemoteHosts({ storage, carrier });
+    expect(restored.getSnapshot().hosts.map((item) => item.host.hostId)).toEqual(['host-c']);
+    const automatic = await restored.enrollRelationship(
+      {
+        id: 'b'.repeat(32),
+        peer: {
+          id: 'host-b',
+          name: 'B',
+          publicKey: 'ab'.repeat(32),
+          routes: ['https://hbbbbbbbbbbbb.deepseekbot.dev'],
+        },
+      },
+      'Desktop',
+      undefined,
+      { accountGeneration: 'test-generation' },
+    );
+    expect(automatic).toEqual({ ok: false, code: 'client-automatic-enrollment-suppressed' });
+    expect(calls).toEqual([]);
+    expect((await restored.pair(link(), 'Manual browser')).ok).toBe(true);
+    const persisted = JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]');
+    expect(persisted).toContainEqual(c);
+    expect(persisted).toContainEqual(
+      expect.objectContaining({
+        kind: 'automatic-enrollment-suppressed',
+        hostId: 'host-a',
+        publicKey: null,
+      }),
+    );
+    expect(persisted).not.toContainEqual(choice);
+    expect(
+      createRemoteHosts({ storage, carrier })
+        .getSnapshot()
+        .hosts.map((item) => item.host.hostId),
+    ).toEqual(['host-c', 'host-b']);
+  });
+  it('fresh-merges an unrelated Host added by another Client and refuses a stale exact-device removal', async () => {
+    const host = {
+      hostId: 'host-b',
+      hostName: 'B',
+      deviceId: 'old',
+      credential: 'old.private',
+      routes: ['http://192.168.56.1:47001'],
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: 'ab'.repeat(32),
+        deviceKey: 'cd'.repeat(32),
+      },
+    };
+    const storage = memoryStorage({ [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify([host]) });
+    const sources = createRemoteHosts({ storage, carrier: fakeCarrier().carrier });
+    const added = {
+      hostId: 'host-c',
+      hostName: 'C',
+      deviceId: 'c',
+      credential: 'c.private',
+      routes: ['http://127.0.0.1:47001'],
+    };
+    storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([host, added]));
+    await sources.learnRelationshipRoutes({
+      id: host.hostId,
+      name: host.hostName,
+      publicKey: host.encryption.hostKey,
+      routes: ['http://192.168.56.1:47002'],
+    });
+    expect(JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toContainEqual(added);
+    const newer = { ...host, deviceId: 'new', credential: 'new.private' };
+    storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([newer, added]));
+    await expect(sources.forgetLocal(host.hostId)).rejects.toThrow('connection-host-changed');
+    expect(JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+      newer,
+      added,
+    ]);
+  });
   it('stores private route recovery in the same Client grant and refuses to override a manual route', async () => {
     const host = {
       hostId: 'host-b',
@@ -209,34 +346,28 @@ describe('remote hosts', () => {
     const remove = vi.spyOn(storage, 'removeItem');
     const { carrier, calls } = fakeCarrier();
     const sources = createRemoteHosts({ enabled: false, storage, carrier });
+    const relationship = {
+      id: 'a'.repeat(32),
+      peer: { id: 'owner-host', name: 'Private', publicKey: 'ab'.repeat(32), routes: [] },
+    };
     const off = sources.subscribe(() => {});
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
     expect(await sources.pair(link(), 'Member')).toEqual({ ok: false, code: 'owner-required' });
-    expect(
-      await sources.enrollRelationship(
-        {
-          id: 'a'.repeat(32),
-          peer: {
-            id: 'host-b',
-            name: 'Studio',
-            publicKey: 'ab'.repeat(32),
-            routes: ['http://127.0.0.1:47001'],
-          },
-        },
-        'Member',
-      ),
-    ).toEqual({
+    expect(await sources.enrollRelationship(relationship, 'Member')).toEqual({
       ok: false,
       code: 'owner-required',
     });
-    await expect(
-      sources.learnRelationshipRoutes({
-        id: 'owner-host',
-        name: 'Studio',
-        publicKey: 'ab'.repeat(32),
-        routes: ['http://192.168.56.1:47001'],
+    expect(
+      await sources.enrollRelationship(relationship, 'Member', undefined, {
+        accountGeneration: 'caller-generation',
       }),
-    ).rejects.toMatchObject({ code: 'owner-required' });
+    ).toEqual({ ok: false, code: 'owner-required' });
+    await expect(sources.learnRelationshipRoutes(relationship.peer)).rejects.toMatchObject({
+      code: 'owner-required',
+    });
+    await expect(sources.retireRelationship(relationship.id)).rejects.toMatchObject({
+      code: 'owner-required',
+    });
     expect(() => sources.select('owner-host')).toThrow('owner-required');
     expect(() =>
       sources.open({ hostId: 'owner-host', channelId: 'private', title: 'Private' }),
@@ -364,7 +495,13 @@ describe('remote hosts', () => {
 
     expect(sources.client('host-b')).toBeUndefined();
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
-    expect(storage.values.has(REMOTE_HOSTS_STORAGE_KEY)).toBe(false);
+    expect(JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+      expect.objectContaining({
+        kind: 'automatic-enrollment-suppressed',
+        hostId: 'host-b',
+        publicKey: null,
+      }),
+    ]);
     expect(storage.values.get(HOST_TAB_STORAGE_KEY)).toBe(ALL_HOSTS);
     expect(calls.at(-1)).toEqual({
       url: 'http://127.0.0.1:47001/botharness-device/unpair',
@@ -551,7 +688,13 @@ describe('Host Feed lifecycle', () => {
         expect(client.getSnapshot().connection.status).toBe('stopped');
         expect(sources.client(host.hostId)).toBeUndefined();
         expect(sources.getSnapshot().hosts).toEqual([]);
-        expect(storage.getItem(REMOTE_HOSTS_STORAGE_KEY)).toBeNull();
+        expect(JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+          expect.objectContaining({
+            kind: 'automatic-enrollment-suppressed',
+            hostId: host.hostId,
+            publicKey: null,
+          }),
+        ]);
         expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty(host.hostId);
         expect(sources.notifications.choice('other')).toEqual(other);
         expect(close).toHaveBeenCalledOnce();
@@ -1045,7 +1188,7 @@ describe('Host Feed lifecycle', () => {
     const sources = createRemoteHosts({ carrier: host.carrier, storage });
     expect(sources.getSnapshot().tab).toBe(host.hostId);
     expect(sources.getSnapshot().hosts[0]?.host).toEqual(saved[0]);
-    expect(storage.values.has('botharness.computers.v1')).toBe(false);
+    expect(storage.values.has('botharness.computers.v1')).toBe(true);
     expect(storage.values.has('botharness.computers.tab.v1')).toBe(false);
     await sources.remove(host.hostId);
     expect(createRemoteHosts({ carrier: host.carrier, storage }).getSnapshot().hosts).toEqual([]);

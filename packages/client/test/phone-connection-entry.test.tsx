@@ -149,6 +149,7 @@ it('prepares an approved relationship return route without phone onboarding or a
   relationships = [
     {
       id: 'r'.repeat(32),
+      accountOrigin: null,
       peer: { id: 'peer', name: 'Peer', publicKey: 'ab'.repeat(32), routes: [tail.url] },
       direction: 'outgoing',
       state: 'active',

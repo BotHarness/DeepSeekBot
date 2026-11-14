@@ -6,6 +6,18 @@ E7 的创建目标也限定“与人私聊”。既有 Team 联系人目录和 H
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
+E6 通过现有已认证账号列表与 `/offer` 发现同账号 Host：两端各自验证本机注册与 Noise 身份，接收端使用自己的账号会话重新读取准确的来源注册；HMAC、账号、目标注册、新鲜度和包含双方身份的固定角色 transcript 一并校验。按稳定注册 ID 选唯一发起端，异步返回后复查账号代际、原有 pin 和主动断开抑制；当前账号资格保存在 canonical relationship 的 account_origin。完整双边证明也可为已有手动批准的 active 关系附加资格，以原 NULL 值 CAS 保留同一 ID、审批、授权、独立线路和私有 admission，不绕过待处理的手动审批。只有具备该验证资格的关系自动为桌面/Web Client 登记，其余手动关系仍需「在此 Client 使用」。每 Host 成功独立发布，扫描轮转、并发和重试有界；不切换 Environment Scope、打开的会话或 Settings Target，不借用 Bot 协作授权，也不需要部署 relay。
+
+发现由既有 Host 关系 owner 启停，初始及每三十秒调度一次，不依赖排序较小的 Host 上打开 Client；无账号不触网，退出账号同步使旧代请求取消，关闭后不再调度。重新登录改变注册 ID 时，只在双方新鲜权威 offer、原账号资格与准确 Host/pin 全部一致后，以旧资格 CAS 更新原 active 关系，不新建关系或改变审批，旧响应不得覆盖新代。资格同时记录各端用自己已认证 offer 取得的 officialOrigin；同一 CAS 事务只替换此前明确记录的官方地址，首次资格只添加新地址，不猜测或删除手动线路，容量超限时资格与线路均不提交。单端成功但回复丢失时可重新证明并收敛到原关系，主动断开抑制始终有效。已有 public-only Client 沿原线路 owner 学习新地址，不新造授权或改变偏好/浏览范围；私有 admission 仍沿原路径。正式链保留已发布的 Human 140、Team/私有 Bot 141–143，再追加关系 144、已发布 Team 生命周期 145、Channel 权限 146、离线撤销 147、已发布 Team 模型 148 与 Human 用量归属 149、账号登记 150；未发布的旧 Environment 140–143 及 offline145/account146、offline146/account147、offline147/account148 分叉只作闭合归档，最终验证使用全新 Profile，不复制账号凭据。
+
+同一注册也可能换用新的官方 hostname。发起端只有在本机已验证 offer 的地址与对端地址都已公告后才跳过重复证明；成功公告的进程内状态绑定账号代际、关系 ID 和本机官方地址，仅在对端确认、本地资格 CAS 成功及当前代复查后记录。重启、退出账号、换代或关系退休会释放对应状态；冷启动重新证明一次，正常轮询不重复写入。它不构成新的授权或路由权威，重新证明可能改变关系观察时间，不能把授权与 pin 保持不变误写成整行字节不变。
+
+同一关系 owner 在已发布 Team145、Channel 权限146、离线撤销147、Team 模型148 和 Human 用量归属149 之后，以 Operational Database generation 150 保留单次 Client 公钥的登记状态：来源端先记 unconfirmed，目标端在原设备授权事务中检查该 intent 及十分钟截止并只兑换一次；Client 把私钥保存在原 SavedHost/CLI 私有文件后，以同一 key 幂等确认。丢确认先读回，不新造 key；未知状态在 Client 私有记录中保留并显示「正在完成连接」。取消使用准确关系与公钥，在目标同一事务保存 tombstone 并撤销匹配的派生设备；迟到 offer 和 redemption 都检查该事实，不影响其他 Client 或独立手机授权。来源端跨退出账号、重启保留待清理事实，有限重试固定 Noise 身份的减权取消；未确认到期也进入清理，八次后保留待检查。仅截止后另过六十秒的已完成取消/清理记录可回收，1,024 条满额安全拒绝，不能淘汰仍有效的 tombstone。见 [ADR-0339](../adr/0339-relationship-enrollment-keeps-issuance-and-cancellation-durable.md)。
+
+浏览器仍以原 private SavedHost 为凭据 owner；所有数组写入经同一短 IndexedDB 原生事务执行 fresh-read、准确设备/密钥/凭据代际比较及同步 localStorage 写入，不存第二份凭据或租约。自动登记另持有每 Host 的 Web Lock，锁内先重读并复用同源其他标签页已保存的 Client 授权；不同 Host 不因一条慢连接全程串行。缺 Web Locks 时在生成自动登记密钥前拒绝，HTTP LAN 的既有手动连接与线路持久化仍走 IndexedDB 短事务。原生手机 App 不导入自动消费者，仍逐 Host 登记；运行完整 owner Web Client 的手机浏览器属于 Web Client，不能凭 UA 或调用者标记声称排除了物理手机。浏览器、已安装 Desktop 和原生手机验收分别记录。
+
+本 Client 的 Forget/Remove 在原私有数组保留不含凭据的自动选择及新代次；临时登记不清除该选择，成功手动登记仅在准确凭据与已捕获选择（包括原先不存在）均未变化时清除。较晚 Forget 使旧手动流程拒绝完成并准确回收自己的授权；取消补偿不覆盖较新凭据或选择。pending confirmation 保留该快照供重载后收敛，attach 前重读并复用准确匹配的既有 Client，防止旧流程覆盖另一标签页的连接。
+
 E9 的远端 Bot 设置复用原有 ConversationView 内的资料、模型、Workspace Grant 与审批控件，来源上下文固定捕获所属 Host、Bot 与原 HostClient。写入仍经过原 Host 的 Registry、模型、Workspace 和审批 owners 与既有 Device Gateway/API Gateway；每次调用前后检查原 Client 及连接状态，离开来源、撤销或同 Host ID 换 Client 后，旧结果不能提交后续操作。Workspace 目录选择沿用目标 Host 的目录浏览与 Workspace owner，保留分页而不向远端暴露本机 OS picker。纯 Human 会话不显示 Bot 控件。删除独立远端 SettingsDialog，不增加持久数据、代理权限层或 Bot 协作成员授权。
 
 私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。

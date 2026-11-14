@@ -89,6 +89,11 @@ function fakeServices(
     relayFull?: Record<string, unknown>;
     pool?: Record<string, unknown>;
     protectedUntil?: string;
+    offer?: (
+      path: string,
+      body: Record<string, unknown> | undefined,
+      signal: AbortSignal | null | undefined,
+    ) => Promise<Response>;
   } = {},
 ) {
   let pending = options.pending ?? 1;
@@ -145,6 +150,8 @@ function fakeServices(
       });
     }
     if (url.origin !== RELAY) return new Response('{}', { status: 404 });
+    if (url.pathname.endsWith('/offer') && options.offer)
+      return options.offer(url.pathname, body, init?.signal);
     if (url.pathname === '/v1/config')
       return Response.json({
         clientId: CLIENT,
@@ -228,7 +235,13 @@ async function settle(account: { status(): { state: string } }) {
     await new Promise((done) => setImmediate(done));
 }
 
-function setup(services = fakeServices(), port = 41001, watchMs = 60_000, onReady?: () => void) {
+function setup(
+  services = fakeServices(),
+  port = 41001,
+  watchMs = 60_000,
+  onReady?: () => void,
+  record?: Parameters<typeof createConnectAccount>[0]['record'],
+) {
   const credentials = memoryCredentials();
   const tunnel = fakeConnect(port);
   const account = createConnectAccount({
@@ -241,6 +254,7 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000, onRead
     sleep: async () => {},
     watchMs,
     ...(onReady === undefined ? {} : { onReady }),
+    ...(record === undefined ? {} : { record }),
   });
   return { account, credentials, tunnel, services };
 }
@@ -300,6 +314,106 @@ describe('linked account computers', () => {
     },
   );
 
+  it.each(['account', 'registration', 'expired', 'route'] as const)(
+    'refuses a %s mismatch in an authenticated relationship offer',
+    async (mode) => {
+      const registrationId = 'haaaaaaaaaaaa';
+      const services = fakeServices({
+        pending: 0,
+        hostId: registrationId,
+        offer: async (_path, body) => {
+          const payload = JSON.stringify({
+            hostId: mode === 'registration' ? 'hbbbbbbbbbbbb' : registrationId,
+            account: mode === 'account' ? 'another-account' : 'user_alice',
+            verifierHash: body?.['verifierHash'],
+            issuedAt: new Date(
+              mode === 'expired' ? Date.now() - 120_000 : Date.now(),
+            ).toISOString(),
+          });
+          return Response.json({
+            host: { id: 'remote-pairing-host', name: 'Remote' },
+            encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+            enrollment: {
+              body: payload,
+              signature: createHmac('sha256', RELAY_KEY).update(payload).digest('base64url'),
+            },
+            hostname: mode === 'route' ? 'untrusted.example' : `${registrationId}.deepseekbot.dev`,
+            expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          });
+        },
+      });
+      const events: { phase: string; detail: string | undefined }[] = [];
+      const { account } = setup(services, 41001, 60_000, undefined, (phase, detail) =>
+        events.push({ phase, detail }),
+      );
+      try {
+        await account.signIn();
+        await settle(account);
+        const session = await account.relationshipSession();
+        expect(session).toBeDefined();
+        await expect(
+          session?.offer(registrationId, 'a'.repeat(43), new AbortController().signal),
+        ).rejects.toThrow();
+        expect(services.calls.at(-1)?.auth).toMatch(/^Bearer /u);
+        const failure = events.findLast((event) => event.phase === 'account-request-error');
+        expect(failure?.detail).toContain(
+          'service=relay operation=relationship-offer reason=invalid-response httpStatus=200',
+        );
+        expect(failure?.detail).not.toContain('another-account');
+        expect(failure?.detail).not.toContain(RELAY_KEY);
+        expect(failure?.detail).not.toContain('a'.repeat(43));
+      } finally {
+        await account.close();
+      }
+    },
+  );
+  it('invalidates an in-flight authenticated relationship offer immediately when sign-out starts', async () => {
+    const gate = deferred();
+    const entered = vi.fn();
+    const registrationId = 'haaaaaaaaaaaa';
+    const services = fakeServices({
+      pending: 0,
+      hostId: registrationId,
+      offer: async (_path, body) => {
+        entered();
+        await gate.promise;
+        const payload = JSON.stringify({
+          hostId: registrationId,
+          account: 'user_alice',
+          verifierHash: body?.['verifierHash'],
+          issuedAt: new Date().toISOString(),
+        });
+        return Response.json({
+          host: { id: 'remote-pairing-host', name: 'Remote' },
+          encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+          enrollment: {
+            body: payload,
+            signature: createHmac('sha256', RELAY_KEY).update(payload).digest('base64url'),
+          },
+          hostname: `${registrationId}.deepseekbot.dev`,
+          expiresAt: new Date(Date.now() + 300_000).toISOString(),
+        });
+      },
+    });
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      const session = await account.relationshipSession();
+      if (!session) throw new Error('missing test account session');
+      const offered = session.offer(registrationId, 'a'.repeat(43), new AbortController().signal);
+      await vi.waitFor(() => expect(entered).toHaveBeenCalled());
+      const signOut = account.signOut();
+      expect(session.current()).toBe(false);
+      gate.resolve();
+      await expect(offered).rejects.toThrow('session-expired');
+      await signOut;
+      expect(await account.relationshipSession()).toBeUndefined();
+    } finally {
+      gate.resolve();
+      await account.close();
+    }
+  });
   it('refuses signed-out operations without any network calls', async () => {
     const { account, services } = setup();
     try {
@@ -917,6 +1031,34 @@ describe('Connect account sign-in', () => {
       expect(phases).not.toContain(
         phase === 'sign-in-expired' ? 'sign-in-failed' : 'sign-in-expired',
       );
+      await account.close();
+    }
+  });
+
+  it('refuses newly started offer verification while sign-out is waiting for unlink', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services);
+    await account.signIn();
+    await settle(account);
+    const gate = deferred();
+    const original = services.fetcher.getMockImplementation()!;
+    services.fetcher.mockImplementation(async (input, init) => {
+      if (init?.method === 'DELETE') await gate.promise;
+      return original(input, init);
+    });
+    const body = JSON.stringify({
+      hostId: 'hstudioaaaaa',
+      account: 'user_alice',
+      verifierHash: Buffer.alloc(32, 3).toString('base64url'),
+      issuedAt: new Date().toISOString(),
+    });
+    const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+    const leaving = account.signOut();
+    try {
+      expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+    } finally {
+      gate.resolve();
+      await leaving;
       await account.close();
     }
   });

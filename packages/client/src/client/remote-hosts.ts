@@ -1,11 +1,21 @@
 import { hostLooks } from './host-looks.js';
 import { memberPage } from './member-page.js';
+import { secureRandom, keyHex } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
 import { browserAdmissionProtocols } from '../../../../deploy/private-relay/admission.mjs';
 import { isPrivateRoute } from '../../../../apps/mobile/src/host/route.js';
 import {
   enrollRelationshipClient,
+  commitRelationshipEnrollment,
+  cancelRelationshipEnrollment,
+  relationshipClientPublicKey,
   updateRelationshipClientRoute,
 } from '../../../core/src/devices/relationship-enrollment.js';
+import { pendingRelationshipEnrollmentSchema as pendingEnrollmentSchema } from '../../../core/src/devices/relationship-contract.js';
+import { automaticEnrollmentChoiceSchema } from '../../../core/src/devices/relationship-contract.js';
+import {
+  withRemoteHostStorageLock,
+  withRemoteHostCredentialWrite,
+} from './remote-host-storage-lock.js';
 import { relationshipRequest, type ClientRelationship } from './relationships.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
@@ -84,6 +94,8 @@ export type HostPairResult =
         | 'pairing-in-progress'
         | 'this-host'
         | 'storage-failure'
+        | 'client-lock-unavailable'
+        | 'client-automatic-enrollment-suppressed'
         | 'owner-required'
         | 'cancelled';
     };
@@ -99,11 +111,13 @@ export interface RemoteHosts {
   learnRelationshipRoutes(
     peer: ClientRelationship['peer'],
     privateRelay?: PrivateAdmission,
+    intent?: 'merge-existing',
   ): Promise<void>;
   enrollRelationship(
     relationship: Pick<ClientRelationship, 'id' | 'peer'>,
     name: string,
     signal?: AbortSignal,
+    background?: { accountGeneration: string },
   ): Promise<HostPairResult>;
   notifications: RemoteNotifications;
   getSnapshot(): RemoteHostsSnapshot;
@@ -145,16 +159,53 @@ function readHosts(storage: HostStorage | undefined): SavedHost[] {
     const value = JSON.parse(
       readStorage(storage, REMOTE_HOSTS_STORAGE_KEY, 'botharness.computers.v1') ?? '[]',
     ) as unknown;
-    return Array.isArray(value) ? value.flatMap((entry) => parseSavedHost(entry) ?? []) : [];
+    return Array.isArray(value)
+      ? value.flatMap((entry) => {
+          const host = parseSavedHost(entry);
+          if (!host) return [];
+          const parsed = pendingEnrollmentSchema.safeParse(entry);
+          if (!parsed.success) return [];
+          const pending = parsed.data.relationshipEnrollment;
+          return pending ? { ...host, relationshipEnrollment: pending } : host;
+        })
+      : [];
   } catch {
     return [];
   }
 }
 
+export const relationshipEnrollmentPending = (host: SavedHost): boolean =>
+  pendingEnrollmentSchema.safeParse(host).data?.relationshipEnrollment !== undefined;
+function committedHost(host: SavedHost & { relationshipEnrollment?: unknown }): SavedHost {
+  const { relationshipEnrollment: _pending, ...saved } = host;
+  return saved;
+}
+
+function readAutomaticChoices(storage: HostStorage | undefined) {
+  try {
+    const rows: unknown = JSON.parse(
+      readStorage(storage, REMOTE_HOSTS_STORAGE_KEY, 'botharness.computers.v1') ?? '[]',
+    );
+    return Array.isArray(rows)
+      ? rows.flatMap((row) => automaticEnrollmentChoiceSchema.safeParse(row).data ?? [])
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+type AutomaticChoice = ReturnType<typeof automaticEnrollmentChoiceSchema.parse>;
+type ChoiceChange =
+  | { kind: 'preserve' | 'suppress' }
+  | { kind: 'clear'; expected: string | null }
+  | { kind: 'restore'; choice: AutomaticChoice };
+const choiceSnapshot = (choice: AutomaticChoice | undefined): string | null =>
+  choice ? JSON.stringify(choice) : null;
 function readStorage(storage: HostStorage | undefined, key: string, oldKey: string): string | null {
   const current = storage?.getItem(key);
   const previous = storage?.getItem(oldKey);
   if (previous == null) return current ?? null;
+  if (key === REMOTE_HOSTS_STORAGE_KEY) return current ?? previous;
   try {
     if (current == null) storage?.setItem(key, previous);
     storage?.removeItem(oldKey);
@@ -203,7 +254,7 @@ export function createRemoteHosts(options: {
   hostName?: (hostId: string, fallback: string) => string;
 }): RemoteHosts {
   const { carrier, loadImage, releaseImage } = options;
-  const enabled = options.enabled !== false;
+  const enabled = !memberPage() && options.enabled !== false;
   const storage = enabled ? options.storage : undefined;
   const requireOwner = () => {
     if (!enabled) throw Object.assign(new Error('owner-required'), { code: 'owner-required' });
@@ -242,9 +293,47 @@ export function createRemoteHosts(options: {
         const relationship = result.relationships.find(
           (item) => item.id === entry.host.relationshipId,
         );
+        const pending = pendingEnrollmentSchema.safeParse(entry.host).data?.relationshipEnrollment;
+        if (pending && relationship?.state === 'active') {
+          const state = await commitRelationshipEnrollment({
+            relationshipId: entry.host.relationshipId,
+            publicKey: pending.publicKey,
+            request: (body) => relationshipRequest(body, abort.signal),
+          });
+          if (abort.signal.aborted || clients.get(entry.host.hostId) !== entry) continue;
+          if (state === 'committed') {
+            try {
+              await saveHostChange(
+                entry.host.hostId,
+                entry.client,
+                committedHost,
+                pending.clearAutomaticChoiceOnCommit &&
+                  pending.expectedAutomaticChoice !== undefined
+                  ? { kind: 'clear', expected: pending.expectedAutomaticChoice }
+                  : { kind: 'preserve' },
+              );
+            } catch (error) {
+              if (!(error instanceof Error) || error.message !== 'client-automatic-choice-changed')
+                throw error;
+              await cancelRelationshipEnrollment({
+                relationshipId: entry.host.relationshipId,
+                publicKey: pending.publicKey,
+                request: (body) => relationshipRequest(body),
+              });
+              await revokePairing({ host: entry.host, carrier });
+              await persistCredential(entry.host.hostId, entry.host, () => undefined);
+              if (clients.get(entry.host.hostId) === entry) retireEntry(entry);
+              publish();
+            }
+          }
+          if (state === 'cancelled') {
+            await revokePairing({ host: entry.host, carrier });
+            await forget(entry.host.hostId);
+          }
+        }
         if (relationship?.state !== 'disconnected') continue;
         const releasing = releaseRemoteHostViewers(entry.client);
-        forget(entry.host.hostId);
+        await forget(entry.host.hostId);
         await releasing;
       }
     } catch {
@@ -341,6 +430,7 @@ export function createRemoteHosts(options: {
   };
 
   const start = (entry: HostEntry): void => {
+    if (relationshipEnrollmentPending(entry.host)) return;
     entry.client.start();
     if (entry.inbox !== undefined) return;
     const feed = createInbox(entry.client, { activity: true, notifications: true }, entry.retained);
@@ -355,32 +445,88 @@ export function createRemoteHosts(options: {
     entry.client.stop();
   };
 
-  const save = (): void => {
-    try {
-      const hosts = [...clients.values()].map(({ host }) => serializeSavedHost(host));
-      if (hosts.length === 0) storage?.removeItem(REMOTE_HOSTS_STORAGE_KEY);
-      else storage?.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify(hosts));
-    } catch {}
+  const sameCredential = (a: SavedHost, b: SavedHost): boolean =>
+    a.hostId === b.hostId &&
+    a.deviceId === b.deviceId &&
+    a.credential === b.credential &&
+    a.encryption?.hostKey === b.encryption?.hostKey &&
+    a.encryption?.deviceKey === b.encryption?.deviceKey &&
+    a.relationshipId === b.relationshipId;
+  const persistCredential = async (
+    hostId: string,
+    expected: SavedHost | undefined,
+    change: (current: SavedHost | undefined) => SavedHost | undefined,
+    choiceChange: ChoiceChange = { kind: 'preserve' },
+  ): Promise<SavedHost | undefined> => {
+    if (!storage) throw new Error('storage-unavailable');
+    return withRemoteHostCredentialWrite({
+      storage,
+      run: () => {
+        const current = readHosts(storage);
+        const stored = current.find((host) => host.hostId === hostId);
+        if (expected ? !stored || !sameCredential(stored, expected) : stored !== undefined)
+          throw new Error('connection-host-changed');
+        const next = change(stored);
+        const currentChoices = readAutomaticChoices(storage);
+        if (
+          choiceChange.kind === 'clear' &&
+          choiceSnapshot(currentChoices.find((choice) => choice.hostId === hostId)) !==
+            choiceChange.expected
+        )
+          throw new Error('client-automatic-choice-changed');
+        const hosts = current.filter((host) => host.hostId !== hostId);
+        if (next) hosts.push(next);
+        const clearChoice = choiceChange.kind === 'clear';
+        const choices = currentChoices.filter(
+          (choice) =>
+            choice.hostId !== hostId || (!clearChoice && choiceChange.kind !== 'suppress'),
+        );
+        if (choiceChange.kind === 'restore' && !choices.some((choice) => choice.hostId === hostId))
+          choices.push(choiceChange.choice);
+        if (choiceChange.kind === 'suppress' && expected) {
+          if (choices.length >= 256) throw new Error('client-automatic-choice-limit');
+          choices.push({
+            kind: 'automatic-enrollment-suppressed',
+            hostId,
+            generation: keyHex(secureRandom(carrier)),
+            publicKey: expected.encryption?.hostKey ?? null,
+          });
+        }
+        storage.setItem(
+          REMOTE_HOSTS_STORAGE_KEY,
+          JSON.stringify([...hosts.map(serializeSavedHost), ...choices]),
+        );
+        try {
+          storage.removeItem('botharness.computers.v1');
+        } catch {}
+        return next;
+      },
+    });
   };
 
-  const saveHostChange = (
+  const saveHostChange = async (
     hostId: string,
     client: HostClient,
     change: (host: SavedHost) => SavedHost,
-  ): void => {
+    choiceChange: ChoiceChange = { kind: 'preserve' },
+  ): Promise<void> => {
     const entry = clients.get(hostId);
     if (!entry || entry.client !== client) throw new Error('connection-host-changed');
+    const wasPending = relationshipEnrollmentPending(entry.host);
     if (!storage) throw new Error('storage-unavailable');
-    const next = change(entry.host);
-    storage.setItem(
-      REMOTE_HOSTS_STORAGE_KEY,
-      JSON.stringify(
-        [...clients.values()].map(({ host }) =>
-          serializeSavedHost(host.hostId === hostId ? next : host),
-        ),
-      ),
+    const next = await persistCredential(
+      hostId,
+      entry.host,
+      (current) => {
+        if (!current || clients.get(hostId)?.client !== client)
+          throw new Error('connection-host-changed');
+        return change(current);
+      },
+      choiceChange,
     );
+    if (!next || clients.get(hostId) !== entry) throw new Error('connection-host-changed');
     entry.host = next;
+    if (wasPending && listeners.size > 0 && !relationshipEnrollmentPending(next)) start(entry);
     publish();
   };
 
@@ -417,9 +563,9 @@ export function createRemoteHosts(options: {
   for (const host of readHosts(storage)) attach(host);
   publish();
 
-  const forget = (hostId: string): void => {
-    const entry = clients.get(hostId);
-    if (entry === undefined) return;
+  const retireEntry = (entry: HostEntry): void => {
+    const hostId = entry.host.hostId;
+    if (clients.get(hostId) !== entry) return;
     notifications.forget(hostId);
     entry.release();
     stop(entry);
@@ -437,83 +583,253 @@ export function createRemoteHosts(options: {
         storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
       } catch {}
     }
-    save();
     publish();
+  };
+  const forget = async (hostId: string, suppressAutomatic = false): Promise<void> => {
+    const entry = clients.get(hostId);
+    if (!entry) return;
+    await persistCredential(hostId, entry.host, () => undefined, {
+      kind: suppressAutomatic ? 'suppress' : 'preserve',
+    });
+    retireEntry(entry);
+  };
+  const refreshCredentials = (): void => {
+    const saved = readHosts(storage);
+    for (const entry of [...clients.values()]) {
+      const current = saved.find((host) => host.hostId === entry.host.hostId);
+      if (!current) retireEntry(entry);
+      else if (
+        !sameCredential(current, entry.host) &&
+        current.encryption?.hostKey === entry.host.encryption?.hostKey
+      ) {
+        retireEntry(entry);
+        attach(current);
+      } else if (sameCredential(current, entry.host)) {
+        const wasPending = relationshipEnrollmentPending(entry.host);
+        entry.host = current;
+        if (wasPending && listeners.size > 0 && !relationshipEnrollmentPending(current))
+          start(entry);
+      }
+    }
+    for (const host of saved) if (!clients.has(host.hostId)) attach(host);
+    publish();
+  };
+  const storageChanged = (event: StorageEvent) => {
+    if (
+      event.storageArea !== storage ||
+      (event.key !== null && event.key !== REMOTE_HOSTS_STORAGE_KEY)
+    )
+      return;
+    refreshCredentials();
   };
 
   return {
     async retireRelationship(relationshipId) {
+      requireOwner();
       for (const entry of [...clients.values()]) {
         if (clients.get(entry.host.hostId) !== entry) continue;
         if (entry.host.relationshipId !== relationshipId) continue;
         const releasing = releaseRemoteHostViewers(entry.client);
-        forget(entry.host.hostId);
+        await forget(entry.host.hostId);
         await releasing;
       }
     },
     notifications,
-    async learnRelationshipRoutes(peer, privateRelay) {
+    async learnRelationshipRoutes(peer, privateRelay, intent) {
       requireOwner();
       const entry = clients.get(peer.id);
       if (!entry || peer.routes.length === 0) return;
       if (entry.host.encryption?.hostKey !== peer.publicKey) throw new Error('host-key-mismatch');
-      const updated = updateRelationshipClientRoute({
-        host: entry.host,
-        peer,
-        ...(privateRelay ? { privateRelay } : {}),
+      await saveHostChange(peer.id, entry.client, (current) => {
+        if (intent === 'merge-existing' && current.encryption?.privateRelay) return current;
+        const learned =
+          intent === 'merge-existing'
+            ? { ...peer, routes: [...new Set([...peer.routes, ...current.routes])] }
+            : peer;
+        if (intent === 'merge-existing' && learned.routes.length > 8)
+          throw new Error('relationship-route-limit');
+        const updated = updateRelationshipClientRoute({
+          host: current,
+          peer: learned,
+          ...(privateRelay ? { privateRelay } : {}),
+        });
+        if (!updated.ok) throw new Error(updated.code);
+        const pending = pendingEnrollmentSchema.safeParse(current).data?.relationshipEnrollment;
+        return pending ? { ...updated.host, relationshipEnrollment: pending } : updated.host;
+      }).catch((error) => {
+        if (
+          !privateRelay &&
+          error instanceof Error &&
+          error.message === 'relationship-route-admission-required'
+        )
+          return;
+        throw error;
       });
-      if (!updated.ok) {
-        if (!privateRelay && updated.code === 'relationship-route-admission-required') return;
-        throw new Error(updated.code);
-      }
-      await saveHostChange(peer.id, entry.client, () => updated.host);
-      entry.client.updateRoutes?.(updated.host.routes, updated.host.encryption);
+      entry.client.updateRoutes?.(entry.host.routes, entry.host.encryption);
       entry.client.retryNow('manual_retry', { preserveConnected: true });
     },
-    async enrollRelationship(relationship, name, signal) {
+    async enrollRelationship(relationship, name, signal, background) {
       if (!enabled) return { ok: false, code: 'owner-required' };
       const target = relationship.peer.id;
-      if (signal?.aborted) return { ok: false, code: 'cancelled' };
-      if (clients.has(target)) return { ok: false, code: 'already-paired' };
-      if (pairing.has(target)) return { ok: false, code: 'pairing-in-progress' };
-      pairing.add(target);
+      const automaticSuppressed = () =>
+        readAutomaticChoices(storage).some(
+          (choice) =>
+            choice.hostId === target &&
+            (choice.publicKey === null || choice.publicKey === relationship.peer.publicKey),
+        );
+      const enroll = async (): Promise<HostPairResult> => {
+        if (signal?.aborted) return { ok: false, code: 'cancelled' };
+        if (background && automaticSuppressed())
+          return { ok: false, code: 'client-automatic-enrollment-suppressed' };
+        if (clients.has(target)) return { ok: false, code: 'already-paired' };
+        const saved = readHosts(storage).find((host) => host.hostId === target);
+        if (saved) {
+          if (saved.encryption?.hostKey !== relationship.peer.publicKey)
+            return { ok: false, code: 'host-key-changed' };
+          attach(saved);
+          publish();
+          return { ok: true, host: saved };
+        }
+        if (pairing.has(target)) return { ok: false, code: 'pairing-in-progress' };
+        const priorChoice = readAutomaticChoices(storage).find(
+          (choice) => choice.hostId === target,
+        );
+        pairing.add(target);
+        try {
+          const result = await enrollRelationshipClient({
+            relationshipId: relationship.id,
+            expectedPeer: relationship.peer,
+            name,
+            carrier,
+            request: (body) => relationshipRequest(body, signal),
+            cleanupRequest: (body) => relationshipRequest(body),
+            ...(signal ? { signal } : {}),
+            ...(background ? { accountGeneration: background.accountGeneration } : {}),
+          });
+          if (!result.ok) return result;
+          const tentativeHost = background
+            ? result.host
+            : {
+                ...result.host,
+                relationshipEnrollment: {
+                  ...result.host.relationshipEnrollment,
+                  clearAutomaticChoiceOnCommit: true as const,
+                  expectedAutomaticChoice: choiceSnapshot(priorChoice),
+                },
+              };
+          const preserveCommittedOnAbort = () =>
+            signal?.reason === 'owner-disposed' || signal?.reason === 'account-changed';
+          const cancelIssued = async (
+            code: 'cancelled' | 'storage-failure' | 'already-paired',
+          ): Promise<HostPairResult> => {
+            await cancelRelationshipEnrollment({
+              relationshipId: relationship.id,
+              publicKey: result.enrollmentPublicKey,
+              request: (body) => relationshipRequest(body),
+            });
+            await revokePairing({ host: result.host, carrier });
+            try {
+              await persistCredential(
+                target,
+                result.host,
+                () => undefined,
+                priorChoice ? { kind: 'restore', choice: priorChoice } : { kind: 'preserve' },
+              );
+            } catch {}
+            return { ok: false, code };
+          };
+          if (signal?.aborted || clients.has(result.host.hostId)) {
+            return cancelIssued(signal?.aborted ? 'cancelled' : 'already-paired');
+          }
+          try {
+            if (!storage) throw new Error('storage-unavailable');
+            await persistCredential(target, undefined, () => {
+              if (signal?.aborted || (background && automaticSuppressed()))
+                throw new Error('enrollment-cancelled');
+              return tentativeHost;
+            });
+          } catch {
+            return cancelIssued(signal?.aborted ? 'cancelled' : 'storage-failure');
+          }
+          if (signal?.aborted) return cancelIssued('cancelled');
+          const confirmation = await commitRelationshipEnrollment({
+            relationshipId: relationship.id,
+            publicKey: result.enrollmentPublicKey,
+            request: (body) => relationshipRequest(body),
+          });
+          if (confirmation === 'cancelled') {
+            return cancelIssued('cancelled');
+          }
+          if (background && automaticSuppressed())
+            return { ok: false, code: 'client-automatic-enrollment-suppressed' };
+          if (signal?.aborted)
+            return preserveCommittedOnAbort()
+              ? { ok: false, code: 'cancelled' }
+              : cancelIssued('cancelled');
+          if (confirmation === 'committed') {
+            try {
+              await persistCredential(
+                target,
+                result.host,
+                (current) => {
+                  if (signal?.aborted || (background && automaticSuppressed()))
+                    throw new Error('enrollment-cancelled');
+                  return current ? committedHost(current) : undefined;
+                },
+                background
+                  ? { kind: 'preserve' }
+                  : { kind: 'clear', expected: choiceSnapshot(priorChoice) },
+              );
+            } catch (error) {
+              if (error instanceof Error && error.message === 'client-automatic-choice-changed')
+                return cancelIssued('cancelled');
+            }
+          }
+          if (signal?.aborted)
+            return preserveCommittedOnAbort()
+              ? { ok: false, code: 'cancelled' }
+              : cancelIssued('cancelled');
+          if (background && automaticSuppressed())
+            return { ok: false, code: 'client-automatic-enrollment-suppressed' };
+          const savedNow = readHosts(storage).find((item) => item.hostId === target);
+          if (!savedNow || !sameCredential(savedNow, result.host))
+            return automaticSuppressed()
+              ? { ok: false, code: 'cancelled' }
+              : cancelIssued('cancelled');
+          const existing = clients.get(target);
+          if (existing && !sameCredential(existing.host, savedNow))
+            return cancelIssued('cancelled');
+          if (!existing) attach(savedNow);
+          if (!background) {
+            tab = result.host.hostId;
+            try {
+              storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+            } catch {}
+          }
+          publish();
+          return result;
+        } finally {
+          pairing.delete(target);
+        }
+      };
+      if (!background) return enroll();
+      if (!storage) return { ok: false, code: 'storage-failure' };
       try {
-        const result = await enrollRelationshipClient({
-          relationshipId: relationship.id,
-          expectedPeer: relationship.peer,
-          name,
-          carrier,
-          request: (body) => relationshipRequest(body, signal),
+        return await withRemoteHostStorageLock({
+          storage,
+          name: `enroll:${target}`,
+          run: enroll,
           ...(signal ? { signal } : {}),
         });
-        if (!result.ok) return result;
-        if (signal?.aborted || clients.has(result.host.hostId)) {
-          await revokePairing({ host: result.host, carrier });
-          return { ok: false, code: signal?.aborted ? 'cancelled' : 'already-paired' };
-        }
-        try {
-          if (!storage) throw new Error('storage-unavailable');
-          storage.setItem(
-            REMOTE_HOSTS_STORAGE_KEY,
-            JSON.stringify(
-              [...[...clients.values()].map(({ host }) => host), result.host].map(
-                serializeSavedHost,
-              ),
-            ),
-          );
-        } catch {
-          await revokePairing({ host: result.host, carrier });
-          return { ok: false, code: 'storage-failure' };
-        }
-        attach(result.host);
-        tab = result.host.hostId;
-        try {
-          storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
-        } catch {}
-        publish();
-        return result;
-      } finally {
-        pairing.delete(target);
+      } catch (error) {
+        return {
+          ok: false,
+          code: signal?.aborted
+            ? 'cancelled'
+            : error instanceof Error && error.message === 'client-storage-lock-unavailable'
+              ? 'client-lock-unavailable'
+              : 'storage-failure',
+        };
       }
     },
     getSnapshot: () => snapshot,
@@ -540,6 +856,8 @@ export function createRemoteHosts(options: {
       const first = listeners.size === 0;
       listeners.add(listener);
       if (first) {
+        globalThis.addEventListener?.('storage', storageChanged);
+        refreshCredentials();
         for (const entry of clients.values()) start(entry);
         relationshipTimer = setInterval(() => {
           void reconcileRelationships();
@@ -549,6 +867,7 @@ export function createRemoteHosts(options: {
       return () => {
         listeners.delete(listener);
         if (listeners.size > 0) return;
+        globalThis.removeEventListener?.('storage', storageChanged);
         if (relationshipTimer !== undefined) clearInterval(relationshipTimer);
         relationshipTimer = undefined;
         relationshipPoll?.abort();
@@ -573,6 +892,9 @@ export function createRemoteHosts(options: {
       if (parsed.payload.host.id === localHostId) return refused('this-host');
       if (clients.has(parsed.payload.host.id)) return refused('already-paired');
       if (pairing.has(parsed.payload.host.id)) return { ok: false, code: 'pairing-in-progress' };
+      const priorChoice = readAutomaticChoices(storage).find(
+        (choice) => choice.hostId === parsed.payload.host.id,
+      );
       pairing.add(parsed.payload.host.id);
       try {
         const redeemed = await redeemPairing({
@@ -588,25 +910,65 @@ export function createRemoteHosts(options: {
           });
           return redeemed;
         }
+        const cancelNew = async () => {
+          try {
+            await persistCredential(
+              redeemed.host.hostId,
+              redeemed.host,
+              () => undefined,
+              priorChoice ? { kind: 'restore', choice: priorChoice } : { kind: 'preserve' },
+            );
+          } catch {}
+          await revokePairing({ host: redeemed.host, carrier });
+        };
         if (trust?.signal?.aborted) {
-          void revokePairing({ host: redeemed.host, carrier });
+          await cancelNew();
           return { ok: false, code: 'cancelled' };
         }
         try {
           if (!storage) throw new Error('storage-unavailable');
-          storage.setItem(
-            REMOTE_HOSTS_STORAGE_KEY,
-            JSON.stringify(
-              [...[...clients.values()].map(({ host }) => host), redeemed.host].map(
-                serializeSavedHost,
-              ),
-            ),
+          await persistCredential(redeemed.host.hostId, undefined, () => {
+            if (trust?.signal?.aborted) throw new Error('pairing-cancelled');
+            return redeemed.host;
+          });
+        } catch {
+          await cancelNew();
+          record('remote_host:host_pair_complete', { outcome: 'failed' });
+          return { ok: false, code: trust?.signal?.aborted ? 'cancelled' : 'storage-failure' };
+        }
+        if (trust?.signal?.aborted) {
+          await cancelNew();
+          return { ok: false, code: 'cancelled' };
+        }
+        try {
+          await persistCredential(
+            redeemed.host.hostId,
+            redeemed.host,
+            (current) => {
+              if (trust?.signal?.aborted) throw new Error('pairing-cancelled');
+              return current;
+            },
+            { kind: 'clear', expected: choiceSnapshot(priorChoice) },
           );
         } catch {
-          record('remote_host:host_pair_complete', { outcome: 'failed' });
-          return { ok: false, code: 'storage-failure' };
+          await cancelNew();
+          return { ok: false, code: trust?.signal?.aborted ? 'cancelled' : 'storage-failure' };
         }
-        attach(redeemed.host);
+        if (trust?.signal?.aborted) {
+          await cancelNew();
+          return { ok: false, code: 'cancelled' };
+        }
+        const savedNow = readHosts(storage).find((item) => item.hostId === redeemed.host.hostId);
+        const existing = clients.get(redeemed.host.hostId);
+        if (
+          !savedNow ||
+          !sameCredential(savedNow, redeemed.host) ||
+          (existing && !sameCredential(existing.host, redeemed.host))
+        ) {
+          await cancelNew();
+          return { ok: false, code: 'cancelled' };
+        }
+        if (!existing) attach(savedNow);
         tab = redeemed.host.hostId;
         try {
           storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
@@ -626,13 +988,8 @@ export function createRemoteHosts(options: {
         return;
       if (clients.get(hostId) !== entry) return;
       if (!storage) throw new Error('storage-unavailable');
-      const remaining = [...clients.values()]
-        .filter(({ host }) => host.hostId !== hostId)
-        .map(({ host }) => serializeSavedHost(host));
-      if (remaining.length === 0) storage.removeItem(REMOTE_HOSTS_STORAGE_KEY);
-      else storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify(remaining));
       const releasing = releaseRemoteHostViewers(entry.client);
-      forget(hostId);
+      await forget(hostId, true);
       await releasing;
     },
     async remove(hostId) {
@@ -643,9 +1000,16 @@ export function createRemoteHosts(options: {
         return;
       if (clients.get(hostId) !== entry) return;
       const releasing = releaseRemoteHostViewers(entry.client);
-      forget(hostId);
+      await forget(hostId, true);
       await releasing;
       await revokePairing({ host: entry.host, carrier });
+      const publicKey = relationshipClientPublicKey(entry.host);
+      if (entry.host.relationshipId && publicKey)
+        await cancelRelationshipEnrollment({
+          relationshipId: entry.host.relationshipId,
+          publicKey,
+          request: (body) => relationshipRequest(body),
+        });
     },
     select(next) {
       requireOwner();

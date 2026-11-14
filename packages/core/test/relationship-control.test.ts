@@ -1,7 +1,14 @@
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, it } from 'vitest';
+import { z } from 'zod';
+import { openNoiseSocket } from '../../../apps/mobile/src/host/encrypted-carrier.js';
+import {
+  accountRelationshipVerifier,
+  type AccountRelationshipProof,
+} from '../src/devices/account-relationship-proof.js';
+import type { AccountRelationshipSession } from '../src/devices/connect-account.js';
 import type { CredentialRecord } from '@deepseek-ai/dsh-credentials';
 import type { PrivateAdmission } from '../../../apps/mobile/src/host/hosts.js';
 import type { RelationshipCredentialProvider } from '../src/devices/relationship-admission.js';
@@ -30,6 +37,7 @@ async function host(
     privateAdmission?: () => PrivateAdmission | undefined;
     retained?: { home: string; privateKey: Uint8Array; port: number };
     beforeReceive?: () => Promise<void>;
+    account?: Parameters<typeof createRelationshipControl>[0]['account'];
     beforeReply?: (input: unknown, response: Record<string, unknown>) => Promise<void>;
   } = {},
 ) {
@@ -73,6 +81,7 @@ async function host(
     identity,
     routes: async () => advertisedRoutes,
     now: clock,
+    ...(options.account ? { account: options.account } : {}),
     ...(options.credentials ? { credentials: () => options.credentials } : {}),
     ...(options.privateAdmission ? { privateAdmission: options.privateAdmission } : {}),
   });
@@ -121,6 +130,226 @@ async function host(
     },
   };
 }
+
+it('qualifies the same manual relationship through pinned Noise proof before accepting account-enroll for a new independent Client', async () => {
+  let account: ReturnType<NonNullable<Parameters<typeof createRelationshipControl>[0]['account']>>;
+  const a = await host('A');
+  const b = await host('B', Date.now, { account: () => account });
+  const relayKey = randomBytes(32);
+  const sign = (body: string) => createHmac('sha256', relayKey).update(body).digest('base64url');
+  const localRegistrationId = 'hbbbbbbbbbbbb';
+  const sourceRegistrationId = 'haaaaaaaaaaaa';
+  const session: AccountRelationshipSession = {
+    accountId: 'wire-test-account',
+    registrationId: localRegistrationId,
+    generation: 'wire-generation',
+    current: () => true,
+    hosts: async () => [],
+    offer: async (registrationId, verifierHash) => {
+      const selected = registrationId === localRegistrationId ? b : a;
+      const body = JSON.stringify({ registrationId, verifierHash, accountId: 'wire-test-account' });
+      return {
+        host: selected.pairing.host(),
+        hostname: `${registrationId}.deepseekbot.dev`,
+        encryption: { protocol: CONNECT_PROTOCOL, publicKey: selected.publicKey },
+        enrollment: { body, signature: sign(body) },
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      };
+    },
+  };
+  account = {
+    relationshipSession: async () => session,
+    verifyOffer: async (body, signature) => {
+      const payload = z
+        .object({ registrationId: z.string(), verifierHash: z.string(), accountId: z.string() })
+        .parse(JSON.parse(body));
+      return signature === sign(body) &&
+        payload.registrationId === localRegistrationId &&
+        payload.accountId === session.accountId
+        ? { ok: true, verifierHash: payload.verifierHash, accountAutoApprove: true }
+        : { ok: false };
+    },
+  };
+  const send = (command: Record<string, unknown>) =>
+    new Promise<Record<string, unknown>>((resolve, reject) => {
+      const channel = openNoiseSocket({
+        origin: b.routes[0]!,
+        hostId: b.pairing.host().id,
+        encryption: {
+          protocol: CONNECT_PROTOCOL,
+          hostKey: b.publicKey,
+          deviceKey: Buffer.from(a.retained.privateKey).toString('hex'),
+        },
+        raw: nodeDeviceCarrier(),
+        message: (value) => {
+          if (value['type'] !== 'relationship-result') return;
+          clearTimeout(timer);
+          resolve(value);
+          channel.close();
+        },
+        closed: () => {
+          clearTimeout(timer);
+          reject(new Error('wire closed'));
+        },
+      });
+      const timer = setTimeout(() => {
+        channel.close();
+        reject(new Error('wire deadline'));
+      }, 5000);
+      void channel.ready
+        .then(() => channel.send({ type: 'relationship', command }))
+        .catch((error) => {
+          clearTimeout(timer);
+          channel.close();
+          reject(error);
+        });
+    });
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const previous = b.relationships.read(relationship.id);
+    expect(previous.accountOrigin).toBeNull();
+    const independent = b.pairing.redeem({ offer: b.pairing.createOffer().offer });
+    if (!independent.ok) throw new Error('fixture independent grant refused');
+    const publicKey = randomBytes(32).toString('hex');
+    const enroll = {
+      action: 'account-enroll',
+      id: relationship.id,
+      publicKey,
+      name: 'New account Client',
+      expiresAt: Date.now() + 60_000,
+    };
+    expect(await send(enroll)).toMatchObject({
+      ok: false,
+      code: 'account-enrollment-origin-mismatch',
+    });
+    const proof: AccountRelationshipProof = {
+      purpose: 'account-host-relationship-v1',
+      relationshipId: relationship.id,
+      source: {
+        registrationId: sourceRegistrationId,
+        hostId: a.pairing.host().id,
+        publicKey: a.publicKey,
+      },
+      target: {
+        registrationId: localRegistrationId,
+        hostId: b.pairing.host().id,
+        publicKey: b.publicKey,
+      },
+      expiresAt: Date.now() + 60_000,
+      nonce: randomBytes(32).toString('base64url'),
+    };
+    const signed = await session.offer(
+      localRegistrationId,
+      accountRelationshipVerifier(proof),
+      new AbortController().signal,
+    );
+    expect(
+      await send({ action: 'account-propose', proof, enrollment: signed.enrollment }),
+    ).toMatchObject({ ok: true, state: 'active' });
+    const ticket = await send(enroll);
+    expect(ticket['ok']).toBe(true);
+    if (typeof ticket['offer'] !== 'string') throw new Error('missing real enrollment offer');
+    const issued = b.pairing.redeem({ offer: ticket['offer'], publicKey });
+    expect(issued.ok).toBe(true);
+    const qualified = b.relationships.read(relationship.id);
+    expect(qualified).toMatchObject({
+      id: previous.id,
+      state: previous.state,
+      direction: previous.direction,
+    });
+    expect(qualified.peer.routes).toEqual(expect.arrayContaining(previous.peer.routes));
+    expect(b.pairing.list().find((device) => device.id === independent.device.id)).toEqual(
+      independent.device,
+    );
+    expect(b.pairing.list()).toHaveLength(2);
+  } finally {
+    await a.close();
+    await b.close();
+  }
+});
+
+it('cleans an unknown committed grant by its exact Client key after lost paired reply, source restart and route recovery', async () => {
+  let now = Date.now();
+  const clock = () => now;
+  let source = await host('A', clock);
+  const target = await host('B', clock);
+  const closed = new Set<object>();
+  const close = async (item: Awaited<ReturnType<typeof host>>) => {
+    if (closed.has(item)) return;
+    closed.add(item);
+    await item.close();
+  };
+  try {
+    const outgoing = await source.control.initiate(await target.link(), target.publicKey);
+    target.control.approve(outgoing.id, source.publicKey);
+    await source.control.sync(outgoing.id);
+    const keepKey = 'ef'.repeat(32);
+    const keepOffer = target.relationships.enrollment(outgoing.id, source.publicKey, {
+      publicKey: keepKey,
+      name: 'Keep Client',
+    });
+    const keep = target.pairing.redeem({ offer: keepOffer.offer, publicKey: keepKey });
+    const phone = target.pairing.redeem({ offer: target.pairing.createOffer().offer });
+    if (!keep.ok || !phone.ok) throw new Error('fixture pairing refused');
+    const abort = new AbortController();
+    const redeem = target.pairing.redeem.bind(target.pairing);
+    let mintedKey = '';
+    target.pairing.redeem = (input) => {
+      const result = redeem(input);
+      if (result.ok && input.publicKey !== undefined) {
+        mintedKey = input.publicKey;
+        abort.abort();
+        source.relationships.updateRoutes(outgoing.id, target.publicKey, []);
+      }
+      return result;
+    };
+    const result = await enrollRelationshipClient({
+      relationshipId: outgoing.id,
+      expectedPeer: outgoing.peer,
+      name: 'Lost reply Client',
+      carrier: nodeDeviceCarrier(),
+      signal: abort.signal,
+      request: async (body) => {
+        if (
+          body['action'] !== 'enroll' ||
+          typeof body['publicKey'] !== 'string' ||
+          typeof body['name'] !== 'string'
+        )
+          throw new Error('unexpected enrollment request');
+        return source.control.enroll(outgoing.id, body['publicKey'], body['name']);
+      },
+      cleanupRequest: async (body) => {
+        if (body['action'] !== 'cancel-enrollment' || typeof body['publicKey'] !== 'string')
+          throw new Error('unexpected cleanup request');
+        return source.control.cancelEnrollment(outgoing.id, body['publicKey']);
+      },
+    });
+    expect(result.ok).toBe(false);
+    const issued = target.pairing.list().find((device) => device.publicKey === mintedKey);
+    if (!issued) throw new Error('missing committed unknown grant');
+    expect(target.pairing.check(issued.id).ok).toBe(true);
+    expect(
+      source.relationships.enrollments.list().find((item) => item.publicKey === mintedKey),
+    ).toMatchObject({ state: 'cleanup-pending' });
+    const retained = source.retained;
+    await close(source);
+    source = await host('A', clock, { retained });
+    await source.control.recoverRoute(outgoing.id, await target.link());
+    now += 10_000;
+    await source.control.retryPending();
+    expect(
+      source.relationships.enrollments.list().find((item) => item.publicKey === mintedKey),
+    ).toMatchObject({ state: 'cleaned' });
+    expect(target.pairing.check(issued.id)).toMatchObject({ ok: false, code: 'device-revoked' });
+    expect(target.pairing.check(keep.device.id).ok).toBe(true);
+    expect(target.pairing.check(phone.device.id).ok).toBe(true);
+  } finally {
+    await close(source);
+    await close(target);
+  }
+}, 20_000);
 
 it('aborts an in-flight retirement before disposing its authority without late reads or an unhandled rejection', async () => {
   let gate: Promise<void> | undefined;
@@ -302,7 +531,11 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
           ),
       });
       expect(grant.ok).toBe(true);
-      if (grant.ok) expect(parseSavedHost(serializeSavedHost(grant.host))).toEqual(grant.host);
+      if (grant.ok) {
+        const { relationshipEnrollment: pending, ...saved } = grant.host;
+        expect(pending.publicKey).toBe(grant.enrollmentPublicKey);
+        expect(parseSavedHost(serializeSavedHost(grant.host))).toEqual(saved);
+      }
       expect(target!.pairing.list()).toHaveLength(1);
     }
     const phone = b.pairing.redeem({ offer: b.pairing.createOffer().offer });
