@@ -1,3 +1,4 @@
+import type { ApprovalDecider } from '../team/approval-contract.js';
 import { z } from 'zod';
 
 export const privateRequestSchema = z
@@ -22,6 +23,8 @@ export const privateRequestSchema = z
 export type PrivateInputDeclaration = z.infer<typeof privateRequestSchema>;
 export type PrivateInputStatus = 'pending' | 'configured' | 'cancelled' | 'expired';
 export interface PrivateInputCard extends PrivateInputDeclaration {
+  opaque?: boolean;
+  decidedBy?: ApprovalDecider;
   sessionId?: string;
   expiresAt?: string;
   replacesMessageId?: string;
@@ -68,6 +71,7 @@ export interface PrivateInputResult {
   references: Record<string, string>;
 }
 export interface PrivateInputResolution {
+  decidedBy?: ApprovalDecider;
   requestMessageId: string;
   state: 'configured' | 'cancelled' | 'expired';
   references: Record<string, string>;

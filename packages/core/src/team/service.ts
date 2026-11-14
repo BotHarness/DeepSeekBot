@@ -1,3 +1,4 @@
+import { TeamApprovals } from './approvals.js';
 import type { ContentPurge } from '../purge/contracts.js';
 import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
@@ -45,6 +46,7 @@ const memberSchema = z.object({
 });
 export type TeamMember = z.infer<typeof memberSchema>;
 export interface TeamModeView {
+  isolation: 'trial' | 'enforced';
   enabled: boolean;
   activeMembers: number;
   suspendedMembers?: number;
@@ -97,6 +99,7 @@ const tokenHash = (token: string) => createHash('sha256').update(token).digest('
 
 export class TeamService {
   readonly roles: TeamRoles;
+  readonly approvals: TeamApprovals;
   private pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'> | undefined;
 
   bindPairing(pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'>): () => void {
@@ -142,6 +145,7 @@ export class TeamService {
     this.stopBots = options.stopBots;
     this.ensureTob = options.ensureTob;
     this.roles = new TeamRoles(db, () => this.invalidate());
+    this.approvals = new TeamApprovals(db, channels, this.roles);
     this.now = options.now ?? Date.now;
     this.log = options.log ?? (() => {});
     this.limiter = new SignInRateLimit(this.now);
@@ -235,6 +239,7 @@ export class TeamService {
     const member = this.member(human.humanId);
     if (!member) throw new TeamError('credentials-invalid');
     return {
+      isolation: 'trial',
       enabled: settings.enabled,
       activeMembers: this.db.read((db) =>
         Number(
@@ -360,7 +365,7 @@ export class TeamService {
     username: string,
     displayName: string,
     roleIds: string[] = ['member'],
-  ): Promise<{ member: TeamMember; initialPassword: string }> {
+  ): Promise<{ member: TeamMember; initialPassword: string; isolation: 'trial' | 'enforced' }> {
     this.roles.require(human, 'members.manage');
     this.roles.validateAssignments(human, roleIds);
     if (!this.settings().enabled) throw new TeamError('team-mode-off');
@@ -395,7 +400,7 @@ export class TeamService {
       ['team', 'human-identity'],
     );
     this.invalidate();
-    return { member: this.member(humanId)!, initialPassword };
+    return { member: this.member(humanId)!, initialPassword, isolation: 'trial' };
   }
 
   private byUsername(username: string): TeamMember | undefined {

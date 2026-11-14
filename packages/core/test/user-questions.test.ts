@@ -215,6 +215,7 @@ describe('native DSH questions in a PersonaBot DM', () => {
       requestMessageId: request.id,
       state: 'answered',
       answers: expected.answers,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
     });
     expect(state.answerer.status('ada', request.id)).toBe('answered');
     expect(state.answerer.activeMessageIds()).toEqual([]);
@@ -643,6 +644,7 @@ describe('timed question cards outlive their asking Agent', () => {
       requestMessageId: id,
       state: 'answered',
       answers: answer.answers,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
     });
     expect(restarted.status('ada', id)).toBe('answered');
     expect(states.snapshot('ada').attention).toBeUndefined();

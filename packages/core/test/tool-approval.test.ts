@@ -390,6 +390,7 @@ describe('Channel tool approval', () => {
     expect(await answer).toBe('allowed-once');
     expect(state.messages[1]?.toolApprovalDecision).toEqual({
       requestMessageId: request.id,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
       outcome: 'allowed-once',
     });
     expect(state.broker.status(botSlug, request.id)).toBe('expired');
@@ -412,6 +413,7 @@ describe('Channel tool approval', () => {
     expect(await answer).toBe('rejected');
     expect(state.messages[1]?.toolApprovalDecision).toEqual({
       requestMessageId: requestId,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
       outcome: 'rejected',
     });
     untrack?.();

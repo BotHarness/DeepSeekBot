@@ -25,6 +25,7 @@ const TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]{8,128}\]$/u;
 const MAX_QUIET_CHANNELS = 500;
 
 export interface PushCandidate {
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   id: string;
   kind: PushKind;
   attentionKind: string;
@@ -43,6 +44,7 @@ export interface PushSource {
 }
 
 export interface PushData {
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   v: 1;
   hostId: string;
   itemId?: string;
@@ -527,6 +529,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           hostId,
           itemId: item.id,
           kind: item.attentionKind,
+          ...(item.approval ? { approval: item.approval } : {}),
           botSlug: item.botSlug,
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),

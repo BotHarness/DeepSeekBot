@@ -23,6 +23,7 @@ async function host(
     code: 'remote-access/denied',
     message: 'member-call-refused',
   },
+  memberSuccess?: unknown,
 ) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(async (request, response) => {
@@ -42,7 +43,7 @@ async function host(
     calls.push({ path: request.url ?? '', input });
     const value =
       input.method === 'botharness/teamMode'
-        ? { viewer: { humanId: 'owner-id' } }
+        ? { isolation: 'trial', viewer: { humanId: 'owner-id' } }
         : input.method === 'botharness/members'
           ? [
               { username: 'bob', humanId: 'bob-id' },
@@ -60,8 +61,9 @@ async function host(
     if (request.url === '/api/botharness/team-as')
       response.end(
         JSON.stringify({
-          ok: false,
-          error: memberFailure,
+          ...(memberSuccess === undefined
+            ? { ok: false, error: memberFailure }
+            : { ok: true, value: memberSuccess }),
         }),
       );
     else
@@ -504,6 +506,49 @@ describe('M2 CLI member Bot and Activity dispatch', () => {
   });
 
   it.each([
+    { argv: ['team-mode', 'status'], value: { isolation: 'trial', viewer: { humanId: 'bob' } } },
+    {
+      argv: [
+        'tool-approval-decide',
+        'channel',
+        '--message-id',
+        'request',
+        '--outcome',
+        'allowed-once',
+      ],
+      value: { accepted: true },
+    },
+  ])('keeps the successful member $argv response intact', async ({ argv, value }) => {
+    const f = await host(undefined, value);
+    const result = await run(f.url, ['--as', 'bob', ...argv]);
+    expect(result.status).toBe(0);
+    expect(result.output).toEqual(value);
+  });
+
+  it.each([
+    { code: 'approval-not-allowed', message: 'approval-not-allowed' },
+    {
+      code: 'permission-required',
+      message: 'permission-required',
+      details: { permission: 'approvals.opaqueTools' },
+    },
+  ])('preserves approval refusal $code through --as', async (failure) => {
+    const f = await host(failure);
+    const result = await run(f.url, [
+      '--as',
+      'bob',
+      'tool-approval-decide',
+      'channel',
+      '--message-id',
+      'request',
+      '--outcome',
+      'allowed-once',
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.output).toMatchObject({ error: failure });
+  });
+
+  it.each([
     { argv: ['bots', 'list'], method: 'list', stdin: '' },
     { argv: ['bots', 'list', '--administration'], method: 'list', stdin: '' },
     { argv: ['bots', 'show', 'alice-bot'], method: 'get', stdin: '' },
@@ -518,6 +563,24 @@ describe('M2 CLI member Bot and Activity dispatch', () => {
       stdin: '{"token":"reviewed-deletion-token"}',
     },
     { argv: ['activity', 'list'], method: 'humanAttention', stdin: '' },
+    { argv: ['team-mode', 'status'], method: 'teamMode', stdin: '' },
+    {
+      argv: ['tool-approval-status', 'channel', '--message-id', 'request'],
+      method: 'toolApprovalStatus',
+      stdin: '',
+    },
+    {
+      argv: [
+        'tool-approval-decide',
+        'channel',
+        '--message-id',
+        'request',
+        '--outcome',
+        'allowed-once',
+      ],
+      method: 'toolApprovalDecide',
+      stdin: '',
+    },
   ])('keeps $method on the member Peer without Owner fallback', async ({ argv, method, stdin }) => {
     const f = await host();
     const result = await run(f.url, ['--as', 'bob', ...argv], stdin);

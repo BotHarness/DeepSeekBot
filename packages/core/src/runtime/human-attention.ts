@@ -1,3 +1,4 @@
+import type { ApprovalCard } from '../team/approval-contract.js';
 import { type HumanContext } from '../humans/context.js';
 import { createHash } from 'node:crypto';
 import { notChannelNoticeSql } from '../channels/channel-notice.js';
@@ -21,6 +22,7 @@ export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 
 export type HumanAttentionSort = 'newest' | 'oldest' | 'mentions-first';
 
 export interface HumanAttentionItem {
+  approval?: ApprovalCard;
   id: string;
   category: HumanAttentionCategory;
   kind:
@@ -384,10 +386,27 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
              AND d.source_event_id IS NULL
         ), attention AS (
           SELECT * FROM all_attention candidate
-          WHERE ${attentionBotOwner('candidate.bot_slug')}
-            AND ($humanId = 'local-human' OR candidate.channel_id IS NULL
-              OR NOT EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = candidate.channel_id AND json_extract(c.record_json, '$.type') = 'group')
-              OR EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL))
+          WHERE (candidate.kind IN ('tool-approval', 'user-question', 'private-input') AND (
+            EXISTS (SELECT 1 FROM channel_human_members m JOIN humans h USING(human_id)
+              WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL AND h.status = 'active')
+            OR (${attentionBotOwner('candidate.bot_slug')} AND NOT EXISTS (
+              SELECT 1 FROM channel_human_members m JOIN humans h USING(human_id)
+              WHERE m.channel_id = candidate.channel_id AND m.left_at IS NULL AND h.status = 'active'
+                AND (h.human_id = (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug)
+                  OR h.human_id = (SELECT owner_human_id FROM team_settings)
+                  OR EXISTS (SELECT 1 FROM human_roles hr JOIN host_roles r USING(role_id), json_each(r.permissions_json) permission_entry
+                    WHERE hr.human_id = h.human_id AND permission_entry.value = 'approvals.opaqueTools'))
+                AND (candidate.kind <> 'tool-approval'
+                  OR (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug) = (SELECT owner_human_id FROM team_settings)
+                  OR h.human_id = (SELECT owner_human_id FROM team_settings)
+                  OR EXISTS (SELECT 1 FROM human_roles hr JOIN host_roles r USING(role_id), json_each(r.permissions_json) permission_entry
+                    WHERE hr.human_id = h.human_id AND permission_entry.value = 'approvals.opaqueTools'))
+            ))))
+            OR (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input') AND
+              ${attentionBotOwner('candidate.bot_slug')}
+              AND ($humanId = 'local-human' OR candidate.channel_id IS NULL
+                OR NOT EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = candidate.channel_id AND json_extract(c.record_json, '$.type') = 'group')
+                OR EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL)))
         )`;
 
 const channelAttentionCte = (
@@ -529,6 +548,7 @@ export function createHumanAttentionQuery(
   activePrivateInputMessageIds: () => readonly string[] = () => [],
   mutedChannelIds: () => readonly string[] = () => [],
   now: () => Date = () => new Date(),
+  project: <T>(human: HumanContext, value: T) => T = (_human, value) => value,
 ): HumanAttentionQuery {
   let lowerRegistered = false;
   const activeSnooze = (id: string, source: string, at: string): string =>
@@ -609,7 +629,7 @@ export function createHumanAttentionQuery(
                 sourceKey,
               ) as AttentionRow | undefined,
         );
-        return row === undefined ? undefined : attentionItem(row);
+        return row === undefined ? undefined : project(human, attentionItem(row));
       }
       const prefix = id.split(':')[0];
       const category =
@@ -815,7 +835,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         const page = rows.slice(0, limit);
         const last = page.at(-1);
         return {
-          items: page.map(attentionItem),
+          items: project(human, page.map(attentionItem)),
           ...(rows.length > limit && last !== undefined
             ? {
                 nextCursor: Buffer.from(
@@ -1039,7 +1059,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             ) as unknown as AttentionRow[],
       );
       const page = rows.slice(0, limit);
-      const mapped = withAutoRejection(page.map(attentionItem));
+      const mapped = project(human, withAutoRejection(page.map(attentionItem)));
       const items = snoozedOnly ? snoozedUntil(human, mapped) : mapped;
       const last = page.at(-1);
       return {

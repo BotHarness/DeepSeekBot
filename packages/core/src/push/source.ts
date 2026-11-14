@@ -74,7 +74,7 @@ function details(
   kind: PushKind,
   approval: PushApprovalLookup | undefined,
 ): { preview?: string; categoryId?: string } {
-  if (kind === 'private-input') return {};
+  if (item.approval?.masked || kind === 'private-input') return {};
   if (kind === 'approval' && item.kind === 'tool-approval') return approvalOf(item, approval);
   const preview = clip(item.summary);
   return preview === undefined ? {} : { preview };
@@ -95,6 +95,7 @@ function candidate(
       attentionKind: item.kind,
       botSlug: item.botSlug,
       createdAt: item.createdAt,
+      ...(item.approval ? { approval: item.approval } : {}),
       ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
       ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
       ...(channelName === undefined || channelName === '' ? {} : { channelName }),

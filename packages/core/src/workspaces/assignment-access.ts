@@ -1,3 +1,5 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
+import { TeamError } from '../team/error.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export type AssignmentAccessMode = 'workspace-write' | 'danger-full-access';
@@ -22,6 +24,7 @@ export interface AssignmentAccessStore {
     botSlug: string,
     mode: AssignmentAccessMode,
     scope?: AssignmentAccessScope,
+    human?: HumanContext,
   ): AssignmentAccessPreset;
 }
 export function createAssignmentAccessStore(
@@ -42,7 +45,19 @@ export function createAssignmentAccessStore(
             changedAt: row.changed_at,
           };
     },
-    set(botSlug, mode, scope = 'chat') {
+    set(botSlug, mode, scope = 'chat', human = OWNER_HUMAN_CONTEXT) {
+      if (mode === 'danger-full-access') {
+        const owner = database.read((db) =>
+          db.prepare('SELECT owner_human_id FROM team_settings').get(),
+        );
+        if (human.humanId !== (owner?.owner_human_id ?? OWNER_HUMAN_CONTEXT.humanId))
+          throw new TeamError('owner-only');
+        const bot = database.read((db) =>
+          db.prepare('SELECT owner_human_id FROM persona_bots WHERE slug = ?').get(botSlug),
+        );
+        if (bot && bot.owner_human_id !== owner?.owner_human_id)
+          throw new TeamError('permission-required');
+      }
       if (mode !== 'workspace-write' && mode !== 'danger-full-access')
         throw new TypeError('Invalid Assignment access mode');
       if (scope !== 'chat' && scope !== 'assignments')
