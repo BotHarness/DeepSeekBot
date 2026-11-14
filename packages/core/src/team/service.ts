@@ -1,5 +1,7 @@
 import { accountSpaceFiles, prepareSpaceTransfer } from '../workspaces/space-lifecycle.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
+import type { UsageProjection } from '../usage/usage.js';
+import type { UsageByMemberResult, UsageOverviewPeriod } from '../usage/overview.js';
 import { TeamChannels } from './channels.js';
 import type { ContentPurge } from '../purge/contracts.js';
 import { TeamRoles } from './roles.js';
@@ -59,6 +61,7 @@ export interface TeamModeView {
     kind: 'owner' | 'member';
     displayName: string;
     mustChangePassword: boolean;
+    models: import('./permissions.js').ModelsAllowed;
     permissions: string[];
     roleIds: string[];
     owner: boolean;
@@ -294,6 +297,17 @@ export class TeamService {
     };
   }
 
+  usageByMember(
+    human: HumanContext,
+    period: UsageOverviewPeriod,
+    usage: Pick<UsageProjection, 'byMember'> | undefined,
+    botName: (slug: string) => string,
+  ): UsageByMemberResult {
+    this.roles.require(human, 'usage.view');
+    if (!usage) throw new TeamError('unavailable');
+    return usage.byMember(period, this.ownerContext().humanId, botName);
+  }
+
   mode(human: HumanContext): TeamModeView {
     const settings = this.settings();
     const member = this.member(human.humanId);
@@ -320,6 +334,7 @@ export class TeamService {
           : member.displayName,
         mustChangePassword: member.mustChangePassword,
         permissions: this.roles.permissions(human),
+        models: member.owner ? { all: true } : this.roles.modelsAllowed(human),
         roleIds: member.roleIds,
         owner: member.owner,
       },

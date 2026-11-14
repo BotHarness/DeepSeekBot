@@ -694,6 +694,8 @@ describe('bridge typert service', () => {
       'spaceUpdate',
       'spaceDelete',
       'teamMode',
+      'modelsAllowed',
+      'usageByMember',
       'teamModeSet',
       'teamOwnerPasswordSet',
       'teamInsecureHttpSet',

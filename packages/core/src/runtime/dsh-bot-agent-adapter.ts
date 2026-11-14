@@ -390,7 +390,7 @@ export interface DshBotAgentAdapterOptions {
 
   observeTurnFailure?: (provider: string, code: string) => void;
 
-  turnRefusal?: (sessionId: string) => string | undefined;
+  turnRefusal?: (sessionId: string) => string | Error | undefined;
 
   promptText?: (sessionId: string) => PromptText;
 
@@ -465,7 +465,7 @@ function requireCompletedTurn(
   cancelledTurn?: AssignmentAgentRun['cancelledTurn'],
   failedTurn?: AssignmentAgentRun['failedTurn'],
   observeFailure?: (code: string) => void,
-  refusal?: string,
+  refusal?: string | Error,
 ): { turn: number; endSeq: number } {
   const turnEnd = handle.agent.session
     .snapshotEvents(fromSeq)
@@ -501,7 +501,8 @@ function requireCompletedTurn(
     throw new Error(
       'OUTPUT_TOKEN_LIMIT: The model reached its output limit before completing this reply',
     );
-  if (reason.kind === 'blocked' && refusal !== undefined) throw new Error(refusal);
+  if (reason.kind === 'blocked' && refusal !== undefined)
+    throw refusal instanceof Error ? refusal : new Error(refusal);
   throw new Error(`Agent turn ended without completion: ${reason.kind}`);
 }
 

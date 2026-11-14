@@ -27,12 +27,12 @@ function fixture() {
     db.exec(`
     CREATE TABLE humans(human_id TEXT PRIMARY KEY, display_name TEXT, status TEXT);
     CREATE TABLE team_settings(singleton INTEGER PRIMARY KEY, owner_human_id TEXT, enabled INTEGER);
-    CREATE TABLE host_roles(role_id TEXT PRIMARY KEY, name TEXT COLLATE NOCASE UNIQUE, builtin TEXT, permissions_json TEXT);
+    CREATE TABLE host_roles(role_id TEXT PRIMARY KEY, name TEXT COLLATE NOCASE UNIQUE, builtin TEXT, permissions_json TEXT, models_json TEXT NOT NULL DEFAULT '{"kind":"all"}');
     CREATE TABLE human_roles(human_id TEXT REFERENCES humans, role_id TEXT REFERENCES host_roles, PRIMARY KEY(human_id, role_id));
     CREATE TABLE workspace_spaces(space_id TEXT PRIMARY KEY, kind TEXT, name TEXT COLLATE NOCASE, owner_human_id TEXT UNIQUE, audience_json TEXT);
     INSERT INTO humans VALUES ('local-human', 'Owner', 'active'), ('alice', 'Alice', 'active');
     INSERT INTO team_settings VALUES (1, 'local-human', 1);
-    INSERT INTO host_roles VALUES ('member', 'Member', 'member', '[]');
+    INSERT INTO host_roles(role_id, name, builtin, permissions_json) VALUES ('member', 'Member', 'member', '[]');
     INSERT INTO human_roles VALUES ('alice', 'member');
   `),
   );

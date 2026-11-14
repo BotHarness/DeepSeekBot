@@ -696,6 +696,8 @@ describe('plugin entry', () => {
       'spaceUpdate',
       'spaceDelete',
       'teamMode',
+      'modelsAllowed',
+      'usageByMember',
       'teamModeSet',
       'teamOwnerPasswordSet',
       'teamInsecureHttpSet',

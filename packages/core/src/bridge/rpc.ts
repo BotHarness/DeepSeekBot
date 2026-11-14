@@ -415,6 +415,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
   spaceDelete(spaceId: string, confirm: boolean) {
     return unwrapAsync(this.methods.spaceDelete({ spaceId, confirm }));
   }
+  modelsAllowed() {
+    return unwrapAsync(this.methods.modelsAllowed({}));
+  }
+  usageByMember(period: UsageOverviewPeriod) {
+    return unwrap(this.methods.usageByMember({ period }));
+  }
   teamMode() {
     return unwrapAsync(this.methods.teamMode({}));
   }
@@ -442,8 +448,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
   roleCreate(name: string, permissions: string[]) {
     return unwrapAsync(this.methods.roleCreate({ name, permissions }));
   }
-  roleUpdate(roleId: string, name?: string, permissions?: string[]) {
-    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions }));
+  roleUpdate(
+    roleId: string,
+    name?: string,
+    permissions?: string[],
+    models?: import('../team/permissions.js').RoleModels,
+  ) {
+    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions, models }));
   }
   roleDelete(roleId: string) {
     return unwrapAsync(this.methods.roleDelete({ roleId }));
@@ -3059,6 +3070,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'spaceUpdate',
   'spaceDelete',
   'teamMode',
+  'modelsAllowed',
+  'usageByMember',
   'teamModeSet',
   'teamOwnerPasswordSet',
   'teamInsecureHttpSet',

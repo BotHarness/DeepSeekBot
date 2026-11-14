@@ -28,6 +28,7 @@ async function host(
     message: 'member-call-refused',
   },
   policyFailure?: { code: string; message: string },
+  failure?: { code: string; details: Record<string, string> },
 ) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(async (request, response) => {
@@ -73,7 +74,16 @@ async function host(
                 ? { initialPassword: 'private-reset-password' }
                 : { done: true };
     response.setHeader('content-type', 'application/json');
-    if (request.url === '/api/botharness/team-as')
+    if (failure) {
+      const error = { ...failure, message: failure.code };
+      response.end(
+        JSON.stringify(
+          request.url === '/api/botharness/team-as'
+            ? { ok: false, error }
+            : { type: 'server-response', rpcId: input.rpcId, result: { ok: false, error } },
+        ),
+      );
+    } else if (request.url === '/api/botharness/team-as')
       response.end(
         JSON.stringify({
           ok: false,
@@ -187,6 +197,57 @@ describe('Team CLI', () => {
     expect((await run(f.url, args)).status).not.toBe(0);
     expect(f.calls).toHaveLength(0);
   });
+  it.each([
+    { code: 'permission-required', details: { permission: 'usage.view' } },
+    { code: 'model-not-allowed', details: { route: 'provider/model' } },
+  ])('preserves safe $code details through normal and --as refusals', async ({ code, details }) => {
+    const f = await host(undefined, undefined, {
+      code,
+      details: { ...details, internalSecret: 'must-not-print' },
+    });
+    for (const args of [[], ['--as', 'bob']]) {
+      const result = await run(f.url, ['usage', 'members', '--period', 'week', ...args]);
+      expect(result.output).toEqual({ error: { code, message: code, details } });
+      expect(result.text + result.errorText).not.toContain('must-not-print');
+    }
+  });
+
+  it.each([
+    {
+      args: ['usage', 'members', '--period', 'week'],
+      method: 'usageByMember',
+      payload: { period: 'week' },
+    },
+    { args: ['models', 'allowed'], method: 'modelsAllowed', payload: {} },
+    {
+      args: ['roles', 'update', 'member', '--models', 'provider/one,provider/two'],
+      method: 'roleUpdate',
+      payload: {
+        roleId: 'member',
+        models: { kind: 'only', routes: ['provider/one', 'provider/two'] },
+      },
+    },
+    {
+      args: ['roles', 'update', 'member', '--models', 'all'],
+      method: 'roleUpdate',
+      payload: { roleId: 'member', models: { kind: 'all' } },
+    },
+  ])('dispatches M10 $method normally and through --as', async ({ args, method, payload }) => {
+    const f = await host();
+    expect((await run(f.url, args)).status).toBe(0);
+    expect(f.calls.at(-1)?.input).toMatchObject({
+      method: `botharness/${method}`,
+      payload: { args: payload },
+    });
+    expect((await run(f.url, [...args, '--as', 'bob'])).output).toMatchObject({
+      error: { code: 'remote-access/denied' },
+    });
+    expect(f.calls.at(-1)).toMatchObject({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', method, args: payload },
+    });
+  });
+
   it.each([
     ['list'],
     ['approve', 'a'.repeat(32), 'ab'.repeat(32), '--confirm'],

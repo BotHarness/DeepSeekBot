@@ -2,6 +2,8 @@ import { currentRoots } from './workspaces/grant-native-tools.js';
 import { recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
 import { WorkspaceSpaces } from './workspaces/spaces.js';
 import { accountMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
+import { TeamError } from './team/error.js';
+import { requireBotModel } from './team/models.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -1153,6 +1155,9 @@ function initializeCore(
       ? createUsageProjection({
           ownership,
           database: operationalDatabase,
+          ownerHumanId: () => team.ownerContext().humanId,
+          botOwner: (slug) =>
+            registry.getHistorical(slug)?.ownerHumanId ?? team.ownerContext().humanId,
           botCreatedAt: (slug) => registry.getHistorical(slug)?.createdAt,
         })
       : undefined;
@@ -1304,6 +1309,7 @@ function initializeCore(
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
     messagePerf,
+    requireModelRoute: (slug, route) => requireBotModel(team, registry.get(slug), route),
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
     assignmentConcurrencyLimit: () =>
@@ -1644,11 +1650,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         core.registry.migrateLegacyModel(slug, expectedModel, route),
     },
     modelCatalog,
+    (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
   );
   const privateExecution = new ProtectedExecution(
     privateInputLog((format, value) => ctx.logger.info(format, value), diagnosticEvents),
   );
-  const turnRefusals = new Map<string, string>();
+  const turnRefusals = new Map<string, string | TeamError>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
     ...(config.genuiPreviewBrowserPath === undefined
@@ -1663,7 +1670,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     subagentTools: (slug) =>
-      createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
+      createBotSubagentModelTools(
+        ctx,
+        () => core.registry.get(slug)?.modelPlan,
+        config.subagent,
+        (route) => requireBotModel(core.team, core.registry.get(slug), route),
+      ),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
         | { stat(id: string): Promise<unknown> }
@@ -2299,6 +2311,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await core.runtime.ensureAssignmentCapacity?.(agent.session.id, signal);
       } catch {
         return { kind: 'reject' };
+      }
+      const modelOwner = core.ownership.resolve(agent.session.id);
+      if (modelOwner) {
+        const selection = agentAdapter.modelSelection(agent.session.id) ?? agent.options;
+        if (selection.provider && selection.model) {
+          try {
+            requireBotModel(core.team, core.registry.get(modelOwner.botSlug), {
+              provider: selection.provider,
+              model: selection.model,
+            });
+          } catch (error) {
+            if (!(error instanceof TeamError)) throw error;
+            turnRefusals.set(agent.session.id, error);
+            return { kind: 'reject' };
+          }
+        }
       }
       const repairs = new Set<BotSessionRepair>();
       const denial = admitBotSession(
@@ -4119,6 +4147,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
+          (route) => requireBotModel(core.team, core.registry.get(owner.botSlug), route),
         );
       }
     },

@@ -26,11 +26,24 @@ export const MEMBER_PERMISSIONS: HostPermission[] = [
   'bots.create',
   'models.use',
 ];
+export const roleModelsSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('all') }),
+  z.object({
+    kind: z.literal('only'),
+    routes: z
+      .array(z.string().regex(/^[^/\s]+\/[^\s]+$/u))
+      .max(10000)
+      .transform((routes) => [...new Set(routes)].sort()),
+  }),
+]);
+export type RoleModels = z.infer<typeof roleModelsSchema>;
+export type ModelsAllowed = { all: true } | { all: false; routes: string[] };
 export const roleSchema = z.object({
   roleId: z.string(),
   name: z.string(),
   builtin: z.enum(['admin', 'member']).nullable(),
   permissions: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
+  models: z.string().transform((value) => roleModelsSchema.parse(JSON.parse(value))),
   memberCount: z.number().int().nonnegative(),
 });
 export type HostRole = z.infer<typeof roleSchema>;

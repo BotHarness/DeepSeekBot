@@ -12,6 +12,7 @@ import type { BotCreateCliIo } from './bot-create-cli.js';
 export const TEAM_OPTIONS = {
   as: { type: 'string' },
   audience: { type: 'string' },
+  models: { type: 'string' },
   'human-id': { type: 'string' },
   post: { type: 'string' },
   'add-members': { type: 'string' },
@@ -32,6 +33,8 @@ export const TEAM_OPTIONS = {
   'password-stdin': { type: 'boolean' },
 } as const;
 export const TEAM_COMMANDS = [
+  { command: 'usage', description: 'members --period today|week|month|quarter' },
+  { command: 'models', description: 'allowed' },
   { command: 'dm', description: '<username>' },
   { command: 'team-directory', description: 'active DM recipients' },
   {
@@ -58,6 +61,8 @@ export const TEAM_COMMANDS = [
 
 type TeamValues = {
   audience?: string;
+  models?: string;
+  period?: string;
   'human-id'?: string;
   post?: string;
   'add-members'?: string;
@@ -187,6 +192,13 @@ export async function runTeamCommand(
     }
     return usage();
   }
+  if (command === 'models' && action === 'allowed' && rest.length === 1)
+    return rpc('modelsAllowed', {});
+  if (command === 'usage' && action === 'members' && rest.length === 1) {
+    const period = values.period ?? 'today';
+    if (!['today', 'week', 'month', 'quarter'].includes(period)) return usage();
+    return rpc('usageByMember', { period });
+  }
   if (command === 'roles') {
     if (action === 'list' && rest.length === 1) return rpc('roles', {});
     if (action === 'catalog' && rest.length === 1) return rpc('permissionCatalog', {});
@@ -196,10 +208,18 @@ export async function runTeamCommand(
       action === 'update' &&
       argument &&
       rest.length === 2 &&
-      (values.name !== undefined || values.permissions !== undefined)
+      (values.name !== undefined || values.permissions !== undefined || values.models !== undefined)
     )
       return rpc('roleUpdate', {
         roleId: argument,
+        ...(values.models === undefined
+          ? {}
+          : {
+              models:
+                values.models === 'all'
+                  ? { kind: 'all' }
+                  : { kind: 'only', routes: ids(values.models) },
+            }),
         ...(values.name === undefined ? {} : { name: values.name }),
         ...(values.permissions === undefined ? {} : { permissions: ids(values.permissions) }),
       });

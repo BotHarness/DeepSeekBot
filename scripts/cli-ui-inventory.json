@@ -1099,9 +1099,11 @@
         "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}",
         "setting:packages/client/src/client/team-spaces.tsx:{item.name}",
         "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.shared')}",
-        "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.yours')}"
+        "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.yours')}",
+        "setting:packages/client/src/client/team-usage-section.tsx:{member.displayName}",
+        "setting:packages/client/src/client/team-usage-section.tsx:{t('team.usage.period')}"
       ],
-      "commands": ["team-mode", "members", "channels", "roles", "devices", "dm"]
+      "commands": ["team-mode", "members", "channels", "roles", "devices", "usage", "models", "dm"]
     },
     {
       "id": "team-member-browser-sign-out",

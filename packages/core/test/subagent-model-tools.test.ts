@@ -97,6 +97,7 @@ interface HarnessOptions {
   subagents?: boolean;
   llm?: boolean;
   maxDepth?: number;
+  requireRoute?: (route: { provider: string; model: string }) => void;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -153,7 +154,7 @@ function createHarness(options: HarnessOptions = {}) {
     resolveMaxDepth,
     resolveCallConfig,
     install(config: BotSubagentPresetConfig = options.config ?? {}) {
-      return installBotSubagentModelTools(ctx, () => options.plan, config);
+      return installBotSubagentModelTools(ctx, () => options.plan, config, options.requireRoute);
     },
   };
 }
@@ -194,6 +195,39 @@ function presetParameter(definition: ToolDefinition) {
 }
 
 describe('Bot-owned DSH Subagent tools', () => {
+  it.each(['bot_subagent', 'bot_subagent_fork'])(
+    'checks the role route policy before %s activation and LLM credential lookup',
+    async (name) => {
+      const requireRoute = vi.fn<() => void>(() => {
+        throw Object.assign(new Error('model-not-allowed'), {
+          code: 'model-not-allowed',
+          details: { route: 'deepseek/pro' },
+        });
+      });
+      const harness = createHarness({ plan, requireRoute });
+      await harness.install();
+      await expect(
+        callTool(harness, name, {
+          description: 'Denied',
+          prompt: 'Work',
+          provider: 'deepseek',
+          model: 'pro',
+        }),
+      ).rejects.toMatchObject({ code: 'model-not-allowed', details: { route: 'deepseek/pro' } });
+      expect(harness.startActivation).not.toHaveBeenCalled();
+      expect(harness.resolveCallConfig).not.toHaveBeenCalled();
+      requireRoute.mockImplementation(() => {});
+      await callTool(harness, name, {
+        description: 'Allowed',
+        prompt: 'Work',
+        provider: 'deepseek',
+        model: 'pro',
+        run_in_background: false,
+      });
+      expect(harness.startActivation).toHaveBeenCalledOnce();
+    },
+  );
+
   it('gives an Orchestrator no Subagent tools and points it to create_assignment', () => {
     const harness = createHarness();
     installOrchestratorSubagentGuard(harness.ctx);

@@ -1,11 +1,11 @@
 import { spaceAudienceSchema } from '../workspaces/spaces.js';
+import { roleModelsSchema, PERMISSION_CATALOG } from './permissions.js';
 import {
   channelVisibilitySchema,
   channelPolicySchema,
   channelPolicyRevisionSchema,
 } from './channel-contract.js';
 import { ContentPurgeError } from '../purge/contracts.js';
-import { PERMISSION_CATALOG } from './permissions.js';
 import { z } from 'zod';
 import type { HumanContext } from '../humans/context.js';
 import type { BridgeResult } from '../bridge/methods.js';
@@ -88,6 +88,7 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
       ),
     permissionCatalog: (_payload: unknown) =>
       call(() => PERMISSION_CATALOG.map((entry) => ({ ...entry }))),
+    modelsAllowed: (_payload: unknown) => call((service) => service.roles.modelsAllowed(human)),
     roles: (_payload: unknown) => call((service) => service.roles.list(human)),
     roleCreate: (payload: unknown) =>
       call((service) => {
@@ -103,9 +104,11 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
             roleId: z.string(),
             name: z.string().optional(),
             permissions: z.array(z.string()).optional(),
+            models: roleModelsSchema.optional(),
           })
           .parse(payload);
         return service.roles.update(human, roleId, {
+          ...(patch.models === undefined ? {} : { models: patch.models }),
           ...(patch.name === undefined ? {} : { name: patch.name }),
           ...(patch.permissions === undefined ? {} : { permissions: patch.permissions }),
         });

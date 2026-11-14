@@ -11,6 +11,8 @@ import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { TeamUsageSection } from './team-usage-section.js';
+import { USAGE_VIEW } from './team-usage.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SpacesSection } from './team-spaces.js';
 import {
@@ -128,6 +130,8 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'grant-foreign-space': 'team.error.grantForeignSpace',
   'grant-protected-path': 'team.error.grantProtectedPath',
   'grant-outside-audience': 'team.error.grantOutsideAudience',
+  'role-in-use': 'team.error.roleInUse',
+  'model-not-allowed': 'team.error.modelNotAllowed',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
@@ -241,6 +245,8 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
       members={members ?? []}
     />
   ) : null;
+  const usage =
+    view.enabled && canManage(viewer, USAGE_VIEW) ? <TeamUsageSection call={call} t={t} /> : null;
   const sheetMember =
     dialog?.kind === 'member' ? members?.find((row) => row.humanId === dialog.humanId) : undefined;
   const admin =
@@ -378,6 +384,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
         </SettingsSection>
         {admin}
         {spacesView}
+        {usage}
         {dialog?.kind === 'my-devices' ? (
           <MyDevicesDialog
             call={call}
@@ -474,6 +481,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
 
       {admin}
       {spacesView}
+      {usage}
 
       {dialog?.kind === 'owner-password' ? (
         <OwnerPasswordDialog

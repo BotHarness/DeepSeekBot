@@ -190,6 +190,22 @@ async function enabledFixture(options: Parameters<typeof teamFixture>[0] = {}) {
   return { ...fixture, ...created, human: humanContext(created.member.humanId) };
 }
 
+class NativeProviderKeys extends TypertRemoteService {
+  constructor(ctx: Context) {
+    super(ctx, 'nativeProviderKeys', { namespace: 'settings' });
+  }
+  describe() {
+    return { apiKey: 'test-secret-only' };
+  }
+}
+Object.defineProperty(
+  NativeProviderKeys.prototype,
+  '@deepseek-ai/dsh-typert-protocol/remote-methods',
+  {
+    value: { version: 1, methods: [{ method: 'describe', invocation: { kind: 'direct' } }] },
+  },
+);
+
 class NativeSession extends TypertRemoteService {
   constructor(ctx: Context) {
     super(ctx, 'nativeSession', { namespace: 'session' });
@@ -609,11 +625,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   it('keeps the shared member-method contract dependency-free and its denials explicit', () => {
     const source = readFileSync(new URL('../src/team/member-methods.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/\bimport\b/u);
-    expect([...MEMBER_METHODS]).toEqual([
-      ...MEMBER_GLOBAL_METHODS,
-      ...MEMBER_CHANNEL_METHODS,
-      ...MEMBER_BOT_METHODS,
-    ]);
+    expect(MEMBER_METHODS).toEqual(
+      new Set([...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS, ...MEMBER_BOT_METHODS]),
+    );
+    expect(MEMBER_CHANNEL_METHODS).toContain('grantRequestApprove');
+    expect(MEMBER_BOT_METHODS).toContain('grantRequestApprove');
     expect(MEMBER_METHODS.has('composerIdentity')).toBe(true);
     for (const method of ['dataReset']) expect(MEMBER_METHODS.has(method)).toBe(false);
     for (const method of ['teamModeSet', 'members', 'roles', 'create', 'createLookup'])
@@ -865,6 +881,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       },
     });
     const args: Record<string, Record<string, unknown>> = {
+      usageByMember: { period: 'week' },
+      overviewUsage: { period: 'week' },
+      get: { slug: 'owner-secret-bot' },
+      modelPlan: { slug: 'owner-secret-bot' },
+      modelPlanInherit: { slug: 'owner-secret-bot', expectedRevision: 0 },
       userQuestionStatus: { messageId: 'audit-question' },
       userQuestionAnswer: {
         messageId: 'audit-question',
@@ -988,6 +1009,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           ].includes(method)
         )
           expect(['permission-required', 'device-not-found']).toContain(code);
+        else if (method === 'usageByMember')
+          expect(error).toMatchObject({
+            code: 'permission-required',
+            details: { permission: 'usage.view' },
+          });
         else
           expect([
             'unavailable',
@@ -1718,6 +1744,40 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       expect(() => f.team.roles.create(owner, name, [])).toThrow('role-name-invalid');
     },
   );
+
+  it('refuses every credentials and provider-key method on both existing member devices', async () => {
+    const f = await actors();
+    const second = await f.team.signIn('bob', 'member-password-1', 'second-device');
+    new NativeProviderKeys(f.ctx);
+    const ownerPeer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+    await expect(
+      f.gateway.invoke({ namespace: 'settings', method: 'describe', args: {}, peer: ownerPeer }),
+    ).resolves.toEqual({ apiKey: 'test-secret-only' });
+    const sensitive = [
+      'privateInputStatus',
+      'privateInputSubmit',
+      'privateInputCancel',
+      'privateAccountStatus',
+      'privateInputReplace',
+      'privateAccountRevoke',
+      'privateAccounts',
+      'privateMcpServerRemove',
+      'privateMcpServerEnable',
+      'voiceProviders',
+      'voiceProviderAdd',
+      'voiceProviderRemove',
+      'voiceProviderTest',
+    ];
+    for (const peer of [f.bobLogin.peer, second.peer]) {
+      for (const method of sensitive)
+        await expect(f.invoke(method, {}, peer), method).rejects.toMatchObject({
+          code: 'remote-access/denied',
+        });
+      await expect(
+        f.gateway.invoke({ namespace: 'settings', method: 'describe', args: {}, peer }),
+      ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    }
+  });
 
   it('validates names and permissions and preserves built-ins', async () => {
     const f = await enabledFixture();

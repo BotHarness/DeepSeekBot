@@ -1,4 +1,6 @@
+import { requireBotModel, botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team/error.js';
+import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
@@ -508,6 +510,7 @@ export interface ActivityOverview {
 }
 
 export interface PersonaBotSummary {
+  modelAllowed?: boolean;
   ownerHumanId?: string;
   owner?: boolean;
   lastActivityAt?: number;
@@ -658,7 +661,13 @@ export interface OwnedSessionBot {
 }
 
 export interface BridgeError {
-  details?: { preview?: AllBotPreview; permission?: string; path?: string; spaceId?: string };
+  details?: {
+    preview?: AllBotPreview;
+    permission?: string;
+    path?: string;
+    spaceId?: string;
+    route?: string;
+  };
   code: string;
   message: string;
 }
@@ -1022,6 +1031,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   profileActivity(payload: unknown): Promise<BridgeResult<ProfileActivity>>;
   profileSessionUsage(payload: unknown): Promise<BridgeResult<ProfileSessionUsage>>;
   overviewMemory(payload: unknown): Promise<BridgeResult<OverviewMemory>>;
+  usageByMember(payload: unknown): BridgeResult<UsageByMemberResult>;
   overviewUsage(payload: unknown): BridgeResult<OverviewUsage>;
   profileUsage(payload: unknown): BridgeResult<UsageQueryResult>;
   groupProfileActivity(payload: unknown): BridgeResult<GroupProfileActivity>;
@@ -1592,6 +1602,18 @@ function botPromptView(
   };
 }
 
+function modelFailure(error: unknown): BridgeResult<never> {
+  if (error instanceof TeamError)
+    return {
+      ok: false,
+      error: {
+        code: error.code,
+        message: error.code,
+        ...(error.details ? { details: error.details } : {}),
+      },
+    };
+  return invalidInput(error instanceof Error ? error.message : String(error));
+}
 function invalidInput(message: string): BridgeResult<never> {
   return { ok: false, error: { code: 'invalid-input', message } };
 }
@@ -2082,6 +2104,25 @@ function buildBridgeMethods(
 ): BridgeMethods {
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+  const requireOwnedBot = (slug: string): void => {
+    if (
+      deps.team &&
+      !deps.team.isOwner(human) &&
+      (deps.registry.get(slug)?.ownerHumanId ?? deps.team.ownerContext().humanId) !== human.humanId
+    )
+      throw new TeamError('bot-not-found');
+  };
+  const requireRoutes = (slug: string, routes: readonly ModelRoute[]): void => {
+    requireOwnedBot(slug);
+    deps.team?.roles.require(human, 'models.use');
+    for (const route of routes) requireBotModel(deps.team, deps.registry.get(slug), route);
+  };
+  const allowed = (record: PersonaBotRecord): boolean =>
+    botModelAllowed(
+      deps.team,
+      record,
+      deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.(),
+    );
   async function appendStopNotice(
     channelId: string,
     botSlug: string,
@@ -3173,6 +3214,13 @@ function buildBridgeMethods(
       const revision = asObject(payload)['expectedRevision'];
       if (slug === undefined || !Number.isSafeInteger(revision))
         return invalidInput('Bot and expected revision required');
+      try {
+        const route = deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.();
+        requireOwnedBot(slug);
+        if (route) requireRoutes(slug, [route]);
+      } catch (error) {
+        return modelFailure(error);
+      }
       const result = deps.registry.inheritModel(slug, revision as number);
       if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
       return {
@@ -3542,6 +3590,20 @@ function buildBridgeMethods(
       if (deps.modelCatalog === undefined) return unavailable();
       try {
         const models = await deps.modelCatalog.list();
+        if (deps.team && !deps.team.isOwner(human)) {
+          const allowed = deps.team.roles.modelsAllowed(human);
+          return {
+            ok: true,
+            value: {
+              models: models
+                .filter(
+                  (route) =>
+                    allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`),
+                )
+                .map(({ credential: _credential, ...route }) => route),
+            },
+          };
+        }
         const defaultRoute =
           deps.defaultModel?.currentSelection() ?? deps.modelCatalog.defaultRoute?.();
         const defaultRevision = deps
@@ -3557,7 +3619,9 @@ function buildBridgeMethods(
           },
         };
       } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
+        return !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
       }
     },
     modelPresets() {
@@ -3600,7 +3664,9 @@ function buildBridgeMethods(
         });
         return { ok: true, value: { preset } };
       } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
+        return !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
       }
     },
     async modelPresetUpdate(payload) {
@@ -3652,7 +3718,9 @@ function buildBridgeMethods(
         if (preset === undefined) return invalidInput('Model Preset was not found');
         return { ok: true, value: { preset } };
       } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
+        return !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
       }
     },
     async modelPresetApply(payload) {
@@ -3693,16 +3761,28 @@ function buildBridgeMethods(
       });
       if (changed()) return stale();
       try {
+        requireRoutes(slug, [
+          preset.orchestrator,
+          preset.assignmentDefault,
+          ...(preset.assignmentModels ?? []),
+        ]);
         await deps.modelCatalog.validate(preset.orchestrator);
         await deps.modelCatalog.validate(preset.assignmentDefault);
         if (preset.assignmentModels !== undefined)
           await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
         if (changed()) return stale();
+        requireRoutes(slug, [
+          preset.orchestrator,
+          preset.assignmentDefault,
+          ...(preset.assignmentModels ?? []),
+        ]);
         const result = deps.registry.applyModelPreset(slug, preset);
         if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
+        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
       }
     },
     async modelPlan(payload) {
@@ -3710,7 +3790,14 @@ function buildBridgeMethods(
       if (slug === undefined) return invalidInput('slug is required');
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
-      if (deps.modelReadiness !== undefined) {
+      try {
+        requireOwnedBot(slug);
+      } catch (error) {
+        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
+      }
+      if (deps.modelReadiness !== undefined && (!deps.team || deps.team.isOwner(human))) {
         try {
           const state = await deps.modelReadiness.inspect(slug);
           const current = deps.registry.get(slug);
@@ -3754,8 +3841,10 @@ function buildBridgeMethods(
       )
         return invalidInput('A valid expected revision is required');
       try {
+        requireRoutes(slug, [orchestrator]);
         await deps.modelCatalog.validate(orchestrator);
         beforeCommit?.();
+        requireRoutes(slug, [orchestrator]);
         const result = deps.registry.customizeModelPlan(slug, orchestrator, expectedRevision);
         if (!result.ok)
           return result.reason === 'not-found'
@@ -3765,7 +3854,9 @@ function buildBridgeMethods(
           return invalidInput('Apply a Model Preset first');
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
+        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
       }
     },
     async modelPlanAssignmentsSet(payload) {
@@ -3788,7 +3879,9 @@ function buildBridgeMethods(
       if (bot === undefined) return unknownBot(slug);
       if (bot.modelPlan === undefined) return invalidInput('Apply a Model Preset first');
       try {
+        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
+        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         const result = deps.registry.setAssignmentModels(
           slug,
           assignmentDefault,
@@ -3803,7 +3896,9 @@ function buildBridgeMethods(
           return invalidInput('Apply a Model Preset first');
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
+        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
       }
     },
     dataResetPreview() {
@@ -3912,8 +4007,11 @@ function buildBridgeMethods(
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
       try {
+        requireRoutes(slug, [orchestrator]);
         await deps.modelCatalog.validate(orchestrator);
+        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
+        requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
         const result = deps.registry.setModelPlan(
           slug,
           { orchestrator, assignmentDefault, assignmentModels },
@@ -3926,7 +4024,9 @@ function buildBridgeMethods(
         if (result.record.modelPlan === undefined) return unknownBot(slug);
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
+        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+          ? modelFailure(error)
+          : invalidInput('model-unavailable');
       }
     },
     list(payload) {
@@ -3946,6 +4046,7 @@ function buildBridgeMethods(
         })
         .map((record) => ({
           ...summarize(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
+          ...(deps.team ? { modelAllowed: allowed(record) } : {}),
           ownerHumanId: botOwner(record),
           owner: botOwner(record) === human.humanId,
           ...(botOwner(record) === human.humanId && activity.has(record.slug)
@@ -4055,12 +4156,21 @@ function buildBridgeMethods(
       }
       const record = deps.registry.get(slug);
       if (record === undefined) return unknownBot(slug);
+      try {
+        requireOwnedBot(slug);
+      } catch (error) {
+        return modelFailure(error);
+      }
       const bot = detailOf(record).bot;
       const memoryDir = deps.registry.memoryDirFor(slug);
       return {
         ok: true,
         value: {
-          bot: { ...bot, ...(memoryDir === undefined ? {} : { memoryDir }) },
+          bot: {
+            ...bot,
+            ...(deps.team ? { modelAllowed: allowed(record) } : {}),
+            ...(memoryDir === undefined ? {} : { memoryDir }),
+          },
           profileFingerprint: botProfileFingerprint(record),
         },
       };
@@ -7505,6 +7615,7 @@ function buildBridgeMethods(
                 ...(source['locked'] === undefined ? {} : { locked: source['locked'] as boolean }),
               },
               'human',
+              human.humanId,
             ),
           },
         };
@@ -9461,6 +9572,25 @@ function buildBridgeMethods(
         };
       return { ok: true, value: await deps.memory.overviewActivity(after) };
     },
+    usageByMember(payload) {
+      const period = asObject(payload)['period'];
+      if (!isUsageOverviewPeriod(period)) return invalidInput('period-invalid');
+      if (!deps.team) return unavailable();
+      try {
+        let names: Map<string, string> | undefined;
+        return {
+          ok: true,
+          value: deps.team.usageByMember(human, period, deps.usage, (slug) => {
+            names ??= new Map(
+              globalRegistry.listHistorical().map((bot) => [bot.slug, bot.displayName]),
+            );
+            return names.get(slug) ?? slug;
+          }),
+        };
+      } catch (error) {
+        return modelFailure(error);
+      }
+    },
     overviewUsage(payload) {
       const source = asObject(payload);
       const period = source['period'];
@@ -9482,7 +9612,10 @@ function buildBridgeMethods(
           },
         };
       try {
-        const result = deps.usage.overview(period, after);
+        const memberSlugs = !isHostOwner()
+          ? deps.registry.listHistorical().map((bot) => bot.slug)
+          : undefined;
+        const result = deps.usage.overview(period, after, memberSlugs);
         return {
           ok: true,
           value: {

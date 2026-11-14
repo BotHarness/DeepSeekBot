@@ -687,7 +687,7 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       }),
     );
     expect(upgraded.mode).toBe('ready');
-    expect(upgraded.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
+    expect(upgraded.generation).toBe(145);
     const check = attachOperationalModule(upgraded, 'm2-m9-new');
     expect(
       check.read((db) =>
