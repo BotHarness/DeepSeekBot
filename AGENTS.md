@@ -158,7 +158,7 @@ Single-context layout: root `GLOSSARY.md` + `docs/adr/` (extended lazily by the 
 
 ### UI guidelines
 
-Every new or changed Web, desktop or mobile interface follows [UI design](docs/agents/ui-design.md) ([中文](docs/agents/ui-design.zh.md)): communicate through layout, icons and interaction; keep descriptive prose secondary. Apply its review gate alongside the platform-specific rules.
+Every new or changed Web, desktop or mobile interface follows [UI design](docs/agents/ui-design.md) ([中文](docs/agents/ui-design.zh.md)): its product principles (common actions within easy reach, background colour over borders, layout and icons instead of long text with explanations behind an info button, the shortest natural path, guiding empty states and steppers, links to docs or copyable prompts) and its design rules. Apply its review gate alongside the platform-specific rules.
 
 Every component that reads the desktop Client store follows [UI state subscriptions](docs/agents/ui-state.md) ([中文](docs/agents/ui-state.zh.md)): select only the fields it reads, typed `Pick<ClientState, ...>` with a field-level comparison (the zustand selector pattern), select sub-fields of large slices, and never subscribe to or pass down the whole state. `pnpm lint` rejects whole-store subscriptions, and the render benchmarks assert that unrelated writes cause no commits.
 

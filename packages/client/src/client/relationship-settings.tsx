@@ -53,6 +53,7 @@ export function RelationshipSettings({
     setFailed(false);
     setIdentityFailed(false);
     try {
+      const parsed = link ? parsePairingLink(link) : undefined;
       if (link)
         await relationshipRequest({ action: 'route', id: item.id, link }, abort.current?.signal);
       const result = relationshipReplySchema.parse(
@@ -61,7 +62,6 @@ export function RelationshipSettings({
       if (!abort.current?.signal.aborted) {
         if (result.relationship.state === 'disconnected') await source.retireRelationship(item.id);
         else {
-          const parsed = link ? parsePairingLink(link) : undefined;
           await remoteHosts().learnRelationshipRoutes(
             result.relationship.peer,
             parsed?.ok ? parsed.payload.encryption?.privateRelay : undefined,

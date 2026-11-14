@@ -81,6 +81,9 @@ export function createTobService(options: {
     }
     if (options.ensureWorkspace) {
       const workspace = await options.ensureWorkspace(workspacePath);
+      const current = registry.get(slug);
+      if (!current || current.ownerHumanId !== human.humanId)
+        throw new TobError('tob-identity-unavailable');
       if (!options.grants.list(slug).some((grant) => grant.workspaceId === workspace.id))
         await options.grants.create(slug, workspace.id);
     }

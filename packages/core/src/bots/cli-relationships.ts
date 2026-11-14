@@ -22,7 +22,7 @@ export const RELATIONSHIP_COMMANDS = [
   {
     command: 'relationships',
     description:
-      'list, initiate, approve, sync, route, enroll, account-discover, account-status, account-enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
+      'list, initiate, approve, sync, route, enroll, cancel, account-discover, account-status, account-enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
   },
 ] as const;
 const PATH = '/api/botharness/relationships';
@@ -59,6 +59,7 @@ export async function runRelationshipCommand(
       'sync',
       'route',
       'enroll',
+      'cancel',
       'account-discover',
       'account-status',
       'account-enroll',
@@ -71,7 +72,7 @@ export async function runRelationshipCommand(
   )
     throw new CliLiveError(
       'usage',
-      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, account-discover, account-status, account-enroll <id>, or disconnect <id>.',
+      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, account-discover, account-status, account-enroll <id>, cancel <id>, or disconnect <id>.',
     );
   const query = ['list', 'account-discover', 'account-status', 'enrollments'].includes(action);
   const enrollmentKey = ['enrollment-status', 'commit-enrollment', 'cancel-enrollment'].includes(
@@ -81,7 +82,7 @@ export async function runRelationshipCommand(
   if (rest.length !== (query ? 1 : action === 'approve' || enrollmentKey ? 3 : 2))
     throw new CliLiveError('usage', 'Invalid relationship arguments.');
   if (
-    ['initiate', 'approve', 'disconnect', 'cancel-enrollment'].includes(action) &&
+    ['initiate', 'approve', 'cancel', 'disconnect', 'cancel-enrollment'].includes(action) &&
     values.confirm !== true
   )
     throw new CliLiveError(
@@ -217,9 +218,8 @@ export async function runRelationshipCommand(
   }
   if (action === 'initiate') return request({ action, link, confirmedKey: id, confirm: true });
   if (action === 'route') {
-    const result = await request({ action, id, link });
     const deviceFile = values['device-file'];
-    if (!deviceFile) return result;
+    if (!deviceFile) return request({ action, id, link });
     let saved: ReturnType<typeof parseRelationshipSavedHost>;
     try {
       saved = parseRelationshipSavedHost(JSON.parse(readFileSync(deviceFile, 'utf8')));
@@ -230,6 +230,7 @@ export async function runRelationshipCommand(
     const parsed = parsePairingLink(link!);
     if (!parsed.ok)
       throw new CliLiveError('relationship-link-invalid', 'The new connection link is invalid.');
+    const result = await request({ action, id, link });
     const { relationship } = relationshipReplySchema.parse(result);
     const privateRelay = parsed.payload.encryption?.privateRelay;
     const updated = updateRelationshipClientRoute({
@@ -265,7 +266,7 @@ export async function runRelationshipCommand(
     id,
     ...(action === 'approve'
       ? { confirmedKey: publicKey, confirm: true }
-      : action === 'disconnect'
+      : action === 'disconnect' || action === 'cancel'
         ? { confirm: true }
         : {}),
   });

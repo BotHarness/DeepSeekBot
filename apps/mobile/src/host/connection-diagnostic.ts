@@ -123,7 +123,33 @@ export function connectionDiagnostic(input: {
   };
 }
 
+const networkCode = (value: unknown): string | undefined =>
+  typeof value === 'object' && value !== null && 'code' in value && typeof value.code === 'string'
+    ? value.code
+    : undefined;
+
 export function networkDiagnosticReason(error: unknown): string {
+  const codes = [
+    networkCode(error),
+    networkCode(
+      typeof error === 'object' && error !== null && 'cause' in error ? error.cause : undefined,
+    ),
+  ];
+  for (const code of codes) {
+    if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'socket-dns';
+    if (code === 'ECONNREFUSED') return 'socket-refused';
+    if (code === 'ETIMEDOUT') return 'socket-timeout';
+    if (code === 'ECONNRESET' || code === 'EPIPE') return 'socket-reset';
+    if (
+      code &&
+      (code.includes('CERT') ||
+        code.includes('TLS') ||
+        code.includes('SSL') ||
+        code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+        code === 'INVALID_CA')
+    )
+      return 'socket-tls';
+  }
   const reason = reasonCode(error instanceof Error ? error.message : '');
   return safeCause(reason) ? reason : 'socket-error';
 }

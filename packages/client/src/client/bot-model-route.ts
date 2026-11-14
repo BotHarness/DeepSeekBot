@@ -105,7 +105,7 @@ export function applyBotModelRoute(
     state.plan?.revision ?? state.revision ?? 0,
   );
   return request.then((plan) => {
-    rememberModelPlan(slug, plan);
+    rememberModelPlan(slug, plan, actions);
     return plan;
   });
 }

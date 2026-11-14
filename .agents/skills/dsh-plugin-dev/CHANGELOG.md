@@ -10,7 +10,17 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
-- Documented downstream partial Host relationship direction checks and pinned route recovery; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)).
+- Documented downstream evidence checks against the current advertised Client artifact revision after a task-owned swap; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+
+- Documented downstream ownership-verified recovery, with task-owner exclusion of same-Home launchers/recovery attempts, of an empty native credential writer lock after interrupted startup; follow the [recovery guide](../dsh-dev/SKILL.md). Stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+
+- Documented downstream offline retirement after published Channel access146, safe pending cancellation and fresh generation147 qualification; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)).
+
+- Documented downstream explicit recovery of interrupted copy preparation, retained dependency trees and shared-file safeguards; the stable DSH Skill version and upstream provenance are unchanged ([#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)).
+
+- Documented downstream isolated dependency copies, read-only legacy restart and the verified shared-file metadata hazard; the stable DSH Skill version and upstream provenance are unchanged ([#4135](https://github.com/BotHarness/BotHarness/issues/4135)).
+
+- Documented downstream partial Host relationship direction checks, pinned route recovery and safe pending cancellation in the [CLI guide](../../../docs/bot-cli.md#reciprocal-computer-relationships); stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)).
 
 - Documented downstream isolated GenUI browser startup diagnostics, explicit executable selection and path-scoped CI sandbox provisioning; the stable Context/Decision Tree and verified DSH provenance are unchanged ([#4030](https://github.com/BotHarness/DeepSeekBot/issues/4030)).
 

@@ -39,6 +39,7 @@ export interface BotSummary {
   primaryColor?: BotPrimaryColor;
   avatarSeed?: 2;
   paused?: boolean;
+  modelAllowed?: false;
   deleted?: boolean;
   standingLimits?: StandingLimitsView;
   aggregateState: string;
@@ -57,6 +58,7 @@ export interface ChannelHumanMember {
 export interface ChannelSummary {
   remoteAvailability?: 'available' | 'unavailable' | 'withdrawn' | 'bot-unavailable';
   humanMembers?: ChannelHumanMember[];
+  humanParticipants?: string[];
   humanNickname?: string | null;
   id: string;
   type: 'dm' | 'group';
@@ -106,7 +108,7 @@ export interface ChannelSummary {
 }
 
 export type ChannelAuthor =
-  | { kind: 'human'; humanId?: string; displayName?: string }
+  | { kind: 'human'; humanId?: string; displayName?: string; deleted?: boolean }
   | { kind: 'bot'; slug: string }
   | { kind: 'remote-bot'; hostId: string; slug: string }
   | { kind: 'bridged'; source: string }

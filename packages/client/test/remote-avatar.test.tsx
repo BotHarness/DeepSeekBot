@@ -39,6 +39,25 @@ const render = (
   );
 
 describe('RemoteAvatar', () => {
+  it('uses the native person glyph for a canonical Human DM retained in the raw roster', () => {
+    const human = {
+      id: 'human-dm',
+      type: 'dm' as const,
+      name: 'Other Human',
+      members: [],
+      humanParticipants: ['owner', 'member'],
+    };
+    const markup = render(
+      { channelId: human.id, title: human.name },
+      { ...roster, activityChannels: [human] },
+    );
+    expect(markup).toContain('<svg');
+    expect(markup).toContain('class="bh-channel-slot"');
+    expect(markup).toContain('width="18"');
+    expect(markup).toContain('<circle');
+    expect(markup).not.toContain('blob:remote-tob');
+    expect(markup).not.toContain('bh-group-avatar-stack');
+  });
   it('uses authenticated object URLs and never looks up an identically named local Tob', () => {
     const local = vi.fn(() => undefined);
     const release = bindTobPresentation({

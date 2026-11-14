@@ -308,13 +308,18 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           if (!passwordTransportAllowed(request, options))
             throw new TeamError('insecure-transport');
           const input = z
-            .object({ current: z.string().max(1024), next: z.string() })
+            .object({
+              current: z.string().max(1024),
+              next: z.string(),
+              signOutOthers: z.boolean().optional(),
+            })
             .parse(await body(request));
           await options.team.changeWebPassword(
             peer.principal,
             input.current,
             input.next,
             request.socket.remoteAddress ?? 'unknown',
+            input.signOutOthers,
           );
           return json(response, 200, {});
         }

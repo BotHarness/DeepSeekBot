@@ -1,3 +1,4 @@
+import { useTeamMode } from './team-state.js';
 import type { ConversationStateView } from './store.js';
 import { Menu } from './appearance-primitives.js';
 import { ChannelNicknameEntry, ChannelTraceEntry } from './channel-personal-settings.js';
@@ -22,8 +23,10 @@ import { BotVoiceSettingsEntry } from './voice-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
-import { channelSettings } from './channel-settings-state.js';
+import { useChannelSettings } from './channel-settings-state.js';
+import { hasChannelBots } from './channel-kind.js';
 import { useMountedResource } from './mounted-resource.js';
+import { fetchMessageResource, useMessageHost } from './message-host.js';
 import { WakePolicyBadge, WakePolicyEntry } from './wake-policy-entry.js';
 import {
   ExternalConnectorsAttention,
@@ -132,6 +135,11 @@ const styles = stylex.create({
 });
 
 const inactiveSubscribe = (): (() => void) => () => {};
+const NO_NATIVE_SESSION_STATE = { ids: [], byId: {} };
+const NO_NATIVE_SESSIONS: NativeSessionCatalog = {
+  subscribe: inactiveSubscribe,
+  getSnapshot: () => NO_NATIVE_SESSION_STATE,
+};
 
 const INBOX_STATE_TONE = {
   pending: 'warning',
@@ -245,6 +253,7 @@ export function BotInboxItemRow({
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const authorName = useClientStore(
     (state) => state.bots.find((bot) => bot.slug === item.authorBotSlug)?.displayName,
   );
@@ -284,18 +293,16 @@ export function BotInboxItemRow({
     else if (preview === 'audio') setAudioErrors((value) => ({ ...value, [attachmentId]: false }));
     else if (preview) setImageErrors((value) => ({ ...value, [attachmentId]: false }));
     try {
-      const response = await fetch(
-        './api/botharness/attachment?' +
+      const response = await fetchMessageResource(
+        '/api/botharness/attachment?' +
           new URLSearchParams({
             slug: item.botSlug,
             sourceEventId: item.id,
             attachmentId,
             ...(preview === 'audio' ? { representation: 'playback' } : {}),
           }),
-        {
-          credentials: 'same-origin',
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
-        },
+        AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
+        host,
       );
       if (!response.ok) throw new Error('Download unavailable');
       const blob = await response.blob();
@@ -1009,8 +1016,23 @@ function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactEle
   const deleted = useClientStore((state) =>
     state.bots.some((bot) => bot.slug === botSlug && bot.deleted === true),
   );
+  const disallowed = useClientStore((state) =>
+    state.bots.some((bot) => bot.slug === botSlug && bot.modelAllowed === false),
+  );
+  const team = useTeamMode(actions.teamCall);
+  const canChoose =
+    team?.viewer.owner === true || team?.viewer.permissions.includes('models.use') === true;
   if (botSlug === undefined || deleted) return <></>;
-  return <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />;
+  return (
+    <>
+      {disallowed ? (
+        <Note tone="warning">
+          {t(canChoose ? 'team.models.notAllowed' : 'team.models.notAllowedAsk')}
+        </Note>
+      ) : null}
+      <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />
+    </>
+  );
 }
 
 function useModelPlan(
@@ -1022,16 +1044,16 @@ function useModelPlan(
   );
   const botSlug = deleted ? undefined : slug;
   const plan = useSyncExternalStore(
-    subscribeModelPlans,
-    () => modelPlanOf(botSlug),
-    () => modelPlanOf(botSlug),
+    (listener) => subscribeModelPlans(listener, actions),
+    () => modelPlanOf(botSlug, actions),
+    () => modelPlanOf(botSlug, actions),
   );
   const mount = useMountedResource<HTMLSpanElement>(() => {
-    if (botSlug === undefined || modelPlanOf(botSlug) !== undefined) return;
+    if (botSlug === undefined || modelPlanOf(botSlug, actions) !== undefined) return;
     let active = true;
     void actions.modelPlanState(botSlug).then(
       (state: ModelPlanStateView | undefined) => {
-        if (active) rememberModelPlan(botSlug, state?.plan);
+        if (active) rememberModelPlan(botSlug, state?.plan, actions);
       },
       () => {},
     );
@@ -1102,6 +1124,7 @@ function SessionsHeaderWithSettings({
   targetId: string | undefined;
 }): ReactElement {
   const { actions, t } = props;
+  const channelSettings = useChannelSettings();
   const botDeleted = useClientStore((state) =>
     state.bots.some((bot) => bot.slug === props.botSlug && bot.deleted === true),
   );
@@ -1186,6 +1209,7 @@ export function createChannelSidebarBuiltins(
   },
 ): readonly ChannelSidebarEntry[] {
   function SessionsWithNative(props: ChannelSidebarEntryProps): ReactElement {
+    const host = useMessageHost();
     const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
     const assignmentLimit = useSyncExternalStore(
       prefs?.source.subscribe ?? inactiveSubscribe,
@@ -1193,7 +1217,11 @@ export function createChannelSidebarBuiltins(
       readLimit,
     );
     return (
-      <SessionsEntry {...props} nativeSessions={nativeSessions} assignmentLimit={assignmentLimit} />
+      <SessionsEntry
+        {...props}
+        nativeSessions={host === undefined ? nativeSessions : NO_NATIVE_SESSIONS}
+        assignmentLimit={assignmentLimit}
+      />
     );
   }
 
@@ -1430,7 +1458,7 @@ export function createChannelSidebarBuiltins(
       order: 12,
       scope: 'channel',
       component: GroupWakePolicyEntry,
-      visible: isGroupConversation,
+      visible: (state) => isGroupConversation(state) && hasChannelBots(state.conversation.channel),
     },
     {
       id: 'group-external-connectors',

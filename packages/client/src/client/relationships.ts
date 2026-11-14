@@ -97,8 +97,10 @@ export async function pairReciprocalHost(
     return { ok: false, code: trust?.signal?.aborted ? 'cancelled' : 'unreachable' };
   } finally {
     if (relationship && !saved && relationship.state !== 'active')
-      await relationshipRequest({ action: 'disconnect', id: relationship.id, confirm: true }).catch(
-        () => {},
-      );
+      await relationshipRequest({
+        action: 'cancel',
+        id: relationship.id,
+        confirm: true,
+      }).catch(() => {});
   }
 }

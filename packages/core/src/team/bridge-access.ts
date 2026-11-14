@@ -34,7 +34,10 @@ const object = (input: unknown): Record<string, unknown> =>
   typeof input === 'object' && input !== null && !Array.isArray(input)
     ? Object.fromEntries(Object.entries(input))
     : {};
-const refuse = (code: string, details?: { permission: string }): BridgeResult<never> => ({
+const refuse = (
+  code: string,
+  details?: { permission: string } | { route: string },
+): BridgeResult<never> => ({
   ok: false,
   error: { code, message: code, ...(details ? { details } : {}) },
 });
@@ -100,7 +103,14 @@ export function guardHumanBridge(
         const channelId = input['channelId'];
         if (
           typeof channelId === 'string' &&
-          !['publicChannelJoin', 'channelPublicSet'].includes(property)
+          ![
+            'publicChannelJoin',
+            'channelJoin',
+            'channelPublicSet',
+            'channelVisibilitySet',
+            'channelPolicySet',
+            'channelRoleDirectory',
+          ].includes(property)
         ) {
           const channel = deps.channels.get(channelId);
           if (
@@ -117,7 +127,11 @@ export function guardHumanBridge(
             }
             return refuse('bot-not-found');
           }
-          if (!owner && channel?.type === 'group' && !deps.team?.belongs(human, channelId))
+          if (
+            !owner &&
+            channel?.type === 'group' &&
+            !deps.team?.channelAccess.canRead(human, channelId)
+          )
             return refuse('channel-not-found');
         }
         if (property === 'channelSend') {
@@ -179,7 +193,10 @@ export function guardHumanBridge(
             Array.isArray(refs) &&
             refs.some((ref) => {
               const id = object(ref)['channelId'];
-              return typeof id === 'string' && !owner && !deps.team?.belongs(human, id);
+              return (
+                typeof id === 'string' &&
+                (deps.team ? !deps.team.channelAccess.canRead(human, id) : !owner)
+              );
             })
           )
             return refuse('channel-not-found');

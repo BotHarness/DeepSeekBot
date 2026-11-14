@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { MemoryImage, MemoryImageComparison } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { useHostImageState } from './host-image.js';
 import { SingleImageGallery } from './message-image-gallery.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
@@ -76,17 +77,32 @@ function ImageContent({
   }, []);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  if (image.status !== 'ready' || failed)
+  const source = useHostImageState(
+    image.status === 'ready' && visible ? memoryImageUrl(slug, path, image) : undefined,
+  );
+  const { src } = source;
+  if (image.status !== 'ready' || failed || source.failed)
     return (
       <div role="status" className="bh-note">
-        {failed
+        {failed || source.failed
           ? t('memory.image.loadFailed')
           : image.status === 'ready'
             ? null
-            : t(`memory.image.${image.status}`)}
+            : t(`memory.image.${image.status}`)}{' '}
+        {failed || source.failed ? (
+          <button
+            type="button"
+            onClick={() => {
+              setFailed(false);
+              setLoaded(false);
+              source.retry();
+            }}
+          >
+            {t('messages.retry')}
+          </button>
+        ) : null}
       </div>
     );
-  const src = memoryImageUrl(slug, path, image);
   return (
     <div ref={observe}>
       {!loaded ? (
@@ -94,7 +110,7 @@ function ImageContent({
           {t('memory.loading')}
         </span>
       ) : null}
-      {visible ? (
+      {visible && src !== undefined ? (
         <SingleImageGallery t={t}>
           {(open) => (
             <button

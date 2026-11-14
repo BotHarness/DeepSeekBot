@@ -1,5 +1,18 @@
 import type { ChannelSummary } from './store.js';
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
+import type { RosterChannel, RosterView } from '../../../../apps/mobile/src/host/client.js';
+import { parseChannelRecord } from './bridge.js';
+import { isHumanDmChannel } from './channel-kind.js';
+
+export function remoteHumanDmChannels(roster: RosterView | undefined): ChannelSummary[] {
+  return (roster?.activityChannels ?? [])
+    .filter((channel) => channel.deletedAt === undefined)
+    .map(parseChannelRecord)
+    .filter(
+      (channel): channel is ChannelSummary => channel !== undefined && isHumanDmChannel(channel),
+    );
+}
+
 export function remoteChannelRows(remote: RemoteHost): (RemoteConversationTarget & {
   key: string;
   unread: number;
@@ -11,6 +24,19 @@ export function remoteChannelRows(remote: RemoteHost): (RemoteConversationTarget
   const hostId = remote.host.hostId;
   const unread = remote.inbox.status === 'ready' ? (remote.inbox.unread ?? {}) : {};
   const hidden = new Set(roster.arrangement?.hidden ?? []);
+  const projected = new Set(roster.channels.map((channel) => channel.id));
+  const channels: Pick<RosterChannel, 'id' | 'name' | 'preview' | 'previewAt'>[] = [
+    ...roster.channels,
+    ...remoteHumanDmChannels(roster)
+      .filter((channel) => !projected.has(channel.id))
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        ...(channel.latestMessage === undefined
+          ? {}
+          : { preview: channel.latestMessage.body, previewAt: channel.latestMessage.at }),
+      })),
+  ];
   return [
     ...roster.bots
       .filter((bot) => !hidden.has(bot.dmChannelId ?? ''))
@@ -23,7 +49,7 @@ export function remoteChannelRows(remote: RemoteHost): (RemoteConversationTarget
         ...(bot.preview === undefined ? {} : { preview: bot.preview }),
         ...(bot.previewAt === undefined ? {} : { previewAt: bot.previewAt }),
       })),
-    ...roster.channels
+    ...channels
       .filter((channel) => !hidden.has(channel.id))
       .map((channel) => ({
         key: `channel:${channel.id}`,

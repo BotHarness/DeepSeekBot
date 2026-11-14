@@ -1,3 +1,4 @@
+import { DEFAULT_CHANNEL_POLICY } from '../team/channel-contract.js';
 import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../team/permissions.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
@@ -3429,8 +3430,58 @@ const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
   },
 };
 
-const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
+const MEMBER_LIFECYCLE_MIGRATION: SchemaMigration = {
   generation: 145,
+  module: 'team',
+  description: 'Deactivation, mode suspension and deleted member identities',
+  rebuildsReferencedTables: true,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE humans_next (
+        human_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'suspended', 'deactivated')),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO humans_next SELECT * FROM humans;
+      DROP TABLE humans;
+      ALTER TABLE humans_next RENAME TO humans;
+      CREATE INDEX humans_status ON humans(status, human_id);
+      CREATE TABLE team_mode_suspensions (
+        human_id TEXT PRIMARY KEY REFERENCES humans(human_id),
+        previous_status TEXT NOT NULL CHECK (previous_status IN ('active', 'deactivated'))
+      );
+      CREATE TABLE deleted_humans (human_id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL);
+      UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId',
+        (SELECT owner_human_id FROM team_settings))
+        WHERE json_extract(record_json, '$.type') = 'group'
+          AND json_extract(record_json, '$.ownerBotSlug') IS NULL;
+    `);
+  },
+};
+
+const CHANNEL_ACCESS_MIGRATION: SchemaMigration = {
+  generation: 146,
+  module: 'team',
+  description: 'Channel visibility, Human ownership, policy and admins',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_records ADD COLUMN visibility_json TEXT NOT NULL DEFAULT '{"kind":"private"}';
+      ALTER TABLE channel_records ADD COLUMN policy_json TEXT NOT NULL DEFAULT '${JSON.stringify(DEFAULT_CHANNEL_POLICY)}';
+      ALTER TABLE channel_records ADD COLUMN owner_human_id TEXT REFERENCES humans(human_id) ON DELETE SET NULL;
+      UPDATE channel_records SET visibility_json = '{"kind":"public"}' WHERE public = 1;
+      UPDATE channel_records SET owner_human_id = COALESCE(json_extract(record_json, '$.ownerHumanId'), (SELECT owner_human_id FROM team_settings));
+      CREATE TABLE channel_admins (
+        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
+        human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+        PRIMARY KEY(channel_id, human_id)
+      );
+    `);
+  },
+};
+
+const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
+  generation: 147,
   module: 'host-relationships',
   description: 'Retain bounded offline reciprocal disconnect retries across Host restart',
   migrate(database) {
@@ -3444,8 +3495,48 @@ const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
   },
 };
 
+const TEAM_MODELS_MIGRATION: SchemaMigration = {
+  generation: 148,
+  module: 'team',
+  description: 'Role model route policy',
+  migrate(db) {
+    db.exec(`ALTER TABLE host_roles ADD COLUMN models_json TEXT NOT NULL DEFAULT '{"kind":"all"}'`);
+  },
+};
+const MEMBER_USAGE_MIGRATION: SchemaMigration = {
+  generation: 149,
+  module: 'usage',
+  description: 'Human-attributed usage receipts and daily buckets',
+  migrate(db) {
+    db.exec(`
+      ALTER TABLE usage_daily RENAME TO usage_daily_old;
+      CREATE TABLE usage_daily (
+        bot_slug TEXT NOT NULL, day TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens INTEGER NOT NULL DEFAULT 0, cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+        unknown_input INTEGER NOT NULL DEFAULT 0, unknown_output INTEGER NOT NULL DEFAULT 0,
+        unknown_cache_read INTEGER NOT NULL DEFAULT 0, unknown_cache_write INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0, unknown_total INTEGER NOT NULL DEFAULT 0,
+        human_id TEXT NOT NULL DEFAULT '', legacy INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (bot_slug, day, provider, model, purpose, human_id, legacy)
+      );
+      INSERT INTO usage_daily SELECT *, (SELECT owner_human_id FROM team_settings WHERE singleton = 1), 1 FROM usage_daily_old;
+      DROP TABLE usage_daily_old;
+      CREATE INDEX usage_daily_bot_day ON usage_daily(bot_slug, day);
+      CREATE INDEX usage_daily_period_human ON usage_daily(day, human_id, bot_slug);
+      ALTER TABLE usage_receipts ADD COLUMN human_id TEXT;
+      UPDATE usage_receipts SET human_id = (SELECT owner_human_id FROM team_settings WHERE singleton = 1);
+      ALTER TABLE usage_idle_compactions ADD COLUMN human_id TEXT;
+      ALTER TABLE bot_schedules ADD COLUMN creator_human_id TEXT;
+      CREATE TABLE usage_turn_humans (session_id TEXT NOT NULL, turn INTEGER NOT NULL, human_id TEXT NOT NULL, at_ms INTEGER NOT NULL,
+        PRIMARY KEY(session_id, turn));
+      CREATE INDEX usage_turn_humans_time ON usage_turn_humans(session_id, at_ms DESC, turn DESC) WHERE turn >= 0;
+    `);
+  },
+};
+
 const HOST_RELATIONSHIP_ACCOUNT_MIGRATION: SchemaMigration = {
-  generation: 146,
+  generation: 150,
   module: 'host-relationships',
   description: 'Retain verified same-account relationship provenance',
   migrate(database) {
@@ -3611,6 +3702,10 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TEAM_ROLES_MIGRATION,
   PRIVATE_BOTS_MIGRATION,
   HOST_RELATIONSHIP_MIGRATION,
+  MEMBER_LIFECYCLE_MIGRATION,
+  CHANNEL_ACCESS_MIGRATION,
   HOST_RELATIONSHIP_REVOCATION_MIGRATION,
+  TEAM_MODELS_MIGRATION,
+  MEMBER_USAGE_MIGRATION,
   HOST_RELATIONSHIP_ACCOUNT_MIGRATION,
 ]);
