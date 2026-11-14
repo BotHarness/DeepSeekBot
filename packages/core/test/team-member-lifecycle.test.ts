@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Context } from '@deepseek-ai/cordis';
+import { Peer } from '@deepseek-ai/dsh-client-connection';
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
   readFileSync,
   renameSync,
   symlinkSync,
@@ -94,6 +97,83 @@ async function send(f: ReturnType<typeof fixture>, slug: string, id: string) {
 }
 
 describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
+  it.each(['tob', 'transferred', 'never-signed-in'])(
+    'purges a %s member created through the real sign-in lifecycle under an aliased Profile path',
+    async (scenario) => {
+      const root = createTempRoot('member-sign-in-purge-');
+      mkdirSync(join(root, 'actual'));
+      symlinkSync(join(root, 'actual'), join(root, 'profile-alias'), 'dir');
+      const f = fixture({ dshHome: join(root, 'profile-alias', 'home'), seed: false });
+      const ctx = new Context();
+      const off = f.core.team.bindRuntime({
+        createPeer: (principal) => new Peer(ctx, { principal }),
+        invalidate() {},
+        urls: () => [],
+      });
+      closes.push(async () => {
+        await off();
+        await ctx.fiber.dispose();
+      });
+      await f.core.team.setOwnerPassword(owner, 'owner-password-1');
+      await f.core.team.setMode(owner, true);
+      const created = await f.core.team.createMember(owner, 'bob', 'Bob');
+      const human = humanContext(created.member.humanId);
+      if (scenario !== 'never-signed-in')
+        await f.core.team.signIn('bob', created.initialPassword, 'first-sign-in');
+      const tobSlug = f.core.tob.slug(human);
+      expect(Boolean(tobSlug)).toBe(scenario !== 'never-signed-in');
+      const memory = tobSlug && f.core.registry.memoryDirFor(tobSlug);
+      if (memory) writeFileSync(join(memory, 'private.md'), 'private Tob Memory');
+      const shared = f.core.channels.createGroup(owner, {
+        name: 'General',
+        members: [],
+      });
+      f.core.team.setPublic(owner, shared.id, true);
+      f.core.team.joinPublic(human, shared.id);
+      await f.core.channels.appendMessage(human, shared.id, {
+        id: 'shared-member-post',
+        at: new Date().toISOString(),
+        author: { kind: 'human', humanId: human.humanId, displayName: 'Bob' },
+        body: 'shared text stays',
+      });
+      let transferredMemory: string | undefined;
+      if (scenario === 'transferred') {
+        const target = await f.core.team.createMember(owner, 'alice', 'Alice');
+        const bot = createBot(f, human, 'transferred-bot');
+        transferredMemory = bot.memory;
+        await f.core.team.transfer(owner, human.humanId, target.member.humanId);
+      }
+      await f.core.team.resetPassword(owner, human.humanId);
+      await f.core.team.deactivate(owner, human.humanId);
+      await f.core.team.setMode(owner, false);
+      await f.core.team.setMode(owner, true);
+      await f.core.team.reactivate(owner, human.humanId);
+      await f.core.team.deactivate(owner, human.humanId);
+      expect(f.core.team.transferPreview(owner, human.humanId)).toEqual({ channels: [], bots: [] });
+      const preview = f.core.team.purgePreview(owner, human.humanId);
+      expect(preview.counts.bots).toBe(tobSlug ? 1 : 0);
+      await f.core.team.purgeConfirm(owner, human.humanId, preview.token, 'bob');
+      expect(f.core.team.member(human.humanId)).toBeUndefined();
+      if (tobSlug) {
+        expect(f.core.registry.get(tobSlug)).toBeUndefined();
+        expect(f.core.deletions.get(tobSlug)).toMatchObject({
+          memory: 'erased',
+          phase: 'complete',
+        });
+        expect(existsSync(memory!)).toBe(false);
+      }
+      if (transferredMemory) {
+        expect(f.core.registry.get('transferred-bot')).toBeDefined();
+        expect(existsSync(transferredMemory)).toBe(true);
+      }
+      expect(f.core.channels.readMessages(shared.id)[0]).toMatchObject({
+        body: 'shared text stays',
+        author: { humanId: human.humanId, deleted: true },
+      });
+      expect(f.core.channels.readMessages(shared.id)[0]?.author).not.toHaveProperty('displayName');
+    },
+  );
+
   it('upgrades a database that already applied M2 generation 143 to 144 without losing identity or ownership', () => {
     const home = createTempRoot('m2-m9-migration-');
     const previous = mountOperationalDatabase({
