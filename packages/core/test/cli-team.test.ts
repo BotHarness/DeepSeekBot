@@ -175,7 +175,7 @@ describe('Team CLI', () => {
       'roleUpdate',
       { roleId: 'reviewers', name: 'Operators' },
     ],
-    [['roles', 'delete', 'reviewers'], 'roleDelete', { roleId: 'reviewers' }],
+    [['roles', 'delete', 'reviewers', '--confirm'], 'roleDelete', { roleId: 'reviewers' }],
     [['channels', 'browse-public'], 'publicChannels', {}],
     [['channels', 'join-public', 'group-1'], 'publicChannelJoin', { channelId: 'group-1' }],
     [
@@ -325,7 +325,7 @@ describe('Team CLI', () => {
     ['roles', 'catalog'],
     ['roles', 'create', '--name', 'Audit', '--permissions', 'audit.view'],
     ['roles', 'update', 'audit', '--permissions', ''],
-    ['roles', 'delete', 'audit'],
+    ['roles', 'delete', 'audit', '--confirm'],
     ['members', 'roles', 'alice', '--set', 'member'],
     ['devices', '--member', 'bob'],
     ['devices', '--member', 'bob', '--revoke', 'grant'],
@@ -338,6 +338,22 @@ describe('Team CLI', () => {
     expect(f.calls[0]?.path).toBe('/api/botharness/team-as');
     expect(result.text).not.toContain('private-owner-password');
   });
+
+  it.each([false, true])(
+    'refuses role deletion without confirmation before RPC (as member: %s)',
+    async (member) => {
+      const f = await host();
+      const result = await run(f.url, [
+        ...(member ? ['--as', 'bob'] : []),
+        'roles',
+        'delete',
+        'reviewers',
+      ]);
+      expect(result.status).not.toBe(0);
+      expect(result.output).toMatchObject({ error: { code: 'confirm-required' } });
+      expect(f.calls).toEqual([]);
+    },
+  );
 
   it('admits certificate-verified private LAN HTTPS for the local Owner CLI', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

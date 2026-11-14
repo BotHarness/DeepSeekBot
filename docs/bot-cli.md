@@ -1956,7 +1956,7 @@ deepseekbot roles catalog
 deepseekbot roles list
 deepseekbot roles create --name reviewers --permissions audit.view,usage.view
 deepseekbot roles update <roleId> --permissions usage.view
-deepseekbot roles delete <roleId>
+deepseekbot roles delete <roleId> --confirm
 deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
 deepseekbot members roles bob --set member,<roleId>
 deepseekbot --as bob devices --member bob

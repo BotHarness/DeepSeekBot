@@ -17,7 +17,8 @@ export const TEAM_OPTIONS = {
 export const TEAM_COMMANDS = [
   {
     command: 'roles',
-    description: 'list | catalog | create --name --permissions | update <roleId> | delete <roleId>',
+    description:
+      'list | catalog | create --name --permissions | update <roleId> | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -134,8 +135,10 @@ export async function runTeamCommand(
         ...(values.name === undefined ? {} : { name: values.name }),
         ...(values.permissions === undefined ? {} : { permissions: ids(values.permissions) }),
       });
-    if (action === 'delete' && argument && rest.length === 2)
+    if (action === 'delete' && argument && rest.length === 2) {
+      if (!values.confirm) throw new CliLiveError('confirm-required', 'confirm-required');
       return rpc('roleDelete', { roleId: argument });
+    }
     return usage();
   }
   if (command === 'devices') {

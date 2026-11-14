@@ -52,10 +52,16 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   const database = attachOperationalModule(db, 'team');
   const channels = createSqliteChannelStore({ database, rootDir: join(root, 'channels') });
   let placements: Array<{ sourceEventId: string; channelId: string; messageId: string }> = [];
-  const live = createChannelLiveHub(channels, undefined, () => placements);
   const team = new TeamService(database, channels, {
     now: options.now ?? (() => Date.parse('2026-11-14T00:00:00Z')),
   });
+  const live = createChannelLiveHub(
+    channels,
+    undefined,
+    () => placements,
+    undefined,
+    (human) => team.isOwner(human),
+  );
   const ctx = new Context();
   const peers: Peer[] = [];
   const invalidate = vi.fn();
@@ -1846,7 +1852,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       );
       return { revoked: true, closedStreams: 1 };
     });
-    const off = f.team.bindPairing({ revoke });
+    const off = f.team.bindPairing({ revoke, clearOffers: vi.fn() });
     expect(f.team.member(f.human.humanId)?.deviceCount).toBe(2);
     expect(f.team.memberDevices(f.human, f.human.humanId)).toContainEqual(
       expect.objectContaining({ grantId: 'paired-bob', kind: 'paired-device', label: 'Bob phone' }),
@@ -1959,6 +1965,209 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     expect(f.team.memberDevices(f.human, f.human.humanId)).toContainEqual(
       expect.objectContaining({ grantId: fresh.device.id, kind: 'paired-device' }),
     );
+  });
+
+  it.each([
+    'roster-baseline',
+    'roster-queued',
+    'roster-publish',
+    'roster-sse',
+    'channel-open',
+    'channel-follow-new',
+    'channel-queued',
+    'channel-publish',
+  ] as const)('removes former Owner-wide live visibility after transfer: %s', async (path) => {
+    const f = await actors();
+    const alice = humanContext(f.alice.member.humanId);
+    const secret = f.channels.getOrCreateDm(alice, 'alice-private', 'Alice private');
+    if (!secret) throw new Error('missing private DM');
+    const placement = {
+      sourceEventId: 'alice-secret-source',
+      channelId: secret.id,
+      messageId: 'alice-secret-message',
+    };
+    f.setPlacements([placement]);
+    const controller = new AbortController();
+    const roster = f.live.followRoster(owner, controller.signal)[Symbol.asyncIterator]();
+    const channel = f.live
+      .followChannel(owner, secret.id, 10, controller.signal)
+      [Symbol.asyncIterator]();
+    const opened = f.live.open(
+      owner,
+      new Request('http://localhost/api/botharness/stream?scope=roster'),
+    );
+    const reader = opened.body?.getReader();
+    const publish = async () => {
+      const message = await f.channels.appendMessage(alice, secret.id, {
+        id: 'alice-secret-message',
+        at: '2026-11-14T00:00:00Z',
+        author: { kind: 'human', humanId: alice.humanId },
+        body: 'Alice private text',
+      });
+      if (!message) throw new Error('missing private message');
+      f.live.publishCommitted({
+        channelId: secret.id,
+        message,
+        revision: f.channels.revision(secret.id),
+      });
+    };
+    try {
+      expect((await roster.next()).value).toMatchObject({
+        type: 'baseline',
+        placements: [placement],
+      });
+      expect((await channel.next()).value).toMatchObject({ type: 'opened' });
+      await reader?.read();
+      await reader?.read();
+      if (path === 'roster-queued' || path === 'channel-queued') {
+        await publish();
+        f.live.publishContentPurged();
+      }
+      await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+      if (path === 'roster-baseline') {
+        const old = f.live.followRoster(owner, controller.signal)[Symbol.asyncIterator]();
+        const current = f.live.followRoster(f.human, controller.signal)[Symbol.asyncIterator]();
+        try {
+          expect((await old.next()).value).toEqual({ type: 'baseline', placements: [] });
+          expect((await current.next()).value).toEqual({
+            type: 'baseline',
+            placements: [placement],
+          });
+        } finally {
+          await old.return?.();
+          await current.return?.();
+        }
+      } else if (path === 'channel-open') {
+        const denied = f.live.open(
+          owner,
+          new Request(`http://localhost/api/botharness/stream?channelId=${secret.id}`),
+        );
+        await denied.body?.cancel();
+        expect(denied.status).toBe(404);
+      } else if (path === 'channel-follow-new') {
+        const denied = f.live
+          .followChannel(owner, secret.id, 10, controller.signal)
+          [Symbol.asyncIterator]();
+        await expect(denied.next()).rejects.toMatchObject({ code: 'not-found' });
+        await denied.return?.();
+      } else if (path === 'channel-queued' || path === 'channel-publish') {
+        if (path === 'channel-publish') await publish();
+        expect((await channel.next()).done).toBe(true);
+      } else {
+        if (path !== 'roster-queued') {
+          await publish();
+          f.live.publishContentPurged();
+        }
+        f.live.publishRosterCommitted();
+        if (path === 'roster-sse') {
+          const frame = new TextDecoder().decode((await reader?.read())?.value);
+          expect(frame).toContain('event: roster/changed');
+          expect(frame).not.toContain('alice-secret');
+        } else expect((await roster.next()).value).toEqual({ type: 'changed' });
+      }
+    } finally {
+      controller.abort();
+      await reader?.cancel();
+      await roster.return?.();
+      await channel.return?.();
+    }
+  });
+
+  it('requires current-Owner credential provenance for transfer, beyond the forced-change flag', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    const created = await f.team.createMember(f.human, 'managed-target', 'Target');
+    const target = humanContext(created.member.humanId);
+    await expect(
+      f.team.transferOwner(owner, target.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    await f.team.changePassword(target, created.initialPassword, 'manager-known-password-1');
+    expect(f.team.member(target.humanId)?.mustChangePassword).toBe(false);
+    const retained = await f.team.signIn(
+      'managed-target',
+      'manager-known-password-1',
+      'manager-ip',
+    );
+    await expect(
+      f.team.transferOwner(owner, target.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    const reset = await f.team.resetPassword(owner, target.humanId);
+    expect(retained.peer.signal.aborted).toBe(true);
+    await expect(
+      f.team.signIn('managed-target', 'manager-known-password-1', 'manager-ip'),
+    ).rejects.toMatchObject({ code: 'credentials-invalid' });
+    await expect(
+      f.team.transferOwner(owner, target.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    await f.team.changePassword(target, reset.initialPassword, 'target-only-password-2');
+    await f.team.transferOwner(owner, target.humanId, 'owner-password-1');
+    expect(f.team.ownerContext()).toEqual(target);
+  });
+
+  it('refuses transfer with unknown legacy credential provenance', async () => {
+    const f = await actors();
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE member_credentials SET password_json = json_remove(password_json, '$.ownerIssuerHumanId') WHERE human_id = ?",
+        )
+        .run(f.human.humanId),
+    );
+    await expect(
+      f.team.transferOwner(owner, f.human.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    expect(f.team.ownerContext()).toEqual(owner);
+  });
+
+  it('requires credential issuance by the current Owner rather than a previous Owner', async () => {
+    const f = await actors();
+    const alice = humanContext(f.alice.member.humanId);
+    await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+    await expect(
+      f.team.transferOwner(f.human, alice.humanId, 'member-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    const reset = await f.team.resetPassword(f.human, alice.humanId);
+    await f.team.changePassword(alice, reset.initialPassword, 'alice-new-private-password-2');
+    await f.team.transferOwner(f.human, alice.humanId, 'member-password-1');
+    expect(f.team.ownerContext()).toEqual(alice);
+  });
+
+  it('invalidates outstanding pairing offers permanently across an Owner round trip', async () => {
+    const f = await actors();
+    const pairing = createDevicePairing({
+      database: f.database,
+      hostName: 'Test',
+      ownerHumanId: () => f.team.ownerContext().humanId,
+    });
+    f.team.bindPairing(pairing);
+    const offered = pairing.createOffer();
+    await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+    const reset = await f.team.resetPassword(f.human, owner.humanId);
+    await f.team.changePassword(owner, reset.initialPassword, 'returned-owner-password-2');
+    await f.team.transferOwner(f.human, owner.humanId, 'member-password-1');
+    expect(pairing.redeem({ offer: offered.offer })).toEqual({ ok: false, code: 'offer-invalid' });
+    expect(pairing.offerStatus(offered.receipt)).toMatchObject({ state: 'superseded' });
+  });
+
+  it('removes every effective permission from suspended Humans, including an in-flight member creator', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    const pending = f.team.createMember(f.human, 'late-suspended', 'Late').then(
+      (member) => ({ member }),
+      (error: unknown) => ({ error }),
+    );
+    await f.team.suspend(owner, f.human.humanId);
+    expect(f.team.roles.permissions(f.human)).toEqual([]);
+    expect(await pending).toMatchObject({
+      error: { code: 'permission-required', details: { permission: 'members.manage' } },
+    });
+    expect(f.team.members(owner).some((member) => member.username === 'late-suspended')).toBe(
+      false,
+    );
+    f.database.transaction((db) =>
+      db.prepare("UPDATE humans SET status = 'suspended' WHERE human_id = ?").run(owner.humanId),
+    );
+    expect(f.team.roles.permissions(owner)).toEqual([]);
   });
 
   it('rechecks member-creation authority after password hashing yields', async () => {

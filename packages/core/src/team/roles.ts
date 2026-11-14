@@ -40,7 +40,7 @@ export class TeamRoles {
             .prepare(`SELECT r.permissions_json AS permissions,
         s.owner_human_id = h.human_id AS owner FROM humans h CROSS JOIN team_settings s
         LEFT JOIN human_roles m ON m.human_id = h.human_id
-        LEFT JOIN host_roles r ON r.role_id = m.role_id WHERE h.human_id = ?`)
+        LEFT JOIN host_roles r ON r.role_id = m.role_id WHERE h.human_id = ? AND h.status = 'active'`)
             .all(human.humanId),
         ),
       );
