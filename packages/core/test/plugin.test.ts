@@ -1,6 +1,7 @@
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { Context } from '@deepseek-ai/cordis';
 import { credentialRef } from '@deepseek-ai/dsh-credentials';
@@ -79,6 +80,81 @@ function logsSkill(stubs: { skills: { register: { mock: { calls: unknown[][] } }
 }
 
 describe('plugin entry', () => {
+  it('drains member cleanup before closing the operational database on actual Cordis disposal', async () => {
+    const { ctx } = createStubContext();
+    apply(ctx, { enabled: true });
+    const core: BotHarnessCore | undefined = ctx.get('botharness');
+    if (!core) throw new Error('Core unavailable');
+    const db = attachOperationalModule(core.operationalDatabase, 'shutdown-member-test');
+    db.transaction((connection) => {
+      connection
+        .prepare("INSERT INTO humans VALUES ('bob', 'Bob', 'deactivated', '2026-11-14')")
+        .run();
+      connection.prepare("INSERT INTO human_roles VALUES ('bob', 'member')").run();
+      connection
+        .prepare("INSERT INTO member_credentials VALUES ('bob', 'bob', '{}', '[]', 0)")
+        .run();
+    });
+    expect(
+      core.registry.create({
+        slug: 'bob-private',
+        displayName: 'Private Bob name',
+        ownerHumanId: 'bob',
+      }).ok,
+    ).toBe(true);
+    let release!: () => void;
+    let entered!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const retry = core.deletions.retry.bind(core.deletions);
+    vi.spyOn(core.deletions, 'retry').mockImplementation(async (slug) => {
+      entered();
+      await pending;
+      return retry(slug);
+    });
+    const settled = vi.spyOn(core.contentPurge, 'memberSettled');
+    const close = vi.spyOn(core.operationalDatabase, 'close');
+    const preview = core.team.purgePreview(OWNER_HUMAN_CONTEXT, 'bob');
+    const purge = core.team.purgeConfirm(OWNER_HUMAN_CONTEXT, 'bob', preview.token, 'bob');
+    void purge.catch(() => {});
+    await started;
+    const shutdown = ctx.fiber.dispose();
+    try {
+      await vi.waitFor(() => expect(settled).toHaveBeenCalledTimes(2));
+      expect(close).not.toHaveBeenCalled();
+      expect(core.operationalDatabase.mode).toBe('ready');
+    } finally {
+      release();
+      await Promise.allSettled([purge, shutdown]);
+    }
+    await expect(purge).resolves.toBeNull();
+    expect(close).toHaveBeenCalledOnce();
+    const read = new DatabaseSync(join(process.env['DSH_HOME']!, 'botharness', 'botharness.db'), {
+      readOnly: true,
+    });
+    try {
+      const record = read
+        .prepare(
+          "SELECT json_extract(body, '$.displayName') AS name FROM persona_bots WHERE slug = 'bob-private'",
+        )
+        .get();
+      expect(record).toEqual({ name: '' });
+      expect(
+        read
+          .prepare(
+            "SELECT json_extract(body, '$.displayName') AS name FROM persona_bot_deletions WHERE slug = 'bob-private'",
+          )
+          .get(),
+      ).toEqual({ name: '' });
+    } finally {
+      read.close();
+    }
+  });
+
   it('uses the canonical Team Owner for the Core live hub after transfer', async () => {
     const core = createCore({ dshHome: createTempRoot('core-live-owner-') });
     try {
@@ -627,6 +703,12 @@ describe('plugin entry', () => {
       'ownerTransfer',
       'memberPasswordChange',
       'memberPasswordReset',
+      'memberDeactivate',
+      'memberReactivate',
+      'memberTransferPreview',
+      'memberTransfer',
+      'memberPurgePreview',
+      'memberPurgeConfirm',
       'publicChannels',
       'publicChannelJoin',
       'channelPublicSet',

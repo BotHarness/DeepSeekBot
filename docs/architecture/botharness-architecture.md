@@ -1,10 +1,12 @@
 # BotHarness 架构与数据流
 
+Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、连接组件、relay 在线状态及公网设备通道的 TLS 与本机身份绑定 Noise 握手。它不创建 Device grant 或持久在线权威；结果五分钟后过期，账号或连接变化时失效，登录及组件恢复自动触发，手动检查走同一个已认证 Host API 与 CLI。并发合并、整体 20 秒及公网 8 秒上限，无新增后台轮询。检查通过仅证明本机当时可经公网连回自己，不能保证手机网络可达（#4170）。
+
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
 私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
 
-E4 在关系 owner 的 Operational Database generation 145 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0337](../adr/0337-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
+E4 在已发布 Team 生命周期迁移 145 之后，以关系 owner 的 Operational Database generation 146 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；取消待批准关系在任何撤销或抑制写入前原子拒绝已激活关系；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0337](../adr/0337-offline-disconnect-retries-stay-with-the-relationship-owner.md)。
 
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。
 
@@ -1634,3 +1636,5 @@ The application-defined Team member owner separates durable identity, password c
 M2 adds application-defined private Bot ownership, one Tob per Human, scoped Activity projections and Human-bound push/Live Activity delivery. The member Peer remains the API Gateway principal; no Owner cookie is used by member traffic or a member Tob. See [Team mode M2 runtime boundaries](team-mode-m2-runtime.md) for persistence, authorization, CLI integration and regression budgets.
 
 The [M3 Host/CLI runtime](team-mode-m3-runtime.md) adds persistent Host Roles, union permissions, target-scoped device management and transferable Owner authority without rewriting Human identity. The Core shares its canonical Team Service with the live hub so delivery gates follow current ownership. Credential issuance provenance restricts transfer targets; suspension removes effective permissions, and transfers invalidate outstanding pairing offers.
+
+The [M9 lifecycle runtime](team-mode-m9-runtime.md) adds permission-scoped password resets, other-device sign-out, reversible mode suspension, deactivation/reactivation, group ownership transfer and permanent member deletion through Content Purge. Shared messages keep anonymous deleted-Human authorship; M2 private Bots and Tob participate in transfer, stop and Content Purge Memory erasure; shared roots and member mobile carriers retain their own qualification gates.

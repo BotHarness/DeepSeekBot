@@ -601,10 +601,13 @@ export function createRelationshipControl(options: {
         expiresAt: response['expiresAt'],
       };
     },
-    async disconnect(relationshipId: string) {
+    async disconnect(relationshipId: string, condition: { pendingOnly?: boolean } = {}) {
       checkOpen();
+      const prior = readRelationship(relationshipId);
+      if (condition.pendingOnly && prior.state === 'active')
+        throw new RelationshipRefused('relationship-already-active');
       observations.delete(relationshipId);
-      relationships.disconnect(relationshipId);
+      relationships.disconnect(relationshipId, undefined, !condition.pendingOnly);
       return revoke(relationshipId, true);
     },
     cleanupAdmission: admissions.forget,

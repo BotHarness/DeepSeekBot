@@ -265,3 +265,17 @@ it('lists the same public route statuses exposed by the Host', async () => {
   ).toEqual({ routes });
   expect(http).toHaveBeenCalledWith('/api/botharness/devices');
 });
+it('runs the same Host-owned public connectivity check without publishing credentials', async () => {
+  const health = {
+    state: 'failed',
+    stage: 'public',
+    code: 'dns',
+    checkedAt: '2026-11-14T00:00:00.000Z',
+    elapsedMs: 10,
+  };
+  const http = vi.fn(async () => reply({ health }));
+  expect(await runConnectCommand('connect-check', [], {}, {}, async () => ({ http }))).toEqual({
+    health,
+  });
+  expect(http.mock.calls[0]).toEqual(['/api/botharness/devices/connect-health', {}]);
+});

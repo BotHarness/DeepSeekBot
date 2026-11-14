@@ -11,6 +11,7 @@ import { CONNECT_PROTOCOL } from '../src/devices/noise/channel.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { createRelationshipControl } from '../src/devices/relationship-control.js';
+import { createRelationshipHttp } from '../src/devices/relationship-http.js';
 import { enrollRelationshipClient } from '../src/devices/relationship-enrollment.js';
 import { nodeDeviceCarrier } from '../src/devices/node-carrier.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
@@ -309,6 +310,65 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
     expect(b.pairing.admit(`Device ${phone.credential}`).ok).toBe(true);
     await expect(b.control.enroll(relationship.id, 'cd'.repeat(32), 'Late')).rejects.toThrow(
       'relationship-inactive',
+    );
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it('retires an unapproved proposal through pending-only cleanup', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    const response = await createRelationshipHttp(a.control)(
+      new Request('http://localhost/api/botharness/relationships', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'cancel',
+          id: relationship.id,
+          confirm: true,
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(a.control.list()).toMatchObject([
+      { state: 'disconnected', peerRevocationPending: false },
+    ]);
+    expect(b.control.list()).toMatchObject([
+      { state: 'disconnected', peerRevocationPending: false },
+    ]);
+    expect(a.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+    expect(b.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it('preserves an activated relationship when stale pending cleanup arrives after a lost sync reply', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const before = [a.relationships.read(relationship.id), b.relationships.read(relationship.id)];
+    const response = await createRelationshipHttp(a.control)(
+      new Request('http://localhost/api/botharness/relationships', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'cancel',
+          id: relationship.id,
+          confirm: true,
+        }),
+      }),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: 'relationship-already-active' });
+    expect(a.control.list()).toMatchObject([{ state: 'active', peerRevocationPending: false }]);
+    expect(b.control.list()).toMatchObject([{ state: 'active', peerRevocationPending: false }]);
+    expect([a.relationships.read(relationship.id), b.relationships.read(relationship.id)]).toEqual(
+      before,
     );
   } finally {
     await Promise.all([a.close(), b.close()]);

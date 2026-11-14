@@ -487,6 +487,28 @@ describe('confirmed terminal PersonaBot deletion', () => {
     symlinkSync(f.home, join(path, 'escape'));
     expect(f.deletion.preview('b').refusal).toContain('symbolic link');
   });
+  it('still refuses a symlink below the canonical managed root and an invalid retained ownership proof', () => {
+    const f = fixture();
+    const memory = f.create('a');
+    const directory = join(f.core.registry.rootDir, 'a');
+    renameSync(directory, directory + '-retained');
+    symlinkSync(directory + '-retained', directory, 'dir');
+    expect(f.deletion.preview('a')).toMatchObject({ eraseAvailable: false });
+    expect(f.deletion.preview('a').refusal).toContain('symbolic link');
+    expect(existsSync(memory)).toBe(true);
+    const other = f.create('b');
+    attachOperationalModule(f.core.operationalDatabase, 'invalid-memory-proof-test').transaction(
+      (db) => {
+        db.prepare('UPDATE persona_bot_memory_ownership SET body = ? WHERE slug = ?').run(
+          JSON.stringify({ path: '', device: -1, inode: -1 }),
+          'b',
+        );
+      },
+    );
+    expect(f.deletion.preview('b')).toMatchObject({ eraseAvailable: false });
+    expect(f.deletion.preview('b').refusal).toContain('ownership');
+    expect(existsSync(other)).toBe(true);
+  });
   it('refuses stale dependency/name/path previews without disabling the Bot', async () => {
     const f = fixture();
     const path = f.create();
