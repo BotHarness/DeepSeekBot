@@ -15,16 +15,18 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 This is a current-Owner capability: member/Admin carriers and `--as` cannot manage or enroll Host relationships. Derived device grants retain the Owner Human captured when their offer was created; Owner transfer invalidates old offers and old-Owner admission. Private Bots and Channels retain their existing per-Human access checks. E1 adds migration144 after published Team141–143; internal Environment-preview databases are not a supported upgrade source.
 
-| Command                                                                                  | Purpose                                                                                                                  |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `relationships list`                                                                     | Read persisted peers, approval state and pending peer revocation.                                                        |
-| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm` | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                          |
-| `relationships approve <id> <peer-public-key> --confirm`                                 | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                              |
-| `relationships sync <id>`                                                                | Read the peer's approval and complete the authenticated reciprocal handshake.                                            |
-| `relationships enroll <id> --out <new-absolute-private-file>`                            | Enroll this CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers.      |
-| `relationships disconnect <id> --confirm`                                                | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending. |
+| Command                                                                                  | Purpose                                                                                                                   |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `relationships list`                                                                     | Read persisted peers, approval state and pending peer revocation.                                                         |
+| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm` | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                           |
+| `relationships approve <id> <peer-public-key> --confirm`                                 | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                               |
+| `relationships sync <id>`                                                                | Read the peer's approval and complete the authenticated reciprocal handshake.                                             |
+| `relationships enroll <id> --device-name <name> --out <new-absolute-private-file>`       | Enroll this named CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers. |
+| `relationships disconnect <id> --confirm`                                                | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending.  |
 
 Use the existing `--host` / `--token-file` options to select the exact local owner. Repeat `enroll` against the other local Host for its independent CLI Client; `device-probe --device-file <absolute-private-file>` reads that Client's real remote Feed. Phones cannot invoke relationship enrollment through their device gateway. Do not retry an uncertain initiation blindly: inspect `relationships list` first. The E1 command persists pending peer revocation; automatic retry after an offline peer returns belongs to E4.
+
+To verify separate Clients, enroll twice into different new private files with distinct `--device-name` values (1–60 characters; default `CLI desktop`). On the remote owner, `devices` lists their distinct identifiers and names. Run `device-revoke <device-id> --confirm` for one, then probe both files: only that grant must fail. Keep an independently paired device in this check. A new relationship generation never revives an old one; use `relationships list` and the exact active ID. Web Clients use **Connections → Computer relationships → Use on this client**, give the Client a name, then open its remote Channel. Already enrolled Clients select **Open Channels** without issuing another grant.
 
 ### Recoverable Zip transfer and import
 
@@ -1617,6 +1619,31 @@ connected, new pairing QR codes include `https://<name>.deepseekbot.dev` after a
 Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
 `connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
 the stored token; paired devices keep their credentials.
+
+### Check this computer's public connection
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` runs the same
+self-check as **Connections → Tobs Connect → Check again**. Signing in and starting or
+restarting the connector trigger it automatically. It checks the account, connector,
+relay-reported online state, then a fresh TLS-verified WebSocket and Noise handshake pinned
+to this Host's identity through the public device channel. It creates no device grant.
+
+The JSON `health` observation is also included in `connect-status`:
+`idle`, `checking` (with `stage`), `passed`, `failed`, or `stale`.
+Completed checks include `checkedAt` and `elapsedMs`; failures include `stage` and a bounded
+`code` such as `dns`, `tls`, `http`, `timeout`, `handshake`, `identity`, `relay-offline` or
+`connector-unavailable`. HTTP refusals add only a numeric `httpStatus`.
+The UI can copy these safe fields without account names, addresses, tokens or raw responses.
+
+Concurrent callers share one check. Each check has a 20-second overall budget and an
+8-second public handshake budget. Success expires after five minutes; opening or refreshing
+the dialog does not start a background probe. A passed check proves reachability from this
+computer at that time, not from every phone network. Use the phone's diagnostics separately
+if it still cannot connect. A stopped connector or changed account invalidates old success.
+
+The manual Web request has a 25-second transport deadline and aborts when its card closes. The public WebSocket accepts at most 1 KiB per handshake message and disables compression before authenticating the Host.
+
+The public stage retries only transient DNS/network/timeout and HTTP 429/5xx failures, at most four attempts with 1/3/6-second waits inside the same 20-second overall deadline. Certificate and identity failures do not retry. Completed checks refresh the visible account computer list once.
 
 ### Account sign-in
 

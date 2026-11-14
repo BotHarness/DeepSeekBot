@@ -15,16 +15,18 @@
 
 关系管理属于当前 Owner：成员、Admin 的连接及 `--as` 均不能管理或登记 Host 关系。派生设备授权保留邀请创建时的 Owner Human；转移 Owner 后，旧邀请和旧 Owner 设备准入均失效。私有 Bot 和频道仍使用既有的逐 Human 访问检查。E1 在已发布 Team141–143 后追加迁移144；内部 Environment 预览数据库不属于支持的升级来源。
 
-| 命令                                                                         | 用途                                                                     |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `relationships list`                                                         | 读取持久化的对端、审批状态和待确认撤销。                                 |
-| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm` | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
-| `relationships approve <关系ID> <对端公钥> --confirm`                        | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
-| `relationships sync <关系ID>`                                                | 读取对方审批，完成已认证的双向握手。                                     |
-| `relationships enroll <关系ID> --out <新私密文件绝对路径>`                   | 为当前 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
-| `relationships disconnect <关系ID> --confirm`                                | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
+| 命令                                                                            | 用途                                                                     |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `relationships list`                                                            | 读取持久化的对端、审批状态和待确认撤销。                                 |
+| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm`    | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
+| `relationships approve <关系ID> <对端公钥> --confirm`                           | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
+| `relationships sync <关系ID>`                                                   | 读取对方审批，完成已认证的双向握手。                                     |
+| `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>` | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
+| `relationships disconnect <关系ID> --confirm`                                   | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
 
 用现有 `--host` / `--token-file` 选定准确的本机所有者。在另一台本机 Host 上执行 `enroll`，为其 CLI Client 独立登记；`device-probe --device-file <私密文件绝对路径>` 读取该 Client 的真实远端 Feed。手机不能通过设备网关调用关系登记。发起结果不确定时先读取 `relationships list`，不要盲目重发。E1 保留待对端确认的撤销；对方恢复在线后的自动重试属于 E4。
+
+验证独立 Client：使用不同的 `--device-name` 和两个新的私密文件分别登记。名称为 1–60 字符，默认 `CLI desktop`。在远端所属 Host 运行 `devices` 检查独立名称和设备 ID；用 `device-revoke <设备ID> --confirm` 撤销一个，再分别 probe 两份文件，只有该授权应失败。另保留一个独立配对设备一同验证。新关系不会恢复旧关系代际，登记前以 `relationships list` 选择准确的有效 ID。Web Client 通过「连接 → 电脑之间的连接 → 在此客户端使用」命名并取得独立授权；已登记的 Client 点击「打开频道」只切换目标，不重复签发。
 
 ### 可恢复的 Zip 上传与导入
 
@@ -1927,3 +1929,24 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
 `members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+
+### Tobs Connect 本机公网自检
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` 与连接对话框中的
+“重新检查”使用同一个 Host owner。登录完成及连接组件启动或恢复后会自动检查账号、连接组件、
+服务端报告的在线状态，然后通过公网设备通道进行正常 TLS 校验及绑定本机身份的全新 Noise 握手。
+检查不会创建配对设备或权限。
+
+返回的 `health` 也包含在 `connect-status` 中，状态为 `idle`、`checking`、`passed`、`failed` 或
+`stale`。完成后提供 `checkedAt`、`elapsedMs`；失败提供 `stage` 和有界错误码，
+例如 `dns`、`tls`、`http`、`timeout`、`handshake`、`identity`、`relay-offline` 或
+`connector-unavailable`，HTTP 拒绝只附带数字状态码。界面可复制这些字段，不含账号、地址、
+token 或原始响应。
+
+并发请求合用一次检查，整体上限 20 秒，公网握手上限 8 秒。成功结果五分钟后过期；打开或刷新
+对话框不会在后台持续探测。通过只证明这台电脑在检查时可经公网连回自己，不保证所有手机网络
+都可达；手机仍连不上时需结合手机诊断。账号或连接发生变化时，旧成功结果失效。
+
+Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。公网 WebSocket 在验证 Host 身份前将握手消息限制为 1 KiB，并禁用压缩。
+
+公网阶段仅对 DNS、网络、超时及 HTTP 429/5xx 短暂失败重试：最多四次，间隔 1/3/6 秒，仍受同一个 20 秒总时限约束。证书或身份失败不重试。每次自检完成后，界面刷新一次账号电脑列表。

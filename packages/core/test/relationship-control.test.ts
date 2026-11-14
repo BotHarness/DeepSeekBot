@@ -113,6 +113,7 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
     ]) {
       const grant = await enrollRelationshipClient({
         relationshipId: relationship.id,
+        expectedPeer: { id: target!.pairing.host().id, publicKey: target!.publicKey },
         name: 'Desktop',
         carrier: nodeDeviceCarrier(),
         request: async (input) =>
@@ -155,6 +156,88 @@ it('retires refused initiation so a fresh verified invitation can be used', asyn
     expect(fresh.state).toBe('pending');
     b.control.approve(fresh.id, a.publicKey);
     expect((await a.control.sync(fresh.id)).state).toBe('active');
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it('enrolls separate Clients under one approval and revokes only the selected grant', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const enroll = (name: string) =>
+      enrollRelationshipClient({
+        relationshipId: relationship.id,
+        expectedPeer: { id: b.pairing.host().id, publicKey: b.publicKey },
+        name,
+        carrier: nodeDeviceCarrier(),
+        request: (input) =>
+          a.control.enroll(relationship.id, String(input['publicKey']), String(input['name'])),
+      });
+    const one = await enroll('Browser one');
+    const two = await enroll('Browser two');
+    if (!one.ok || !two.ok) throw new Error('enrollment failed');
+    expect(one.host.deviceId).not.toBe(two.host.deviceId);
+    expect(one.host.credential).not.toBe(two.host.credential);
+    expect(one.host.encryption?.deviceKey).not.toBe(two.host.encryption?.deviceKey);
+    expect(b.pairing.list().map((device) => device.name)).toEqual(
+      expect.arrayContaining(['Browser one', 'Browser two']),
+    );
+    const independent = b.pairing.redeem({ offer: b.pairing.createOffer().offer });
+    if (!independent.ok) throw new Error(independent.code);
+    b.pairing.revoke(one.host.deviceId);
+    expect(b.pairing.check(one.host.deviceId).ok).toBe(false);
+    expect(b.pairing.check(two.host.deviceId).ok).toBe(true);
+    expect(b.pairing.admit(`Device ${independent.credential}`).ok).toBe(true);
+    expect(a.control.list()[0]?.state).toBe('active');
+    await a.control.disconnect(relationship.id);
+    const fresh = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(fresh.id, a.publicKey);
+    await a.control.sync(fresh.id);
+    await expect(enroll('Stale browser')).rejects.toThrow('relationship-inactive');
+    expect(b.pairing.check(two.host.deviceId).ok).toBe(false);
+    expect(b.pairing.admit(`Device ${independent.credential}`).ok).toBe(true);
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it('refuses changed targets, cancellation and disconnect during Client enrollment', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    for (const mode of ['target', 'cancel', 'disconnect']) {
+      const abort = new AbortController();
+      const result = await enrollRelationshipClient({
+        relationshipId: relationship.id,
+        expectedPeer: { id: b.pairing.host().id, publicKey: b.publicKey },
+        name: 'Browser',
+        carrier: nodeDeviceCarrier(),
+        signal: abort.signal,
+        request: async (input) => {
+          const ticket = await a.control.enroll(
+            relationship.id,
+            String(input['publicKey']),
+            String(input['name']),
+          );
+          if (mode === 'cancel') abort.abort();
+          if (mode === 'disconnect') await a.control.disconnect(relationship.id);
+          return mode === 'target'
+            ? { ...ticket, peer: { ...ticket.peer, id: 'wrong-host' } }
+            : ticket;
+        },
+      });
+      expect(result.ok).toBe(false);
+      if (mode === 'target') expect(result).toEqual({ ok: false, code: 'host-key-changed' });
+      if (mode === 'cancel') expect(result).toEqual({ ok: false, code: 'cancelled' });
+      expect(b.pairing.list()).toHaveLength(0);
+    }
   } finally {
     await Promise.all([a.close(), b.close()]);
   }

@@ -16,7 +16,28 @@ const fixture = () => {
   return { http, connect: async () => ({ http }) };
 };
 it('passes the command deadline into encrypted relationship enrollment', async () => {
-  const { connect } = fixture();
+  const { http, connect } = fixture();
+  http.mockResolvedValueOnce({
+    bytes: new TextEncoder().encode(
+      JSON.stringify({
+        relationships: [
+          {
+            id,
+            peer: {
+              id: 'peer',
+              name: 'Peer',
+              publicKey,
+              routes: ['http://127.0.0.1:47001'],
+            },
+            direction: 'outgoing',
+            state: 'active',
+            expiresAt: Date.now() + 60_000,
+            peerRevocationPending: false,
+          },
+        ],
+      }),
+    ),
+  });
   const abort = new AbortController();
   await expect(
     runRelationshipCommand(
@@ -60,4 +81,18 @@ it('keeps destructive disconnect confirmation and private enrollment output mand
     id,
     confirm: true,
   });
+});
+
+it('rejects invalid Client names before connecting or creating credentials', async () => {
+  const { http, connect } = fixture();
+  for (const name of ['', ' ', 'x'.repeat(61)]) {
+    await expect(
+      runRelationshipCommand(
+        ['enroll', id],
+        { out: '/new-private-grant.json', 'device-name': name },
+        connect,
+      ),
+    ).rejects.toThrow('--device-name');
+  }
+  expect(http).not.toHaveBeenCalled();
 });

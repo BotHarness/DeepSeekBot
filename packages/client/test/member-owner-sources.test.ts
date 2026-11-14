@@ -44,7 +44,20 @@ it.each(['member', 'admin'])(
       ok: false,
       code: 'owner-required',
     });
-    expect(await source.enrollRelationship('a'.repeat(32), 'Member')).toEqual({
+    expect(
+      await source.enrollRelationship(
+        {
+          id: 'a'.repeat(32),
+          peer: {
+            id: 'owner-host',
+            name: 'Owner Host',
+            publicKey: 'ab'.repeat(32),
+            routes: ['http://127.0.0.1:47001'],
+          },
+        },
+        'Member',
+      ),
+    ).toEqual({
       ok: false,
       code: 'owner-required',
     });

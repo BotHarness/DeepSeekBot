@@ -10,6 +10,10 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented downstream explicit recovery of interrupted copy preparation, retained dependency trees and shared-file safeguards; the stable DSH Skill version and upstream provenance are unchanged ([#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)).
+
+- Documented downstream isolated dependency copies, read-only legacy restart and the verified shared-file metadata hazard; the stable DSH Skill version and upstream provenance are unchanged ([#4135](https://github.com/BotHarness/BotHarness/issues/4135)).
+
 - Documented downstream isolated GenUI browser startup diagnostics, explicit executable selection and path-scoped CI sandbox provisioning; the stable Context/Decision Tree and verified DSH provenance are unchanged ([#4030](https://github.com/BotHarness/DeepSeekBot/issues/4030)).
 
 - Prepared the downstream Tobs 1.7.0 release ledger, highlights and candidate privacy-review guidance; the independently versioned DSH Skill and its verified upstream provenance are unchanged ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
