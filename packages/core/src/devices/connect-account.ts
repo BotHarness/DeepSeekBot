@@ -649,12 +649,13 @@ export function createConnectAccount(options: {
         }
         const bound = originPort(connect);
         if (bound !== undefined && bound !== port) await requestTunnel(current, access, bound);
+        const becameReady = status.state !== 'signed-in' || status.hostId !== current.hostId;
         status = {
           state: 'signed-in',
           ...(current.email ? { email: current.email } : {}),
           ...(current.hostId ? { hostId: current.hostId } : {}),
         };
-        options.onReady?.();
+        if (becameReady) options.onReady?.();
       } catch (error) {
         await revoke(error, current);
       }

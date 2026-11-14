@@ -228,7 +228,7 @@ async function settle(account: { status(): { state: string } }) {
     await new Promise((done) => setImmediate(done));
 }
 
-function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
+function setup(services = fakeServices(), port = 41001, watchMs = 60_000, onReady?: () => void) {
   const credentials = memoryCredentials();
   const tunnel = fakeConnect(port);
   const account = createConnectAccount({
@@ -240,6 +240,7 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
     freePort: async () => 41001,
     sleep: async () => {},
     watchMs,
+    onReady,
   });
   return { account, credentials, tunnel, services };
 }
@@ -982,6 +983,27 @@ describe('Connect account sign-in', () => {
 });
 
 describe('Connect account lifecycle', () => {
+  it('announces readiness only after sign-in, without repeating it on a healthy account sync', async () => {
+    const states: string[] = [];
+    const test = setup(fakeServices({ pending: 0 }), 41001, 60000, () => {
+      states.push(test.account.status().state);
+    });
+    try {
+      await test.account.signIn();
+      await settle(test.account);
+      expect(states).toEqual(['signed-in']);
+      await test.account.start();
+      await test.account.start();
+      expect(states).toEqual(['signed-in']);
+      await test.account.signOut();
+      await test.account.signIn();
+      await settle(test.account);
+      expect(states).toEqual(['signed-in', 'signed-in']);
+    } finally {
+      await test.account.close();
+    }
+  });
+
   it('recovers the same registration after an expired session has been revoked locally', async () => {
     const options = { pending: 0, maxHosts: 1, refreshExpired: false };
     const services = fakeServices(options);
