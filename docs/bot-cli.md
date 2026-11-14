@@ -1669,6 +1669,8 @@ The manual Web request has a 25-second transport deadline and aborts when its ca
 
 The public stage retries only transient DNS/network/timeout and HTTP 429/5xx failures, at most four attempts with 1/3/6-second waits inside the same 20-second overall deadline. Certificate and identity failures do not retry. Completed checks refresh the visible account computer list once.
 
+A successful Node public check may include `dnsRecovery: "fresh-query"`: an official tunnel ENOTFOUND was recovered with a bounded configured-DNS IPv4 query before TLS and pinned Noise succeeded. This is application recovery, not an OS cache reset. `device-account-pair`, `device-pair` and `device-probe` share the same scoped transport. Native phone DNS is unchanged; no global DNS/VPN settings are modified.
+
 ### Account sign-in
 
 ```sh
@@ -2045,3 +2047,10 @@ deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
 ```
 
 Password changes default to signing out every other browser and paired device; `false` keeps them except during the forced first change. Lifecycle operations require `members.manage` with the target-role ceiling; Owner and self targets are protected, and only the Owner can manage Admin targets. Deactivation preserves data and revokes every grant. Reactivation requires fresh sign-in. Transfer moves group Channel ownership and the member's private Bots, with their Memory and DM history, to an active member or the Owner; preview lists both before anything moves. The member's Tob stays with them until purge. Purge requires deactivation and completed transfer, then a single-use, five-minute token from the preview. The username argument supplies the exact username confirmation; stdin supplies only the token. Shared messages retain `author.humanId` with `author.deleted: true` and no display name. `team-mode status` includes `activeMembers`; `team-mode off` also returns `suspendedMembers`. Previously deactivated accounts remain deactivated after off/on. Purge also removes the member's Tob and any private Bots still owned by them, with their Memory; DMs that another Human took part in are kept.
+
+```sh
+deepseekbot usage members --period week [--as <username>]
+deepseekbot roles update <roleId> --models all [--as <username>]
+deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
+deepseekbot models allowed [--as <username>]
+```

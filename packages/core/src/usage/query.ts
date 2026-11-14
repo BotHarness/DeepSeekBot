@@ -70,13 +70,13 @@ export function queryUsage(
   const total = (where: string, params: SQLInputValue[]) =>
     connection
       .prepare(
-        `SELECT COUNT(*) AS records, CASE WHEN SUM(unknown_total) > 0 THEN NULL ELSE COALESCE(SUM(total_tokens), 0) END AS tokens FROM usage_daily WHERE ${where}`,
+        `SELECT COUNT(DISTINCT json_array(day, purpose, provider, model)) AS records, CASE WHEN SUM(unknown_total) > 0 THEN NULL ELSE COALESCE(SUM(total_tokens), 0) END AS tokens FROM usage_daily WHERE ${where}`,
       )
       .get(...params) as { records: number; tokens: number | null };
   const period = total(periodWhere, periodParameters);
   const allTime = total(allWhere, parameters);
   const nullable = (column: string, unknown: string, alias: string) =>
-    `CASE WHEN ${unknown} > 0 THEN NULL ELSE ${column} END AS ${alias}`;
+    `CASE WHEN SUM(${unknown}) > 0 THEN NULL ELSE SUM(${column}) END AS ${alias}`;
   const rows = connection
     .prepare(`SELECT day, purpose, provider, model,
     ${nullable('input_tokens', 'unknown_input', 'inputTokens')},
@@ -85,7 +85,7 @@ export function queryUsage(
     ${nullable('cache_write_tokens', 'unknown_cache_write', 'cacheWriteTokens')},
     ${nullable('total_tokens', 'unknown_total', 'totalTokens')}
     FROM usage_daily WHERE ${periodWhere}
-    ORDER BY day, purpose, provider, model LIMIT 2001`)
+    GROUP BY day, purpose, provider, model ORDER BY day, purpose, provider, model LIMIT 2001`)
     .all(...periodParameters) as unknown as UsageQueryRow[];
   const facets = (column: 'model' | 'provider') =>
     connection

@@ -34,7 +34,10 @@ const object = (input: unknown): Record<string, unknown> =>
   typeof input === 'object' && input !== null && !Array.isArray(input)
     ? Object.fromEntries(Object.entries(input))
     : {};
-const refuse = (code: string, details?: { permission: string }): BridgeResult<never> => ({
+const refuse = (
+  code: string,
+  details?: { permission: string } | { route: string },
+): BridgeResult<never> => ({
   ok: false,
   error: { code, message: code, ...(details ? { details } : {}) },
 });
