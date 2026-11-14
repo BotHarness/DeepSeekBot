@@ -368,6 +368,8 @@ export async function setModelPlanAssignments(
 }
 
 export interface CreatePersonaBotInput {
+  operationKey?: string;
+  expectedCommit?: string;
   displayName: string;
   persona?: string;
   roles: string[];
@@ -2599,8 +2601,14 @@ export async function createGroupChannel(
   call: BridgeCall,
   name: string,
   signal?: AbortSignal,
+  operationKey?: string,
 ): Promise<ChannelSummary> {
-  const value = await unwrap(call, 'channelCreate', { name, members: [] }, signal);
+  const value = await unwrap(
+    call,
+    'channelCreate',
+    { name, members: [], ...(operationKey === undefined ? {} : { operationKey }) },
+    signal,
+  );
   const channel = parseChannelRecord(asRecord(value)?.['channel']);
 
   if (channel === undefined) throw new Error('invalid channelCreate response');

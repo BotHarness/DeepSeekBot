@@ -477,6 +477,20 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/environment-creation',
+    order: 26,
+    en: {
+      source: 'docs/environment-creation.md',
+      title: 'Create in an environment',
+      description: 'Choose the owning computer for Bots, Channels and Sections.',
+    },
+    zh: {
+      source: 'docs/environment-creation.zh.md',
+      title: '在指定环境创建',
+      description: '明确选择 Bot、频道和分组所属的电脑。',
+    },
+  },
+  {
     slug: 'docs/share-bot',
     order: 26,
     en: {

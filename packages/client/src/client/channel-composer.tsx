@@ -472,7 +472,7 @@ export function ChannelComposer({
     setSlashQuery(undefined);
   };
   const chooseShortcut = (shortcut: ComposerShortcut): void => {
-    if (shortcut.disabled || voice.active) return;
+    if (locked || shortcut.disabled || voice.active) return;
     clearShortcut();
     shortcut.run();
   };
@@ -510,7 +510,7 @@ export function ChannelComposer({
           )
           .slice(0, 8);
   const chooseChannel = (channel: ChannelSummary): void => {
-    if (channelQuery === undefined || voice.active) return;
+    if (locked || channelQuery === undefined || voice.active) return;
     const selected = selectChannelRef(value, channelRefs, channelQuery, channel.id, channel.name);
     onChange(selected.value, rebaseMentions(value, selected.value, mentions), selected.refs);
     setChannelQuery(undefined);
@@ -524,7 +524,7 @@ export function ChannelComposer({
     });
   };
   const chooseMention = (bot: BotSummary | { preview: AllBotPreview }): void => {
-    if (mentionQuery === undefined || voice.active) return;
+    if (locked || mentionQuery === undefined || voice.active) return;
     if ('preview' in bot && bot.preview.recipients.length === 0) return;
     const selected =
       'preview' in bot
@@ -993,6 +993,7 @@ export function ChannelComposer({
               aria-selected={index === activeMentionIndex}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => chooseChannel(candidate)}
+              disabled={locked}
             >
               <span className="bh-mention-option-copy">
                 <strong>#{candidate.name}</strong>
@@ -1022,7 +1023,7 @@ export function ChannelComposer({
               }}
               type="button"
               role="menuitem"
-              disabled={shortcut.disabled}
+              disabled={locked || shortcut.disabled}
               aria-label={
                 shortcut.reason === undefined
                   ? shortcut.label
@@ -1057,7 +1058,7 @@ export function ChannelComposer({
                 className={`bh-mention-option${index === activeMentionIndex ? ' bh-mention-option-active' : ''}`}
                 role="option"
                 aria-selected={index === activeMentionIndex}
-                disabled={candidate.preview.recipients.length === 0}
+                disabled={locked || candidate.preview.recipients.length === 0}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => chooseMention(candidate)}
               >
@@ -1078,6 +1079,7 @@ export function ChannelComposer({
                 aria-selected={index === activeMentionIndex}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => chooseMention(candidate)}
+                disabled={locked}
               >
                 <PersonaBotAvatar
                   personaBotId={candidate.slug}

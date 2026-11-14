@@ -1,4 +1,5 @@
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
+import { gitImportSource } from '../../../../apps/mobile/src/host/bot-creation.js';
 import { approveWorkspaceGrantRequest } from './bridge.js';
 import {
   loadGenuiView,
@@ -1087,7 +1088,12 @@ export interface BridgeActions {
     sectionId?: string,
     source?: MarketplaceInstallSource,
   ): Promise<BotSummary>;
-  createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
+  createGroup(
+    name: string,
+    sectionId?: string,
+    operationKey?: string,
+  ): Promise<ChannelSummary | undefined>;
+  previewBotImport(gitUrl: string): Promise<{ gitUrl: string; commit: string }>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
   setGroupAvatar(channelId: string, avatar: string | null): Promise<boolean>;
@@ -3667,8 +3673,16 @@ export function createActions(
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     },
-    async createGroup(name, sectionId) {
-      const channel = await createGroupChannel(call, name);
+    async previewBotImport(gitUrl) {
+      const result = await call('botImportPreview', { gitUrl });
+      if (!result.ok) throw new BridgeCallError(result.error.code, result.error.message);
+      const value = result.value;
+      if (typeof value !== 'object' || value === null || !('source' in value))
+        throw new Error('Invalid Git preview');
+      return gitImportSource(value.source);
+    },
+    async createGroup(name, sectionId, operationKey) {
+      const channel = await createGroupChannel(call, name, undefined, operationKey);
       clientStore.upsertChannel(channel);
       await placeCreatedChannelFirst(channel.id, sectionId);
       await openChannelById(channel.id);

@@ -393,6 +393,8 @@ Human 要求等待或取消时不得使用 override。
 
 ### Bot 资料、侧边栏与部件库
 
+浏览器的[环境创建表单](environment-creation.zh.md)使用同一 Host 能力。Agent 核对时用 `--host` 和私有 `--token-file` 明确指定目标；`create`、`group-create`、`roster-section-create`、`roster-section-rename`、`roster-section-reorder` 和 `channel-assign` 对应界面操作。分别读取两台 Host 的 `list`、`channels` 和 `roster`，确认只有选定 Host 改变。Client 的上次创建目标和浏览范围不会替 CLI 改选 Host。
+
 这些命令设置 Bot 的外观和唤醒规则、整理侧边栏、管理自定义部件，走的是 Web 界面所用的同一组 Host 调用（[#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)）：
 
 ```bash
@@ -1130,6 +1132,8 @@ deepseekbot storage-usage
 deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
   | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
 ```
+
+远端存储的每次读取、预览和确认都要明确指定所属 Host 的 `--host` 和私密 `--token-file`。预览只用于该 Host；切换 Host 后重新预览。确认响应丢失或超时后，先从同一 Host 运行 `storage-usage` 并核对受影响频道，再创建新预览，不要重发旧确认。Environment 设置界面同样在切换目标或失去访问时丢弃当前预览；清理结果不确定时先重新读取原 Host，读取失败后必须重新加载成功才可再次预览。断开关系不会删除已有数据。这些使用 Host 授权 Cookie 的 CLI 命令不会冒用浏览器已登记的 Client。
 
 这是**设置 → 数据与隐私 → 存储空间**的 CLI 形式。`storage-usage` 返回 `totalBytes`、`parts`（`media` 是附件文件夹，`messages` 是运行数据库，`memory` 是全部 Bot 的 Memory 文件夹，`other` 是 `$DSH_HOME/botharness` 中其余内容），以及按媒体大小从大到小排列的 `chats`，其中包含每个聊天的 `messages`、`oldestAt`、`mediaBytes` 和按类型的 `media` 统计。
 
@@ -1913,6 +1917,8 @@ QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set 
 
 ### 团队模式与 Host 成员
 
+`dm <username>` 在指定 Host 上打开或创建当前 Human 与该活跃联系人的唯一私聊。双方打开会返回同一频道，其他 Human 无权读取。使用 `channels send <channel-id> --body-stdin` 和 `channel-messages <channel-id>` 收发、读取消息。纯 Human 私聊没有 Bot 参与者；群消息仍可由有权参与的 Bot 阅读。
+
 Owner CLI 也接受私有局域网 IPv4 的 HTTPS 地址，并正常验证证书；仍拒绝局域网明文 HTTP。测试用私有 CA 可通过机器本地的 `NODE_EXTRA_CA_CERTS` 指定。
 
 这些命令使用 `--host <url>` 和现有的私密 Host 令牌输入，默认以本地 Owner 身份执行。
@@ -1930,6 +1936,10 @@ deepseekbot --as bob channels browse-public
 deepseekbot --as bob channels join-public <channel-id>
 deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
 deepseekbot --as bob channel-messages <channel-id>
+
+deepseekbot dm bob
+
+deepseekbot --as bob dm owner
 deepseekbot team-mode insecure-http on --confirm
 deepseekbot team-mode insecure-http off --confirm
 deepseekbot team-mode off

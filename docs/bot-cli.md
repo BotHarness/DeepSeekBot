@@ -409,6 +409,8 @@ the selected reason. Human requests to wait or cancel must never be overridden.
 
 ### Bot profile, roster and Part Library
 
+The browser's [environment creation form](environment-creation.md) uses these same Host owners. For agent verification, select the owning Host explicitly with `--host` and its private `--token-file`; `create`, `group-create`, `roster-section-create`, `roster-section-rename`, `roster-section-reorder` and `channel-assign` perform the corresponding operations. Read `list`, `channels` and `roster` on both Hosts to confirm only the chosen Host changed. The Client's last creation target and browsing scope do not retarget CLI commands.
+
 These commands set a Bot's look and wake rules, arrange the sidebar and manage Custom Parts through the same Host calls as the Web UI ([#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)):
 
 ```bash
@@ -1159,6 +1161,8 @@ deepseekbot storage-usage
 deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
   | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
 ```
+
+For remote storage, use the selected owning Host’s explicit `--host` and private `--token-file` on **every** read, preview and confirmation. Keep a preview with that Host; changing Host requires a new preview. After a lost or timed-out confirmation response, run `storage-usage` on the same Host and inspect the affected Channel before requesting a fresh preview. Do not resend the old confirmation. The Environment settings UI follows the same rule: changing target or losing access discards the open preview, and an uncertain cleanup first reads that same Host again. A failed read blocks another preview until Reload succeeds. Disconnecting a relationship does not delete stored data. These authority-cookie CLI commands do not impersonate a browser’s enrolled Client.
 
 This is the CLI form of **Settings → Data & privacy → Storage space**. `storage-usage` returns `totalBytes`, `parts` (`media` is the attachment folder, `messages` the operational database, `memory` every Bot's Memory folder, `other` the rest of `$DSH_HOME/botharness`) and `chats`, largest media first, with each chat's `messages`, `oldestAt`, `mediaBytes` and per-kind `media` totals.
 
@@ -1993,6 +1997,8 @@ QQ also supports `deepseekbot messaging-defaults qq` and `messaging-defaults-set
 
 ### Team mode and Host Members
 
+`dm <username>` opens or creates the authenticated Human's canonical DM with that active person on the selected Host. Opening from either participant returns the same Channel; another Human's DM remains inaccessible. Use `channels send <channel-id> --body-stdin` and `channel-messages <channel-id>` for messages. Pure Human DMs have no Bot participant; Group messages remain readable by their eligible Bot members.
+
 The Owner CLI also accepts private LAN IPv4 HTTPS origins with normal certificate verification. Plain LAN HTTP remains refused. A private test CA can be supplied through the machine-local `NODE_EXTRA_CA_CERTS` setting.
 
 These commands use `--host <url>` and the existing private Host token input. The local Owner is the default caller.
@@ -2010,6 +2016,10 @@ deepseekbot --as bob channels browse-public
 deepseekbot --as bob channels join-public <channel-id>
 deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
 deepseekbot --as bob channel-messages <channel-id>
+
+deepseekbot dm bob
+
+deepseekbot --as bob dm owner
 deepseekbot team-mode insecure-http on --confirm
 deepseekbot team-mode insecure-http off --confirm
 deepseekbot team-mode off

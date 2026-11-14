@@ -827,7 +827,7 @@ A Feishu/Lark conversation — group or p2p — that a PersonaBot takes part in,
 _Avoid_: room, channel, group (when p2p is meant too); for the mobile screen, say Conversation screen
 
 **DM**:
-A 1:1 conversation between two Actors — a Channel of type `dm`, or its bridged equivalent. A Human–PersonaBot DM is the Human's direct conversation with one Bot; a Bot-to-Bot DM has two PersonaBot participants and may be inspected read-only by a Human without making that Human a participant.
+A 1:1 conversation between two Actors — a Channel of type `dm`, or its bridged equivalent. A Human–PersonaBot DM is the Human's direct conversation with one Bot; a Human–Human DM belongs to its two Human participants on the owning Host and has no Bot participant. A Bot-to-Bot DM has two PersonaBot participants and may be inspected read-only by a Human without making that Human a participant.
 _Avoid_: private chat, PM
 
 **Bot-to-Bot DM**:

@@ -2,6 +2,8 @@
 
 Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、连接组件、relay 在线状态及公网设备通道的 TLS 与本机身份绑定 Noise 握手。它不创建 Device grant 或持久在线权威；结果五分钟后过期，账号或连接变化时失效，登录及组件恢复自动触发，手动检查走同一个已认证 Host API 与 CLI。并发合并、整体 20 秒及公网 8 秒上限，无新增后台轮询。检查通过仅证明本机当时可经公网连回自己，不能保证手机网络可达（#4170）。
 
+E7 的创建目标也限定“与人私聊”。既有 Team 联系人目录和 Human DM owner 执行权限检查，并复用该 Host 上两位参与者之间的唯一 DM。联系人查询、创建、频道刷新和打开会话使用固定的 HostClient；离线或被替换的来源不会回退到本机。关闭弹窗会取消待完成的打开动作。成员页面沿用自己的认证 Host，不接入 Owner 环境选择。Human DM 复用原聊天界面、普通消息气泡与频道文件，隐藏 Bot 专属面板和控件。
+
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
 E9 的远端 Bot 设置复用原有 ConversationView 内的资料、模型、Workspace Grant 与审批控件，来源上下文固定捕获所属 Host、Bot 与原 HostClient。写入仍经过原 Host 的 Registry、模型、Workspace 和审批 owners 与既有 Device Gateway/API Gateway；每次调用前后检查原 Client 及连接状态，离开来源、撤销或同 Host ID 换 Client 后，旧结果不能提交后续操作。Workspace 目录选择沿用目标 Host 的目录浏览与 Workspace owner，保留分页而不向远端暴露本机 OS picker。纯 Human 会话不显示 Bot 控件。删除独立远端 SettingsDialog，不增加持久数据、代理权限层或 Bot 协作成员授权。

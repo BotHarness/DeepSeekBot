@@ -36,55 +36,67 @@ function mount() {
   root = createRoot(host);
 }
 describe('Memory PNG presentation', () => {
-  it('shows a target Host image failure and retries without falling back to local HTTP', async () => {
-    const remote = new FakeHost();
-    const client = createHostClient({
-      routes: ['https://target.test.ts.net'],
-      credential: remote.credential,
-      carrier: remote.carrier,
-    });
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(new Response('', { status: 503 }))
-      .mockResolvedValue(new Response('image', { headers: { 'content-type': 'image/png' } }));
-    vi.stubGlobal('fetch', fetcher);
-    const revoke = vi.fn();
-    vi.stubGlobal(
-      'URL',
-      class extends URL {
-        static override createObjectURL = () => 'blob:target-retry';
-        static override revokeObjectURL = revoke;
-      },
-    );
-    client.start();
-    try {
-      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
-      mount();
-      await act(async () =>
-        root.render(
-          <MessageHostContext.Provider value={{ hostId: 'target', client, current: () => true }}>
-            <MemoryImageView slug="ada" path="a.png" image={image} t={t} />
-          </MessageHostContext.Provider>,
-        ),
+  it.each(['http', 'decode'])(
+    'retries a target Host %s image failure without local HTTP',
+    async (failure) => {
+      const remote = new FakeHost();
+      const client = createHostClient({
+        routes: ['https://target.test.ts.net'],
+        credential: remote.credential,
+        carrier: remote.carrier,
+      });
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          failure === 'http' ? new Response('', { status: 503 }) : new Response('bad image'),
+        )
+        .mockResolvedValue(new Response('image', { headers: { 'content-type': 'image/png' } }));
+      vi.stubGlobal('fetch', fetcher);
+      const revoke = vi.fn();
+      vi.stubGlobal(
+        'URL',
+        class extends URL {
+          static override createObjectURL = () => 'blob:target-retry';
+          static override revokeObjectURL = revoke;
+        },
       );
-      await act(async () =>
-        vi.waitFor(() => expect(host.textContent).toContain('memory.image.loadFailed')),
-      );
-      expect(host.textContent).not.toContain('memory.loading');
-      await act(async () => host.querySelector('button')!.click());
-      await act(async () =>
-        vi.waitFor(() =>
-          expect(host.querySelector('img')?.getAttribute('src')).toBe('blob:target-retry'),
-        ),
-      );
-      expect(fetcher).toHaveBeenCalledTimes(2);
-      expect(
-        fetcher.mock.calls.every(([url]) => String(url).startsWith('https://target.test.ts.net/')),
-      ).toBe(true);
-    } finally {
-      client.stop();
-    }
-  });
+      client.start();
+      try {
+        await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+        mount();
+        await act(async () =>
+          root.render(
+            <MessageHostContext.Provider value={{ hostId: 'target', client, current: () => true }}>
+              <MemoryImageView slug="ada" path="a.png" image={image} t={t} />
+            </MessageHostContext.Provider>,
+          ),
+        );
+        if (failure === 'decode') {
+          await act(async () => vi.waitFor(() => expect(host.querySelector('img')).not.toBeNull()));
+          await act(async () => host.querySelector('img')!.dispatchEvent(new Event('error')));
+        }
+        await act(async () =>
+          vi.waitFor(() => expect(host.textContent).toContain('memory.image.loadFailed')),
+        );
+        expect(host.textContent).not.toContain('memory.loading');
+        await act(async () => host.querySelector('button')!.click());
+        await act(async () =>
+          vi.waitFor(() =>
+            expect(host.querySelector('img')?.getAttribute('src')).toBe('blob:target-retry'),
+          ),
+        );
+        expect(fetcher).toHaveBeenCalledTimes(2);
+        if (failure === 'decode') expect(revoke).toHaveBeenCalledWith('blob:target-retry');
+        expect(
+          fetcher.mock.calls.every(([url]) =>
+            String(url).startsWith('https://target.test.ts.net/'),
+          ),
+        ).toBe(true);
+      } finally {
+        client.stop();
+      }
+    },
+  );
   it('binds a lazy image and its download/enlargement to the same owner, path and version', async () => {
     mount();
     await act(async () =>
