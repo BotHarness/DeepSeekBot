@@ -266,15 +266,17 @@ export function createChannelLiveHub(
   activity?: ActivitySource,
   redactions?: () => PurgedPlacement[],
   watchAttention?: (changed: () => void) => () => void,
+  isOwner: (human: HumanContext) => boolean = (human) =>
+    human.humanId === OWNER_HUMAN_CONTEXT.humanId,
 ): ChannelLiveHub {
   const visibleChannel = (human: HumanContext, channelId: string): boolean =>
-    human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
+    isOwner(human) ||
     (channels.get(channelId)?.type === 'group' &&
       channels
         .listHumanMembers(human, channelId)
         .some((member) => member.humanId === human.humanId));
   const visiblePlacements = (human: HumanContext, placements: PurgedPlacement[]) =>
-    human.humanId === OWNER_HUMAN_CONTEXT.humanId
+    isOwner(human)
       ? placements
       : placements.filter(
           (placement) =>
@@ -564,8 +566,7 @@ export function createChannelLiveHub(
             if (visibleChannel(human, frame.channelId)) yield frame;
           } else if (frame.type === 'purged') {
             const placements = visiblePlacements(human, frame.placements);
-            if (placements.length > 0 || human.humanId === OWNER_HUMAN_CONTEXT.humanId)
-              yield { ...frame, placements };
+            if (placements.length > 0 || isOwner(human)) yield { ...frame, placements };
           } else yield frame;
         }
         if (ended) return;
@@ -1024,8 +1025,7 @@ export function createChannelLiveHub(
       const placements = redactions?.() ?? [];
       for (const subscriber of rosterSubscribers) {
         const visible = visiblePlacements(subscriber.human, placements);
-        if (visible.length > 0 || subscriber.human.humanId === OWNER_HUMAN_CONTEXT.humanId)
-          subscriber.purge(visible);
+        if (visible.length > 0 || isOwner(subscriber.human)) subscriber.purge(visible);
       }
     },
     close() {

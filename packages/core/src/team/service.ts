@@ -71,6 +71,15 @@ const fields = `h.human_id AS humanId, COALESCE(c.username, 'owner') AS username
   (SELECT json_group_array(role_id) FROM (SELECT role_id FROM human_roles WHERE human_id = h.human_id ORDER BY role_id)) AS roleIds,
   (SELECT COUNT(*) FROM member_grants g WHERE g.human_id = h.human_id AND g.revoked_at IS NULL) +
   (SELECT COUNT(*) FROM paired_devices d WHERE d.human_id = h.human_id AND d.revoked_at IS NULL) AS deviceCount`;
+const credentialPasswordSchema = passwordHashSchema.extend({
+  ownerIssuerHumanId: z.string().min(1).optional(),
+});
+function credentialPasswordJson(
+  hash: z.infer<typeof passwordHashSchema>,
+  ownerIssuerHumanId?: string,
+): string {
+  return JSON.stringify(ownerIssuerHumanId === undefined ? hash : { ...hash, ownerIssuerHumanId });
+}
 const credentialSchema = z.object({
   password_json: z.string(),
   history_json: z.string(),
@@ -85,9 +94,9 @@ const tokenHash = (token: string) => createHash('sha256').update(token).digest('
 
 export class TeamService {
   readonly roles: TeamRoles;
-  private pairing: Pick<DevicePairing, 'revoke'> | undefined;
+  private pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'> | undefined;
 
-  bindPairing(pairing: Pick<DevicePairing, 'revoke'>): () => void {
+  bindPairing(pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'>): () => void {
     this.pairing = pairing;
     return () => {
       this.pairing = undefined;
@@ -200,8 +209,10 @@ export class TeamService {
     );
     if (row === undefined) return undefined;
     const parsed = credentialSchema.parse(row);
+    const password = credentialPasswordSchema.parse(JSON.parse(parsed.password_json));
     return {
-      hash: passwordHashSchema.parse(JSON.parse(parsed.password_json)),
+      hash: passwordHashSchema.parse(password),
+      ownerIssuerHumanId: password.ownerIssuerHumanId,
       history: z.array(passwordHashSchema).parse(JSON.parse(parsed.history_json)),
       mustChange: parsed.must_change,
     };
@@ -288,11 +299,11 @@ export class TeamService {
         if (previous)
           db.prepare(
             'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
-          ).run(JSON.stringify(hash), human.humanId);
+          ).run(credentialPasswordJson(hash, human.humanId), human.humanId);
         else
           db.prepare("INSERT INTO member_credentials VALUES (?, 'owner', ?, '[]', 0)").run(
             human.humanId,
-            JSON.stringify(hash),
+            credentialPasswordJson(hash, human.humanId),
           );
       },
       ['team'],
@@ -321,6 +332,7 @@ export class TeamService {
     if (this.byUsername(username)) throw new TeamError('username-taken');
     this.roles.require(human, 'members.manage');
     const ids = this.roles.validateAssignments(human, roleIds);
+    const ownerIssuerHumanId = this.isOwner(human) ? human.humanId : undefined;
     this.db.transaction(
       (db) => {
         db.prepare(`INSERT INTO humans VALUES (?, ?, 'active', ?)`).run(
@@ -331,7 +343,7 @@ export class TeamService {
         db.prepare('INSERT INTO member_credentials VALUES (?, ?, ?, ?, 1)').run(
           humanId,
           username,
-          JSON.stringify(hash),
+          credentialPasswordJson(hash, ownerIssuerHumanId),
           '[]',
         );
         db.prepare('INSERT INTO local_human_names VALUES (?, ?)').run(humanId, displayName.trim());
@@ -548,7 +560,7 @@ export class TeamService {
         db.prepare(
           'UPDATE member_credentials SET password_json = ?, history_json = ?, must_change = 0 WHERE human_id = ?',
         ).run(
-          JSON.stringify(hash),
+          credentialPasswordJson(hash, previous.ownerIssuerHumanId),
           JSON.stringify([previous.hash, ...previous.history]),
           human.humanId,
         );
@@ -610,7 +622,11 @@ export class TeamService {
       (db) => {
         db.prepare(
           'UPDATE member_credentials SET password_json = ?, history_json = ?, must_change = 1 WHERE human_id = ?',
-        ).run(JSON.stringify(hash), JSON.stringify([previous.hash, ...previous.history]), humanId);
+        ).run(
+          credentialPasswordJson(hash, human.humanId),
+          JSON.stringify([previous.hash, ...previous.history]),
+          humanId,
+        );
         db.prepare(
           'UPDATE member_grants SET revoked_at = ? WHERE human_id = ? AND revoked_at IS NULL',
         ).run(new Date(this.now()).toISOString(), humanId);
@@ -748,6 +764,9 @@ export class TeamService {
     if (!target) throw new TeamError('member-not-found');
     if (target.status !== 'active') throw new TeamError('member-suspended');
     if (target.owner) throw new TeamError('owner-protected');
+    const targetCredential = this.credential(humanId);
+    if (targetCredential?.ownerIssuerHumanId !== human.humanId || targetCredential.mustChange)
+      throw new TeamError('owner-transfer-target-unverified');
     const oldDevices = this.memberDevices(human, human.humanId).filter(
       (device) => device.kind === 'paired-device',
     );
@@ -760,6 +779,7 @@ export class TeamService {
       },
       ['team'],
     );
+    this.pairing?.clearOffers();
     this.invalidate();
     for (const device of oldDevices) this.pairing?.revoke(device.grantId);
     this.log('owner-transferred', { initiator: 'owner', humanId });

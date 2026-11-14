@@ -71,6 +71,7 @@ export interface DevicePairing {
   host(): HostIdentity;
   createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
   offerStatus(receipt: string): OfferStatus;
+  clearOffers(): void;
   redeem(input: {
     offer: string;
     name?: string;
@@ -262,6 +263,14 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       });
       record({ phase: 'offer-created' });
       return { offer, expiresAt: iso(expiresAt), receipt };
+    },
+
+    clearOffers() {
+      for (const open of offers.values()) {
+        settle(open.receipt, { state: 'superseded' });
+        record({ phase: 'offer-refused' });
+      }
+      offers.clear();
     },
 
     offerStatus(receipt) {

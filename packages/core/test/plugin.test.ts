@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   apply,
+  createCore,
   inject,
   mountOperationalDatabase,
   name,
@@ -78,6 +79,31 @@ function logsSkill(stubs: { skills: { register: { mock: { calls: unknown[][] } }
 }
 
 describe('plugin entry', () => {
+  it('uses the canonical Team Owner for the Core live hub after transfer', async () => {
+    const core = createCore({ dshHome: createTempRoot('core-live-owner-') });
+    try {
+      await core.team.setOwnerPassword(OWNER_HUMAN_CONTEXT, 'owner-password-1');
+      await core.team.setMode(OWNER_HUMAN_CONTEXT, true);
+      const created = await core.team.createMember(OWNER_HUMAN_CONTEXT, 'bob', 'Bob');
+      const human = humanContext(created.member.humanId);
+      await core.team.changePassword(human, created.initialPassword, 'member-password-1');
+      const channel = core.channels.getOrCreateDm(human, 'private-bot', 'Private');
+      if (!channel) throw new Error('missing DM');
+      const request = () =>
+        new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}`);
+      const before = core.live.open(OWNER_HUMAN_CONTEXT, request());
+      await before.body?.cancel();
+      expect(before.status).toBe(200);
+      await core.team.transferOwner(OWNER_HUMAN_CONTEXT, human.humanId, 'owner-password-1');
+      const after = core.live.open(OWNER_HUMAN_CONTEXT, request());
+      await after.body?.cancel();
+      expect(after.status).toBe(404);
+    } finally {
+      core.live.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it.each([
     ['browser', 'browser_open', 'browser_observe', 'botharnessBrowserTools'],
     ['computer', 'computer_click', 'computer_type_text', 'botharnessComputerTools'],
