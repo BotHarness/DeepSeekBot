@@ -128,6 +128,7 @@ export type EmailCodeOutcome =
   | { kind: 'cancelled' };
 
 export type ConnectRefusal =
+  | 'unreachable'
   | 'sign-in-cancelled'
   | 'sign-in-failed'
   | 'sign-in-required'
@@ -718,28 +719,78 @@ export function createConnectAccount(options: {
           const body = await relayCall(`/v1/hosts/${encodeURIComponent(hostId)}/offer`, token, {
             verifierHash,
             name: deviceName.slice(0, 64),
+            identitySource: 'client',
           });
-          const host = record(body['host']);
-          const encryption = record(body['encryption']);
+          let identity = body;
           const enrollment = record(body['enrollment']);
           const route =
             typeof body['hostname'] === 'string'
               ? checkRoute(`https://${body['hostname']}`)
               : undefined;
           if (
-            encryption['protocol'] !== 'connect-noise-xk-v1' ||
-            typeof encryption['publicKey'] !== 'string' ||
-            !/^[0-9a-f]{64}$/u.test(encryption['publicKey']) ||
             typeof enrollment['body'] !== 'string' ||
             typeof enrollment['signature'] !== 'string' ||
             typeof body['expiresAt'] !== 'string' ||
             route?.ok !== true ||
             !isConnectRoute(route.origin) ||
-            new URL(route.origin).hostname !== body['hostname'] ||
+            new URL(route.origin).hostname !== body['hostname']
+          )
+            throw new Refused('relay-unavailable', 'relay:invalid-response', {
+              phase: 'pairing-offer',
+              status: 200,
+            });
+          if (body['identitySource'] === 'client') {
+            const url = `${route.origin}/botharness-device/channel`;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 8_000);
+            try {
+              const response = await runtime.request(url, {
+                method: 'GET',
+                redirect: 'error',
+                signal: controller.signal,
+              });
+              if (response.status !== 200)
+                throw new Refused('host-refused', `connect:http-${response.status}`, {
+                  phase: 'pairing-offer',
+                  status: response.status,
+                });
+              if (response.url && response.url !== url)
+                throw new Refused('host-refused', 'connect:invalid-response', {
+                  phase: 'pairing-offer',
+                  status: response.status,
+                });
+              identity = record(
+                await response.json().catch((error: unknown) => {
+                  if (controller.signal.aborted) throw error;
+                  throw new Refused('host-refused', 'connect:invalid-response', {
+                    phase: 'pairing-offer',
+                    status: response.status,
+                  });
+                }),
+              );
+            } catch (error) {
+              if (error instanceof Refused) throw error;
+              throw new Refused(
+                'unreachable',
+                `connect:${controller.signal.aborted ? 'socket-timeout' : networkDiagnosticReason(error)}`,
+                {
+                  phase: 'pairing-offer',
+                },
+              );
+            } finally {
+              clearTimeout(timer);
+            }
+          }
+          const host = record(identity['host']);
+          const encryption = record(identity['encryption']);
+          if (
+            encryption['protocol'] !== 'connect-noise-xk-v1' ||
+            typeof encryption['publicKey'] !== 'string' ||
+            !/^[0-9a-f]{64}$/u.test(encryption['publicKey']) ||
             typeof host['id'] !== 'string' ||
             typeof host['name'] !== 'string'
           )
-            throw new Refused('relay-unavailable', 'relay:invalid-response', {
+            throw new Refused('host-refused', 'connect:invalid-response', {
               phase: 'pairing-offer',
               status: 200,
             });

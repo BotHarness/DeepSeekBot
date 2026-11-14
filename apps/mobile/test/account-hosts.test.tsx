@@ -285,7 +285,7 @@ it('deletes the account after confirmation and shows a refusal when the relay fa
   expect(button('Studio')).toBeNull();
 });
 
-it('disables saved and offline computers while selecting multiple available computers', async () => {
+it('keeps saved computers disabled but lets the phone attempt an offline computer', async () => {
   const other = { ...studio, id: 'hother', name: 'Other', hostname: 'hother.deepseekbot.dev' };
   const offline = {
     ...other,
@@ -335,15 +335,16 @@ it('disables saved and offline computers while selecting multiple available comp
   const button = (name: string) =>
     host!.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!;
   expect(button('Studio').disabled).toBe(true);
-  expect(button('Offline').disabled).toBe(true);
-  expect(button('Queued').disabled).toBe(true);
+  expect(button('Offline').disabled).toBe(false);
+  expect(button('Queued').disabled).toBe(false);
   expect(host.textContent).toContain(t.pairAccount.waiting);
   await act(async () => {
     button('Other').click();
     button('Spare').click();
+    button('Offline').click();
   });
   await act(async () => button('add').click());
-  expect(onPair).toHaveBeenCalledWith([other, spare]);
+  expect(onPair).toHaveBeenCalledWith([other, offline, spare]);
   await act(async () =>
     root!.render(
       <AccountHosts
