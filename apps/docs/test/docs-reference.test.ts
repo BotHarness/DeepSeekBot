@@ -13,6 +13,14 @@ describe("generated developer reference", () => {
   it("extracts the core config from its schema and defaults", () => {
     expect(reference.config).toEqual([
       {
+        name: "genuiPreviewBrowserPath",
+        type: "string",
+        default: undefined,
+        description:
+          "Absolute executable for isolated GenUI previews; omitted or empty discovers the system browser. Invalid explicit paths are refused.",
+        source: "packages/core/src/plugin.ts",
+      },
+      {
         name: 'privateInputWebUrl',
         type: 'string',
         default: undefined,
