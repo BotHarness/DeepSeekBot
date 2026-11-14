@@ -1156,8 +1156,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  list(query?: string): { bots: PersonaBotSummary[] } {
-    return unwrap(this.methods.list({ query }));
+  list(query?: string, administration?: boolean): { bots: PersonaBotSummary[] } {
+    return unwrap(
+      this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
+    );
   }
 
   activitySnapshot(): PersonaBotActivitySnapshot {
@@ -1705,7 +1707,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 
-  channelGet(channelId: string): ChannelManagementResult {
+  channelGet(channelId: string): { channel: ChannelRecord } | ChannelManagementResult {
     return unwrap(this.methods.channelGet({ channelId }));
   }
 
