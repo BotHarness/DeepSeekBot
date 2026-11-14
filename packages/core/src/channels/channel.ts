@@ -643,6 +643,10 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
   const author = value as Record<string, unknown>;
   switch (author['kind']) {
     case 'human':
+      return (
+        (author['humanId'] === undefined || typeof author['humanId'] === 'string') &&
+        (author['displayName'] === undefined || typeof author['displayName'] === 'string')
+      );
     case 'system':
       return true;
     case 'bot':

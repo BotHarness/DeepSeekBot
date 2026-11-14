@@ -1,5 +1,5 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, it } from 'vitest';
@@ -217,8 +217,17 @@ it('retains Bot identity, Channel history, Memory and custom QQ policy revisions
     );
   const previous = open(136);
   const rootDir = join(dshHome, 'botharness', 'bots');
+  mkdirSync(join(rootDir, 'ada', 'memory'), { recursive: true });
+  writeFileSync(
+    join(rootDir, 'ada', 'bot.json'),
+    JSON.stringify({
+      slug: 'ada',
+      displayName: 'Existing Ada',
+      workspaces: [],
+      createdAt: '2026-11-01T00:00:00Z',
+    }),
+  );
   const registry = createPersonaBotRegistry({ rootDir, database: previous });
-  expect(registry.create({ slug: 'ada', displayName: 'Existing Ada' }).ok).toBe(true);
   const identity = registry.get('ada');
   const memoryPath = join(registry.defaultMemoryDirFor('ada'), 'retained.md');
   writeFileSync(memoryPath, 'Existing Memory stays byte-for-byte.\n');

@@ -1,3 +1,4 @@
+import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../team/permissions.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -3297,8 +3298,109 @@ const SOURCE_EVENT_HUMAN_MIGRATION: SchemaMigration = {
   },
 };
 
-const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
+const TEAM_MEMBERS_MIGRATION: SchemaMigration = {
   generation: 141,
+  module: 'team',
+  description: 'Host-owned Human identities, password credentials and revocable member grants',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE humans (
+        human_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'suspended')),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO humans SELECT 'local-human', COALESCE(
+        (SELECT default_display_name FROM local_human_names WHERE human_id = 'local-human'),
+        'Human'), 'active', strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+      CREATE TABLE member_credentials (
+        human_id TEXT PRIMARY KEY REFERENCES humans(human_id),
+        username TEXT NOT NULL UNIQUE,
+        password_json TEXT NOT NULL,
+        history_json TEXT NOT NULL,
+        must_change INTEGER NOT NULL CHECK (must_change IN (0, 1))
+      );
+      CREATE TABLE member_grants (
+        grant_id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        created_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+      CREATE INDEX member_grants_human ON member_grants(human_id, revoked_at);
+      CREATE TABLE team_settings (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        insecure_http_allowed INTEGER NOT NULL DEFAULT 0 CHECK (insecure_http_allowed IN (0, 1))
+      );
+      INSERT INTO team_settings(singleton) VALUES (1);
+      ALTER TABLE paired_devices ADD COLUMN human_id TEXT NOT NULL DEFAULT 'local-human';
+      ALTER TABLE channel_records ADD COLUMN public INTEGER NOT NULL DEFAULT 0 CHECK (public IN (0, 1));
+      CREATE INDEX public_group_channels ON channel_records(channel_id) WHERE public = 1;
+    `);
+  },
+};
+
+const TEAM_ROLES_MIGRATION: SchemaMigration = {
+  generation: 142,
+  module: 'team',
+  description: 'Host Roles, member assignments and transferable Owner authority',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE team_settings_next (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        insecure_http_allowed INTEGER NOT NULL DEFAULT 0 CHECK (insecure_http_allowed IN (0, 1)),
+        owner_human_id TEXT NOT NULL REFERENCES humans(human_id)
+      );
+      INSERT INTO team_settings_next SELECT singleton, enabled, insecure_http_allowed, 'local-human' FROM team_settings;
+      DROP TABLE team_settings;
+      ALTER TABLE team_settings_next RENAME TO team_settings;
+      CREATE TABLE host_roles (
+        role_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        builtin TEXT UNIQUE CHECK (builtin IN ('admin', 'member')),
+        permissions_json TEXT NOT NULL
+      );
+      CREATE TABLE human_roles (
+        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        role_id TEXT NOT NULL REFERENCES host_roles(role_id),
+        PRIMARY KEY (human_id, role_id)
+      );
+      CREATE INDEX human_roles_role ON human_roles(role_id, human_id);
+    `);
+    const insert = database.prepare('INSERT INTO host_roles VALUES (?, ?, ?, ?)');
+    insert.run('admin', 'admin', 'admin', JSON.stringify(ADMIN_PERMISSIONS));
+    insert.run('member', 'member', 'member', JSON.stringify(MEMBER_PERMISSIONS));
+    database.exec(
+      `INSERT INTO human_roles SELECT human_id, 'member' FROM humans WHERE human_id <> 'local-human'`,
+    );
+  },
+};
+
+const PRIVATE_BOTS_MIGRATION: SchemaMigration = {
+  generation: 143,
+  module: 'team',
+  description: 'Private Bot ownership and one durable Tob identity per Human',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE persona_bots ADD COLUMN owner_human_id TEXT NOT NULL DEFAULT 'local-human';
+      CREATE INDEX persona_bots_owner ON persona_bots(owner_human_id, slug);
+      UPDATE persona_bots SET body = json_set(body, '$.ownerHumanId', owner_human_id);
+      ALTER TABLE tob_identity RENAME TO tob_identity_owner;
+      CREATE TABLE tob_identity (
+        human_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL UNIQUE
+      );
+      INSERT INTO tob_identity SELECT 'local-human', bot_slug FROM tob_identity_owner;
+      DROP TABLE tob_identity_owner;
+    `);
+  },
+};
+
+const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
+  generation: 144,
   module: 'host-relationships',
   description: 'Persist pinned reciprocal Host relationships and derived device provenance',
   migrate(database) {
@@ -3328,7 +3430,7 @@ const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
 };
 
 const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
-  generation: 142,
+  generation: 145,
   module: 'host-relationships',
   description: 'Retain bounded offline reciprocal disconnect retries across Host restart',
   migrate(database) {
@@ -3343,7 +3445,7 @@ const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
 };
 
 const HOST_RELATIONSHIP_ACCOUNT_MIGRATION: SchemaMigration = {
-  generation: 143,
+  generation: 146,
   module: 'host-relationships',
   description: 'Retain verified same-account relationship provenance',
   migrate(database) {
@@ -3505,6 +3607,9 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   QQ_PLATFORM_DEFAULTS_MIGRATION,
   DEVICE_FEED_READ_MIGRATION,
   SOURCE_EVENT_HUMAN_MIGRATION,
+  TEAM_MEMBERS_MIGRATION,
+  TEAM_ROLES_MIGRATION,
+  PRIVATE_BOTS_MIGRATION,
   HOST_RELATIONSHIP_MIGRATION,
   HOST_RELATIONSHIP_REVOCATION_MIGRATION,
   HOST_RELATIONSHIP_ACCOUNT_MIGRATION,

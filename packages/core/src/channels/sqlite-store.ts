@@ -1797,6 +1797,15 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     rootDir,
     get: readRecord,
+    hasHumanMembership(human, id) {
+      return (
+        database.read((db) =>
+          db
+            .prepare('SELECT 1 FROM channel_human_members WHERE channel_id = ? AND human_id = ?')
+            .get(id, human.humanId),
+        ) !== undefined
+      );
+    },
     list() {
       const rows = database.read((db) =>
         db.prepare('SELECT channel_id, record_json FROM channel_records').all(),

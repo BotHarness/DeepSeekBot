@@ -1,9 +1,10 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCore } from '../src/plugin.js';
-import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createBridgeMethods, createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { createHostRelationships } from '../src/devices/relationships.js';
 import { createHash } from 'node:crypto';
 import { createServer, request, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
@@ -44,6 +45,7 @@ async function fakeDsh(
   rpc?: (method: string, payload: unknown) => unknown,
   activity?: Parameters<typeof createDeviceGateway>[0]['activity'],
   databaseOwner?: OperationalDatabaseOwner,
+  ownerHumanId?: () => string,
 ) {
   const state = {
     secret: 1,
@@ -131,6 +133,7 @@ async function fakeDsh(
   const pairing = createDevicePairing({
     database: attachOperationalModule(owner, 'device-pairing'),
     hostName: 'studio',
+    ...(ownerHumanId ? { ownerHumanId } : {}),
   });
   gateway = createDeviceGateway({
     pairing,
@@ -164,9 +167,13 @@ it('retains the authenticated Owner Human on paired Client messages and refuses 
     },
   });
   trackTestOwner(core.operationalDatabase);
+  let offPairing: (() => void) | undefined;
   try {
-    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
-    const created = methods.create({ displayName: 'Gateway Human', persona: 'Short replies' });
+    const methods = createBridgeMethodsForHumans(core);
+    const created = methods(core.team.ownerContext()).create({
+      displayName: 'Gateway Human',
+      persona: 'Short replies',
+    });
     expect(created.ok).toBe(true);
     const bot = core.registry.list()[0]!;
     const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, bot.slug, bot.displayName)!;
@@ -174,18 +181,21 @@ it('retains the authenticated Owner Human on paired Client messages and refuses 
       undefined,
       undefined,
       (method, payload) => {
+        const current = methods(core.team.ownerContext());
+        if (method === 'botharness/channelMessages') return current.channelMessages(payload);
         if (method !== 'botharness/channelSend') throw new Error('unexpected method');
-        return methods.channelSend(payload);
+        return current.channelSend(payload);
       },
       undefined,
       core.operationalDatabase,
+      () => core.team.ownerContext().humanId,
     );
     const client = await pair(live.base, live.pairing.createOffer().offer);
-    const send = () =>
+    const send = (credential = client.body.credential, channelId = channel.id) =>
       fetch(live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/channelSend', {
         method: 'POST',
         headers: {
-          authorization: 'Device ' + client.body.credential,
+          authorization: 'Device ' + credential,
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -194,7 +204,7 @@ it('retains the authenticated Owner Human on paired Client messages and refuses 
           method: 'botharness/channelSend',
           humanId: 'spoofed-envelope',
           payload: {
-            args: { channelId: channel.id, body: 'Owner message', humanId: 'spoofed-payload' },
+            args: { channelId, body: 'Owner message', humanId: 'spoofed-payload' },
           },
         }),
       });
@@ -204,10 +214,83 @@ it('retains the authenticated Owner Human on paired Client messages and refuses 
         db.prepare('SELECT human_id FROM source_events WHERE channel_id = ?').all(channel.id),
       );
     expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
-    live.pairing.revoke(client.body.deviceId!);
+    offPairing = core.team.bindPairing(live.pairing);
+    await core.team.setOwnerPassword(OWNER_HUMAN_CONTEXT, 'owner-password-1');
+    await core.team.setMode(OWNER_HUMAN_CONTEXT, true);
+    const next = await core.team.createMember(OWNER_HUMAN_CONTEXT, 'nextowner', 'Next Owner');
+    const nextHuman = humanContext(next.member.humanId);
+    await core.team.changePassword(nextHuman, next.initialPassword, 'next-owner-password-1');
+    const pending = live.pairing.createOffer();
+    await core.team.transferOwner(OWNER_HUMAN_CONTEXT, nextHuman.humanId, 'owner-password-1');
     expect((await send()).status).toBe(401);
+    expect(live.pairing.redeem({ offer: pending.offer })).toEqual({
+      ok: false,
+      code: 'offer-invalid',
+    });
     expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
+    const relationships = createHostRelationships({
+      database: attachOperationalModule(core.operationalDatabase, 'host-relationships'),
+      pairing: live.pairing,
+    });
+    const peer = {
+      id: 'trusted-host',
+      name: 'Trusted',
+      publicKey: 'ab'.repeat(32),
+      routes: ['http://127.0.0.1:31002'],
+    };
+    const relationship = relationships.propose({ peer, direction: 'incoming' });
+    relationships.approve(relationship.id, peer.publicKey);
+    relationships.activate(relationship.id, peer.publicKey);
+    const offer = relationships.enrollment(relationship.id, peer.publicKey, {
+      name: 'New Owner derived',
+      publicKey: 'cd'.repeat(32),
+    });
+    const derived = live.pairing.redeem({ offer: offer.offer, publicKey: 'cd'.repeat(32) });
+    if (!derived.ok) throw new Error(derived.code);
+    const nextBot = core.registry.create({
+      slug: 'next-private-bot',
+      displayName: 'Next private Bot',
+      ownerHumanId: nextHuman.humanId,
+    });
+    if (!nextBot.ok) throw new Error(nextBot.reason);
+    const nextChannel = core.channels.getOrCreateDm(
+      nextHuman,
+      nextBot.record.slug,
+      nextBot.record.displayName,
+    )!;
+    expect(await (await send(derived.credential, nextChannel.id)).json()).toMatchObject({
+      result: { ok: true },
+    });
+    expect(
+      attachOperationalModule(core.operationalDatabase, 'human-context-test').read((db) =>
+        db.prepare('SELECT human_id FROM source_events WHERE channel_id = ?').all(nextChannel.id),
+      ),
+    ).toEqual([{ human_id: nextHuman.humanId }]);
+    expect(await (await send(derived.credential, channel.id)).json()).toMatchObject({
+      result: { ok: false },
+    });
+    const hidden = await fetch(
+      live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/channelMessages',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Device ' + derived.credential,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'client-request',
+          rpcId: 'private-read',
+          method: 'botharness/channelMessages',
+          payload: { args: { channelId: channel.id, limit: 10 } },
+        }),
+      },
+    );
+    expect(await hidden.json()).toMatchObject({ result: { ok: false } });
+    expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
+    relationships.disconnect(relationship.id);
+    expect((await send(derived.credential, nextChannel.id)).status).toBe(401);
   } finally {
+    offPairing?.();
     await core.runtime.close();
     core.operationalDatabase.close();
   }

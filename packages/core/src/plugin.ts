@@ -1,3 +1,8 @@
+import { createMemberTobOperations } from './tob/member-operations.js';
+import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
+import { privateBotCreations } from './bots/creation.js';
+import { humanContext } from './humans/context.js';
+import { TeamService } from './team/service.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
@@ -169,6 +174,7 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
 import { createCoreStartup } from './diagnostics/core-startup.js';
 import type { DiagnosticEvents } from './diagnostics/diagnostic-log.js';
+import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { recordDatabaseStartup } from './diagnostics/database-startup.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
@@ -456,6 +462,7 @@ export interface BotHarnessConfig {
   enabled: boolean;
   privateInputExecution?: boolean;
   privateInputWebUrl?: string;
+  genuiPreviewBrowserPath?: string;
 
   agentPreset?: string;
   subagent?: BotSubagentPresetConfig;
@@ -474,6 +481,9 @@ export const DEFAULT_CONFIG: BotHarnessConfig = {
 };
 
 export const Config: Schema<BotHarnessConfig> = Schema.object({
+  genuiPreviewBrowserPath: Schema.string().description(
+    'Absolute executable for isolated GenUI previews; omitted or empty discovers the system browser. Invalid explicit paths are refused.',
+  ),
   privateInputWebUrl: Schema.string().description(
     'Explicit credential-free Web origin for IM private input links; never use a login token URL.',
   ),
@@ -514,6 +524,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  team: TeamService;
   prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
@@ -1016,13 +1027,17 @@ function initializeCore(
         durableAttention.schedule();
     });
   }
+  const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
+    ensureTob: (human) => tob.ensure(human),
+    log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
+  });
   startup.enter('channel-live', 'initialize');
   live = createChannelLiveHub(
     channels,
     {
-      snapshot: () =>
+      snapshot: (human) =>
         personaBotActivitySnapshot(
-          registry.list().map((bot) => bot.slug),
+          registry.list(human.humanId).map((bot) => bot.slug),
           states,
         ),
       onChange: (changed) => states.onActivity((event) => changed(event)),
@@ -1037,6 +1052,8 @@ function initializeCore(
           }),
         changed,
       ),
+    (human) => team.isOwner(human),
+    (human, slug) => ownsBot(human, registry.getHistorical(slug)),
   );
   startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
@@ -1433,6 +1450,7 @@ function initializeCore(
     attachments,
     mediaVersions,
     live,
+    team,
     companions,
     roster,
     runtime,
@@ -1586,8 +1604,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const turnRefusals = new Map<string, string>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
-    onGenuiDiagnostic: (event) =>
-      ctx.logger.info('genui-%s %j', event.component ?? 'preview', event),
+    ...(config.genuiPreviewBrowserPath === undefined
+      ? {}
+      : { genuiPreviewBrowserPath: config.genuiPreviewBrowserPath }),
+    onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
     genuiAttachmentContext: ctx,
     agents: ctx.agents,
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
@@ -1639,6 +1659,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               )
                 return undefined;
 
+              const steward = core.registry.get(core.ownership.resolve(actor.session.id)!.botSlug);
+              if (!steward) return undefined;
+              const human = humanContext(botOwner(steward));
+              const memberTob = !core.team.isOwner(human);
+              const memberOperations = memberTob
+                ? createMemberTobOperations({
+                    bridge: invocationBridgeMethods(human),
+                    registry: privateBotRegistry(core.registry, human),
+                    creations: privateBotCreations(core.creations, human),
+                    isProtectedBot: (slug) => core.tob.isTob(slug),
+                  })
+                : undefined;
+              const requireOwner = () => {
+                if (!core.team.isOwner(human)) throw new TobError('permission-required');
+              };
               let source: (() => void) & { markSideEffect?: () => void };
               try {
                 source =
@@ -1654,6 +1689,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               const authorize = () => {
                 if (execution.signal.aborted) throw new TobError('agent-context-expired');
                 source();
+                if (
+                  memberTob &&
+                  (!team.mode(human).enabled || team.member(human.humanId)?.status !== 'active')
+                )
+                  throw new TobError('permission-required');
                 const denial = grantExecutionDenial(
                   core,
                   actor.session,
@@ -1667,6 +1707,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                 signal: execution.signal,
                 authorize,
                 prepareOperation: async (command, args, signal) => {
+                  if (memberOperations) return memberOperations(command, args, signal);
                   const prepared =
                     (await tobModelOperations(command, args)) ??
                     (await tobMaintenanceOperations(command, args)) ??
@@ -1692,24 +1733,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     },
                   };
                 },
-                capabilities: [
-                  ...TOB_MODEL_CAPABILITIES,
-                  ...TOB_MAINTENANCE_CAPABILITIES,
-                  ...TOB_BOT_CREATE_CAPABILITIES,
-                  ...TOB_BOT_PROFILE_CAPABILITIES,
-                  ...TOB_SHARE_DRAFT_CAPABILITIES,
-                  ...TOB_DIAGNOSTIC_CAPABILITIES,
-                  ...TOB_CHANNEL_CAPABILITIES,
-                  ...TOB_VOICE_CAPABILITIES,
-                  TOB_HOST_CLI_CAPABILITY,
-                ],
+                capabilities: memberTob
+                  ? [
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ]
+                  : [
+                      ...TOB_MODEL_CAPABILITIES,
+                      ...TOB_MAINTENANCE_CAPABILITIES,
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      ...TOB_SHARE_DRAFT_CAPABILITIES,
+                      ...TOB_DIAGNOSTIC_CAPABILITIES,
+                      ...TOB_CHANNEL_CAPABILITIES,
+                      ...TOB_VOICE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ],
                 beforeWrite: () => source.markSideEffect?.(),
-                readSetting: () => core.tob.readSetting(),
-                writeSetting: (value, revision, guard) =>
-                  core.tob.writeSetting(value, revision, () => {
+                readSetting: () => {
+                  requireOwner();
+                  return core.tob.readSetting();
+                },
+                writeSetting: (value, revision, guard) => {
+                  requireOwner();
+                  return core.tob.writeSetting(value, revision, () => {
                     guard();
                     source.markSideEffect?.();
-                  }),
+                  });
+                },
                 approve: async (operation, signal) => {
                   source();
                   return approveTobCliOperation({
@@ -1905,7 +1957,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let voiceCalls: VoiceCalls | undefined;
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
+  const team = core.team;
   mountDevicePairing(ctx, {
+    team,
     calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
@@ -1946,7 +2000,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           offPresence();
         };
       },
-      held: () => presence.active(),
+      held: (human) => presence.active(human),
     },
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
@@ -3022,6 +3076,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeDeps: BridgeMethodsDeps = {
+    team,
     hostVersion: () => release.version(),
     callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
@@ -3128,11 +3183,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       compactBot,
       compactReservedSession,
     },
-    composerIdentity: () =>
+    composerIdentity: (human) =>
       composerRecoveryIdentity(
         join(homedir(), '.config', 'botharness', 'composer-host-id'),
         join(core.rootDir, '..', 'composer-profile-id'),
-        core.channels.humanIdentity(OWNER_HUMAN_CONTEXT).humanId,
+        human.humanId,
       ),
     warn: (message) => ctx.logger.warn(message),
     registry: core.registry,
@@ -3536,21 +3591,27 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     registry: core.registry,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
-  registerBridge(ctx, invocationBridgeMethods, privateInputs, {
-    followRoster: (human, signal) => core.live.followRoster(signal),
-    followActivity: (human, signal) => core.live.followActivity(human, signal),
-    followChannel: (human, channelId, limit, signal, drafts) =>
-      core.live.followChannel(human, channelId, limit, signal, drafts),
-    journalPage: (human, channelId, request) =>
-      core.channels.readHumanJournalPage(human, channelId, request),
-    filesPage: (human, channelId, request) =>
-      core.channels.readHumanFilesPage(human, channelId, request),
-    changes: (human, channelId, request) =>
-      core.channels.readHumanChanges?.(human, channelId, request),
-    changeCursor: (human) => core.channels.changeCursor?.(),
-    followCompanion: (human, resume, lastEventId, signal) =>
-      followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
-  });
+  registerBridge(
+    ctx,
+    invocationBridgeMethods,
+    privateInputs,
+    {
+      followRoster: (human, signal) => core.live.followRoster(human, signal),
+      followActivity: (human, signal) => core.live.followActivity(human, signal),
+      followChannel: (human, channelId, limit, signal, drafts) =>
+        core.live.followChannel(human, channelId, limit, signal, drafts),
+      journalPage: (human, channelId, request) =>
+        core.channels.readHumanJournalPage(human, channelId, request),
+      filesPage: (human, channelId, request) =>
+        core.channels.readHumanFilesPage(human, channelId, request),
+      changes: (human, channelId, request) =>
+        core.channels.readHumanChanges?.(human, channelId, request),
+      changeCursor: (human) => core.channels.changeCursor?.(),
+      followCompanion: (human, resume, lastEventId, signal) =>
+        followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
+    },
+    team,
+  );
 
   ctx.inject(['skills'], (skillsCtx) => {
     const skills = (
@@ -3625,7 +3686,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           path: PRESENCE_PATH,
           methods: ['GET', 'POST'],
           requestBody: 'buffered',
-          fetch: presence.fetch,
+          fetch: (request) => presence.fetch(request, team.ownerContext()),
         }),
       'botharness: desktop presence route',
     );

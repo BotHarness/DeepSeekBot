@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -79,6 +80,7 @@ export interface DevicePairing {
   }): PairingOffer;
   offerStatus(receipt: string): OfferStatus;
   claimRelationshipOffer(offer: string): boolean;
+  clearOffers(): void;
   redeem(input: {
     offer: string;
     name?: string;
@@ -106,6 +108,7 @@ export interface DevicePairing {
 export interface DevicePairingOptions {
   database: OperationalDatabaseModulePort;
   hostName: string;
+  ownerHumanId?: () => string;
   now?: () => number;
   record?: (event: DevicePairingEvent) => void;
   onRevoked?: (deviceId: string) => void;
@@ -113,6 +116,7 @@ export interface DevicePairingOptions {
 }
 
 interface Row {
+  human_id: string;
   device_id: string;
   name: string;
   secret_hash: string;
@@ -150,6 +154,7 @@ function deviceName(input: string | undefined): string {
 
 export function createDevicePairing(options: DevicePairingOptions): DevicePairing {
   const { database } = options;
+  const ownerHumanId = options.ownerHumanId ?? (() => OWNER_HUMAN_CONTEXT.humanId);
   const now = options.now ?? Date.now;
   const record = options.record ?? (() => {});
   const iso = (ms: number): string => new Date(ms).toISOString();
@@ -158,6 +163,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     string,
     {
       expiresAt: number;
+      humanId: string;
       receipt: string;
       verifierHash?: string;
       name?: string;
@@ -189,25 +195,29 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       }
   };
 
-  const row = (deviceId: string): Row | undefined =>
-    database.read(
+  const row = (deviceId: string) => {
+    const current = database.read(
       (connection) =>
-        connection.prepare('SELECT * FROM paired_devices WHERE device_id = ?').get(deviceId) as
-          | Row
-          | undefined,
+        connection
+          .prepare(`SELECT device.*, EXISTS (
+          SELECT 1 FROM relationship_device_grants AS grant_ref
+          JOIN host_relationships AS relationship ON relationship.relationship_id = grant_ref.relationship_id
+          WHERE grant_ref.device_id = device.device_id AND relationship.state != 'active'
+        ) AS relationship_inactive FROM paired_devices AS device WHERE device.device_id = ?`)
+          .get(deviceId) as Row | undefined,
     );
+    if (current === undefined) return undefined;
+    if (!('relationship_inactive' in current) || typeof current.relationship_inactive !== 'number')
+      throw new Error('device-admission-state-invalid');
+    return { ...current, relationshipInactive: current.relationship_inactive !== 0 };
+  };
 
-  const active = (current: Row): Admission => {
-    const disconnected = database.read((connection) =>
-      connection
-        .prepare(
-          `SELECT 1 FROM relationship_device_grants AS grant_ref
-       JOIN host_relationships AS relationship ON relationship.relationship_id = grant_ref.relationship_id
-       WHERE grant_ref.device_id = ? AND relationship.state != 'active'`,
-        )
-        .get(current.device_id),
-    );
-    if (current.revoked_at !== null || disconnected !== undefined) {
+  const active = (current: NonNullable<ReturnType<typeof row>>): Admission => {
+    if (
+      current.revoked_at !== null ||
+      current.human_id !== ownerHumanId() ||
+      current.relationshipInactive
+    ) {
       record({ phase: 'device-refused', code: 'device-revoked', deviceId: current.device_id });
       return { ok: false, code: 'device-revoked' };
     }
@@ -269,9 +279,22 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       const offer = token(24);
       const receipt = token(9);
       const expiresAt = now() + PAIRING_OFFER_TTL_MS;
-      offers.set(digest(offer).toString('hex'), { expiresAt, receipt, ...binding });
+      offers.set(digest(offer).toString('hex'), {
+        expiresAt,
+        receipt,
+        humanId: ownerHumanId(),
+        ...binding,
+      });
       record({ phase: 'offer-created' });
       return { offer, expiresAt: iso(expiresAt), receipt };
+    },
+
+    clearOffers() {
+      for (const open of offers.values()) {
+        settle(open.receipt, { state: 'superseded' });
+        record({ phase: 'offer-refused' });
+      }
+      offers.clear();
     },
 
     offerStatus(receipt) {
@@ -297,7 +320,13 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       sweep();
       const key = digest(offer).toString('hex');
       const open = offers.get(key);
-      if (!open || open.publicKey !== undefined || open.verifierHash !== undefined) return false;
+      if (
+        !open ||
+        open.humanId !== ownerHumanId() ||
+        open.publicKey !== undefined ||
+        open.verifierHash !== undefined
+      )
+        return false;
       offers.delete(key);
       settle(open.receipt, { state: 'superseded' });
       return true;
@@ -381,6 +410,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       offers.delete(key);
       if (
         open === undefined ||
+        open.humanId !== ownerHumanId() ||
         (open.verifierHash !== undefined &&
           (input.verifier === undefined ||
             !timingSafeEqual(digest(input.verifier), Buffer.from(open.verifierHash, 'base64url'))))
@@ -427,9 +457,16 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
           }
           connection
             .prepare(
-              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key) VALUES (?, ?, ?, ?, ?)',
+              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key, human_id) VALUES (?, ?, ?, ?, ?, ?)',
             )
-            .run(id, name, digest(secret).toString('hex'), pairedAt, input.publicKey ?? null);
+            .run(
+              id,
+              name,
+              digest(secret).toString('hex'),
+              pairedAt,
+              input.publicKey ?? null,
+              open.humanId,
+            );
           if (open.relationshipId !== undefined)
             connection
               .prepare(

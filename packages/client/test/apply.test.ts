@@ -40,6 +40,10 @@ vi.mock('../src/client/bot-mode-sidebar-viewport.js', () => ({
 import { apply, PANEL_ID } from '../src/client/index.js';
 import { store } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
+import * as environments from '../src/client/environment-panel.js';
+import * as docking from '../src/client/dock-panels.js';
+import * as accountEnvironments from '../src/client/account-environments.js';
+import * as ownerSources from '../src/client/remote-hosts.js';
 
 interface Spec {
   name: string;
@@ -155,6 +159,34 @@ function createScoped(specs: Spec[], disposed: Spec[], withSettings = false, wit
 }
 
 describe('client apply', () => {
+  it.each(['member', 'admin'])('does not register Owner environments in the %s page', (role) => {
+    vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+    const create = vi.spyOn(environments, 'createEnvironmentPanel');
+    const dock = vi.spyOn(docking, 'createDockPanelRegistry');
+    const coordinator = vi.spyOn(accountEnvironments, 'startAccountEnvironments');
+    const remote = vi.spyOn(ownerSources, 'remoteHosts');
+    try {
+      store.setMode('dsh');
+      const registrations: Spec[] = [];
+      apply(createScoped(registrations, []) as never);
+      expect(create).not.toHaveBeenCalled();
+      expect(coordinator).not.toHaveBeenCalled();
+      expect(remote).not.toHaveBeenCalled();
+      const registry = dock.mock.results[0];
+      if (registry?.type !== 'return') throw new Error('Dock registry unavailable');
+      const ids = registry.value.panels().map((panel) => panel.id);
+      expect(ids).not.toContain('environments');
+      expect(ids).toContain('activity-center');
+      expect(ids).toContain('bot-market');
+      expect(registrations.some((spec) => spec.id === PANEL_ID)).toBe(true);
+    } finally {
+      create.mockRestore();
+      dock.mockRestore();
+      coordinator.mockRestore();
+      remote.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
   it('keeps canonical Activity health independent of floating companion failures and removal', async () => {
     const streams: EventTarget[] = [];
     vi.stubGlobal('fetch', async () => Response.json({ profileId: 'qa' }));
@@ -340,6 +372,7 @@ describe('client apply', () => {
       { id: 'messaging', order: 20 },
       { id: 'im-apps', order: 25 },
       { id: 'companions', order: 40 },
+      { id: 'team', order: 44 },
       { id: 'devices', order: 45 },
       { id: 'data-privacy', order: 50 },
       { id: 'advanced', order: 60 },
