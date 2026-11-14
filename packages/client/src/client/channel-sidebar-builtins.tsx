@@ -1,3 +1,4 @@
+import { useTeamMode } from './team-state.js';
 import type { ConversationStateView } from './store.js';
 import { Menu } from './appearance-primitives.js';
 import { ChannelNicknameEntry, ChannelTraceEntry } from './channel-personal-settings.js';
@@ -1012,10 +1013,17 @@ function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactEle
   const disallowed = useClientStore((state) =>
     state.bots.some((bot) => bot.slug === botSlug && bot.modelAllowed === false),
   );
+  const team = useTeamMode(actions.teamCall);
+  const canChoose =
+    team?.viewer.owner === true || team?.viewer.permissions.includes('models.use') === true;
   if (botSlug === undefined || deleted) return <></>;
   return (
     <>
-      {disallowed ? <Note tone="warning">{t('team.models.notAllowed')}</Note> : null}
+      {disallowed ? (
+        <Note tone="warning">
+          {t(canChoose ? 'team.models.notAllowed' : 'team.models.notAllowedAsk')}
+        </Note>
+      ) : null}
       <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />
     </>
   );

@@ -5490,6 +5490,11 @@ export const zh = {
   'team.usage.legacy': '启用 Team 模式之前的用量计入 Owner。',
   'team.error.modelNotAllowed': '你的角色不能使用此模型。',
   'team.models.notAllowed': '你的角色不能使用此 Bot 当前的模型。请换一个模型，否则它不会再回复。',
+  'team.models.notAllowedAsk':
+    '你的角色不能使用此 Bot 当前的模型，它不会再回复。请让管理员为它换一个模型。',
+  'failure.refused.modelNotAllowed': '你的角色不能使用这个 Bot 的模型',
+  'failure.refused.modelNotAllowedHint':
+    '在 Bot 设置的「模型」里换一个允许的模型，或请管理员调整角色。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11347,6 +11352,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.error.modelNotAllowed': 'Your role can’t use this model.',
   'team.models.notAllowed':
     'Your role can’t use this Bot’s current model. Choose another model or it won’t reply.',
+  'team.models.notAllowedAsk':
+    'Your role can’t use this Bot’s current model, so it won’t reply. Ask an admin to choose another model.',
+  'failure.refused.modelNotAllowed': 'Your role can’t use this Bot’s model',
+  'failure.refused.modelNotAllowedHint':
+    'Choose an allowed model in the Bot’s Models settings, or ask an admin to change your role.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
