@@ -95,6 +95,7 @@ function candidate(
       attentionKind: item.kind,
       botSlug: item.botSlug,
       createdAt: item.createdAt,
+      ...(item.author ? { author: item.author } : {}),
       ...(item.approval ? { approval: item.approval } : {}),
       ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
       ...(item.messageId === undefined ? {} : { messageId: item.messageId }),

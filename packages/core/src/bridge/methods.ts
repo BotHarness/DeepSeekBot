@@ -7534,6 +7534,7 @@ function buildBridgeMethods(
               source['messageId'],
               outcome,
               takeoverSurface(source['surface']),
+              human,
             ),
           },
         };
@@ -7564,6 +7565,8 @@ function buildBridgeMethods(
                     source['messageId'],
                     'human',
                     takeoverSurface(source['surface']),
+                    undefined,
+                    human,
                   ),
           },
         };

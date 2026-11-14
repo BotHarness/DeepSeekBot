@@ -786,7 +786,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   async privateAccountRevoke(channelId: string, messageId: string) {
     this.requirePrivateOwner();
     return (
-      this.privateInputs?.revoke(true, channelId, messageId) ?? {
+      this.privateInputs?.revoke(true, channelId, messageId, this.invocationHuman()) ?? {
         accepted: false,
         stopped: 0,
         completed: 0,

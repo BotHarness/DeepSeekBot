@@ -656,7 +656,11 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
     case 'system':
       return true;
     case 'bot':
-      return typeof author['slug'] === 'string' && author['slug'].length > 0;
+      return (
+        typeof author['slug'] === 'string' &&
+        author['slug'].length > 0 &&
+        (author['displayName'] === undefined || typeof author['displayName'] === 'string')
+      );
     case 'remote-bot':
       return (
         typeof author['hostId'] === 'string' &&

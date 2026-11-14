@@ -526,6 +526,11 @@ describe('native timed question card continuation', () => {
       state: 'answered',
       answers: state.answer.answers,
     });
+    expect(state.channels.readMessages(channelId)[0]?.author).toEqual({
+      kind: 'human',
+      humanId: OWNER_HUMAN_CONTEXT.humanId,
+      displayName: 'Human',
+    });
     expect(state.answerer.status('ada', state.id)).toBe('answered');
     expect(state.answerer.requests('ada')).toEqual([]);
     expect(state.answerer.activeMessageIds()).toEqual([]);

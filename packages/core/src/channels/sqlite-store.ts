@@ -238,9 +238,13 @@ function noticeOrigin(
 }
 
 function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
+  const author = (message: ChannelMessage) =>
+    message.author.kind === 'human'
+      ? { kind: 'human', humanId: message.author.humanId ?? OWNER_HUMAN_CONTEXT.humanId }
+      : message.author;
   return (
     JSON.stringify({
-      author: left.author,
+      author: author(left),
       body: left.body,
       attachments: attachmentIntent(left.attachments ?? []),
       replyTo: left.replyTo,
@@ -257,7 +261,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       genuiReplyContext: left.genuiReplyContext,
     }) ===
     JSON.stringify({
-      author: right.author,
+      author: author(right),
       body: right.body,
       attachments: attachmentIntent(right.attachments ?? []),
       replyTo: right.replyTo,
@@ -549,14 +553,17 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   const humanIdentity = (human: HumanContext): LocalHumanIdentity => {
     const row = database.read((db) =>
       db
-        .prepare('SELECT default_display_name FROM local_human_names WHERE human_id = ?')
+        .prepare(`SELECT n.default_display_name${sourceHumanIdentity() ? ', h.display_name' : ''}
+          FROM (SELECT ? AS human_id) actor
+          LEFT JOIN local_human_names n ON n.human_id = actor.human_id
+          ${sourceHumanIdentity() ? 'LEFT JOIN humans h ON h.human_id = actor.human_id' : ''}`)
         .get(human.humanId),
-    ) as { default_display_name: string | null } | undefined;
+    ) as { default_display_name: string | null; display_name?: string | null } | undefined;
     const defaultDisplayName = row?.default_display_name ?? null;
     return {
       humanId: human.humanId,
       defaultDisplayName,
-      displayName: defaultDisplayName ?? 'Human',
+      displayName: defaultDisplayName ?? row?.display_name ?? 'Human',
     };
   };
 
@@ -1072,12 +1079,20 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   const append = (
     human: HumanContext,
     id: string,
-    message: ChannelMessage,
+    inputMessage: ChannelMessage,
     once: boolean,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
     canCommit?: (database?: DatabaseSync) => boolean,
   ) => {
+    const identity = inputMessage.author.kind === 'human' ? humanIdentity(human) : undefined;
+    const message =
+      identity === undefined
+        ? inputMessage
+        : ({
+            ...inputMessage,
+            author: { kind: 'human', humanId: identity.humanId, displayName: identity.displayName },
+          } satisfies ChannelMessage);
     if (
       !sourceHumanIdentity() &&
       message.author.kind === 'human' &&

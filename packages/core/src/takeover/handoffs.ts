@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 
 import type { ChannelMessage } from '../channels/channel.js';
@@ -48,6 +48,7 @@ export interface TakeoverHandoffs {
     id: string,
     outcome: 'done' | 'failed',
     surface: string,
+    human?: HumanContext,
   ): Promise<TakeoverHandoff>;
   cancel(
     channelId: string,
@@ -55,6 +56,7 @@ export interface TakeoverHandoffs {
     by: 'human' | 'bot',
     surface: string,
     botSlug?: string,
+    human?: HumanContext,
   ): Promise<TakeoverHandoff>;
   recover(): Promise<void>;
   close(): void;
@@ -190,6 +192,7 @@ export function createTakeoverHandoffs(options: TakeoverHandoffOptions): Takeove
     outcome: TakeoverOutcome,
     by: TakeoverResolver,
     surface: string,
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<TakeoverHandoff> => {
     const key = `${handoff.channelId}\u0000${handoff.id}`;
     const running = settling.get(key);
@@ -199,23 +202,19 @@ export function createTakeoverHandoffs(options: TakeoverHandoffOptions): Takeove
       if (timer !== undefined) clearTimeout(timer);
       timers.delete(key);
       const started = now();
-      const result = await options.channels.appendMessageOnce(
-        OWNER_HUMAN_CONTEXT,
-        handoff.channelId,
-        {
-          id: takeoverResolutionId(handoff.id),
-          at: new Date(now()).toISOString(),
-          author:
-            by === 'human'
-              ? { kind: 'human' }
-              : by === 'bot'
-                ? { kind: 'bot', slug: handoff.botSlug }
-                : { kind: 'system' },
-          body: resolutionBody(outcome, by),
-          replyTo: handoff.id,
-          takeoverResolution: { requestMessageId: handoff.id, outcome, by },
-        },
-      );
+      const result = await options.channels.appendMessageOnce(human, handoff.channelId, {
+        id: takeoverResolutionId(handoff.id),
+        at: new Date(now()).toISOString(),
+        author:
+          by === 'human'
+            ? { kind: 'human' }
+            : by === 'bot'
+              ? { kind: 'bot', slug: handoff.botSlug }
+              : { kind: 'system' },
+        body: resolutionBody(outcome, by),
+        replyTo: handoff.id,
+        takeoverResolution: { requestMessageId: handoff.id, outcome, by },
+      });
       if (result.status !== 'appended' && result.status !== 'existing') {
         log(
           'resolve-failed',
@@ -447,9 +446,9 @@ export function createTakeoverHandoffs(options: TakeoverHandoffOptions): Takeove
       return { ...handoff, status: 'expired', resolvedBy: 'host' };
     },
 
-    async complete(channelId, id, outcome, surface) {
+    async complete(channelId, id, outcome, surface, human) {
       try {
-        return await settle(pendingOf(channelId, id), outcome, 'human', surface);
+        return await settle(pendingOf(channelId, id), outcome, 'human', surface, human);
       } catch (error) {
         if (error instanceof TakeoverError)
           log('complete-refused', { id, channel: channelId, outcome, surface, reason: error.code });
@@ -457,12 +456,12 @@ export function createTakeoverHandoffs(options: TakeoverHandoffOptions): Takeove
       }
     },
 
-    async cancel(channelId, id, by, surface, botSlug) {
+    async cancel(channelId, id, by, surface, botSlug, human) {
       try {
         const handoff = pendingOf(channelId, id);
         if (by === 'bot' && handoff.botSlug !== botSlug)
           throw new TakeoverError('not-found', 'No takeover request of this Bot with this id');
-        return await settle(handoff, 'cancelled', by, surface);
+        return await settle(handoff, 'cancelled', by, surface, human);
       } catch (error) {
         if (error instanceof TakeoverError)
           log(

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { ChannelMessage } from '../channels/channel.js';
+import type { ChannelMessageAuthor } from '../channels/message-author.js';
 import { type HumanContext } from '../humans/context.js';
 import { isDshGovernedTool } from '../workspaces/grant-execution.js';
 import type { TeamRoles } from './roles.js';
@@ -205,6 +206,53 @@ export class TeamApprovals {
 
   project<T>(human: HumanContext, input: T, channelId?: string): T {
     const value = structuredClone(input);
+    const humanAuthors = new Map<
+      string,
+      Extract<ChannelMessageAuthor, { kind: 'human' }> | undefined
+    >();
+    const humanAuthorOf = (channel: string, id: string) => {
+      const key = channel + ':' + id;
+      if (!humanAuthors.has(key)) {
+        const row = this.database.read((db) =>
+          db
+            .prepare(`
+          SELECT e.human_id AS humanId, COALESCE(n.default_display_name, h.display_name, 'Human') AS displayName
+          FROM channel_placements p JOIN source_events e USING(source_event_id)
+          LEFT JOIN humans h ON h.human_id = e.human_id
+          LEFT JOIN local_human_names n ON n.human_id = e.human_id
+          WHERE p.channel_id = ? AND p.message_id = ? AND e.human_id IS NOT NULL
+        `)
+            .get(channel, id),
+        );
+        humanAuthors.set(
+          key,
+          typeof row?.humanId === 'string' && typeof row.displayName === 'string'
+            ? { kind: 'human', humanId: row.humanId, displayName: row.displayName }
+            : undefined,
+        );
+      }
+      return humanAuthors.get(key);
+    };
+    const authors = new Map<string, Extract<ChannelMessageAuthor, { kind: 'bot' }>>();
+    const authorOf = (slug: string, recordedName?: string) => {
+      const cached = authors.get(slug);
+      if (cached) return cached;
+      const row = this.database.read((db) =>
+        db
+          .prepare(
+            "SELECT json_extract(body, '$.displayName') AS display_name FROM persona_bots WHERE slug = ?",
+          )
+          .get(slug),
+      );
+      const displayName = typeof row?.display_name === 'string' ? row.display_name : recordedName;
+      const author = {
+        kind: 'bot',
+        slug,
+        ...(displayName === undefined ? {} : { displayName }),
+      } satisfies ChannelMessageAuthor;
+      authors.set(slug, author);
+      return author;
+    };
     const cards = new Map<string, ApprovalCard | undefined>();
     const messages = new Map<string, ChannelMessage | undefined>();
     const read = (channel: string, id: string): ChannelMessage | undefined => {
@@ -254,6 +302,39 @@ export class TeamApprovals {
         .map((key) => object(record[key])?.['requestMessageId'])
         .find((id) => typeof id === 'string');
       if (channel && typeof reference === 'string') message = read(channel, reference);
+      const author = object(record['author']) ?? message?.author;
+      if (
+        channel &&
+        messageId &&
+        author?.kind === 'human' &&
+        author.deleted !== true &&
+        (typeof author.humanId !== 'string' || typeof author.displayName !== 'string')
+      ) {
+        const attributed = humanAuthorOf(channel, messageId);
+        if (attributed) Reflect.set(entry, 'author', attributed);
+      }
+      const preview = object(record['replyToPreview']);
+      const previewAuthor = object(preview?.['author']);
+      if (
+        channel &&
+        typeof record['replyTo'] === 'string' &&
+        previewAuthor?.['kind'] === 'human' &&
+        previewAuthor['deleted'] !== true &&
+        (typeof previewAuthor['humanId'] !== 'string' ||
+          typeof previewAuthor['displayName'] !== 'string')
+      ) {
+        const attributed = humanAuthorOf(channel, record['replyTo']);
+        if (attributed) Reflect.set(Reflect.get(entry, 'replyToPreview'), 'author', attributed);
+      }
+      if (channel && author?.kind === 'bot' && typeof author.slug === 'string')
+        Reflect.set(
+          entry,
+          'author',
+          authorOf(
+            author.slug,
+            typeof author.displayName === 'string' ? author.displayName : undefined,
+          ),
+        );
       const key = channel && message ? channel + ':' + message.id : undefined;
       if (key && channel && message && !cards.has(key))
         cards.set(key, this.card(human, channel, message));

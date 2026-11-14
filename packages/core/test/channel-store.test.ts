@@ -420,9 +420,13 @@ describe('channel store', () => {
       .toReversed()
       .map((entry) => entry.replyToPreview);
     expect(previews).toEqual([
-      { author: { kind: 'human' }, body: '', media: { kind: 'image', count: 1, thumbnail: png } },
       {
-        author: { kind: 'human' },
+        author: { kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' },
+        body: '',
+        media: { kind: 'image', count: 1, thumbnail: png },
+      },
+      {
+        author: { kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' },
         body: 'see attached',
         media: { kind: 'file', name: 'notes.txt', count: 1 },
       },
@@ -431,7 +435,10 @@ describe('channel store', () => {
         body: 'Spoken text',
         media: { kind: 'voice', durationMs: 7000 },
       },
-      { author: { kind: 'human' }, body: 'just text' },
+      {
+        author: { kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' },
+        body: 'just text',
+      },
     ]);
   });
 
