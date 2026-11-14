@@ -3430,7 +3430,7 @@ const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
 };
 
 const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
-  generation: 141,
+  generation: 145,
   module: 'host-relationships',
   description: 'Retain bounded offline reciprocal disconnect retries across Host restart',
   migrate(database) {

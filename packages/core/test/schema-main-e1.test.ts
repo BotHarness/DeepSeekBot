@@ -9,6 +9,9 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 describe('published Human and Team schemas to E1 relationship144', () => {
+  const e1SchemaPlan = defineSchemaPlan(
+    BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 144),
+  );
   it.each([138, 139, 140, 141, 142, 143])(
     'upgrades supported generation %i with Human data and independent pairing intact',
     (generation) => {
@@ -54,7 +57,7 @@ describe('published Human and Team schemas to E1 relationship144', () => {
       previous.close();
       for (let restart = 0; restart < 2; restart++) {
         const owner = trackTestOwner(
-          mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+          mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
         );
         expect(owner.mode).toBe('ready');
         expect(owner.generation).toBe(144);
