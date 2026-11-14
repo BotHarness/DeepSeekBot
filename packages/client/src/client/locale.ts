@@ -65,6 +65,7 @@ export const zh = {
   'relationships.open': '打开频道',
   'relationships.useClient': '在此客户端使用',
   'relationships.clientDefault': '桌面浏览器',
+  'environment.confirming': '正在完成连接…',
   'relationships.clientName': '客户端名称',
   'relationships.clientHint':
     '为此客户端单独授权访问 {name}，无需再次批准电脑关系。可在对方的设备列表中单独撤销。',
@@ -5507,6 +5508,7 @@ export const en = {
   'relationships.open': 'Open Channels',
   'relationships.useClient': 'Use on this client',
   'relationships.clientDefault': 'Desktop browser',
+  'environment.confirming': 'Finishing connection…',
   'relationships.clientName': 'Client name',
   'relationships.clientHint':
     'Give this client its own access to {name}, without approving the computer relationship again. Revoke it separately in that computer’s device list.',

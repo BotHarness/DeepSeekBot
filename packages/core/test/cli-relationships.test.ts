@@ -65,6 +65,36 @@ it('lists relationships through the authenticated owning Host', async () => {
   expect(await runRelationshipCommand(['list'], {}, connect)).toEqual(response);
   expect(http).toHaveBeenCalledWith('/api/botharness/relationships', undefined);
 });
+it.each(['account-discover', 'account-status'])(
+  'uses the same Host account owner for %s without confirmation or caller trust flags',
+  async (action) => {
+    const { http, connect } = fixture();
+    await runRelationshipCommand([action], {}, connect);
+    expect(http).toHaveBeenCalledExactlyOnceWith('/api/botharness/relationships', {
+      action: action === 'account-discover' ? 'discover-account' : 'account-status',
+    });
+  },
+);
+it('requires private output for account enrollment and refuses a signed-out owner before issuing any grant', async () => {
+  const http = vi.fn(async () => ({
+    bytes: new TextEncoder().encode(JSON.stringify({ state: 'signed-out', relationships: [] })),
+  }));
+  const connect = async () => ({ http });
+  await expect(runRelationshipCommand(['account-enroll', id], {}, connect)).rejects.toThrow(
+    '--out',
+  );
+  expect(http).not.toHaveBeenCalled();
+  await expect(
+    runRelationshipCommand(
+      ['account-enroll', id],
+      { out: '/new-private-account-grant.json' },
+      connect,
+    ),
+  ).rejects.toThrow('Sign in');
+  expect(http).toHaveBeenCalledExactlyOnceWith('/api/botharness/relationships', {
+    action: 'account-status',
+  });
+});
 it('checks directions without confirmation or issuing another enrollment', async () => {
   const { http, connect } = fixture();
   await runRelationshipCommand(['sync', id], {}, connect);

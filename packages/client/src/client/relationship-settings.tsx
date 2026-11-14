@@ -134,7 +134,7 @@ export function RelationshipSettings({
     return () => {
       clearInterval(timer);
       abort.current?.abort();
-      enrollment.current?.abort();
+      enrollment.current?.abort('owner-disposed');
     };
   }, []);
   const perform = async () => {

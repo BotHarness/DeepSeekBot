@@ -2,9 +2,21 @@
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
+E11 执行保护与 E6 凭据事务的顺序固定为：执行 Web Lock → 短配置事务；配置 writer 不反向取得执行锁。事务只 fresh-read/CAS 原 SavedHost 配置，完成后重新派生执行状态，不将未知操作字段写入凭据数组。自动登记沿用自己的每 Host intent lock → 同一短配置事务。
+
 远程连接执行保护及其兼容性限制见 [ADR-0339](../adr/0339-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
 
 E11 在独立 Settings Target 下复用目标 Host 的设备、单条私有路由和账号 owner。计划切换先验证既有替代路由，明确保存本 Client 的手动偏好，等待实际连接切换并回读精确 Host 后才执行一次；没有替代路由则明确确认断开。Client 既有 HostStorage 所有者下的独立执行键绑定 Host 公钥、设备、操作/路由及代次，结果未知时跨重载保留，不成为 Host 配置权威，也不自动重放，其他 SavedHost 数组写入不能擦除它。共享 Web Lock 覆盖准备、保护持久化、一次写入、确认及回读 CAS；缺少 Web Locks 时拒绝危险写入。最多保留 32 条未解决事实而不自动清除。新独立授权可明确通过同一 Host 公钥核对旧操作的结果，但不继承或重发操作；公钥变化拒绝核对，清除仍按代次 CAS。退出登录、关系断开、单设备撤销和单路由停止保持独立权限和效果，不操作外部 Tailscale 映射或无关 Host 进程。
+
+E6 通过现有已认证账号列表与 `/offer` 发现同账号 Host：两端各自验证本机注册与 Noise 身份，接收端使用自己的账号会话重新读取准确的来源注册；HMAC、账号、目标注册、新鲜度和包含双方身份的固定角色 transcript 一并校验。按稳定注册 ID 选唯一发起端，异步返回后复查账号代际、原有 pin 和主动断开抑制；当前账号资格保存在 canonical relationship 的 account_origin。完整双边证明也可为已有手动批准的 active 关系附加资格，以原 NULL 值 CAS 保留同一 ID、审批、授权、独立线路和私有 admission，不绕过待处理的手动审批。只有具备该验证资格的关系自动为桌面/Web Client 登记，其余手动关系仍需「在此 Client 使用」。每 Host 成功独立发布，扫描轮转、并发和重试有界；不切换 Environment Scope、打开的会话或 Settings Target，不借用 Bot 协作授权，也不需要部署 relay。
+
+发现由既有 Host 关系 owner 启停，初始及每三十秒调度一次，不依赖排序较小的 Host 上打开 Client；无账号不触网，退出账号同步使旧代请求取消，关闭后不再调度。重新登录改变注册 ID 时，只在双方新鲜权威 offer、原账号资格与准确 Host/pin 全部一致后，以旧资格 CAS 更新原 active 关系，不新建关系或改变审批，旧响应不得覆盖新代。资格同时记录各端用自己已认证 offer 取得的 officialOrigin；同一 CAS 事务只替换此前明确记录的官方地址，首次资格只添加新地址，不猜测或删除手动线路，容量超限时资格与线路均不提交。单端成功但回复丢失时可重新证明并收敛到原关系，主动断开抑制始终有效。已有 public-only Client 沿原线路 owner 学习新地址，不新造授权或改变偏好/浏览范围；私有 admission 仍沿原路径。正式链保留已发布的 Human 140、Team/私有 Bot 141–143，再追加关系 144、离线撤销 145、账号登记 146；未发布的旧 Environment 140–143 分叉只作闭合归档，最终验证使用全新 Profile，不复制账号凭据。
+
+同一关系 owner 在 Operational Database generation 146 保留单次 Client 公钥的登记状态：来源端先记 unconfirmed，目标端在原设备授权事务中检查该 intent 及十分钟截止并只兑换一次；Client 把私钥保存在原 SavedHost/CLI 私有文件后，以同一 key 幂等确认。丢确认先读回，不新造 key；未知状态在 Client 私有记录中保留并显示「正在完成连接」。取消使用准确关系与公钥，在目标同一事务保存 tombstone 并撤销匹配的派生设备；迟到 offer 和 redemption 都检查该事实，不影响其他 Client 或独立手机授权。来源端跨退出账号、重启保留待清理事实，有限重试固定 Noise 身份的减权取消；未确认到期也进入清理，八次后保留待检查。仅截止后另过六十秒的已完成取消/清理记录可回收，1,024 条满额安全拒绝，不能淘汰仍有效的 tombstone。见 [ADR-0338](../adr/0338-relationship-enrollment-keeps-issuance-and-cancellation-durable.md)。
+
+浏览器仍以原 private SavedHost 为凭据 owner；所有数组写入经同一短 IndexedDB 原生事务执行 fresh-read、准确设备/密钥/凭据代际比较及同步 localStorage 写入，不存第二份凭据或租约。自动登记另持有每 Host 的 Web Lock，锁内先重读并复用同源其他标签页已保存的 Client 授权；不同 Host 不因一条慢连接全程串行。缺 Web Locks 时在生成自动登记密钥前拒绝，HTTP LAN 的既有手动连接与线路持久化仍走 IndexedDB 短事务。原生手机 App 不导入自动消费者，仍逐 Host 登记；运行完整 owner Web Client 的手机浏览器属于 Web Client，不能凭 UA 或调用者标记声称排除了物理手机。浏览器、已安装 Desktop 和原生手机验收分别记录。
+
+本 Client 的 Forget/Remove 在原私有数组保留不含凭据的自动选择及新代次；临时登记不清除该选择，成功手动登记仅在准确凭据与已捕获选择（包括原先不存在）均未变化时清除。较晚 Forget 使旧手动流程拒绝完成并准确回收自己的授权；取消补偿不覆盖较新凭据或选择。pending confirmation 保留该快照供重载后收敛，attach 前重读并复用准确匹配的既有 Client，防止旧流程覆盖另一标签页的连接。
 
 私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
 

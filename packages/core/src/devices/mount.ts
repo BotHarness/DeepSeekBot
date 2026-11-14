@@ -369,6 +369,7 @@ export function mountDevicePairing(
     });
     const relationshipControl = createRelationshipControl({
       relationships,
+      account: () => account,
       pairing,
       identity,
       credentials: options.credentials ?? (() => undefined),

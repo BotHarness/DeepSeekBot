@@ -3444,6 +3444,29 @@ const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
   },
 };
 
+const HOST_RELATIONSHIP_ACCOUNT_MIGRATION: SchemaMigration = {
+  generation: 146,
+  module: 'host-relationships',
+  description: 'Retain verified same-account relationship provenance',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE host_relationships ADD COLUMN account_origin TEXT;
+      CREATE TABLE relationship_client_enrollments (
+        relationship_id TEXT NOT NULL REFERENCES host_relationships(relationship_id),
+        public_key TEXT NOT NULL,
+        direction TEXT NOT NULL CHECK (direction IN ('incoming', 'outgoing')),
+        state TEXT NOT NULL CHECK (state IN ('unconfirmed', 'committed', 'cleanup-pending', 'cleaned', 'cancelled')),
+        expires_at INTEGER NOT NULL,
+        account_generation TEXT,
+        cleanup_attempts INTEGER NOT NULL DEFAULT 0,
+        retry_at INTEGER,
+        PRIMARY KEY (relationship_id, public_key, direction)
+      );
+      CREATE INDEX relationship_enrollment_cleanup ON relationship_client_enrollments(direction, state, retry_at);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3589,4 +3612,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PRIVATE_BOTS_MIGRATION,
   HOST_RELATIONSHIP_MIGRATION,
   HOST_RELATIONSHIP_REVOCATION_MIGRATION,
+  HOST_RELATIONSHIP_ACCOUNT_MIGRATION,
 ]);

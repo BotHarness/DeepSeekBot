@@ -42,6 +42,8 @@ import { store } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import * as environments from '../src/client/environment-panel.js';
 import * as docking from '../src/client/dock-panels.js';
+import * as accountEnvironments from '../src/client/account-environments.js';
+import * as ownerSources from '../src/client/remote-hosts.js';
 
 interface Spec {
   name: string;
@@ -161,11 +163,15 @@ describe('client apply', () => {
     vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
     const create = vi.spyOn(environments, 'createEnvironmentPanel');
     const dock = vi.spyOn(docking, 'createDockPanelRegistry');
+    const coordinator = vi.spyOn(accountEnvironments, 'startAccountEnvironments');
+    const remote = vi.spyOn(ownerSources, 'remoteHosts');
     try {
       store.setMode('dsh');
       const registrations: Spec[] = [];
       apply(createScoped(registrations, []) as never);
       expect(create).not.toHaveBeenCalled();
+      expect(coordinator).not.toHaveBeenCalled();
+      expect(remote).not.toHaveBeenCalled();
       const registry = dock.mock.results[0];
       if (registry?.type !== 'return') throw new Error('Dock registry unavailable');
       const ids = registry.value.panels().map((panel) => panel.id);
@@ -176,6 +182,8 @@ describe('client apply', () => {
     } finally {
       create.mockRestore();
       dock.mockRestore();
+      coordinator.mockRestore();
+      remote.mockRestore();
       vi.unstubAllGlobals();
     }
   });

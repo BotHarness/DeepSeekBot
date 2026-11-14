@@ -25,6 +25,7 @@ import { createElement } from 'react';
 import { bindTobPresentation } from './tob-presentation.js';
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store';
 import { registerWorkspaceShortcuts, migrateWorkShortcut } from './workspace-shortcuts.js';
+import { startAccountEnvironments } from './account-environments.js';
 import type {} from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
@@ -261,7 +262,17 @@ export function apply(ctx: ClientContext): void {
       ? undefined
       : takeHmrView(window as unknown as Record<string, unknown>);
   const t = ctx.locale.bind(LOCALE_NS);
-  if (!member) remoteHosts(t);
+  if (!member) {
+    remoteHosts(t);
+    ctx.effect(
+      () =>
+        startAccountEnvironments({
+          sources: remoteHosts(t),
+          clientName: t('relationships.clientDefault'),
+        }),
+      'botharness: same-account environments',
+    );
+  }
   const zoom = mountWindowZoom({
     document: typeof document === 'undefined' ? undefined : document,
     window: typeof window === 'undefined' ? undefined : window,

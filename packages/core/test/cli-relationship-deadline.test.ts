@@ -5,7 +5,8 @@ import { createTempRoot } from './helpers.js';
 
 const enrollment = vi.hoisted(() => ({ run: vi.fn() }));
 const revocation = vi.hoisted(() => ({ run: vi.fn(async () => 'revoked') }));
-vi.mock('../src/devices/relationship-enrollment.js', () => ({
+vi.mock('../src/devices/relationship-enrollment.js', async (original) => ({
+  ...(await original<typeof import('../src/devices/relationship-enrollment.js')>()),
   enrollRelationshipClient: enrollment.run,
 }));
 vi.mock('../../../apps/mobile/src/host/pairing.js', async (original) => ({
@@ -34,6 +35,7 @@ it('shares the command deadline with remote redemption and never writes a late c
     abort.abort();
     return {
       ok: true,
+      enrollmentPublicKey: 'ab'.repeat(32),
       host: {
         hostId: 'b',
         hostName: 'B',
@@ -79,6 +81,7 @@ it('checks wall time before writing even when the timeout callback has not run y
     clock.mockReturnValue(1100);
     return {
       ok: true,
+      enrollmentPublicKey: 'ab'.repeat(32),
       host: {
         hostId: 'b',
         hostName: 'B',

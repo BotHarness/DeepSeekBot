@@ -1,11 +1,30 @@
 import { z } from 'zod';
 import { RelationshipRefused } from './relationships.js';
+import { EnrollmentRefused } from './relationship-enrollments.js';
 import type { RelationshipControl } from './relationship-control.js';
 
 export const RELATIONSHIPS_PATH = '/api/botharness/relationships';
 const id = z.string().regex(/^[A-Za-z0-9_-]{32}$/u);
 const key = z.string().regex(/^[0-9a-f]{64}$/u);
 const command = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('enrollment-status'), id, publicKey: key }),
+  z.object({ action: z.literal('enrollments') }),
+  z.object({ action: z.literal('commit-enrollment'), id, publicKey: key }),
+  z.object({ action: z.literal('cancel-enrollment'), id, publicKey: key }),
+  z.object({ action: z.literal('discover-account') }),
+  z.object({ action: z.literal('account-status') }),
+  z.object({
+    action: z.literal('check-account-enrollment'),
+    id,
+    generation: z.string().min(1).max(128),
+  }),
+  z.object({
+    action: z.literal('enroll-account'),
+    id,
+    generation: z.string().min(1).max(128),
+    publicKey: key,
+    name: z.string().min(1).max(60),
+  }),
   z.object({
     action: z.literal('initiate'),
     link: z.string().max(16_384),
@@ -36,6 +55,29 @@ export function createRelationshipHttp(control: RelationshipControl) {
       return reply({ code: 'relationship-input-invalid' }, 400);
     }
     try {
+      if (input.action === 'discover-account') return reply(await control.discoverAccount());
+      if (input.action === 'enrollments') return reply({ enrollments: control.enrollments() });
+      if (input.action === 'enrollment-status')
+        return reply({
+          enrollment:
+            control
+              .enrollments()
+              .find(
+                (item) =>
+                  item.relationshipId === input.id &&
+                  item.publicKey === input.publicKey &&
+                  item.direction === 'outgoing',
+              ) ?? null,
+        });
+      if (input.action === 'commit-enrollment')
+        return reply({ enrollment: await control.commitEnrollment(input.id, input.publicKey) });
+      if (input.action === 'cancel-enrollment')
+        return reply(await control.cancelEnrollment(input.id, input.publicKey));
+      if (input.action === 'account-status') return reply(await control.accountStatus());
+      if (input.action === 'check-account-enrollment')
+        return reply(await control.checkAccountEnrollment(input.id, input.generation));
+      if (input.action === 'enroll-account')
+        return reply(await control.enroll(input.id, input.publicKey, input.name, input.generation));
       if (input.action === 'initiate')
         return reply({
           relationship: await control.initiate(input.link, input.confirmedKey),
@@ -52,7 +94,10 @@ export function createRelationshipHttp(control: RelationshipControl) {
     } catch (error) {
       return reply(
         {
-          code: error instanceof RelationshipRefused ? error.code : 'relationship-operation-failed',
+          code:
+            error instanceof RelationshipRefused || error instanceof EnrollmentRefused
+              ? error.code
+              : 'relationship-operation-failed',
         },
         409,
       );

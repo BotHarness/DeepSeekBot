@@ -1,7 +1,12 @@
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-import { ALL_HOSTS, THIS_HOST, remoteHosts } from './remote-hosts.js';
+import {
+  ALL_HOSTS,
+  THIS_HOST,
+  remoteHosts,
+  relationshipEnrollmentPending,
+} from './remote-hosts.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { useThisHost } from './this-host.js';
 import { useHostLook, useHostName } from './host-looks.js';
@@ -239,17 +244,19 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
             reconnect={remote.snapshot.connection.status !== 'connected'}
             selected={snapshot.tab === remote.host.hostId}
             status={
-              remote.snapshot.connection.status === 'connected'
-                ? remote.inbox.status === 'ready'
-                  ? environmentUnread(remote.inbox) === undefined
-                    ? t('environment.partial')
-                    : undefined
-                  : t(
-                      remote.inbox.status === 'error'
-                        ? 'environment.unavailable'
-                        : 'environment.loading',
-                    )
-                : t('environment.offline')
+              relationshipEnrollmentPending(remote.host)
+                ? t('environment.confirming')
+                : remote.snapshot.connection.status === 'connected'
+                  ? remote.inbox.status === 'ready'
+                    ? environmentUnread(remote.inbox) === undefined
+                      ? t('environment.partial')
+                      : undefined
+                    : t(
+                        remote.inbox.status === 'error'
+                          ? 'environment.unavailable'
+                          : 'environment.loading',
+                      )
+                  : t('environment.offline')
             }
             onManage={() =>
               setSettings({ hostId: remote.host.hostId, name: remote.host.hostName, local: false })

@@ -7,6 +7,10 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
+const e4SchemaPlan = defineSchemaPlan(
+  BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 145),
+);
+
 it('upgrades canonical relationship144 pending retirement and preserves published Human, Team, private Bot data and independent access', () => {
   const home = createTempRoot('schema-main-e4-');
   const previous = trackTestOwner(
@@ -50,10 +54,10 @@ it('upgrades canonical relationship144 pending retirement and preserves publishe
   let retryAt: number | null = null;
   for (let restart = 0; restart < 2; restart++) {
     const owner = trackTestOwner(
-      mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      mountOperationalDatabase({ dshHome: home, schemaPlan: e4SchemaPlan }),
     );
     expect(owner.mode).toBe('ready');
-    expect(owner.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
+    expect(owner.generation).toBe(145);
     const current = attachOperationalModule(owner, 'migration-fixture');
     const reopened = createDevicePairing({ database: current, hostName: 'Existing' });
     expect(reopened.admit(`Device ${deviceId}.${secret}`).ok).toBe(true);
