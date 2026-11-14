@@ -62,8 +62,8 @@ function snapshot(path) {
     ino: info.ino,
     dev: info.dev,
     nlink: info.nlink,
-    mtimeMs: info.mtimeMs,
-    ctimeMs: info.ctimeMs,
+    mtimeNs: info.mtimeNs,
+    ctimeNs: info.ctimeNs,
     sha: createHash('sha256').update(readFileSync(path)).digest('hex'),
   };
 }
