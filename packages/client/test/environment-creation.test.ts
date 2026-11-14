@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { HostClient } from '../../../apps/mobile/src/host/client.js';
-import type { CreatedBot } from '../src/client/bridge.js';
+import { MethodRefused, type HostClient } from '../../../apps/mobile/src/host/client.js';
+import { BridgeCallError, type CreatedBot } from '../src/client/bridge.js';
 import {
   bindBotCreationOwner,
   remoteCreationOwner,
@@ -51,6 +51,30 @@ describe('explicit creation target', () => {
 });
 
 describe('captured remote creation owner', () => {
+  it('preserves the selected Host Human DM refusal and its details', async () => {
+    const refusal = new MethodRefused('permission-required', 'Cannot message this person.', {
+      permission: 'dm.humans',
+    });
+    const call = vi.fn<HostClient['call']>().mockRejectedValue(refusal);
+    const refresh = vi.fn(async () => {});
+    const open = vi.fn();
+    const owner = remoteCreationOwner({
+      hostId: remote.id,
+      client: { call, refresh },
+      current: () => true,
+      open,
+    });
+    await expect(owner.call('humanDm', { humanId: 'person-b' })).rejects.toBeInstanceOf(
+      BridgeCallError,
+    );
+    expect(call).toHaveBeenCalledExactlyOnceWith('humanDm', { humanId: 'person-b' });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    await expect(owner.call('humanDm', { humanId: 'person-b' })).rejects.toMatchObject({
+      code: 'permission-required',
+      details: { permission: 'dm.humans' },
+    });
+  });
   it('retains the original local open stage after an HTTPS fallback receipt', async () => {
     const created: CreatedBot = {
       slug: 'imported',

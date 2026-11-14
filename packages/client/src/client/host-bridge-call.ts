@@ -1,7 +1,10 @@
-import { MethodRefused, type HostClient } from '../../../../apps/mobile/src/host/client.js';
+import { MethodRefused } from '../../../../apps/mobile/src/host/client.js';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
 
-export function hostBridgeCall(client: HostClient, current: () => boolean): BridgeCall {
+export function hostBridgeCall(
+  client: { call(method: string, payload?: Record<string, unknown>): Promise<unknown> },
+  current: () => boolean,
+): BridgeCall {
   return async (method, payload, signal) => {
     signal?.throwIfAborted();
     if (!current()) throw new Error('remote-conversation-unavailable');

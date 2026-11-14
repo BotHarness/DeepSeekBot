@@ -4,7 +4,6 @@ import {
   assignRosterChannel,
   createGroupChannel,
   createPersonaBot,
-  type BridgeCall,
   type CreatePersonaBotInput,
   type CreatedBot,
   openDmChannel,
@@ -12,6 +11,7 @@ import {
 } from './bridge.js';
 import type { ChannelSummary } from './store.js';
 import type { BridgeActions } from './actions.js';
+import { hostBridgeCall } from './host-bridge-call.js';
 
 export function bindBotCreationOwner(
   local: Pick<BridgeActions, 'createBot' | 'openCreatedBot'>,
@@ -87,18 +87,19 @@ export function remoteCreationOwner({
   submitted?: () => void;
   key?: () => string;
 }) {
-  const request = async (method: string, args: Record<string, unknown>): Promise<unknown> => {
+  const check = () => {
     if (!current())
       throw new BridgeCallError(
         'connection-host-changed',
         'This connection changed. Close and reopen the form.',
       );
+    return true;
+  };
+  const request = async (method: string, args: Record<string, unknown> = {}): Promise<unknown> => {
+    check();
     return client.call(method, args);
   };
-  const call: BridgeCall = async (method, args) => ({
-    ok: true,
-    value: await request(method, args),
-  });
+  const call = hostBridgeCall({ call: request }, check);
   let botReceipt: CreatedBot | undefined;
   let botInput: CreatePersonaBotInput | undefined;
   let channelReceipt: ChannelSummary | undefined;
