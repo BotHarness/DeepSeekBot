@@ -7,18 +7,18 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-it('appends account148 to offline147 while preserving published Channel access, Team lifecycle, retries and grants', () => {
+it('appends account150 after published Team models148 and usage149 while preserving published Channel access, Team lifecycle, retries and grants', () => {
   const home = createTempRoot('schema-main-e6-');
   const previous = trackTestOwner(
     mountOperationalDatabase({
       dshHome: home,
       schemaPlan: defineSchemaPlan(
-        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 147),
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 149),
       ),
     }),
   );
   expect(previous.mode).toBe('ready');
-  expect(previous.generation).toBe(147);
+  expect(previous.generation).toBe(149);
   const database = attachOperationalModule(previous, 'migration-fixture');
   const key = 'ab'.repeat(32);
   const activeId = 'a'.repeat(32),
@@ -94,7 +94,7 @@ it('appends account148 to offline147 while preserving published Channel access, 
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
   );
   expect(owner.mode).toBe('ready');
-  expect(owner.generation).toBe(148);
+  expect(owner.generation).toBe(150);
   const current = attachOperationalModule(owner, 'migration-fixture');
   expect(
     current.read((db) =>

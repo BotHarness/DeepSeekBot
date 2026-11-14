@@ -46,7 +46,7 @@ describe('published Human and Team schemas through M4 Channel access146', () => 
       mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
     );
     expect(current.mode).toBe('ready');
-    expect(current.generation).toBe(146);
+    expect(current.generation).toBe(e1SchemaPlan.targetGeneration);
     const migrated = attachOperationalModule(current, 'm4-channel-fixture');
     expect(
       migrated.read((db) =>
@@ -130,7 +130,7 @@ describe('published Human and Team schemas through M4 Channel access146', () => 
           mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
         );
         expect(owner.mode).toBe('ready');
-        expect(owner.generation).toBe(146);
+        expect(owner.generation).toBe(e1SchemaPlan.targetGeneration);
         const current = attachOperationalModule(owner, 'migration-fixture');
         const reopened = createDevicePairing({ database: current, hostName: 'Existing' });
         expect(reopened.admit(`Device ${deviceId}.${secret}`).ok).toBe(true);

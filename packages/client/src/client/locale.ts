@@ -5492,6 +5492,28 @@ export const zh = {
   'team.error.channelPostRestricted': '只有频道管理员可以在这里发消息。',
   'team.error.channelMentionRestricted': '只有频道管理员可以在这里 @所有人。',
   'team.error.staleChannelPolicy': '其他管理员刚改过这些设置，已刷新为最新内容，请重新修改。',
+  'team.roles.models': '模型',
+  'team.roles.modelsAll': '全部模型',
+  'team.roles.modelsOnly': '仅限以下模型',
+  'team.roles.modelsLoading': '正在加载模型…',
+  'team.roles.modelsFailed': '无法加载模型，请重试。',
+  'team.roles.modelsNone': '只有此角色的人，其 Bot 将无法使用任何模型。',
+  'team.usage.title': '成员用量',
+  'team.usage.period': '时间范围',
+  'team.usage.loading': '正在加载用量…',
+  'team.usage.failed': '无法加载用量，请重试。',
+  'team.usage.empty': '此时间范围内没有用量。',
+  'team.usage.unknown': '未知',
+  'team.usage.partial': '{value}+',
+  'team.usage.deleted': '已删除',
+  'team.usage.legacy': '启用 Team 模式之前的用量计入 Owner。',
+  'team.error.modelNotAllowed': '你的角色不能使用此模型。',
+  'team.models.notAllowed': '你的角色不能使用此 Bot 当前的模型。请换一个模型，否则它不会再回复。',
+  'team.models.notAllowedAsk':
+    '你的角色不能使用此 Bot 当前的模型，它不会再回复。请让管理员为它换一个模型。',
+  'failure.refused.modelNotAllowed': '你的角色不能使用这个 Bot 的模型',
+  'failure.refused.modelNotAllowedHint':
+    '在 Bot 设置的「模型」里换一个允许的模型，或请管理员调整角色。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11352,6 +11374,29 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.error.channelMentionRestricted': 'Only channel admins can mention @all here.',
   'team.error.staleChannelPolicy':
     'Another admin just changed these settings. They’ve been refreshed — make your change again.',
+  'team.roles.models': 'Models',
+  'team.roles.modelsAll': 'All models',
+  'team.roles.modelsOnly': 'Only these models',
+  'team.roles.modelsLoading': 'Loading models…',
+  'team.roles.modelsFailed': "Couldn't load models. Try again.",
+  'team.roles.modelsNone': 'Bots of people with only this role can’t use any model.',
+  'team.usage.title': 'Usage by member',
+  'team.usage.period': 'Period',
+  'team.usage.loading': 'Loading usage…',
+  'team.usage.failed': "Couldn't load usage. Try again.",
+  'team.usage.empty': 'No usage in this period.',
+  'team.usage.unknown': 'Unknown',
+  'team.usage.partial': '{value}+',
+  'team.usage.deleted': 'Deleted',
+  'team.usage.legacy': 'Usage from before Team mode is counted under the Owner.',
+  'team.error.modelNotAllowed': 'Your role can’t use this model.',
+  'team.models.notAllowed':
+    'Your role can’t use this Bot’s current model. Choose another model or it won’t reply.',
+  'team.models.notAllowedAsk':
+    'Your role can’t use this Bot’s current model, so it won’t reply. Ask an admin to choose another model.',
+  'failure.refused.modelNotAllowed': 'Your role can’t use this Bot’s model',
+  'failure.refused.modelNotAllowedHint':
+    'Choose an allowed model in the Bot’s Models settings, or ask an admin to change your role.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
