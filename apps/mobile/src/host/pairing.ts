@@ -1,3 +1,5 @@
+import { teamHttpsRoute } from './team-invitation';
+import { pairedMemberIdentity } from './member-identity';
 import type { ConnectionDiagnostic } from './connection-diagnostic';
 import { noiseFingerprint, noisePublicKey } from '../../../../packages/core/src/devices/noise/xk';
 import {
@@ -27,6 +29,7 @@ import { learnedRoutes } from './learned-routes';
 export const DEVICE_PREFIX = '/botharness-device';
 
 export interface PairingPayload {
+  member?: true;
   enrollment?: { body: string; signature: string };
   encryption?: {
     protocol: 'connect-noise-xk-v1';
@@ -138,12 +141,19 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
             parsePrivateAdmission(record(value['encryption'])['privateRelay'])?.origin,
           )
         : undefined;
-    return checked?.ok === true ? [checked.origin] : [];
+    return checked?.ok === true
+      ? [checked.origin]
+      : value['member'] === true &&
+          teamHttpsRoute(route) &&
+          record(value['encryption'])['protocol'] === 'connect-noise-xk-v1'
+        ? [new URL(route).origin]
+        : [];
   });
   if (routes.length === 0) return { ok: false, code: 'no-route' };
   return {
     ok: true,
     payload: {
+      ...(value['member'] === true ? { member: true as const } : {}),
       host: { id: host['id'], name: host['name'] },
       offer: value['offer'],
       routes,
@@ -194,7 +204,11 @@ export async function redeemPairing(options: {
     return { ok: false, code: 'no-route' };
   if (
     payload.routes.length === 0 ||
-    payload.routes.some((route) => !checkRoute(route, payload.encryption?.privateRelay?.origin).ok)
+    payload.routes.some(
+      (route) =>
+        !checkRoute(route, payload.encryption?.privateRelay?.origin).ok &&
+        !(payload.member && payload.encryption && teamHttpsRoute(route)),
+    )
   )
     return { ok: false, code: 'no-route' };
   if (payload.enrollment && payload.routes.some((route) => !isConnectRoute(route)))
@@ -395,9 +409,10 @@ export async function pairHost(options: {
       return parsed;
     }
     const existing = options.existing?.(parsed.payload.host.id);
-    const updated = existing?.encryption
-      ? await updatePairedRoutes(existing, parsed.payload, options.carrier, options.signal)
-      : undefined;
+    const updated =
+      !parsed.payload.member && existing?.encryption
+        ? await updatePairedRoutes(existing, parsed.payload, options.carrier, options.signal)
+        : undefined;
     const redeemed =
       updated && (updated.ok || updated.code !== 'reapproval-required')
         ? updated
@@ -678,6 +693,7 @@ function redeemEncryptedRoute(
     };
     const socket = openNoiseSocket({
       origin: route,
+      ...(payload.member ? { trustedHttpsOrigins: payload.routes } : {}),
       hostId: payload.host.id,
       encryption,
       raw: options.carrier,
@@ -709,6 +725,14 @@ function redeemEncryptedRoute(
               ],
               deviceId: value['deviceId'],
               credential: value['credential'],
+              ...(pairedMemberIdentity(value, noiseFingerprint(keyBytes(encryption.hostKey)))
+                ? {
+                    member: pairedMemberIdentity(
+                      value,
+                      noiseFingerprint(keyBytes(encryption.hostKey)),
+                    )!,
+                  }
+                : {}),
               encryption,
             },
           });

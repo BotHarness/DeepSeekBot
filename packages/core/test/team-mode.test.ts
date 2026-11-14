@@ -1,3 +1,21 @@
+import {
+  parsePairingLink,
+  redeemPairing,
+  pairHost,
+} from '../../../apps/mobile/src/host/pairing.js';
+import { createDevicePairing } from '../src/devices/pairing.js';
+import { createMemberDevices } from '../src/team/devices.js';
+import { createDeviceGateway } from '../src/devices/gateway.js';
+import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
+import { noisePublicKey, noiseFingerprint, NOISE_PROTOCOL } from '../src/devices/noise/xk.js';
+import { CONNECT_PROTOCOL } from '../src/devices/noise/channel.js';
+import { randomBytes } from 'node:crypto';
+import { WebSocket } from 'ws';
+import {
+  signInTeamDevice,
+  changeTeamDevicePassword,
+} from '../../../apps/mobile/src/host/team-client.js';
+import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 import { createServer, IncomingMessage, request as httpRequest } from 'node:http';
 import { Socket } from 'node:net';
 import { readFileSync } from 'node:fs';
@@ -71,6 +89,40 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     await ctx.fiber.dispose();
     db.close();
   });
+  const pairing = createDevicePairing({
+    database,
+    hostName: 'Team Host',
+    ...(options.now ? { now: options.now } : {}),
+    members: {
+      redeem: (id, name, key) => team.createDeviceGrant(id, name, key),
+      admit: (authorization, key) => {
+        const peer = team.admitDevice(authorization, key);
+        return peer?.principal.kind === 'botharness-member'
+          ? team.device(peer.principal.grantId)
+          : undefined;
+      },
+      check: (id) => team.device(id),
+      attach: (id, close) => team.attachDeviceStream(id, close),
+    },
+  });
+  const privateKey = randomBytes(32);
+  const publicKey = noisePublicKey(privateKey);
+  const encryption: import('../src/devices/noise-identity.js').EncryptionIdentity = {
+    protocol: CONNECT_PROTOCOL,
+    noise: NOISE_PROTOCOL,
+    required: true as const,
+    publicKey: Buffer.from(publicKey).toString('hex'),
+    fingerprint: noiseFingerprint(publicKey),
+  };
+  const devices = createMemberDevices({
+    team,
+    pairing,
+    encryption: async () => encryption,
+    routes: async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080'],
+    ...(options.now ? { now: options.now } : {}),
+  });
+  const unbindDevices = team.bindDevices(devices);
+  closes.push(async () => unbindDevices());
   const methods = createBridgeMethodsForHumans({
     registry,
     channels,
@@ -121,6 +173,10 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   const gateway = new TypertGatewayService(ctx, {});
   return {
     team,
+    devices,
+    pairing,
+    encryption,
+    privateKey,
     channels,
     database,
     db,
@@ -1345,3 +1401,451 @@ describe('member entry addresses', () => {
     expect(local.team.mode(owner).memberUrls).toEqual([]);
   });
 });
+
+async function memberDeviceHost(
+  f: ReturnType<typeof teamFixture>,
+  options: { tls?: boolean; remote?: boolean } = {},
+) {
+  const http = createTeamHttp({
+    team: f.team,
+    devices: f.devices,
+    gateway: f.gateway,
+    hostName: () => 'Team Host',
+    tls: () => options.tls ?? true,
+    readResource: async () => new Response(''),
+    fetchBundle: async () => new Response(''),
+  });
+  const mintOwner = vi.fn(() => {
+    throw new Error('member-must-never-mint-owner-cookie');
+  });
+  let port = 0;
+  const device = createDeviceGateway({
+    team: http,
+    pairing: f.pairing,
+    port: () => port,
+    authenticatedUrl: mintOwner,
+  });
+  const encrypted = createEncryptedGateway({
+    pairing: f.pairing,
+    memberDevices: f.devices,
+    key: async () => Uint8Array.from(f.privateKey),
+    port: () => port,
+  });
+  const server = createServer((req, res) => {
+    if (req.url === '/botharness-device/channel') {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ host: f.pairing.host(), encryption: f.encryption }));
+      return;
+    }
+    if (options.remote)
+      Object.defineProperty(req.socket, 'remoteAddress', {
+        value: '192.0.2.5',
+        configurable: true,
+      });
+    void device.handle(req, res);
+  });
+  server.on('upgrade', (req, socket, head) => {
+    if (req.url === '/botharness-device/channel') void encrypted.upgrade(req, socket, head);
+    else void device.upgrade(req, socket, head);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('missing-address');
+  port = address.port;
+  closes.push(async () => {
+    encrypted.close();
+    await http.close();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  const origin = `http://127.0.0.1:${port}`;
+  const post = (path: string, input: unknown, credential?: string) =>
+    fetch(`${origin}/botharness-device${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(credential ? { authorization: `Device ${credential}` } : {}),
+      },
+      body: JSON.stringify(input),
+    });
+  const signIn = (input: Record<string, unknown> = {}) =>
+    post('/team/device-sign-in', {
+      username: 'bob',
+      password: 'initialPassword' in f ? f.initialPassword : '',
+      deviceName: 'Phone',
+      fingerprint: f.encryption.fingerprint,
+      ...input,
+    });
+  const carrier: HostCarrier = {
+    randomBytes: () => randomBytes(32),
+    request: async (url, init) => {
+      const target = new URL(url);
+      const res = await fetch(`${origin}${target.pathname}${target.search}`, {
+        method: init.method,
+        headers: init.headers ?? {},
+        signal: init.signal,
+        ...(typeof init.body === 'string' ? { body: init.body } : {}),
+      });
+      return { status: res.status, text: () => res.text() };
+    },
+    openSocket: (url, events, headers) => {
+      const target = new URL(url);
+      const ws = new WebSocket(`ws://127.0.0.1:${port}${target.pathname}`, {
+        ...(headers ? { headers } : {}),
+      });
+      ws.on('open', events.open);
+      ws.on('message', (raw) => events.message(raw.toString()));
+      ws.on('close', () => events.closed('socket-closed'));
+      ws.on('error', () => events.closed('socket-error'));
+      return { send: (text) => ws.send(text), close: () => ws.close() };
+    },
+  };
+  return { origin, post, signIn, mintOwner, carrier };
+}
+
+describe('member devices', { timeout: 60_000 }, () => {
+  it('issues a secret-free invitation only to the Owner and self-pairing only for the caller', async () => {
+    const f = await enabledFixture();
+    const invitation = await f.team.invitation(owner, f.human.humanId);
+    const payload = JSON.parse(
+      Buffer.from(new URL(invitation.link).searchParams.get('i')!, 'base64url').toString(),
+    );
+    expect(payload).toEqual({
+      v: 1,
+      host: { ...f.pairing.host(), fingerprint: f.encryption.fingerprint },
+      routes: ['https://host.test'],
+      username: 'bob',
+      expiresAt: invitation.expiresAt,
+    });
+    expect(invitation.qr.size).toBeGreaterThan(0);
+    expect(invitation.link).not.toContain(f.initialPassword);
+    expect(() => f.team.invitation(f.human, f.human.humanId)).toThrow('forbidden');
+    expect(() => f.team.pairingOffer(f.human)).toThrow('password-change-required');
+    expect(() => f.team.pairingOffer(owner)).toThrow('credentials-invalid');
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const offer = await f.team.pairingOffer(f.human);
+    const link = JSON.parse(
+      Buffer.from(new URL(offer.link).searchParams.get('p')!, 'base64url').toString(),
+    );
+    const redeemed = f.pairing.redeem({ offer: link.offer, name: 'Second phone' });
+    expect(redeemed).toMatchObject({
+      ok: true,
+      humanId: f.human.humanId,
+      device: { humanId: f.human.humanId, name: 'Second phone' },
+    });
+    expect(f.pairing.redeem({ offer: link.offer })).toEqual({ ok: false, code: 'offer-invalid' });
+    expect(f.pairing.offerStatus(offer.receipt)).toMatchObject({ state: 'redeemed' });
+    expect(f.pairing.list()).toEqual([]);
+  });
+
+  it('expires self-pairing offers and rechecks suspension and forced reset at redemption', async () => {
+    let now = Date.now();
+    const f = await enabledFixture({ now: () => now });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const token = async () => {
+      const offer = await f.team.pairingOffer(f.human);
+      return JSON.parse(
+        Buffer.from(new URL(offer.link).searchParams.get('p')!, 'base64url').toString(),
+      ).offer;
+    };
+    const expired = await token();
+    now += 10 * 60_000;
+    expect(f.pairing.redeem({ offer: expired })).toEqual({ ok: false, code: 'offer-expired' });
+    const reset = await token();
+    await f.team.resetPassword(owner, f.human.humanId);
+    expect(() => f.pairing.redeem({ offer: reset })).toThrow('password-change-required');
+    const current = await f.team.resetPassword(owner, f.human.humanId);
+    await f.team.changePassword(f.human, current.initialPassword, 'member-password-2');
+    const suspended = await token();
+    await f.team.suspend(owner, f.human.humanId);
+    expect(() => f.pairing.redeem({ offer: suspended })).toThrow('member-suspended');
+  });
+
+  it.each([
+    [{ fingerprint: 'wrong' }, 'fingerprint-mismatch', 403],
+    [{ password: 'wrong' }, 'credentials-invalid', 401],
+    [{ username: 'unknown' }, 'credentials-invalid', 401],
+    [{ username: 'owner' }, 'credentials-invalid', 401],
+    [{ deviceName: '' }, 'invalid-input', 400],
+  ] as const)('refuses device sign-in %j as %s', async (input, code, status) => {
+    const f = await enabledFixture();
+    const host = await memberDeviceHost(f);
+    const response = await host.signIn({ password: f.initialPassword, ...input });
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ code });
+    expect(host.mintOwner).not.toHaveBeenCalled();
+  });
+
+  it('refuses cleartext and spoofed proxy TLS, mode off, suspension and rate limiting', async () => {
+    const f = await enabledFixture();
+    const host = await memberDeviceHost(f, { tls: false, remote: true });
+    let response = await host.signIn({ password: f.initialPassword });
+    expect(await response.json()).toEqual({ code: 'insecure-transport' });
+    const secure = await memberDeviceHost(f);
+    await f.team.setMode(owner, false);
+    response = await secure.signIn({ password: f.initialPassword });
+    expect(await response.json()).toEqual({ code: 'team-mode-off' });
+    await f.team.setMode(owner, true);
+    await f.team.suspend(owner, f.human.humanId);
+    response = await secure.signIn({ password: f.initialPassword });
+    expect(await response.json()).toEqual({ code: 'member-suspended' });
+    for (let i = 0; i < 4; i++) await secure.signIn({ password: 'wrong' });
+    response = await secure.signIn({ password: f.initialPassword });
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ code: 'rate-limited', retryAfterSeconds: 60 });
+  });
+
+  it('gates every device route and mux until password change, preserves only that grant, and dispatches through the member Peer', async () => {
+    let now = Date.now();
+    const f = await enabledFixture({ now: () => now });
+    const host = await memberDeviceHost(f);
+    const other = await f.team.signIn('bob', f.initialPassword, 'other-ip');
+    const response = await host.signIn({ password: f.initialPassword });
+    expect(response.status).toBe(200);
+    expect(response.headers.has('set-cookie')).toBe(false);
+    const signed = await response.json();
+    expect(signed).toMatchObject({
+      humanId: f.human.humanId,
+      displayName: 'Bob',
+      mustChangePassword: true,
+    });
+    expect(
+      f.database.read((db) =>
+        db
+          .prepare('SELECT kind, device_name, token_hash FROM member_grants WHERE grant_id = ?')
+          .get(signed.deviceId),
+      ),
+    ).toMatchObject({ kind: 'paired-device', device_name: 'Phone' });
+    for (const path of ['/api/botharness/teamMode', '/stream-ticket', '/unpair', '/push']) {
+      const answer = await host.post(path, {}, signed.credential);
+      expect(await answer.json()).toEqual({ code: 'password-change-required' });
+    }
+    let answer = await host.post(
+      '/team/device-password',
+      { current: 'wrong', next: 'member-password-1' },
+      signed.credential,
+    );
+    expect(answer.status).toBe(401);
+    answer = await host.post(
+      '/team/device-password',
+      { current: f.initialPassword, next: 'short' },
+      signed.credential,
+    );
+    expect(answer.status).toBe(400);
+    answer = await host.post(
+      '/team/device-password',
+      { current: f.initialPassword, next: f.initialPassword },
+      signed.credential,
+    );
+    expect(answer.status).toBe(409);
+    now += 60_001;
+    answer = await host.post(
+      '/team/device-password',
+      { current: f.initialPassword, next: 'member-password-1' },
+      signed.credential,
+    );
+    expect(answer.status).toBe(200);
+    expect(f.team.admit(other.token)).toBeUndefined();
+    const own = f.channels.createGroup(f.human, { name: 'Member group', members: [] });
+    const secret = f.channels.createGroup(owner, { name: 'Secret', members: [] });
+    new NativeSession(f.ctx);
+    const rpc = async (namespace: string, method: string, args = {}) =>
+      (
+        await host.post(
+          `/api/${namespace}/${method}`,
+          {
+            type: 'client-request',
+            rpcId: 'device-test',
+            method: `${namespace}/${method}`,
+            payload: { args },
+          },
+          signed.credential,
+        )
+      ).json();
+    expect(await rpc('botharness', 'channelMessages', { channelId: own.id })).toMatchObject({
+      result: { ok: true },
+    });
+    expect(await rpc('botharness', 'channelMessages', { channelId: secret.id })).toMatchObject({
+      result: { ok: false, error: { code: 'remote-access/denied' } },
+    });
+    expect(await rpc('session', 'list')).toMatchObject({
+      result: { ok: false, error: { code: 'remote-access/denied' } },
+    });
+    expect(host.mintOwner).not.toHaveBeenCalled();
+    const peer = f.team.admitDevice(`Device ${signed.credential}`);
+    expect(peer?.principal).toMatchObject({
+      kind: 'botharness-member',
+      humanId: f.human.humanId,
+      grantId: signed.deviceId,
+    });
+    const committed = f.db.diagnostics().metrics.transactionsCommitted;
+    for (let i = 0; i < 20; i++)
+      expect(f.team.admitDevice(`Device ${signed.credential}`)).toBe(peer);
+    expect(f.db.diagnostics().metrics.transactionsCommitted).toBe(committed);
+    await f.team.revoke(signed.deviceId);
+    answer = await host.post('/api/botharness/ping', {}, signed.credential);
+    expect(answer.status).toBe(401);
+  });
+
+  it('signs in and changes the initial password through real Noise with the mobile module, pins its key and never touches Owner cookies', async () => {
+    const f = await enabledFixture();
+    const host = await memberDeviceHost(f);
+    const invitation = {
+      v: 1 as const,
+      host: { ...f.pairing.host(), fingerprint: f.encryption.fingerprint },
+      routes: ['https://habcdefghijkl.deepseekbot.dev'],
+      username: 'bob',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    };
+    const signed = await signInTeamDevice({
+      carrier: host.carrier,
+      invitation,
+      password: f.initialPassword,
+      deviceName: 'Noise phone',
+    });
+    expect(signed).toMatchObject({
+      ok: true,
+      value: { member: { humanId: f.human.humanId, mustChangePassword: true } },
+    });
+    if (!signed.ok) throw new Error(signed.code);
+    const changed = await changeTeamDevicePassword({
+      carrier: host.carrier,
+      host: signed.value,
+      current: f.initialPassword,
+      next: 'member-password-1',
+    });
+    expect(changed).toMatchObject({ ok: true, value: { member: { mustChangePassword: false } } });
+    expect(f.team.admitDevice(`Device ${signed.value.credential}`, '1'.repeat(64))).toBeUndefined();
+    expect(host.mintOwner).not.toHaveBeenCalled();
+  });
+});
+
+it('uses the member Peer for device mux, refuses native streams and closes the socket on revocation', async () => {
+  const f = await enabledFixture();
+  const host = await memberDeviceHost(f);
+  const signed = await (await host.signIn({ password: f.initialPassword })).json();
+  const refusal = await new Promise<string>((resolve) => {
+    const ws = new WebSocket(
+      host.origin.replace('http:', 'ws:') + '/botharness-device/api/remote.mux',
+      { headers: { authorization: `Device ${signed.credential}` } },
+    );
+    ws.on('unexpected-response', (_request, response) => {
+      let body = '';
+      response.on('data', (data) => (body += String(data)));
+      response.on('end', () => {
+        resolve(body);
+        ws.terminate();
+      });
+    });
+    ws.on('error', () => {});
+  });
+  expect(JSON.parse(refusal)).toEqual({ code: 'password-change-required' });
+  await host.post(
+    '/team/device-password',
+    { current: f.initialPassword, next: 'member-password-1' },
+    signed.credential,
+  );
+  const own = f.channels.createGroup(f.human, { name: 'Own device Channel', members: [] });
+  const secret = f.channels.createGroup(owner, { name: 'Owner Channel', members: [] });
+  const ws = new WebSocket(
+    host.origin.replace('http:', 'ws:') + '/botharness-device/api/remote.mux',
+    { headers: { authorization: `Device ${signed.credential}` } },
+  );
+  closes.push(async () => {
+    ws.terminate();
+  });
+  const frames: unknown[] = [];
+  ws.on('message', (raw) => frames.push(JSON.parse(raw.toString())));
+  await new Promise<void>((resolve, reject) => {
+    ws.once('open', resolve);
+    ws.once('error', reject);
+  });
+  ws.send(
+    JSON.stringify({
+      type: 'open',
+      streamId: 'own',
+      endpoint: 'botharness/followChannel',
+      payload: { args: { channelId: own.id, limit: 10 } },
+    }),
+  );
+  ws.send(
+    JSON.stringify({
+      type: 'open',
+      streamId: 'secret',
+      endpoint: 'botharness/followChannel',
+      payload: { args: { channelId: secret.id, limit: 10 } },
+    }),
+  );
+  ws.send(
+    JSON.stringify({
+      type: 'open',
+      streamId: 'native',
+      endpoint: 'session/list',
+      payload: { args: {} },
+    }),
+  );
+  await vi.waitFor(() => {
+    expect(frames).toContainEqual(expect.objectContaining({ type: 'item', streamId: 'own' }));
+    expect(frames).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        streamId: 'secret',
+        error: expect.objectContaining({ code: 'remote-access/denied' }),
+      }),
+    );
+    expect(frames).toContainEqual(expect.objectContaining({ type: 'error', streamId: 'native' }));
+  });
+  const closed = new Promise<void>((resolve) => ws.once('close', () => resolve()));
+  await f.team.revoke(signed.deviceId);
+  await closed;
+  expect(host.mintOwner).not.toHaveBeenCalled();
+}, 60_000);
+
+it('redeems a member self-pairing QR on Host HTTPS through the existing Noise pair protocol without Owner approval', async () => {
+  const f = await enabledFixture();
+  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+  const host = await memberDeviceHost(f);
+  const offer = await f.team.pairingOffer(f.human);
+  const parsed = parsePairingLink(offer.link);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) throw new Error(parsed.code);
+  const paired = await redeemPairing({
+    payload: parsed.payload,
+    deviceName: 'Second phone',
+    carrier: host.carrier,
+    confirmFingerprint: async (fingerprint) => fingerprint === f.encryption.fingerprint,
+  });
+  expect(paired).toMatchObject({
+    ok: true,
+    host: { member: { humanId: f.human.humanId, mustChangePassword: false } },
+  });
+  if (!paired.ok) throw new Error(paired.code);
+  expect(f.team.admitDevice(`Device ${paired.host.credential}`)?.principal).toMatchObject({
+    kind: 'botharness-member',
+    humanId: f.human.humanId,
+  });
+  expect(f.pairing.offerStatus(offer.receipt)).toMatchObject({
+    state: 'redeemed',
+    deviceId: paired.host.deviceId,
+  });
+  const another = await f.team.pairingOffer(f.human);
+  const save = vi.fn(
+    async (_host: import('../../../apps/mobile/src/host/hosts.js').SavedHost) => {},
+  );
+  expect(
+    await pairHost({
+      text: another.link,
+      method: 'qr',
+      existing: () => paired.host,
+      deviceName: 'Replacement identity',
+      carrier: host.carrier,
+      save,
+      telemetry: { pairing: () => ({ finish: () => {} }) },
+    }),
+  ).toEqual({ ok: true });
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({ member: expect.objectContaining({ humanId: f.human.humanId }) }),
+  );
+  expect(f.pairing.list()).toEqual([]);
+  expect(host.mintOwner).not.toHaveBeenCalled();
+}, 60_000);

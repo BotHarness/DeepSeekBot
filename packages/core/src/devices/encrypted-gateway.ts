@@ -1,3 +1,5 @@
+import type { MemberDevices } from '../team/devices.js';
+import { TeamError } from '../team/error.js';
 import type { OfferVerification } from './connect-account.js';
 import type { IncomingMessage } from 'node:http';
 import { request } from 'node:http';
@@ -61,6 +63,7 @@ function pathAllowed(path: string): boolean {
     ].includes(name) ||
     name === '/botharness-device/push' ||
     name.startsWith('/botharness-device/push/') ||
+    name === '/botharness-device/team/device-password' ||
     name === '/botharness-device/feed-read' ||
     name === '/botharness-device/unpair' ||
     name === '/botharness-device/devices/remove'
@@ -98,6 +101,7 @@ let nextCallChannel = 0;
 
 export function createEncryptedGateway(options: {
   pairing: DevicePairing;
+  memberDevices?: MemberDevices;
   route?: 'connect' | 'lan';
   key(): Promise<Uint8Array>;
   port(): number;
@@ -132,7 +136,7 @@ export function createEncryptedGateway(options: {
     encrypted = 0,
     upgrading = 0;
   const changed = () => options.changed?.({ negotiating, encrypted });
-  const serve = (socket: WebSocket, key: Uint8Array) => {
+  const serve = (socket: WebSocket, key: Uint8Array, remoteAddress: string) => {
     const channel = new ConnectChannel({
       role: 'responder',
       hostId: options.pairing.host().id,
@@ -567,6 +571,11 @@ export function createEncryptedGateway(options: {
         (method !== 'GET' && method !== 'POST')
       )
         throw new Error('channel-request-invalid');
+      if (
+        credential?.startsWith('member.') &&
+        /\/(?:computer|browser|voice|direct)(?:\/|$)/u.test(path)
+      )
+        throw new Error('remote-access/denied');
       if (path === `/botharness-device${LOCAL_VIDEO_PATH}`) return video(id, input);
       if (path === `/botharness-device${VOICE_CALL_PATH}`) return call(id, input);
       if (path === `/botharness-device${DIRECT_PATH}`) return direct(id, input);
@@ -629,6 +638,29 @@ export function createEncryptedGateway(options: {
       const type = input['type'];
       if (!admitted) {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
+        if (type === 'team-sign-in' && options.memberDevices) {
+          try {
+            const result = await options.memberDevices.signIn(
+              input['input'],
+              remoteAddress,
+              publicKey,
+            );
+            if (!closed) send({ type: 'team-signed-in', result: { ok: true, value: result } });
+          } catch (error) {
+            if (!closed)
+              send({
+                type: 'team-signed-in',
+                result: {
+                  ok: false,
+                  code: error instanceof TeamError ? error.code : 'invalid-input',
+                  ...(error instanceof TeamError && error.retryAfterSeconds
+                    ? { retryAfterSeconds: error.retryAfterSeconds }
+                    : {}),
+                },
+              });
+          }
+          return;
+        }
         if (type === 'pair') {
           let offer = field(input, 'offer');
           let accountAutoApprove = false;
@@ -681,6 +713,13 @@ export function createEncryptedGateway(options: {
             host: paired.host,
             deviceId: paired.device.id,
             credential: paired.credential,
+            ...(paired.humanId === undefined
+              ? {}
+              : {
+                  humanId: paired.humanId,
+                  displayName: paired.displayName,
+                  mustChangePassword: paired.mustChangePassword,
+                }),
           });
           return;
         }
@@ -829,7 +868,9 @@ export function createEncryptedGateway(options: {
           return;
         }
         const identity = key;
-        server.handleUpgrade(request, socket, head, (client) => serve(client, identity));
+        server.handleUpgrade(request, socket, head, (client) =>
+          serve(client, identity, request.socket.remoteAddress ?? 'unknown'),
+        );
       } catch {
         socket.destroy();
       } finally {

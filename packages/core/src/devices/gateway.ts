@@ -1,3 +1,4 @@
+import { memberDeviceRequest, deviceFailure } from '../team/device-http.js';
 import { TEAM_PATH, type TeamHttp } from '../team/http.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -267,11 +268,16 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       input = JSON.parse(text ?? '') as typeof input;
     } catch {}
     if (typeof input.offer !== 'string') return refuse(response, 401, 'offer-invalid');
-    const result = pairing.redeem({
-      offer: input.offer,
-      ...(typeof input.name === 'string' ? { name: input.name } : {}),
-      ...(typeof input.verifier === 'string' ? { verifier: input.verifier } : {}),
-    });
+    let result;
+    try {
+      result = pairing.redeem({
+        offer: input.offer,
+        ...(typeof input.name === 'string' ? { name: input.name } : {}),
+        ...(typeof input.verifier === 'string' ? { verifier: input.verifier } : {}),
+      });
+    } catch (error) {
+      return deviceFailure(response, error);
+    }
     if (!result.ok) return refuse(response, 401, result.code);
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     response.end(
@@ -279,6 +285,13 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         deviceId: result.device.id,
         credential: result.credential,
         host: result.host,
+        ...(result.humanId === undefined
+          ? {}
+          : {
+              humanId: result.humanId,
+              displayName: result.displayName,
+              mustChangePassword: result.mustChangePassword,
+            }),
       }),
     );
   };
@@ -644,6 +657,10 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
   return {
     async handle(request, response) {
       const path = new URL(request.url ?? '/', 'http://device').pathname;
+      if (memberDeviceRequest(request) && path !== `${TEAM_PATH}/device-sign-in`) {
+        if (options.team?.device) return options.team.device.handle(request, response);
+        return refuse(response, 401, 'device-unknown');
+      }
       if (path === TEAM_PATH || path.startsWith(`${TEAM_PATH}/`)) {
         if (options.team) return options.team.handle(request, response);
         return refuse(response, 404, 'not-found');
@@ -710,6 +727,10 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
     async upgrade(request, socket, head) {
       const pathname = new URL(request.url ?? '/', 'http://device').pathname;
+      if (memberDeviceRequest(request)) {
+        if (options.team?.device) return options.team.device.upgrade(request, socket, head);
+        return refuseUpgrade(socket, 401, 'device-unknown');
+      }
       if (
         pathname !== DEVICE_MUX_PATH &&
         !(DEVICE_SIGNALING_PATHS as readonly string[]).includes(pathname)

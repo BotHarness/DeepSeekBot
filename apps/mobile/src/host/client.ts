@@ -1,3 +1,4 @@
+import type { HostMemberIdentity } from './member-identity';
 import { readComputerAvailability } from './computer-availability';
 import {
   encryptedCarrier,
@@ -204,6 +205,7 @@ export interface HostApiAnswer {
 }
 
 export interface HostClientOptions {
+  member?: HostMemberIdentity;
   routePreference?: string;
   onRoutePreferenceChanged?: (route: string | undefined) => Promise<void>;
   onRoutesChanged?: (routes: string[]) => Promise<void>;
@@ -372,6 +374,7 @@ export function arrangementOf(value: unknown): RosterArrangement | undefined {
 export function createHostClient(options: HostClientOptions): HostClient {
   const carrier = encryptedCarrier({
     raw: options.carrier,
+    ...(options.member ? { trustedHttpsOrigins: options.routes } : {}),
     hostId: options.hostId ?? '',
     credential: options.credential,
     ...(options.encryption === undefined ? {} : { encryption: options.encryption }),

@@ -1,3 +1,9 @@
+import {
+  parseHostMemberIdentity,
+  identitySwitchRequired,
+  hostIdentityMatches,
+  type HostMemberIdentity,
+} from './member-identity';
 import { parseAccountOwner, type AccountOwner } from './account-owner';
 import { hasPrivateOrigin, isPrivateRoute } from './route';
 
@@ -16,6 +22,7 @@ export interface HostEncryption {
 }
 
 export interface SavedHost {
+  member?: HostMemberIdentity;
   routePreference?: string;
   accountOwner?: AccountOwner;
   connectHost?: string;
@@ -40,6 +47,14 @@ function record(value: unknown): Record<string, unknown> {
 export function parseSavedHost(input: unknown): SavedHost | undefined {
   const value = record(input);
   if (value['routePreference'] !== undefined && typeof value['routePreference'] !== 'string')
+    return undefined;
+  const member = parseHostMemberIdentity(value['member']);
+  if (value['member'] !== undefined && !member) return undefined;
+  if (
+    typeof value['credential'] === 'string' &&
+    value['credential'].startsWith('member.') &&
+    !member
+  )
     return undefined;
   const privateRelay = parsePrivateAdmission(record(value['encryption'])['privateRelay']);
   if (record(value['encryption'])['privateRelay'] !== undefined && !privateRelay) return;
@@ -91,6 +106,7 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
         ...(parseEncryption(value['encryption']) === undefined
           ? {}
           : { encryption: parseEncryption(value['encryption'])! }),
+        ...(member ? { member } : {}),
         hostId: value['hostId'],
         hostName: value['hostName'],
         routes: (encryptedRoutes ?? value['routes']) as string[],
@@ -139,7 +155,7 @@ export function parseSavedHosts(
     ? value['pendingAccountRemoval'].flatMap((entry) => parseSavedHost(entry) ?? [])
     : [];
   return {
-    hosts,
+    hosts: [...new Map(hosts.map((host) => [host.hostId, host])).values()],
     ...(current === undefined ? {} : { current }),
     ...(pendingAccountRemoval.length ? { pendingAccountRemoval } : {}),
   };
@@ -149,10 +165,17 @@ export function currentHost(state: SavedHosts): SavedHost | undefined {
   return state.hosts.find((host) => host.hostId === state.current);
 }
 
-export function withHost(state: SavedHosts, host: SavedHost): SavedHosts {
+export function withHost(
+  state: SavedHosts,
+  host: SavedHost,
+  confirmedIdentitySwitch = false,
+): SavedHosts {
   if (state.pendingAccountRemoval?.some((entry) => entry.hostId === host.hostId))
     throw new Error('account-cleanup-pending');
   const previous = state.hosts.find((entry) => entry.hostId === host.hostId);
+  if (!hostIdentityMatches(previous, host)) throw new Error('fingerprint-mismatch');
+  if (identitySwitchRequired(previous, host) && !confirmedIdentitySwitch)
+    throw new Error('identity-switch-required');
   if (previous?.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
     throw new Error('host-key-mismatch');
 
