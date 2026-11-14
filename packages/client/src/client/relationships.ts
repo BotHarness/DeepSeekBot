@@ -79,7 +79,7 @@ export async function pairReciprocalHost(
         throw new Error('relationship-expired');
     }
     if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
-    const result = await sources.enrollRelationship(relationship.id, name, trust?.signal);
+    const result = await sources.enrollRelationship(relationship, name, trust?.signal);
     saved = result.ok;
     return result;
   } catch {

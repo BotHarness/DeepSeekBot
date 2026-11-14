@@ -83,7 +83,20 @@ describe('remote hosts', () => {
     const off = sources.subscribe(() => {});
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
     expect(await sources.pair(link(), 'Member')).toEqual({ ok: false, code: 'owner-required' });
-    expect(await sources.enrollRelationship('a'.repeat(32), 'Member')).toEqual({
+    expect(
+      await sources.enrollRelationship(
+        {
+          id: 'a'.repeat(32),
+          peer: {
+            id: 'host-b',
+            name: 'Studio',
+            publicKey: 'ab'.repeat(32),
+            routes: ['http://127.0.0.1:47001'],
+          },
+        },
+        'Member',
+      ),
+    ).toEqual({
       ok: false,
       code: 'owner-required',
     });

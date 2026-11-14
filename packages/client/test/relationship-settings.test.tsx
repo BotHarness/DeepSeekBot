@@ -5,11 +5,15 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { RelationshipSettings } from '../src/client/relationship-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-const source = vi.hoisted(() => ({
-  getSnapshot: vi.fn(() => ({ hosts: [{ host: { hostId: 'peer' } }] })),
-  select: vi.fn(),
-  enrollRelationship: vi.fn(),
-}));
+const source = vi.hoisted(() => {
+  const snapshot = { hosts: [{ host: { hostId: 'peer' } }] };
+  return {
+    getSnapshot: vi.fn(() => snapshot),
+    subscribe: vi.fn(() => () => {}),
+    select: vi.fn(),
+    enrollRelationship: vi.fn(),
+  };
+});
 vi.mock('../src/client/remote-hosts.js', () => ({ remoteHosts: () => source }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: 'button',
