@@ -5334,6 +5334,7 @@ export const zh = {
   'team.error.memberNotFound': '该成员已不存在。',
   'team.error.deviceNotFound': '该设备已登出。',
   'team.error.memberSuspended': '该成员已停用。',
+  'team.error.permissionNotGrantable': '你只能授予自己拥有的权限。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11024,6 +11025,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.error.memberNotFound': 'This member no longer exists.',
   'team.error.deviceNotFound': 'This device is already signed out.',
   'team.error.memberSuspended': 'This member is suspended.',
+  'team.error.permissionNotGrantable': 'You can only grant permissions you have.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;

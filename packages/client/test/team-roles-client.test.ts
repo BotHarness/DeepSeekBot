@@ -107,3 +107,17 @@ describe('Team roles bridge', () => {
     ]);
   });
 });
+
+describe('granting rules in the UI', () => {
+  it('offers non-Owners only permissions they hold and never private-content viewing', async () => {
+    const { canGrant, canGrantAll } = await import('../src/client/team-roles-bridge.js');
+    const admin = {
+      owner: false,
+      permissions: ['roles.manage', 'usage.view', 'privateContent.view'],
+    };
+    expect(canGrant(admin, 'usage.view')).toBe(true);
+    expect(canGrant(admin, 'audit.view')).toBe(false);
+    expect(canGrant(admin, 'privateContent.view')).toBe(false);
+    expect(canGrantAll({ owner: true, permissions: [] }, ['privateContent.view'])).toBe(true);
+  });
+});

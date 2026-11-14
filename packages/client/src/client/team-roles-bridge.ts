@@ -161,3 +161,17 @@ export function canManage(
 ): boolean {
   return viewer.owner || viewer.permissions.includes(permission);
 }
+
+export interface GrantingViewer {
+  readonly owner: boolean;
+  readonly permissions: readonly string[];
+}
+
+export function canGrant(viewer: GrantingViewer, permission: string): boolean {
+  if (viewer.owner) return true;
+  return permission !== 'privateContent.view' && viewer.permissions.includes(permission);
+}
+
+export function canGrantAll(viewer: GrantingViewer, permissions: readonly string[]): boolean {
+  return permissions.every((permission) => canGrant(viewer, permission));
+}

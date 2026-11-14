@@ -22,6 +22,9 @@ import {
   type MemberDevice,
   type PermissionEntry,
   type PermissionGroup,
+  canGrant,
+  canGrantAll,
+  type GrantingViewer,
   type TeamRole,
 } from './team-roles-bridge.js';
 import { teamErrorText } from './team-settings.js';
@@ -80,6 +83,7 @@ export function RolesSection({
   roles,
   catalog,
   canEdit,
+  viewer,
   onChanged,
 }: {
   call: BridgeCall;
@@ -87,6 +91,7 @@ export function RolesSection({
   roles: readonly TeamRole[];
   catalog: readonly PermissionEntry[];
   canEdit: boolean;
+  viewer: GrantingViewer;
   onChanged(): void;
 }): ReactElement {
   const [editing, setEditing] = useState<TeamRole | 'new'>();
@@ -113,7 +118,7 @@ export function RolesSection({
                 permissions: String(role.permissions.length),
               })}
               control={
-                canEdit ? (
+                canEdit && canGrantAll(viewer, role.permissions) ? (
                   <Button
                     variant="outline"
                     aria-label={t('team.roles.editNamed', { name: roleLabel(t, role) })}
@@ -133,6 +138,7 @@ export function RolesSection({
           t={t}
           role={editing === 'new' ? undefined : editing}
           catalog={catalog}
+          viewer={viewer}
           onCancel={() => setEditing(undefined)}
           onSaved={() => {
             setEditing(undefined);
@@ -149,6 +155,7 @@ function RoleDialog({
   t,
   role,
   catalog,
+  viewer,
   onCancel,
   onSaved,
 }: {
@@ -156,6 +163,7 @@ function RoleDialog({
   t: BotHarnessTranslate;
   role: TeamRole | undefined;
   catalog: readonly PermissionEntry[];
+  viewer: GrantingViewer;
   onCancel(): void;
   onSaved(): void;
 }): ReactElement {
@@ -249,7 +257,9 @@ function RoleDialog({
               </legend>
               <div {...stylex.props(styles.checks)}>
                 {entries.map((entry) => {
-                  const locked = builtin === 'admin' && entry.id === 'privateContent.view';
+                  const locked =
+                    (builtin === 'admin' && entry.id === 'privateContent.view') ||
+                    !canGrant(viewer, entry.id);
                   const hint = permissionHint(t, entry.id);
                   return (
                     <div key={entry.id} data-permission={entry.id}>
@@ -280,6 +290,7 @@ export function MemberSheet({
   canManageRoles,
   canTransfer,
   self,
+  viewer,
   onClose,
   onChanged,
 }: {
@@ -287,6 +298,7 @@ export function MemberSheet({
   t: BotHarnessTranslate;
   member: TeamMember;
   roles: readonly TeamRole[];
+  viewer: GrantingViewer;
   canManageRoles: boolean;
   canTransfer: boolean;
   self: boolean;
@@ -381,7 +393,13 @@ export function MemberSheet({
                   <Checkbox
                     label={roleLabel(t, role)}
                     checked={chosen.has(role.roleId)}
-                    disabled={busy || !canManageRoles}
+                    disabled={
+                      busy ||
+                      !canManageRoles ||
+                      (self && !viewer.owner) ||
+                      (role.builtin === 'admin' && !viewer.owner) ||
+                      !canGrantAll(viewer, role.permissions)
+                    }
                     onChange={(checked) => {
                       const next = new Set(chosen);
                       if (checked) next.add(role.roleId);

@@ -110,6 +110,7 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'member-not-found': 'team.error.memberNotFound',
   'device-not-found': 'team.error.deviceNotFound',
   'member-suspended': 'team.error.memberSuspended',
+  'permission-not-grantable': 'team.error.permissionNotGrantable',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
@@ -252,6 +253,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             roles={roles}
             catalog={catalog}
             canEdit={manageRoles}
+            viewer={viewer}
             onChanged={() => void refresh()}
           />
         ) : null}
@@ -264,6 +266,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             canManageRoles={manageRoles || manageMembers}
             canTransfer={viewer.owner && viewer.kind === 'owner'}
             self={sheetMember.humanId === viewer.humanId}
+            viewer={viewer}
             onClose={() => setDialog(undefined)}
             onChanged={() => void refresh()}
           />
