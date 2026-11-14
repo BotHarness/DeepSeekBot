@@ -19,7 +19,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'members',
     description:
-      'list | create --username --display-name --initial-password-file | password --password-stdin',
+      'list | create --username --display-name --initial-password-file | reset-password <username> --initial-password-file | password --password-stdin',
   },
 ] as const;
 
@@ -45,6 +45,38 @@ function secretJson<T>(schema: z.ZodType<T>, text: string): T {
     return schema.parse(JSON.parse(text));
   } catch {
     throw new CliLiveError('usage', 'password-input-invalid');
+  }
+}
+
+async function passwordFile(
+  path: string,
+  issue: () => Promise<{ initialPassword: string; output: Record<string, unknown> }>,
+): Promise<unknown> {
+  let fd: number;
+  try {
+    fd = openSync(path, 'wx', 0o600);
+  } catch {
+    throw new CliLiveError('password-file-unavailable', 'password-file-unavailable');
+  }
+  let written = false;
+  let committed = false;
+  try {
+    fchmodSync(fd, 0o600);
+    const result = await issue();
+    committed = true;
+    writeFileSync(fd, result.initialPassword, 'utf8');
+    written = true;
+    return { ...result.output, initialPasswordFile: path };
+  } catch (error) {
+    if (committed)
+      throw new CliLiveError(
+        'initial-password-recovery-required',
+        'initial-password-recovery-required',
+      );
+    throw error;
+  } finally {
+    closeSync(fd);
+    if (!written) unlinkSync(path);
   }
 }
 
@@ -84,35 +116,38 @@ export async function runTeamCommand(
         secretJson(z.object({ current: z.string(), next: z.string() }), await secret(io)),
       );
     if (
+      action === 'reset-password' &&
+      argument &&
+      rest.length === 2 &&
+      values['initial-password-file']
+    )
+      return passwordFile(values['initial-password-file'], async () => {
+        const members = z
+          .array(z.object({ username: z.string(), humanId: z.string() }))
+          .parse(await rpc('members', {}));
+        const member = members.find((entry) => entry.username === argument);
+        if (!member) throw new CliLiveError('member-not-found', 'member-not-found');
+        const result = z
+          .object({ initialPassword: z.string() })
+          .parse(await rpc('memberPasswordReset', { humanId: member.humanId }));
+        return { initialPassword: result.initialPassword, output: { humanId: member.humanId } };
+      });
+    if (
       action === 'create' &&
       rest.length === 1 &&
       values.username &&
       values['display-name'] &&
       values['initial-password-file']
     ) {
-      const path = values['initial-password-file'];
-      let fd: number;
-      try {
-        fd = openSync(path, 'wx', 0o600);
-      } catch {
-        throw new CliLiveError('password-file-unavailable', 'password-file-unavailable');
-      }
-      let written = false;
-      try {
-        fchmodSync(fd, 0o600);
+      return passwordFile(values['initial-password-file'], async () => {
         const result = z.object({ member: z.unknown(), initialPassword: z.string() }).parse(
           await rpc('memberCreate', {
             username: values.username,
             displayName: values['display-name'],
           }),
         );
-        writeFileSync(fd, result.initialPassword, 'utf8');
-        written = true;
-        return { member: result.member, initialPasswordFile: path };
-      } finally {
-        closeSync(fd);
-        if (!written) unlinkSync(path);
-      }
+        return { initialPassword: result.initialPassword, output: { member: result.member } };
+      });
     }
     return usage();
   }

@@ -1,4 +1,4 @@
-import { createServer, IncomingMessage } from 'node:http';
+import { createServer, IncomingMessage, request as httpRequest } from 'node:http';
 import { Socket } from 'node:net';
 import { readFileSync } from 'node:fs';
 import { createChannelLiveHub } from '../src/channels/live.js';
@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { TeamService, TeamError } from '../src/team/service.js';
 import { ARGON2_PARAMS, hashPassword, verifyPassword } from '../src/team/password.js';
+import * as passwords from '../src/team/password.js';
 import { SignInRateLimit } from '../src/team/rate-limit.js';
 import { memberPolicy } from '../src/team/policy.js';
 import {
@@ -38,6 +39,7 @@ import { createTempRoot, createTestOwnership } from './helpers.js';
 const closes: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const close of closes.splice(0).reverse()) await close();
+  vi.restoreAllMocks();
 });
 
 function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}) {
@@ -157,6 +159,128 @@ Object.defineProperty(NativeSession.prototype, '@deepseek-ai/dsh-typert-protocol
 });
 
 describe('Host members', { timeout: 60_000 }, () => {
+  it('recovers a committed member only as Owner and revokes every previous grant', async () => {
+    const f = await enabledFixture();
+    const login = await f.team.signIn('bob', f.initialPassword, 'ip');
+    await expect(f.team.resetPassword(f.human, f.human.humanId)).rejects.toMatchObject({
+      code: 'forbidden',
+    });
+    await expect(f.team.resetPassword(owner, owner.humanId)).rejects.toMatchObject({
+      code: 'owner-protected',
+    });
+    await expect(f.team.resetPassword(owner, 'missing-member')).rejects.toMatchObject({
+      code: 'member-not-found',
+    });
+    const reset = await f.gateway.invoke({
+      namespace: 'botharness',
+      method: 'memberPasswordReset',
+      args: { humanId: f.human.humanId },
+      peer: new Peer(f.ctx, { principal: { kind: 'owner' } }),
+    });
+    const result = z.object({ initialPassword: z.string() }).strict().parse(reset);
+    expect(login.peer.signal.aborted).toBe(true);
+    expect(f.team.admit(login.token)).toBeUndefined();
+    expect(f.team.member(f.human.humanId)?.mustChangePassword).toBe(true);
+    await expect(f.team.signIn('bob', f.initialPassword, 'another')).rejects.toMatchObject({
+      code: 'credentials-invalid',
+    });
+    const fresh = await f.team.signIn('bob', result.initialPassword, 'another');
+    expect(fresh.member.humanId).toBe(f.human.humanId);
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'memberPasswordReset',
+        args: { humanId: f.human.humanId },
+        peer: fresh.peer,
+      }),
+    ).rejects.toMatchObject({ code: 'remote-access/denied' });
+  });
+
+  it.each(['reset', 'change'] as const)(
+    'refuses a sign-in verified before a concurrent credential %s',
+    async (kind) => {
+      const f = await enabledFixture();
+      let release!: () => void;
+      let verified!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const reached = new Promise<void>((resolve) => {
+        verified = resolve;
+      });
+      const realVerify = passwords.verifyPassword;
+      let first = true;
+      vi.spyOn(passwords, 'verifyPassword').mockImplementation(async (password, hash) => {
+        const valid = await realVerify(password, hash);
+        if (first) {
+          first = false;
+          verified();
+          await held;
+        }
+        return valid;
+      });
+      const signIn = f.team.signIn('bob', f.initialPassword, 'ip');
+      const refused = expect(signIn).rejects.toMatchObject({ code: 'credentials-invalid' });
+      await reached;
+      try {
+        if (kind === 'reset') await f.team.resetPassword(owner, f.human.humanId);
+        else await f.team.changePassword(f.human, f.initialPassword, 'changed-password-1');
+      } finally {
+        release();
+      }
+      await refused;
+      expect(f.peers).toHaveLength(0);
+    },
+  );
+
+  it('preserves only the changing initial-password grant and shares the account limiter for RPC', async () => {
+    const f = await enabledFixture();
+    const first = await f.team.signIn('bob', f.initialPassword, 'ip-a');
+    const other = await f.team.signIn('bob', f.initialPassword, 'ip-b');
+    await f.gateway.invoke({
+      namespace: 'botharness',
+      method: 'memberPasswordChange',
+      args: { current: f.initialPassword, next: 'member-password-1' },
+      peer: first.peer,
+    });
+    expect(first.peer.signal.aborted).toBe(false);
+    expect(f.team.admit(first.token)).toBe(first.peer);
+    expect(other.peer.signal.aborted).toBe(true);
+    expect(f.team.admit(other.token)).toBeUndefined();
+    for (let i = 0; i < 2; i++)
+      await expect(
+        f.gateway.invoke({
+          namespace: 'botharness',
+          method: 'memberPasswordChange',
+          args: { current: 'wrong-password', next: 'member-password-2' },
+          peer: first.peer,
+        }),
+      ).rejects.toMatchObject({ code: 'credentials-invalid' });
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'memberPasswordChange',
+        args: { current: 'wrong-password', next: 'member-password-2' },
+        peer: first.peer,
+      }),
+    ).rejects.toMatchObject({ code: 'rate-limited' });
+    const carol = await f.team.createMember(owner, 'carol', 'Carol');
+    const login = await f.team.signIn('carol', carol.initialPassword, 'ip-c');
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'memberPasswordChange',
+        args: { current: carol.initialPassword, next: 'carol-password-1' },
+        peer: login.peer,
+      }),
+    ).resolves.toBe(null);
+  });
+  it('does not let an IP-limited attacker consume buckets for unrelated accounts', () => {
+    const limiter = new SignInRateLimit(() => 0);
+    for (let i = 0; i < 20; i++) expect(limiter.admit(`seed-${i}`, 'attacker')).toBe(0);
+    for (let i = 0; i < 5000; i++) expect(limiter.admit(`spam-${i}`, 'attacker')).toBe(60);
+    expect(limiter.admit('unrelated-member', 'other-ip')).toBe(0);
+  });
   it('hashes with Argon2id and random salts, verifies without retaining a plaintext password', async () => {
     const a = await hashPassword('member-password-1');
     const b = await hashPassword('member-password-1');
@@ -334,6 +458,59 @@ describe('Host members', { timeout: 60_000 }, () => {
 });
 
 describe('member confidentiality', { timeout: 60_000 }, () => {
+  it('delivers deleted-group removals and purges only to retained members, resetting unknown tombstones', async () => {
+    const f = await enabledFixture();
+    const joined = f.channels.createGroup(owner, { name: 'Deleted joined', members: [] });
+    const privateGroup = f.channels.createGroup(owner, { name: 'Deleted private', members: [] });
+    f.team.setPublic(owner, joined.id, true);
+    f.team.joinPublic(f.human, joined.id);
+    const controller = new AbortController();
+    const frames = f.live.followRoster(f.human, controller.signal)[Symbol.asyncIterator]();
+    await frames.next();
+    const since = f.channels.changeCursor!();
+    f.channels.deleteGroup(joined.id);
+    expect(f.channels.get(joined.id)).toBeUndefined();
+    expect(f.channels.hasHumanMembership?.(f.human, joined.id)).toBe(true);
+    const delta = await f
+      .methods(f.human)
+      .channelListChanges({ sinceSeq: since.seq, epoch: since.epoch });
+    expect(delta).toMatchObject({ ok: true, value: { removed: [joined.id] } });
+    const permitted = {
+      channelId: joined.id,
+      messageId: 'deleted-visible',
+      sourceEventId: 'visible-source',
+    };
+    f.setPlacements([
+      permitted,
+      { channelId: privateGroup.id, messageId: 'deleted-secret', sourceEventId: 'secret-source' },
+    ]);
+    f.live.publishContentPurged();
+    expect((await frames.next()).value).toEqual({ type: 'purged', placements: [permitted] });
+    const reopened = f.live.followRoster(f.human, controller.signal)[Symbol.asyncIterator]();
+    expect((await reopened.next()).value).toEqual({ type: 'baseline', placements: [permitted] });
+    f.live.publishCommitted({
+      channelId: joined.id,
+      revision: 99,
+      message: {
+        id: 'not-visible',
+        at: '2026-11-14',
+        author: { kind: 'human' },
+        body: 'Deleted content must stay hidden',
+      },
+    });
+    f.live.publishRosterCommitted();
+    expect((await frames.next()).value).toEqual({ type: 'changed' });
+    const next = f.channels.changeCursor!();
+    f.channels.deleteGroup(privateGroup.id);
+    const reset = await f
+      .methods(f.human)
+      .channelListChanges({ sinceSeq: next.seq, epoch: next.epoch });
+    expect(reset).toMatchObject({ ok: true, value: { reset: true } });
+    expect(JSON.stringify(reset)).not.toContain(privateGroup.id);
+    controller.abort();
+    await frames.return?.();
+    await reopened.return?.();
+  });
   it('keeps the shared member-method contract dependency-free and its denials explicit', () => {
     const source = readFileSync(new URL('../src/team/member-methods.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/\bimport\b/u);
@@ -718,10 +895,154 @@ async function memberHttp(
       headers: { cookie, 'content-type': 'application/json', ...headers },
       body: JSON.stringify({ current, next }),
     });
-  return { origin, signIn, password };
+  const wire = (cookie: string, command: unknown, headers = {}) =>
+    fetch(`${origin}${TEAM_PATH}/__share/rpc`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(command),
+    });
+  const rpc = async (cookie: string, method: string, args: Record<string, unknown>, headers = {}) =>
+    (
+      await wire(
+        cookie,
+        {
+          op: 'call',
+          path: `/api/botharness/${method}`,
+          body: {
+            type: 'client-request',
+            rpcId: 'review-4',
+            method: `botharness/${method}`,
+            payload: { args },
+          },
+        },
+        headers,
+      )
+    ).json();
+  return { origin, signIn, password, wire, rpc };
 }
 
 describe('member HTTP carrier', { timeout: 60_000 }, () => {
+  it('allows cross-site top-level entry navigation but refuses cross-site subresources and POSTs', async () => {
+    const f = await enabledFixture();
+    const http = await memberHttp(f);
+    const navigate = await new Promise<number>((resolve, reject) => {
+      const request = httpRequest(
+        `${http.origin}${TEAM_PATH}/`,
+        {
+          headers: {
+            'sec-fetch-site': 'cross-site',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-dest': 'document',
+          },
+        },
+        (response) => {
+          response.resume();
+          response.once('end', () => resolve(response.statusCode ?? 0));
+        },
+      );
+      request.once('error', reject);
+      request.end();
+    });
+    expect(navigate).toBe(200);
+    const embedded = await fetch(`${http.origin}${TEAM_PATH}/`, {
+      headers: { 'sec-fetch-site': 'cross-site' },
+    });
+    expect(embedded.status).toBe(403);
+    const post = await http.signIn('bob', f.initialPassword, {
+      'sec-fetch-site': 'cross-site',
+      'sec-fetch-dest': 'document',
+    });
+    expect(post.status).toBe(403);
+    expect(await post.json()).toEqual({ code: 'origin-refused' });
+  });
+
+  it('enforces transport and the shared IP/account budget on RPC password changes', async () => {
+    const f = await enabledFixture();
+    const local = await memberHttp(f);
+    const cookie = (await local.signIn('bob', f.initialPassword)).headers.get('set-cookie') ?? '';
+    const remote = await memberHttp(f, true);
+    f.team.setInsecureHttp(owner, true);
+    f.team.setInsecureHttp(owner, false);
+    expect(
+      await remote.rpc(cookie, 'memberPasswordChange', {
+        current: f.initialPassword,
+        next: 'member-password-1',
+      }),
+    ).toMatchObject({ result: { ok: false, error: { code: 'insecure-transport' } } });
+    for (let i = 0; i < 4; i++)
+      expect(
+        await local.rpc(cookie, 'memberPasswordChange', {
+          current: 'wrong-password',
+          next: 'member-password-1',
+        }),
+      ).toMatchObject({ result: { error: { code: 'credentials-invalid' } } });
+    const limited = await local.password(cookie, f.initialPassword, 'member-password-1');
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toMatchObject({ code: 'rate-limited', retryAfterSeconds: 60 });
+  });
+
+  it('reserves stream keys and peer/global capacity while gateway opens are pending', async () => {
+    let now = 0;
+    const f = await enabledFixture({ now: () => now });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const cookies: string[] = [];
+    for (let i = 0; i < 17; i++) {
+      now += 60_000;
+      const login = await f.team.signIn('bob', 'member-password-1', `ip-${i}`);
+      cookies.push(`botharness-member=${login.token}`);
+    }
+    const releases: Array<() => void> = [];
+    const opened = vi
+      .spyOn(f.gateway.wireStream, 'open')
+      .mockImplementation(
+        () =>
+          new Promise<AsyncIterable<unknown>>((resolve) =>
+            releases.push(() => resolve((async function* () {})())),
+          ),
+      );
+    const http = await memberHttp(f);
+    const open = (cookie: string, id: number) =>
+      http.wire(cookie, {
+        op: 'stream-open',
+        id,
+        endpoint: 'botharness/followRoster',
+        payload: { args: {} },
+      });
+    const requests: Promise<Response>[] = [];
+    try {
+      for (const cookie of cookies.slice(0, 16))
+        for (let id = 1; id <= 16; id++) requests.push(open(cookie, id));
+      await vi.waitFor(() => expect(opened).toHaveBeenCalledTimes(256), { timeout: 10000 });
+      expect((await open(cookies[0]!, 1)).status).toBe(429);
+      expect((await open(cookies[0]!, 17)).status).toBe(429);
+      expect((await open(cookies[16]!, 1)).status).toBe(429);
+      expect(opened).toHaveBeenCalledTimes(256);
+    } finally {
+      for (const release of releases) release();
+      await Promise.all(requests);
+    }
+  });
+
+  it('releases a failed or cancelled pending stream reservation', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const login = await f.team.signIn('bob', 'member-password-1', 'ip');
+    const http = await memberHttp(f);
+    const cookie = `botharness-member=${login.token}`;
+    const opened = vi
+      .spyOn(f.gateway.wireStream, 'open')
+      .mockRejectedValueOnce(new Error('open-failed'))
+      .mockResolvedValue((async function* () {})());
+    const request = {
+      op: 'stream-open',
+      id: 1,
+      endpoint: 'botharness/followRoster',
+      payload: { args: {} },
+    };
+    expect(await (await http.wire(cookie, request)).json()).toHaveProperty('failure');
+    expect(await (await http.wire(cookie, request)).json()).toEqual({});
+    expect(opened).toHaveBeenCalledTimes(2);
+  });
   it('requires trusted transport for forwarding headers on IPv4, mapped IPv4 and IPv6 loopback', () => {
     const f = teamFixture();
     for (const address of ['127.0.0.1', '127.42.0.1', '::ffff:127.0.0.1', '::1']) {

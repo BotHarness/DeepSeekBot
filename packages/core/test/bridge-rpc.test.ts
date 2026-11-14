@@ -668,6 +668,7 @@ describe('bridge typert service', () => {
       'members',
       'memberCreate',
       'memberPasswordChange',
+      'memberPasswordReset',
       'publicChannels',
       'publicChannelJoin',
       'channelPublicSet',

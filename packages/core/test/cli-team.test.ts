@@ -41,7 +41,14 @@ async function host() {
             member: { username: 'bob', humanId: 'bob-id' },
             initialPassword: 'private-initial-password',
           }
-        : { done: true };
+        : input.method === 'botharness/members'
+          ? [
+              { humanId: 'bob-id', username: 'bob' },
+              { humanId: 'local-human', username: 'owner' },
+            ]
+          : input.method === 'botharness/memberPasswordReset'
+            ? { initialPassword: 'private-reset-password' }
+            : { done: true };
     response.setHeader('content-type', 'application/json');
     if (request.url === '/api/botharness/team-as')
       response.end(
@@ -84,6 +91,65 @@ async function run(url: string, args: string[], stdin = '') {
   };
 }
 describe('Team CLI', () => {
+  it('recovers a committed username into a new private file without printing its password', async () => {
+    const f = await host();
+    const path = join(createTempRoot('team-cli-reset-'), 'reset-password');
+    const args = ['members', 'reset-password', 'bob', '--initial-password-file', path];
+    const reset = await run(f.url, args);
+    expect(reset.status).toBe(0);
+    expect(reset.output).toEqual({ humanId: 'bob-id', initialPasswordFile: path });
+    expect(readFileSync(path, 'utf8')).toBe('private-reset-password');
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
+    expect(reset.text + reset.errorText).not.toContain('private-reset-password');
+    expect(f.calls).toMatchObject([
+      { input: { method: 'botharness/members' } },
+      {
+        input: {
+          method: 'botharness/memberPasswordReset',
+          payload: { args: { humanId: 'bob-id' } },
+        },
+      },
+    ]);
+    const count = f.calls.length;
+    expect((await run(f.url, args)).output).toMatchObject({
+      error: { code: 'password-file-unavailable' },
+    });
+    expect(f.calls).toHaveLength(count);
+    const missing = join(createTempRoot('team-cli-missing-'), 'password');
+    expect(
+      (
+        await run(f.url, [
+          'members',
+          'reset-password',
+          'missing',
+          '--initial-password-file',
+          missing,
+        ])
+      ).output,
+    ).toMatchObject({ error: { code: 'member-not-found' } });
+    expect(existsSync(missing)).toBe(false);
+  });
+  it.each([
+    'device-activity',
+    'device-notifications',
+    'phone-notifications',
+    'device-pair',
+    'device-probe',
+  ])('refuses --as before %s device dispatch', async (command) => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', command]);
+    expect(result.output).toMatchObject({ error: { code: 'as-command-unsupported' } });
+    expect(f.calls).toHaveLength(0);
+  });
+  it.each([{ args: ['channels'] }, { args: ['channel-messages', 'group-1', '--as', 'bob'] }])(
+    'refuses --home before early hosted dispatch: %j',
+    async ({ args }) => {
+      const f = await host();
+      const result = await run(f.url, [...args, '--home', createTempRoot('team-cli-home-')]);
+      expect(result.status).not.toBe(0);
+      expect(f.calls).toHaveLength(0);
+    },
+  );
   it.each([
     [['team-mode', 'status'], 'teamMode', {}],
     [['team-mode', 'on'], 'teamModeSet', { enabled: true }],
@@ -148,7 +214,7 @@ describe('Team CLI', () => {
     expect(created.status).toBe(0);
     expect(created.output).toMatchObject({ initialPasswordFile: path });
     expect(readFileSync(path, 'utf8')).toBe('private-initial-password');
-    expect(statSync(path).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(created.text).not.toContain('private-initial-password');
     const callCount = f.calls.length;
     writeFileSync(path, 'keep-me');

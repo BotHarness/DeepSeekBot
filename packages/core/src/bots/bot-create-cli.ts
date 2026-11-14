@@ -2664,6 +2664,8 @@ export async function runBotCreateCli(
       throw usageError('as-online-required');
     if (teamChannels || (values.as !== undefined && command === 'channel-messages')) {
       if (!online) throw usageError('host-required');
+      if (values.home !== undefined)
+        throw usageError('Do not combine --home and an online Host target.');
       out.stdout(JSON.stringify(await runLiveCli(command, rest, values, io), null, 2));
       return 0;
     }
