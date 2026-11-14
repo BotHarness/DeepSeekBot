@@ -1,10 +1,13 @@
+import { TeamRoles } from './roles.js';
+import type { DevicePairing } from '../devices/pairing.js';
 import { TeamError } from './error.js';
 export { TeamError } from './error.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
 import type { PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { humanContext, OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
+import { humanContext, type HumanContext } from '../humans/context.js';
 import type { ChannelStore } from '../channels/store.js';
 import {
   DUMMY_PASSWORD_HASH,
@@ -36,6 +39,8 @@ const memberSchema = z.object({
   mustChangePassword: z.coerce.boolean(),
   createdAt: z.string(),
   owner: z.coerce.boolean(),
+  roleIds: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
+  deviceCount: z.number().int().nonnegative(),
 });
 export type TeamMember = z.infer<typeof memberSchema>;
 export interface TeamModeView {
@@ -48,6 +53,9 @@ export interface TeamModeView {
     kind: 'owner' | 'member';
     displayName: string;
     mustChangePassword: boolean;
+    permissions: string[];
+    roleIds: string[];
+    owner: boolean;
   };
 }
 export interface PublicChannel {
@@ -59,8 +67,24 @@ export interface PublicChannel {
 }
 const fields = `h.human_id AS humanId, COALESCE(c.username, 'owner') AS username,
   h.display_name AS displayName, h.status, COALESCE(c.must_change, 0) AS mustChangePassword,
-  h.created_at AS createdAt, h.human_id = 'local-human' AS owner`;
-const credentialSchema = z.object({ password_json: z.string(), history_json: z.string() });
+  h.created_at AS createdAt, h.human_id = (SELECT owner_human_id FROM team_settings) AS owner,
+  (SELECT json_group_array(role_id) FROM (SELECT role_id FROM human_roles WHERE human_id = h.human_id ORDER BY role_id)) AS roleIds,
+  (SELECT COUNT(*) FROM member_grants g WHERE g.human_id = h.human_id AND g.revoked_at IS NULL) +
+  (SELECT COUNT(*) FROM paired_devices d WHERE d.human_id = h.human_id AND d.revoked_at IS NULL) AS deviceCount`;
+const credentialPasswordSchema = passwordHashSchema.extend({
+  ownerIssuerHumanId: z.string().min(1).optional(),
+});
+function credentialPasswordJson(
+  hash: z.infer<typeof passwordHashSchema>,
+  ownerIssuerHumanId?: string,
+): string {
+  return JSON.stringify(ownerIssuerHumanId === undefined ? hash : { ...hash, ownerIssuerHumanId });
+}
+const credentialSchema = z.object({
+  password_json: z.string(),
+  history_json: z.string(),
+  must_change: z.coerce.boolean(),
+});
 const grantSchema = z.object({
   grant_id: z.string(),
   human_id: z.string(),
@@ -69,11 +93,32 @@ const grantSchema = z.object({
 const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export class TeamService {
+  readonly roles: TeamRoles;
+  private pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'> | undefined;
+
+  bindPairing(pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'>): () => void {
+    this.pairing = pairing;
+    return () => {
+      this.pairing = undefined;
+    };
+  }
+
+  ownerContext(): HumanContext {
+    return this.roles.ownerContext();
+  }
+  isOwner(human: HumanContext): boolean {
+    return this.roles.isOwner(human);
+  }
+  private readonly passwordCaller = new AsyncLocalStorage<{
+    principal: MemberPrincipal;
+    ip: string | undefined;
+  }>();
   private readonly peers = new Map<string, PeerScope>();
   private readonly limiter: SignInRateLimit;
   private peerFactory: ((principal: MemberPrincipal) => PeerScope) | undefined;
   private invalidate: () => void = () => {};
   private urls: () => string[] = () => [];
+  private readonly ensureTob: ((human: HumanContext) => Promise<unknown>) | undefined;
   private readonly now: () => number;
   private readonly log: (phase: string, facts: Record<string, string | number | boolean>) => void;
 
@@ -82,9 +127,12 @@ export class TeamService {
     private readonly channels: ChannelStore,
     options: {
       now?: () => number;
+      ensureTob?: (human: HumanContext) => Promise<unknown>;
       log?: (phase: string, facts: Record<string, string | number | boolean>) => void;
     } = {},
   ) {
+    this.ensureTob = options.ensureTob;
+    this.roles = new TeamRoles(db, () => this.invalidate());
     this.now = options.now ?? Date.now;
     this.log = options.log ?? (() => {});
     this.limiter = new SignInRateLimit(this.now);
@@ -132,7 +180,7 @@ export class TeamService {
   }
 
   members(human: HumanContext): TeamMember[] {
-    this.owner(human);
+    this.roles.require(human, 'members.manage');
     return z
       .array(memberSchema)
       .parse(
@@ -157,14 +205,19 @@ export class TeamService {
   private credential(humanId: string) {
     const row = this.db.read((db) =>
       db
-        .prepare('SELECT password_json, history_json FROM member_credentials WHERE human_id = ?')
+        .prepare(
+          'SELECT password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
+        )
         .get(humanId),
     );
     if (row === undefined) return undefined;
     const parsed = credentialSchema.parse(row);
+    const password = credentialPasswordSchema.parse(JSON.parse(parsed.password_json));
     return {
-      hash: passwordHashSchema.parse(JSON.parse(parsed.password_json)),
+      hash: passwordHashSchema.parse(password),
+      ownerIssuerHumanId: password.ownerIssuerHumanId,
       history: z.array(passwordHashSchema).parse(JSON.parse(parsed.history_json)),
+      mustChange: parsed.must_change,
     };
   }
 
@@ -175,7 +228,7 @@ export class TeamService {
     return {
       enabled: settings.enabled,
       insecureHttpAllowed: settings.insecure_http_allowed,
-      ownerPasswordSet: this.hasCredential(OWNER_HUMAN_CONTEXT.humanId),
+      ownerPasswordSet: this.hasCredential(this.ownerContext().humanId),
       memberUrls: memberUrls(this.urls(), settings.insecure_http_allowed),
       viewer: {
         humanId: member.humanId,
@@ -184,17 +237,21 @@ export class TeamService {
           ? this.channels.humanIdentity(human).displayName
           : member.displayName,
         mustChangePassword: member.mustChangePassword,
+        permissions: this.roles.permissions(human),
+        roleIds: member.roleIds,
+        owner: member.owner,
       },
     };
   }
 
   private owner(human: HumanContext): void {
-    if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) throw new TeamError('forbidden');
+    if (!this.isOwner(human))
+      throw new TeamError('permission-required', undefined, { permission: 'owner' });
   }
 
   async setMode(human: HumanContext, enabled: boolean): Promise<TeamModeView> {
-    this.owner(human);
-    if (enabled && !this.hasCredential(human.humanId))
+    this.roles.require(human, 'team.settings');
+    if (enabled && !this.hasCredential(this.ownerContext().humanId))
       throw new TeamError('owner-password-required');
     this.db.transaction(
       (db) => {
@@ -213,7 +270,7 @@ export class TeamService {
   }
 
   setInsecureHttp(human: HumanContext, allowed: boolean): TeamModeView {
-    this.owner(human);
+    this.roles.require(human, 'team.settings');
     this.db.transaction(
       (db) =>
         db
@@ -234,14 +291,24 @@ export class TeamService {
     const previous = this.credential(human.humanId);
     if (previous && !(await verifyPassword(current ?? '', previous.hash)))
       throw new TeamError('credentials-invalid');
+    this.owner(human);
     if (!strongPassword(password)) throw new TeamError('password-weak');
     const hash = await hashPassword(password);
+    this.owner(human);
+    if (this.credential(human.humanId)?.hash.hash !== previous?.hash.hash)
+      throw new TeamError('credentials-invalid');
     this.db.transaction(
-      (db) =>
-        db
-          .prepare(`INSERT INTO member_credentials(human_id, username, password_json, history_json, must_change)
-      VALUES (?, 'owner', ?, '[]', 0) ON CONFLICT(human_id) DO UPDATE SET password_json = excluded.password_json, must_change = 0`)
-          .run(human.humanId, JSON.stringify(hash)),
+      (db) => {
+        if (previous)
+          db.prepare(
+            'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
+          ).run(credentialPasswordJson(hash, human.humanId), human.humanId);
+        else
+          db.prepare("INSERT INTO member_credentials VALUES (?, 'owner', ?, '[]', 0)").run(
+            human.humanId,
+            credentialPasswordJson(hash, human.humanId),
+          );
+      },
       ['team'],
     );
     this.invalidate();
@@ -252,8 +319,10 @@ export class TeamService {
     human: HumanContext,
     username: string,
     displayName: string,
+    roleIds: string[] = ['member'],
   ): Promise<{ member: TeamMember; initialPassword: string }> {
-    this.owner(human);
+    this.roles.require(human, 'members.manage');
+    this.roles.validateAssignments(human, roleIds);
     if (!this.settings().enabled) throw new TeamError('team-mode-off');
     if (!/^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username)) throw new TeamError('username-invalid');
     if (displayName.trim().length === 0 || displayName.length > 128)
@@ -264,6 +333,9 @@ export class TeamService {
     const humanId = randomUUID();
     if (!this.settings().enabled) throw new TeamError('team-mode-off');
     if (this.byUsername(username)) throw new TeamError('username-taken');
+    this.roles.require(human, 'members.manage');
+    const ids = this.roles.validateAssignments(human, roleIds);
+    const ownerIssuerHumanId = this.isOwner(human) ? human.humanId : undefined;
     this.db.transaction(
       (db) => {
         db.prepare(`INSERT INTO humans VALUES (?, ?, 'active', ?)`).run(
@@ -274,10 +346,11 @@ export class TeamService {
         db.prepare('INSERT INTO member_credentials VALUES (?, ?, ?, ?, 1)').run(
           humanId,
           username,
-          JSON.stringify(hash),
+          credentialPasswordJson(hash, ownerIssuerHumanId),
           '[]',
         );
         db.prepare('INSERT INTO local_human_names VALUES (?, ?)').run(humanId, displayName.trim());
+        for (const id of ids) db.prepare('INSERT INTO human_roles VALUES (?, ?)').run(humanId, id);
       },
       ['team', 'human-identity'],
     );
@@ -298,11 +371,11 @@ export class TeamService {
 
   private active(member: TeamMember | undefined): asserts member is TeamMember {
     if (!this.settings().enabled) throw new TeamError('team-mode-off');
-    if (!member || member.owner) throw new TeamError('credentials-invalid');
+    if (!member) throw new TeamError('credentials-invalid');
     if (member.status !== 'active') throw new TeamError('member-suspended');
   }
 
-  private passwordAttempt(username: string, ip: string): void {
+  private passwordAttempt(username: string, ip?: string): void {
     const retry = this.limiter.admit(username, ip);
     if (retry) throw new TeamError('rate-limited', retry);
   }
@@ -317,8 +390,11 @@ export class TeamService {
     const member = this.byUsername(username);
     const credential = member ? this.credential(member.humanId) : undefined;
     const valid = await verifyPassword(password, credential?.hash ?? DUMMY_PASSWORD_HASH);
-    if (!valid || !member || member.owner) throw new TeamError('credentials-invalid');
+    if (!valid || !member) throw new TeamError('credentials-invalid');
+    if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
+      throw new TeamError('credentials-invalid');
     this.active(member);
+    await this.ensureTob?.(humanContext(member.humanId));
     return { ...this.createGrant(member), member };
   }
 
@@ -463,6 +539,15 @@ export class TeamService {
   }
 
   async changePassword(human: HumanContext, current: string, next: string): Promise<null> {
+    const caller = this.passwordCaller.getStore();
+    const assertCaller = () => {
+      if (caller && this.resolve(caller.principal)?.humanId !== human.humanId)
+        throw new TeamError('credentials-invalid');
+    };
+    assertCaller();
+    const member = this.member(human.humanId);
+    if (!member) throw new TeamError('credentials-invalid');
+    this.passwordAttempt(member.username, caller?.ip);
     const previous = this.credential(human.humanId);
     if (!previous || !(await verifyPassword(current, previous.hash)))
       throw new TeamError('credentials-invalid');
@@ -472,20 +557,46 @@ export class TeamService {
     const hash = await hashPassword(next);
     if (this.credential(human.humanId)?.hash.hash !== previous.hash.hash)
       throw new TeamError('credentials-invalid');
+    assertCaller();
+    const keepGrant = caller?.principal.grantId;
     this.db.transaction(
       (db) => {
         db.prepare(
           'UPDATE member_credentials SET password_json = ?, history_json = ?, must_change = 0 WHERE human_id = ?',
         ).run(
-          JSON.stringify(hash),
+          credentialPasswordJson(hash, previous.ownerIssuerHumanId),
           JSON.stringify([previous.hash, ...previous.history]),
           human.humanId,
         );
+        if (previous.mustChange)
+          db.prepare(
+            'UPDATE member_grants SET revoked_at = ? WHERE human_id = ? AND revoked_at IS NULL AND (? IS NULL OR grant_id != ?)',
+          ).run(
+            new Date(this.now()).toISOString(),
+            human.humanId,
+            keepGrant ?? null,
+            keepGrant ?? null,
+          );
       },
       ['team'],
     );
     this.invalidate();
+    if (previous.mustChange) await this.disposePeers(human.humanId, keepGrant);
     return null;
+  }
+
+  withPasswordCaller<T>(
+    principal: MemberPrincipal,
+    ip: string | undefined,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const current = this.passwordCaller.getStore();
+    const inheritedIp =
+      current?.principal.grantId === principal.grantId &&
+      current.principal.humanId === principal.humanId
+        ? current.ip
+        : undefined;
+    return this.passwordCaller.run({ principal, ip: ip ?? inheritedIp }, run);
   }
 
   async changeWebPassword(
@@ -496,9 +607,39 @@ export class TeamService {
   ): Promise<null> {
     const human = this.resolve(principal);
     const member = human ? this.member(human.humanId) : undefined;
-    if (!human || !member) throw new TeamError('credentials-invalid');
-    this.passwordAttempt(member.username, ip);
-    return this.changePassword(human, current, next);
+    if (!human || !member || principal.kind !== 'botharness-member')
+      throw new TeamError('credentials-invalid');
+    return this.withPasswordCaller(principal, ip, () => this.changePassword(human, current, next));
+  }
+
+  async resetPassword(human: HumanContext, humanId: string): Promise<{ initialPassword: string }> {
+    this.owner(human);
+    if (this.isOwner(humanContext(humanId))) throw new TeamError('owner-protected');
+    if (!this.member(humanId) || !this.credential(humanId)) throw new TeamError('member-not-found');
+    const initialPassword = randomBytes(18).toString('base64url');
+    const hash = await hashPassword(initialPassword);
+    this.owner(human);
+    if (this.isOwner(humanContext(humanId))) throw new TeamError('owner-protected');
+    const previous = this.credential(humanId);
+    if (!this.member(humanId) || !previous) throw new TeamError('member-not-found');
+    this.db.transaction(
+      (db) => {
+        db.prepare(
+          'UPDATE member_credentials SET password_json = ?, history_json = ?, must_change = 1 WHERE human_id = ?',
+        ).run(
+          credentialPasswordJson(hash, human.humanId),
+          JSON.stringify([previous.hash, ...previous.history]),
+          humanId,
+        );
+        db.prepare(
+          'UPDATE member_grants SET revoked_at = ? WHERE human_id = ? AND revoked_at IS NULL',
+        ).run(new Date(this.now()).toISOString(), humanId);
+      },
+      ['team'],
+    );
+    this.invalidate();
+    await this.disposePeers(humanId);
+    return { initialPassword };
   }
 
   publicChannels(human: HumanContext): PublicChannel[] {
@@ -557,7 +698,7 @@ export class TeamService {
   }
 
   setPublic(human: HumanContext, channelId: string, value: boolean): null {
-    this.owner(human);
+    this.roles.require(human, 'team.settings');
     const channel = this.channels.get(channelId);
     if (!channel || channel.deletedAt) throw new TeamError('channel-not-found');
     if (channel.type !== 'group') throw new TeamError('channel-not-public');
@@ -572,22 +713,102 @@ export class TeamService {
     return null;
   }
 
+  memberDevices(human: HumanContext, humanId: string, currentGrantId?: string) {
+    if (human.humanId !== humanId) this.roles.require(human, 'members.manage');
+    return z
+      .array(
+        z.object({
+          grantId: z.string(),
+          label: z.string(),
+          kind: z.enum(['browser', 'paired-device']),
+          createdAt: z.string(),
+          lastSeenAt: z.string(),
+          current: z.coerce.boolean(),
+        }),
+      )
+      .parse(
+        this.db.read((db) =>
+          db
+            .prepare(`
+      SELECT grant_id AS grantId, '' AS label, 'browser' AS kind, created_at AS createdAt,
+        last_seen_at AS lastSeenAt, grant_id = ? AS current FROM member_grants
+        WHERE human_id = ? AND revoked_at IS NULL
+      UNION ALL
+      SELECT device_id AS grantId, name AS label, 'paired-device' AS kind, paired_at AS createdAt,
+        COALESCE(last_seen_at, paired_at) AS lastSeenAt, device_id = ? AS current FROM paired_devices
+        WHERE human_id = ? AND revoked_at IS NULL
+      ORDER BY createdAt, grantId`)
+            .all(currentGrantId ?? '', humanId, currentGrantId ?? '', humanId),
+        ),
+      );
+  }
+
+  async memberDeviceRevoke(human: HumanContext, humanId: string, grantId: string): Promise<null> {
+    if (human.humanId !== humanId) this.roles.require(human, 'members.manage');
+    const device = this.memberDevices(human, humanId).find((entry) => entry.grantId === grantId);
+    if (!device) throw new TeamError('device-not-found');
+    if (device.kind === 'browser') await this.revoke(grantId);
+    else {
+      if (!this.pairing) throw new TeamError('unavailable');
+      this.pairing.revoke(grantId);
+      this.invalidate();
+    }
+    return null;
+  }
+
+  async transferOwner(human: HumanContext, humanId: string, password: string): Promise<null> {
+    this.owner(human);
+    const previous = this.credential(human.humanId);
+    if (!previous || !(await verifyPassword(password, previous.hash)))
+      throw new TeamError('credentials-invalid');
+    this.owner(human);
+    if (this.credential(human.humanId)?.hash.hash !== previous.hash.hash)
+      throw new TeamError('credentials-invalid');
+    const target = this.member(humanId);
+    if (!target) throw new TeamError('member-not-found');
+    if (target.status !== 'active') throw new TeamError('member-suspended');
+    if (target.owner) throw new TeamError('owner-protected');
+    const targetCredential = this.credential(humanId);
+    if (targetCredential?.ownerIssuerHumanId !== human.humanId || targetCredential.mustChange)
+      throw new TeamError('owner-transfer-target-unverified');
+    const oldDevices = this.memberDevices(human, human.humanId).filter(
+      (device) => device.kind === 'paired-device',
+    );
+    if (oldDevices.length && !this.pairing) throw new TeamError('unavailable');
+    this.db.transaction(
+      (db) => {
+        db.prepare('DELETE FROM human_roles WHERE human_id IN (?, ?)').run(human.humanId, humanId);
+        db.prepare("INSERT INTO human_roles VALUES (?, 'admin')").run(human.humanId);
+        db.prepare('UPDATE team_settings SET owner_human_id = ? WHERE singleton = 1').run(humanId);
+      },
+      ['team'],
+    );
+    this.pairing?.clearOffers();
+    this.invalidate();
+    for (const device of oldDevices) this.pairing?.revoke(device.grantId);
+    this.log('owner-transferred', { initiator: 'owner', humanId });
+    return null;
+  }
+
   belongs(human: HumanContext, channelId: string): boolean {
     return (
       this.db.read((db) =>
         db
-          .prepare(`SELECT 1 FROM channel_human_members m
-      JOIN channel_records c USING(channel_id) WHERE m.channel_id = ? AND m.human_id = ?
-      AND m.left_at IS NULL AND json_extract(c.record_json, '$.type') = 'group'
-      AND json_extract(c.record_json, '$.deletedAt') IS NULL`)
-          .get(channelId, human.humanId),
+          .prepare(`SELECT 1 FROM channel_records c WHERE c.channel_id = ?
+      AND json_extract(c.record_json, '$.deletedAt') IS NULL
+      AND ((json_extract(c.record_json, '$.type') = 'group' AND EXISTS (
+        SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ? AND m.left_at IS NULL))
+        OR (json_extract(c.record_json, '$.type') = 'dm' AND EXISTS (
+          SELECT 1 FROM persona_bots b WHERE b.slug = json_extract(c.record_json, '$.botSlug') AND b.owner_human_id = ?)))`)
+          .get(channelId, human.humanId, human.humanId),
       ) !== undefined
     );
   }
 
-  async disposePeers(humanId?: string): Promise<void> {
+  async disposePeers(humanId?: string, keepGrant?: string): Promise<void> {
     const disposals: Promise<void>[] = [];
     for (const [id, peer] of this.peers) {
+      if (id === keepGrant) continue;
       if (
         humanId &&
         peer.principal.kind === 'botharness-member' &&

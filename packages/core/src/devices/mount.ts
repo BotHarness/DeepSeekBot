@@ -1,3 +1,4 @@
+import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
 import { mountTeamGateway } from '../team/mount.js';
 import type { TeamService } from '../team/service.js';
 import type { TeamHttp } from '../team/http.js';
@@ -178,6 +179,7 @@ export function mountDevicePairing(
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
+    ...(options.team ? { ownerHumanId: () => options.team!.ownerContext().humanId } : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
@@ -209,6 +211,10 @@ export function mountDevicePairing(
           ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
         ),
   });
+  ctx.effect(
+    () => options.team?.bindPairing(pairing) ?? (() => {}),
+    'botharness: member device revocation',
+  );
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   const botNetworks = createBotNetworkRoutes({
@@ -317,6 +323,8 @@ export function mountDevicePairing(
     const delivery = createPushDelivery({
       database: attachOperationalModule(options.database, 'push'),
       source: watched.source,
+      deviceHuman: (deviceId) =>
+        pairedDeviceHuman(attachOperationalModule(options.database, 'push'), deviceId),
       sender: watched.sender ?? createExpoSender(),
       host: () => pairing.host(),
       deviceActive: (deviceId) =>
@@ -660,7 +668,16 @@ export function mountDevicePairing(
       activity = createActivityDelivery({
         database: attachOperationalModule(options.database, 'live-activity'),
         provider: account.activity,
-        request: options.requestStatus,
+        request: (channelId, messageId, deviceId) => {
+          const request = options.requestStatus?.(channelId, messageId);
+          if (!request || !deviceId) return undefined;
+          const allowed = deviceOwnsRequest(
+            attachOperationalModule(options.database, 'live-activity'),
+            deviceId,
+            request.sourceEventId,
+          );
+          return allowed ? request : undefined;
+        },
         deviceActive: (deviceId) =>
           pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
         record: (phase, detail) =>

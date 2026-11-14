@@ -41,7 +41,9 @@ it('adds review tables after the canonical Channel management migration while pr
     const port = attachOperationalModule(upgraded, 'review-upgrade-test');
     expect(
       port.read(
-        (db) => db.prepare('SELECT bot_slug FROM tob_identity WHERE singleton = 1').get()?.bot_slug,
+        (db) =>
+          db.prepare("SELECT bot_slug FROM tob_identity WHERE human_id = 'local-human'").get()
+            ?.bot_slug,
       ),
     ).toBe('protected-tob');
     expect(

@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react';
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { Note } from './ds/note.js';
@@ -23,17 +23,21 @@ export function ChannelPublicSetting({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const request = useRef(0);
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    const controller = new AbortController();
+  const load = (signal?: AbortSignal): void => {
     const version = ++request.current;
-    loadPublicChannels(call, controller.signal)
+    setError(false);
+    loadPublicChannels(call, signal)
       .then((channels) => {
-        if (controller.signal.aborted || version !== request.current) return;
+        if (signal?.aborted === true || version !== request.current) return;
         setOpen(channels.some((channel) => channel.channelId === channelId));
       })
       .catch(() => {
-        if (!controller.signal.aborted && version === request.current) setError(true);
+        if (signal?.aborted !== true && version === request.current) setError(true);
       });
+  };
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const controller = new AbortController();
+    load(controller.signal);
     return () => controller.abort();
   }, [call, channelId]);
   if (team?.enabled !== true || team.viewer.kind !== 'owner') return null;
@@ -65,7 +69,16 @@ export function ChannelPublicSetting({
         />
       }
     >
-      {error ? <Note tone="danger">{t('team.error.generic')}</Note> : null}
+      {error ? (
+        <Note tone="danger">
+          {t('team.error.generic')}{' '}
+          {open === undefined ? (
+            <Button variant="outline" size="sm" onClick={() => load()}>
+              {t('team.retry')}
+            </Button>
+          ) : null}
+        </Note>
+      ) : null}
     </SettingsRow>
   );
 }

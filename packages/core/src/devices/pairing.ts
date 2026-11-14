@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -70,6 +71,7 @@ export interface DevicePairing {
   host(): HostIdentity;
   createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
   offerStatus(receipt: string): OfferStatus;
+  clearOffers(): void;
   redeem(input: {
     offer: string;
     name?: string;
@@ -96,6 +98,7 @@ export interface DevicePairing {
 export interface DevicePairingOptions {
   database: OperationalDatabaseModulePort;
   hostName: string;
+  ownerHumanId?: () => string;
   now?: () => number;
   record?: (event: DevicePairingEvent) => void;
   onRevoked?: (deviceId: string) => void;
@@ -103,6 +106,7 @@ export interface DevicePairingOptions {
 }
 
 interface Row {
+  human_id: string;
   device_id: string;
   name: string;
   secret_hash: string;
@@ -140,6 +144,7 @@ function deviceName(input: string | undefined): string {
 
 export function createDevicePairing(options: DevicePairingOptions): DevicePairing {
   const { database } = options;
+  const ownerHumanId = options.ownerHumanId ?? (() => OWNER_HUMAN_CONTEXT.humanId);
   const now = options.now ?? Date.now;
   const record = options.record ?? (() => {});
   const iso = (ms: number): string => new Date(ms).toISOString();
@@ -148,6 +153,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     string,
     {
       expiresAt: number;
+      humanId: string;
       receipt: string;
       verifierHash?: string;
       name?: string;
@@ -187,7 +193,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     );
 
   const active = (current: Row): Admission => {
-    if (current.revoked_at !== null) {
+    if (current.revoked_at !== null || current.human_id !== ownerHumanId()) {
       record({ phase: 'device-refused', code: 'device-revoked', deviceId: current.device_id });
       return { ok: false, code: 'device-revoked' };
     }
@@ -249,9 +255,22 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       const offer = token(24);
       const receipt = token(9);
       const expiresAt = now() + PAIRING_OFFER_TTL_MS;
-      offers.set(digest(offer).toString('hex'), { expiresAt, receipt, ...binding });
+      offers.set(digest(offer).toString('hex'), {
+        expiresAt,
+        receipt,
+        humanId: ownerHumanId(),
+        ...binding,
+      });
       record({ phase: 'offer-created' });
       return { offer, expiresAt: iso(expiresAt), receipt };
+    },
+
+    clearOffers() {
+      for (const open of offers.values()) {
+        settle(open.receipt, { state: 'superseded' });
+        record({ phase: 'offer-refused' });
+      }
+      offers.clear();
     },
 
     offerStatus(receipt) {
@@ -341,6 +360,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       offers.delete(key);
       if (
         open === undefined ||
+        open.humanId !== ownerHumanId() ||
         (open.verifierHash !== undefined &&
           (input.verifier === undefined ||
             !timingSafeEqual(digest(input.verifier), Buffer.from(open.verifierHash, 'base64url'))))
@@ -362,9 +382,16 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         (connection) =>
           connection
             .prepare(
-              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key) VALUES (?, ?, ?, ?, ?)',
+              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key, human_id) VALUES (?, ?, ?, ?, ?, ?)',
             )
-            .run(id, name, digest(secret).toString('hex'), pairedAt, input.publicKey ?? null),
+            .run(
+              id,
+              name,
+              digest(secret).toString('hex'),
+              pairedAt,
+              input.publicKey ?? null,
+              open.humanId,
+            ),
         ['paired-devices'],
       );
       settle(open.receipt, { state: 'redeemed', deviceId: id });

@@ -1,3 +1,4 @@
+import { PERMISSION_CATALOG } from './permissions.js';
 import { z } from 'zod';
 import type { HumanContext } from '../humans/context.js';
 import type { BridgeResult } from '../bridge/methods.js';
@@ -17,7 +18,14 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           : error instanceof z.ZodError
             ? 'invalid-input'
             : 'internal';
-      return { ok: false, error: { code, message: code } };
+      return {
+        ok: false,
+        error: {
+          code,
+          message: code,
+          ...(error instanceof TeamError && error.details ? { details: error.details } : {}),
+        },
+      };
     }
   };
   return {
@@ -37,14 +45,82 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
       call((service) =>
         service.setInsecureHttp(human, z.object({ allowed: z.boolean() }).parse(payload).allowed),
       ),
+    permissionCatalog: (_payload: unknown) =>
+      call(() => PERMISSION_CATALOG.map((entry) => ({ ...entry }))),
+    roles: (_payload: unknown) => call((service) => service.roles.list(human)),
+    roleCreate: (payload: unknown) =>
+      call((service) => {
+        const { name, permissions } = z
+          .object({ name: z.string(), permissions: z.array(z.string()) })
+          .parse(payload);
+        return service.roles.create(human, name, permissions);
+      }),
+    roleUpdate: (payload: unknown) =>
+      call((service) => {
+        const { roleId, ...patch } = z
+          .object({
+            roleId: z.string(),
+            name: z.string().optional(),
+            permissions: z.array(z.string()).optional(),
+          })
+          .parse(payload);
+        return service.roles.update(human, roleId, {
+          ...(patch.name === undefined ? {} : { name: patch.name }),
+          ...(patch.permissions === undefined ? {} : { permissions: patch.permissions }),
+        });
+      }),
+    roleDelete: (payload: unknown) =>
+      call((service) =>
+        service.roles.delete(human, z.object({ roleId: z.string() }).parse(payload).roleId),
+      ),
+    memberRolesSet: (payload: unknown) =>
+      call((service) => {
+        const { humanId, roleIds } = z
+          .object({ humanId: z.string(), roleIds: z.array(z.string()) })
+          .parse(payload);
+        return service.roles.set(human, humanId, roleIds);
+      }),
+    memberDevices: (payload: unknown, currentGrantId?: string) =>
+      call((service) =>
+        service.memberDevices(
+          human,
+          z.object({ humanId: z.string() }).parse(payload).humanId,
+          currentGrantId,
+        ),
+      ),
+    memberDeviceRevoke: (payload: unknown) =>
+      call((service) => {
+        const { humanId, grantId } = z
+          .object({ humanId: z.string(), grantId: z.string() })
+          .parse(payload);
+        return service.memberDeviceRevoke(human, humanId, grantId);
+      }),
+    ownerTransfer: (payload: unknown) =>
+      call((service) => {
+        const { humanId, password } = z
+          .object({ humanId: z.string(), password: z.string().max(1024) })
+          .parse(payload);
+        return service.transferOwner(human, humanId, password);
+      }),
     members: (_payload: unknown) => call((service) => service.members(human)),
     memberCreate: (payload: unknown) =>
       call((service) => {
-        const { username, displayName } = z
-          .object({ username: z.string(), displayName: z.string() })
+        const { username, displayName, roleIds } = z
+          .object({
+            username: z.string(),
+            displayName: z.string(),
+            roleIds: z.array(z.string()).optional(),
+          })
           .parse(payload);
-        return service.createMember(human, username, displayName);
+        return service.createMember(human, username, displayName, roleIds);
       }),
+    memberPasswordReset: (payload: unknown) =>
+      call((service) =>
+        service.resetPassword(
+          human,
+          z.object({ humanId: z.string().min(1) }).parse(payload).humanId,
+        ),
+      ),
     memberPasswordChange: (payload: unknown) =>
       call((service) => {
         const { current, next } = z

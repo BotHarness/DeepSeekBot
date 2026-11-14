@@ -1,3 +1,7 @@
+import { createMemberTobOperations } from './tob/member-operations.js';
+import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
+import { privateBotCreations } from './bots/creation.js';
+import { humanContext } from './humans/context.js';
 import { TeamService } from './team/service.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
@@ -515,6 +519,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  team: TeamService;
   prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
@@ -1017,13 +1022,17 @@ function initializeCore(
         durableAttention.schedule();
     });
   }
+  const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
+    ensureTob: (human) => tob.ensure(human),
+    log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
+  });
   startup.enter('channel-live', 'initialize');
   live = createChannelLiveHub(
     channels,
     {
-      snapshot: () =>
+      snapshot: (human) =>
         personaBotActivitySnapshot(
-          registry.list().map((bot) => bot.slug),
+          registry.list(human.humanId).map((bot) => bot.slug),
           states,
         ),
       onChange: (changed) => states.onActivity((event) => changed(event)),
@@ -1038,6 +1047,8 @@ function initializeCore(
           }),
         changed,
       ),
+    (human) => team.isOwner(human),
+    (human, slug) => ownsBot(human, registry.getHistorical(slug)),
   );
   startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
@@ -1434,6 +1445,7 @@ function initializeCore(
     attachments,
     mediaVersions,
     live,
+    team,
     companions,
     roster,
     runtime,
@@ -1640,6 +1652,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               )
                 return undefined;
 
+              const steward = core.registry.get(core.ownership.resolve(actor.session.id)!.botSlug);
+              if (!steward) return undefined;
+              const human = humanContext(botOwner(steward));
+              const memberTob = !core.team.isOwner(human);
+              const memberOperations = memberTob
+                ? createMemberTobOperations({
+                    bridge: invocationBridgeMethods(human),
+                    registry: privateBotRegistry(core.registry, human),
+                    creations: privateBotCreations(core.creations, human),
+                    isProtectedBot: (slug) => core.tob.isTob(slug),
+                  })
+                : undefined;
+              const requireOwner = () => {
+                if (!core.team.isOwner(human)) throw new TobError('permission-required');
+              };
               let source: (() => void) & { markSideEffect?: () => void };
               try {
                 source =
@@ -1655,6 +1682,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               const authorize = () => {
                 if (execution.signal.aborted) throw new TobError('agent-context-expired');
                 source();
+                if (
+                  memberTob &&
+                  (!team.mode(human).enabled || team.member(human.humanId)?.status !== 'active')
+                )
+                  throw new TobError('permission-required');
                 const denial = grantExecutionDenial(
                   core,
                   actor.session,
@@ -1668,6 +1700,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                 signal: execution.signal,
                 authorize,
                 prepareOperation: async (command, args, signal) => {
+                  if (memberOperations) return memberOperations(command, args, signal);
                   const prepared =
                     (await tobModelOperations(command, args)) ??
                     (await tobMaintenanceOperations(command, args)) ??
@@ -1693,24 +1726,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     },
                   };
                 },
-                capabilities: [
-                  ...TOB_MODEL_CAPABILITIES,
-                  ...TOB_MAINTENANCE_CAPABILITIES,
-                  ...TOB_BOT_CREATE_CAPABILITIES,
-                  ...TOB_BOT_PROFILE_CAPABILITIES,
-                  ...TOB_SHARE_DRAFT_CAPABILITIES,
-                  ...TOB_DIAGNOSTIC_CAPABILITIES,
-                  ...TOB_CHANNEL_CAPABILITIES,
-                  ...TOB_VOICE_CAPABILITIES,
-                  TOB_HOST_CLI_CAPABILITY,
-                ],
+                capabilities: memberTob
+                  ? [
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ]
+                  : [
+                      ...TOB_MODEL_CAPABILITIES,
+                      ...TOB_MAINTENANCE_CAPABILITIES,
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      ...TOB_SHARE_DRAFT_CAPABILITIES,
+                      ...TOB_DIAGNOSTIC_CAPABILITIES,
+                      ...TOB_CHANNEL_CAPABILITIES,
+                      ...TOB_VOICE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ],
                 beforeWrite: () => source.markSideEffect?.(),
-                readSetting: () => core.tob.readSetting(),
-                writeSetting: (value, revision, guard) =>
-                  core.tob.writeSetting(value, revision, () => {
+                readSetting: () => {
+                  requireOwner();
+                  return core.tob.readSetting();
+                },
+                writeSetting: (value, revision, guard) => {
+                  requireOwner();
+                  return core.tob.writeSetting(value, revision, () => {
                     guard();
                     source.markSideEffect?.();
-                  }),
+                  });
+                },
                 approve: async (operation, signal) => {
                   source();
                   return approveTobCliOperation({
@@ -1906,11 +1950,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let voiceCalls: VoiceCalls | undefined;
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
-  const team = new TeamService(
-    attachOperationalModule(core.operationalDatabase, 'team'),
-    core.channels,
-    { log: (phase, facts) => diagnosticEvents.record('team', phase, facts) },
-  );
+  const team = core.team;
   mountDevicePairing(ctx, {
     team,
     calls: () => voiceCalls,

@@ -42,6 +42,7 @@ export function createActivityDelivery(options: {
   request(
     channelId: string,
     messageId: string,
+    deviceId?: string,
   ): { sourceEventId: string; progress: ChannelRequestProgress; assignmentId?: string } | undefined;
   now?: () => number;
   record?: (
@@ -124,7 +125,7 @@ export function createActivityDelivery(options: {
       await retire(row, row.expires_at <= now() ? 'expired' : 'device-revoked');
       return;
     }
-    const current = options.request(row.channel_id, row.message_id);
+    const current = options.request(row.channel_id, row.message_id, row.device_id);
     if (!current || current.sourceEventId !== row.source_event_id) {
       await retire(row, 'request-unavailable');
       return;
@@ -250,7 +251,7 @@ export function createActivityDelivery(options: {
               .get(String(body['clientActivityId']), deviceId),
           ) as Registration | undefined;
           if (!row) return refusal(404, 'activity-not-found');
-          const request = options.request(row.channel_id, row.message_id);
+          const request = options.request(row.channel_id, row.message_id, row.device_id);
           if (!request || request.sourceEventId !== row.source_event_id)
             return refusal(404, 'activity-request-not-found');
           return {
@@ -272,7 +273,7 @@ export function createActivityDelivery(options: {
           if (!options.deviceActive(deviceId)) return refusal(401, 'device-revoked');
           if (capability.bundleIdentifier !== bundleIdentifier)
             return refusal(409, 'activity-app-unsupported');
-          const request = options.request(channelId, messageId);
+          const request = options.request(channelId, messageId, deviceId);
           if (!request) return refusal(404, 'activity-request-not-found');
           if (request.progress.terminal) return refusal(409, 'activity-ended');
           return {
@@ -300,7 +301,7 @@ export function createActivityDelivery(options: {
         if (!capability) return refusal(503, 'activity-provider-unconfigured');
         if (bundleIdentifier !== capability.bundleIdentifier)
           return refusal(409, 'activity-app-unsupported');
-        const request = options.request(channelId, messageId);
+        const request = options.request(channelId, messageId, deviceId);
         if (!request) return refusal(404, 'activity-request-not-found');
         const old = database.read((db) =>
           db

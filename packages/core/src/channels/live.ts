@@ -266,17 +266,35 @@ export function createChannelLiveHub(
   activity?: ActivitySource,
   redactions?: () => PurgedPlacement[],
   watchAttention?: (changed: () => void) => () => void,
+  isOwner: (human: HumanContext) => boolean = (human) =>
+    human.humanId === OWNER_HUMAN_CONTEXT.humanId,
+  ownsBot?: (human: HumanContext, slug: string) => boolean,
 ): ChannelLiveHub {
-  const visibleChannel = (human: HumanContext, channelId: string): boolean =>
-    human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
-    (channels.get(channelId)?.type === 'group' &&
-      channels
-        .listHumanMembers(human, channelId)
-        .some((member) => member.humanId === human.humanId));
+  const visibleChannel = (human: HumanContext, channelId: string): boolean => {
+    if (!ownsBot && isOwner(human)) return true;
+    const channel = channels.get(channelId);
+    if (!channel || channel.deletedAt) return false;
+    if (channel.type === 'dm' && channel.remoteBot !== undefined) return isOwner(human);
+    if (channel.type === 'dm')
+      return ownsBot ? channel.members.every((slug) => ownsBot(human, slug)) : isOwner(human);
+    return (
+      isOwner(human) ||
+      channels.listHumanMembers(human, channelId).some((member) => member.humanId === human.humanId)
+    );
+  };
   const visiblePlacements = (human: HumanContext, placements: PurgedPlacement[]) =>
-    human.humanId === OWNER_HUMAN_CONTEXT.humanId
-      ? placements
-      : placements.filter((placement) => visibleChannel(human, placement.channelId));
+    placements.filter((placement) => {
+      const channel = channels.get(placement.channelId);
+      if (channel?.type === 'dm')
+        return channel.remoteBot !== undefined || !ownsBot
+          ? isOwner(human)
+          : channel.members.every((slug) => ownsBot(human, slug));
+      return (
+        isOwner(human) ||
+        (channels.hasHumanMembership?.(human, placement.channelId) ??
+          visibleChannel(human, placement.channelId))
+      );
+    });
   const subscribers = new Map<string, Set<Subscriber>>();
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();
@@ -560,8 +578,7 @@ export function createChannelLiveHub(
             if (visibleChannel(human, frame.channelId)) yield frame;
           } else if (frame.type === 'purged') {
             const placements = visiblePlacements(human, frame.placements);
-            if (placements.length > 0 || human.humanId === OWNER_HUMAN_CONTEXT.humanId)
-              yield { ...frame, placements };
+            if (placements.length > 0 || isOwner(human)) yield { ...frame, placements };
           } else yield frame;
         }
         if (ended) return;
@@ -1020,8 +1037,7 @@ export function createChannelLiveHub(
       const placements = redactions?.() ?? [];
       for (const subscriber of rosterSubscribers) {
         const visible = visiblePlacements(subscriber.human, placements);
-        if (visible.length > 0 || subscriber.human.humanId === OWNER_HUMAN_CONTEXT.humanId)
-          subscriber.purge(visible);
+        if (visible.length > 0 || isOwner(subscriber.human)) subscriber.purge(visible);
       }
     },
     close() {
