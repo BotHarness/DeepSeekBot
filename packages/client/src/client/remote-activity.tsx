@@ -1,4 +1,5 @@
-import { useHostName, hostLooks } from './host-looks.js';
+import { useHostName, useHostLook, hostLooks } from './host-looks.js';
+import { HostGlyph } from './host-glyph.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import { useMemo, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -115,15 +116,19 @@ export function remoteActivityPage(
 
 export function ActivityHostHeading({
   name,
+  hostId,
   remote = false,
   t,
 }: {
   name: string;
+  hostId?: string;
   remote?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const look = useHostLook(hostId ?? 'local');
   return (
     <h2 {...stylex.props(styles.heading)}>
+      {hostId ? <HostGlyph look={look} /> : null}
       {name}
       {remote ? <span {...stylex.props(styles.mark)}>{t('remoteHosts.remote')}</span> : null}
     </h2>
@@ -326,7 +331,7 @@ export function RemoteActivityGroup({
   };
   return (
     <section data-activity-host={host.host.hostId} aria-label={hostName}>
-      <ActivityHostHeading name={hostName} remote t={t} />
+      <ActivityHostHeading name={hostName} hostId={host.host.hostId} remote t={t} />
       {host.snapshot.connection.status !== 'connected' ? (
         <p role="status" {...stylex.props(styles.note)}>
           {t(refused ? 'remoteHosts.refused' : 'remoteHosts.offline', { name: hostName })}

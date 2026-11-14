@@ -188,6 +188,7 @@ export interface HostClient {
   resource(path: string): RemoteSource;
   secretInputAllowed?(): boolean;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
+  onPurged?(listener: (placements: unknown) => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
 
@@ -273,6 +274,7 @@ export class MethodRefused extends Error {
   constructor(
     readonly code: string,
     message: string,
+    readonly details?: unknown,
   ) {
     super(message);
   }
@@ -402,6 +404,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const avatarLoading = new Set<string>();
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
+  const purgeListeners = new Set<(placements: unknown) => void>();
   let snapshot: HostSnapshot = {
     connection: { status: 'stopped', route },
     ...(routePreference === undefined ? {} : { routePreference }),
@@ -751,6 +754,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw new MethodRefused(
           typeof error['code'] === 'string' ? error['code'] : 'refused',
           typeof error['message'] === 'string' ? error['message'] : `${name} was refused.`,
+          error['details'],
         );
       }
       return result['value'] as T;
@@ -1249,8 +1253,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
           follow('botharness/followRoster', (value) => {
             const frame = value as RosterLiveFrame;
-            if (frame.type === 'baseline' || frame.type === 'purged')
+            if (frame.type === 'baseline' || frame.type === 'purged') {
               options.onPurged?.(frame.placements);
+              for (const listener of purgeListeners) listener(frame.placements);
+            }
             if (frame.type === 'baseline') {
               baselines.roster = true;
               if (baselines.activity) resolveReady();
@@ -1739,6 +1745,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);
+    },
+    onPurged(listener) {
+      purgeListeners.add(listener);
+      return () => purgeListeners.delete(listener);
     },
     follow(endpoint, args, handlers) {
       const follower: Follower = { endpoint, args, handlers };

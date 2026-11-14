@@ -1,3 +1,4 @@
+import { remoteChannelRows } from './environment-channels.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
@@ -91,6 +92,13 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
+  corner: {
+    position: 'absolute',
+    bottom: 0,
+    insetInlineEnd: 0,
+    display: 'inline-flex',
+    backgroundColor: color.base,
+  },
 });
 
 export function useRemoteHosts() {
@@ -98,11 +106,21 @@ export function useRemoteHosts() {
   return useSyncExternalStore(sources.subscribe, sources.getSnapshot, sources.getSnapshot);
 }
 
-export function HostMark({ hostId }: { hostId?: string | undefined }): ReactElement {
+export function HostMark({
+  hostId,
+  corner = false,
+}: {
+  hostId?: string | undefined;
+  corner?: boolean;
+}): ReactElement {
   const thisHost = useThisHost();
   const look = useHostLook(hostId ?? thisHost.id);
   return (
-    <span className="bh-muted-mark" data-remote-host-mark={hostId ?? 'local'}>
+    <span
+      className="bh-muted-mark"
+      {...stylex.props(corner && styles.corner)}
+      data-remote-host-mark={hostId ?? 'local'}
+    >
       <HostGlyph look={look} size={12} />
     </span>
   );
@@ -514,38 +532,6 @@ export function AddRemoteHostDialog({
   );
 }
 
-function rows(remote: RemoteHost): (RemoteConversationTarget & {
-  key: string;
-  unread: number;
-  preview?: string;
-  previewAt?: string;
-})[] {
-  const roster = remote.snapshot.roster;
-  if (roster === undefined) return [];
-  const hostId = remote.host.hostId;
-  const unread = remote.inbox.status === 'ready' ? (remote.inbox.unread ?? {}) : {};
-  return [
-    ...roster.bots.map((bot) => ({
-      key: `bot:${bot.slug}`,
-      hostId,
-      title: bot.displayName,
-      botSlug: bot.slug,
-      unread: bot.dmChannelId === undefined ? 0 : (unread[bot.dmChannelId] ?? 0),
-      ...(bot.preview === undefined ? {} : { preview: bot.preview }),
-      ...(bot.previewAt === undefined ? {} : { previewAt: bot.previewAt }),
-    })),
-    ...roster.channels.map((channel) => ({
-      key: `channel:${channel.id}`,
-      hostId,
-      title: channel.name,
-      channelId: channel.id,
-      unread: unread[channel.id] ?? 0,
-      ...(channel.preview === undefined ? {} : { preview: channel.preview }),
-      ...(channel.previewAt === undefined ? {} : { previewAt: channel.previewAt }),
-    })),
-  ].sort((a, b) => (b.previewAt ?? '').localeCompare(a.previewAt ?? ''));
-}
-
 function sameTarget(
   open: RemoteConversationTarget | undefined,
   row: RemoteConversationTarget,
@@ -563,19 +549,21 @@ export function RemoteHostRows({
   query,
   showSource,
   onOpen,
+  rowsOverride,
   t,
 }: {
   remote: RemoteHost;
   query: string;
   showSource: boolean;
   onOpen?: (() => void) | undefined;
+  rowsOverride?: ReturnType<typeof remoteChannelRows> | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const sources = remoteHosts();
   const { open, avatars } = useRemoteHosts();
   const name = useHostName(remote.host.hostId, remote.host.hostName);
   const needle = query.trim().toLocaleLowerCase();
-  const visible = rows(remote).filter(
+  const visible = (rowsOverride ?? remoteChannelRows(remote)).filter(
     (row) => needle.length === 0 || row.title.toLocaleLowerCase().includes(needle),
   );
   if (visible.length === 0 && showSource) return null;
@@ -610,21 +598,86 @@ export function RemoteHostRows({
               t={t}
             />
             <UnreadCount count={row.unread} corner t={t} />
+            {showSource ? <HostMark hostId={remote.host.hostId} corner /> : null}
           </span>
           <span className="bh-body">
             <span className="bh-top">
               <span className="bh-name">{row.title}</span>
-              {showSource ? <HostMark hostId={remote.host.hostId} /> : null}
+              {showSource ? <span className="bh-muted-mark">{name}</span> : null}
             </span>
             <span className="bh-bottom">
               <span className="bh-msg">{row.preview ?? t('rail.noMessages')}</span>
+              {remote.snapshot.connection.status !== 'connected' ? (
+                <span>{t('environment.offline')}</span>
+              ) : null}
             </span>
           </span>
         </button>
       ))}
     </div>
   );
-  if (!showSource) return list;
+  if (rowsOverride !== undefined) return list;
+  if (!showSource) {
+    const sections = remote.snapshot.roster?.arrangement?.sections ?? [];
+    const pins = new Set(remote.snapshot.roster?.arrangement?.pins ?? []);
+    if (sections.length === 0 && pins.size === 0) return list;
+    const channelId = (row: ReturnType<typeof remoteChannelRows>[number]) =>
+      row.channelId ??
+      remote.snapshot.roster?.bots.find((bot) => bot.slug === row.botSlug)?.dmChannelId;
+    const sectioned = new Set(sections.flatMap((section) => section.channelIds));
+    return (
+      <>
+        {pins.size > 0 ? (
+          <div className="bh-section">
+            <div className="bh-section-head">
+              <span className="bh-section-name">{t('pin.title')}</span>
+            </div>
+            <RemoteHostRows
+              remote={remote}
+              query={query}
+              showSource={false}
+              rowsOverride={visible.filter((row) => pins.has(channelId(row) ?? ''))}
+              onOpen={onOpen}
+              t={t}
+            />
+          </div>
+        ) : null}
+        <RemoteHostRows
+          remote={remote}
+          query={query}
+          showSource={false}
+          rowsOverride={visible.filter(
+            (row) => !sectioned.has(channelId(row) ?? '') && !pins.has(channelId(row) ?? ''),
+          )}
+          onOpen={onOpen}
+          t={t}
+        />
+        {sections.map((section) => (
+          <div
+            className="bh-section"
+            key={section.id}
+            data-environment-section={JSON.stringify([remote.host.hostId, section.id])}
+          >
+            <div className="bh-section-head">
+              <span className="bh-section-name">{section.name}</span>
+            </div>
+            <RemoteHostRows
+              remote={remote}
+              query={query}
+              showSource={false}
+              rowsOverride={visible.filter(
+                (row) =>
+                  section.channelIds.includes(channelId(row) ?? '') &&
+                  !pins.has(channelId(row) ?? ''),
+              )}
+              onOpen={onOpen}
+              t={t}
+            />
+          </div>
+        ))}
+      </>
+    );
+  }
   return (
     <div className="bh-section" data-remote-section={remote.host.hostId}>
       <div className="bh-section-head">

@@ -241,7 +241,9 @@ function WorkspaceRail({
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
   );
-  const attention = useClientStore(selectRailAttention, shallowEqual);
+  const localAttention = useClientStore(selectRailAttention, shallowEqual);
+  const environmentSources = useRemoteHosts();
+  const attention = environmentAttention(localAttention, environmentSources);
   const railBotSlug = useClientStore(selectRailBotSlug);
   const indicatorMenu = useActivityIndicatorMenu(t);
   const indicator = activityIndicator(indicatorMenu.scope, attention);
@@ -482,3 +484,5 @@ function WorkspaceRail({
     </nav>
   );
 }
+import { useRemoteHosts } from './host-tabs.js';
+import { environmentAttention } from './environment-activity.js';
