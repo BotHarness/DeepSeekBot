@@ -1909,4 +1909,16 @@ deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
-`members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+`members reset-password <username> --initial-password-file <path>` 需要 `members.manage`，且调用者的权限覆盖目标角色的全部权限；Admin 目标仅限 Owner。用于恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+
+```sh
+deepseekbot --as bob members change-password --password-stdin --sign-out-others=false < password-change.json
+deepseekbot members deactivate bob
+deepseekbot members reactivate bob
+deepseekbot members transfer bob --preview
+deepseekbot members transfer bob --to alice
+deepseekbot members purge bob --preview
+deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
+```
+
+改密默认注销其他所有浏览器和配对设备；`false` 保留其他设备，首次强制改密除外。生命周期操作需要 `members.manage` 并遵循目标角色的权限上限；不能操作 Owner 或自己，Admin 目标仅限 Owner。停用保留数据并撤销全部授权，重新激活后需要重新登录。移交将群 Channel 所有权交给活跃成员或 Owner。永久删除要求先停用并完成移交，再使用预览返回的五分钟内有效、一次性令牌。用户名参数提供精确的用户名确认，stdin 仅提供令牌。共享消息保留 `author.humanId`，增加 `author.deleted: true` 并移除显示名。`team-mode status` 返回 `activeMembers`，`team-mode off` 另返回 `suspendedMembers`；关闭再开启不会激活原本已停用的账户。Bot 和根目录的所有权整合取决于合并基线已交付的切片。

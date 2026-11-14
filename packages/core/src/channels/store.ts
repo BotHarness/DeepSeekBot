@@ -1023,6 +1023,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const record: ChannelRecord = {
         id,
         type: 'group',
+        ...(input.ownerBotSlug === undefined ? { ownerHumanId: human.humanId } : {}),
         name: name.length > 0 ? name : id,
         members: [...input.members],
         ...(input.ownerBotSlug === undefined ? {} : { ownerBotSlug: input.ownerBotSlug }),

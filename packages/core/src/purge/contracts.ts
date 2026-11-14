@@ -43,13 +43,28 @@ export const purgeFactSchema = z
   .strict();
 export type PurgeFact = z.infer<typeof purgeFactSchema>;
 
+export const deletedHumanSchema = z
+  .object({
+    humanId: identity,
+    deletedAt: z.iso.datetime(),
+    privateChannels: z.array(identity).max(1_000_000).optional(),
+  })
+  .strict();
+
+export type DeletedHuman = z.infer<typeof deletedHumanSchema>;
+
 export const purgeCheckpointSchema = z
   .object({
     format: z.literal('botharness-purge'),
-    version: z.union([z.literal(1), z.literal(2)]),
+    version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
     facts: z.array(purgeFactSchema).max(1_000_000),
+    deletedHumans: z.array(deletedHumanSchema).max(1_000_000).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => !value.deletedHumans?.length || value.version === 3,
+    'Deleted Humans require checkpoint version 3',
+  );
 export type PurgeCheckpoint = z.infer<typeof purgeCheckpointSchema>;
 
 export interface ChannelHistoryItem {
@@ -120,6 +135,11 @@ export interface GroupDisbandResult {
 }
 
 export interface ContentPurge {
+  memberPreview(
+    human: HumanContext,
+    humanId: string,
+  ): { token: string; counts: { channels: number; bots: number; messages: number; files: number } };
+  memberConfirm(human: HumanContext, humanId: string, token: string): void;
   redactions(): PurgedPlacement[];
   history(human: HumanContext): ChannelHistoryItem[];
   sources(
