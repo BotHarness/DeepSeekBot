@@ -4,7 +4,11 @@ Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、�
 
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
+私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
+
 E2 将已批准关系复用于另一 Web Client 的具名授权：Client 显式选择关系和名称，兑换前检查目标 Host ID 与公钥，仍用现有 SavedHost 存储独立凭据；重复打开仅切换已保存目标。CLI `relationships enroll --device-name` 使用同一登记路径。取消、断开和旧关系代际不能签发迟到访问；单独撤销设备不撤销关系或其他 Client。手机仍通过每 Host 的独立配对，不能凭平台标记继承关系。
+
+E3 在既有关系 owner 内保留缺少返回地址的已批准关系；固定 Noise 身份的状态交换学习既有线路，另一次独立对端探测验证返回方向。可达性为 30 秒有效的进程观测，重启后回到尚未验证；授权与线路仍持久化。Connections 和 CLI 共用方向检查及固定身份线路恢复；不重新批准、不新增设备授权，也不接管 LAN、Tailscale 或隧道进程。关闭线路准备窗口不停止已完成的线路。
 
 2026-11-13 的整体确认扩展了 #4069 原先仅 Client 配对的范围。Control Rail Environment 面板在 Simple 模式替换当前面板，在 Advanced 模式增加独立列；Channels 与 Activity 共用 Client 本地 Environment Scope，Settings Target 独立且写入绑定精确 Host。Host Relationship 属于双端持久应用权威，每个 Client 仍取得自己的设备凭据，手机不自动继承，Bot 协作独立授权。每个方向的可达性和离线撤销确认分别呈现，不把账号退出、断开关系、关闭线路或删除远端数据混为一谈。通过现有 Device Pairing、凭据、operational database 与 API Gateway 边界交付，不能用布局状态或 Cordis Event 代替持久授权。
 
@@ -1621,6 +1625,8 @@ The Desktop intro includes an optional phone step that opens the existing Connec
 
 ### Bounded private route coexistence
 
+The browser carrier conveys the same opaque private-route admission in a WebSocket credential subprotocol alongside a fixed public framing label. Existing tunnel ingress and Docker relay owners validate their existing token, reject conflicting credential sources, and consume the credential protocol before forwarding or selecting only the public label. The Noise gateway accepts only that public label and retains pinned Noise and device authorization; no new encryption protocol, credential store or application authority is introduced. Admission stays out of URLs, public peer/Feed projections, response protocols and diagnostics. The shared stateless wire helper lives with the portable private relay runtime and is bundled into the Host and Client. Older external Docker relays require an explicit operator upgrade; local source qualification does not deploy them.
+
 The application-defined Devices private connection owner manages a Quick Tunnel and one Named Tunnel/private HTTPS ingress as independently enabled stable slots. Both use the existing encrypted device gateway, Host identity, pairing grants and revocation authority. The existing credentials Provider stores a versioned protected envelope; lifecycle serialization and metadata writes preserve disabled intent across restart. Explicit Add/Replace and targeted Start/Stop/Remove share the authenticated API and CLI. Private invitations retain one primary route for older clients and may explicitly admit one additional origin for updated clients; secure SavedHost persists that bounded list without learning official-service fallbacks. Migration and backup-based rollback constraints are specified in [ADR-0333](../adr/0333-bounded-private-route-coexistence.md).
 
 ### Team mode M1 identity and transport
@@ -1630,3 +1636,5 @@ The application-defined Team member owner separates durable identity, password c
 M2 adds application-defined private Bot ownership, one Tob per Human, scoped Activity projections and Human-bound push/Live Activity delivery. The member Peer remains the API Gateway principal; no Owner cookie is used by member traffic or a member Tob. See [Team mode M2 runtime boundaries](team-mode-m2-runtime.md) for persistence, authorization, CLI integration and regression budgets.
 
 The [M3 Host/CLI runtime](team-mode-m3-runtime.md) adds persistent Host Roles, union permissions, target-scoped device management and transferable Owner authority without rewriting Human identity. The Core shares its canonical Team Service with the live hub so delivery gates follow current ownership. Credential issuance provenance restricts transfer targets; suspension removes effective permissions, and transfers invalidate outstanding pairing offers.
+
+The [M9 lifecycle runtime](team-mode-m9-runtime.md) adds permission-scoped password resets, other-device sign-out, reversible mode suspension, deactivation/reactivation, group ownership transfer and permanent member deletion through Content Purge. Shared messages keep anonymous deleted-Human authorship; M2 private Bots and Tob participate in transfer, stop and Content Purge Memory erasure; shared roots and member mobile carriers retain their own qualification gates.

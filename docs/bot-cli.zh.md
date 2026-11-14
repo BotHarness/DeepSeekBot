@@ -11,18 +11,31 @@
 
 ### 电脑双向关系
 
+`relationships cancel <关系ID> --confirm` 仅在所属 Host 仍将关系视为待批准时取消提议。同步回复丢失但关系已激活时，返回 `relationship-already-active`，保留已批准关系及授权。浏览器取消登记时使用相同条件；清理回复不可用时不改为无条件重试。
+
+私有隧道的浏览器 Client 复用原有线路准入与固定身份的 Noise 通道。浏览器通过 WebSocket 子协议传递准入，入口消费该信息后只转发固定的公开协议标记，token 不进入 URL。Docker 私有中继需要升级到匹配的服务端版本才能支持浏览器；本功能不会部署或更新运行中的中继。旧服务端拒绝该浏览器握手，原生与 CLI 的请求头通路保持原样。
+
+使用 `route --device-file` 时，已认证的 Host 先验证新链接，CLI 再原子替换该 Client 的私密文件。新线路不含手动选定的线路时，返回 `relationship-route-preference-unavailable`，保留原文件。命令不输出设备凭据、密钥或线路准入信息。
+
+Client 线路偏好检查或文件替换失败时，Host 线路可能已经更新。重试前先运行 `relationships list` 并检查私密 Client 文件；Client 文件失败不会回滚 Host。
+
+私有 relay/隧道 admission 保存在 Host 既有受保护凭据 owner 中，`list`、发起结果及 CLI 登记输出不打印 token。固定身份的加密控制交换与当前 Client 的已认证 ticket 将其交给既有 Noise 配对路径。等待对端确认撤销时保留线路引用；确认后仅删除该关系引用。私密存储失败返回 `relationship-route-secret-unavailable`。Tailscale HTTPS 登记同样走固定 Noise，后续 Feed 沿用既有 Host client 线路策略。
+
 `relationships` 通过已认证的本机 Host，使用与连接界面相同的审批所有者。每次 CLI 登记创建独立设备授权，本机 Host 不共享远端设备凭据。
 
 关系管理属于当前 Owner：成员、Admin 的连接及 `--as` 均不能管理或登记 Host 关系。派生设备授权保留邀请创建时的 Owner Human；转移 Owner 后，旧邀请和旧 Owner 设备准入均失效。私有 Bot 和频道仍使用既有的逐 Human 访问检查。E1 在已发布 Team141–143 后追加迁移144；内部 Environment 预览数据库不属于支持的升级来源。
 
-| 命令                                                                            | 用途                                                                     |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `relationships list`                                                            | 读取持久化的对端、审批状态和待确认撤销。                                 |
-| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm`    | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
-| `relationships approve <关系ID> <对端公钥> --confirm`                           | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
-| `relationships sync <关系ID>`                                                   | 读取对方审批，完成已认证的双向握手。                                     |
-| `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>` | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
-| `relationships disconnect <关系ID> --confirm`                                   | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
+方向观测在 30 秒后过期，Host 重启后恢复为尚未验证；授权及已保存线路仍然保留。`list` 不建立网络连接。`sync` 独立验证本机出站方向，并请求已认证的对端验证其出站方向。缺少返回线路时保留已批准关系。在现有连接设置中准备 LAN、Tailscale 或隧道地址，再从可达一方执行 `sync`。恢复失效的对端地址时，用 `route` 提交对端的新链接；身份不符时保留原有固定身份。这些命令不签发新设备授权，也不启动线路进程；关闭连接设置不停止已准备线路。
+
+| 命令                                                                                                 | 用途                                                                     |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `relationships list`                                                                                 | 读取持久化的对端、审批状态和待确认撤销。                                 |
+| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm`                         | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
+| `relationships approve <关系ID> <对端公钥> --confirm`                                                | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
+| `relationships sync <关系ID>`                                                                        | 完成审批并独立检查两个方向，通过固定身份的加密通道交换已准备线路。       |
+| `relationships route <关系ID> --link-file <私密文件绝对路径> [--device-file <现有私密文件绝对路径>]` | 核对固定 Host 的新线路；可更新既有 CLI Client，保留设备 ID、密钥和凭据。 |
+| `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>`                      | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
+| `relationships disconnect <关系ID> --confirm`                                                        | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
 
 用现有 `--host` / `--token-file` 选定准确的本机所有者。在另一台本机 Host 上执行 `enroll`，为其 CLI Client 独立登记；`device-probe --device-file <私密文件绝对路径>` 读取该 Client 的真实远端 Feed。手机不能通过设备网关调用关系登记。发起结果不确定时先读取 `relationships list`，不要盲目重发。E1 保留待对端确认的撤销；对方恢复在线后的自动重试属于 E4。
 
@@ -1928,7 +1941,19 @@ deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
-`members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+`members reset-password <username> --initial-password-file <path>` 需要 `members.manage`，且调用者的权限覆盖目标角色的全部权限；Admin 目标仅限 Owner。用于恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+
+```sh
+deepseekbot --as bob members change-password --password-stdin --sign-out-others=false < password-change.json
+deepseekbot members deactivate bob
+deepseekbot members reactivate bob
+deepseekbot members transfer bob --preview
+deepseekbot members transfer bob --to alice
+deepseekbot members purge bob --preview
+deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
+```
+
+改密默认注销其他所有浏览器和配对设备；`false` 保留其他设备，首次强制改密除外。生命周期操作需要 `members.manage` 并遵循目标角色的权限上限；不能操作 Owner 或自己，Admin 目标仅限 Owner。停用保留数据并撤销全部授权，重新激活后需要重新登录。移交会把群 Channel 所有权以及该成员的私有 Bot（连同其 Memory 和私信记录）交给活跃成员或 Owner；预览会先列出两者。成员的 Tob 在永久删除前仍归其本人。永久删除要求先停用并完成移交，再使用预览返回的五分钟内有效、一次性令牌。用户名参数提供精确的用户名确认，stdin 仅提供令牌。共享消息保留 `author.humanId`，增加 `author.deleted: true` 并移除显示名。`team-mode status` 返回 `activeMembers`，`team-mode off` 另返回 `suspendedMembers`；关闭再开启不会激活原本已停用的账户。永久删除还会移除该成员的 Tob 以及仍归其所有的私有 Bot 和对应 Memory；有其他人参与过的私信会保留。
 
 ### Tobs Connect 本机公网自检
 

@@ -25,6 +25,10 @@ this procedure. Restart through the qualified lifecycle, require authenticated P
 and normal native lock release, and retain the backup and metadata. This does not authorize
 automatic lock deletion, a generic stale-lock repair, or a longer startup deadline.
 
+### CredentialKey segments and opaque identifiers
+
+The pinned native credentials service accepts lowercase letter/digit/hyphen key segments. An opaque application ID can contain uppercase letters or underscores: hash the exact ID for its protected-record key and bind the original identity in the payload. Lowercasing the ID can merge distinct owners. Use `modifyRecord` for writes and keep route admission separate from per-device credentials. Verify protected writes and readback through the running Host, with secret-free output.
+
 ### GenUI preview browser startup diagnostics (#4030)
 
 A passing plain timeline opens the Puppeteer driver, not the Host's separate GenUI

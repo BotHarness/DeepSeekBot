@@ -578,9 +578,11 @@ function channelPreview(
       t('roster.latestActivity'));
   const author =
     message.author.kind === 'human'
-      ? humanIdOf(message.author) === selfHumanId()
-        ? t('rail.you')
-        : (message.author.displayName ?? t('channelActivity.human'))
+      ? message.author.deleted === true
+        ? t('team.deletedMember')
+        : humanIdOf(message.author) === selfHumanId()
+          ? t('rail.you')
+          : (message.author.displayName ?? t('team.otherMember'))
       : message.author.kind === 'bot'
         ? (bots.get(message.author.slug)?.displayName ?? message.author.slug)
         : message.author.kind === 'bridged'
