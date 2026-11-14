@@ -8312,6 +8312,7 @@ class BotRuntimeImplementation implements BotRuntime {
               });
             const memory = this.#registry.memoryDirFor(botSlug);
             if (memory !== undefined) roots.push(memory);
+            this.#grants!.validatePath?.(botSlug, path);
             if (authorizedPathRoot(roots, path) === undefined)
               throw new Error('Selected file is outside current authorized directories');
           },
@@ -9043,10 +9044,12 @@ class BotRuntimeImplementation implements BotRuntime {
       input.avatarPath === undefined
         ? undefined
         : this.#readCreatedAvatar(botSlug, input.avatarPath);
+    if (memoryLocation) this.#grants?.validatePath?.(botSlug, memoryLocation, true);
     const slug = this.#createBotId();
     beforeSend();
     const created = this.#registry.create({
       slug,
+      ownerHumanId: botOwner(creator!),
       displayName,
       ...(input.soul === undefined ? {} : { persona: input.soul }),
       ...(input.coreMemory === undefined ? {} : { coreMemory: input.coreMemory }),
@@ -9069,7 +9072,11 @@ class BotRuntimeImplementation implements BotRuntime {
             : (created.detail ?? 'The PersonaBot could not be created'),
       );
     const record = (created as Extract<typeof created, { ok: true }>).record;
-    const dm = this.#channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, record.slug, record.displayName);
+    const dm = this.#channels.getOrCreateDm(
+      humanContext(botOwner(record)),
+      record.slug,
+      record.displayName,
+    );
     try {
       this.#channels.appendBotCreateAction?.({
         botSlug,
@@ -9106,6 +9113,7 @@ class BotRuntimeImplementation implements BotRuntime {
       });
     const memory = this.#registry.memoryDirFor(botSlug);
     if (memory !== undefined) roots.push(memory);
+    this.#grants?.validatePath?.(botSlug, path);
     if (authorizedPathRoot(roots, path) === undefined)
       refuse('avatar_path is outside your Memory Repository and Workspace Grants');
     let bytes: Buffer;

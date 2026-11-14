@@ -5,7 +5,11 @@ import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-a
 
 import { sameDirectory } from '../fs/same-directory.js';
 import type { BotHarnessCore } from '../plugin.js';
-import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
+import {
+  NATIVE_FILE_TOOL_NAMES,
+  nativeFileToolDenial,
+  nativeFileSpaceDenial,
+} from './grant-native-tools.js';
 
 type AccessCore = { assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> };
 
@@ -438,7 +442,10 @@ export function grantToolExecutionDenial(
   if (BOT_TOOL_NAMES.has(name)) return undefined;
 
   if (core.hostTools.has(name)) return undefined;
-  if (sessionHasFullAccess(core, session.id)) return undefined;
+  if (sessionHasFullAccess(core, session.id))
+    return NATIVE_FILE_TOOL_NAMES.has(name)
+      ? nativeFileSpaceDenial(core, session, name, args)
+      : undefined;
   if (NATIVE_FILE_TOOL_NAMES.has(name)) return nativeFileToolDenial(core, session, name, args);
   if (requiresHumanToolApproval(name, args, approvalTemplateInUse(core.registry)) && !allowedOnce)
     return name + ' requires Human approval';

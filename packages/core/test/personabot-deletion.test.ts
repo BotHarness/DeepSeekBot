@@ -11,7 +11,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -490,7 +490,7 @@ describe('confirmed terminal PersonaBot deletion', () => {
   it('still refuses a symlink below the canonical managed root and an invalid retained ownership proof', () => {
     const f = fixture();
     const memory = f.create('a');
-    const directory = join(f.core.registry.rootDir, 'a');
+    const directory = dirname(memory);
     renameSync(directory, directory + '-retained');
     symlinkSync(directory + '-retained', directory, 'dir');
     expect(f.deletion.preview('a')).toMatchObject({ eraseAvailable: false });

@@ -842,8 +842,13 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
           typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
           scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
         );
-        const permission = record(error['details'])['permission'];
-        if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
+        const { permission, path, spaceId } = record(error['details']);
+        if ([permission, path, spaceId].some((value) => typeof value === 'string'))
+          failure.details = {
+            ...(typeof permission === 'string' ? { permission: scrub(permission) } : {}),
+            ...(typeof path === 'string' ? { path: scrub(path) } : {}),
+            ...(typeof spaceId === 'string' ? { spaceId: scrub(spaceId) } : {}),
+          };
         throw failure;
       }
       return result['value'] as T;
@@ -868,8 +873,13 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       const message =
         typeof error['message'] === 'string' ? error['message'] : 'The Host refused the command.';
       const failure = new CliLiveError(code, scrub(message));
-      const permission = record(error['details'])['permission'];
-      if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
+      const { permission, path, spaceId } = record(error['details']);
+      if ([permission, path, spaceId].some((value) => typeof value === 'string'))
+        failure.details = {
+          ...(typeof permission === 'string' ? { permission: scrub(permission) } : {}),
+          ...(typeof path === 'string' ? { path: scrub(path) } : {}),
+          ...(typeof spaceId === 'string' ? { spaceId: scrub(spaceId) } : {}),
+        };
       throw failure;
     }
     return result['value'] as T;

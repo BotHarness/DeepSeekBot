@@ -18,6 +18,8 @@ export {
 export { ProfileBackupError } from './portability/files.js';
 export { runProfileRestoreCli } from './portability/cli.js';
 export type { BotHarnessConfig, BotHarnessCore } from './plugin.js';
+export { currentRoots } from './workspaces/grant-native-tools.js';
+export type { SpaceAudience, WorkspaceSpace } from './workspaces/spaces.js';
 export { createBridgeMethods } from './bridge/methods.js';
 export type {
   BridgeError,

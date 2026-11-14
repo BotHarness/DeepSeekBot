@@ -19,7 +19,11 @@ afterEach(async () => {
   );
 });
 async function host(
-  memberFailure: { code: string; message: string; details?: { permission: string } } = {
+  memberFailure: {
+    code: string;
+    message: string;
+    details?: { permission?: string; path?: string; spaceId?: string };
+  } = {
     code: 'remote-access/denied',
     message: 'member-call-refused',
   },
@@ -98,6 +102,76 @@ async function run(url: string, args: string[], stdin = '') {
   };
 }
 describe('Team CLI', () => {
+  it('preserves coded path details for member CLI refusals without an Owner fallback', async () => {
+    const error = {
+      code: 'grant-foreign-space',
+      message: 'grant-foreign-space',
+      details: { path: '/spaces/bob/files', spaceId: 'spaces/bob' },
+    };
+    const f = await host(error);
+    expect((await run(f.url, ['--as', 'bob', 'spaces', 'list'])).output).toMatchObject({ error });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]?.path).toBe('/api/botharness/team-as');
+  });
+  it.each([
+    { args: ['spaces', 'list'], method: 'spaces', payload: {} },
+    {
+      args: ['spaces', 'create', '--name', 'Finance', '--audience', 'roles:admin,finance'],
+      method: 'spaceCreate',
+      payload: { name: 'Finance', audience: { kind: 'roles', roleIds: ['admin', 'finance'] } },
+    },
+    {
+      args: ['spaces', 'create', '--name', 'People', '--audience', 'members:alice,bob'],
+      method: 'spaceCreate',
+      payload: { name: 'People', audience: { kind: 'members', humanIds: ['alice', 'bob'] } },
+    },
+    {
+      args: ['spaces', 'update', 'shared/team', '--name', 'Team', '--audience', 'everyone'],
+      method: 'spaceUpdate',
+      payload: { spaceId: 'shared/team', name: 'Team', audience: { kind: 'everyone' } },
+    },
+    {
+      args: ['spaces', 'delete', 'shared/team', '--confirm'],
+      method: 'spaceDelete',
+      payload: { spaceId: 'shared/team', confirm: true },
+    },
+  ])(
+    'keeps spaces CLI payload and --as authority for $method',
+    async ({ args, method, payload }) => {
+      const f = await host({
+        code: 'permission-required',
+        message: 'permission-required',
+        details: { permission: 'workspaces.manageShared' },
+      });
+      const own = await run(f.url, args);
+      expect(own.status).toBe(0);
+      expect(f.calls.at(-1)).toMatchObject({
+        path: '/api/botharness/' + method,
+        input: { method: 'botharness/' + method, payload: { args: payload } },
+      });
+      const before = f.calls.length;
+      const as = await run(f.url, ['--as', 'bob', ...args]);
+      expect(as.output).toMatchObject({
+        error: { code: 'permission-required', details: { permission: 'workspaces.manageShared' } },
+      });
+      expect(f.calls.slice(before)).toEqual([
+        {
+          path: '/api/botharness/team-as',
+          input: { username: 'bob', namespace: 'botharness', method, args: payload },
+        },
+      ]);
+    },
+  );
+  it.each([
+    ['spaces', 'delete', 'shared/team'],
+    ['spaces', 'create', '--name', 'Bad', '--audience', 'roles:'],
+    ['spaces', 'create', '--name', 'Bad', '--audience', 'unknown:alice'],
+    ['spaces', 'update', 'shared/team'],
+  ])('refuses invalid or unconfirmed spaces command %j before mutation', async (...args) => {
+    const f = await host();
+    expect((await run(f.url, args)).status).not.toBe(0);
+    expect(f.calls).toHaveLength(0);
+  });
   it.each([
     ['list'],
     ['approve', 'a'.repeat(32), 'ab'.repeat(32), '--confirm'],

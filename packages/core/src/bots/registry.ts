@@ -11,7 +11,7 @@ import {
   statSync,
   type Dirent,
 } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
 import { deriveAvatarAppearance } from './avatar-snapshot.js';
@@ -78,6 +78,7 @@ export interface MemoryRepositoryInitialization {
 
 export interface PersonaBotRegistryOptions {
   rootDir: string;
+  defaultMemoryPath?: (slug: string, humanId: string) => string;
   database: OperationalDatabaseOwner;
   onImport?: (event: { phase: 'complete' | 'failed'; count?: number; durationMs: number }) => void;
   now?: () => Date;
@@ -204,7 +205,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   const now = options.now ?? (() => new Date());
   const botDir = (slug: string): string => join(rootDir, slug);
   const botFile = (slug: string): string => join(botDir(slug), 'bot.json');
-  const defaultMemoryDir = (slug: string): string => join(botDir(slug), 'memory');
+  const defaultMemoryDir = (slug: string, humanId = 'local-human'): string =>
+    options.defaultMemoryPath?.(slug, humanId) ?? join(botDir(slug), 'memory');
 
   const port = attachOperationalModule(options.database, 'bot-registry');
   const capture = (event: TelemetryEventName): void => {
@@ -440,7 +442,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   }
 
   const memoryDirOf = (record: PersonaBotRecord): string =>
-    record.memoryDir ?? defaultMemoryDir(record.slug);
+    record.memoryDir ?? defaultMemoryDir(record.slug, record.ownerHumanId ?? 'local-human');
 
   if (options.database.mode === 'ready') {
     for (const record of list()) {
@@ -489,7 +491,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       return { ok: false, reason: 'invalid-memory-dir' };
     }
     const memoryLocation = input.memoryLocation?.trim();
-    let memoryDir = explicitMemoryDir;
+    let memoryDir =
+      explicitMemoryDir ||
+      options.defaultMemoryPath?.(input.slug, input.ownerHumanId ?? 'local-human');
     if (memoryLocation !== undefined && memoryLocation.length > 0) {
       if (explicitMemoryDir || !isAbsolute(memoryLocation)) {
         return { ok: false, reason: 'invalid-memory-dir' };
@@ -599,18 +603,28 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
 
       mkdirSync(botDir(input.slug));
       ownsBotDir = true;
-      renameSync(staging, defaultMemoryDir(input.slug));
+      mkdirSync(dirname(defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human')), {
+        recursive: true,
+      });
+      renameSync(staging, defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'));
       staging = undefined;
       try {
-        migrateLegacySoul(defaultMemoryDir(input.slug));
+        migrateLegacySoul(defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'));
       } catch {}
       const result = create(input, false);
       created = result.ok;
       if (!result.ok) return result;
+      recordMemoryOwnership(port, result.record.slug, memoryDirOf(result.record));
       capture('bot_library:bot_create');
-      const shared = readSharedPresentation(defaultMemoryDir(input.slug));
-      const banner = readSharedBanner(defaultMemoryDir(input.slug));
-      const primaryColor = readSharedPrimaryColor(defaultMemoryDir(input.slug));
+      const shared = readSharedPresentation(
+        defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'),
+      );
+      const banner = readSharedBanner(
+        defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'),
+      );
+      const primaryColor = readSharedPrimaryColor(
+        defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'),
+      );
       const presentation =
         shared === undefined && banner === undefined && primaryColor === undefined
           ? undefined
@@ -719,7 +733,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       return memoryDirOf(record);
     },
     defaultMemoryDirFor(slug) {
-      return defaultMemoryDir(slug);
+      return defaultMemoryDir(slug, read(slug)?.ownerHumanId ?? 'local-human');
     },
     setMemoryDir(slug, memoryDir) {
       const record = active(slug);

@@ -1,3 +1,4 @@
+import type { SpaceAudience } from '../workspaces/spaces.js';
 import { TeamError, type TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BotImportsService } from '../bots/imports.js';
@@ -401,6 +402,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     this.invocationMethods = methods;
   }
 
+  spaces() {
+    return unwrapAsync(this.methods.spaces({}));
+  }
+  spaceCreate(name: string, audience: SpaceAudience) {
+    return unwrapAsync(this.methods.spaceCreate({ name, audience }));
+  }
+  spaceUpdate(spaceId: string, name?: string, audience?: SpaceAudience) {
+    return unwrapAsync(this.methods.spaceUpdate({ spaceId, name, audience }));
+  }
+  spaceDelete(spaceId: string, confirm: boolean) {
+    return unwrapAsync(this.methods.spaceDelete({ spaceId, confirm }));
+  }
   teamMode() {
     return unwrapAsync(this.methods.teamMode({}));
   }
@@ -2343,7 +2356,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     workspaceId: string,
     acknowledgeReadWrite: boolean,
   ) {
-    this.requirePrivateOwner('Workspace authorization requires the authenticated Owner');
+    this.invocationHuman();
     return unwrapAsync(
       this.methods.grantRequestApprove({
         slug,
@@ -3001,6 +3014,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
 }
 
 markRemoteMethods(BotharnessBridgeService.prototype, [
+  'spaces',
+  'spaceCreate',
+  'spaceUpdate',
+  'spaceDelete',
   'teamMode',
   'teamModeSet',
   'teamOwnerPasswordSet',

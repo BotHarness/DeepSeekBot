@@ -1,3 +1,4 @@
+import { accountSpaceFiles, removeAccountSpace } from '../workspaces/space-lifecycle.js';
 import { acceptMemberBotPurge, type PersonaBotDeletions } from '../bots/deletion.js';
 import { z } from 'zod';
 import { TeamError } from '../team/error.js';
@@ -250,6 +251,7 @@ export function mountContentPurge(options: {
             rootDir: join(options.dshHome, 'botharness', 'bots'),
           });
         db.prepare('DELETE FROM tob_identity WHERE human_id = ?').run(fact.humanId);
+        db.prepare('DELETE FROM workspace_spaces WHERE owner_human_id = ?').run(fact.humanId);
         const removed = db.prepare('DELETE FROM humans WHERE human_id = ?').run(fact.humanId);
         identityChanged ||=
           Number(inserted.changes) + Number(rewritten.changes) + Number(removed.changes) > 0;
@@ -718,6 +720,7 @@ export function mountContentPurge(options: {
       const retained = files.size
         ? retainedManagedFiles(db, new Set(rows.map((row) => row.source_event_id)))
         : new Set<string>();
+      const accountFiles = accountSpaceFiles(options.dshHome, humanId);
       const counts = {
         channels: channels.length,
         bots: bots.length,
@@ -738,6 +741,7 @@ export function mountContentPurge(options: {
               [...files].filter((id) => !retained.has(id)).sort(),
               bots,
               plans,
+              accountFiles,
             ]),
           )
           .digest('hex'),
@@ -747,9 +751,9 @@ export function mountContentPurge(options: {
     const active = memberWork.get(fact.humanId);
     if (active) return active;
     const slugs = fact.privateBots ?? [];
-    if (!slugs.length) return Promise.resolve();
+
     const provider = memberBots;
-    if (!provider) return Promise.reject(unavailable());
+    if (slugs.length && !provider) return Promise.reject(unavailable());
     const work = (async () => {
       for (const slug of slugs) {
         const eligible = port.read((db) => {
@@ -762,7 +766,7 @@ export function mountContentPurge(options: {
           );
         });
         if (!eligible) continue;
-        const state = await provider.retry(slug);
+        const state = await provider!.retry(slug);
         if (state.phase !== 'complete' || state.memory !== 'erased') throw unavailable();
         port.transaction(
           (db) => {
@@ -777,6 +781,7 @@ export function mountContentPurge(options: {
           ['bot-registry', 'content-purge'],
         );
       }
+      removeAccountSpace(options.dshHome, fact.humanId);
     })();
     memberWork.set(fact.humanId, work);
     void work.then(
