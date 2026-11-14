@@ -27,7 +27,7 @@ export interface AppearanceFace extends BotModePrefsFace {
 export function AppearanceSection(
   props: PropsLocale<'botharness'> &
     InjectFace<AppearanceFace> &
-    PropsRenderSlots<'botharness.settings.layout'>,
+    PropsRenderSlots<'botharness.settings.layout'> & { clientOnly?: boolean },
 ): ReactElement {
   const { t, appearance, wallpaper, localeSource, renderSlot } = props;
   const theme = useSyncExternalStore(appearance.subscribe, appearance.getSnapshot);
@@ -39,52 +39,67 @@ export function AppearanceSection(
   };
   return (
     <SettingsRows>
-      <Note>{t('appearance.local')}</Note>
-      {theme.error && <Note tone="danger">{t('appearance.saveFailed')}</Note>}
-      <SettingsSection title={t('settings.theme')}>
-        <ColorSchemePicker
-          value={theme.config.preference}
-          config={theme.config}
-          t={t}
-          onChange={(preference) => change({ preference })}
-        />
-      </SettingsSection>
-      <SettingsSection title={t('appearance.palette')}>
-        <ThemePresetPicker
-          config={theme.config}
-          t={t}
-          onSelect={(preset) => applyPreset(appearance, preset)}
-        />
-        <SettingsRow
-          title={t('appearance.primary')}
-          control={(['light', 'dark'] as const).map((mode) => (
-            <PrimaryColorPicker
-              key={mode}
-              mode={mode}
-              config={theme.config.modes[mode]}
-              t={t}
-              onChange={(primary) => change({ mode, primary })}
-            />
-          ))}
-        />
-      </SettingsSection>
-      <WallpaperSettings owner={wallpaper} appearance={appearance} t={t} />
-      <AppearanceMaterialSettings appearance={appearance} snapshot={theme} t={t} />
-      <MotionSetting {...props} />
-      <BotIconSetting {...props} />
-      <SettingsRow
-        title={t('settings.language')}
-        control={
-          <Select
-            label={t('settings.language')}
-            value={locale.active}
-            options={locale.locales.map((item) => ({ value: item.id, label: item.label }))}
-            onChange={localeSource.setLocale}
+      <SettingsSection title={t('environment.settings.device')}>
+        <Note>{t('appearance.local')}</Note>
+        {theme.error && <Note tone="danger">{t('appearance.saveFailed')}</Note>}
+        <SettingsSection title={t('settings.theme')}>
+          <ColorSchemePicker
+            value={theme.config.preference}
+            config={theme.config}
+            t={t}
+            onChange={(preference) => change({ preference })}
           />
-        }
-      />
-      {renderSlot('botharness.settings.layout', {}) as unknown as ReactNode}
-      <AppearanceRecoverySettings appearance={appearance} wallpaper={wallpaper} t={t} />
+        </SettingsSection>
+        <SettingsSection title={t('appearance.palette')}>
+          <ThemePresetPicker
+            config={theme.config}
+            t={t}
+            onSelect={(preset) => applyPreset(appearance, preset)}
+          />
+          <SettingsRow
+            title={t('appearance.primary')}
+            control={(['light', 'dark'] as const).map((mode) => (
+              <PrimaryColorPicker
+                key={mode}
+                mode={mode}
+                config={theme.config.modes[mode]}
+                t={t}
+                onChange={(primary) => change({ mode, primary })}
+              />
+            ))}
+          />
+        </SettingsSection>
+        <WallpaperSettings owner={wallpaper} appearance={appearance} t={t} />
+        <AppearanceMaterialSettings appearance={appearance} snapshot={theme} t={t} />
+        {props.clientOnly
+          ? (renderSlot(
+              'botharness.settings.layout',
+              {},
+              { only: 'workspace-layout' },
+            ) as unknown as ReactNode)
+          : null}
+        <AppearanceRecoverySettings appearance={appearance} wallpaper={wallpaper} t={t} />
+      </SettingsSection>
+      {props.clientOnly ? null : (
+        <SettingsSection title={t('remoteHosts.this')}>
+          <MotionSetting {...props} />
+          <BotIconSetting {...props} />
+          <SettingsRow
+            title={t('settings.language')}
+            control={
+              <Select
+                label={t('settings.language')}
+                value={locale.active}
+                options={locale.locales.map((item) => ({ value: item.id, label: item.label }))}
+                onChange={localeSource.setLocale}
+              />
+            }
+          />
+        </SettingsSection>
+      )}
+      {props.clientOnly
+        ? null
+        : (renderSlot('botharness.settings.layout', {}) as unknown as ReactNode)}
     </SettingsRows>
   );
 }

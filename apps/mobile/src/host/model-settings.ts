@@ -11,8 +11,8 @@ import {
   type ModelCatalogEntry,
   type ModelPreset,
   type ModelRoute,
+  type ModelSettingsClient,
 } from './bot-settings';
-import type { HostClient } from './client';
 import { recordFeature } from '../telemetry/features';
 
 export type ModelScope =
@@ -35,8 +35,8 @@ export function modelScopeKey(scope: ModelScope): string {
       : 'global';
 }
 
-const owners = new WeakMap<HostClient, QueryClient>();
-export function modelSettingsResource(client: HostClient, scope: ModelScope) {
+const owners = new WeakMap<ModelSettingsClient, QueryClient>();
+export function modelSettingsResource(client: ModelSettingsClient, scope: ModelScope) {
   let queries = owners.get(client);
   if (queries === undefined) {
     queries = new QueryClient({
@@ -109,7 +109,7 @@ function requireRoute(route: ModelRoute | undefined): ModelRoute {
 }
 
 async function writePlan(
-  client: HostClient,
+  client: ModelSettingsClient,
   scope: ModelScope,
   state: ModelSettingsState,
   routes: {
@@ -138,7 +138,7 @@ async function writePlan(
 }
 
 export async function setModelRoute(
-  client: HostClient,
+  client: ModelSettingsClient,
   scope: ModelScope,
   state: ModelSettingsState,
   field: 'orchestrator' | 'assignment',
@@ -209,7 +209,7 @@ export async function setModelRoute(
 }
 
 export async function toggleAssignmentModel(
-  client: HostClient,
+  client: ModelSettingsClient,
   scope: ModelScope,
   state: ModelSettingsState,
   entry: ModelCatalogEntry,
@@ -243,7 +243,7 @@ export async function toggleAssignmentModel(
 }
 
 export async function inheritModel(
-  client: HostClient,
+  client: ModelSettingsClient,
   slug: string,
   state: ModelSettingsState,
 ): Promise<void> {
@@ -255,7 +255,7 @@ export async function inheritModel(
 }
 
 export async function saveModelPreset(
-  client: HostClient,
+  client: ModelSettingsClient,
   state: ModelSettingsState,
   name: string,
   update = false,
@@ -278,18 +278,22 @@ export async function saveModelPreset(
   const preset = state.preset;
   if (update && preset?.revision === undefined)
     throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
-  const value = await client.call<{ preset: { id: string } }>(
-    update ? 'modelPresetUpdate' : 'modelPresetCreate',
-    {
-      ...(update && preset !== undefined
-        ? { id: preset.id, expectedRevision: preset.revision }
-        : {}),
-      name: name.trim(),
-      orchestrator,
-      assignmentDefault,
-      assignmentModels,
-    },
-  );
-  if (typeof value.preset?.id !== 'string') throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
-  return value.preset.id;
+  const value = await client.call(update ? 'modelPresetUpdate' : 'modelPresetCreate', {
+    ...(update && preset !== undefined ? { id: preset.id, expectedRevision: preset.revision } : {}),
+    name: name.trim(),
+    orchestrator,
+    assignmentDefault,
+    assignmentModels,
+  });
+  if (typeof value !== 'object' || value === null || !('preset' in value))
+    throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
+  const presetAnswer = value.preset;
+  if (
+    typeof presetAnswer !== 'object' ||
+    presetAnswer === null ||
+    !('id' in presetAnswer) ||
+    typeof presetAnswer.id !== 'string'
+  )
+    throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
+  return presetAnswer.id;
 }

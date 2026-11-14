@@ -3,6 +3,9 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
+let member = false;
+vi.mock('../src/client/team-state.js', () => ({ useTeamMember: () => member }));
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Input: (props: object) => createElement('input', props),
   Modal: ({
@@ -85,9 +88,14 @@ const ROWS: readonly BotSettingsSectionRow[] = [
 
 let host: HTMLDivElement;
 let root: Root;
-let rendered: { id: string | undefined; close: (() => void) | undefined }[];
+let rendered: {
+  id: string | undefined;
+  close: (() => void) | undefined;
+  clientOnly?: boolean | undefined;
+}[];
 
 beforeEach(() => {
+  member = false;
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   host = document.createElement('div');
   document.body.append(host);
@@ -113,8 +121,12 @@ function mount(settings: BotSettings, rows: readonly BotSettingsSectionRow[] = R
         botSettings: settings,
         sections,
         t: zhTranslate,
-        renderSlot: ((_name: string, owner: { close(): void }, options?: { only?: string }) => {
-          rendered.push({ id: options?.only, close: owner.close });
+        renderSlot: ((
+          _name: string,
+          owner: { close(): void; clientOnly?: boolean },
+          options?: { only?: string },
+        ) => {
+          rendered.push({ id: options?.only, close: owner.close, clientOnly: owner.clientOnly });
           return createElement('p', { 'data-section': options?.only }, `section:${options?.only}`);
         }) as never,
       }),
@@ -435,4 +447,56 @@ it('returns to ordinary settings after closing the standalone Connections dialog
     sectionId: 'general',
     pairPhone: false,
   });
+});
+
+it('limits App preferences navigation and section mounting to Client-local owners', () => {
+  const settings = new BotSettings();
+  const ids = [...Object.values(BOT_SETTINGS_SECTIONS), 'unclassified-plugin'];
+  mount(
+    settings,
+    ids.map((id, order) => ({ id, order, label: id })),
+  );
+  act(() => settings.openClientPreferences());
+  expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('本应用偏好');
+  expect(navLabels()).toEqual(['appearance', 'notifications', 'shortcuts', 'companions']);
+  expect(shownSection()).toBe('appearance');
+  expect(rendered.at(-1)).toMatchObject({ id: 'appearance', clientOnly: true });
+  act(() => settings.select('models'));
+  expect(shownSection()).toBe('appearance');
+  act(() => settings.select('voice'));
+  expect(shownSection()).toBe('appearance');
+  act(() => settings.select('notifications'));
+  expect(rendered.at(-1)).toMatchObject({ id: 'notifications', clientOnly: true });
+  act(() => settings.open('models'));
+  expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Bot 设置');
+  expect(navLabels()).toContain('voice');
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+    '主机选项只作用于本机 Host',
+  );
+  expect(shownSection()).toBe('models');
+  expect(rendered.at(-1)).toMatchObject({ id: 'models', clientOnly: false });
+});
+
+it('intersects member access with Client preferences for navigation, search and direct section requests', () => {
+  member = true;
+  const settings = new BotSettings();
+  mount(
+    settings,
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id })),
+  );
+  act(() => settings.openClientPreferences());
+  expect(navLabels()).toEqual(['appearance', 'notifications', 'shortcuts']);
+  for (const id of ['team', 'models', 'companions']) {
+    act(() => settings.select(id));
+    expect(shownSection()).toBe('appearance');
+  }
+  const input = document.querySelector<HTMLInputElement>('input');
+  if (!input) throw Error('Settings search missing');
+  for (const query of ['团队', '伙伴', '模型']) {
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, query);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(document.querySelectorAll('.bh-settings-search-results button')).toHaveLength(0);
+  }
 });
