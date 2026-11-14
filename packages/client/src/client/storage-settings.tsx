@@ -299,7 +299,6 @@ function StorageSettingsView({
     request.current = controller;
     setError(undefined);
     setUsage(undefined);
-    setSummary(undefined);
     setSummaryError(undefined);
     storage.usage(controller.signal).then(
       (value) => {
@@ -329,6 +328,7 @@ function StorageSettingsView({
     if (busy) return;
     request.current?.abort();
     setOpen(false);
+    if (summary === undefined && summaryError === undefined) measure();
   };
   const messagesTarget = target === 'messages';
   const chats =

@@ -156,6 +156,37 @@ async function render(call: BridgeCall | StorageSettingsSource) {
 }
 
 describe('StorageSettings', () => {
+  it.each([false, true])(
+    'retains or recovers the summary after cancelling a read (initial pending: %s)',
+    async (initialPending) => {
+      const load = vi
+        .fn()
+        .mockImplementationOnce(() =>
+          initialPending ? new Promise<never>(() => {}) : Promise.resolve(usage),
+        )
+        .mockImplementationOnce(() => new Promise<never>(() => {}))
+        .mockResolvedValue(usage);
+      const source: StorageSettingsSource = {
+        usage: load,
+        previewMedia: vi.fn(),
+        confirmMedia: vi.fn(),
+        previewMessages: vi.fn(),
+        confirmMessages: vi.fn(),
+      };
+      const view = await render(source);
+      try {
+        await view.open();
+        await view.press(buttonNamed('关闭', view.host));
+        expect(view.host.textContent).toContain('8.0 MB');
+        expect(view.host.querySelector('[role="dialog"]')).toBeNull();
+        expect(load).toHaveBeenCalledTimes(initialPending ? 3 : 2);
+        expect(source.confirmMedia).not.toHaveBeenCalled();
+        expect(source.confirmMessages).not.toHaveBeenCalled();
+      } finally {
+        view.dispose();
+      }
+    },
+  );
   it('cannot publish an old Host cleanup result into a newly selected source', async () => {
     let finish:
       | ((value: Awaited<ReturnType<StorageSettingsSource['confirmMedia']>>) => void)
