@@ -25,7 +25,11 @@ export const connectHealthSchema = z.discriminatedUnion('state', [
     stage: connectHealthStage,
     startedAt: z.string().datetime(),
   }),
-  z.object({ state: z.literal('passed'), ...completed }),
+  z.object({
+    state: z.literal('passed'),
+    dnsRecovery: z.literal('fresh-query').optional(),
+    ...completed,
+  }),
   z.object({ state: z.literal('stale'), ...completed }),
   z.object({
     state: z.literal('failed'),

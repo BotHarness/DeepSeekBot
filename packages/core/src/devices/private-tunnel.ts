@@ -1,5 +1,5 @@
+import { createTunnelLookup } from './tunnel-dns.js';
 import { spawn as spawnProcess } from 'node:child_process';
-import { lookup, Resolver } from 'node:dns';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, request as httpRequest, type IncomingMessage, type Server } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -249,44 +249,7 @@ export function systemTrustedCertificates(): string[] {
   }
 }
 
-type QueryIpv4 = (
-  hostname: string,
-  callback: (error: NodeJS.ErrnoException | null, addresses: string[]) => void,
-) => void;
-const queryQuickIpv4: QueryIpv4 = (hostname, callback) => {
-  const resolver = new Resolver({ timeout: 1500, tries: 1 });
-  resolver.resolve4(hostname, callback);
-};
-
-export function createQuickTunnelLookup(
-  systemLookup: LookupFunction = lookup,
-  query: QueryIpv4 = queryQuickIpv4,
-): LookupFunction {
-  return (hostname, options, callback) => {
-    systemLookup(hostname, options, (error, address, family) => {
-      if (
-        error?.code !== 'ENOTFOUND' ||
-        !/^[a-z0-9-]+\.trycloudflare\.com$/u.test(hostname) ||
-        options.family === 6
-      ) {
-        callback(error, address, family);
-        return;
-      }
-      query(hostname, (dnsError, addresses) => {
-        if (dnsError || !addresses.length) {
-          callback(error, address, family);
-          return;
-        }
-        callback(
-          null,
-          options.all ? addresses.map((value) => ({ address: value, family: 4 })) : addresses[0]!,
-          4,
-        );
-      });
-    });
-  };
-}
-const quickTunnelLookup = createQuickTunnelLookup();
+const quickTunnelLookup = createTunnelLookup();
 
 export const createTrustFetch = (
   certificates: () => string[],
@@ -312,7 +275,13 @@ export const createTrustFetch = (
           if (body.length > 4096) response.destroy(new Error('body-too-large'));
         });
         response.on('error', fail);
-        response.on('end', () => resolve(new Response(body, { status: response.statusCode ?? 0 })));
+        response.on('end', () => {
+          try {
+            resolve(new Response(body || null, { status: response.statusCode ?? 0 }));
+          } catch (error) {
+            fail(error);
+          }
+        });
       };
       const request =
         url.protocol === 'https:'

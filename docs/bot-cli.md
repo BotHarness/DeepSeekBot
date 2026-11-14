@@ -1669,6 +1669,8 @@ The manual Web request has a 25-second transport deadline and aborts when its ca
 
 The public stage retries only transient DNS/network/timeout and HTTP 429/5xx failures, at most four attempts with 1/3/6-second waits inside the same 20-second overall deadline. Certificate and identity failures do not retry. Completed checks refresh the visible account computer list once.
 
+A successful Node public check may include `dnsRecovery: "fresh-query"`: an official tunnel ENOTFOUND was recovered with a bounded configured-DNS IPv4 query before TLS and pinned Noise succeeded. This is application recovery, not an OS cache reset. `device-account-pair`, `device-pair` and `device-probe` share the same scoped transport. Native phone DNS is unchanged; no global DNS/VPN settings are modified.
+
 ### Account sign-in
 
 ```sh

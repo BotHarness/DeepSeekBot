@@ -99,7 +99,7 @@ describe('computer identity rows', () => {
           const customize = vi.fn();
           const name = 'My long local studio name '.repeat(8);
           const icon = { kind: 'emoji' as const, emoji: '🏠' };
-          const status = online ? t.pairAccount.online : t.pairAccount.offline;
+          const status = t.pairAccount.tryConnection;
           const node = mount(
             <AccountComputerRow
               host={{ id: 'remote', hostname: 'remote.example', name: 'Remote name', online }}
@@ -118,9 +118,7 @@ describe('computer identity rows', () => {
           expect(node.querySelector('i')?.getAttribute('data-icon')).toBe(JSON.stringify(icon));
           if (form || os === 'android') {
             expect(row.getAttribute('data-single-line')).toBe('true');
-            expect(row.getAttribute('data-dot')).toBe(
-              online ? resolveTheme('light').color.success : resolveTheme('light').color.danger,
-            );
+            expect(row.getAttribute('data-dot')).toBe(resolveTheme('light').color.muted);
           } else expect(node.querySelector('[data-ellipsis="tail"]')).not.toBeNull();
           act(() => row.click());
           expect(pair).toHaveBeenCalledOnce();
