@@ -123,5 +123,23 @@ it('binds a later child activation to its new parent turn while retaining late r
   f.start('child', 2, time + 4);
   f.usage.handleSessionEvent('child', f.receipt(1, time + 5));
   f.usage.handleSessionEvent('child', f.receipt(2, time + 6));
-  expect(f.totals()).toEqual({ alice: 10, bob: 10 });
+  f.rootTurn('alice', 3, time + 7);
+  f.owner.close();
+  const database = f.mount();
+  const restored = f.makeUsage(database);
+  restored.handleSessionEvent('child', {
+    type: 'turn/start',
+    seq: 6,
+    time: time + 8,
+    data: { turn: 3 },
+  });
+  restored.handleSessionEvent('child', f.receipt(3, time + 9));
+  expect(f.totals(restored)).toEqual({ alice: 10, bob: 20 });
+  expect(
+    attachOperationalModule(database, 'restored-creator-test').read((connection) =>
+      connection
+        .prepare('SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn = 0')
+        .get('child'),
+    ),
+  ).toEqual({ human_id: 'alice' });
 });

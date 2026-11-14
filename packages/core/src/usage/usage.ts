@@ -642,8 +642,23 @@ export function createUsageProjection(options: {
                     )
                     .get(sessionId),
                 );
+              const previous =
+                !pending && owner.parentSessionId
+                  ? z
+                      .object({ human_id: z.string() })
+                      .optional()
+                      .parse(
+                        db
+                          .prepare(
+                            'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn > 0 AND turn < ? AND at_ms <= ? ORDER BY turn DESC LIMIT 1',
+                          )
+                          .get(sessionId, turn, event.time),
+                      )
+                  : undefined;
               const inherited =
-                !pending && owner.parentSessionId ? descendantCreator(db, owner) : undefined;
+                !pending && !previous && owner.parentSessionId
+                  ? descendantCreator(db, owner)
+                  : undefined;
               const creator =
                 owner.rootRole === 'assignment'
                   ? z
@@ -659,6 +674,7 @@ export function createUsageProjection(options: {
                   : undefined;
               const humanId =
                 pending?.human_id ??
+                previous?.human_id ??
                 creator?.human_id ??
                 inherited ??
                 options.botOwner?.(owner.botSlug) ??
