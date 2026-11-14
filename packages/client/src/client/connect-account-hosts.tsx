@@ -67,12 +67,14 @@ export function ConnectAccountHosts({
   allowCurrentSignOut = false,
   onHostsChanged,
   details,
+  refreshOn,
 }: PropsLocale<'botharness'> & {
   account: { state: string; issue?: string; hostId?: string };
   reloadSnapshot: () => Promise<unknown>;
   allowCurrentSignOut?: boolean;
   onHostsChanged?: (hosts: ConnectedHost[]) => void;
   details?: (host: ConnectedHost) => ReactNode;
+  refreshOn?: string | undefined;
 }): ReactElement | null {
   const [hosts, setHosts] = useState<ConnectedHost[]>();
   const [listState, setListState] = useState<'loading' | 'fresh' | 'stale'>('loading');
@@ -103,17 +105,25 @@ export function ConnectAccountHosts({
     }
   }, [onHostsChanged]);
 
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    mounted.current = true;
-    setHosts(undefined);
-    setConfirm(undefined);
-    setActionError(false);
-    if (eligible) void load();
-    return () => {
-      mounted.current = false;
-      request.current?.abort();
-    };
-  }, [eligible, account.state, account.issue, account.hostId, load]);
+  const previousMount = useRef<{ node: HTMLDivElement; accountKey: string }>();
+  const accountKey = `${account.state}|${account.issue ?? ''}|${account.hostId ?? ''}`;
+  const mount = useMountedResource<HTMLDivElement>(
+    (node) => {
+      mounted.current = true;
+      if (previousMount.current?.node !== node || previousMount.current.accountKey !== accountKey) {
+        setHosts(undefined);
+        setConfirm(undefined);
+        setActionError(false);
+      }
+      previousMount.current = { node, accountKey };
+      if (eligible && !busyRef.current) void load();
+      return () => {
+        mounted.current = false;
+        request.current?.abort();
+      };
+    },
+    [eligible, accountKey, load, refreshOn],
+  );
 
   const revoke = async (host: ConnectedHost | 'current-account') => {
     if (busyRef.current || ((host === 'current-account' || host.current) && !allowCurrentSignOut))

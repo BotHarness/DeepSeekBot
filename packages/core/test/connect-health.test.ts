@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer as createHttpsServer } from 'node:https';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { randomBytes } from 'node:crypto';
@@ -88,11 +88,11 @@ it('does not call a running connector verified when its public identity check fa
     identity: async () => ({ hostId: 'qa-host', publicKey: 'a'.repeat(64) }),
     probe: async () => {
       calls++;
-      return passed ? { ok: true } : { ok: false, code: 'dns' };
+      return passed ? { ok: true } : { ok: false, code: 'tls' };
     },
   });
   await health.check();
-  expect(health.status()).toMatchObject({ state: 'failed', stage: 'public', code: 'dns' });
+  expect(health.status()).toMatchObject({ state: 'failed', stage: 'public', code: 'tls' });
   passed = true;
   await health.check();
   expect(health.status()).toMatchObject({ state: 'passed' });
@@ -287,3 +287,85 @@ it.skipIf(!openssl)(
     ).resolves.toMatchObject({ ok: false, code: 'tls' });
   },
 );
+
+it('retries transient public startup failures within the same check, but keeps the request budget bounded', async () => {
+  vi.useFakeTimers();
+  let calls = 0;
+  let recover = false;
+  const health = createConnectHealth({
+    account: {
+      status: () => ({ state: 'signed-in', hostId: 'qa-account' }),
+      connectedHosts: async () => ({
+        ok: true,
+        hosts: [{ id: 'qa-account', current: true, connected: true }],
+      }),
+    },
+    connect: {
+      status: () => ({ state: 'connected' }),
+      route: () => ({ url: 'https://qa.deepseekbot.dev' }),
+    },
+    identity: async () => ({ hostId: 'qa-host', publicKey: 'a'.repeat(64) }),
+    probe: async () => {
+      calls++;
+      return recover ? { ok: true } : { ok: false, code: 'http', httpStatus: 530 };
+    },
+  });
+  try {
+    const first = health.check();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(health.status()).toMatchObject({ state: 'checking', stage: 'public' });
+    recover = true;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await first).toMatchObject({ state: 'passed' });
+    expect(calls).toBe(2);
+    recover = false;
+    const second = health.check();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(await second).toMatchObject({
+      state: 'failed',
+      stage: 'public',
+      code: 'http',
+      httpStatus: 530,
+    });
+    expect(calls).toBe(6);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(calls).toBe(6);
+  } finally {
+    health.close();
+    vi.useRealTimers();
+  }
+});
+
+it('cancels the retry wait at the overall deadline and leaves no later probes', async () => {
+  let probes = 0;
+  const health = createConnectHealth({
+    timeoutMs: 30,
+    account: {
+      status: () => ({ state: 'signed-in', hostId: 'qa-account' }),
+      connectedHosts: async () => ({
+        ok: true,
+        hosts: [{ id: 'qa-account', current: true, connected: true }],
+      }),
+    },
+    connect: {
+      status: () => ({ state: 'connected' }),
+      route: () => ({ url: 'https://qa.deepseekbot.dev' }),
+    },
+    identity: async () => ({ hostId: 'qa-host', publicKey: 'a'.repeat(64) }),
+    probe: async () => {
+      probes++;
+      return { ok: false, code: 'dns' };
+    },
+  });
+  try {
+    expect(await health.check()).toMatchObject({
+      state: 'failed',
+      stage: 'public',
+      code: 'timeout',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(probes).toBe(1);
+  } finally {
+    health.close();
+  }
+});

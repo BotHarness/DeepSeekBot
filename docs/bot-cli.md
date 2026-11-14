@@ -1622,6 +1622,8 @@ the dialog does not start a background probe. A passed check proves reachability
 computer at that time, not from every phone network. Use the phone's diagnostics separately
 if it still cannot connect. A stopped connector or changed account invalidates old success.
 
+The public stage retries only transient DNS/network/timeout and HTTP 429/5xx failures, at most four attempts with 1/3/6-second waits inside the same 20-second overall deadline. Certificate and identity failures do not retry. Completed checks refresh the visible account computer list once.
+
 ### Account sign-in
 
 ```sh

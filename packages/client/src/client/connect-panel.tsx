@@ -354,7 +354,14 @@ export function ConnectPanel({
               />
             </StatusFact>
           )}
-          <ConnectAccountHosts t={t} account={account} reloadSnapshot={reloadSnapshot} />
+          <ConnectAccountHosts
+            t={t}
+            account={account}
+            reloadSnapshot={reloadSnapshot}
+            refreshOn={
+              tunnel?.health && 'checkedAt' in tunnel.health ? tunnel.health.checkedAt : undefined
+            }
+          />
         </StatusDisclosure>
       ) : null}
     </StatusStack>

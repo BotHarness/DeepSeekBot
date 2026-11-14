@@ -750,6 +750,11 @@ export function PairedDevicesSettings({
                 t={t}
                 account={signIn}
                 reloadSnapshot={load}
+                refreshOn={
+                  snapshot?.connect?.health && 'checkedAt' in snapshot.connect.health
+                    ? snapshot.connect.health.checkedAt
+                    : undefined
+                }
                 allowCurrentSignOut
                 onHostsChanged={setAccountHosts}
                 details={(host) => <AccountHostConnectionDetails host={host} t={t} />}

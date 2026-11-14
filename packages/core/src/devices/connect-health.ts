@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { WebSocket } from 'ws';
 import { z } from 'zod';
 import { ConnectChannel, CONNECT_CHANNEL_PATH } from './noise/channel.js';
@@ -202,11 +203,30 @@ export function createConnectHealth(options: {
       advance('public');
       const identity = await options.identity();
       if (run !== generation || abort.signal.aborted) return { state: 'idle' };
-      const result = await (options.probe ?? checkPublicConnect)({
-        ...identity,
-        origin: route.url,
-        signal: abort.signal,
-      });
+      const probe = () =>
+        (options.probe ?? checkPublicConnect)({
+          ...identity,
+          origin: route.url,
+          signal: abort.signal,
+        });
+      let result = await probe();
+      for (const [index, wait] of [1000, 3000, 6000].entries()) {
+        if (result.ok || abort.signal.aborted || run !== generation) break;
+        const transient =
+          result.code === 'dns' ||
+          result.code === 'network' ||
+          result.code === 'timeout' ||
+          (result.code === 'http' &&
+            (result.httpStatus === 429 || (result.httpStatus ?? 0) >= 500));
+        if (!transient) break;
+        options.record?.(
+          'retry',
+          `stage=public attempt=${index + 2} code=${result.code} waitMs=${wait}${result.httpStatus === undefined ? '' : ` httpStatus=${result.httpStatus}`}`,
+        );
+        await delay(wait, undefined, { signal: abort.signal });
+        if (run !== generation || abort.signal.aborted) return { state: 'idle' };
+        result = await probe();
+      }
       return result.ok
         ? {
             state: 'passed',

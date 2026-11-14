@@ -248,3 +248,32 @@ it.each(['host-limit', 'list-unavailable'])(
     expect(reloadSnapshot).toHaveBeenCalledTimes(1);
   },
 );
+
+it('refreshes once after a completed self-check without resetting an open management confirmation', async () => {
+  hosts = [{ ...current, connected: false }];
+  const account = { state: 'signed-in', hostId: current.id };
+  const view = (refreshOn?: string) => (
+    <ConnectAccountHosts
+      t={t}
+      account={account}
+      reloadSnapshot={reloadSnapshot}
+      refreshOn={refreshOn}
+      allowCurrentSignOut
+    />
+  );
+  await act(async () => root.render(view()));
+  expect(container.textContent).toContain(t('devices.connect.computerOffline'));
+  expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  hosts = [{ ...current, connected: true }];
+  await act(async () => root.render(view('2026-11-14T06:50:13Z')));
+  expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  expect(container.textContent).toContain(t('devices.connect.computerOnline'));
+  expect(container.textContent).not.toContain(t('devices.connect.computerOffline'));
+  await act(async () => root.render(view('2026-11-14T06:50:13Z')));
+  expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  await click(t('devices.connect.signOutNamed', { name: current.name }));
+  expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+  await act(async () => root.render(view('2026-11-14T06:50:14Z')));
+  expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
+  expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+});
