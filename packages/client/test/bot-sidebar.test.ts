@@ -2666,7 +2666,7 @@ describe('All Environment local row interactions', () => {
     );
     return { node, root, actions };
   }
-  it('moves a Section channel into the flat roster when dropped on a loose All row', async () => {
+  it('keeps Host-owned Section membership unchanged when dragging in All', async () => {
     const { node, root, actions } = await mountMixed(false);
     const dispatch = (target: Element, type: string) => {
       const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: 0 });
@@ -2678,11 +2678,16 @@ describe('All Environment local row interactions', () => {
     try {
       const source = node.querySelector('[data-channel-id="c-section"]')!;
       const target = node.querySelector('[data-channel-id="c-flat"]')!;
+      expect(source.getAttribute('draggable')).toBe('false');
+      expect(target.getAttribute('draggable')).toBe('false');
       await act(() => dispatch(source, 'dragstart'));
       await act(() => dispatch(target, 'dragover'));
       await act(() => dispatch(target, 'drop'));
-      expect(actions.moveToFlat).toHaveBeenCalledWith('c-section', expect.any(Array));
+      expect(actions.moveToFlat).not.toHaveBeenCalled();
       expect(actions.reorderFlat).not.toHaveBeenCalled();
+      expect(store.getSnapshot().roster.sections).toEqual([
+        section('s1', 'Collapsed', [SECTION_CHANNEL.id]),
+      ]);
     } finally {
       await act(() => root.unmount());
       node.remove();
