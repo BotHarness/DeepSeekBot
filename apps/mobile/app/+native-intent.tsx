@@ -9,6 +9,8 @@ import { isSharePath } from '../src/ui/share/share-path';
 export async function redirectSystemPath({ path }: { path: string; initial: boolean }) {
   if (isConnectOAuthCallback(path)) return null;
   if (isSharePath(path)) return '/share';
+  const team = /^(?:deepseekbot:\/\/|\/)team\?(?:.*&)?i=([A-Za-z0-9_-]+)/u.exec(path);
+  if (team !== null) return `/pair/team?i=${team[1]}`;
   const call = callLinkRedirect(
     path,
     __DEV__ && Application.applicationId?.endsWith('.dev') === true,

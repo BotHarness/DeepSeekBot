@@ -1,3 +1,5 @@
+import { createTeamDeviceHttp, type TeamDeviceHttp } from './device-http.js';
+import type { MemberDevices } from './devices.js';
 import { isIPv4 } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -36,9 +38,11 @@ const rpcSchema = z.discriminatedUnion('op', [
 export interface TeamHttp {
   handle(request: IncomingMessage, response: ServerResponse): Promise<void>;
   close(): Promise<void>;
+  device?: TeamDeviceHttp | undefined;
 }
 export interface TeamHttpOptions {
   team: TeamService;
+  devices?: MemberDevices;
   gateway: TypertGateway;
   hostName: () => string;
   tls: () => boolean;
@@ -53,6 +57,7 @@ function header(request: IncomingMessage, key: string): string | undefined {
 export function passwordTransportAllowed(
   request: IncomingMessage,
   options: Pick<TeamHttpOptions, 'tls' | 'team'>,
+  allowInsecureOptIn = true,
 ): boolean {
   const ip = request.socket.remoteAddress;
   const address = ip?.startsWith('::ffff:') ? ip.slice(7) : ip;
@@ -63,7 +68,7 @@ export function passwordTransportAllowed(
     (!proxy && (ip === '::1' || (isIPv4(address ?? '') && address?.startsWith('127.')))) ||
     options.tls() ||
     isConnectRequest(request) ||
-    options.team.mode(OWNER_HUMAN_CONTEXT).insecureHttpAllowed
+    (allowInsecureOptIn && options.team.mode(OWNER_HUMAN_CONTEXT).insecureHttpAllowed)
   );
 }
 function token(request: IncomingMessage): string | undefined {
@@ -73,7 +78,7 @@ function token(request: IncomingMessage): string | undefined {
     .find((part) => part.startsWith(`${MEMBER_COOKIE}=`))
     ?.slice(MEMBER_COOKIE.length + 1);
 }
-async function body(request: IncomingMessage): Promise<unknown> {
+export async function readTeamBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let length = 0;
   for await (const chunk of request) {
@@ -88,7 +93,7 @@ async function body(request: IncomingMessage): Promise<unknown> {
     throw new TeamError('invalid-input');
   }
 }
-function json(response: ServerResponse, status: number, value: unknown): void {
+export function teamJson(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
   response.end(JSON.stringify(value));
 }
@@ -116,6 +121,9 @@ function sameOrigin(request: IncomingMessage, tls: boolean): boolean {
 }
 
 export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
+  const device = options.devices
+    ? createTeamDeviceHttp({ ...options, devices: options.devices })
+    : undefined;
   const failure = (error: unknown) =>
     error instanceof TeamError
       ? { code: error.code, message: error.code, details: {} }
@@ -149,7 +157,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
   }, 30_000);
   sweep.unref();
   const rpc = async (request: IncomingMessage, peer: PeerScope): Promise<unknown> => {
-    const command = rpcSchema.parse(await body(request));
+    const command = rpcSchema.parse(await readTeamBody(request));
     if (command.op === 'call') {
       const endpoint = command.path.replace(/^\/api\//u, '');
       const [namespace, method, tail] = endpoint.split('/');
@@ -270,9 +278,12 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
   };
 
   return {
+    ...(device ? { device } : {}),
     async handle(request, response) {
       const url = new URL(request.url ?? '/', 'http://member.invalid');
       const path = url.pathname;
+      if ([`${TEAM_PATH}/device-sign-in`, `${TEAM_PATH}/device-password`].includes(path) && device)
+        return device.handle(request, response);
       const cookie = token(request);
       const peer = cookie ? options.team.admit(cookie) : undefined;
       try {
@@ -282,7 +293,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             throw new TeamError('insecure-transport');
           const input = z
             .object({ username: z.string().max(32), password: z.string().max(1024) })
-            .parse(await body(request));
+            .parse(await readTeamBody(request));
           const result = await options.team.signIn(
             input.username,
             input.password,
@@ -298,7 +309,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             'set-cookie',
             `${MEMBER_COOKIE}=${result.token}; Path=${TEAM_PATH}/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`,
           );
-          return json(response, 200, {
+          return teamJson(response, 200, {
             humanId: result.member.humanId,
             displayName: result.member.displayName,
             mustChangePassword: result.member.mustChangePassword,
@@ -310,14 +321,14 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             throw new TeamError('insecure-transport');
           const input = z
             .object({ current: z.string().max(1024), next: z.string() })
-            .parse(await body(request));
+            .parse(await readTeamBody(request));
           await options.team.changeWebPassword(
             peer.principal,
             input.current,
             input.next,
             request.socket.remoteAddress ?? 'unknown',
           );
-          return json(response, 200, {});
+          return teamJson(response, 200, {});
         }
         if (path === `${TEAM_PATH}/sign-out` && request.method === 'POST') {
           if (peer?.principal.kind === 'botharness-member')
@@ -326,7 +337,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             'set-cookie',
             `${MEMBER_COOKIE}=; Path=${TEAM_PATH}/; HttpOnly; SameSite=Strict; Max-Age=0`,
           );
-          return json(response, 200, { revoked: true });
+          return teamJson(response, 200, { revoked: true });
         }
         if ((path === TEAM_PATH || path === `${TEAM_PATH}/`) && request.method === 'GET') {
           if (path === TEAM_PATH) {
@@ -380,7 +391,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
         }
         if (!peer) throw new TeamError('credentials-invalid');
         if (path === `${TEAM_PATH}/__share/rpc` && request.method === 'POST')
-          return json(response, 200, await rpc(request, peer));
+          return teamJson(response, 200, await rpc(request, peer));
         if (path.startsWith(`${TEAM_PATH}/api/`)) {
           options.team.assertCall(peer.principal, 'http');
           throw new TeamError('remote-access/denied');
@@ -427,7 +438,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
                       : code === 'internal' || code === 'member-shell-unavailable'
                         ? 503
                         : 403;
-        json(response, status, {
+        teamJson(response, status, {
           code,
           ...(error instanceof TeamError && error.retryAfterSeconds
             ? { retryAfterSeconds: error.retryAfterSeconds }
@@ -436,6 +447,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
       }
     },
     async close() {
+      device?.close();
       clearInterval(sweep);
       await Promise.all([...new Set([...streams.keys(), ...pending.keys()])].map(cancel));
     },

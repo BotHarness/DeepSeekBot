@@ -315,6 +315,10 @@ function RootNavigator() {
                     options={{ ...sheetScreenOptions(design, true), title: t.emailSignIn.title }}
                   />
                   <Stack.Screen
+                    name="member-pairing"
+                    options={{ title: t.memberPairing.title, ...sheetScreenOptions(design, true) }}
+                  />
+                  <Stack.Screen
                     name="host-connection"
                     options={{
                       title: t.connectionRoutes.title,

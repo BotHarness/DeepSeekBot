@@ -1,3 +1,4 @@
+import type { MemberDevices } from './devices.js';
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol';
 import type { Context } from '@deepseek-ai/cordis';
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection';
@@ -94,6 +95,7 @@ export function mountTeamGateway(
   ctx: Context,
   team: TeamService,
   hostName: () => string,
+  devices: MemberDevices,
   log: (phase: string, facts: Record<string, boolean>) => void = () => {},
 ): TeamHttp | undefined {
   const connection: unknown = ctx.get('connection');
@@ -133,6 +135,7 @@ export function mountTeamGateway(
   );
   const http = createTeamHttp({
     team,
+    devices,
     gateway,
     hostName,
     tls: () => web.protocol === 'https:',

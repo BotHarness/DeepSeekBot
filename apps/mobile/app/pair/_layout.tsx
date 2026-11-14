@@ -10,6 +10,7 @@ export default function PairLayout() {
       <Stack.Screen name="index" options={{ title: t.pairTitle }} />
       <Stack.Screen name="account" options={{ title: t.pairChoice.account }} />
       <Stack.Screen name="tailscale" options={{ title: t.pairChoice.tailscale }} />
+      <Stack.Screen name="team" options={{ title: t.pairChoice.team }} />
     </SheetStack>
   );
 }

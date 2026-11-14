@@ -1878,6 +1878,8 @@ deepseekbot team-mode owner-password --password-stdin < owner-password.txt
 deepseekbot team-mode on
 deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
 deepseekbot members list
+deepseekbot members invite bob
+deepseekbot --as bob members pairing-offer
 deepseekbot members reset-password bob --initial-password-file ./bob-reset.txt
 deepseekbot channels set-public <channel-id> on
 deepseekbot --as bob members password --password-stdin < password-change.json
@@ -1897,3 +1899,7 @@ Owner 密码从标准输入读取，可带一个结尾换行；修改已有密�
 非回环地址的密码登录要求 Host 已知的 TLS 或加密设备网关。明确确认的 `insecure-http` 例外允许明文 HTTP，直到关闭；客户端转发的协议请求头不能证明 TLS。关闭团队模式会撤销成员授权并关闭其流，但保留身份、密码和频道成员关系；重新开启后需要重新登录。
 
 `members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+
+`members invite <username>` 由 Owner 将用户名解析为 Human ID，返回 `{ link, qr: { size, path }, expiresAt }`。邀请内容含 Host 身份指纹、可达的 HTTPS / 加密网关路由和用户名，不含初始密码；初始密码须通过另一路径提供。`--as <username> members pairing-offer` 只为该成员自己创建十分钟内有效、只能使用一次的配对码，并额外返回 `receipt`；首次改密完成前拒绝。兑换后创建同一 Human 的 `paired-device` 成员授权，不会创建 Owner 设备或获取 Owner cookie。
+
+手机以 Host ID 保存一个安全存储身份，切换同一 Host 的成员须确认并清除旧身份的本地内容。手机登录前验证邀请指纹；Host 也拒绝 `fingerprint-mismatch`。首次改密前，其他设备 API 和 mux 均拒绝 `password-change-required`。密码接口保留 `credentials-invalid`、`password-weak`、`password-reused` 和带 `retryAfterSeconds` 的 `rate-limited`；设备密码不能使用浏览器的明文 HTTP 例外。iOS 和 Android 原生验收分别记录。

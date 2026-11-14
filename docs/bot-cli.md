@@ -1933,6 +1933,8 @@ deepseekbot team-mode owner-password --password-stdin < owner-password.txt
 deepseekbot team-mode on
 deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
 deepseekbot members list
+deepseekbot members invite bob
+deepseekbot --as bob members pairing-offer
 deepseekbot members reset-password bob --initial-password-file ./bob-reset.txt
 deepseekbot channels set-public <channel-id> on
 deepseekbot --as bob members password --password-stdin < password-change.json
@@ -1952,3 +1954,7 @@ Owner password input is a password with an optional final newline, or JSON `{ "p
 Non-loopback password sign-in requires Host-known TLS or the encrypted device gateway. The explicitly confirmed `insecure-http` exception permits plain HTTP until disabled. Forwarded protocol headers do not establish TLS. Turning Team mode off revokes member grants and closes their streams while retaining identities, passwords and Channel membership. Re-enabling requires fresh sign-in.
 
 `members reset-password <username> --initial-password-file <path>` is Owner-only recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+
+`members invite <username>` resolves the username as Owner and returns `{ link, qr: { size, path }, expiresAt }`. The invitation contains the Host identity fingerprint, reachable HTTPS / encrypted-gateway routes and username; it contains no initial password. Deliver that password separately. `--as <username> members pairing-offer` creates a ten-minute, single-use pairing offer for that member alone, with an additional `receipt`. It refuses until the initial password has changed. Redemption creates a `paired-device` member grant for the same Human, without creating an Owner device or obtaining an Owner cookie.
+
+The phone stores one secure identity per Host ID. Replacing a different member on the same Host requires confirmation and clears the previous identity's local content. The phone verifies the invitation fingerprint before sign-in; the Host also refuses `fingerprint-mismatch`. Every other device API and mux refuses `password-change-required` until the initial password changes. Password routes retain `credentials-invalid`, `password-weak`, `password-reused` and `rate-limited` with `retryAfterSeconds`; device passwords cannot use the browser's insecure HTTP exception. iOS and Android native acceptance are recorded separately.

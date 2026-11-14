@@ -592,6 +592,8 @@ describe('plugin entry', () => {
       'memberCreate',
       'memberPasswordChange',
       'memberPasswordReset',
+      'memberInvitation',
+      'memberPairingOffer',
       'publicChannels',
       'publicChannelJoin',
       'channelPublicSet',

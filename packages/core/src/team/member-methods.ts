@@ -1,6 +1,7 @@
 export const MEMBER_GLOBAL_METHODS = [
   'teamMode',
   'memberPasswordChange',
+  'memberPairingOffer',
   'publicChannels',
   'publicChannelJoin',
   'channels',

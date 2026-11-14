@@ -1,3 +1,4 @@
+import { createMemberDevices } from '../team/devices.js';
 import { mountTeamGateway } from '../team/mount.js';
 import type { TeamService } from '../team/service.js';
 import type { TeamHttp } from '../team/http.js';
@@ -87,6 +88,7 @@ interface ConnectionLike {
 
 interface WebServerLike {
   readonly port: number;
+  getOrigin?(): string;
   register(route: {
     kind: 'exact' | 'prefix';
     path: string;
@@ -178,6 +180,23 @@ export function mountDevicePairing(
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
+    ...(options.team
+      ? {
+          members: {
+            redeem: (humanId: string, name: string, publicKey?: string) =>
+              options.team!.createDeviceGrant(humanId, name, publicKey),
+            admit: (authorization: string | undefined, publicKey?: string) => {
+              const peer = options.team!.admitDevice(authorization, publicKey);
+              return peer?.principal.kind === 'botharness-member'
+                ? options.team!.device(peer.principal.grantId)
+                : undefined;
+            },
+            check: (deviceId: string) => options.team!.device(deviceId),
+            attach: (deviceId: string, close: () => void) =>
+              options.team!.attachDeviceStream(deviceId, close),
+          },
+        }
+      : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
@@ -211,6 +230,17 @@ export function mountDevicePairing(
   });
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
+  let memberRoutes: () => Promise<string[]> = async () => [];
+  const memberDevices = options.team
+    ? createMemberDevices({
+        team: options.team,
+        pairing,
+        encryption: identity.publicIdentity,
+        routes: () => memberRoutes(),
+      })
+    : undefined;
+  if (options.team && memberDevices)
+    ctx.effect(() => options.team!.bindDevices(memberDevices), 'botharness: member invitations');
   const botNetworks = createBotNetworkRoutes({
     withdrawn: async (hostId) => options.botNetwork?.withdrawNetworkMembership(hostId),
   });
@@ -404,6 +434,7 @@ export function mountDevicePairing(
       gateway: () =>
         createEncryptedGateway({
           pairing,
+          ...(memberDevices ? { memberDevices } : {}),
           key: identity.key,
           port: () => webServer.port,
           route: 'lan',
@@ -546,6 +577,7 @@ export function mountDevicePairing(
     webCtx.effect(() => () => directPeers.close(), 'botharness: direct device peers');
     const encrypted = createEncryptedGateway({
       pairing,
+      ...(memberDevices ? { memberDevices } : {}),
       key: identity.key,
       port: () => webServer.port,
       direct: (input) => directPeers.answer(input),
@@ -800,6 +832,12 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
+    memberRoutes = async () => [
+      ...(webServer.getOrigin ? [webServer.getOrigin()] : []),
+      ...(await routes()).routes
+        .filter((route) => route.ready && route.kind !== 'private')
+        .map((route) => route.url),
+    ];
     const http = createDevicesHttp({
       privateConnection,
       privateTunnel,
@@ -871,6 +909,7 @@ export function mountDevicePairing(
             teamCtx,
             teamService,
             () => pairing.host().name,
+            memberDevices!,
             (phase, facts) =>
               write(
                 'team',
@@ -895,6 +934,9 @@ export function mountDevicePairing(
       });
     const team = teamService
       ? {
+          get device() {
+            return memberGateway?.device;
+          },
           async handle(request: IncomingMessage, response: ServerResponse) {
             if (memberGateway) return memberGateway.handle(request, response);
             response.writeHead(503, {

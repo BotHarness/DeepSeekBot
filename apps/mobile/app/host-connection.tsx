@@ -69,6 +69,27 @@ export default function HostConnectionScreen() {
   return (
     <SheetScreen onMount={mount}>
       <SettingsForm header={header} testID="host-connection">
+        {host?.member ? (
+          <SettingsSection on={SHEET_GROUP}>
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="account"
+              title={t.memberPairing.signedInAs.replace('{name}', host.member.displayName)}
+              {...(host.member.username ? { detail: `@${host.member.username}` } : {})}
+            />
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="qr"
+              testID="member-pair-another"
+              title={t.memberPairing.pairAnother}
+              detail={t.memberPairing.pairAnotherDetail}
+              disclosure
+              onPress={() =>
+                router.push({ pathname: '/member-pairing', params: { hostId: host.hostId } })
+              }
+            />
+          </SettingsSection>
+        ) : null}
         {host && client ? (
           <SettingsSection on={SHEET_GROUP} footer={copy.preferenceScope}>
             {busy === 'preference' ? (

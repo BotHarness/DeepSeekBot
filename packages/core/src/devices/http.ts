@@ -32,6 +32,7 @@ const headers = {
 };
 
 export interface PairingPayload {
+  member?: true;
   v: 1 | 2;
   encryption?: EncryptionIdentity & {
     loopback?: 'encrypted';
@@ -74,7 +75,7 @@ export function pairingLink(payload: PairingPayload): string {
   return `${PAIRING_LINK_SCHEME}://pair?p=${encoded}`;
 }
 
-function qrPath(text: string): { size: number; path: string } {
+export function qrPath(text: string): { size: number; path: string } {
   const { size, data } = encode(text, { ecc: 'M', border: 0 });
   let path = '';
   data.forEach((row, y) => {
