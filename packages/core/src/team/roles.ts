@@ -8,6 +8,8 @@ import { ALL_PERMISSIONS, roleSchema, type HostPermission, type HostRole } from 
 const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;
 
+type RoleAuthority = { kind: 'owner' } | { kind: 'member'; permissions: ReadonlySet<string> };
+
 export class TeamRoles {
   constructor(
     private readonly db: OperationalDatabaseModulePort,
@@ -97,10 +99,31 @@ export class TeamRoles {
     return ALL_PERMISSIONS.filter((id) => permissions.includes(id));
   }
 
+  private authority(human: HumanContext): RoleAuthority {
+    return this.isOwner(human)
+      ? { kind: 'owner' }
+      : { kind: 'member', permissions: new Set(this.permissions(human)) };
+  }
+
+  private checkPermissions(
+    authority: RoleAuthority,
+    permissions: readonly string[],
+    operation: 'grant' | 'manage',
+  ): void {
+    if (authority.kind === 'owner') return;
+    const permission = permissions.find(
+      (id) =>
+        !authority.permissions.has(id) || (operation === 'grant' && id === 'privateContent.view'),
+    );
+    if (permission !== undefined)
+      throw new TeamError('permission-not-grantable', undefined, { permission });
+  }
+
   create(human: HumanContext, name: string, permissions: string[]): { role: HostRole } {
     this.require(human, 'roles.manage');
     const normalized = this.name(name);
     const grants = this.validatePermissions(permissions);
+    this.checkPermissions(this.authority(human), grants, 'grant');
     const id = randomUUID();
     this.db.transaction(
       (db) =>
@@ -120,13 +143,18 @@ export class TeamRoles {
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const role = this.role(roleId);
+    const authority = this.authority(human);
+    this.checkPermissions(authority, role.permissions, 'manage');
     const name = patch.name === undefined ? role.name : this.name(patch.name, roleId);
     const grants =
       patch.permissions === undefined
         ? role.permissions
         : this.validatePermissions(patch.permissions);
     if (role.builtin === 'admin' && grants.includes('privateContent.view'))
-      throw new TeamError('permission-not-grantable');
+      throw new TeamError('permission-not-grantable', undefined, {
+        permission: 'privateContent.view',
+      });
+    this.checkPermissions(authority, grants, 'grant');
     this.db.transaction(
       (db) =>
         db
@@ -140,7 +168,22 @@ export class TeamRoles {
 
   delete(human: HumanContext, roleId: string): null {
     this.require(human, 'roles.manage');
-    if (this.role(roleId).builtin) throw new TeamError('role-builtin');
+    const role = this.role(roleId);
+    const authority = this.authority(human);
+    this.checkPermissions(authority, role.permissions, 'manage');
+    if (role.builtin) throw new TeamError('role-builtin');
+    if (
+      authority.kind === 'member' &&
+      this.db.read((db) =>
+        db
+          .prepare(`SELECT 1 FROM humans h
+      WHERE h.human_id <> (SELECT owner_human_id FROM team_settings)
+      AND NOT EXISTS (SELECT 1 FROM human_roles m WHERE m.human_id = h.human_id AND m.role_id <> ?)
+      LIMIT 1`)
+          .get(roleId),
+      )
+    )
+      this.checkPermissions(authority, this.role('member').permissions, 'grant');
     this.db.transaction(
       (db) => {
         db.prepare('DELETE FROM human_roles WHERE role_id = ?').run(roleId);
@@ -157,13 +200,17 @@ export class TeamRoles {
 
   validateAssignments(human: HumanContext, roleIds: string[]): string[] {
     const ids = [...new Set(roleIds.length ? roleIds : ['member'])];
-    for (const id of ids) this.role(id);
-    if (ids.includes('admin') && !this.isOwner(human))
+    const roles = ids.map((id) => this.role(id));
+    const authority = this.authority(human);
+    if (ids.includes('admin') && authority.kind !== 'owner')
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
+    for (const role of roles) this.checkPermissions(authority, role.permissions, 'grant');
     return ids;
   }
 
   set(human: HumanContext, humanId: string, roleIds: string[]): null {
+    if (human.humanId === humanId && !this.isOwner(human))
+      throw new TeamError('permission-required', undefined, { permission: 'owner' });
     this.require(human, 'members.manage');
     if (!this.db.read((db) => db.prepare('SELECT 1 FROM humans WHERE human_id = ?').get(humanId)))
       throw new TeamError('member-not-found');

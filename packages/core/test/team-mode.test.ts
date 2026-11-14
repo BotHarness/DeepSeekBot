@@ -1179,7 +1179,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
   it('admits member managers, refuses Admin grants, and reevaluates existing Peers after permission removal', async () => {
     const f = await actors();
     const { role } = f.team.roles.create(owner, 'Member managers', ['members.manage']);
-    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    f.team.roles.set(owner, f.human.humanId, ['member', role.roleId]);
     expect(await f.invoke('roles')).toBeInstanceOf(Array);
     const created = await f.invoke('memberCreate', { username: 'carol', displayName: 'Carol' });
     expect(created).toMatchObject({ member: { roleIds: ['member'] } });
@@ -1214,7 +1214,12 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
 
   it('authorizes role editors and Team settings independently', async () => {
     const f = await actors();
-    const { role } = f.team.roles.create(owner, 'Settings', ['roles.manage', 'team.settings']);
+    const { role } = f.team.roles.create(owner, 'Settings', [
+      'roles.manage',
+      'team.settings',
+      'audit.view',
+      'usage.view',
+    ]);
     f.team.roles.set(owner, f.human.humanId, [role.roleId]);
     const result = await f.invoke('roleCreate', { name: 'Reviewers', permissions: ['audit.view'] });
     const id = z.object({ role: z.object({ roleId: z.string() }) }).parse(result).role.roleId;
@@ -1231,6 +1236,212 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
     await f.invoke('teamModeSet', { enabled: false });
     expect(f.bobLogin.peer.signal.aborted).toBe(true);
+  });
+
+  describe('role delegation ceiling', () => {
+    const paths = [
+      'create',
+      'update-grant',
+      'rename-existing',
+      'strip-existing',
+      'delete-existing',
+      'assign',
+      'member-create',
+    ] as const;
+    it.each(
+      paths.flatMap((path) => [
+        { path, permission: 'privateContent.view', admin: true },
+        { path, permission: 'audit.view', admin: false },
+      ]),
+    )(
+      'refuses $path beyond the caller ceiling: $permission',
+      async ({ path, permission, admin }) => {
+        const f = await actors();
+        const manager = f.team.roles.create(owner, 'Managers', [
+          'roles.manage',
+          'members.manage',
+        ]).role;
+        f.team.roles.set(owner, f.human.humanId, admin ? ['admin'] : ['member', manager.roleId]);
+        const existing = ['update-grant', 'create'].includes(path) ? [] : [permission];
+        const protectedRole = f.team.roles.create(owner, 'Protected', existing).role;
+        const beforeRoles = f.team.roles.list(owner);
+        const beforeMembers = f.team.members(owner);
+        const beforeInvalidations = f.invalidate.mock.calls.length;
+        const run = () => {
+          switch (path) {
+            case 'create':
+              return f.invoke('roleCreate', { name: 'Escalated', permissions: [permission] });
+            case 'update-grant':
+              return f.invoke('roleUpdate', {
+                roleId: protectedRole.roleId,
+                permissions: [permission],
+              });
+            case 'rename-existing':
+              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, name: 'Changed' });
+            case 'strip-existing':
+              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, permissions: [] });
+            case 'delete-existing':
+              return f.invoke('roleDelete', { roleId: protectedRole.roleId });
+            case 'assign':
+              return f.invoke('memberRolesSet', {
+                humanId: f.alice.member.humanId,
+                roleIds: [protectedRole.roleId],
+              });
+            case 'member-create':
+              return f.invoke('memberCreate', {
+                username: 'escalated',
+                displayName: 'Escalated',
+                roleIds: [protectedRole.roleId],
+              });
+          }
+        };
+        await expect(run()).rejects.toMatchObject({
+          code: 'permission-not-grantable',
+          details: { permission },
+        });
+        expect(f.team.roles.list(owner)).toEqual(beforeRoles);
+        expect(f.team.members(owner)).toEqual(beforeMembers);
+        expect(f.invalidate.mock.calls.length).toBe(beforeInvalidations);
+      },
+    );
+
+    it.each(['member', 'admin', 'private', 'absent'])(
+      'refuses Admin self-assignment of %s',
+      async (requested) => {
+        const f = await actors();
+        const privateRole = f.team.roles.create(owner, 'Private', ['privateContent.view']).role;
+        f.team.roles.set(owner, f.human.humanId, ['admin']);
+        const before = f.team.mode(f.human).viewer;
+        await expect(
+          f.invoke('memberRolesSet', {
+            humanId: f.human.humanId,
+            roleIds: [requested === 'private' ? privateRole.roleId : requested],
+          }),
+        ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+        expect(f.team.mode(f.human).viewer).toEqual(before);
+      },
+    );
+
+    it.each(['create', 'update', 'assign', 'member-create'] as const)(
+      'reserves private grants to Owner even when the caller already holds private access: %s',
+      async (path) => {
+        const f = await actors();
+        const privateRole = f.team.roles.create(owner, 'Private', ['privateContent.view']).role;
+        const empty = f.team.roles.create(owner, 'Empty', []).role;
+        f.team.roles.set(owner, f.human.humanId, ['admin', privateRole.roleId]);
+        const run = () => {
+          switch (path) {
+            case 'create':
+              return f.invoke('roleCreate', {
+                name: 'Another private role',
+                permissions: ['privateContent.view'],
+              });
+            case 'update':
+              return f.invoke('roleUpdate', {
+                roleId: empty.roleId,
+                permissions: ['privateContent.view'],
+              });
+            case 'assign':
+              return f.invoke('memberRolesSet', {
+                humanId: f.alice.member.humanId,
+                roleIds: [privateRole.roleId],
+              });
+            case 'member-create':
+              return f.invoke('memberCreate', {
+                username: 'private2',
+                displayName: 'Private',
+                roleIds: [privateRole.roleId],
+              });
+          }
+        };
+        await expect(run()).rejects.toMatchObject({
+          code: 'permission-not-grantable',
+          details: { permission: 'privateContent.view' },
+        });
+      },
+    );
+
+    it('permits the Owner to create, edit, assign and delete private roles', async () => {
+      const f = await actors();
+      const role = f.team.roles.create(owner, 'Private', ['privateContent.view']).role;
+      f.team.roles.update(owner, role.roleId, {
+        name: 'Private access',
+        permissions: ['privateContent.view', 'audit.view'],
+      });
+      f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+      f.team.roles.set(owner, f.alice.member.humanId, [role.roleId]);
+      const created = await f.team.createMember(owner, 'private3', 'Private', [role.roleId]);
+      for (const human of [
+        f.human,
+        humanContext(f.alice.member.humanId),
+        humanContext(created.member.humanId),
+      ])
+        expect(f.team.roles.permissions(human)).toContain('privateContent.view');
+      f.team.roles.delete(owner, role.roleId);
+      expect(f.team.member(f.human.humanId)?.roleIds).toEqual(['member']);
+    });
+
+    it('permits delegation of held permissions to another member and new members', async () => {
+      const f = await actors();
+      f.team.roles.set(owner, f.human.humanId, ['admin']);
+      const reads = f.db.diagnostics().metrics.reads;
+      const role = f.team.roles.create(f.human, 'Auditors', ['audit.view']).role;
+      expect(f.db.diagnostics().metrics.reads - reads).toBe(5);
+      f.team.roles.update(f.human, role.roleId, { permissions: ['usage.view'] });
+      f.team.roles.set(f.human, f.alice.member.humanId, [role.roleId]);
+      const created = await f.team.createMember(f.human, 'auditor2', 'Auditor', [role.roleId]);
+      expect(created.member.roleIds).toEqual([role.roleId]);
+      f.team.roles.delete(f.human, role.roleId);
+      expect(f.team.member(f.alice.member.humanId)?.roleIds).toEqual(['member']);
+    });
+
+    it('refuses self-assignment even without member-management permission', async () => {
+      const f = await actors();
+      await expect(
+        f.invoke('memberRolesSet', { humanId: f.human.humanId, roleIds: ['member'] }),
+      ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+    });
+
+    it.each(['actor-ceiling', 'assigned-role'] as const)(
+      'rechecks delegation after member password hashing yields: %s',
+      async (changed) => {
+        const f = await actors();
+        const manager = f.team.roles.create(owner, 'Managers', [
+          'members.manage',
+          'audit.view',
+        ]).role;
+        const assigned = f.team.roles.create(owner, 'Auditors', ['audit.view']).role;
+        f.team.roles.set(owner, f.human.humanId, ['member', manager.roleId]);
+        const pending = f.team.createMember(f.human, 'late-auditor', 'Late', [assigned.roleId]);
+        if (changed === 'actor-ceiling')
+          f.team.roles.update(owner, manager.roleId, { permissions: ['members.manage'] });
+        else f.team.roles.update(owner, assigned.roleId, { permissions: ['privateContent.view'] });
+        await expect(pending).rejects.toMatchObject({
+          code: 'permission-not-grantable',
+          details: {
+            permission: changed === 'actor-ceiling' ? 'audit.view' : 'privateContent.view',
+          },
+        });
+        expect(f.team.members(owner).some((member) => member.username === 'late-auditor')).toBe(
+          false,
+        );
+      },
+    );
+
+    it('checks the automatic Member fallback against the deleting caller ceiling', async () => {
+      const f = await actors();
+      f.team.roles.set(owner, f.human.humanId, ['admin']);
+      const role = f.team.roles.create(owner, 'Temporary', ['usage.view']).role;
+      f.team.roles.set(owner, f.alice.member.humanId, [role.roleId]);
+      f.team.roles.update(owner, 'member', { permissions: ['privateContent.view'] });
+      const before = f.team.roles.list(owner);
+      await expect(f.invoke('roleDelete', { roleId: role.roleId })).rejects.toMatchObject({
+        code: 'permission-not-grantable',
+        details: { permission: 'privateContent.view' },
+      });
+      expect(f.team.roles.list(owner)).toEqual(before);
+      expect(f.team.member(f.alice.member.humanId)?.roleIds).toEqual([role.roleId]);
+    });
   });
 
   it('lists only the target grants, marks the authenticated grant, and revokes its Peer immediately', async () => {
@@ -1408,7 +1619,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
   it('rechecks member-creation authority after password hashing yields', async () => {
     const f = await actors();
     const { role } = f.team.roles.create(owner, 'Managers', ['members.manage']);
-    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    f.team.roles.set(owner, f.human.humanId, ['member', role.roleId]);
     const pending = f.team.createMember(f.human, 'late-member', 'Late');
     f.team.roles.update(owner, role.roleId, { permissions: [] });
     await expect(pending).rejects.toMatchObject({
