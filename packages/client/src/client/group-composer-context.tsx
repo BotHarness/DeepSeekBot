@@ -1,4 +1,5 @@
 import { memberPage } from './member-page.js';
+import { hasChannelBots } from './channel-kind.js';
 import { useScopedState } from './scoped-state.js';
 import { useRef, useState, type Ref, type ReactElement } from 'react';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -33,12 +34,14 @@ interface PreviewMember {
 }
 
 export function useGroupComposerContext({
+  scopeKey,
   channel,
   members,
   actions,
   t,
   avgPerf,
 }: {
+  scopeKey?: string | undefined;
   channel: ChannelSummary | undefined;
   members: BotSummary[];
   actions: BridgeActions;
@@ -46,8 +49,8 @@ export function useGroupComposerContext({
   avgPerf?: AveragePerfView | undefined;
 }): ComposerContext | undefined {
   const footerSettings = useRef<ComposerFooterHandle>(null);
-  const [openChannel, setOpenChannel] = useScopedState<string>(channel?.id);
-  if (channel?.type !== 'group' || memberPage()) return;
+  const [openChannel, setOpenChannel] = useScopedState<string>(scopeKey ?? channel?.id);
+  if (channel?.type !== 'group' || !hasChannelBots(channel) || memberPage()) return;
   const open = () => setOpenChannel(channel.id);
   return {
     target: channel.id,
@@ -62,7 +65,7 @@ export function useGroupComposerContext({
     ],
     content: (
       <GroupComposerContextView
-        key={channel.id}
+        key={scopeKey ?? channel.id}
         footerSettings={footerSettings}
         channelId={channel.id}
         members={members.filter((bot) => !bot.deleted && !bot.paused)}
@@ -147,7 +150,7 @@ export function GroupComposerContextView({
         () => {},
       );
     const disposers = slugs.map((slug) =>
-      subscribeWorkspaceGrantChanges(slug, () => refresh(slug)),
+      subscribeWorkspaceGrantChanges(slug, () => refresh(slug), actions),
     );
     return () => {
       factRequest.current += 1;

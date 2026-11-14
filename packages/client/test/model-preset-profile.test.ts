@@ -1180,7 +1180,7 @@ it('refreshes the already-open Bot model card after onboarding saves a fixed mod
       },
     ),
   } as unknown as BridgeActions;
-  invalidateModelPlan('ada');
+  invalidateModelPlan('ada', actions);
   const host = await render(actions);
   expect(cards(host)).toContain('Inherit global');
   const controller = new OnboardingController(actions);
@@ -1188,11 +1188,11 @@ it('refreshes the already-open Bot model card after onboarding saves a fixed mod
   await act(async () => controller.saveModel(route, false, 0));
   expect(cards(host)).toContain('flash');
   expect(cards(host)).not.toContain('Inherit global');
-  expect(modelPlanOf('ada')?.orchestrator).toEqual(route);
+  expect(modelPlanOf('ada', actions)?.orchestrator).toEqual(route);
   controller.chooseModel('dm-ada', 'ada');
   await act(async () => controller.saveModel(route, true, 1));
   expect(cards(host)).toContain('Inherit global');
-  expect(modelPlanOf('ada')).toBeNull();
+  expect(modelPlanOf('ada', actions)).toBeNull();
 });
 
 it('keeps inherited Assignment settings when editing an Orchestrator-only plan', async () => {

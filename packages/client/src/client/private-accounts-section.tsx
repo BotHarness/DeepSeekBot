@@ -7,7 +7,7 @@ import { useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import type { ClientState } from './store.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
-import { channelSettings } from './channel-settings-state.js';
+import { useChannelSettings } from './channel-settings-state.js';
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -27,6 +27,7 @@ const STATUS_TONE = {
 } as const;
 
 function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
+  const channelSettings = useChannelSettings();
   const channel = useClientStore((state) => state.conversation.channel);
   const conversationRevision = useClientStore((state) => state.conversation.revision);
   const requestCache = useRef<{

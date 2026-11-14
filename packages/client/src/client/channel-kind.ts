@@ -1,7 +1,18 @@
 import type { BotSummary, ChannelSummary } from './store.js';
 
 export function isHumanReadOnlyDmChannel(channel: ChannelSummary | undefined): boolean {
-  return channel?.type === 'dm' && channel.botSlug === undefined;
+  return (
+    channel?.type === 'dm' &&
+    channel.botSlug === undefined &&
+    (hasChannelBots(channel) || (channel.humanMembers?.length ?? 0) === 0)
+  );
+}
+
+export function hasChannelBots(channel: ChannelSummary | undefined): boolean {
+  return (
+    channel !== undefined &&
+    (channel.botSlug !== undefined || channel.remoteBot !== undefined || channel.members.length > 0)
+  );
 }
 
 export function isBotDmChannel(channel: ChannelSummary | undefined): boolean {

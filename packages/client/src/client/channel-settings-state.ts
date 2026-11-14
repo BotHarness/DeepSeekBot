@@ -1,4 +1,5 @@
 import type { ConversationStateView } from './store.js';
+import { createContext, useContext } from 'react';
 import type { ChannelSidebarEntry, ChannelSidebarScope } from './channel-sidebar.js';
 
 export interface ChannelSettingsSnapshot {
@@ -58,6 +59,8 @@ export class ChannelSettings {
 }
 
 export const channelSettings = new ChannelSettings();
+export const ChannelSettingsContext = createContext(channelSettings);
+export const useChannelSettings = (): ChannelSettings => useContext(ChannelSettingsContext);
 
 export function isChannelSettingsSection(entry: ChannelSidebarEntry): boolean {
   return entry.surface === 'settings';

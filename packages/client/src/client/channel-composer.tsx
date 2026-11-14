@@ -96,6 +96,7 @@ export interface ChannelComposerProps {
   dictating?: { current: boolean } | undefined;
   dictationMic?: DictationMic | undefined;
   sending: boolean;
+  disabled?: boolean;
   focusSignal?: number;
   attachments?: readonly ChannelComposerUpload[] | undefined;
   onAddFiles?(files: File[], selection?: { start: number; end: number }): number | void;
@@ -383,6 +384,7 @@ export function ChannelComposer({
   dictating,
   dictationMic,
   sending,
+  disabled = false,
   focusSignal = 0,
   attachments = [],
   onAddFiles,
@@ -401,10 +403,11 @@ export function ChannelComposer({
   onRecall,
   onSubmit,
 }: ChannelComposerProps): ReactElement {
+  const locked = sending || disabled;
   const voice = useComposerVoice({
     port: dictation,
     value,
-    disabled: sending,
+    disabled: locked,
     mic: dictationMic,
     selection: () => selectionOffsets(),
     apply: (next, caret) => {
@@ -582,7 +585,7 @@ export function ChannelComposer({
             const file = item.kind === 'file' ? item.getAsFile() : null;
             return file === null ? [] : [file];
           });
-    if (files.length === 0 || onAddFiles === undefined || sending) return false;
+    if (files.length === 0 || onAddFiles === undefined || locked) return false;
     event.preventDefault();
     event.stopPropagation();
     addFilesAtSelection(files);
@@ -775,6 +778,7 @@ export function ChannelComposer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (locked) return;
     if (voice.active && event.key === 'Enter') {
       event.preventDefault();
       return;
@@ -1134,7 +1138,7 @@ export function ChannelComposer({
                     if (!voice.active) onRemoveAttachment?.(item.id);
                   }}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending || voice.active}
+                  sending={locked || voice.active}
                 />
               ) : (
                 <ComposerFileAttachment
@@ -1147,7 +1151,7 @@ export function ChannelComposer({
                     if (!voice.active) onRemoveAttachment?.(item.id);
                   }}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending || voice.active}
+                  sending={locked || voice.active}
                 />
               ),
             )}
@@ -1166,10 +1170,10 @@ export function ChannelComposer({
               role="textbox"
               aria-label={basePlaceholder}
               aria-multiline="true"
-              aria-disabled={sending}
+              aria-disabled={locked}
               aria-readonly={voice.active || undefined}
               data-placeholder={placeholder}
-              contentEditable={!sending && !voice.active}
+              contentEditable={!locked && !voice.active}
               suppressContentEditableWarning
               onClick={(event) => {
                 const target = event.target;
@@ -1212,7 +1216,7 @@ export function ChannelComposer({
               placeholder={placeholder}
               aria-label={basePlaceholder}
               value={value}
-              disabled={sending}
+              disabled={locked}
               readOnly={voice.active}
               onChange={(event) => {
                 scheduleSync(event.currentTarget);
@@ -1283,7 +1287,7 @@ export function ChannelComposer({
           type="button"
           className="bh-composer-add-file"
           aria-label={t('composer.addAttachment')}
-          disabled={sending || voice.active || attachments.length >= 10}
+          disabled={locked || voice.active || attachments.length >= 10}
           onMouseDown={() => {
             savedFileSelection.current = selectionOffsets();
           }}
@@ -1299,7 +1303,7 @@ export function ChannelComposer({
         ))}
 
         <div className="bh-composer-footer">
-          {voice.ready ? <ComposerMicButton voice={voice} disabled={sending} t={t} /> : null}
+          {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
           <Button
             className="bh-send-btn"
             variant="primary"
@@ -1308,7 +1312,7 @@ export function ChannelComposer({
             aria-label={sending ? t('message.sending') : t('composer.send')}
             disabled={
               (!hasVisibleText(value) && attachments.length === 0) ||
-              sending ||
+              locked ||
               voice.active ||
               mentions.some(
                 (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
