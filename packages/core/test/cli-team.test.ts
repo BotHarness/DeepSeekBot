@@ -146,6 +146,29 @@ describe('Team CLI', () => {
     },
     { args: ['models', 'allowed'], method: 'modelsAllowed', payload: {} },
     {
+      args: [
+        'roles',
+        'create',
+        '--name',
+        'Restricted',
+        '--permissions',
+        '',
+        '--models',
+        'provider/one,provider/two',
+      ],
+      method: 'roleCreate',
+      payload: {
+        name: 'Restricted',
+        permissions: [],
+        models: { kind: 'only', routes: ['provider/one', 'provider/two'] },
+      },
+    },
+    {
+      args: ['roles', 'create', '--name', 'Unrestricted', '--permissions', '', '--models', 'all'],
+      method: 'roleCreate',
+      payload: { name: 'Unrestricted', permissions: [], models: { kind: 'all' } },
+    },
+    {
       args: ['roles', 'update', 'member', '--models', 'provider/one,provider/two'],
       method: 'roleUpdate',
       payload: {

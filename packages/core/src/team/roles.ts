@@ -160,19 +160,25 @@ export class TeamRoles {
       throw new TeamError('permission-not-grantable', undefined, { permission });
   }
 
-  create(human: HumanContext, name: string, permissions: string[]): { role: HostRole } {
+  create(
+    human: HumanContext,
+    name: string,
+    permissions: string[],
+    models: RoleModels = { kind: 'all' },
+  ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const normalized = this.name(name);
     const grants = this.validatePermissions(permissions);
     this.checkPermissions(this.authority(human), grants, 'grant');
+    const modelPolicy = roleModelsSchema.parse(models);
     const id = randomUUID();
     this.db.transaction(
       (db) =>
         db
           .prepare(
-            'INSERT INTO host_roles (role_id, name, builtin, permissions_json) VALUES (?, ?, NULL, ?)',
+            'INSERT INTO host_roles (role_id, name, builtin, permissions_json, models_json) VALUES (?, ?, NULL, ?, ?)',
           )
-          .run(id, normalized, JSON.stringify(grants)),
+          .run(id, normalized, JSON.stringify(grants), JSON.stringify(modelPolicy)),
       ['team'],
     );
     this.invalidate();
