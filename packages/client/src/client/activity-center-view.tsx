@@ -1,10 +1,9 @@
 import { ActivityInboxHeader } from './activity-inbox-menu.js';
 import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
-import { ALL_HOSTS, THIS_HOST, conversationKey, remoteHosts } from './remote-hosts.js';
+import { ALL_HOSTS, THIS_HOST, remoteHosts } from './remote-hosts.js';
 import { EnvironmentFilter } from './environment-panel.js';
 import { useThisHost } from './this-host.js';
 import { useHostName } from './host-looks.js';
-import { RemoteConversationView } from './remote-conversation-view.js';
 import { ActivityHostHeading, RemoteActivityGroup } from './remote-activity.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import type { BridgeActions } from './actions.js';
@@ -65,8 +64,6 @@ export function ActivityCenterView({
       detach?.();
     };
   }, [actions, panel, feed]);
-  if (!panel && !registry?.available() && remote.open !== undefined)
-    return <RemoteConversationView key={conversationKey(remote.open)} target={remote.open} t={t} />;
   return (
     <div
       ref={mount}

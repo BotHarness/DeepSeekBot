@@ -200,10 +200,13 @@ export type ChannelFollow = (
 ) => { stop(): void; prepend(before: number): Promise<void> };
 
 let follow: ChannelFollow | undefined;
-let olderPage: ((channelId: string) => Promise<void> | undefined) | undefined;
+const olderPages = new WeakMap<ClientStore, (channelId: string) => Promise<void> | undefined>();
 
-export function prependChannelJournal(channelId: string): Promise<void> | undefined {
-  return olderPage?.(channelId);
+export function prependChannelJournal(
+  channelId: string,
+  store: ClientStore,
+): Promise<void> | undefined {
+  return olderPages.get(store)?.(channelId);
 }
 const followListeners = new Set<() => void>();
 
@@ -223,6 +226,7 @@ export function mountChannelLive(
   actions: Pick<BridgeActions, 'refreshChannelMessages'> &
     Partial<Pick<BridgeActions, 'applyChannelTail'>>,
   makeSource: (url: string) => ChannelEventSource = openSharedChannel,
+  scoped?: { follow: ChannelFollow },
 ): () => void {
   let activeChannelId: string | undefined;
   let source: ChannelEventSource | undefined;
@@ -580,9 +584,10 @@ export function mountChannelLive(
         scheduleDrafts();
       }
     };
-    if (follow !== undefined) {
+    const journalFollow = scoped?.follow ?? follow;
+    if (journalFollow !== undefined) {
       let journalFirst: number | undefined;
-      const journal = follow(channel.id, {
+      const journal = journalFollow(channel.id, {
         change(change) {
           if (activeChannelId !== channel.id) return;
           if (change.type === 'append') return onEntry(change.entry);
@@ -648,7 +653,7 @@ export function mountChannelLive(
         interrupted: onInterrupted,
       });
       stopFollow = () => {
-        if (olderPage === older) olderPage = undefined;
+        if (olderPages.get(store) === older) olderPages.delete(store);
         journal.stop();
       };
       const older = (channelId: string): Promise<void> | undefined => {
@@ -670,7 +675,7 @@ export function mountChannelLive(
         };
         return catchUp();
       };
-      olderPage = older;
+      olderPages.set(store, older);
       return;
     }
     let next: ChannelEventSource;
@@ -710,7 +715,7 @@ export function mountChannelLive(
     close();
     sync();
   };
-  followListeners.add(refollow);
+  if (scoped === undefined) followListeners.add(refollow);
   const unsubscribe = store.subscribe(sync);
   sync();
   return () => {

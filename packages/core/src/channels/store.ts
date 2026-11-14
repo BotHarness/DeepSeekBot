@@ -1,3 +1,4 @@
+import type { ChannelPolicy } from '../team/channel-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isChannelNotice } from './channel-notice.js';
 import { channelCallPictureRange, type ChannelCallWindowFilter } from './call-window.js';
@@ -390,6 +391,14 @@ export interface CreateChannelGroupInput {
 }
 
 export interface ChannelStore {
+  requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
+  bindHumanAccess?(access: {
+    canRead(human: HumanContext, id: string): boolean;
+    requirePost(human: HumanContext, id: string, all: boolean): void;
+    requirePolicy(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
+  }): void;
+  getOrCreateHumanDm?(human: HumanContext, id: string, participants: string[]): ChannelRecord;
+
   genuiView?(
     human: HumanContext,
     channelId: string,
@@ -1023,6 +1032,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const record: ChannelRecord = {
         id,
         type: 'group',
+        ...(input.ownerBotSlug === undefined ? { ownerHumanId: human.humanId } : {}),
         name: name.length > 0 ? name : id,
         members: [...input.members],
         ...(input.ownerBotSlug === undefined ? {} : { ownerBotSlug: input.ownerBotSlug }),

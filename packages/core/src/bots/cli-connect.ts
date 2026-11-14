@@ -1,6 +1,11 @@
 import { CliLiveError } from './cli-live-error.js';
 export const CONNECT_COMMANDS = [
   {
+    command: 'connect-check',
+    description:
+      'verify account, connector, relay-online state and a fresh pinned public encrypted handshake; return credential-safe diagnostics',
+  },
+  {
     command: 'private-route',
     description:
       'list, add/replace <quick|custom>, or start/stop/remove <quick|custom>; mutations require --confirm',
@@ -261,6 +266,8 @@ export async function runConnectCommand(
         })
       ).bytes,
     );
+  if (command === 'connect-check')
+    return decode((await host.http(`${DEVICES}/connect-health`, {})).bytes);
   if (command === 'connect-status') {
     const snapshot = decode((await host.http(DEVICES)).bytes) as Record<string, unknown>;
     return { connect: snapshot['connect'], routes: snapshot['routes'] };

@@ -1,3 +1,5 @@
+import { ConnectHealthCard } from './connect-health-card.js';
+import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
 import { ConnectAccountHosts } from './connect-account-hosts.js';
 import { RelationshipSettings } from './relationship-settings.js';
 import { ConnectionProgressLog } from './connection-progress-log.js';
@@ -59,6 +61,7 @@ interface PairedDevice {
 type RouteStatus = PhoneRouteStatus;
 
 interface ConnectStatus {
+  health?: ConnectHealthStatus;
   encryption?: { fingerprint: string; state: string };
   state: 'off' | 'starting' | 'connected' | 'error';
   hostname?: string;
@@ -645,6 +648,7 @@ export function PairedDevicesSettings({
         <RelationshipSettings
           t={t}
           onPrepareRoute={() => {
+            close();
             preparingRelationshipRoute.current = true;
             setSetup('method');
           }}
@@ -755,10 +759,21 @@ export function PairedDevicesSettings({
           {signIn && (signIn.state === 'signed-in' || signIn.issue === 'host-limit') ? (
             <StatusStack title="Tobs Connect">
               <Note>{signIn.email}</Note>
+              <ConnectHealthCard
+                t={t}
+                health={snapshot?.connect?.health}
+                reloadSnapshot={load}
+                fresh={freshSnapshot}
+              />
               <ConnectAccountHosts
                 t={t}
                 account={signIn}
                 reloadSnapshot={load}
+                refreshOn={
+                  snapshot?.connect?.health && 'checkedAt' in snapshot.connect.health
+                    ? snapshot.connect.health.checkedAt
+                    : undefined
+                }
                 allowCurrentSignOut
                 onHostsChanged={setAccountHosts}
                 details={(host) => <AccountHostConnectionDetails host={host} t={t} />}

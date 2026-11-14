@@ -11,6 +11,7 @@ import { CONNECT_PROTOCOL } from '../src/devices/noise/channel.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { createRelationshipControl } from '../src/devices/relationship-control.js';
+import { createRelationshipHttp } from '../src/devices/relationship-http.js';
 import { enrollRelationshipClient } from '../src/devices/relationship-enrollment.js';
 import { nodeDeviceCarrier } from '../src/devices/node-carrier.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
@@ -29,6 +30,7 @@ async function host(
     privateAdmission?: () => PrivateAdmission | undefined;
     retained?: { home: string; privateKey: Uint8Array; port: number };
     beforeReceive?: () => Promise<void>;
+    beforeReply?: (input: unknown, response: Record<string, unknown>) => Promise<void>;
   } = {},
 ) {
   const retained = options.retained;
@@ -78,9 +80,11 @@ async function host(
     pairing,
     key: identity.key,
     port: () => port,
-    relationship: async (peerKey, command) => {
+    relationship: async (peerKey, input) => {
       await options.beforeReceive?.();
-      return control.receive(peerKey, command);
+      const response = await control.receive(peerKey, input);
+      await options.beforeReply?.(input, response);
+      return response;
     },
   });
   server.on('upgrade', (request, socket, head) => {
@@ -315,6 +319,65 @@ it('establishes exact reciprocal authorization over real Noise sockets and retir
   }
 });
 
+it('retires an unapproved proposal through pending-only cleanup', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    const response = await createRelationshipHttp(a.control)(
+      new Request('http://localhost/api/botharness/relationships', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'cancel',
+          id: relationship.id,
+          confirm: true,
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(a.control.list()).toMatchObject([
+      { state: 'disconnected', peerRevocationPending: false },
+    ]);
+    expect(b.control.list()).toMatchObject([
+      { state: 'disconnected', peerRevocationPending: false },
+    ]);
+    expect(a.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+    expect(b.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it('preserves an activated relationship when stale pending cleanup arrives after a lost sync reply', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const before = [a.relationships.read(relationship.id), b.relationships.read(relationship.id)];
+    const response = await createRelationshipHttp(a.control)(
+      new Request('http://localhost/api/botharness/relationships', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'cancel',
+          id: relationship.id,
+          confirm: true,
+        }),
+      }),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: 'relationship-already-active' });
+    expect(a.control.list()).toMatchObject([{ state: 'active', peerRevocationPending: false }]);
+    expect(b.control.list()).toMatchObject([{ state: 'active', peerRevocationPending: false }]);
+    expect([a.relationships.read(relationship.id), b.relationships.read(relationship.id)]).toEqual(
+      before,
+    );
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
 it('refuses route recovery after authenticated peer retirement instead of reporting a recovered active relationship', async () => {
   const a = await host('A');
   const b = await host('B');
@@ -394,6 +457,88 @@ it('keeps an approved partial relationship and completes its real missing direct
   }
 });
 
+it('keeps recovered routes when an older authenticated status reply arrives later', async () => {
+  let hold = false;
+  let entered!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const a = await host('A');
+  const b = await host('B', Date.now, {
+    beforeReply: async (input) => {
+      if (
+        hold &&
+        typeof input === 'object' &&
+        input !== null &&
+        'action' in input &&
+        input.action === 'status'
+      ) {
+        hold = false;
+        entered();
+        await blocked;
+      }
+    },
+  });
+  try {
+    b.advertisedRoutes.push('http://127.0.0.1:1');
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    hold = true;
+    const older = a.control.sync(relationship.id);
+    await started;
+    b.advertisedRoutes.splice(1, 1, 'http://127.0.0.1:2');
+    const recovered = await a.control.recoverRoute(relationship.id, await b.link());
+    expect(recovered.peer.routes).toContain('http://127.0.0.1:2');
+    release();
+    await older;
+    expect(a.control.list()[0]?.peer.routes).toEqual(recovered.peer.routes);
+    expect(a.control.list()[0]?.peer.routes).not.toContain('http://127.0.0.1:1');
+  } finally {
+    release();
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
+it('retires local authorization when a return probe discovers authenticated peer retirement', async () => {
+  const a = await host('A');
+  const b = await host('B');
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const client = await enrollRelationshipClient({
+      relationshipId: relationship.id,
+      expectedPeer: relationship.peer,
+      name: 'Existing Client',
+      carrier: nodeDeviceCarrier(),
+      request: (input) =>
+        a.control.enroll(relationship.id, String(input['publicKey']), String(input['name'])),
+    });
+    if (!client.ok) throw new Error(client.code);
+    expect(b.pairing.admit(`Device ${client.host.credential}`).ok).toBe(true);
+    a.relationships.disconnect(relationship.id);
+    expect(
+      await b.control.receive(a.publicKey, { action: 'verify-return', id: relationship.id }),
+    ).toEqual({ ok: false, code: 'relationship-disconnected' });
+    expect(b.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: false,
+      reachability: { outgoing: { state: 'unverified' }, incoming: { state: 'unverified' } },
+    });
+    expect(b.pairing.admit(`Device ${client.host.credential}`)).toMatchObject({
+      ok: false,
+      code: 'device-revoked',
+    });
+  } finally {
+    await Promise.all([a.close(), b.close()]);
+  }
+});
+
 it('retires refused initiation so a fresh verified invitation can be used', async () => {
   const a = await host('A');
   const b = await host('B');
@@ -414,20 +559,29 @@ it('retires refused initiation so a fresh verified invitation can be used', asyn
   }
 });
 
-it.each(['tailscale', 'private'] as const)(
+it.each(['tailscale', 'private', 'private-fallback'] as const)(
   'redeems a %s route through pinned Noise without a plaintext pairing request',
   async (kind) => {
     const a = await host('A');
     const b = await host('B');
     const origin =
       kind === 'tailscale' ? 'https://peer.example.ts.net' : 'https://peer.private.example';
-    const privateRelay = kind === 'private' ? { origin, token: 'ab'.repeat(32) } : undefined;
+    const backup = 'https://peer.backup.example';
+    const privateRelay =
+      kind !== 'tailscale'
+        ? {
+            origin,
+            token: 'ab'.repeat(32),
+            ...(kind === 'private-fallback' ? { additionalOrigins: [backup] } : {}),
+          }
+        : undefined;
     try {
       const relationship = await a.control.initiate(await b.link(), b.publicKey);
       b.control.approve(relationship.id, a.publicKey);
       await a.control.sync(relationship.id);
       const raw = nodeDeviceCarrier();
       let sockets = 0;
+      const attempted: string[] = [];
       const result = await enrollRelationshipClient({
         relationshipId: relationship.id,
         expectedPeer: relationship.peer,
@@ -439,14 +593,23 @@ it.each(['tailscale', 'private'] as const)(
           },
           openSocket(url, events, headers) {
             sockets++;
-            expect(url).toBe(`${origin.replace('https:', 'wss:')}/botharness-device/channel`);
+            attempted.push(url);
             if (privateRelay)
               expect(headers).toMatchObject({
                 Authorization: `Bearer ${privateRelay.token}`,
                 'X-BotHarness-Admission': privateRelay.token,
               });
+            if (kind === 'private-fallback' && url.startsWith(origin.replace('https:', 'wss:'))) {
+              queueMicrotask(() => events.closed('socket-unreachable'));
+              return { send() {}, close() {} };
+            }
+            const reachable = kind === 'private-fallback' ? backup : origin;
+            expect(url).toBe(`${reachable.replace('https:', 'wss:')}/botharness-device/channel`);
             return raw.openSocket(
-              url.replace(origin.replace('https:', 'wss:'), b.routes[0]!.replace('http:', 'ws:')),
+              url.replace(
+                reachable.replace('https:', 'wss:'),
+                b.routes[0]!.replace('http:', 'ws:'),
+              ),
               events,
             );
           },
@@ -459,7 +622,11 @@ it.each(['tailscale', 'private'] as const)(
           );
           return {
             ...ticket,
-            peer: { ...ticket.peer, routes: [origin], ...(privateRelay ? { privateRelay } : {}) },
+            peer: {
+              ...ticket.peer,
+              routes: kind === 'private-fallback' ? [origin, backup] : [origin],
+              ...(privateRelay ? { privateRelay } : {}),
+            },
           };
         },
       });
@@ -467,7 +634,14 @@ it.each(['tailscale', 'private'] as const)(
       expect(sockets).toBeGreaterThan(0);
       if (result.ok) {
         expect(result.host.hostId).toBe(b.pairing.host().id);
-        expect(result.host.routes).toEqual([origin]);
+        expect(result.host.routes).toEqual(
+          kind === 'private-fallback' ? [backup, origin] : [origin],
+        );
+        if (kind === 'private-fallback')
+          expect(attempted).toEqual([
+            `${origin.replace('https:', 'wss:')}/botharness-device/channel`,
+            `${backup.replace('https:', 'wss:')}/botharness-device/channel`,
+          ]);
         expect(b.pairing.list().some((device) => device.id === result.host.deviceId)).toBe(true);
       }
     } finally {

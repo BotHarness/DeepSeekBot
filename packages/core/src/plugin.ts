@@ -1008,12 +1008,20 @@ function initializeCore(
       durableAttention.cancel();
     });
     operationalDatabase.subscribe(({ topics }) => {
-      if (topics.includes('content-purge')) live?.publishContentPurged();
+      if (topics.some((topic) => ['content-purge', 'member-purged'].includes(topic)))
+        live?.publishContentPurged();
+      if (topics.includes('member-purged')) live?.publishHumanIdentityChanged();
       if (
         topics.some((topic) =>
-          ['bindings', 'grants', 'bot-schedules', 'content-purge', 'assignment-report'].includes(
-            topic,
-          ),
+          [
+            'bindings',
+            'grants',
+            'bot-schedules',
+            'content-purge',
+            'member-purged',
+            'assignment-report',
+            'bot-ownership',
+          ].includes(topic),
         )
       )
         live?.publishRosterCommitted();
@@ -1028,6 +1036,12 @@ function initializeCore(
     });
   }
   const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
+    purge: contentPurge,
+    stopBots: async (slugs) => {
+      if (!slugs.length) return;
+      if (!runtime?.stopBot) throw new Error('member-bot-stop-unavailable');
+      for (const slug of slugs) await runtime.stopBot(slug);
+    },
     ensureTob: (human) => tob.ensure(human),
     log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
   });
@@ -1054,7 +1068,10 @@ function initializeCore(
       ),
     (human) => team.isOwner(human),
     (human, slug) => ownsBot(human, registry.getHistorical(slug)),
+    (human, id) => team.channelAccess.canRead(human, id, true),
+    (human, id) => team.channelAccess.canKnow(human, id),
   );
+  team.onAccessChanged(() => live?.refreshAccess());
   startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
     for (const bot of registry.list())
@@ -1354,6 +1371,7 @@ function initializeCore(
     changed: () => live?.publishRosterCommitted(),
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
+  contentPurge.bindMemberBots(deletions);
   if (operationalDatabase.mode === 'ready') {
     startup.enter('messaging', 'reconcile-group-members');
     const activeBots = new Set(registry.list().map((bot) => bot.slug));
@@ -1915,8 +1933,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       });
     }
   };
-  ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
-  ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
+  ctx.effect(
+    () => async () => {
+      await core.contentPurge.memberSettled().catch(() => {});
+      core.contentPurge.close();
+      core.operationalDatabase.close();
+    },
+    'botharness: purge ledger and operational database',
+  );
   const storage = createStorageCleanup({
     dshHome,
     database: core.operationalDatabase,

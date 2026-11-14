@@ -26,6 +26,10 @@ import { assertDshVersion } from '../dsh-compatibility.mjs';
 import { qualifiedImProvider } from '../dev-im-provider.mjs';
 
 describe('development CLI admission', () => {
+  it('requires an explicit option for interrupted copy preparation recovery', () => {
+    expect(parseArgs([]).recoverCopyInstall).toBe(false);
+    expect(parseArgs(['--recover-copy-install']).recoverCopyInstall).toBe(true);
+  });
   it.each([
     '0.2.0-rc.1',
     '0.2.0',
