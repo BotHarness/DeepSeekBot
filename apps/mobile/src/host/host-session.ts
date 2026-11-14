@@ -1,3 +1,5 @@
+import type { TeamResult } from './team-invitation';
+import { identitySwitchRequired } from './member-identity';
 import { hostStore, hostStoreAvailable } from './host-store';
 import type { AccountOwner } from './account-owner';
 import { removeAccountConnections } from './account-connections';
@@ -21,6 +23,7 @@ import {
   conversationCache,
   conversationCacheWaitMs,
   forgetHostConversations,
+  clearHostConversations,
   pruneHostConversations,
   warmHostConversations,
 } from './native-conversations';
@@ -440,6 +443,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     const saved = next.hosts.find((host) => host.hostId === id);
     if (
       !saved ||
+      saved.member?.mustChangePassword ||
       saved.credential !== session.host.saved.credential ||
       JSON.stringify(saved.encryption) !== JSON.stringify(session.host.saved.encryption)
     ) {
@@ -449,6 +453,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     }
   }
   for (const saved of next.hosts) {
+    if (saved.member?.mustChangePassword) continue;
     const existing = sessions.get(saved.hostId);
     if (existing) {
       existing.host.saved = saved;
@@ -605,13 +610,60 @@ export const hostSession = {
     feeds.find((host) => host.saved.hostId === hostId),
   getSelectionRevision: (): number => selectionIntent,
   getSourceChangeRevision: (): number => sourceChangeRevision,
-  async pair(host: SavedHost): Promise<void> {
+  async pair(host: SavedHost, options: { confirmedIdentitySwitch?: boolean } = {}): Promise<void> {
     selectionIntent++;
     if (state.saved?.hostId !== host.hostId) sourceChangeRevision++;
     return serialize(async () => {
-      await commit(withHost(stored, host), 'pair');
+      const next = withHost(stored, host, options.confirmedIdentitySwitch === true);
+      const previous = stored.hosts.find((item) => item.hostId === host.hostId);
+      if (identitySwitchRequired(previous, host) && previous) {
+        const session = sessions.get(host.hostId);
+        sessions.delete(host.hostId);
+        session?.dispose();
+        await clearPresentations(previous);
+        try {
+          await sourceDrafts.ready;
+          await sourceDrafts.removePersistedWhere((key) => {
+            try {
+              const parts = JSON.parse(key);
+              return parts[0] === 'computer' && parts[1] === host.hostId;
+            } catch {
+              return false;
+            }
+          });
+          await clearHostConversations(host.hostId);
+          purgeCaches.forgetHost(host.hostId);
+          await forgetRecentChats(host.hostId);
+          await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
+        } catch (error) {
+          adopt(stored);
+          throw error;
+        }
+      }
+      try {
+        await commit(next, 'pair');
+      } catch (error) {
+        adopt(stored);
+        throw error;
+      }
       void pushSession.enable(stored.hosts);
     });
+  },
+  async pairMember(
+    host: SavedHost,
+    options: { confirmedIdentitySwitch?: boolean } = {},
+  ): Promise<TeamResult<SavedHost>> {
+    if (!host.member) return { ok: false, code: 'credentials-invalid' };
+    try {
+      await hostSession.pair(host, options);
+      return { ok: true, value: host };
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      if (code === 'identity-switch-required') return { ok: false, code };
+      if (code === 'fingerprint-mismatch' || code === 'host-key-mismatch')
+        return { ok: false, code: 'fingerprint-mismatch' };
+      return { ok: false, code: 'storage-failed' };
+    }
   },
   async switchTo(hostId: string, current: () => boolean = () => true): Promise<boolean> {
     const intent = ++selectionIntent;

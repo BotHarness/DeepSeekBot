@@ -172,6 +172,34 @@ describe('Team CLI', () => {
     ]);
   });
 
+  it('resolves an invitation username and prints only the bridge link JSON', async () => {
+    const f = await host();
+    const result = await run(f.url, ['members', 'invite', 'bob']);
+    expect(result.status).toBe(0);
+    expect(result.output).toEqual({ done: true });
+    expect(f.calls.map((call) => call.path)).toEqual([
+      '/api/botharness/members',
+      '/api/botharness/memberInvitation',
+    ]);
+    expect(f.calls[1]?.input).toMatchObject({ payload: { args: { humanId: 'bob-id' } } });
+    const missing = await run(f.url, ['members', 'invite', 'missing']);
+    expect(missing.status).not.toBe(0);
+    expect(missing.output).toMatchObject({ error: { code: 'member-not-found' } });
+    expect(f.calls).toHaveLength(3);
+  });
+
+  it('dispatches self-pairing under the explicit member and retains the member refusal', async () => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', 'members', 'pairing-offer']);
+    expect(result.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls).toEqual([
+      {
+        path: '/api/botharness/team-as',
+        input: { username: 'bob', namespace: 'botharness', method: 'memberPairingOffer', args: {} },
+      },
+    ]);
+  });
+
   it('reads Owner and member passwords only from stdin and requires confirmation for insecure HTTP', async () => {
     const f = await host();
     expect(

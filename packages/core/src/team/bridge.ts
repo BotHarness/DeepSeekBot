@@ -45,6 +45,11 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .parse(payload);
         return service.createMember(human, username, displayName);
       }),
+    memberInvitation: (payload: unknown) =>
+      call((service) =>
+        service.invitation(human, z.object({ humanId: z.string().min(1) }).parse(payload).humanId),
+      ),
+    memberPairingOffer: (_payload: unknown) => call((service) => service.pairingOffer(human)),
     memberPasswordReset: (payload: unknown) =>
       call((service) =>
         service.resetPassword(

@@ -19,7 +19,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'members',
     description:
-      'list | create --username --display-name --initial-password-file | reset-password <username> --initial-password-file | password --password-stdin',
+      'list | invite <username> | pairing-offer | create --username --display-name --initial-password-file | reset-password <username> --initial-password-file | password --password-stdin',
   },
 ] as const;
 
@@ -110,6 +110,15 @@ export async function runTeamCommand(
   }
   if (command === 'members') {
     if (action === 'list' && rest.length === 1) return rpc('members', {});
+    if (action === 'pairing-offer' && rest.length === 1) return rpc('memberPairingOffer', {});
+    if (action === 'invite' && argument && rest.length === 2) {
+      const members = z
+        .array(z.object({ username: z.string(), humanId: z.string() }))
+        .parse(await rpc('members', {}));
+      const member = members.find((entry) => entry.username === argument);
+      if (!member) throw new CliLiveError('member-not-found', 'member-not-found');
+      return rpc('memberInvitation', { humanId: member.humanId });
+    }
     if (action === 'password' && rest.length === 1 && values['password-stdin'])
       return rpc(
         'memberPasswordChange',

@@ -423,6 +423,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
       );
     return unwrapAsync(this.methods.memberPasswordChange({ current, next }));
   }
+  memberInvitation(humanId: string) {
+    return unwrapAsync(this.methods.memberInvitation({ humanId }));
+  }
+  memberPairingOffer() {
+    return unwrapAsync(this.methods.memberPairingOffer({}));
+  }
   memberPasswordReset(humanId: string) {
     return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
   }
@@ -2952,6 +2958,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'memberCreate',
   'memberPasswordChange',
   'memberPasswordReset',
+  'memberInvitation',
+  'memberPairingOffer',
   'publicChannels',
   'publicChannelJoin',
   'channelPublicSet',

@@ -82,6 +82,12 @@ export class TeamService {
   private readonly limiter: SignInRateLimit;
   private peerFactory: ((principal: MemberPrincipal) => PeerScope) | undefined;
   private invalidate: () => void = () => {};
+  private devices:
+    | {
+        invitation(humanId: string): Promise<import('./devices.js').MemberInvitation>;
+        pairingOffer(humanId: string): Promise<import('./devices.js').MemberPairingOffer>;
+      }
+    | undefined;
   private urls: () => string[] = () => [];
   private readonly now: () => number;
   private readonly log: (phase: string, facts: Record<string, string | number | boolean>) => void;
@@ -115,6 +121,28 @@ export class TeamService {
       this.invalidate = () => {};
       this.urls = () => [];
     };
+  }
+
+  bindDevices(devices: NonNullable<TeamService['devices']>): () => void {
+    this.devices = devices;
+    return () => {
+      if (this.devices === devices) this.devices = undefined;
+    };
+  }
+
+  invitation(human: HumanContext, humanId: string) {
+    this.owner(human);
+    this.active(this.member(humanId));
+    if (!this.devices) throw new TeamError('unavailable');
+    return this.devices.invitation(humanId);
+  }
+
+  pairingOffer(human: HumanContext) {
+    const member = this.member(human.humanId);
+    this.active(member);
+    if (member.mustChangePassword) throw new TeamError('password-change-required');
+    if (!this.devices) throw new TeamError('unavailable');
+    return this.devices.pairingOffer(human.humanId);
   }
 
   private settings() {
@@ -323,6 +351,7 @@ export class TeamService {
     username: string,
     password: string,
     ip: string,
+    device?: { kind: 'paired-device'; name: string; publicKey?: string },
   ): Promise<{ token: string; member: TeamMember; peer: PeerScope }> {
     if (!this.settings().enabled) throw new TeamError('team-mode-off');
     this.passwordAttempt(username, ip);
@@ -333,10 +362,13 @@ export class TeamService {
     if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
       throw new TeamError('credentials-invalid');
     this.active(member);
-    return { ...this.createGrant(member), member };
+    return { ...this.createGrant(member, device), member };
   }
 
-  private createGrant(member: TeamMember): { token: string; peer: PeerScope } {
+  private createGrant(
+    member: TeamMember,
+    device?: { kind: 'paired-device'; name: string; publicKey?: string },
+  ): { token: string; peer: PeerScope } {
     this.active(this.member(member.humanId));
     if (!this.peerFactory) throw new TeamError('unavailable');
     const token = randomBytes(32).toString('base64url');
@@ -345,8 +377,19 @@ export class TeamService {
     this.db.transaction(
       (db) =>
         db
-          .prepare('INSERT INTO member_grants VALUES (?, ?, ?, ?, ?, NULL)')
-          .run(grantId, tokenHash(token), member.humanId, at, at),
+          .prepare(
+            'INSERT INTO member_grants(grant_id, token_hash, human_id, created_at, last_seen_at, revoked_at, kind, device_name, public_key) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)',
+          )
+          .run(
+            grantId,
+            tokenHash(token),
+            member.humanId,
+            at,
+            at,
+            device?.kind ?? 'browser-session',
+            device?.name ?? null,
+            device?.publicKey ?? null,
+          ),
       ['team'],
     );
     try {
@@ -368,6 +411,109 @@ export class TeamService {
       this.invalidate();
       throw error;
     }
+  }
+
+  createDeviceGrant(humanId: string, name: string, publicKey?: string) {
+    const member = this.member(humanId);
+    this.active(member);
+    if (member.mustChangePassword) throw new TeamError('password-change-required');
+    return this.deviceGrantResult(
+      this.createGrant(member, {
+        kind: 'paired-device',
+        name,
+        ...(publicKey === undefined ? {} : { publicKey }),
+      }),
+      member,
+    );
+  }
+
+  deviceGrantResult(grant: { token: string; peer: PeerScope }, member: TeamMember) {
+    if (grant.peer.principal.kind !== 'botharness-member') throw new TeamError('forbidden');
+    return {
+      deviceId: grant.peer.principal.grantId,
+      credential: `member.${grant.token}`,
+      humanId: member.humanId,
+      displayName: member.displayName,
+      mustChangePassword: member.mustChangePassword,
+    };
+  }
+
+  admitDevice(authorization: string | undefined, publicKey?: string): PeerScope | undefined {
+    if (publicKey !== undefined && !/^[a-f0-9]{64}$/u.test(publicKey)) return undefined;
+    const match = /^Device member\.([A-Za-z0-9_-]{43})$/u.exec(authorization ?? '');
+    if (!match) return undefined;
+    const row = z
+      .object({ public_key: z.string().nullable() })
+      .optional()
+      .parse(
+        this.db.read((db) =>
+          db
+            .prepare(
+              "SELECT public_key FROM member_grants WHERE token_hash = ? AND kind = 'paired-device' AND revoked_at IS NULL",
+            )
+            .get(tokenHash(match[1]!)),
+        ),
+      );
+    if (
+      !row ||
+      (publicKey !== undefined && row.public_key !== null && row.public_key !== publicKey)
+    )
+      return undefined;
+    const peer = this.admit(match[1]!);
+    if (peer && publicKey !== undefined && row.public_key === null)
+      this.db.transaction(
+        (db) =>
+          db
+            .prepare(
+              'UPDATE member_grants SET public_key = ? WHERE token_hash = ? AND public_key IS NULL',
+            )
+            .run(publicKey, tokenHash(match[1]!)),
+        ['team'],
+      );
+    return peer;
+  }
+
+  device(deviceId: string) {
+    const row = z
+      .object({
+        grant_id: z.string(),
+        human_id: z.string(),
+        device_name: z.string(),
+        created_at: z.string(),
+        last_seen_at: z.string(),
+      })
+      .optional()
+      .parse(
+        this.db.read((db) =>
+          db
+            .prepare(
+              "SELECT grant_id, human_id, device_name, created_at, last_seen_at FROM member_grants WHERE grant_id = ? AND kind = 'paired-device' AND revoked_at IS NULL",
+            )
+            .get(deviceId),
+        ),
+      );
+    if (
+      !row ||
+      !this.resolve({ kind: 'botharness-member', humanId: row.human_id, grantId: row.grant_id })
+    )
+      return undefined;
+    return {
+      id: row.grant_id,
+      humanId: row.human_id,
+      name: row.device_name,
+      pairedAt: row.created_at,
+      lastSeenAt: row.last_seen_at,
+    };
+  }
+
+  attachDeviceStream(deviceId: string, close: () => void): () => void {
+    const peer = this.peers.get(deviceId);
+    if (!peer || peer.signal.aborted || !this.device(deviceId)) {
+      close();
+      return () => {};
+    }
+    peer.signal.addEventListener('abort', close, { once: true });
+    return () => peer.signal.removeEventListener('abort', close);
   }
 
   resolve(principal: Principal): HumanContext | undefined {
