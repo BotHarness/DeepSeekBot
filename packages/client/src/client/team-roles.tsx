@@ -9,6 +9,7 @@ import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { RoleModelsField } from './team-role-models.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { TeamMember } from './team-bridge.js';
 import {
@@ -25,6 +26,7 @@ import {
   canGrant,
   canGrantAll,
   type GrantingViewer,
+  type RoleModels,
   type TeamRole,
 } from './team-roles-bridge.js';
 import { MemberActions } from './team-offboarding.js';
@@ -174,6 +176,7 @@ function RoleDialog({
 }): ReactElement {
   const [name, setName] = useState(role?.name ?? '');
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set(role?.permissions ?? []));
+  const [models, setModels] = useState<RoleModels>(role?.models ?? { kind: 'all' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -234,11 +237,12 @@ function RoleDialog({
       onSubmit={() =>
         run(() =>
           role === undefined
-            ? createRole(call, { name: name.trim(), permissions: [...chosen] })
+            ? createRole(call, { name: name.trim(), permissions: [...chosen], models })
             : updateRole(call, {
                 roleId: role.roleId,
                 ...(builtin === null ? { name: name.trim() } : {}),
                 permissions: [...chosen],
+                ...(builtin === 'admin' ? {} : { models }),
               }),
         )
       }
@@ -283,6 +287,9 @@ function RoleDialog({
             </fieldset>
           );
         })}
+        {builtin === 'admin' ? null : (
+          <RoleModelsField call={call} t={t} value={models} disabled={busy} onChange={setModels} />
+        )}
       </FieldStack>
     </FormDialog>
   );
