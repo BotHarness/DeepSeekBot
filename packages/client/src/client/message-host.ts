@@ -17,7 +17,7 @@ export async function fetchMessageResource(
   signal: AbortSignal,
   host?: MessageHost,
 ): Promise<Response> {
-  if (host === undefined) return fetch(`.${path}`, { signal });
+  if (host === undefined) return fetch(`.${path}`, { signal, credentials: 'same-origin' });
   const source = host.client.resource(path);
   if (source.read) {
     const result = await source.read(signal);
