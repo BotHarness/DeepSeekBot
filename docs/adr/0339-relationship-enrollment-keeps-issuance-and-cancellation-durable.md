@@ -1,4 +1,4 @@
-# ADR-0338: Relationship enrollment keeps issuance and cancellation durable
+# ADR-0339: Relationship enrollment keeps issuance and cancellation durable
 
 Status: Accepted implementation decision for Environment E6 (#4115); runtime acceptance remains a separate gate.
 
