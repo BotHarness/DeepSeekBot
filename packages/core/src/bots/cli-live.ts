@@ -822,6 +822,18 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   };
   const scrub = (value: string) =>
     value.replaceAll(secret, '[redacted]').replaceAll(encodeURIComponent(secret), '[redacted]');
+  const rpcFailure = (error: Record<string, unknown>): CliLiveError => {
+    const failure = new CliLiveError(
+      typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
+      scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
+    );
+    const details = record(error['details']);
+    if (failure.code === 'permission-required' && typeof details['permission'] === 'string')
+      failure.details = { permission: scrub(details['permission']) };
+    if (failure.code === 'model-not-allowed' && typeof details['route'] === 'string')
+      failure.details = { route: scrub(details['route']) };
+    return failure;
+  };
   const rpc = async <T>(method: string, args: Record<string, unknown>): Promise<T> => {
     const name = method.includes('/') ? method : `botharness/${method}`;
     if (values.as !== undefined) {
@@ -836,10 +848,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       const result = await readResponse(answer);
       if (result['ok'] !== true) {
         const error = record(result['error']);
-        throw new CliLiveError(
-          typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
-          scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
-        );
+        throw rpcFailure(error);
       }
       return result['value'] as T;
     }
@@ -859,10 +868,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     const result = record(payload['result']);
     if (result['ok'] !== true) {
       const error = record(result['error']);
-      const code = typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error';
-      const message =
-        typeof error['message'] === 'string' ? error['message'] : 'The Host refused the command.';
-      throw new CliLiveError(code, scrub(message));
+      throw rpcFailure(error);
     }
     return result['value'] as T;
   };

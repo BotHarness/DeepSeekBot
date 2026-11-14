@@ -925,6 +925,7 @@ export interface BotRuntimeOptions {
   inboxHistory?: InboxHistoryQuery;
   triageContinuation?: boolean;
   messagePerf?: MessagePerfTracker;
+  requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -1490,7 +1491,14 @@ function sessionFailureDetails(error: unknown): {
       ? (error as { status?: unknown }).status
       : undefined;
   return {
-    ...(match === null ? {} : { code: match[1] }),
+    ...(typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+      ? { code: error.code }
+      : match === null
+        ? {}
+        : { code: match[1] }),
     ...(typeof status === 'number' ? { status } : {}),
     detail,
   };
@@ -1578,6 +1586,7 @@ function continuationNote(continuation: DmContinuation): string {
 }
 
 class BotRuntimeImplementation implements BotRuntime {
+  readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
   readonly #externalMessaging: OutboundMessaging | undefined;
   readonly #database: OperationalDatabaseModulePort;
@@ -1699,6 +1708,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#registry = options.registry;
     this.#botNetwork = options.botNetwork;
     this.#requireExecution = options.requireExecution;
+    this.#requireModelRoute = options.requireModelRoute;
     this.#channels = options.channels;
     this.groupSendReview = new GroupSendReview(
       attachOperationalModule(options.database, 'channel-send-review'),
@@ -6276,6 +6286,25 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#memoryTurnOperations.delete(bot.slug);
       processing = this.#externalMessaging?.beginProcessing(bot.slug, typingSources);
       if (processing) this.#typingTurns.set(bot.slug, processing);
+      this.#database.transaction(
+        (db) => {
+          const source = db
+            .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
+            .get(sourceEventId ?? null);
+          const humanId = typeof source?.['human_id'] === 'string' ? source['human_id'] : undefined;
+          if (humanId)
+            db.prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)').run(
+              orchestrator.sessionId,
+              humanId,
+              this.#now().getTime(),
+            );
+          else
+            db.prepare('DELETE FROM usage_turn_humans WHERE session_id = ? AND turn = -1').run(
+              orchestrator.sessionId,
+            );
+        },
+        ['usage'],
+      );
       await this.#agents.runOrchestrator({
         setExecutionReady: (ready) => {
           if (ready) {
@@ -9374,6 +9403,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (input.model !== undefined && plan === undefined)
       throw new Error('Apply a Model Preset before choosing an Assignment model');
     const modelRoute = plan === undefined ? undefined : selectAssignmentRoute(plan, input.model);
+    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
     if (this.#grants === undefined) throw new Error('Workspace Grants are unavailable');
     const grant = this.#grants.requireActive(bot.slug, grantId);
     const access = this.#assignmentAccessPresetStore?.get(bot.slug) ?? {
@@ -9439,6 +9469,25 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(cwdReference === undefined ? {} : { cwdReference }),
           at: createdAt,
         });
+        const sourceHuman = database
+          .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
+          .get(sourceEventId);
+        const rootSessionId = this.#turnSources.get(bot.slug)?.sessionId;
+        const rootHuman = rootSessionId
+          ? database
+              .prepare(
+                'SELECT human_id FROM usage_turn_humans WHERE session_id = ? ORDER BY turn DESC LIMIT 1',
+              )
+              .get(rootSessionId)
+          : undefined;
+        const creatorHumanId =
+          typeof sourceHuman?.['human_id'] === 'string'
+            ? sourceHuman['human_id']
+            : rootHuman?.['human_id'];
+        if (typeof creatorHumanId === 'string')
+          database
+            .prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, 0, ?, ?)')
+            .run(sessionId, creatorHumanId, Date.parse(createdAt));
         database
           .prepare(
             `INSERT INTO assignments (
@@ -9567,6 +9616,7 @@ class BotRuntimeImplementation implements BotRuntime {
         throw new Error('Apply a Model Preset before choosing an Assignment model');
       modelRoute = selectAssignmentRoute(plan, input.model);
     }
+    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
     const waking = row.activity === 'idle' || recovering;
     if (waking) {
       const refusal = this.#assignmentCapacityRefusal('awakened');

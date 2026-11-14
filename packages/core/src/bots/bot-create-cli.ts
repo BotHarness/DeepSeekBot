@@ -2958,6 +2958,7 @@ export async function runBotCreateCli(
             error: {
               code: error.code,
               message: error.message,
+              ...(error.details === undefined ? {} : { details: error.details }),
               ...(error.operation === undefined ? {} : { operation: error.operation }),
             },
             ...(error.receipt === undefined ? {} : { receipt: error.receipt }),

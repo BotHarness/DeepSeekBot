@@ -401,6 +401,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     this.invocationMethods = methods;
   }
 
+  modelsAllowed() {
+    return unwrapAsync(this.methods.modelsAllowed({}));
+  }
+  usageByMember(period: UsageOverviewPeriod) {
+    return unwrap(this.methods.usageByMember({ period }));
+  }
   teamMode() {
     return unwrapAsync(this.methods.teamMode({}));
   }
@@ -428,8 +434,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
   roleCreate(name: string, permissions: string[]) {
     return unwrapAsync(this.methods.roleCreate({ name, permissions }));
   }
-  roleUpdate(roleId: string, name?: string, permissions?: string[]) {
-    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions }));
+  roleUpdate(
+    roleId: string,
+    name?: string,
+    permissions?: string[],
+    models?: import('../team/permissions.js').RoleModels,
+  ) {
+    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions, models }));
   }
   roleDelete(roleId: string) {
     return unwrapAsync(this.methods.roleDelete({ roleId }));
@@ -2982,6 +2993,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
 markRemoteMethods(BotharnessBridgeService.prototype, [
   'teamMode',
+  'modelsAllowed',
+  'usageByMember',
   'teamModeSet',
   'teamOwnerPasswordSet',
   'teamInsecureHttpSet',
