@@ -3480,8 +3480,23 @@ const CHANNEL_ACCESS_MIGRATION: SchemaMigration = {
   },
 };
 
-const TEAM_MODELS_MIGRATION: SchemaMigration = {
+const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
   generation: 147,
+  module: 'host-relationships',
+  description: 'Retain bounded offline reciprocal disconnect retries across Host restart',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE host_relationships ADD COLUMN revocation_attempts INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE host_relationships ADD COLUMN revocation_retry_at INTEGER;
+      ALTER TABLE host_relationships ADD COLUMN automatic_enrollment_suppressed INTEGER NOT NULL DEFAULT 0;
+      UPDATE host_relationships SET revocation_retry_at = 0 WHERE peer_revocation_pending = 1;
+      UPDATE host_relationships SET automatic_enrollment_suppressed = 1 WHERE state = 'disconnected';
+    `);
+  },
+};
+
+const TEAM_MODELS_MIGRATION: SchemaMigration = {
+  generation: 148,
   module: 'team',
   description: 'Role model route policy',
   migrate(db) {
@@ -3489,7 +3504,7 @@ const TEAM_MODELS_MIGRATION: SchemaMigration = {
   },
 };
 const MEMBER_USAGE_MIGRATION: SchemaMigration = {
-  generation: 148,
+  generation: 149,
   module: 'usage',
   description: 'Human-attributed usage receipts and daily buckets',
   migrate(db) {
@@ -3666,6 +3681,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HOST_RELATIONSHIP_MIGRATION,
   MEMBER_LIFECYCLE_MIGRATION,
   CHANNEL_ACCESS_MIGRATION,
+  HOST_RELATIONSHIP_REVOCATION_MIGRATION,
   TEAM_MODELS_MIGRATION,
   MEMBER_USAGE_MIGRATION,
 ]);

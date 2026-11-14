@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 补充下游已发布 Channel 权限146后的离线撤销、安全取消待批准关系与全新 generation147 验证要求；稳定 DSH/Cordis Context、Decision Tree 和上游验证来源不变（[#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)）。
+
 - 补充下游中断副本安装的显式恢复、旧依赖保留与共享文件保护要求；稳定 DSH Skill 版本及上游验证来源保持不变（[#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)）。
 
 - 记录下游隔离依赖副本、旧安装只读重启与已验证的共享文件元数据风险；稳定 DSH Skill 版本及上游验证来源保持不变（[#4135](https://github.com/BotHarness/BotHarness/issues/4135)）。

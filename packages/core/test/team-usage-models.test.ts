@@ -15,7 +15,11 @@ import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
-import { createBotRuntime, type OrchestratorAssignmentAccess } from '../src/runtime/bot-runtime.js';
+import {
+  createBotRuntime,
+  type AssignmentAgentRun,
+  type OrchestratorAssignmentAccess,
+} from '../src/runtime/bot-runtime.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 import { mountOperationalDatabase } from '../src/database/owner.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
@@ -198,12 +202,35 @@ describe('M10 member usage and role models', () => {
       expect(assignmentRuns).not.toHaveBeenCalled();
       const result = assignments.create({
         title: 'Allowed',
+        key: 'retained-route',
         description: 'Work',
         grantId: TEST_GRANT_ID,
         model: permitted,
       });
       if (result.outcome !== 'created') throw new Error('not created');
       await runtime.whenIdle();
+      expect(
+        assignments.create({
+          title: 'Reuse',
+          description: 'Continue',
+          grantId: TEST_GRANT_ID,
+          key: 'retained-route',
+        }),
+      ).toMatchObject({
+        outcome: 'reused',
+        assignment: { sessionId: result.assignment.sessionId },
+      });
+      await runtime.whenIdle();
+      f.team.roles.update(owner, 'member', { models: { kind: 'only', routes: [] } });
+      expect(() =>
+        assignments.create({
+          title: 'Denied retained',
+          description: 'Continue',
+          grantId: TEST_GRANT_ID,
+          key: 'retained-route',
+        }),
+      ).toThrow('model-not-allowed');
+      f.restrict();
       expect(
         f.database.read((db) =>
           db
@@ -261,6 +288,156 @@ describe('M10 member usage and role models', () => {
     }
   });
 
+  it('attributes new Assignment turns to the requesting Human while steering retains the running turn', async () => {
+    const f = fixture();
+    const ownership = createSessionOwnership(attachOperationalModule(f.db, 'session-ownership'));
+    const usage = createUsageProjection({
+      database: f.db,
+      ownership,
+      now: () => now,
+      botOwner: () => f.member.humanId,
+    });
+    let access: OrchestratorAssignmentAccess | undefined;
+    let rootTurns = 0;
+    let assignmentTurns = 0;
+    let steering = false;
+    let pendingRun: AssignmentAgentRun | undefined;
+    let accept = () => {};
+    const accepted = new Promise<void>((resolve) => {
+      accept = resolve;
+    });
+    let release = () => {};
+    const done = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const charge = (sessionId: string, turn: number, seq: number, total: number) =>
+      usage.handleSessionEvent(sessionId, {
+        type: 'assistant/message',
+        seq,
+        time: now.getTime(),
+        data: {
+          turn,
+          message: { source: permitted },
+          usage: {
+            inputTokens: total,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: total,
+          },
+        },
+      });
+    const start = (run: AssignmentAgentRun) => {
+      run.beginTurn?.();
+      const turn = ++assignmentTurns;
+      usage.handleSessionEvent(run.sessionId, {
+        type: 'turn/start',
+        seq: turn * 3,
+        time: now.getTime(),
+        data: { turn },
+      });
+      charge(run.sessionId, turn, turn * 3 + 1, 10);
+    };
+    const runtime = createBotRuntime({
+      database: f.db,
+      registry: f.registry,
+      channels: f.channels,
+      ownership,
+      now: () => now,
+      grants: createTestWorkspaceGrants(f.db, f.root),
+      agents: {
+        runOrchestrator: async (run) => {
+          access = run.assignments;
+          const turn = ++rootTurns;
+          usage.handleSessionEvent(run.sessionId, {
+            type: 'turn/start',
+            seq: turn,
+            time: now.getTime(),
+            data: { turn },
+          });
+        },
+        runAssignment: async (run) => {
+          start(run);
+        },
+        requestAssignment: (run) => {
+          if (steering) {
+            charge(run.sessionId, assignmentTurns, assignmentTurns * 3 + 2, 7);
+            return { delivery: 'steer' };
+          }
+          pendingRun = run;
+          return { delivery: 'followup', accepted, done };
+        },
+        close: async () => {},
+      },
+    });
+    const group = f.channels.createGroup(owner, { name: 'Shared requests', members: ['ada'] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
+    f.team.channelAccess.join(f.member, group.id);
+    const ask = async (human: typeof owner, id: string) => {
+      await f.channels.appendMessage(human, group.id, {
+        id,
+        at: now.toISOString(),
+        author: { kind: 'human', humanId: human.humanId },
+        body: '@Ada work',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      runtime.admitGroupMessage(group.id, id);
+    };
+    const assignments = () => {
+      if (!access) throw new Error('missing Assignment access');
+      return access;
+    };
+    const totals = () =>
+      Object.fromEntries(
+        usage
+          .byMember('today', owner.humanId, (slug) => slug)
+          .members.map((member) => [member.humanId, member.totals.totalTokens]),
+      );
+    try {
+      await ask(f.member, 'creator');
+      await runtime.whenIdle();
+      const created = assignments().create({
+        title: 'Work',
+        description: 'Work',
+        grantId: TEST_GRANT_ID,
+      });
+      if (created.outcome !== 'created') throw new Error('not-created');
+      await runtime.whenIdle();
+      await ask(owner, 'new-requester');
+      await runtime.whenIdle();
+      expect(
+        assignments().request({
+          sessionId: created.assignment.sessionId,
+          mode: 'next-turn',
+          text: 'Continue',
+        }),
+      ).toMatchObject({ delivery: 'followup' });
+      await ask(f.member, 'steering-requester');
+      await vi.waitFor(() => expect(rootTurns).toBe(3));
+      if (!pendingRun) throw new Error('missing pending delivery');
+      start(pendingRun);
+      accept();
+      await vi.waitFor(() =>
+        expect(totals()).toEqual({ [f.member.humanId]: 10, [owner.humanId]: 10 }),
+      );
+      steering = true;
+      expect(
+        assignments().request({
+          sessionId: created.assignment.sessionId,
+          mode: 'next-step',
+          text: 'Steer',
+        }),
+      ).toMatchObject({ delivery: 'steer' });
+      expect(totals()).toEqual({ [f.member.humanId]: 10, [owner.humanId]: 17 });
+      release();
+      await runtime.whenIdle();
+    } finally {
+      accept();
+      release();
+      await runtime.close();
+    }
+  });
+
   it('bounds report and model policy reads with 1000 members and records surrounding-query timings', () => {
     const f = fixture();
     const day = f.usage.overview('today').end;
@@ -307,6 +484,49 @@ describe('M10 member usage and role models', () => {
       process.stdout.write(
         `M10 query diagnostic: overview=${baseMs.toFixed(2)}ms scoped=${scopedMs.toFixed(2)}ms members=${reportMs.toFixed(2)}ms, 1000 rows, report=3 reads policy=1 read\n`,
       );
+    });
+  });
+
+  it('persists model restrictions through roleCreate and preserves creation permissions', async () => {
+    const f = fixture();
+    const models = { kind: 'only', routes: ['provider/allowed'] };
+    const created = await f.ownerMethods.roleCreate({
+      name: 'Restricted',
+      permissions: [],
+      models,
+    });
+    expect(created).toMatchObject({ ok: true, value: { role: { models } } });
+    if (!created.ok) throw new Error(created.error.code);
+    f.team.roles.set(owner, f.member.humanId, [created.value.role.roleId]);
+    expect(
+      f.team.roles.list(owner).find((role) => role.roleId === created.value.role.roleId)?.models,
+    ).toEqual(models);
+    expect(f.team.roles.modelsAllowed(f.member)).toEqual({
+      all: false,
+      routes: ['provider/allowed'],
+    });
+    expect(() => f.team.roles.requireModel(f.member, denied)).toThrow('model-not-allowed');
+    expect(await f.methods.roleCreate({ name: 'Denied', permissions: [], models })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'roles.manage' } },
+    });
+    expect(
+      await f.ownerMethods.roleCreate({
+        name: 'Invalid',
+        permissions: [],
+        models: { kind: 'only', routes: ['invalid'] },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      await f.ownerMethods.roleCreate({
+        name: 'None',
+        permissions: [],
+        models: { kind: 'only', routes: [] },
+      }),
+    ).toMatchObject({ ok: true, value: { role: { models: { kind: 'only', routes: [] } } } });
+    expect(await f.ownerMethods.roleCreate({ name: 'Default', permissions: [] })).toMatchObject({
+      ok: true,
+      value: { role: { models: { kind: 'all' } } },
     });
   });
 
@@ -592,15 +812,16 @@ describe('M10 member usage and role models', () => {
     }
   });
 
-  it('upgrades main generation 146 to 148 without rewriting or losing buckets', () => {
+  it('upgrades main generation 147 to 149 without rewriting or losing buckets', () => {
     const home = createTempRoot('m10-main-upgrade-');
     const previous = mountOperationalDatabase({
       dshHome: home,
       schemaPlan: defineSchemaPlan(
-        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 146),
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 147),
       ),
     });
     expect(previous.mode).toBe('ready');
+    expect(previous.generation).toBe(147);
     const old = attachOperationalModule(previous, 'm10-main-fixture');
     old.transaction((db) => {
       db.prepare(
@@ -612,6 +833,12 @@ describe('M10 member usage and role models', () => {
         JSON.stringify({ slug: 'ada', ownerHumanId: 'member' }),
       );
       db.prepare("INSERT INTO tob_identity VALUES ('member', 'ada')").run();
+      db.prepare(`INSERT INTO host_relationships
+        (relationship_id, peer_host_id, peer_name, peer_key, peer_routes, direction, state,
+         expires_at, created_at, updated_at, peer_revocation_pending, revocation_attempts,
+         revocation_retry_at, automatic_enrollment_suppressed)
+        VALUES ('pending', 'peer', 'Peer', ?, '[]', 'outgoing', 'disconnected',
+         0, 'before', 'before', 1, 3, 99, 1)`).run('ab'.repeat(32));
     });
     previous.close();
     for (let restart = 0; restart < 2; restart++) {
@@ -619,7 +846,7 @@ describe('M10 member usage and role models', () => {
         mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
       );
       expect(upgraded.mode).toBe('ready');
-      expect(upgraded.generation).toBe(148);
+      expect(upgraded.generation).toBe(149);
       attachOperationalModule(upgraded, 'm10-upgraded-fixture').read((db) => {
         expect(db.prepare('SELECT human_id, legacy, total_tokens FROM usage_daily').all()).toEqual([
           { human_id: 'local-human', legacy: 1, total_tokens: 13 },
@@ -642,6 +869,17 @@ describe('M10 member usage and role models', () => {
         expect(db.prepare('SELECT * FROM tob_identity').all()).toEqual([
           { human_id: 'member', bot_slug: 'ada' },
         ]);
+        expect(
+          db
+            .prepare(`SELECT peer_revocation_pending, revocation_attempts, revocation_retry_at,
+            automatic_enrollment_suppressed FROM host_relationships WHERE relationship_id = 'pending'`)
+            .get(),
+        ).toEqual({
+          peer_revocation_pending: 1,
+          revocation_attempts: 3,
+          revocation_retry_at: 99,
+          automatic_enrollment_suppressed: 1,
+        });
         expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
       });
       upgraded.close();

@@ -77,6 +77,9 @@ export const relationshipSchema = z.object({
   state: z.enum(['pending', 'approved', 'active', 'disconnected']),
   expiresAt: z.number(),
   peerRevocationPending: z.boolean(),
+  revocationAttempts: z.number().int().nonnegative().optional(),
+  revocationRetryAt: z.number().nullable().optional(),
+  automaticEnrollmentSuppressed: z.boolean().optional(),
   reachability: z
     .object({
       outgoing: relationshipObservationSchema,

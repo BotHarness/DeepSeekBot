@@ -999,6 +999,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (run.acceptNativeInput !== undefined) {
         if (!run.acceptNativeInput()) return;
       } else {
+        run.beginTurn?.();
         try {
           handle.agent.followup(assignmentMessage(run.text));
         } catch (error) {

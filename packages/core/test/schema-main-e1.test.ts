@@ -12,6 +12,9 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 describe('published Human and Team schemas through M4 Channel access146', () => {
+  const e1SchemaPlan = defineSchemaPlan(
+    BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 146),
+  );
   it('upgrades main generation 145 after legacy Channel writes and preserves M9 ownership', () => {
     const home = createTempRoot('schema-main-m4-');
     const previous = mountOperationalDatabase({
@@ -40,10 +43,10 @@ describe('published Human and Team schemas through M4 Channel access146', () => 
     );
     previous.close();
     const current = trackTestOwner(
-      mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
     );
     expect(current.mode).toBe('ready');
-    expect(current.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
+    expect(current.generation).toBe(e1SchemaPlan.targetGeneration);
     const migrated = attachOperationalModule(current, 'm4-channel-fixture');
     expect(
       migrated.read((db) =>
@@ -124,10 +127,10 @@ describe('published Human and Team schemas through M4 Channel access146', () => 
       previous.close();
       for (let restart = 0; restart < 2; restart++) {
         const owner = trackTestOwner(
-          mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+          mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
         );
         expect(owner.mode).toBe('ready');
-        expect(owner.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
+        expect(owner.generation).toBe(e1SchemaPlan.targetGeneration);
         const current = attachOperationalModule(owner, 'migration-fixture');
         const reopened = createDevicePairing({ database: current, hostName: 'Existing' });
         expect(reopened.admit(`Device ${deviceId}.${secret}`).ok).toBe(true);

@@ -4071,6 +4071,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),
   );
 
+  ctx.on(
+    'subagent/start',
+    (info) => {
+      const parentSessionId = ctx.agents.get(info.id)?.session.header.parentSession;
+      if (parentSessionId) core.usage?.bindParentTurn(info.id, parentSessionId);
+    },
+    { global: true },
+  );
+
   const turnLog = createTurnLog({
     events: diagnosticEvents,
     owner: (sessionId) => core.ownership.resolve(sessionId),

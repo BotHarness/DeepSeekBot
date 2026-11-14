@@ -248,7 +248,12 @@ async function renderRemote(owner: ReturnType<typeof remoteOwner>) {
   }
   await act(async () => {
     root!.render(
-      createElement(RemoteHostModels, { key: owner.first.id, client: owner.client, t: translate }),
+      createElement(RemoteHostModels, {
+        key: owner.first.id,
+        hostId: 'remote-host',
+        client: owner.client,
+        t: translate,
+      }),
     );
   });
 }
@@ -278,7 +283,7 @@ async function editRemoteName(name: string) {
 }
 
 describe('Remote preset name commits through the source Host owner', () => {
-  it('saves Enter followed by blur once and saves a later blur independently', async () => {
+  it('saves Enter once, leaves a later blur unsaved, and commits only through explicit Save', async () => {
     const owner = remoteOwner();
     await renderRemote(owner);
     await selectRemotePreset('First');
@@ -295,6 +300,8 @@ describe('Remote preset name commits through the source Host owner', () => {
     expect(owner.core.modelPresets.get(owner.first.id)?.revision).toBe(2);
     await editRemoteName('Blur saved');
     await act(async () => input.blur());
+    expect(owner.core.modelPresets.get(owner.first.id)?.revision).toBe(2);
+    await act(async () => button(translate('relationships.save')).click());
     expect(owner.core.modelPresets.get(owner.first.id)).toMatchObject({
       name: 'Blur saved',
       revision: 3,
@@ -311,7 +318,7 @@ describe('Remote preset name commits through the source Host owner', () => {
       name: 'Other device',
       expectedRevision: 1,
     });
-    await act(async () => input.blur());
+    await act(async () => button(translate('relationships.save')).click());
     expect(owner.core.modelPresets.get(owner.first.id)).toMatchObject({
       name: 'Other device',
       revision: 2,
@@ -335,16 +342,16 @@ describe('Remote preset name commits through the source Host owner', () => {
     const owner = remoteOwner();
     await renderRemote(owner);
     await selectRemotePreset('First');
-    const first = await editRemoteName('First saved');
-    await act(async () => first.blur());
+    await editRemoteName('First saved');
+    await act(async () => button(translate('relationships.save')).click());
     await selectRemotePreset('Second');
-    const second = await editRemoteName('Second saved after close');
+    await editRemoteName('Second saved after close');
     let release = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
     owner.pause(() => gate);
-    await act(async () => second.blur());
+    await act(async () => button(translate('relationships.save')).click());
     expect(owner.core.modelPresets.get(owner.second.id)?.name).toBe('Second');
     await act(async () => root!.render(null));
     const next = remoteOwner();
