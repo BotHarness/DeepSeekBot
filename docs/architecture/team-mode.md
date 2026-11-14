@@ -42,6 +42,14 @@ A Tobs Host — an office computer or a VPS — can be used remotely by colleagu
 
 Considered after Q30. A per-execution sandbox (Linux Landlock/bubblewrap + seccomp, macOS Seatbelt, Windows AppContainer) whose filesystem allowlist equals the Grant plus Memory fits DSH's Execution World Provider seam and also benefits single-Human Hosts. Costs: three platform implementations, tools that need paths outside the allowlist (package caches, git and SSH config), a network policy to prevent exfiltration, harder failure diagnosis, and no protection against Host-process bugs. Per-member OS users (root, ACL drift) and per-member containers (heavy, lose local apps and GPU) were rejected. Out of scope; a separate specification if pursued.
 
+## M3 Owner-transfer credential rule
+
+An Owner-transfer target must be active and have completed the forced password change on a credential issued by the **current Owner**. A credential issued by a member manager is ineligible even after that manager signs in and clears the forced-change flag. Existing credentials with unknown issuance provenance are also ineligible. The current Owner can establish eligibility by resetting the target's password, delivering the new one-time secret directly to the intended Human out of band, and having that Human complete the forced change before transfer.
+
+The Host records `ownerIssuerHumanId` in the canonical credential's password JSON when the Owner creates an account or resets its password. Member-manager creation leaves it absent. A self-service password change preserves this issuance provenance; it cannot manufacture Owner issuance. Issuance by a previous Owner is insufficient after a transfer. `owner-transfer-target-unverified` refuses a missing current-Owner issuer or an outstanding forced change. Transfer still verifies the caller's current password and protects the unique Owner.
+
+This rule trusts the current Owner's out-of-band delivery to the intended Human. It does not claim to prove that a Human never shares a password. Owner reset revokes earlier grants, and the first subsequent forced change revokes other grants, so a manager's old password or session cannot survive the recovery sequence. The rule reuses the credential record and existing reset/change APIs; it introduces no second credential store or new transfer payload.
+
 ## Delivery
 
 | Slice | Behavior                                                                                                                                  | Blocked by |

@@ -1,3 +1,4 @@
+import { memberPage } from './member-page.js';
 import { useScopedState } from './scoped-state.js';
 import { useRef, useState, type Ref, type ReactElement } from 'react';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -46,7 +47,7 @@ export function useGroupComposerContext({
 }): ComposerContext | undefined {
   const footerSettings = useRef<ComposerFooterHandle>(null);
   const [openChannel, setOpenChannel] = useScopedState<string>(channel?.id);
-  if (channel?.type !== 'group') return;
+  if (channel?.type !== 'group' || memberPage()) return;
   const open = () => setOpenChannel(channel.id);
   return {
     target: channel.id,
