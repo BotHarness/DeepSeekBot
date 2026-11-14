@@ -1,3 +1,4 @@
+import type { ChannelVisibility, ChannelPolicy } from '../team/channel-contract.js';
 import { TeamError, type TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BotImportsService } from '../bots/imports.js';
@@ -462,6 +463,39 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   memberPasswordReset(humanId: string) {
     return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
+  }
+  channelRoleDirectory(channelId: string) {
+    return unwrapAsync(this.methods.channelRoleDirectory({ channelId }));
+  }
+  browsableChannels() {
+    return unwrapAsync(this.methods.browsableChannels({}));
+  }
+  channelJoin(channelId: string) {
+    return unwrapAsync(this.methods.channelJoin({ channelId }));
+  }
+  channelVisibilitySet(channelId: string, visibility: ChannelVisibility) {
+    return unwrapAsync(this.methods.channelVisibilitySet({ channelId, visibility }));
+  }
+  channelAdminsSet(channelId: string, humanIds: string[]) {
+    return unwrapAsync(this.methods.channelAdminsSet({ channelId, humanIds }));
+  }
+  channelPolicySet(channelId: string, policy: ChannelPolicy) {
+    return unwrapAsync(this.methods.channelPolicySet({ channelId, policy }));
+  }
+  channelHumanAdd(channelId: string, humanId: string) {
+    return unwrapAsync(this.methods.channelHumanAdd({ channelId, humanId }));
+  }
+  channelDescriptionSet(channelId: string, description: string) {
+    return unwrapAsync(this.methods.channelDescriptionSet({ channelId, description }));
+  }
+  teamDirectory() {
+    return unwrapAsync(this.methods.teamDirectory({}));
+  }
+  humanDm(humanId: string) {
+    return unwrapAsync(this.methods.humanDm({ humanId }));
+  }
+  humanDmByUsername(username: string) {
+    return unwrapAsync(this.methods.humanDmByUsername({ username }));
   }
   publicChannels() {
     return unwrapAsync(this.methods.publicChannels({}));
@@ -1705,7 +1739,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 
-  channelGet(channelId: string): ChannelManagementResult {
+  channelGet(channelId: string) {
     return unwrap(this.methods.channelGet({ channelId }));
   }
 
@@ -2998,6 +3032,17 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'ownerTransfer',
   'memberPasswordChange',
   'memberPasswordReset',
+  'channelRoleDirectory',
+  'browsableChannels',
+  'channelJoin',
+  'channelVisibilitySet',
+  'channelAdminsSet',
+  'channelPolicySet',
+  'channelHumanAdd',
+  'channelDescriptionSet',
+  'teamDirectory',
+  'humanDm',
+  'humanDmByUsername',
   'publicChannels',
   'publicChannelJoin',
   'channelPublicSet',

@@ -1,3 +1,4 @@
+import { DEFAULT_CHANNEL_POLICY } from '../team/channel-contract.js';
 import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../team/permissions.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
@@ -3379,6 +3380,26 @@ const TEAM_ROLES_MIGRATION: SchemaMigration = {
   },
 };
 
+const CHANNEL_ACCESS_MIGRATION: SchemaMigration = {
+  generation: 143,
+  module: 'team',
+  description: 'Channel visibility, Human ownership, policy and admins',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_records ADD COLUMN visibility_json TEXT NOT NULL DEFAULT '{"kind":"private"}';
+      ALTER TABLE channel_records ADD COLUMN policy_json TEXT NOT NULL DEFAULT '${JSON.stringify(DEFAULT_CHANNEL_POLICY)}';
+      ALTER TABLE channel_records ADD COLUMN owner_human_id TEXT REFERENCES humans(human_id);
+      UPDATE channel_records SET visibility_json = '{"kind":"public"}' WHERE public = 1;
+      UPDATE channel_records SET owner_human_id = (SELECT owner_human_id FROM team_settings);
+      CREATE TABLE channel_admins (
+        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
+        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        PRIMARY KEY(channel_id, human_id)
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3521,4 +3542,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SOURCE_EVENT_HUMAN_MIGRATION,
   TEAM_MEMBERS_MIGRATION,
   TEAM_ROLES_MIGRATION,
+  CHANNEL_ACCESS_MIGRATION,
 ]);

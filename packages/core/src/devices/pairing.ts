@@ -92,6 +92,7 @@ export interface DevicePairing {
   acknowledgeFeed(deviceId: string): Admission;
   list(): PairedDevice[];
   revoke(deviceId: string): { revoked: boolean; closedStreams: number };
+  closeStreams(): number;
   attachStream(deviceId: string, close: () => void): () => void;
 }
 
@@ -484,6 +485,12 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       return { revoked: true, closedStreams: open.length };
     },
 
+    closeStreams() {
+      const open = [...streams.values()].flatMap((group) => [...group]);
+      streams.clear();
+      for (const close of open) close();
+      return open.length;
+    },
     attachStream(deviceId, close) {
       const open = streams.get(deviceId) ?? new Set();
       open.add(close);
