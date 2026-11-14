@@ -109,3 +109,25 @@ it('does not keep a green result when retry fails, and copied details name the f
   expect(value).not.toContain('never-copy');
   expect(value).not.toContain('raw server');
 });
+
+it('does not expose the previous success as current while a retry is pending', async () => {
+  let release = (_response: Response) => {};
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    ),
+  );
+  const { el } = render({ state: 'passed', checkedAt: '2026-11-14T00:00:00Z', elapsedMs: 10 });
+  const button = [...el.querySelectorAll('button')].find(
+    (button) => button.textContent === '重新检查',
+  );
+  await act(async () => button?.click());
+  expect(el.querySelector('[data-connect-health]')?.getAttribute('data-connect-health')).toBe(
+    'checking',
+  );
+  await act(async () => release(Response.json({ health: { state: 'passed' } })));
+});

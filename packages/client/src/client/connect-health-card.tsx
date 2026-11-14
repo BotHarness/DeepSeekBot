@@ -38,7 +38,8 @@ export function ConnectHealthCard({
   reloadSnapshot(): Promise<unknown>;
   fresh?: boolean;
 } & PropsLocale<'botharness'>) {
-  const [busy, setBusy] = useState(false);
+  const [requestStarted, setRequestStarted] = useState<string>();
+  const busy = requestStarted !== undefined;
   const [requestFailed, setRequestFailed] = useState<{
     code: 'http' | 'network';
     httpStatus?: number;
@@ -47,13 +48,19 @@ export function ConnectHealthCard({
   const [details, setDetails] = useState(false);
   const parsed = connectHealthSchema.safeParse(health);
   const observed = parsed.success ? parsed.data : ({ state: 'idle' } satisfies ConnectHealthStatus);
-  const current =
-    !fresh && observed.state === 'passed'
-      ? ({ ...observed, state: 'stale' } satisfies ConnectHealthStatus)
-      : observed;
+  const current: ConnectHealthStatus =
+    requestStarted !== undefined
+      ? {
+          state: 'checking',
+          stage: observed.state === 'checking' ? observed.stage : 'account',
+          startedAt: requestStarted,
+        }
+      : !fresh && observed.state === 'passed'
+        ? ({ ...observed, state: 'stale' } satisfies ConnectHealthStatus)
+        : observed;
   const checking = busy || current.state === 'checking';
   const check = async () => {
-    setBusy(true);
+    setRequestStarted(new Date().toISOString());
     setRequestFailed(undefined);
     try {
       const response = await fetch('./api/botharness/devices/connect-health', {
@@ -74,7 +81,7 @@ export function ConnectHealthCard({
     } catch {
       setRequestFailed({ code: 'network', occurredAt: new Date().toISOString() });
     } finally {
-      setBusy(false);
+      setRequestStarted(undefined);
     }
   };
   const label = requestFailed
