@@ -94,7 +94,7 @@ describe('live frames on the native stream carrier', () => {
     );
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    const frames = hub.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator]();
     expect((await frames.next()).value).toEqual({ type: 'baseline', placements });
     hub.publishRosterCommitted();
     hub.publishRosterCommitted();
@@ -107,7 +107,9 @@ describe('live frames on the native stream carrier', () => {
     expect((await pending).done).toBe(true);
     hub.publishRosterCommitted();
 
-    const closing = hub.followRoster(new AbortController().signal)[Symbol.asyncIterator]();
+    const closing = hub
+      .followRoster(OWNER_HUMAN_CONTEXT, new AbortController().signal)
+      [Symbol.asyncIterator]();
     await closing.next();
     const ended = closing.next();
     hub.close();
@@ -118,7 +120,7 @@ describe('live frames on the native stream carrier', () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    const frames = hub.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator]();
     await frames.next();
     hub.publishCommitted({
       channelId: 'a',
@@ -145,7 +147,7 @@ describe('live frames on the native stream carrier', () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    const frames = hub.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator]();
     await frames.next();
     const reply = {
       id: 'bot',
@@ -172,7 +174,7 @@ describe('live frames on the native stream carrier', () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    const frames = hub.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator]();
     await frames.next();
     hub.publishCommitted({
       channelId: 'a',
@@ -200,7 +202,7 @@ describe('live frames on the native stream carrier', () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
     const abort = new AbortController();
-    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    const frames = hub.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator]();
     await frames.next();
     const message = (id: string, extra: object = {}) => ({
       id,
@@ -616,7 +618,7 @@ it('multiplexes attention invalidations on both roster carriers and bounds a slo
   );
   hubs.push(hub);
   const abort = new AbortController();
-  const typed = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+  const typed = hub.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)[Symbol.asyncIterator]();
   const sse = openLiveFrames(
     (request) => hub.open(OWNER_HUMAN_CONTEXT, request),
     'scope=roster',

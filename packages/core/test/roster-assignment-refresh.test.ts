@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
@@ -9,7 +10,8 @@ it('refreshes the roster for Assignment reports but not for Assignment activity 
   const abort = new AbortController();
   const types: string[] = [];
   const following = (async () => {
-    for await (const frame of core.live.followRoster(abort.signal)) types.push(frame.type);
+    for await (const frame of core.live.followRoster(OWNER_HUMAN_CONTEXT, abort.signal))
+      types.push(frame.type);
   })();
   try {
     const port = attachOperationalModule(core.operationalDatabase, 'assignment-refresh-test');
