@@ -36,6 +36,7 @@ export function mountPrivateInputs(
     queueMicrotask(() => void owner.recover().catch(() => log('recovery-unavailable')));
   });
   const owner = new PrivateInputs({
+    approvals: core.team.approvals,
     channels: core.channels,
     ownership: core.ownership,
     registry: core.registry,

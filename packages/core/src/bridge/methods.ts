@@ -1,3 +1,4 @@
+import type { ApprovalCard } from '../team/approval-contract.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
 import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
@@ -935,6 +936,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
     payload: unknown,
   ): BridgeResult<{ entries: ToolApprovalHistoryEntry[]; nextCursor?: string }>;
   toolApprovalStatus(payload: unknown): BridgeResult<{
+    approval?: ApprovalCard;
     status: 'pending' | 'expired' | 'stopped';
     expiresAt?: string;
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
@@ -943,9 +945,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
   toolAutoRejectionOverride(
     payload: unknown,
   ): Promise<BridgeResult<{ accepted: true; channelId: string; messageId: string }>>;
-  userQuestionStatus(
-    payload: unknown,
-  ): BridgeResult<{ status: 'pending' | 'submitted' | 'answered' | 'expired' }>;
+  userQuestionStatus(payload: unknown): BridgeResult<{
+    status: 'pending' | 'submitted' | 'answered' | 'expired';
+    approval?: ApprovalCard;
+  }>;
   userQuestionAnswer(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
   sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
   botToolTrace(
@@ -8527,7 +8530,7 @@ function buildBridgeMethods(
         return invalidInput('scope must be chat or assignments');
       return {
         ok: true,
-        value: { preset: deps.assignmentAccess.set(slug, mode, scope) },
+        value: { preset: deps.assignmentAccess.set(slug, mode, scope, human) },
       };
     },
     toolApprovalRules(payload) {

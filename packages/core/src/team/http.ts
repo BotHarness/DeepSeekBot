@@ -298,6 +298,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             `${MEMBER_COOKIE}=${result.token}; Path=${TEAM_PATH}/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`,
           );
           return json(response, 200, {
+            isolation: 'trial',
             humanId: result.member.humanId,
             displayName: result.member.displayName,
             mustChangePassword: result.member.mustChangePassword,
@@ -352,6 +353,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             });
             response.end(
               renderTeamSignInPage({
+                ...{ isolation: options.team.mode(options.team.ownerContext()).isolation },
                 language: header(request, 'accept-language')?.startsWith('zh') ? 'zh' : 'en',
                 hostName: options.hostName(),
                 nonce,

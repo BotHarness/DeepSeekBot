@@ -1,3 +1,4 @@
+import type { ApprovalAuthority, ApprovalDecider } from '../team/approval-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolApprovalActor } from './tool-approval-actor.js';
@@ -35,6 +36,8 @@ export interface BotCreatePreview {
 }
 
 export interface ToolApprovalRequestCard {
+  opaque?: boolean;
+  decidedBy?: ApprovalDecider;
   sessionId: string;
   callId: string;
   toolName: string;
@@ -57,6 +60,7 @@ export interface ToolApprovalNotice extends ToolApprovalRequestCard {
 export interface ToolApprovalDecision {
   requestMessageId: string;
   actor?: ToolApprovalActor;
+  decidedBy?: ApprovalDecider;
   outcome:
     | 'allowed-once'
     | 'allowed-always-tool'
@@ -211,6 +215,7 @@ export class ChannelToolApproval {
     askChannel?: (sessionId: string) => string | undefined,
     autoApproval?: ToolAutoApproval,
     fullAccess?: (sessionId: string) => boolean,
+    private readonly approvals?: ApprovalAuthority,
   ) {
     this.#fullAccess = fullAccess;
     this.#autoApproval = autoApproval;
@@ -596,6 +601,7 @@ export class ChannelToolApproval {
       Date.parse(pending.notice.expiresAt) <= Date.now()
     )
       return false;
+    this.approvals?.requireRequest(human, pending.channelId, messageId);
     const eachUse = pending.notice.externalDecision === 'each-use';
     const remember =
       eachUse &&
@@ -713,11 +719,17 @@ export class ChannelToolApproval {
         replyTo: messageId,
         toolApprovalDecision: {
           requestMessageId: messageId,
+          decidedBy: this.approvals?.decider(human) ?? { humanId: human.humanId },
           outcome,
           ...(external ? { actor: external.actor } : {}),
         },
       };
-      if ((await this.#channels.appendMessage(human, pending.channelId, decision)) === undefined) {
+      if (
+        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () => {
+          this.approvals?.requireRequest(human, pending.channelId, messageId);
+          return true;
+        })) === undefined
+      ) {
         if (rule !== undefined) this.#rules?.revoke(botSlug, rule.id);
         return false;
       }
@@ -747,6 +759,16 @@ export class ChannelToolApproval {
       if (external && outcome !== 'rejected')
         tracked.authorized = () =>
           external.authorized() && (!kind || external.rule?.authorized() === true);
+      if (!external && this.approvals && outcome !== 'rejected') {
+        tracked.authorized = () => {
+          try {
+            this.approvals?.requireRequest(human, pending.channelId, messageId);
+            return true;
+          } catch {
+            return false;
+          }
+        };
+      }
       if (remember) tracked.remembered = true;
       if (outcome !== 'rejected') tracked.humanReviewed = true;
       this.#settle(messageId, outcome === 'rejected' ? 'rejected' : 'allowed-once');

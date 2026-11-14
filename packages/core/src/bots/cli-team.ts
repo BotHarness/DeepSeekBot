@@ -253,14 +253,23 @@ export async function runTeamCommand(
       values['initial-password-file']
     ) {
       return passwordFile(values['initial-password-file'], async () => {
-        const result = z.object({ member: z.unknown(), initialPassword: z.string() }).parse(
-          await rpc('memberCreate', {
-            username: values.username,
-            displayName: values['display-name'],
-            ...(values['role-ids'] === undefined ? {} : { roleIds: ids(values['role-ids']) }),
-          }),
-        );
-        return { initialPassword: result.initialPassword, output: { member: result.member } };
+        const result = z
+          .object({
+            member: z.unknown(),
+            initialPassword: z.string(),
+            isolation: z.enum(['trial', 'enforced']).default('trial'),
+          })
+          .parse(
+            await rpc('memberCreate', {
+              username: values.username,
+              displayName: values['display-name'],
+              ...(values['role-ids'] === undefined ? {} : { roleIds: ids(values['role-ids']) }),
+            }),
+          );
+        return {
+          initialPassword: result.initialPassword,
+          output: { member: result.member, isolation: result.isolation },
+        };
       });
     }
     return usage();

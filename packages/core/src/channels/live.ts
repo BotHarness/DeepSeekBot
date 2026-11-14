@@ -269,6 +269,7 @@ export function createChannelLiveHub(
   isOwner: (human: HumanContext) => boolean = (human) =>
     human.humanId === OWNER_HUMAN_CONTEXT.humanId,
   ownsBot?: (human: HumanContext, slug: string) => boolean,
+  project: <T>(human: HumanContext, value: T, channelId?: string) => T = (_human, value) => value,
 ): ChannelLiveHub {
   const visibleChannel = (human: HumanContext, channelId: string): boolean => {
     if (!ownsBot && isOwner(human)) return true;
@@ -570,12 +571,15 @@ export function createChannelLiveHub(
     if (!ended) rosterSubscribers.add(subscriber);
     try {
       if (ended) return;
-      yield { type: 'baseline', placements: visiblePlacements(human, redactions?.() ?? []) };
+      yield project(human, {
+        type: 'baseline',
+        placements: visiblePlacements(human, redactions?.() ?? []),
+      });
       for (;;) {
         while (!ended && queue.length > 0) {
           const frame = queue.shift()!;
           if (frame.type === 'latest') {
-            if (visibleChannel(human, frame.channelId)) yield frame;
+            if (visibleChannel(human, frame.channelId)) yield project(human, frame);
           } else if (frame.type === 'purged') {
             const placements = visiblePlacements(human, frame.placements);
             if (placements.length > 0 || isOwner(human)) yield { ...frame, placements };
@@ -622,7 +626,7 @@ export function createChannelLiveHub(
     try {
       if (ended) return;
       let sent = currentActivity(human, activity);
-      yield { type: 'baseline', snapshot: sent.snapshot };
+      yield project(human, { type: 'baseline', snapshot: sent.snapshot });
       for (;;) {
         if (ended) return;
         if (pending) {
@@ -630,7 +634,7 @@ export function createChannelLiveHub(
           const next = currentActivity(human, activity, lastChange);
           if (next.data === sent.data) continue;
           sent = next;
-          yield { type: 'changed', snapshot: next.snapshot };
+          yield project(human, { type: 'changed', snapshot: next.snapshot });
           continue;
         }
         await new Promise<void>((resolve) => {
@@ -837,7 +841,7 @@ export function createChannelLiveHub(
             subscription.close();
             break;
           }
-          yield queue.shift()!;
+          yield project(human, queue.shift()!, channelId);
         }
         if (ended) return;
         await new Promise<void>((resolve) => {

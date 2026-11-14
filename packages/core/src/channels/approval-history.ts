@@ -1,3 +1,4 @@
+import type { ApprovalDecider } from '../team/approval-contract.js';
 import type { ToolApprovalActor, ToolApprovalDecision } from '../workspaces/tool-approval.js';
 import type { ChannelMessage } from './channel.js';
 
@@ -13,6 +14,7 @@ export interface ToolApprovalHistoryEntry {
   input: string;
   outcome: ToolApprovalDecision['outcome'];
   actor?: ToolApprovalActor;
+  decidedBy?: ApprovalDecider;
 }
 
 export interface ToolApprovalHistoryPosition {
@@ -48,6 +50,7 @@ export function toolApprovalHistoryEntry(
     input: card.input,
     outcome: answer.outcome,
     ...(answer.actor === undefined ? {} : { actor: answer.actor }),
+    ...(answer.decidedBy === undefined ? {} : { decidedBy: answer.decidedBy }),
   };
 }
 
