@@ -5421,6 +5421,8 @@ export const zh = {
   'team.error.memberActive': '删除前请先停用对方。',
   'team.error.purgeTokenInvalid': '此确认已过期，再试一次。',
   'team.otherMember': '成员',
+  'team.isolation.trial': '试用阶段：成员的 Bot 在技术上可以读取这台 Host 上其他 Bot 的数据。',
+  'team.isolation.enforced': '成员之间已隔离：每个 Bot 只能访问自己的数据和被授权的空间。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11206,6 +11208,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.error.memberActive': 'Deactivate them before deleting.',
   'team.error.purgeTokenInvalid': 'This confirmation expired. Try again.',
   'team.otherMember': 'Member',
+  'team.isolation.trial': 'Trial: member Bots can technically read other Bots’ data on this Host.',
+  'team.isolation.enforced':
+    'Members are isolated: each Bot reaches only its own data and the spaces it was granted.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;

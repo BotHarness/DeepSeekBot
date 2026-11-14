@@ -9,6 +9,7 @@ export interface TeamSignInPageInput {
   readonly insecure?: boolean;
   readonly step?: TeamSignInStep;
   readonly displayName?: string;
+  readonly isolation?: 'trial' | 'enforced';
 }
 
 export const TEAM_PAGE_PASSWORD_MIN_LENGTH = 10;
@@ -17,6 +18,8 @@ const COPY = {
   en: {
     title: 'Sign in',
     lead: 'Sign in to {host}',
+    trialNotice:
+      'Team mode is in trial: member Bots can technically read other Bots’ data on this Host.',
     username: 'Username',
     password: 'Password',
     submit: 'Sign in',
@@ -45,6 +48,7 @@ const COPY = {
   zh: {
     title: '登录',
     lead: '登录到 {host}',
+    trialNotice: '团队模式处于试用阶段：成员的 Bot 在技术上可以读取这台 Host 上其他 Bot 的数据。',
     username: '用户名',
     password: '密码',
     submit: '登录',
@@ -123,6 +127,7 @@ main {
 h1 { margin: 0 0 4px; font-size: 20px; line-height: 28px; font-weight: 600; }
 p.lead { margin: 0 0 24px; color: var(--muted); overflow-wrap: anywhere; }
 p.lead strong { color: var(--fg); font-weight: 500; }
+p.notice { margin: -12px 0 24px; color: var(--muted); font-size: 13px; line-height: 18px; }
 form { display: flex; flex-direction: column; gap: 16px; margin: 0; }
 label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; }
 small { color: var(--muted); font-size: 12px; line-height: 16px; font-weight: 400; }
@@ -250,6 +255,7 @@ export function renderTeamSignInPage(input: TeamSignInPageInput): string {
 <main>
 <h1>${escapeHtml(title)}</h1>
 <p class="lead">${lead}</p>
+${input.isolation === 'trial' ? `<p class="notice" data-team-isolation="trial">${escapeHtml(copy.trialNotice)}</p>` : ''}
 <form id="team-form" data-step="${change ? 'change-password' : 'sign-in'}" novalidate>
 ${fields}
 <p class="error" id="error" role="alert">${initialError}</p>
