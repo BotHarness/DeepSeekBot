@@ -2761,3 +2761,184 @@ describe('M4 Channel admin delegation ceiling', { timeout: 60_000 }, () => {
     ]);
   });
 });
+
+describe('M4 review regressions', { timeout: 60_000 }, () => {
+  const restrictedPolicy = {
+    addMembers: 'admins',
+    post: 'admins',
+    mentionAll: 'admins',
+    addBots: 'admins',
+    editDetails: 'admins',
+  } as const;
+
+  it('retains joined Channel owners/admins while hiding an ordinary member after role loss', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'design-alice', 'Alice');
+    const human = humanContext(alice.member.humanId);
+    const group = f.channels.createGroup(owner, { name: 'Design Room', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, 'bob');
+    expect(() => f.team.channelAccess.adminsSet(owner, group.id, ['design-alice'])).toThrow(
+      'member-not-found',
+    );
+    f.team.channelAccess.adminsSet(owner, group.id, ['bob']);
+    f.team.channelAccess.addMember(owner, group.id, human.humanId);
+    const { role } = f.team.roles.create(owner, 'Design', ['channels.create', 'dm.humans']);
+    f.team.roles.set(owner, human.humanId, [role.roleId]);
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: [role.roleId] });
+    expect(f.team.mode(owner).viewer.roleIds).not.toContain(role.roleId);
+    expect(f.team.mode(f.human).viewer.roleIds).not.toContain(role.roleId);
+    expect(() => f.team.channelAccess.addMember(owner, group.id, 'bob')).not.toThrow();
+    expect(
+      await f.methods(owner).channelSend({ channelId: group.id, body: 'design-review-secret' }),
+    ).toMatchObject({ ok: true });
+    expect(f.team.channelAccess.canRead(human, group.id)).toBe(true);
+    f.team.roles.set(owner, human.humanId, ['member']);
+    await f.team.accessSettled();
+    for (const manager of [owner, f.human]) {
+      expect(f.team.channelAccess.canRead(manager, group.id, true)).toBe(true);
+      expect(f.team.channelAccess.browse(manager)).toContainEqual(
+        expect.objectContaining({ channelId: group.id, joined: true }),
+      );
+      expect(await f.methods(manager).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: expect.arrayContaining([expect.objectContaining({ id: group.id })]) },
+      });
+      expect(f.methods(manager).channelGet({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { role: manager === owner ? 'owner' : 'admin' },
+      });
+      expect(
+        f.channels.searchAllHumanMessages?.(manager, { text: 'design-review-secret', limit: 10 }),
+      ).toMatchObject({ hits: [expect.objectContaining({ channelId: group.id })] });
+      const abort = new AbortController();
+      const stream = f.live
+        .followChannel(manager, group.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      try {
+        expect((await stream.next()).value).toMatchObject({ type: 'opened' });
+      } finally {
+        abort.abort();
+        await stream.return?.();
+      }
+    }
+    expect(f.team.channelAccess.canRead(human, group.id)).toBe(false);
+    expect(f.team.channelAccess.browse(human)).toEqual([]);
+    expect(await f.methods(human).channels({})).toMatchObject({
+      ok: true,
+      value: { channels: [] },
+    });
+    expect(
+      f.channels.searchAllHumanMessages?.(human, { text: 'design-review-secret', limit: 10 }),
+    ).toMatchObject({ hits: [] });
+    expect(() => f.team.channelAccess.join(human, group.id)).toThrow('channel-not-found');
+    expect(f.channels.hasHumanMembership?.(human, group.id)).toBe(true);
+  });
+
+  it('uses the same active/group/management guard for policy and visibility writes', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(f.human, { name: 'Member managed', members: [] });
+    const dm = f.channels.getOrCreateDm(owner, 'review-dm', 'Review DM');
+    if (!dm) throw new Error('missing dm');
+    const { role } = f.team.roles.create(owner, 'Channel managers', ['channels.manageAll']);
+    const manager = await f.team.createMember(owner, 'policy-manager', 'Manager', [role.roleId]);
+    const actor = humanContext(manager.member.humanId);
+    for (const human of [owner, actor]) {
+      expect(f.team.channelAccess.policySet(human, group.id, restrictedPolicy)).toBeNull();
+      expect(() => f.team.channelAccess.policySet(human, dm.id, restrictedPolicy)).toThrow(
+        'channel-not-found',
+      );
+      expect(() => f.team.channelAccess.policySet(human, 'missing', restrictedPolicy)).toThrow(
+        'channel-not-found',
+      );
+    }
+    f.database.transaction((db) =>
+      db.prepare("UPDATE humans SET status = 'suspended' WHERE human_id = ?").run(actor.humanId),
+    );
+    expect(() =>
+      f.team.channelAccess.policySet(actor, group.id, { ...restrictedPolicy, post: 'everyone' }),
+    ).toThrow('permission-required');
+    expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual(restrictedPolicy);
+  });
+
+  it.each(['owner', 'admin'] as const)(
+    'treats a joined Host %s as an admin for every policy',
+    async (kind) => {
+      const f = await enabledFixture();
+      const creator = await f.team.createMember(owner, 'announcement-creator', 'Creator');
+      const human = humanContext(creator.member.humanId);
+      const group = f.channels.createGroup(human, { name: 'Member announcement', members: [] });
+      f.team.channelAccess.visibilitySet(human, group.id, { kind: 'public' });
+      const actor = kind === 'owner' ? owner : f.human;
+      if (kind === 'admin') f.team.roles.set(owner, actor.humanId, ['admin']);
+      f.team.channelAccess.join(actor, group.id);
+      f.team.channelAccess.policySet(human, group.id, restrictedPolicy);
+      expect(f.team.channelAccess.view(actor, group.id).role).toBe('member');
+      for (const key of Object.keys(restrictedPolicy)) {
+        const parsed = z
+          .enum(['addMembers', 'post', 'mentionAll', 'addBots', 'editDetails'])
+          .parse(key);
+        expect(() => f.team.channelAccess.requirePolicy(actor, group.id, parsed)).not.toThrow();
+      }
+      expect(
+        await f.methods(actor).channelSend({ channelId: group.id, body: 'admin-policy-bypass' }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await f.methods(actor).channelRename({ channelId: group.id, name: 'Managed announcement' }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await f
+          .methods(actor)
+          .channelDescriptionSet({ channelId: group.id, description: 'managed' }),
+      ).toMatchObject({ ok: true });
+      expect(() =>
+        f.team.channelAccess.requirePolicy(humanContext('missing'), group.id, 'post'),
+      ).toThrow('channel-not-found');
+    },
+  );
+
+  it('resolves usernames inside authorized Channel operations and keeps Human IDs working', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'lookup-alice', 'Alice');
+    const group = f.channels.createGroup(owner, { name: 'References', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, 'BOB');
+    f.team.channelAccess.addMember(owner, group.id, alice.member.humanId);
+    f.team.channelAccess.adminsSet(owner, group.id, ['bob', alice.member.humanId]);
+    expect(
+      f.team.channelAccess
+        .view(owner, group.id)
+        .admins.map((row) => row.humanId)
+        .sort(),
+    ).toEqual([f.human.humanId, alice.member.humanId].sort());
+    expect(() => f.team.channelAccess.adminsSet(owner, group.id, ['missing'])).toThrow(
+      'member-not-found',
+    );
+    expect(() => f.team.channelAccess.addMember(owner, group.id, 'missing')).toThrow(
+      'member-not-found',
+    );
+    expect(() => f.team.channelAccess.adminsSet(f.human, group.id, ['missing'])).toThrow(
+      'permission-required',
+    );
+    expect(f.team.channelAccess.view(owner, group.id).admins).toHaveLength(2);
+  });
+
+  it('returns the identical Gateway refusal for an invisible and nonexistent Channel id', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'review-member-password-1');
+    const group = f.channels.createGroup(owner, { name: 'Hidden Design', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['admin'] });
+    const login = await f.team.signIn('bob', 'review-member-password-1', 'review-ip');
+    for (const channelId of [group.id, 'nonexistent-design-room']) {
+      await expect(
+        f.gateway.invoke({
+          namespace: 'botharness',
+          method: 'channelGet',
+          args: { channelId },
+          peer: login.peer,
+        }),
+      ).rejects.toMatchObject({
+        code: 'remote-access/denied',
+        details: { reason: 'channel-not-found' },
+      });
+    }
+  });
+});
