@@ -21,7 +21,7 @@ it('invalidates the shared carrier after canonical messages, reads, decisions an
   const abort = new AbortController();
   const snapshots: string[][] = [];
   const following = (async () => {
-    for await (const frame of core.live.followRoster(abort.signal)) {
+    for await (const frame of core.live.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)) {
       if (frame.type === 'attention')
         snapshots.push(
           (['action', 'replies', 'unread'] as const).flatMap((category) =>

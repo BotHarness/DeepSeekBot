@@ -421,6 +421,7 @@ export interface HostDirectoryListing {
 }
 
 export interface BridgeActions {
+  readonly teamCall?: BridgeCall;
   genuiDocumentView(
     channelId: string,
     messageId: string,
@@ -1889,6 +1890,7 @@ export function createActions(
     return result.value as T;
   };
   const actions: BridgeActions = {
+    teamCall: call,
     genuiDocumentView: (channelId, messageId, document) =>
       loadGenuiDocumentView(call, channelId, messageId, document),
     saveGenuiDocumentView: (channelId, messageId, document, expectedVersion, state) =>

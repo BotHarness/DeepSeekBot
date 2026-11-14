@@ -340,6 +340,7 @@ describe('client apply', () => {
       { id: 'messaging', order: 20 },
       { id: 'im-apps', order: 25 },
       { id: 'companions', order: 40 },
+      { id: 'team', order: 44 },
       { id: 'devices', order: 45 },
       { id: 'data-privacy', order: 50 },
       { id: 'advanced', order: 60 },

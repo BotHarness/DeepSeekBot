@@ -1,4 +1,5 @@
 import { hostLooks } from './host-looks.js';
+import { memberPage } from './member-page.js';
 import { enrollRelationshipClient } from '../../../core/src/devices/relationship-enrollment.js';
 import { relationshipRequest } from './relationships.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
@@ -75,6 +76,7 @@ export type HostPairResult =
         | 'pairing-in-progress'
         | 'this-host'
         | 'storage-failure'
+        | 'owner-required'
         | 'cancelled';
     };
 
@@ -174,6 +176,7 @@ export type RemoteHostTelemetry = (
 ) => void;
 
 export function createRemoteHosts(options: {
+  enabled?: boolean;
   storage?: HostStorage | undefined;
   record?: RemoteHostTelemetry;
   carrier: HostCarrier;
@@ -182,7 +185,12 @@ export function createRemoteHosts(options: {
   translate?: NotificationTranslate;
   hostName?: (hostId: string, fallback: string) => string;
 }): RemoteHosts {
-  const { storage, carrier, loadImage, releaseImage } = options;
+  const { carrier, loadImage, releaseImage } = options;
+  const enabled = options.enabled !== false;
+  const storage = enabled ? options.storage : undefined;
+  const requireOwner = () => {
+    if (!enabled) throw Object.assign(new Error('owner-required'), { code: 'owner-required' });
+  };
   const record = options.record ?? (() => {});
   const listeners = new Set<() => void>();
   const clients = new Map<string, HostEntry>();
@@ -196,6 +204,7 @@ export function createRemoteHosts(options: {
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
   const notifications = createRemoteNotifications({
+    requireOwner,
     ...(options.hostName === undefined ? {} : { hostName: options.hostName }),
     storage,
     api: browserNotificationApi(),
@@ -386,6 +395,7 @@ export function createRemoteHosts(options: {
   return {
     notifications,
     async enrollRelationship(id, name, signal) {
+      if (!enabled) return { ok: false, code: 'owner-required' };
       const result = await enrollRelationshipClient({
         relationshipId: id,
         name,
@@ -450,6 +460,7 @@ export function createRemoteHosts(options: {
       };
     },
     async pair(link, deviceName, localHostId, trust) {
+      if (!enabled) return { ok: false, code: 'owner-required' };
       if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
       const parsed = parsePairingLink(link);
       const refused = (code: 'this-host' | 'already-paired') => {
@@ -511,6 +522,7 @@ export function createRemoteHosts(options: {
       }
     },
     async forgetLocal(hostId) {
+      requireOwner();
       const entry = clients.get(hostId);
       if (entry === undefined) return;
       if (!storage) throw new Error('storage-unavailable');
@@ -524,6 +536,7 @@ export function createRemoteHosts(options: {
       await releasing;
     },
     async remove(hostId) {
+      requireOwner();
       const entry = clients.get(hostId);
       if (entry === undefined) return;
       const releasing = releaseRemoteHostViewers(entry.client);
@@ -532,6 +545,7 @@ export function createRemoteHosts(options: {
       await revokePairing({ host: entry.host, carrier });
     },
     select(next) {
+      requireOwner();
       if (tab !== next) notifications.cancel();
       tab = next;
       try {
@@ -540,6 +554,7 @@ export function createRemoteHosts(options: {
       publish();
     },
     open(target) {
+      requireOwner();
       open = target;
       record('remote_host:conversation_open');
       publish();
@@ -550,6 +565,7 @@ export function createRemoteHosts(options: {
       publish();
     },
     async markRead(target, messageId) {
+      requireOwner();
       const entry = clients.get(target.hostId);
       if (entry === undefined) return;
       const channelId =
@@ -678,8 +694,11 @@ export function recordRemoteHosts(record: RemoteHostTelemetry): void {
 export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
   if (translator !== undefined) translate = translator;
   if (shared !== undefined) return shared;
+  const enabled = !memberPage();
   shared = createRemoteHosts({
+    enabled,
     storage: (() => {
+      if (!enabled) return undefined;
       try {
         return globalThis.localStorage;
       } catch {

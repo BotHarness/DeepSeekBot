@@ -112,8 +112,8 @@ export interface PersonaBotRegistry {
   ): Promise<CreatePersonaBotResult>;
   get(slug: string): PersonaBotRecord | undefined;
   getHistorical(slug: string): PersonaBotRecord | undefined;
-  listHistorical(): PersonaBotRecord[];
-  list(): PersonaBotRecord[];
+  listHistorical(ownerHumanId?: string): PersonaBotRecord[];
+  list(ownerHumanId?: string): PersonaBotRecord[];
   findByWorkspace(workspace: string): PersonaBotRecord | undefined;
   remove(slug: string, options?: RemovePersonaBotOptions): boolean;
   memoryDirFor(slug: string): string | undefined;
@@ -215,6 +215,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   };
   const recordSnapshot = (record: PersonaBotRecord): PersonaBotRecord => {
     const result: PersonaBotRecord = {
+      ownerHumanId: record.ownerHumanId ?? 'local-human',
       slug: record.slug,
       displayName: record.displayName,
       workspaces: [...record.workspaces],
@@ -348,9 +349,13 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     port.transaction(
       (database) => {
         database
-          .prepare(`INSERT INTO persona_bots (slug, body) VALUES (?, ?)
-        ON CONFLICT (slug) DO UPDATE SET body = excluded.body`)
-          .run(record.slug, JSON.stringify(recordSnapshot(record)));
+          .prepare(`INSERT INTO persona_bots (slug, body, owner_human_id) VALUES (?, ?, ?)
+        ON CONFLICT (slug) DO UPDATE SET body = excluded.body, owner_human_id = excluded.owner_human_id`)
+          .run(
+            record.slug,
+            JSON.stringify(recordSnapshot(record)),
+            record.ownerHumanId ?? 'local-human',
+          );
       },
       ['bot-registry'],
     );
@@ -363,11 +368,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     );
   const active = (slug: string): PersonaBotRecord | undefined =>
     deleted(slug) ? undefined : read(slug);
-  const list = (): PersonaBotRecord[] =>
+  const list = (ownerHumanId?: string): PersonaBotRecord[] =>
     port.read((database) =>
       database
-        .prepare('SELECT slug, body FROM persona_bots')
-        .all()
+        .prepare(
+          ownerHumanId === undefined
+            ? 'SELECT slug, body FROM persona_bots'
+            : 'SELECT slug, body FROM persona_bots WHERE owner_human_id = ?',
+        )
+        .all(...(ownerHumanId === undefined ? [] : [ownerHumanId]))
         .map((row) => decode(String(row['body']), String(row['slug'])))
         .sort((left, right) => left.slug.localeCompare(right.slug)),
     );
@@ -501,6 +510,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     const model = input.model?.trim();
     const preset = input.preset?.trim();
     const record: PersonaBotRecord = {
+      ownerHumanId: input.ownerHumanId ?? 'local-human',
       slug: input.slug,
       displayName: displayName.length > 0 ? displayName : input.slug,
       workspaces: input.workspaces ?? [],
@@ -688,7 +698,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     get: active,
     getHistorical: read,
     listHistorical: list,
-    list: () => list().filter((record) => !deleted(record.slug)),
+    list: (ownerHumanId) => list(ownerHumanId).filter((record) => !deleted(record.slug)),
     findByWorkspace(workspace) {
       const target = normalizeWorkspacePath(workspace);
       if (target.length === 0) return undefined;
