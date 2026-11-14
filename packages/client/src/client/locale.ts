@@ -5371,6 +5371,7 @@ export const zh = {
   'team.error.transferRequired': '删除前请先转交对方拥有的内容。',
   'team.error.memberActive': '删除前请先停用对方。',
   'team.error.purgeTokenInvalid': '此确认已过期，再试一次。',
+  'team.otherMember': '成员',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11101,6 +11102,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.error.transferRequired': 'Transfer what they own before deleting them.',
   'team.error.memberActive': 'Deactivate them before deleting.',
   'team.error.purgeTokenInvalid': 'This confirmation expired. Try again.',
+  'team.otherMember': 'Member',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
