@@ -2534,7 +2534,7 @@ it('keeps a successfully created section when the subsequent move fails, without
 });
 
 describe('All Environment local row interactions', () => {
-  async function mountMixed() {
+  async function mountMixed(pinned = true) {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     environmentProbe.snapshot = {
       tab: 'all',
@@ -2562,18 +2562,19 @@ describe('All Environment local row interactions', () => {
     };
     store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
     setRoster({
-      pins: [FLAT_CHANNEL.id],
+      pins: pinned ? [FLAT_CHANNEL.id] : [],
       sections: [section('s1', 'Collapsed', [SECTION_CHANNEL.id])],
     });
     store.setConfig(config({ collapsed: { s1: true } }));
     const node = document.createElement('div');
     document.body.append(node);
     const root = createRoot(node);
+    const actions = stubActions();
     await act(() =>
       root.render(
         createElement(BotSidebar, {
           wide: true,
-          actions: stubActions(),
+          actions,
           useBotModePrefs: (selector) => selector(prefs),
           setSortMode,
           setSectionSortMode,
@@ -2581,8 +2582,30 @@ describe('All Environment local row interactions', () => {
         }),
       ),
     );
-    return { node, root };
+    return { node, root, actions };
   }
+  it('moves a Section channel into the flat roster when dropped on a loose All row', async () => {
+    const { node, root, actions } = await mountMixed(false);
+    const dispatch = (target: Element, type: string) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: 0 });
+      Object.defineProperty(event, 'dataTransfer', {
+        value: { effectAllowed: '', setData: vi.fn(), dropEffect: '' },
+      });
+      target.dispatchEvent(event);
+    };
+    try {
+      const source = node.querySelector('[data-channel-id="c-section"]')!;
+      const target = node.querySelector('[data-channel-id="c-flat"]')!;
+      await act(() => dispatch(source, 'dragstart'));
+      await act(() => dispatch(target, 'dragover'));
+      await act(() => dispatch(target, 'drop'));
+      expect(actions.moveToFlat).toHaveBeenCalledWith('c-section', expect.any(Array));
+      expect(actions.reorderFlat).not.toHaveBeenCalled();
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
   it('offers Unpin for a pinned channel presented as a mixed row', async () => {
     const { node, root } = await mountMixed();
     try {

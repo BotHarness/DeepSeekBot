@@ -1214,6 +1214,7 @@ function ConversationView({
   conversationScope,
   messageHost,
   unavailable,
+  onRetryConversation,
   onMobileBack,
   scopeKey,
   state,
@@ -1231,6 +1232,7 @@ function ConversationView({
   conversationScope: (node: ReactNode) => ReactNode;
   messageHost?: MessageHost | undefined;
   unavailable: boolean;
+  onRetryConversation?: (() => void) | undefined;
   onMobileBack?: (() => void) | undefined;
   scopeKey: string;
   state: ConversationStateView;
@@ -2599,6 +2601,7 @@ function ConversationView({
   };
 
   const addFiles = (files: File[], selection?: { start: number; end: number }): number | void => {
+    if (recovery.blocked || unavailable) return;
     const available = Math.max(0, 10 - uploadItems.length);
     const added = files
       .slice(0, available)
@@ -2618,6 +2621,7 @@ function ConversationView({
   const dictating = useRef(false);
   const fileDrop = useConversationFileDrop(
     !readOnlyDm &&
+      !unavailable &&
       !conversation.sending &&
       !recovery.blocked &&
       activeMemoryView === undefined &&
@@ -3154,7 +3158,14 @@ function ConversationView({
               <LoadingSkeleton kind="messages" label={t('messages.loading')} />
             ) : null}
             {conversation.status === 'error' && conversation.error !== undefined ? (
-              <div className="bh-error">{t('messages.error', { error: conversation.error })}</div>
+              <div className="bh-error">
+                {t('messages.error', { error: conversation.error })}{' '}
+                {onRetryConversation === undefined ? null : (
+                  <button type="button" onClick={onRetryConversation}>
+                    {t('messages.retry')}
+                  </button>
+                )}
+              </div>
             ) : null}
             {conversation.draftNotice !== undefined ? (
               <div className="bh-note" role="status">
@@ -4152,6 +4163,7 @@ function BotMainContent({
         conversationScope={conversationScope}
         messageHost={source?.host}
         unavailable={remote !== undefined && (source === undefined || !source.available())}
+        onRetryConversation={source?.retry}
         onMobileBack={onMobileBack}
         scopeKey={`${sourceScope}:${scopeKey}:${state.conversation.channel?.id ?? ''}`}
         nativeSessions={remote === undefined ? nativeSessions : undefined}

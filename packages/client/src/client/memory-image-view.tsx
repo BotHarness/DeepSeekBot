@@ -3,7 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { MemoryImage, MemoryImageComparison } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { useHostImage } from './host-image.js';
+import { useHostImageState } from './host-image.js';
 import { SingleImageGallery } from './message-image-gallery.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
@@ -77,17 +77,30 @@ function ImageContent({
   }, []);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const src = useHostImage(
+  const source = useHostImageState(
     image.status === 'ready' && visible ? memoryImageUrl(slug, path, image) : undefined,
   );
-  if (image.status !== 'ready' || failed)
+  const { src } = source;
+  if (image.status !== 'ready' || failed || source.failed)
     return (
       <div role="status" className="bh-note">
-        {failed
+        {failed || source.failed
           ? t('memory.image.loadFailed')
           : image.status === 'ready'
             ? null
-            : t(`memory.image.${image.status}`)}
+            : t(`memory.image.${image.status}`)}{' '}
+        {failed || source.failed ? (
+          <button
+            type="button"
+            onClick={() => {
+              setFailed(false);
+              setLoaded(false);
+              source.retry();
+            }}
+          >
+            {t('messages.retry')}
+          </button>
+        ) : null}
       </div>
     );
   return (
