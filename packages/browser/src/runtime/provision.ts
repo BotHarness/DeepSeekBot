@@ -364,11 +364,46 @@ export function diagnoseStartupExit(options: {
   );
 }
 
-export function startupTimeoutFailure(timeoutMs: number): BrowserProvisionError {
+export function redactBrowserStartupText(text: string): string {
+  return text
+    .replace(/\p{Cc}\[[0-?]*[ -/]*[@-~]/gu, '')
+    .replace(/(?:https?|wss?):\/\/[^\s"'<>]+/giu, '<url>')
+    .replace(/\b(?:Bearer|Basic)\s+[^\s,;]+/giu, '<authorization>')
+    .replace(/\b((?:set-)?cookie["']?\s*:\s*)[^\r\n]*/giu, '$1<redacted>')
+    .replace(/\b(?:sk-|gh[pousr]_|github_pat_|npm_|xox[abprs]-)[A-Za-z0-9_-]{8,}/gu, '<token>')
+    .replace(
+      /\b((?:[a-z0-9]+[_-])*(?:token|secret|password|passwd|api[_-]?key|cookie|authorization)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/giu,
+      '$1<redacted>',
+    )
+    .replace(/\b[A-Za-z0-9_+/=-]{32,}\b/gu, '<opaque>')
+    .replace(/\p{Cc}/gu, (character) => (['\n', '\r', '\t'].includes(character) ? character : ''))
+    .slice(-2048);
+}
+
+export interface BrowserStartupDiagnostic {
+  binary: string;
+  pid?: number;
+  exitCode: number | null;
+  signalCode: NodeJS.Signals | null;
+  killed: boolean;
+  stderr: string;
+}
+
+export function startupTimeoutFailure(
+  timeoutMs: number,
+  diagnostic?: BrowserStartupDiagnostic,
+): BrowserProvisionError {
   return new BrowserProvisionError(
     'startup-timeout',
     `The Bot Browser took longer than ${String(Math.round(timeoutMs / 1000))}s to start; the machine may be slow or overloaded. Open the browser again to retry.`,
-    `timeoutMs=${String(timeoutMs)}`,
+    diagnostic === undefined
+      ? `timeoutMs=${String(timeoutMs)}`
+      : JSON.stringify({
+          timeoutMs,
+          ...diagnostic,
+          binary: redactBrowserStartupText(diagnostic.binary),
+          stderr: redactBrowserStartupText(diagnostic.stderr),
+        }),
   );
 }
 
