@@ -1,6 +1,8 @@
 # Create in an environment
 
-Open the Channels add menu and choose a new Bot or Channel. The form names its target environment. In All, choose a Host the first time; later forms remember the last creation Host. With one available Host, the form can preselect it. A single-Host view uses that Host.
+Open the Channels add menu and choose a new Bot, Channel or Message a person. The form names its target environment. In All, choose a Host the first time; later forms remember the last creation Host. With one available Host, the form can preselect it. A single-Host view uses that Host.
+
+Message a person lists people on the selected Host. Choose a person to open your existing DM or create one for that pair. Both people use the ordinary conversation UI and Channel files; Bot panels and model, workspace and token controls are hidden. Other Humans cannot read the DM. Closing the dialog or replacing its connection prevents a late response from opening a conversation. Member pages use their authenticated Host directly.
 
 An offline target stays selected and visible. Reconnect it, or explicitly choose another online Host from All. Creation is never queued or redirected to This Host. Changing the browsing filter while a form or request is open does not change its target.
 

@@ -1987,6 +1987,8 @@ QQ also supports `deepseekbot messaging-defaults qq` and `messaging-defaults-set
 
 ### Team mode and Host Members
 
+`dm <username>` opens or creates the authenticated Human's canonical DM with that active person on the selected Host. Opening from either participant returns the same Channel; another Human's DM remains inaccessible. Use `channels send <channel-id> --body-stdin` and `channel-messages <channel-id>` for messages. Pure Human DMs have no Bot participant; Group messages remain readable by their eligible Bot members.
+
 The Owner CLI also accepts private LAN IPv4 HTTPS origins with normal certificate verification. Plain LAN HTTP remains refused. A private test CA can be supplied through the machine-local `NODE_EXTRA_CA_CERTS` setting.
 
 These commands use `--host <url>` and the existing private Host token input. The local Owner is the default caller.
@@ -2004,6 +2006,10 @@ deepseekbot --as bob channels browse-public
 deepseekbot --as bob channels join-public <channel-id>
 deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
 deepseekbot --as bob channel-messages <channel-id>
+
+deepseekbot dm bob
+
+deepseekbot --as bob dm owner
 deepseekbot team-mode insecure-http on --confirm
 deepseekbot team-mode insecure-http off --confirm
 deepseekbot team-mode off
