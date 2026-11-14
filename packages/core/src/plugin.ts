@@ -1043,7 +1043,10 @@ function initializeCore(
         changed,
       ),
     (human) => team.isOwner(human),
+    (human, id) => team.channelAccess.canRead(human, id, true),
+    (human, id) => team.channelAccess.canKnow(human, id),
   );
+  team.onAccessChanged(() => live?.refreshAccess());
   startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
     for (const bot of registry.list())

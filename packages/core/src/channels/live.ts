@@ -193,6 +193,7 @@ export interface ChannelLiveHub {
   publishAttachments(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
+  refreshAccess(): void;
   publishContentPurged(): void;
   close(): void;
 }
@@ -268,19 +269,25 @@ export function createChannelLiveHub(
   watchAttention?: (changed: () => void) => () => void,
   isOwner: (human: HumanContext) => boolean = (human) =>
     human.humanId === OWNER_HUMAN_CONTEXT.humanId,
+  canRead?: (human: HumanContext, channelId: string) => boolean,
+  canKnow?: (human: HumanContext, channelId: string) => boolean,
 ): ChannelLiveHub {
   const visibleChannel = (human: HumanContext, channelId: string): boolean =>
-    isOwner(human) ||
-    (channels.get(channelId)?.type === 'group' &&
-      channels
-        .listHumanMembers(human, channelId)
-        .some((member) => member.humanId === human.humanId));
+    canRead
+      ? canRead(human, channelId)
+      : isOwner(human) ||
+        (channels.get(channelId)?.type === 'group' &&
+          channels
+            .listHumanMembers(human, channelId)
+            .some((member) => member.humanId === human.humanId));
   const visiblePlacements = (human: HumanContext, placements: PurgedPlacement[]) =>
-    isOwner(human)
+    !canRead && isOwner(human)
       ? placements
       : placements.filter(
           (placement) =>
-            channels.hasHumanMembership?.(human, placement.channelId) ??
+            (canRead
+              ? (canKnow ?? canRead)(human, placement.channelId)
+              : channels.hasHumanMembership?.(human, placement.channelId)) ??
             visibleChannel(human, placement.channelId),
         );
   const subscribers = new Map<string, Set<Subscriber>>();
@@ -845,6 +852,11 @@ export function createChannelLiveHub(
   };
 
   return {
+    refreshAccess() {
+      for (const group of subscribers.values())
+        for (const subscriber of [...group]) subscriber.close();
+      for (const subscriber of [...rosterSubscribers]) subscriber.close();
+    },
     followRoster,
     followActivity,
     followChannel,

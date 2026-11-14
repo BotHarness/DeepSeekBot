@@ -1,3 +1,4 @@
+import { TeamChannels } from './channels.js';
 import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
 import { TeamError } from './error.js';
@@ -58,13 +59,6 @@ export interface TeamModeView {
     owner: boolean;
   };
 }
-export interface PublicChannel {
-  channelId: string;
-  name: string;
-  description?: string;
-  memberCount: number;
-  joined: boolean;
-}
 const fields = `h.human_id AS humanId, COALESCE(c.username, 'owner') AS username,
   h.display_name AS displayName, h.status, COALESCE(c.must_change, 0) AS mustChangePassword,
   h.created_at AS createdAt, h.human_id = (SELECT owner_human_id FROM team_settings) AS owner,
@@ -94,9 +88,33 @@ const tokenHash = (token: string) => createHash('sha256').update(token).digest('
 
 export class TeamService {
   readonly roles: TeamRoles;
-  private pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'> | undefined;
+  readonly channelAccess: TeamChannels;
+  private readonly accessListeners = new Set<() => void>();
+  onAccessChanged(listener: () => void): () => void {
+    this.accessListeners.add(listener);
+    return () => {
+      this.accessListeners.delete(listener);
+    };
+  }
+  private pendingAccess: Promise<void> = Promise.resolve();
+  accessSettled(): Promise<void> {
+    return this.pendingAccess;
+  }
+  private accessChanged(revoke = false): void {
+    this.invalidate();
+    if (!revoke) return;
+    for (const listener of this.accessListeners) listener();
+    this.pairing?.closeStreams?.();
+    this.pendingAccess = Promise.all([this.pendingAccess, this.disposePeers()]).then(() => {});
+  }
+  private pairing:
+    | (Pick<DevicePairing, 'revoke' | 'clearOffers'> & Partial<Pick<DevicePairing, 'closeStreams'>>)
+    | undefined;
 
-  bindPairing(pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'>): () => void {
+  bindPairing(
+    pairing: Pick<DevicePairing, 'revoke' | 'clearOffers'> &
+      Partial<Pick<DevicePairing, 'closeStreams'>>,
+  ): () => void {
     this.pairing = pairing;
     return () => {
       this.pairing = undefined;
@@ -129,7 +147,20 @@ export class TeamService {
       log?: (phase: string, facts: Record<string, string | number | boolean>) => void;
     } = {},
   ) {
-    this.roles = new TeamRoles(db, () => this.invalidate());
+    this.roles = new TeamRoles(db, (revoke) => this.accessChanged(revoke));
+    this.channelAccess = new TeamChannels(db, channels, this.roles, (revoke) =>
+      this.accessChanged(revoke),
+    );
+    channels.bindHumanAccess?.({
+      canRead: (human, id) => this.channelAccess.canRead(human, id),
+      requirePolicy: (human, id, key) => this.channelAccess.requirePolicy(human, id, key),
+      requirePost: (human, id, all) => {
+        const channel = channels.get(id);
+        if (channel?.type !== 'group' && !channel?.humanParticipants) return;
+        this.channelAccess.requirePolicy(human, id, 'post');
+        if (all) this.channelAccess.requirePolicy(human, id, 'mentionAll');
+      },
+    });
     this.now = options.now ?? Date.now;
     this.log = options.log ?? (() => {});
     this.limiter = new SignInRateLimit(this.now);
@@ -174,6 +205,15 @@ export class TeamService {
         .get(humanId),
     );
     return row === undefined ? undefined : memberSchema.parse(row);
+  }
+
+  memberByUsername(username: string): TeamMember | undefined {
+    const row = this.db.read((db) =>
+      db
+        .prepare('SELECT human_id FROM member_credentials WHERE username = ? COLLATE NOCASE')
+        .get(username),
+    );
+    return row ? this.member(z.object({ human_id: z.string() }).parse(row).human_id) : undefined;
   }
 
   members(human: HumanContext): TeamMember[] {
@@ -638,75 +678,16 @@ export class TeamService {
     return { initialPassword };
   }
 
-  publicChannels(human: HumanContext): PublicChannel[] {
-    return z
-      .array(
-        z.object({
-          channelId: z.string(),
-          name: z.string(),
-          memberCount: z.number().int().nonnegative(),
-          joined: z.coerce.boolean(),
-        }),
-      )
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare(`SELECT c.channel_id AS channelId,
-        json_extract(c.record_json, '$.name') AS name,
-        COALESCE(json_array_length(c.record_json, '$.members'), 0) +
-          (SELECT COUNT(*) FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.left_at IS NULL) AS memberCount,
-        EXISTS(SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ? AND m.left_at IS NULL) AS joined
-        FROM channel_records c WHERE c.public = 1 AND json_extract(c.record_json, '$.type') = 'group'
-        AND json_extract(c.record_json, '$.deletedAt') IS NULL ORDER BY c.channel_id`)
-            .all(human.humanId),
-        ),
-      );
+  publicChannels(human: HumanContext) {
+    return this.channelAccess.browse(human);
   }
-
   joinPublic(human: HumanContext, channelId: string): null {
-    const channel = this.channels.get(channelId);
-    if (!channel || channel.deletedAt) throw new TeamError('channel-not-found');
-    const member = this.member(human.humanId);
-    if (!member) throw new TeamError('credentials-invalid');
-    if (
-      channel.type !== 'group' ||
-      !this.db.read((db) =>
-        db
-          .prepare('SELECT 1 FROM channel_records WHERE channel_id = ? AND public = 1')
-          .get(channelId),
-      )
-    )
-      throw new TeamError('channel-not-public');
-    this.db.transaction(
-      (db) => {
-        db.prepare(`INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at)
-        VALUES (?, ?, ?, 1, ?) ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL`).run(
-          channelId,
-          human.humanId,
-          member.displayName,
-          new Date(this.now()).toISOString(),
-        );
-      },
-      ['channels', 'team'],
-    );
-    this.invalidate();
-    return null;
+    return this.channelAccess.join(human, channelId);
   }
-
   setPublic(human: HumanContext, channelId: string, value: boolean): null {
-    this.roles.require(human, 'team.settings');
-    const channel = this.channels.get(channelId);
-    if (!channel || channel.deletedAt) throw new TeamError('channel-not-found');
-    if (channel.type !== 'group') throw new TeamError('channel-not-public');
-    this.db.transaction(
-      (db) =>
-        db
-          .prepare('UPDATE channel_records SET public = ? WHERE channel_id = ?')
-          .run(Number(value), channelId),
-      ['channels', 'team'],
-    );
-    this.invalidate();
-    return null;
+    return this.channelAccess.visibilitySet(human, channelId, {
+      kind: value ? 'public' : 'private',
+    });
   }
 
   memberDevices(human: HumanContext, humanId: string, currentGrantId?: string) {
@@ -787,16 +768,7 @@ export class TeamService {
   }
 
   belongs(human: HumanContext, channelId: string): boolean {
-    return (
-      this.db.read((db) =>
-        db
-          .prepare(`SELECT 1 FROM channel_human_members m
-      JOIN channel_records c USING(channel_id) WHERE m.channel_id = ? AND m.human_id = ?
-      AND m.left_at IS NULL AND json_extract(c.record_json, '$.type') = 'group'
-      AND json_extract(c.record_json, '$.deletedAt') IS NULL`)
-          .get(channelId, human.humanId),
-      ) !== undefined
-    );
+    return this.channelAccess.canRead(human, channelId, true);
   }
 
   async disposePeers(humanId?: string, keepGrant?: string): Promise<void> {
