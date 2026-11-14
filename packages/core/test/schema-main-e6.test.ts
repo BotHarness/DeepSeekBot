@@ -30,6 +30,11 @@ it('appends account150 after published Team models148 and usage149 while preserv
     db.exec(`INSERT INTO humans VALUES ('suspended', 'Suspended member', 'suspended', 'before');
       INSERT INTO team_mode_suspensions VALUES ('suspended', 'deactivated');
       INSERT INTO deleted_humans VALUES ('deleted-member', 'before')`);
+    db.prepare(`INSERT INTO usage_daily
+      (bot_slug,day,provider,model,purpose,human_id,legacy,total_tokens)
+      VALUES ('existing-bot','2026-11-14','provider','model','orchestrator','suspended',0,13)`).run();
+    db.prepare(`INSERT INTO usage_receipts(fingerprint,bot_slug,human_id)
+      VALUES ('existing-receipt','existing-bot','suspended')`).run();
     for (const deviceId of [independentId, derivedId])
       db.prepare(
         'INSERT INTO paired_devices(device_id,name,secret_hash,paired_at) VALUES (?,?,?,?)',
@@ -82,6 +87,9 @@ it('appends account150 after published Team models148 and usage149 while preserv
     'deleted_humans',
     'channel_records',
     'channel_admins',
+    'host_roles',
+    'usage_daily',
+    'usage_receipts',
   ];
   const before = database.read((db) =>
     Object.fromEntries(

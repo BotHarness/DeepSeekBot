@@ -843,7 +843,12 @@ describe('M10 member usage and role models', () => {
     previous.close();
     for (let restart = 0; restart < 2; restart++) {
       const upgraded = trackTestOwner(
-        mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+        mountOperationalDatabase({
+          dshHome: home,
+          schemaPlan: defineSchemaPlan(
+            BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 149),
+          ),
+        }),
       );
       expect(upgraded.mode).toBe('ready');
       expect(upgraded.generation).toBe(149);
