@@ -146,6 +146,8 @@ export interface ToolApprovalRequestCard {
   botCreatePreview?: BotCreatePreview;
 }
 
+export type ApprovalCardView = import('../../../core/src/team/approval-contract.js').ApprovalCard;
+
 export interface ToolApprovalDecision {
   requestMessageId: string;
   outcome:
@@ -277,6 +279,7 @@ export interface ChannelMessage {
   assignmentReply?: { sessionId: string; sourceEventId: string };
   grantRequestResolution?: { requestMessageId: string; grantId: string };
   toolApprovalRequest?: ToolApprovalRequestCard;
+  approval?: ApprovalCardView;
   sessionFailure?: SessionFailureCard;
   toolApprovalDecision?: ToolApprovalDecision;
   userQuestionRequest?: UserQuestionRequestCard;

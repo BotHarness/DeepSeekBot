@@ -149,6 +149,7 @@ import type {
   OwnedSessionSummary,
   StandingLimitsView,
   UserQuestionAnswerItem,
+  ApprovalCardView,
 } from './store.js';
 import {
   parseRosterSection,
@@ -1051,6 +1052,47 @@ export async function uploadChannelAttachment(
   return ref;
 }
 
+function isMaskedRequest(value: unknown): boolean {
+  return asRecord(value)?.['masked'] === true;
+}
+
+export function parseApprovalCard(value: unknown): ApprovalCardView | undefined {
+  const row = asRecord(value);
+  const kind = row?.['kind'];
+  if (
+    row === undefined ||
+    (kind !== 'tool-approval' && kind !== 'user-question' && kind !== 'private-input') ||
+    typeof row['state'] !== 'string' ||
+    typeof row['botSlug'] !== 'string' ||
+    typeof row['requestedAt'] !== 'string'
+  )
+    return undefined;
+  const base = {
+    kind,
+    state: row['state'],
+    botSlug: row['botSlug'],
+    requestedAt: row['requestedAt'],
+    ...(typeof row['decidedAt'] === 'string' ? { decidedAt: row['decidedAt'] } : {}),
+  } as const;
+  if (row['masked'] === true) return { masked: true, ...base };
+  const decider = asRecord(row['decidedBy']);
+  return {
+    masked: false,
+    ...base,
+    opaque: row['opaque'] === true,
+    ...(typeof decider?.['humanId'] === 'string'
+      ? {
+          decidedBy: {
+            humanId: decider['humanId'],
+            ...(typeof decider['displayName'] === 'string'
+              ? { displayName: decider['displayName'] }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 export function parseChannelMessage(value: unknown): ChannelMessage | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -1123,8 +1165,12 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       grantId: resolution['grantId'],
     };
   }
+  const approval = author.kind === 'bot' ? parseApprovalCard(record['approval']) : undefined;
   let toolApprovalRequest: ChannelMessage['toolApprovalRequest'];
-  if (record['toolApprovalRequest'] !== undefined) {
+  if (
+    record['toolApprovalRequest'] !== undefined &&
+    !isMaskedRequest(record['toolApprovalRequest'])
+  ) {
     const request = asRecord(record['toolApprovalRequest']);
     if (
       request === undefined ||
@@ -1167,7 +1213,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   }
   let userQuestionRequest: ChannelMessage['userQuestionRequest'];
-  if (record['userQuestionRequest'] !== undefined) {
+  if (
+    record['userQuestionRequest'] !== undefined &&
+    !isMaskedRequest(record['userQuestionRequest'])
+  ) {
     const request = asRecord(record['userQuestionRequest']);
     const questions = request?.['questions'];
     if (
@@ -1832,9 +1881,11 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
+    ...(approval === undefined ? {} : { approval }),
     ...(sessionFailure === undefined ? {} : { sessionFailure }),
     ...(toolApprovalDecision === undefined ? {} : { toolApprovalDecision }),
-    ...(record['privateInputRequest'] === undefined
+    ...(record['privateInputRequest'] === undefined ||
+    isMaskedRequest(record['privateInputRequest'])
       ? {}
       : { privateInputRequest: parsePrivateInputCard(record['privateInputRequest']) }),
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),

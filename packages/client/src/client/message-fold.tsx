@@ -57,6 +57,7 @@ export function foldableMessage(message: ChannelMessage): boolean {
     message.privateInputRequest === undefined &&
     message.takeoverRequest === undefined &&
     message.userQuestionRequest === undefined &&
+    message.approval?.masked !== true &&
     message.grantRequest !== true
   );
 }

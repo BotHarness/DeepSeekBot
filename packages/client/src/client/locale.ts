@@ -5423,6 +5423,15 @@ export const zh = {
   'team.otherMember': '成员',
   'team.isolation.trial': '试用阶段：成员的 Bot 在技术上可以读取这台 Host 上其他 Bot 的数据。',
   'team.isolation.enforced': '成员之间已隔离：每个 Bot 只能访问自己的数据和被授权的空间。',
+  'approval.masked.tool-approval': '有 Bot 在等待审批',
+  'approval.masked.user-question': '有 Bot 提了一个问题',
+  'approval.masked.private-input': '有 Bot 请求填写私密信息',
+  'approval.state.pending': '只有有审批权限的人能看到详情。',
+  'approval.state.done': '已处理。',
+  'approval.state.declined': '已拒绝。',
+  'approval.state.closed': '已不再等待。',
+  'approval.decidedBy': '由{name}处理',
+  'approval.opaqueWarning': '这条命令能访问整台 Host，不只是这个 Bot 的文件。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11211,6 +11220,16 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.isolation.trial': 'Trial: member Bots can technically read other Bots’ data on this Host.',
   'team.isolation.enforced':
     'Members are isolated: each Bot reaches only its own data and the spaces it was granted.',
+  'approval.masked.tool-approval': 'A Bot is waiting for approval',
+  'approval.masked.user-question': 'A Bot asked a question',
+  'approval.masked.private-input': 'A Bot asked for private input',
+  'approval.state.pending': 'Only people who can approve see the details.',
+  'approval.state.done': 'Handled.',
+  'approval.state.declined': 'Declined.',
+  'approval.state.closed': 'No longer waiting.',
+  'approval.decidedBy': 'Decided by {name}',
+  'approval.opaqueWarning':
+    'This command runs with access to the whole Host, not just this Bot’s files.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;
