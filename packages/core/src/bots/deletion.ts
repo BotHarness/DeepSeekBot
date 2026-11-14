@@ -93,11 +93,20 @@ export function acceptMemberBotPurge({
   const previousRow = db.prepare('SELECT body FROM persona_bot_deletions WHERE slug = ?').get(slug);
   const previous = previousRow
     ? z
-        .object({ memory: z.string(), cleanupAccepted: z.boolean().optional() })
+        .object({
+          phase: z.string(),
+          eraseMemory: z.boolean(),
+          memory: z.string(),
+          cleanupAccepted: z.boolean().optional(),
+        })
         .parse(JSON.parse(String(previousRow.body)))
     : undefined;
   const memoryDir = record.memoryDir ?? (proof?.path || join(rootDir, slug, 'memory'));
   const absent = !existsSync(memoryDir);
+  if (previous && previous.phase !== 'complete') {
+    if (previous.eraseMemory && (previous.memory !== 'erased' || absent)) return;
+    throw new Error('deletion-in-progress');
+  }
   if (previous?.memory === 'erased' && absent) return;
   const state: PersonaBotDeletion = {
     slug,
@@ -405,7 +414,10 @@ export function createPersonaBotDeletions(options: {
           .get(slug, humanId, humanId, humanId, humanId),
       );
       if (!allowed) throw new TobError('permission-required');
-      return snapshot(slug);
+      const reviewed = snapshot(slug);
+      if (pending.has(slug) || (reviewed.deletion && reviewed.deletion.phase !== 'complete'))
+        return { ...reviewed, eraseAvailable: false, refusal: 'deletion-in-progress' };
+      return reviewed;
     },
     get,
     async confirm(slug, token, eraseMemory) {
