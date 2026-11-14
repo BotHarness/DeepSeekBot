@@ -1,9 +1,12 @@
 import { createContext, useContext } from 'react';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 
 export interface MessageHost {
+  hostId?: string;
   client: HostClient;
   current(channelId: string): boolean;
+  subscribePurges?(listener: (placements: readonly PurgedPlacement[]) => void): () => void;
 }
 
 export const MessageHostContext = createContext<MessageHost | undefined>(undefined);

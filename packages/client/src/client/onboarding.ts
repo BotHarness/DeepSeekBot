@@ -479,7 +479,7 @@ export class OnboardingController {
     this.update({ busy: true, error: undefined });
     try {
       await this.actions.onboardingModel(target.slug, expectedRevision, route, globalDefault);
-      invalidateModelPlan(target.slug);
+      invalidateModelPlan(target.slug, this.actions);
       this.update({
         modelOpen: false,
         modelTarget: undefined,

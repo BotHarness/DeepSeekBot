@@ -3,6 +3,15 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
+const scopedAttentionProbe = vi.hoisted((): { snapshot: RemoteHostsSnapshot } => ({
+  snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
+}));
+vi.mock('../src/client/host-tabs.js', async (original) => ({
+  ...(await original<typeof import('../src/client/host-tabs.js')>()),
+  useRemoteHosts: () => scopedAttentionProbe.snapshot,
+}));
+
 const rosterProbe = vi.hoisted(() => ({ renders: 0 }));
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
@@ -57,6 +66,7 @@ let container: HTMLDivElement | undefined;
 let root: ReturnType<typeof createRoot> | undefined;
 
 afterEach(() => {
+  scopedAttentionProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'local' };
   act(() => root?.unmount());
   container?.remove();
   container = undefined;
@@ -286,5 +296,27 @@ it('updates the entry badge from the shared live stream and releases it on unmou
     root = undefined;
     uninstall();
     vi.useRealTimers();
+  }
+});
+
+it.each([false, true])('hides excluded local action dots with pinned cards=%s', (pinned) => {
+  const before = store.getSnapshot().activityList;
+  try {
+    scopedAttentionProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'remote-only' };
+    act(() => store.setActivityList({ unreadCount: 0, hasAction: true }));
+    const dockPanels = createDockPanelRegistry();
+    dockPanels.register({
+      id: 'activity-center',
+      title: 'Activity',
+      scope: 'global',
+      component: () => null,
+    });
+    const { container: node } = render({ collapsed: true, ...(pinned ? { dockPanels } : {}) });
+    const entry = node.querySelector('[data-bh-tour="inbox"]');
+    expect(entry?.getAttribute('aria-label')).toBe('Activity');
+    if (pinned) expect(entry?.querySelector('[data-pinned-panel-dot]')).toBeNull();
+    else expect(entry?.firstElementChild?.querySelector('span')).toBeNull();
+  } finally {
+    act(() => store.setActivityList(before));
   }
 });
