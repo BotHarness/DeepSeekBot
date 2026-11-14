@@ -3399,6 +3399,36 @@ const PRIVATE_BOTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
+  generation: 144,
+  module: 'host-relationships',
+  description: 'Persist pinned reciprocal Host relationships and derived device provenance',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE host_relationships (
+        relationship_id TEXT PRIMARY KEY,
+        peer_host_id TEXT NOT NULL,
+        peer_name TEXT NOT NULL,
+        peer_key TEXT NOT NULL,
+        peer_routes TEXT NOT NULL,
+        direction TEXT NOT NULL CHECK (direction IN ('incoming', 'outgoing')),
+        state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'active', 'disconnected')),
+        expires_at INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        peer_revocation_pending INTEGER NOT NULL DEFAULT 0 CHECK (peer_revocation_pending IN (0, 1))
+      );
+      CREATE UNIQUE INDEX host_relationship_live_peer ON host_relationships(peer_host_id)
+        WHERE state != 'disconnected';
+      CREATE TABLE relationship_device_grants (
+        device_id TEXT PRIMARY KEY REFERENCES paired_devices(device_id),
+        relationship_id TEXT NOT NULL REFERENCES host_relationships(relationship_id)
+      );
+      CREATE INDEX relationship_grant_owner ON relationship_device_grants(relationship_id);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3542,4 +3572,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TEAM_MEMBERS_MIGRATION,
   TEAM_ROLES_MIGRATION,
   PRIVATE_BOTS_MIGRATION,
+  HOST_RELATIONSHIP_MIGRATION,
 ]);

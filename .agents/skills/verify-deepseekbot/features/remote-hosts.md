@@ -1,6 +1,18 @@
 # Browser Remote Hosts
 
-The browser pairs a Remote Host as a Paired Device and reads its Host Feed through the shared mobile Host client. This Host remains the management context.
+The browser reads each Remote Host Feed through its own Paired Device and the shared mobile Host client. Manual computer enrollment first establishes an explicitly approved reciprocal Host relationship; independent phone pairing stays separate. This Host remains the default management context.
+
+## Reciprocal relationship (E1)
+
+Use fresh schema144 Homes after published Team141–143; do not launch internal Environment141–143 preview databases with this source. Relationship management is current-Owner-only: member/Admin HTTP carriers and CLI `--as` must refuse list/initiate/approve/enroll/disconnect. Transfer Owner and require old derived credentials and pending old-Owner offers to refuse; a newly enrolled Client records the new Owner Human. A valid current-Owner credential still cannot bypass inactive-relationship admission. Retain private Source Event Human readback, spoofed Human rejection and private-Bot access refusals through the same per-Human bridge factory.
+
+Open actual member and Admin shells in the same browser origin/context as an Owner with saved remote device credentials and an ambient Owner cookie. Neither shell may restore those credentials, read Owner remote storage/keys, issue remote Feed traffic or instantiate the native Owner file provider. Normal member RPC must still resolve that member's own Human. Owner storage remains byte-for-byte unchanged; return to the normal Owner page and confirm its original remote connection still works. Disabled-provider pair/enroll and mutation paths return coded `owner-required` refusals.
+
+Use two isolated, current-build Hosts with distinguishable empty group Channels. Enable each Host's existing encrypted LAN entry and obtain a normal pairing link from the recipient. In Connections → Add connection → Connect to another computer, compare the recipient's complete Host fingerprint. The initiator then displays its own fingerprint. On the recipient, open Connections → Computer relationships → Review and approve, compare that fingerprint and approve the stated reciprocal Channel/settings scope once. Require both Clients to read the other Host's distinct Channel list, each with a different device grant on the owning Host. Send a unique message each way and read each message back through the owning Host's `channel-timeline` CLI/API. A relationship marked authorized alone does not qualify either Feed.
+
+Use `relationships list|initiate|approve|sync|enroll|disconnect` for agent parity; links and enrolled credentials belong in private files. Enroll another CLI client and run `device-probe` to prove its independent Feed read. Restart the same Profiles and verify the relationship and client grants survive. Keep one independently paired test device while disconnecting: derived grants must fail and the independent grant must still read its Feed. Verify wrong/expired/cancelled approval and late issuance refusals. An ordinary paired-device gateway must refuse relationship management even when it submits a desktop flag. Offline peer revocation remains visibly pending; retry/reconciliation belongs to E4.
+
+Same-machine browser qualification must distinguish transport refusal from authorization. Two `127.0.0.1` Web origins share ambient cookies, which the encrypted WebSocket entry refuses. Use the existing independent encrypted LAN entry without weakening that guard. Preserve failed browser attempts and console output. Record Web, installed Desktop, Simulator and physical device results separately; this journey does not qualify #4130.
 
 ## Sub-features
 

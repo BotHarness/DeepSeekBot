@@ -126,6 +126,10 @@ core Plugin 的可选 `genuiPreviewBrowserPath` 可指定绝对可执行文件�
 
 日常 UI 迭代可使用隔离 Web Profile，或在原生 Windows checkout 的官方 Desktop 上使用本地链接 Client；官方 Desktop 的安装、文件夹选择和重启行为仍需原生验收。每个工作树使用独立的 DSH_HOME 与端口，启动器使用工作树已安装的 CLI，或通过 `--dsh-version` 选择独立运行时；不要求它与 SDK 固定版本一致。
 
+启动器为新建的独立 CLI runtime 和 Profile 安装依赖时，逐次传入 pnpm 的 `--package-import-method=copy`，成功后记录本地 copy-import 标记；不会修改全局配置。已有未标记依赖只在请求的 runtime 版本和 Profile manifest 均未变化时原样复用，跳过安装，仍执行原有 CLI、模型和 Bundle 校验。复用还核对 pnpm 已安装 lockfile importer 中的依赖 specifier；该记录缺失或与请求不一致时安全拒绝，不修改 Home。同一工作树重新构建链接 Bundle 后仍可正常重启；切换到另一工作树、改变 Bundle 依赖或升级旧 runtime 时，会以 `isolated-imports-required` 拒绝准备，要求新建 `--home`，保留旧数据和依赖。此选项不会把现有 hardlink 自动变成副本，故不会原地迁移或清除旧依赖；备份和后续迁移按原有 Profile 流程单独处理。
+
+Windows 的两个隔离 runtime 曾共享原生 Client 文件 inode。私有副本实验确认：增加 hardlink 可只改变 ctime 和原生 HMR revision，文件内容与 mtime 均不变。独立副本避免未来准备操作通过该共享 inode 干扰另一实例；此前 `session-maybe` 白屏的实际触发者仍未证实，本改动不代表修复该事件。未创建独立 CLI 的路径继续只读使用工作树 CLI；主动更新链接 Client 仍属于正常开发热替换。见 [#4135](https://github.com/BotHarness/BotHarness/issues/4135)。
+
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm build

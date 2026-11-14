@@ -7,7 +7,7 @@ import { createConnectionControl } from '../src/client/connection-control.js';
 it('requires the exact full Host identity and refuses stale or cancelled confirmation', async () => {
   const host = new FakeHost();
   const sources = createRemoteHosts({ carrier: host.carrier });
-  const control = createConnectionControl(sources, () => ({ id: 'local' }));
+  const control = createConnectionControl(sources, () => ({ id: 'local' }), sources.pair);
   const request = { expiresAt: Date.now() + 8000, signal: new AbortController().signal };
   const link = pairingLink({
     v: 1,
@@ -83,7 +83,11 @@ it('reports connected only after the target Client saves the Remote Host and rea
           : host.carrier.request(url, init),
     },
   });
-  const control = createConnectionControl(sources, () => ({ id: 'local-test', name: 'Local' }));
+  const control = createConnectionControl(
+    sources,
+    () => ({ id: 'local-test', name: 'Local' }),
+    sources.pair,
+  );
   const request = { expiresAt: Date.now() + 8000, signal: new AbortController().signal };
   const link = pairingLink({
     v: 1,
@@ -131,7 +135,7 @@ it.each(['cancel', 'delivery-timeout'])(
         },
       },
     });
-    const control = createConnectionControl(sources, () => ({ id: 'local-test' }));
+    const control = createConnectionControl(sources, () => ({ id: 'local-test' }), sources.pair);
     const delivery = new AbortController();
     const request = { expiresAt: Date.now() + 8000, signal: delivery.signal };
     const link = pairingLink({

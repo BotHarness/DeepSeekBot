@@ -346,7 +346,8 @@ export function AddRemoteHostDialog({
   const control = useRef<ReturnType<typeof createConnectionControl>>();
   const attemptId = useRef<string>();
   const mount = useMountedResource<HTMLDivElement>(() => {
-    const owner = createConnectionControl(remoteHosts(), getThisHost);
+    const sources = remoteHosts();
+    const owner = createConnectionControl(sources, getThisHost);
     control.current = owner;
     const off = owner.subscribe(() => {
       if (!attemptId.current) return;
@@ -446,7 +447,7 @@ export function AddRemoteHostDialog({
           </div>
         ) : attempt?.state === 'approve-device' ? (
           <div role="status">
-            <p>{t('connections.approveOn', { name: attempt.hostName ?? '' })}</p>
+            <p>{t('relationships.approveOn', { name: attempt.hostName ?? '' })}</p>
             <code>{attempt.deviceFingerprint}</code>
           </div>
         ) : attempt?.state === 'connected' ? (

@@ -1,6 +1,7 @@
 import { ConnectHealthCard } from './connect-health-card.js';
 import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
 import { ConnectAccountHosts } from './connect-account-hosts.js';
+import { RelationshipSettings } from './relationship-settings.js';
 import { ConnectionProgressLog } from './connection-progress-log.js';
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
 import { AccountHostConnectionDetails, ConnectionHosts } from './connection-hosts.js';
@@ -635,6 +636,7 @@ export function PairedDevicesSettings({
   const overview = !standalone || (setup === 'closed' && !pairing && !reviewing);
   const content = (
     <div ref={mount} data-paired-devices="">
+      {section === 'devices' && setup !== 'remote' ? <RelationshipSettings t={t} /> : null}
       {!standalone && section === 'devices' && overview ? (
         <SettingsSection>
           <SettingsRow

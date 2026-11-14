@@ -98,6 +98,21 @@ async function run(url: string, args: string[], stdin = '') {
   };
 }
 describe('Team CLI', () => {
+  it.each([
+    ['list'],
+    ['approve', 'a'.repeat(32), 'ab'.repeat(32), '--confirm'],
+    ['enroll', 'a'.repeat(32), '--out', 'private-relationship-client.json'],
+    ['disconnect', 'a'.repeat(32), '--confirm'],
+    ['sync', 'a'.repeat(32)],
+  ])(
+    'refuses member impersonation for relationship %j without an Owner HTTP fallback',
+    async (...args) => {
+      const f = await host();
+      const result = await run(f.url, ['--as', 'bob', 'relationships', ...args]);
+      expect(result.output).toMatchObject({ error: { code: 'as-command-unsupported' } });
+      expect(f.calls).toHaveLength(0);
+    },
+  );
   it('recovers a committed username into a new private file without printing its password', async () => {
     const f = await host();
     const path = join(createTempRoot('team-cli-reset-'), 'reset-password');
