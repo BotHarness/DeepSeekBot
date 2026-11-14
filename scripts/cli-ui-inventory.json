@@ -1093,7 +1093,10 @@
         "setting:packages/client/src/client/team-roles.tsx:{name}",
         "setting:packages/client/src/client/team-roles.tsx:{roleLabel(t, role)}",
         "setting:packages/client/src/client/team-roles.tsx:{t('team.roles.title')}",
-        "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}"
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}",
+        "setting:packages/client/src/client/team-spaces.tsx:{item.name}",
+        "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.shared')}",
+        "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.yours')}"
       ],
       "commands": ["team-mode", "members", "channels", "roles", "devices"]
     },

@@ -72,6 +72,13 @@ export const TEAM_REFUSALS = [
   'transfer-required',
   'member-active',
   'purge-token-invalid',
+  'space-name-taken',
+  'space-not-empty',
+  'space-not-found',
+  'role-not-found',
+  'grant-foreign-space',
+  'grant-protected-path',
+  'grant-outside-audience',
 ] as const;
 export type TeamRefusal = (typeof TEAM_REFUSALS)[number];
 
@@ -181,7 +188,7 @@ export function parsePublicChannel(value: unknown): PublicChannel | undefined {
   };
 }
 
-function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
+export function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
   const items = Array.isArray(value) ? value : (record(value)?.['items'] ?? []);
   return Array.isArray(items)
     ? items.flatMap((item: unknown) => {
