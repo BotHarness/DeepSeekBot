@@ -3159,17 +3159,19 @@ function ConversationView({
               <LoadingSkeleton kind="messages" label={t('messages.loading')} />
             ) : null}
             {conversation.status === 'error' && conversation.error !== undefined ? (
-              <ReadFailure
-                retryLabel={t('messages.retry')}
-                onRetry={() => onRetryConversation?.()}
-                disabled={onRetryConversation === undefined}
-              >
-                {t('messages.loadFailed')}
+              <>
+                <ReadFailure
+                  retryLabel={t('messages.retry')}
+                  onRetry={() => onRetryConversation?.()}
+                  disabled={onRetryConversation === undefined}
+                >
+                  {t('messages.loadFailed')}
+                </ReadFailure>
                 <details className="bh-session-failure-details">
                   <summary>{t('failure.details')}</summary>
                   <div>{conversation.error}</div>
                 </details>
-              </ReadFailure>
+              </>
             ) : null}
             {conversation.draftNotice !== undefined ? (
               <div className="bh-note" role="status">

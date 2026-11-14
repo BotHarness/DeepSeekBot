@@ -432,15 +432,16 @@ it('exposes an initial identity read failure and retries without sending or chan
   try {
     await act(async () =>
       vi.waitFor(() =>
-        expect(view.element.querySelector('.bh-error')?.textContent).toContain(
+        expect(view.element.querySelector('.bh-session-failure-details')?.textContent).toContain(
           'remote-composer-identity-unavailable',
         ),
       ),
     );
     expect(view.sources.getSnapshot().open).toEqual(first);
-    await act(async () =>
-      view.element.querySelector<HTMLButtonElement>('.bh-error button')!.click(),
-    );
+    const alert = view.element.querySelector('[role="alert"]');
+    expect(alert).not.toBeNull();
+    expect(alert?.querySelector('details')).toBeNull();
+    await act(async () => alert!.parentElement!.querySelector('button')!.click());
     await act(async () =>
       vi.waitFor(() => expect(view.element.textContent).toContain('Recovered first read')),
     );

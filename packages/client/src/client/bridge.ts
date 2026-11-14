@@ -646,7 +646,7 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
-async function unwrap(
+export async function unwrap(
   call: BridgeCall,
   endpoint: string,
   payload: Record<string, unknown>,

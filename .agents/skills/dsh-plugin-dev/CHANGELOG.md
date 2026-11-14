@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented the downstream exact-Environment Settings journey with its verified More → Settings entry; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4117](https://github.com/BotHarness/DeepSeekBot/issues/4117)).
+
 - Documented downstream evidence checks against the current advertised Client artifact revision after a task-owned swap; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
 
 - Documented downstream ownership-verified recovery, with task-owner exclusion of same-Home launchers/recovery attempts, of an empty native credential writer lock after interrupted startup; follow the [recovery guide](../dsh-dev/SKILL.md). Stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
