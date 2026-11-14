@@ -21,7 +21,10 @@ export function bindBotCreationOwner(
 }
 
 export function localCreationOwner(
-  actions: Pick<BridgeActions, 'createBot' | 'openCreatedBot' | 'createGroup' | 'previewBotImport'>,
+  actions: Pick<
+    BridgeActions,
+    'createBot' | 'openCreatedBot' | 'createGroup' | 'previewBotImport' | 'teamCall'
+  >,
   lifecycle: { submitted(): void; committed(): void },
   key: () => string = () => crypto.randomUUID(),
 ) {
@@ -30,6 +33,7 @@ export function localCreationOwner(
   let channelInput: { name: string; operationKey: string } | undefined;
   let channelReceipt: ChannelSummary | undefined;
   return {
+    call: actions.teamCall,
     openCreatedBot: actions.openCreatedBot,
     async createBot(input: CreatePersonaBotInput, sectionId?: string) {
       if (!botInput) {
@@ -107,6 +111,7 @@ export function remoteCreationOwner({
     if (current()) open({ hostId, title: created.displayName, botSlug: created.slug });
   };
   return {
+    call,
     openBot,
     async bot(input: CreatePersonaBotInput, sectionId?: string) {
       if (!botReceipt) {

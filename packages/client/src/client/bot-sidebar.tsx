@@ -1,4 +1,3 @@
-import { MessagePersonDialog } from './message-person-dialog.js';
 import { PublicChannelsDialog } from './public-channels-dialog.js';
 import { isHumanDmChannel } from './channel-kind.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
@@ -2323,6 +2322,7 @@ export function BotSidebar({
                 remoteHostsState.hosts.some((remote) => remote.host.hostId === remoteHostsState.tab)
               ),
             member,
+            teamMode?.enabled === true || (hostTabs && !member),
           ).filter(
             (item) =>
               (!member || MEMBER_MENU_ITEMS.has(item.id)) &&
@@ -2331,6 +2331,7 @@ export function BotSidebar({
                 !hostTabs ||
                 remoteHostsState.tab !== ALL_HOSTS) &&
               (item.id !== 'message-person' ||
+                (hostTabs && remoteHostsState.tab !== 'local' && !member) ||
                 teamMode?.viewer.owner === true ||
                 teamMode?.viewer.permissions.includes('dm.humans') === true),
           )}
@@ -2359,18 +2360,21 @@ export function BotSidebar({
     <>
       <span ref={createFromWelcome} hidden aria-hidden="true" />
       {createRequest?.kind === 'channel' ||
+      createRequest?.kind === 'message-person' ||
       (createRequest?.kind === 'bot' && createRequest.source !== 'zip') ? (
         <EnvironmentCreation
           request={
-            createRequest.kind === 'channel'
-              ? createRequest
-              : {
-                  kind: 'bot',
-                  source: createRequest.source === 'git' ? 'git' : 'empty',
-                  ...(createRequest.sectionId === undefined
-                    ? {}
-                    : { sectionId: createRequest.sectionId }),
-                }
+            createRequest.kind === 'message-person'
+              ? { kind: 'human-dm' }
+              : createRequest.kind === 'channel'
+                ? createRequest
+                : {
+                    kind: 'bot',
+                    source: createRequest.source === 'git' ? 'git' : 'empty',
+                    ...(createRequest.sectionId === undefined
+                      ? {}
+                      : { sectionId: createRequest.sectionId }),
+                  }
           }
           actions={actions}
           t={t}
@@ -3142,20 +3146,6 @@ export function BotSidebar({
               setBatchError('failed');
             }
             return true;
-          }}
-        />
-      ) : null}
-      {createRequest?.kind === 'message-person' && actions.teamCall !== undefined ? (
-        <MessagePersonDialog
-          call={actions.teamCall}
-          t={t}
-          onClose={() => {
-            setCreateRequest(undefined);
-          }}
-          onOpened={(channelId) => {
-            setCreateRequest(undefined);
-            openLocalConversation();
-            void actions.refreshRoster().then(() => actions.openChannel(channelId));
           }}
         />
       ) : null}
@@ -4110,6 +4100,7 @@ function menuItems(
   localImports = true,
   team = false,
   member = false,
+  people = team,
 ): MenuEntry[] {
   const disabled = !gitAvailable;
   return [
@@ -4145,6 +4136,10 @@ function menuItems(
             label: t('team.channels.browse'),
             icon: <ChannelSidebarIcon name="hash" size={16} />,
           },
+        ]
+      : []),
+    ...(people
+      ? [
           {
             id: 'message-person',
             label: t('team.dm.menu'),

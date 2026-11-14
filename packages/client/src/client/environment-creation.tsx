@@ -16,6 +16,7 @@ import {
 } from './environment-creation-owner.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
 import { CreateChannelModal } from './section-management.js';
+import { MessagePersonDialog } from './message-person-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
   creationStorage,
@@ -27,13 +28,29 @@ import {
 
 export type EnvironmentCreateRequest =
   | { kind: 'bot'; source: 'empty' | 'git'; sectionId?: string }
-  | { kind: 'channel'; sectionId?: string };
+  | { kind: 'channel'; sectionId?: string }
+  | { kind: 'human-dm' };
 
 export function EnvironmentCreation(
   props: Parameters<typeof OwnerEnvironmentCreation>[0],
 ): ReactElement {
   if (!memberPage()) return <OwnerEnvironmentCreation {...props} />;
   const { request, actions, t, onClose, sectionName } = props;
+  if (request.kind === 'human-dm')
+    return (
+      <MessagePersonDialog
+        call={actions.teamCall}
+        t={t}
+        onClose={onClose}
+        unavailable={actions.teamCall === undefined}
+        onOpened={async (channelId, _person, signal) => {
+          await actions.refreshRoster();
+          signal.throwIfAborted();
+          await actions.openChannel(channelId);
+          if (!signal.aborted) onClose();
+        }}
+      />
+    );
   if (request.kind === 'channel')
     return (
       <CreateChannelModal
@@ -181,6 +198,50 @@ function OwnerEnvironmentCreation({
     }
     return capturedOwner.current.owner;
   };
+  if (request.kind === 'human-dm') {
+    const client =
+      target?.id === 'local' || target === undefined ? undefined : remoteHosts().client(target.id);
+    const bound =
+      target?.id === 'local'
+        ? localOwner
+        : client && target
+          ? remoteOwner({ id: target.id, client })
+          : undefined;
+    return (
+      <MessagePersonDialog
+        key={target?.id ?? 'choose'}
+        call={bound?.call}
+        t={t}
+        target={targetField}
+        unavailable={
+          !online ||
+          connectionChanged ||
+          bound?.call === undefined ||
+          (target?.id === 'local' && !local.id)
+        }
+        onClose={onClose}
+        onOpening={() => {
+          owner();
+          setSubmitted(true);
+        }}
+        onOpened={async (channelId, person, signal) => {
+          if (client && target) {
+            await client.refresh();
+            signal.throwIfAborted();
+            if (remoteHosts().client(target.id) !== client)
+              throw new Error(t('environment.create.changed'));
+            remoteHosts().open({ hostId: target.id, channelId, title: person.displayName });
+          } else {
+            await actions.refreshRoster();
+            signal.throwIfAborted();
+            remoteHosts().close();
+            await actions.openChannel(channelId);
+          }
+          if (!signal.aborted) onClose();
+        }}
+      />
+    );
+  }
   if (request.kind === 'channel')
     return (
       <CreateChannelModal

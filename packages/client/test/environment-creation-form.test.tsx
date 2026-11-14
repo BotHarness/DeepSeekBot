@@ -3,6 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { HostClient } from '../../../apps/mobile/src/host/client.js';
+import type { BridgeCall } from '../src/client/bridge.js';
 
 const fixture = vi.hoisted(() => ({
   scope: 'all',
@@ -91,11 +92,11 @@ const localCall = vi.fn(async () => {
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 const close = vi.fn();
-const render = async () =>
+const render = async (kind: 'channel' | 'human-dm' = 'channel') =>
   act(async () =>
     root.render(
       createElement(EnvironmentCreation, {
-        request: { kind: 'channel' },
+        request: { kind },
         scope: fixture.scope,
         actions: createActions(localCall, createStore()),
         t: zhTranslate,
@@ -110,6 +111,7 @@ beforeEach(() => {
   fixture.online = true;
   fixture.generation = 0;
   vi.clearAllMocks();
+  fixture.call.mockReset();
   localStorage.clear();
   rememberCreationHost(localStorage, { id: 'remote-b', name: 'Remote B', online: true });
   container = document.createElement('div');
@@ -121,6 +123,153 @@ afterEach(async () => {
   container.remove();
   vi.unstubAllGlobals();
 });
+
+function humanDirectory() {
+  fixture.call.mockImplementation(async (method) => {
+    if (method === 'teamDirectory') return [{ humanId: 'human-b', displayName: 'Bob' }];
+    if (method === 'humanDm') return { channel: { id: 'same-human-dm' } };
+    throw new Error('Unexpected remote method: ' + method);
+  });
+}
+
+it('uses the selected remote Host for both the Human directory and canonical DM creation', async () => {
+  fixture.scope = 'remote-b';
+  humanDirectory();
+  await render('human-dm');
+  expect(document.querySelector('select')?.value).toBe('remote-b');
+  expect(document.querySelector('select')?.disabled).toBe(true);
+  await act(async () => buttonNamed('Bob').click());
+  expect(fixture.call).toHaveBeenCalledWith('teamDirectory', {});
+  expect(fixture.call).toHaveBeenCalledWith('humanDm', { humanId: 'human-b' });
+  expect(fixture.open).toHaveBeenCalledExactlyOnceWith({
+    hostId: 'remote-b',
+    channelId: 'same-human-dm',
+    title: 'Bob',
+  });
+  expect(localCall).not.toHaveBeenCalled();
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it('does not load local people when the remembered Human DM target is offline', async () => {
+  fixture.online = false;
+  await render('human-dm');
+  expect(document.querySelector('select')?.value).toBe('remote-b');
+  expect(document.body.textContent).toContain('此环境离线');
+  expect(document.querySelector('[data-team-person]')).toBeNull();
+  expect(fixture.call).not.toHaveBeenCalled();
+  expect(localCall).not.toHaveBeenCalled();
+});
+
+it('keeps a pending Human DM on its captured Host after the browsing scope changes', async () => {
+  humanDirectory();
+  let finish!: (value: unknown) => void;
+  fixture.call.mockImplementation(async (method) =>
+    method === 'teamDirectory'
+      ? [{ humanId: 'human-b', displayName: 'Bob' }]
+      : new Promise((resolve) => {
+          finish = resolve;
+        }),
+  );
+  await render('human-dm');
+  await act(async () => buttonNamed('Bob').click());
+  fixture.scope = 'local';
+  await render('human-dm');
+  expect(document.querySelector('select')?.value).toBe('remote-b');
+  expect(document.querySelector('select')?.disabled).toBe(true);
+  await act(async () => finish({ channel: { id: 'same-human-dm' } }));
+  expect(fixture.open).toHaveBeenCalledExactlyOnceWith({
+    hostId: 'remote-b',
+    channelId: 'same-human-dm',
+    title: 'Bob',
+  });
+  expect(localCall).not.toHaveBeenCalled();
+});
+
+it.each(['replacement', 'close'] as const)(
+  'ignores a late Human DM response after Client %s',
+  async (end) => {
+    let finish!: (value: unknown) => void;
+    fixture.call.mockImplementation(async (method) =>
+      method === 'teamDirectory'
+        ? [{ humanId: 'human-b', displayName: 'Bob' }]
+        : new Promise((resolve) => {
+            finish = resolve;
+          }),
+    );
+    await render('human-dm');
+    await act(async () => buttonNamed('Bob').click());
+    if (end === 'replacement') {
+      fixture.generation += 1;
+      await render('human-dm');
+      expect(document.body.textContent).toContain(zhTranslate('environment.create.changed'));
+    } else await act(async () => root.render(null));
+    await act(async () => finish({ channel: { id: 'same-human-dm' } }));
+    expect(fixture.open).not.toHaveBeenCalled();
+    expect(fixture.refresh).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    expect(localCall).not.toHaveBeenCalled();
+  },
+);
+
+it('discards the previous Host directory when choosing another Human DM target', async () => {
+  let finish!: (value: unknown) => void;
+  fixture.call.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+  await render('human-dm');
+  const select = document.querySelector('select');
+  await act(async () => {
+    if (select) {
+      select.value = 'local';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+  await act(async () => finish([{ humanId: 'human-b', displayName: 'Bob from B' }]));
+  expect(document.body.textContent).not.toContain('Bob from B');
+  expect(fixture.open).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+});
+
+it.each(['member', 'admin'])(
+  'opens a Human DM through the authenticated %s page without Owner target state',
+  async (role) => {
+    vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+    const storage = vi.spyOn(Storage.prototype, 'getItem');
+    const call = vi.fn<BridgeCall>(async (method) => {
+      if (method === 'teamDirectory')
+        return { ok: true, value: [{ humanId: 'human-b', displayName: 'Bob' }] };
+      if (method === 'humanDm') return { ok: true, value: { channel: { id: 'member-dm' } } };
+      throw new Error('Unexpected Member method: ' + method);
+    });
+    const actions = createActions(call, createStore());
+    const refresh = vi.spyOn(actions, 'refreshRoster').mockResolvedValue();
+    const open = vi.spyOn(actions, 'openChannel').mockResolvedValue();
+    try {
+      await act(async () =>
+        root.render(
+          createElement(EnvironmentCreation, {
+            request: { kind: 'human-dm' },
+            scope: 'all',
+            actions,
+            t: zhTranslate,
+            onClose: close,
+          }),
+        ),
+      );
+      expect(document.querySelector('select')).toBeNull();
+      expect(storage).not.toHaveBeenCalled();
+      await act(async () => buttonNamed('Bob').click());
+      expect(call).toHaveBeenCalledWith('humanDm', { humanId: 'human-b' }, expect.any(AbortSignal));
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(open).toHaveBeenCalledExactlyOnceWith('member-dm');
+      expect(fixture.call).not.toHaveBeenCalled();
+      expect(fixture.open).not.toHaveBeenCalled();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      storage.mockRestore();
+      refresh.mockRestore();
+      open.mockRestore();
+    }
+  },
+);
 
 it.each(['member', 'admin'])(
   'creates a local Channel in the %s page without Owner target state',
