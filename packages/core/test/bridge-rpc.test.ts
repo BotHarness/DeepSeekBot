@@ -677,6 +677,7 @@ describe('bridge typert service', () => {
       'memberDeviceRevoke',
       'ownerTransfer',
       'memberPasswordChange',
+      'memberPasswordReset',
       'publicChannels',
       'publicChannelJoin',
       'channelPublicSet',

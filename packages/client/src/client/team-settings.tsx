@@ -42,6 +42,7 @@ import {
   type PermissionEntry,
   type TeamRole,
 } from './team-roles-bridge.js';
+import { setTeamModeSnapshot } from './team-state.js';
 
 const styles = stylex.create({
   members: { display: 'flex', flexDirection: 'column', minWidth: 0 },
@@ -137,6 +138,11 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
   const [rowError, setRowError] = useState<string>();
   const [dialog, setDialog] = useState<Dialog>();
   const request = useRef(0);
+  const passwordSaved = useRef(false);
+  const publish = (next: TeamModeView): void => {
+    setView(next);
+    setTeamModeSnapshot(call, next);
+  };
 
   const refresh = async (signal?: AbortSignal): Promise<void> => {
     const version = ++request.current;
@@ -151,7 +157,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
           ])
         : [[], [], []];
       if (signal?.aborted === true || version !== request.current) return;
-      setView(next);
+      publish(next);
       setMembers(list);
       setRoles(roleList);
       setCatalog(permissions);
@@ -171,7 +177,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
     setBusy(true);
     setRowError(undefined);
     try {
-      setView(await action());
+      publish(await action());
       await refresh();
     } catch (error) {
       setRowError(teamErrorText(t, error));
@@ -420,11 +426,17 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
           t={t}
           hasPassword={view.ownerPasswordSet}
           thenEnable={dialog.thenEnable}
-          onCancel={() => setDialog(undefined)}
+          onCancel={() => {
+            passwordSaved.current = false;
+            setDialog(undefined);
+          }}
           onSubmit={async (password, current) => {
-            let next = await setOwnerPassword(call, password, current);
-            if (dialog.thenEnable) next = await setTeamMode(call, true);
-            setView(next);
+            if (!passwordSaved.current) {
+              publish(await setOwnerPassword(call, password, current));
+              passwordSaved.current = true;
+            }
+            if (dialog.thenEnable) publish(await setTeamMode(call, true));
+            passwordSaved.current = false;
             setDialog(undefined);
             await refresh();
           }}

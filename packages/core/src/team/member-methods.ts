@@ -16,6 +16,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'teamOwnerPasswordSet',
   'channelPublicSet',
   'memberPasswordChange',
+  'memberPasswordReset',
   'publicChannels',
   'publicChannelJoin',
   'channels',

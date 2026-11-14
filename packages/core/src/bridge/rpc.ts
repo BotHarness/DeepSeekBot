@@ -453,7 +453,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.ownerTransfer({ humanId, password }));
   }
   memberPasswordChange(current: string, next: string) {
+    const principal = this.ctx.invocation?.peer.principal;
+    if (principal?.kind === 'botharness-member' && this.team)
+      return this.team.withPasswordCaller(principal, undefined, () =>
+        unwrapAsync(this.methods.memberPasswordChange({ current, next })),
+      );
     return unwrapAsync(this.methods.memberPasswordChange({ current, next }));
+  }
+  memberPasswordReset(humanId: string) {
+    return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
   }
   publicChannels() {
     return unwrapAsync(this.methods.publicChannels({}));
@@ -2989,6 +2997,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'memberDeviceRevoke',
   'ownerTransfer',
   'memberPasswordChange',
+  'memberPasswordReset',
   'publicChannels',
   'publicChannelJoin',
   'channelPublicSet',
