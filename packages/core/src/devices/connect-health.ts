@@ -1,3 +1,5 @@
+import { networkDiagnosticReason } from '../../../../apps/mobile/src/host/connection-diagnostic.js';
+import { createTunnelLookup } from './tunnel-dns.js';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { WebSocket } from 'ws';
@@ -18,7 +20,7 @@ export type {
 } from './connect-health-contract.js';
 
 export type PublicConnectResult =
-  | { ok: true }
+  | { ok: true; dnsRecovery?: 'fresh-query' }
   | {
       ok: false;
       code: Extract<
@@ -31,15 +33,10 @@ const errorCode = z.object({ code: z.string() });
 function networkFailure(error: unknown): PublicConnectResult {
   const value = errorCode.safeParse(error);
   const code = value.success ? value.data.code : '';
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return { ok: false, code: 'dns' };
   if (code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH') return { ok: false, code: 'identity' };
-  if (
-    code.includes('CERT') ||
-    code.includes('TLS') ||
-    code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
-    code === 'INVALID_CA'
-  )
-    return { ok: false, code: 'tls' };
+  const reason = networkDiagnosticReason(error);
+  if (reason === 'socket-dns') return { ok: false, code: 'dns' };
+  if (reason === 'socket-tls') return { ok: false, code: 'tls' };
   return { ok: false, code: 'network' };
 }
 export function checkPublicConnect(options: {
@@ -53,6 +50,7 @@ export function checkPublicConnect(options: {
   return new Promise((resolve) => {
     let channel: ConnectChannel;
     let ws: WebSocket;
+    let recoveredDns = false;
     try {
       const url = new URL(options.origin);
       if (
@@ -77,7 +75,16 @@ export function checkPublicConnect(options: {
         maxPayload: 1024,
         perMessageDeflate: false,
       };
-      ws = options.socket?.(url.href, limits) ?? new WebSocket(url.href, limits);
+      ws =
+        options.socket?.(url.href, limits) ??
+        new WebSocket(url.href, {
+          ...limits,
+          lookup: createTunnelLookup({
+            onRecovery: () => {
+              recoveredDns = true;
+            },
+          }),
+        });
     } catch {
       resolve({ ok: false, code: 'identity' });
       return;
@@ -118,7 +125,8 @@ export function checkPublicConnect(options: {
         if (binary) throw new Error('binary-frame');
         const reply = channel.receive(data.toString());
         if (reply.reply) ws.send(reply.reply);
-        if (reply.ready) finish({ ok: true });
+        if (reply.ready)
+          finish({ ok: true, ...(recoveredDns ? { dnsRecovery: 'fresh-query' } : {}) });
       } catch {
         finish({ ok: false, code: 'identity' });
       }
@@ -237,9 +245,12 @@ export function createConnectHealth(options: {
         if (run !== generation || abort.signal.aborted) return { state: 'idle' };
         result = await probe();
       }
+      if (result.ok && result.dnsRecovery)
+        options.record?.('dns-recovered', 'stage=public strategy=fresh-query');
       return result.ok
         ? {
             state: 'passed',
+            ...(result.dnsRecovery ? { dnsRecovery: result.dnsRecovery } : {}),
             checkedAt: new Date(now()).toISOString(),
             elapsedMs: Math.max(0, now() - started),
           }
