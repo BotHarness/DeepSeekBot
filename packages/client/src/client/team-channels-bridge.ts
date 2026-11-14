@@ -31,6 +31,7 @@ export interface ChannelAccess {
   readonly visibility: ChannelVisibility;
   readonly policy: ChannelPolicy;
   readonly admins: readonly { humanId: string; displayName: string }[];
+  readonly policyRevision?: string;
 }
 
 export interface BrowsableChannel {
@@ -86,11 +87,13 @@ export function parseChannelAccess(value: unknown): ChannelAccess | undefined {
           : [];
       })
     : [];
+  const revision = row['policyRevision'];
   return {
     role,
     visibility: parseVisibility(row['visibility']),
     policy: parsePolicy(row['policy']),
     admins,
+    ...(typeof revision === 'string' && revision.length > 0 ? { policyRevision: revision } : {}),
   };
 }
 
@@ -120,8 +123,13 @@ export async function setChannelPolicy(
   call: BridgeCall,
   channelId: string,
   policy: ChannelPolicy,
+  expectedRevision?: string,
 ): Promise<void> {
-  await unwrap(call, 'channelPolicySet', { channelId, policy: { ...policy } });
+  await unwrap(call, 'channelPolicySet', {
+    channelId,
+    policy: { ...policy },
+    ...(expectedRevision === undefined ? {} : { expectedRevision }),
+  });
 }
 
 export async function setChannelAdmins(

@@ -120,6 +120,7 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'role-not-found': 'team.error.roleNotFound',
   'channel-post-restricted': 'team.error.channelPostRestricted',
   'channel-mention-restricted': 'team.error.channelMentionRestricted',
+  'stale-channel-policy': 'team.error.staleChannelPolicy',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {

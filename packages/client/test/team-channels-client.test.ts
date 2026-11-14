@@ -11,6 +11,7 @@ import {
   loadTeamDirectory,
   openHumanDm,
   parseChannelAccess,
+  setChannelPolicy,
   setChannelVisibility,
 } from '../src/client/team-channels-bridge.js';
 
@@ -50,6 +51,17 @@ describe('Team Channel access client', () => {
       admins: [{ humanId: 'h1', displayName: 'Bob' }],
     });
     expect(parseChannelAccess({ role: 'member' })?.visibility).toEqual({ kind: 'private' });
+  });
+
+  it('round-trips the policy revision for compare-and-set saves', async () => {
+    expect(parseChannelAccess({ role: 'admin', policyRevision: 'r7' })?.policyRevision).toBe('r7');
+    const call = vi.fn(async () => ({ ok: true as const, value: null }));
+    await setChannelPolicy(call, 'c1', DEFAULT_POLICY, 'r7');
+    expect(call).toHaveBeenCalledWith(
+      'channelPolicySet',
+      { channelId: 'c1', policy: DEFAULT_POLICY, expectedRevision: 'r7' },
+      undefined,
+    );
   });
 
   it('sends visibility through channelVisibilitySet', async () => {

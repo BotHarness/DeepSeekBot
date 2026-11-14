@@ -67,6 +67,7 @@ export const TEAM_REFUSALS = [
   'role-not-found',
   'channel-post-restricted',
   'channel-mention-restricted',
+  'stale-channel-policy',
 ] as const;
 export type TeamRefusal = (typeof TEAM_REFUSALS)[number];
 

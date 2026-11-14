@@ -5456,6 +5456,7 @@ export const zh = {
   'team.error.roleNotFound': '该角色已不存在。',
   'team.error.channelPostRestricted': '只有频道管理员可以在这里发消息。',
   'team.error.channelMentionRestricted': '只有频道管理员可以在这里 @所有人。',
+  'team.error.staleChannelPolicy': '其他管理员刚改过这些设置，已刷新为最新内容，请重新修改。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11276,6 +11277,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.error.roleNotFound': 'That role no longer exists.',
   'team.error.channelPostRestricted': 'Only channel admins can send messages here.',
   'team.error.channelMentionRestricted': 'Only channel admins can mention @all here.',
+  'team.error.staleChannelPolicy':
+    'Another admin just changed these settings. They’ve been refreshed — make your change again.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;

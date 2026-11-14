@@ -24,6 +24,7 @@ import {
   type PolicyValue,
   type RoleChoice,
 } from './team-channels-bridge.js';
+import { teamRefusal } from './team-bridge.js';
 import { teamErrorText } from './team-settings.js';
 import { useTeamMode } from './team-state.js';
 import { roleChoiceLabel, visibilitySummary } from './channel-access.js';
@@ -101,8 +102,17 @@ export function ChannelAccessSettings({
   const choosePolicy = (key: PolicyKey, value: PolicyValue): void => {
     const policy = { ...current.policy, [key]: value };
     run(async () => {
-      await setChannelPolicy(call, channelId, policy);
-      return { ...current, policy };
+      try {
+        await setChannelPolicy(call, channelId, policy, current.policyRevision);
+      } catch (failure) {
+        if (teamRefusal(failure) === 'stale-channel-policy') {
+          const fresh = await loadChannelAccess(call, channelId);
+          if (fresh !== undefined) setAccess(fresh);
+        }
+        throw failure;
+      }
+      const fresh = await loadChannelAccess(call, channelId);
+      return fresh ?? { ...current, policy };
     });
   };
   const errorNote = error === undefined ? undefined : <Note tone="danger">{error}</Note>;
