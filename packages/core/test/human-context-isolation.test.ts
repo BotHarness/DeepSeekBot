@@ -133,7 +133,7 @@ describe('explicit Human context', () => {
     expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toHaveLength(1);
   });
 
-  it('records the speaking Human separately from the unchanged message JSON', async () => {
+  it('records the same speaking Human in Source Event identity and message JSON', async () => {
     const { database, channels } = fixture();
     const human = humanContext('human-test-b');
     database.transaction((db) =>
@@ -159,7 +159,11 @@ describe('explicit Human context', () => {
         .get('spoken'),
     )!;
     expect(row.human_id).toBe(human.humanId);
-    expect(JSON.parse(String(row.payload_json)).author).toEqual({ kind: 'human' });
+    expect(JSON.parse(String(row.payload_json)).author).toEqual({
+      kind: 'human',
+      humanId: human.humanId,
+      displayName: 'Second Human',
+    });
   });
   it('upgrades existing Human Source Events and ignored reports as Owner state', () => {
     const home = createTempRoot('human-context-upgrade-');

@@ -1344,6 +1344,7 @@ export class PrivateInputs {
     owner: boolean,
     channelId: string,
     messageId: string,
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<PrivateRevocationResult> {
     const refused = { accepted: false, stopped: 0, completed: 0, uncertain: 0 };
     if (!owner) return refused;
@@ -1387,7 +1388,7 @@ export class PrivateInputs {
     if (!accepted) return refused;
     const summary = await accepted.stopping;
     await this.deps.channels
-      .appendMessageOnce(OWNER_HUMAN_CONTEXT, channelId, {
+      .appendMessageOnce(human, channelId, {
         id: 'private-revocation-' + randomUUID(),
         at: new Date().toISOString(),
         author: { kind: 'human' },

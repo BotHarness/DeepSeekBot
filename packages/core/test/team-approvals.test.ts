@@ -261,7 +261,153 @@ function masked(value: unknown, id?: string) {
   if (id) expect(wire).toContain(id);
 }
 
+async function humanProjections(
+  f: ReturnType<typeof fixture>,
+  message: ChannelMessage,
+  human = alice,
+) {
+  await f.roster.attach(createFakeRosterDomain().facility);
+  const author = {
+    kind: 'human',
+    humanId: human.humanId,
+    displayName: f.team.mode(human).viewer.displayName,
+  };
+  const check = (value: unknown) => {
+    let found = false;
+    const visit = (entry: unknown) => {
+      if (entry === null || typeof entry !== 'object') return;
+      if ('id' in entry && entry.id === message.id && 'author' in entry) {
+        expect(entry.author).toEqual(author);
+        found = true;
+      }
+      for (const item of Object.values(entry)) visit(item);
+    };
+    visit(value);
+    expect(found).toBe(true);
+  };
+  const input = { channelId: f.group.id };
+  for (const [method, args] of [
+    ['channelMessages', input],
+    ['channelTimeline', input],
+    ['channels', {}],
+    ['channelJournalPage', { ...input, through: f.channels.revision(f.group.id) }],
+    ['channelSearch', { ...input, text: message.body }],
+    ['messageSearch', { text: message.body }],
+  ] as const)
+    check(await f.invoke(bob, method, args));
+  await f.team.asMember('bob', async (peer) => {
+    const controller = new AbortController();
+    const iterator = (
+      await f.gateway.stream({
+        namespace: 'botharness',
+        method: 'followChannel',
+        args: input,
+        peer,
+        signal: controller.signal,
+      })
+    )[Symbol.asyncIterator]();
+    let found = false;
+    try {
+      for (let i = 0; i < f.channels.readMessages(f.group.id).length; i++) {
+        const frame = (await iterator.next()).value;
+        if (JSON.stringify(frame).includes(message.id)) {
+          check(frame);
+          found = true;
+          break;
+        }
+      }
+      expect(found).toBe(true);
+    } finally {
+      controller.abort();
+      await iterator.return?.();
+    }
+  });
+}
+
 describe('M5 approval projections and decisions', () => {
+  it('repairs historical Human authors from canonical Source Event identity and preserves deleted authors', async () => {
+    const f = fixture();
+    const message: ChannelMessage = {
+      id: randomUUID(),
+      at: new Date().toISOString(),
+      author: { kind: 'human' },
+      body: 'Historical answer',
+    };
+    await f.channels.appendMessage(bob, f.group.id, message);
+    f.database.transaction((db) =>
+      db
+        .prepare(`UPDATE source_events SET payload_json = json_remove(payload_json,
+      '$.author.humanId', '$.author.displayName') WHERE message_id = ?`)
+        .run(message.id),
+    );
+    await humanProjections(f, message, bob);
+    const historical = f.channels.message(f.group.id, message.id);
+    if (!historical) throw new Error('Missing historical message');
+    const before = f.db.diagnostics().metrics.reads;
+    f.team.approvals.project(
+      bob,
+      Array.from({ length: 200 }, () => historical),
+      f.group.id,
+    );
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+    const replyId = randomUUID();
+    await f.channels.appendMessage(owner, f.group.id, {
+      id: replyId,
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'alice-bot' },
+      replyTo: message.id,
+      body: 'Historical reply',
+    });
+    const reply = f.team.approvals.project(
+      bob,
+      f.channels.message(f.group.id, replyId),
+      f.group.id,
+    );
+    expect(reply?.replyToPreview?.author).toEqual({
+      kind: 'human',
+      humanId: bob.humanId,
+      displayName: 'bob',
+    });
+    const tombstone = { kind: 'human', humanId: 'deleted-human', deleted: true } as const;
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE source_events SET payload_json = json_set(payload_json, '$.author', json(?)) WHERE message_id = ?",
+        )
+        .run(JSON.stringify(tombstone), message.id),
+    );
+    expect(
+      f.team.approvals.project(bob, f.channels.message(f.group.id, message.id), f.group.id)?.author,
+    ).toEqual(tombstone);
+  });
+
+  it('uses the authenticated Human instead of supplied author fields and keeps retries stable after renaming', async () => {
+    const f = fixture();
+    const message: ChannelMessage = {
+      id: randomUUID(),
+      at: new Date().toISOString(),
+      author: { kind: 'human', humanId: owner.humanId, displayName: 'Forged Owner' },
+      body: 'Generated Human message',
+    };
+    const result = await f.channels.appendMessageOnce(bob, f.group.id, message);
+    expect(result.status === 'appended' && result.message.author).toEqual({
+      kind: 'human',
+      humanId: bob.humanId,
+      displayName: 'bob',
+    });
+    f.channels.setHumanDefaultName(bob, 'Bob renamed');
+    expect((await f.channels.appendMessageOnce(bob, f.group.id, message)).status).toBe('existing');
+    f.team.channelAccess.addMember(bob, f.group.id, alice.humanId);
+    expect((await f.channels.appendMessageOnce(alice, f.group.id, message)).status).toBe(
+      'conflict',
+    );
+    expect(
+      f.database.read((db) =>
+        db.prepare('SELECT human_id FROM source_events WHERE message_id = ?').get(message.id),
+      )?.human_id,
+    ).toBe(bob.humanId);
+  });
+
   it.each(['ordinary', 'tool', 'question', 'secret'] as const)(
     'names a private participant through every %s message projection without exposing its profile',
     async (kind) => {
@@ -751,6 +897,13 @@ describe('M5 approval projections and decisions', () => {
       .readMessages(f.group.id)
       .find((message) => message.toolApprovalDecision);
     expect(decision?.toolApprovalDecision?.decidedBy).toMatchObject({ humanId: owner.humanId });
+    if (!decision) throw new Error('Missing tool decision');
+    await humanProjections(f, decision, owner);
+    expect(decision?.author).toEqual({
+      kind: 'human',
+      humanId: owner.humanId,
+      displayName: f.team.mode(owner).viewer.displayName,
+    });
     masked(await f.invoke(bob, 'channelMessages', { channelId: f.group.id }));
   });
 
@@ -796,6 +949,14 @@ describe('M5 approval projections and decisions', () => {
       f.channels.readMessages(f.group.id).find((message) => message.userQuestionResolution)
         ?.userQuestionResolution?.decidedBy,
     ).toMatchObject({ humanId: 'alice' });
+    expect(
+      f.channels.readMessages(f.group.id).find((message) => message.userQuestionResolution)?.author,
+    ).toEqual({ kind: 'human', humanId: alice.humanId, displayName: 'alice' });
+    const decision = f.channels
+      .readMessages(f.group.id)
+      .find((message) => message.userQuestionResolution);
+    if (!decision) throw new Error('Missing question resolution');
+    await humanProjections(f, decision);
   });
 
   it('authorizes secret submission in the service, records its decider and never projects saved values', async () => {
@@ -847,6 +1008,13 @@ describe('M5 approval projections and decisions', () => {
       .readMessages(f.group.id)
       .find((message) => message.privateInputResolution);
     expect(decision?.privateInputResolution?.decidedBy).toMatchObject({ humanId: 'alice' });
+    if (!decision) throw new Error('Missing private resolution');
+    await humanProjections(f, decision);
+    expect(decision?.author).toEqual({
+      kind: 'human',
+      humanId: alice.humanId,
+      displayName: 'alice',
+    });
     const page = await f.invoke(bob, 'channelMessages', { channelId: f.group.id });
     masked(page);
     expect(JSON.stringify(page)).not.toContain('SYNTHETIC_PRIVATE_VALUE');
@@ -899,7 +1067,10 @@ describe('M5 approval projections and decisions', () => {
     const humanStart = f.db.diagnostics().metrics.reads;
     f.team.approvals.project(
       bob,
-      ordinary.map((message) => ({ ...message, author: { kind: 'human' } })),
+      ordinary.map((message) => ({
+        ...message,
+        author: { kind: 'human', humanId: bob.humanId, displayName: 'bob' },
+      })),
       f.group.id,
     );
     expect(f.db.diagnostics().metrics.reads - humanStart).toBe(0);

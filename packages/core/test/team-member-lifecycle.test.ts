@@ -514,7 +514,8 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     const shared = f.core.channels.createGroup(owner, { name: 'Shared', members: [] });
     f.core.team.setPublic(owner, shared.id, true);
     f.core.team.joinPublic(alice, shared.id);
-    await f.core.channels.appendMessage(owner, shared.id, {
+    f.core.team.joinPublic(bob, shared.id);
+    await f.core.channels.appendMessage(bob, shared.id, {
       id: 'shared-author',
       at: new Date().toISOString(),
       author: { kind: 'human', humanId: 'bob', displayName: 'Bob' },
@@ -825,7 +826,8 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     writeFileSync(join(original.memory, 'private.md'), 'Bob private memory');
     writeFileSync(join(tobMemory, 'private.md'), 'Bob Tob memory');
     const shared = f.core.channels.createGroup(owner, { name: 'Shared', members: [] });
-    await f.core.channels.appendMessage(owner, shared.id, {
+    f.core.team.channelAccess.addMember(owner, shared.id, bob.humanId);
+    await f.core.channels.appendMessage(bob, shared.id, {
       id: 'shared',
       at: new Date().toISOString(),
       author: { kind: 'human', humanId: 'bob', displayName: 'Bob' },

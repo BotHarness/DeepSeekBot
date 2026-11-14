@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -555,7 +555,7 @@ describe('M9 Content Purge member deletion', () => {
       [shared.id, 'shared', 'shared body', []],
       [dm.id, 'private', 'private body', [file]],
     ] as const)
-      await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+      await f.channels.appendMessage(humanContext('bob-id'), channelId, {
         id,
         at: '2026-11-14T00:00:00.000Z',
         author: { kind: 'human', humanId: 'bob-id', displayName: 'Bob private name' },
@@ -675,7 +675,7 @@ describe('M9 Content Purge member deletion', () => {
   it('refuses a changed private scope and consumes the token even on a rejected confirmation', async () => {
     const f = await memberFixture();
     const preview = f.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
-    await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+    await f.channels.appendMessage(humanContext('bob-id'), f.dm.id, {
       id: 'late-private',
       at: '2026-11-14T00:00:01.000Z',
       author: { kind: 'human', humanId: 'bob-id' },
