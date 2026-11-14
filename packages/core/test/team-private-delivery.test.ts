@@ -8,6 +8,7 @@ import { activityListPushSource } from '../src/push/source.js';
 import { createActivityDelivery } from '../src/live-activity/delivery.js';
 import { OWNER_HUMAN_CONTEXT as owner, humanContext } from '../src/humans/context.js';
 import { createTempRoot } from './helpers.js';
+import { createPresence } from '../src/push/presence.js';
 
 const bob = humanContext('bob');
 const closes: Array<() => Promise<void>> = [];
@@ -59,6 +60,63 @@ function fixture() {
 }
 
 describe('per-Human device delivery', () => {
+  it('holds replies only for the active recipient Human and releases them independently', async () => {
+    const f = fixture();
+    const presence = createPresence();
+    const sent: ExpoMessage[] = [];
+    const push = createPushDelivery({
+      database: f.database,
+      source: activityListPushSource(
+        f.core.humanAttention,
+        (slug) => f.core.registry.get(slug)?.displayName,
+      ),
+      sender: {
+        async send(messages) {
+          sent.push(...messages);
+          return messages.map((_, i) => ({ status: 'ok', id: String(i) }));
+        },
+        async receipts() {
+          return {};
+        },
+      },
+      host: () => f.pairing.host(),
+      deviceActive: (id) => pairedDeviceHuman(f.database, id) !== undefined,
+      deviceHuman: (id) => pairedDeviceHuman(f.database, id),
+      held: (human) => presence.active(human),
+    });
+    const ownerToken = 'ExponentPushToken[ownerownerownerowner]';
+    const bobToken = 'ExponentPushToken[bobbobbobbobbobbobbob]';
+    push.register(f.ownerDevice, { token: ownerToken, platform: 'ios' });
+    push.register(f.bobDevice, { token: bobToken, platform: 'ios' });
+    try {
+      presence.report('active-owner', true, owner);
+      for (const human of [owner, bob]) {
+        const slug = human === owner ? 'owner-bot' : 'bob-bot';
+        await f.core.channels.appendMessage(human, 'dm-' + slug, {
+          id: 'reply-' + slug,
+          at: f.now,
+          author: { kind: 'bot', slug },
+          body: 'Reply for ' + slug,
+        });
+      }
+      await push.reconcile();
+      expect(
+        sent
+          .filter((message) => message.data.kind === 'channel-reply')
+          .map((message) => message.to),
+      ).toEqual([bobToken]);
+      presence.report('active-bob', true, bob);
+      presence.report('active-owner', false, owner);
+      await push.reconcile();
+      expect(
+        sent
+          .filter((message) => message.data.kind === 'channel-reply')
+          .map((message) => message.to),
+      ).toEqual([bobToken, ownerToken]);
+    } finally {
+      presence.dispose();
+    }
+  });
   it('routes each Activity item and badge only to devices bound to its Human, with one snapshot per Human', async () => {
     const f = fixture();
     const secondBobDevice = f.device('bob');

@@ -158,7 +158,7 @@ export interface PushDeliveryOptions {
   host(): { id: string; name: string };
   deviceActive(deviceId: string): boolean;
   deviceHuman?(deviceId: string): HumanContext | undefined;
-  held?: () => boolean;
+  held?: (human: HumanContext) => boolean;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   record?: (event: PushEvent) => void;
@@ -457,7 +457,6 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     if (devices.length === 0) return;
     const snapshots = new Map<string, ReturnType<PushSource['pending']>>();
     const hostId = options.host().id;
-    const held = options.held?.() === true;
     for (const device of devices) {
       const human = options.deviceHuman
         ? options.deviceHuman(device.device_id)
@@ -466,6 +465,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         dropToken(device.device_id, 'device-revoked');
         continue;
       }
+      const held = options.held?.(human) === true;
       let snapshot = snapshots.get(human.humanId);
       if (!snapshot) {
         snapshot = source.pending(human);

@@ -70,7 +70,7 @@ const PUSH_SWEEP_MS = 60_000;
 export interface DevicePushOptions {
   source: PushSource;
   watch(changed: () => void): () => void;
-  held?: () => boolean;
+  held?: (human: import('../humans/context.js').HumanContext) => boolean;
   sender?: ExpoSender;
 }
 

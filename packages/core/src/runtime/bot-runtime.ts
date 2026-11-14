@@ -851,13 +851,16 @@ export interface BotRuntime {
     shell?: boolean,
   ): string | undefined;
   reconcileMemoryChangesOnStartup?(): void;
-  retryDmMessage?(channelId: string, messageId: string): Promise<void>;
-  recoverDmMessage?(input: {
-    channelId: string;
-    failureMessageId: string;
-    action: SessionRecoveryAction;
-    compact(sessionId: string): Promise<boolean>;
-  }): Promise<void>;
+  retryDmMessage?(channelId: string, messageId: string, human?: HumanContext): Promise<void>;
+  recoverDmMessage?(
+    input: {
+      channelId: string;
+      failureMessageId: string;
+      action: SessionRecoveryAction;
+      compact(sessionId: string): Promise<boolean>;
+    },
+    human?: HumanContext,
+  ): Promise<void>;
   compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission;
 
@@ -2010,9 +2013,13 @@ class BotRuntimeImplementation implements BotRuntime {
     return { channelId: channel.id, messageId: input.messageId, reactions };
   }
 
-  async retryDmMessage(channelId: string, messageId: string): Promise<void> {
+  async retryDmMessage(
+    channelId: string,
+    messageId: string,
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
+  ): Promise<void> {
     const message = this.#retryableDmMessage(channelId, messageId);
-    const admission = this.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+    const admission = this.admitDmMessage(human, {
       channelId,
       messageId,
       body: message.body,
@@ -2170,12 +2177,15 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#autoContinues.set(botSlug, { ...pending, timer });
   }
 
-  async recoverDmMessage(input: {
-    channelId: string;
-    failureMessageId: string;
-    action: SessionRecoveryAction;
-    compact(sessionId: string): Promise<boolean>;
-  }): Promise<void> {
+  async recoverDmMessage(
+    input: {
+      channelId: string;
+      failureMessageId: string;
+      action: SessionRecoveryAction;
+      compact(sessionId: string): Promise<boolean>;
+    },
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
+  ): Promise<void> {
     const card = this.#channels.message(input.channelId, input.failureMessageId);
     const failure = card?.sessionFailure;
     const channel = this.#channels.get(input.channelId);
@@ -2195,7 +2205,13 @@ class BotRuntimeImplementation implements BotRuntime {
     const continuing = input.action === 'continue';
     const assertAllowed = () => {
       const bot = this.#registry.get(botSlug);
-      if (!bot || bot.paused || this.#closed)
+      if (
+        !bot ||
+        bot.paused ||
+        this.#closed ||
+        botOwner(bot) !== human.humanId ||
+        !this.#memberBotEnabled(bot)
+      )
         throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
       this.#requireExecution?.(botSlug);
       if (continuing) {
@@ -2265,7 +2281,7 @@ class BotRuntimeImplementation implements BotRuntime {
           );
         assertCurrent();
       }
-      await this.retryDmMessage(input.channelId, messageId);
+      await this.retryDmMessage(input.channelId, messageId, human);
     });
   }
 
@@ -8709,27 +8725,23 @@ class BotRuntimeImplementation implements BotRuntime {
     const sender = this.#registry.get(botSlug);
     if (sender === undefined || sender.paused === true)
       throw new Error('Bot Group sender is no longer active');
-    for (const id of channel.members) {
-      const target = this.#registry.get(id);
-      if (
-        target &&
-        botOwner(target) !== botOwner(sender) &&
-        resolveBotMentionText(input.body, [
-          { botSlug: target.slug, displayName: target.displayName, eligible: true },
-        ]).botSlugs.length
-      )
-        throw new TobError('bot-not-found');
-    }
     const explicitIds = input.mentionBotIds ?? [];
     if (explicitIds.length > 20 || explicitIds.some((id) => !isValidSlug(id)))
       throw new Error('Bot Group mentions require at most 20 valid Bot IDs');
     const typed = resolveBotMentionText(
       input.body,
-      this.#registry.list().map((bot) => ({
-        botSlug: bot.slug,
-        displayName: bot.displayName,
-        eligible: bot.slug !== botSlug && bot.paused !== true && channel.members.includes(bot.slug),
-      })),
+      channel.members.flatMap((id) => {
+        const bot = this.#registry.get(id);
+        return bot
+          ? [
+              {
+                botSlug: bot.slug,
+                displayName: bot.displayName,
+                eligible: bot.slug !== botSlug && bot.paused !== true,
+              },
+            ]
+          : [];
+      }),
     );
     const ids = [...new Set([...explicitIds, ...typed.botSlugs])];
     if (ids.length > 20) throw new Error('Bot Group mentions require at most 20 valid Bot IDs');
