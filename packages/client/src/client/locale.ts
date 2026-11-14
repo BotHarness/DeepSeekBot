@@ -4,6 +4,16 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'environment.title': '环境',
+  'environment.scope': '浏览环境',
+  'environment.manageNamed': '管理 {name}',
+  'environment.moreNamed': '{name} 的更多操作',
+  'environment.settings': '设置',
+  'environment.reconnect': '重新连接',
+  'environment.loading': '正在加载',
+  'environment.offline': '离线',
+  'environment.partial': '未读数量尚未完整加载',
+  'environment.unavailable': '未读数量暂时不可用',
   'connect.health.connectorReady': '连接组件已建立',
   'connect.health.connectorHint': '已连接至隧道服务。公网可用性见下方自检。',
   'connect.health.title': '连接自检',
@@ -2656,6 +2666,7 @@ export const zh = {
   'main.localChat': '本地对话',
   'main.localChat.with': '这是与 {name} 的本地对话',
   'main.localChat.hint': '直接发消息即可；Bot 会自行安排事项，并在这里回复结果。',
+  'main.humanChat.hint': '发条消息，开始聊天。',
   'main.group.title': '群聊',
   'main.activity.bots': '{count} 个 Bot 有状态更新',
   'main.activity.more': '另有 {count} 个',
@@ -5529,6 +5540,16 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'environment.title': 'Environments',
+  'environment.scope': 'Browse environments',
+  'environment.manageNamed': 'Manage {name}',
+  'environment.moreNamed': 'More for {name}',
+  'environment.settings': 'Settings',
+  'environment.reconnect': 'Reconnect',
+  'environment.loading': 'Loading',
+  'environment.offline': 'Offline',
+  'environment.partial': 'Unread count is incomplete',
+  'environment.unavailable': 'Unread count unavailable',
   'connect.health.connectorReady': 'Connection component established',
   'connect.health.connectorHint':
     'Connected to the tunnel service. See the public connection check below.',
@@ -8346,6 +8367,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.restoreBlocked':
     'Finish or clear the current draft before restoring the failed message.',
   'main.localChat.hint': 'Just send a message; the Bot schedules work and replies here.',
+  'main.humanChat.hint': 'Send a message to start chatting.',
   'main.group.title': 'Group chat',
   'main.activity.bots': '{count} Bots have updates',
   'main.activity.more': '+{count} more',

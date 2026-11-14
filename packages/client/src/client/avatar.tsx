@@ -3,6 +3,7 @@ import { attentionCount } from './activity-attention.js';
 import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { useTobBot, useTobDefaultIcon } from './tob-presentation.js';
+import { useHostImage } from './host-image.js';
 
 import type {
   PersonaBotAttention,
@@ -347,7 +348,7 @@ export function PersonaBotAvatar({
   const tobIcon = useTobDefaultIcon(preview ? undefined : personaBotId);
   const tob = useTobBot(preview ? undefined : personaBotId);
   const name = tob?.displayName ?? inputName;
-  const src = tob ? tob.avatar : inputSrc;
+  const src = useHostImage(tob ? tob.avatar : inputSrc);
   const appearance = tob ? tob.appearance : inputAppearance;
   const avatarSeed = tob ? tob.avatarSeed : inputAvatarSeed;
   const resolvedEffect =

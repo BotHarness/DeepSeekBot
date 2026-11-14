@@ -8,6 +8,13 @@ export function isHumanReadOnlyDmChannel(channel: ChannelSummary | undefined): b
   return channel?.type === 'dm' && channel.botSlug === undefined && !isHumanDmChannel(channel);
 }
 
+export function hasChannelBots(channel: ChannelSummary | undefined): boolean {
+  return (
+    channel !== undefined &&
+    (channel.botSlug !== undefined || channel.remoteBot !== undefined || channel.members.length > 0)
+  );
+}
+
 export function isBotDmChannel(channel: ChannelSummary | undefined): boolean {
   return (
     channel?.type === 'dm' &&

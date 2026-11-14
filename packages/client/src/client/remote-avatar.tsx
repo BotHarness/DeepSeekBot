@@ -6,6 +6,8 @@ import { GroupChannelIcon, type GroupAvatarBot } from './group-avatar-stack.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { RemoteConversationTarget } from './remote-hosts.js';
 import type { RemoteBotActivity } from './remote-host-activity.js';
+import { remoteHumanDmChannels } from './environment-channels.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 
 function avatarBot(bot: RosterBot, avatars: ReadonlyMap<string, string>): GroupAvatarBot {
   const avatar = bot.avatarUrl === undefined ? undefined : avatars.get(bot.avatarUrl);
@@ -34,6 +36,12 @@ export function RemoteAvatar({
   t: BotHarnessTranslate;
 }): ReactElement | null {
   if (target.channelId !== undefined) {
+    if (remoteHumanDmChannels(roster).some((channel) => channel.id === target.channelId))
+      return (
+        <span className="bh-channel-slot" aria-hidden="true">
+          <ChannelSidebarIcon name="user" size={18} />
+        </span>
+      );
     const channel = roster?.channels.find((entry) => entry.id === target.channelId);
     if (channel === undefined) return null;
     return (

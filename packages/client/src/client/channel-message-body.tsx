@@ -52,7 +52,8 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
 import { messagePerfView } from './message-perf.js';
-import { store, type BotSummary, type ChannelMessage } from './store.js';
+import { type BotSummary, type ChannelMessage } from './store.js';
+import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { GenuiReportCard } from './genui-report.js';
 import { GenuiDocumentCard } from './genui-document.js';
@@ -502,6 +503,7 @@ export function ChannelMessageBody({
     | undefined;
   userQuestionResolution?: 'answered' | 'cancelled' | undefined;
 }): ReactElement {
+  const store = useConversationStore();
   const labels = useMemo<MarkdownLabels>(
     () => ({
       code: {
