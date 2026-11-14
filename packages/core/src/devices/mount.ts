@@ -393,6 +393,7 @@ export function mountDevicePairing(
           .map((route) => route.url),
     });
     webCtx.effect(() => {
+      relationshipControl.start();
       void relationshipControl
         .cleanupAcknowledgedAdmissions()
         .catch(() =>
