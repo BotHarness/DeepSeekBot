@@ -1,5 +1,4 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 
@@ -302,6 +301,8 @@ it('refuses Host Registry Purge in recovery mode before deleting the PersonaBot 
   const original = createCore({ dshHome: home });
   trackTestOwner(original.operationalDatabase);
   expect(original.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+  const memoryDir = original.registry.memoryDirFor('ada')!;
+  expect(existsSync(memoryDir)).toBe(true);
   original.operationalDatabase.close();
   const future = trackTestOwner(
     mountOperationalDatabase({
@@ -323,7 +324,7 @@ it('refuses Host Registry Purge in recovery mode before deleting the PersonaBot 
   expect(recovery.operationalDatabase.mode).toBe('recovery');
   expect(() => recovery.registry.remove('ada', { purge: true })).toThrow();
   expect(() => recovery.registry.get('ada')).toThrow();
-  expect(existsSync(join(recovery.registry.rootDir, 'ada'))).toBe(true);
+  expect(existsSync(memoryDir)).toBe(true);
   const database = new DatabaseSync(recovery.operationalDatabase.databasePath, { readOnly: true });
   try {
     const stored = database.prepare('SELECT body FROM persona_bots WHERE slug = ?').get('ada');

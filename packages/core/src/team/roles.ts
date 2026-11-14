@@ -264,6 +264,26 @@ export class TeamRoles {
     this.checkPermissions(authority, role.permissions, 'manage');
     if (role.builtin) throw new TeamError('role-builtin');
     if (
+      this.db.read((db) => {
+        if (
+          !db
+            .prepare(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'workspace_spaces'",
+            )
+            .get()
+        )
+          return false;
+        return (
+          db
+            .prepare(`SELECT 1 FROM workspace_spaces s, json_each(s.audience_json, '$.roleIds') r
+          WHERE s.kind = 'shared' AND json_extract(s.audience_json, '$.kind') = 'roles'
+          AND r.value = ? LIMIT 1`)
+            .get(roleId) !== undefined
+        );
+      })
+    )
+      throw new TeamError('role-in-use');
+    if (
       authority.kind === 'member' &&
       this.db.read((db) =>
         db

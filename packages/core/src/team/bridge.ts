@@ -1,3 +1,4 @@
+import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import { roleModelsSchema, PERMISSION_CATALOG } from './permissions.js';
 import {
   channelVisibilitySchema,
@@ -37,6 +38,38 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
     }
   };
   return {
+    spaces: (_payload: unknown) => call((service) => service.spaces.list(human)),
+    spaceCreate: (payload: unknown) =>
+      call((service) => {
+        const { name, audience } = z
+          .object({ name: z.string(), audience: spaceAudienceSchema })
+          .strict()
+          .parse(payload);
+        return service.spaces.create(human, name, audience);
+      }),
+    spaceUpdate: (payload: unknown) =>
+      call((service) => {
+        const { spaceId, ...patch } = z
+          .object({
+            spaceId: z.string(),
+            name: z.string().optional(),
+            audience: spaceAudienceSchema.optional(),
+          })
+          .strict()
+          .parse(payload);
+        return service.spaces.update(human, spaceId, {
+          ...(patch.name === undefined ? {} : { name: patch.name }),
+          ...(patch.audience === undefined ? {} : { audience: patch.audience }),
+        });
+      }),
+    spaceDelete: (payload: unknown) =>
+      call((service) => {
+        const { spaceId, confirm } = z
+          .object({ spaceId: z.string(), confirm: z.literal(true) })
+          .strict()
+          .parse(payload);
+        return service.spaces.delete(human, spaceId, confirm);
+      }),
     teamMode: (_payload: unknown) => call((service) => service.mode(human)),
     teamModeSet: (payload: unknown) =>
       call((service) =>

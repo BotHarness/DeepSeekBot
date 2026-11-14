@@ -18,8 +18,8 @@ async function call(tools: readonly ToolDefinition[], name: string, args: unknow
 describe('Trusted Channel attachment file Tools', () => {
   it('checks exact source association, current membership and destination authority before file access; sends only imported results', async () => {
     const home = realpathSync(createTempRoot('bh-trusted-file-tools-'));
-    const project = join(home, 'project');
-    mkdirSync(project);
+    const project = join(home, 'spaces/local-human/project');
+    mkdirSync(project, { recursive: true });
     let sourceId = '';
     let joinedId = '';
     let hiddenId = '';

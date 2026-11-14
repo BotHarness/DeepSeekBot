@@ -14,6 +14,7 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { TeamUsageSection } from './team-usage-section.js';
 import { USAGE_VIEW } from './team-usage.js';
 import { useMountedResource } from './mounted-resource.js';
+import { SpacesSection } from './team-spaces.js';
 import {
   TEAM_ENTRY_PATH,
   TEAM_PASSWORD_MIN_LENGTH,
@@ -123,6 +124,13 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'channel-post-restricted': 'team.error.channelPostRestricted',
   'channel-mention-restricted': 'team.error.channelMentionRestricted',
   'stale-channel-policy': 'team.error.staleChannelPolicy',
+  'space-name-taken': 'team.error.spaceNameTaken',
+  'space-not-empty': 'team.error.spaceNotEmpty',
+  'space-not-found': 'team.error.spaceNotFound',
+  'grant-foreign-space': 'team.error.grantForeignSpace',
+  'grant-protected-path': 'team.error.grantProtectedPath',
+  'grant-outside-audience': 'team.error.grantOutsideAudience',
+  'role-in-use': 'team.error.roleInUse',
   'model-not-allowed': 'team.error.modelNotAllowed',
 };
 
@@ -228,6 +236,15 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
   const viewer = view.viewer;
   const manageMembers = canManage(viewer, MANAGE_MEMBERS);
   const manageRoles = canManage(viewer, MANAGE_ROLES);
+  const spacesView = view.enabled ? (
+    <SpacesSection
+      call={call}
+      t={t}
+      canManageShared={canManage(viewer, 'workspaces.manageShared')}
+      roles={roles}
+      members={members ?? []}
+    />
+  ) : null;
   const usage =
     view.enabled && canManage(viewer, USAGE_VIEW) ? <TeamUsageSection call={call} t={t} /> : null;
   const sheetMember =
@@ -366,6 +383,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
           {rowError === undefined ? null : <Note tone="danger">{rowError}</Note>}
         </SettingsSection>
         {admin}
+        {spacesView}
         {usage}
         {dialog?.kind === 'my-devices' ? (
           <MyDevicesDialog
@@ -462,6 +480,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
       ) : null}
 
       {admin}
+      {spacesView}
       {usage}
 
       {dialog?.kind === 'owner-password' ? (

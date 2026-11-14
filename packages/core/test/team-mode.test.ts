@@ -626,11 +626,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   it('keeps the shared member-method contract dependency-free and its denials explicit', () => {
     const source = readFileSync(new URL('../src/team/member-methods.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/\bimport\b/u);
-    expect([...MEMBER_METHODS]).toEqual([
-      ...MEMBER_GLOBAL_METHODS,
-      ...MEMBER_CHANNEL_METHODS,
-      ...MEMBER_BOT_METHODS,
-    ]);
+    expect(MEMBER_METHODS).toEqual(
+      new Set([...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS, ...MEMBER_BOT_METHODS]),
+    );
+    expect(MEMBER_CHANNEL_METHODS).toContain('grantRequestApprove');
+    expect(MEMBER_BOT_METHODS).toContain('grantRequestApprove');
     expect(MEMBER_METHODS.has('composerIdentity')).toBe(true);
     for (const method of ['dataReset']) expect(MEMBER_METHODS.has(method)).toBe(false);
     for (const method of ['teamModeSet', 'members', 'roles', 'create', 'createLookup'])

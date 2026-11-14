@@ -1,4 +1,9 @@
 export const MEMBER_GLOBAL_METHODS = [
+  'spaces',
+  'spaceCreate',
+  'spaceUpdate',
+  'spaceDelete',
+  'workspaceOptions',
   'teamMode',
   'modelsAllowed',
   'modelCatalog',
@@ -66,6 +71,7 @@ export const MEMBER_GLOBAL_METHODS = [
 ] as const;
 
 export const MEMBER_CHANNEL_METHODS = [
+  'grantRequestApprove',
   'channelRoleDirectory',
   'channelRename',
   'channelGroupAvatarSet',
@@ -92,6 +98,12 @@ export const MEMBER_CHANNEL_METHODS = [
 ] as const;
 
 export const MEMBER_BOT_METHODS = [
+  'grantRequestApprove',
+  'grants',
+  'grantCreate',
+  'grantRevoke',
+  'grantWriteSet',
+  'workspaceFileTarget',
   'get',
   'update',
   'pause',
