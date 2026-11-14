@@ -67,7 +67,11 @@ it('retires a late initiation after the user cancels without issuing a client gr
     expect(await result).toEqual({ ok: false, code: 'cancelled' });
     expect(enrollment).not.toHaveBeenCalled();
     expect(requests).toHaveLength(2);
-    expect(requests[1]).toEqual({ action: 'disconnect', id: 'r'.repeat(32), confirm: true });
+    expect(requests[1]).toEqual({
+      action: 'cancel',
+      id: 'r'.repeat(32),
+      confirm: true,
+    });
   } finally {
     source.close();
   }

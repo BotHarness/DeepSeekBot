@@ -1,3 +1,4 @@
+import type { createConnectHealth, ConnectHealthStatus } from './connect-health.js';
 import type { DirectPeers } from './direct.js';
 import type {
   PrivateConnection,
@@ -56,6 +57,7 @@ export interface DevicesSnapshot {
   routes: RouteStatus;
   connect: ConnectStatus & {
     account?: AccountStatus;
+    health?: ConnectHealthStatus;
     encryption?: EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' };
   };
 }
@@ -132,6 +134,7 @@ export function createDevicesHttp(options: {
   publish?: () => Promise<PublishRouteResult>;
   unpublish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
+  connectHealth?: Pick<ReturnType<typeof createConnectHealth>, 'status' | 'check'>;
   account?: Pick<
     ConnectAccount,
     'status' | 'signIn' | 'signOut' | 'connectedHosts' | 'revokeConnectedHost'
@@ -142,6 +145,11 @@ export function createDevicesHttp(options: {
   const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
+    if (path === `${DEVICES_PATH}/connect-health` && request.method === 'POST') {
+      if (!options.connectHealth) return json({ code: 'not-ready' }, 409);
+      return json({ health: await options.connectHealth.check() });
+    }
+
     if (path === DEVICES_PATH + '/private' && request.method === 'POST') {
       const input = await body(request);
       if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
@@ -239,6 +247,7 @@ export function createDevicesHttp(options: {
         routes: await options.routes(),
         connect: {
           ...(connect?.status() ?? { state: 'off' }),
+          ...(options.connectHealth ? { health: options.connectHealth.status() } : {}),
           ...(options.encryption === undefined ? {} : { encryption: await options.encryption() }),
           ...(account === undefined ? {} : { account: account.status() }),
         },

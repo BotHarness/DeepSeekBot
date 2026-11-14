@@ -938,6 +938,7 @@ function parseAuthor(value: unknown): ChannelAuthor | undefined {
         kind: 'human',
         ...(typeof humanId === 'string' && humanId.length > 0 ? { humanId } : {}),
         ...(typeof displayName === 'string' && displayName.length > 0 ? { displayName } : {}),
+        ...(record['deleted'] === true ? { deleted: true } : {}),
       };
     }
     case 'system':
