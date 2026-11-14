@@ -68,6 +68,61 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('keeps other enrollment work moving around an unavailable Host and cancels pending work on sign-out', async () => {
+  vi.useFakeTimers();
+  const source = createRemoteHosts({ storage: memoryStorage(), carrier });
+  const relationships = ['b', 'c', 'd'].map((id) => ({
+    ...relationship(id),
+    state: 'active',
+    direction: 'incoming',
+    expiresAt: Date.now() + 60_000,
+    peerRevocationPending: false,
+    accountOrigin: {
+      accountId: 'account',
+      localRegistrationId: 'haaaaaaaaaaaa',
+      peerRegistrationId: 'hbbbbbbbbbbbb',
+    },
+  }));
+  let signedOut = false;
+  const request = vi.fn(async () =>
+    signedOut
+      ? { state: 'signed-out', relationships: [] }
+      : { state: 'complete', generation: 'current-account', relationships },
+  );
+  let pendingSignal: AbortSignal | undefined;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const enroll = vi
+    .spyOn(source, 'enrollRelationship')
+    .mockImplementation(async (item, _name, signal) => {
+      if (item.peer.id === 'b') {
+        pendingSignal = signal;
+        await held;
+      }
+      return { ok: false, code: 'unreachable' };
+    });
+  const stop = startAccountEnvironments({ sources: source, clientName: 'Desktop', request });
+  try {
+    await vi.advanceTimersByTimeAsync(0);
+    expect(enroll.mock.calls.map(([item]) => item.peer.id)).toEqual(['b', 'c']);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(enroll.mock.calls.map(([item]) => item.peer.id)).toEqual(['b', 'c', 'd']);
+    signedOut = true;
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(pendingSignal?.aborted).toBe(true);
+    expect(pendingSignal?.reason).toBe('account-changed');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(enroll).toHaveBeenCalledTimes(3);
+  } finally {
+    stop();
+    release();
+    await held;
+    vi.useRealTimers();
+  }
+});
+
 it('preserves independent routes committed while verified route learning waits for credential coordination', async () => {
   const storage = memoryStorage();
   const { relationshipEnrollment: _pending, ...saved } = grant().host;
