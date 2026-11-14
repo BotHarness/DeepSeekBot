@@ -176,6 +176,13 @@ it('prepares an approved relationship return route without phone onboarding or a
     './api/botharness/devices/lan',
     './api/botharness/devices/offer',
   ]);
+  await click(t('relationships.prepareRoute'));
+  await click(t('connections.lan'));
+  expect(host.querySelector('[data-pair-qr]')).toBeNull();
+  expect(posts.map((item) => item.url)).toEqual([
+    './api/botharness/devices/lan',
+    './api/botharness/devices/offer',
+  ]);
 });
 
 it('shows independent LAN and Tailscale choices without publishing or offering loopback', async () => {

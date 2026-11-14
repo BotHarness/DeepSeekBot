@@ -98,6 +98,17 @@ it('keeps destructive disconnect confirmation and private enrollment output mand
   });
 });
 
+it('can cancel only a pending relationship without permitting active revocation', async () => {
+  const { http, connect } = fixture();
+  await expect(runRelationshipCommand(['cancel', id], {}, connect)).rejects.toThrow('confirm');
+  await runRelationshipCommand(['cancel', id], { confirm: true }, connect);
+  expect(http).toHaveBeenCalledWith('/api/botharness/relationships', {
+    action: 'cancel',
+    id,
+    confirm: true,
+  });
+});
+
 it('rejects invalid Client names before connecting or creating credentials', async () => {
   const { http, connect } = fixture();
   for (const name of ['', ' ', 'x'.repeat(61)]) {

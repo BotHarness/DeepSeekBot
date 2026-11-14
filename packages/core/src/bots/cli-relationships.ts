@@ -18,7 +18,7 @@ export const RELATIONSHIP_COMMANDS = [
   {
     command: 'relationships',
     description:
-      'list, initiate, approve, sync, route, enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
+      'list, initiate, approve, sync, route, enroll, cancel or disconnect reciprocal Hosts; independent device keys stay in private files',
   },
 ] as const;
 const PATH = '/api/botharness/relationships';
@@ -39,15 +39,17 @@ export async function runRelationshipCommand(
   const [action, id, publicKey] = rest;
   if (
     !action ||
-    !['list', 'initiate', 'approve', 'sync', 'route', 'enroll', 'disconnect'].includes(action)
+    !['list', 'initiate', 'approve', 'sync', 'route', 'enroll', 'cancel', 'disconnect'].includes(
+      action,
+    )
   )
     throw new CliLiveError(
       'usage',
-      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, or disconnect <id>.',
+      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, cancel <id>, or disconnect <id>.',
     );
   if (rest.length !== (action === 'list' ? 1 : action === 'approve' ? 3 : 2))
     throw new CliLiveError('usage', 'Invalid relationship arguments.');
-  if (['initiate', 'approve', 'disconnect'].includes(action) && values.confirm !== true)
+  if (['initiate', 'approve', 'cancel', 'disconnect'].includes(action) && values.confirm !== true)
     throw new CliLiveError(
       'confirm-required',
       'Confirm the named reciprocal relationship with --confirm.',
@@ -172,7 +174,7 @@ export async function runRelationshipCommand(
     id,
     ...(action === 'approve'
       ? { confirmedKey: publicKey, confirm: true }
-      : action === 'disconnect'
+      : action === 'disconnect' || action === 'cancel'
         ? { confirm: true }
         : {}),
   });

@@ -648,6 +648,7 @@ export function PairedDevicesSettings({
         <RelationshipSettings
           t={t}
           onPrepareRoute={() => {
+            close();
             preparingRelationshipRoute.current = true;
             setSetup('method');
           }}

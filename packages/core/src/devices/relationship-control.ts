@@ -505,8 +505,10 @@ export function createRelationshipControl(options: {
         expiresAt: response['expiresAt'],
       };
     },
-    async disconnect(relationshipId: string) {
+    async disconnect(relationshipId: string, condition: { pendingOnly?: boolean } = {}) {
       const prior = readRelationship(relationshipId);
+      if (condition.pendingOnly && prior.state === 'active')
+        throw new RelationshipRefused('relationship-already-active');
       if (prior.state === 'disconnected' && !prior.peerRevocationPending) {
         await admissions.forget(relationshipId);
         return prior;

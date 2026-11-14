@@ -11,6 +11,8 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ### Reciprocal computer relationships
 
+`relationships cancel <id> --confirm` cancels a proposal only while the owning Host still considers it pending. If a lost sync reply hid activation, it refuses with `relationship-already-active` and leaves the approved relationship and grants intact. The browser uses this condition when cleaning up cancelled enrollment; an unavailable cleanup response never triggers an unconditional retry.
+
 Private tunnels also support the browser Client through the same existing route admission and pinned Noise channel. The browser sends admission as a WebSocket subprotocol, and the ingress consumes it before forwarding only a fixed public protocol. No token enters the URL. The Docker private relay needs the matching server upgrade for browser access; this feature does not deploy or update a running relay. Older servers refuse that browser handshake while native/CLI header access remains unchanged.
 
 With `route --device-file`, the authenticated Host verifies the new link before the CLI atomically replaces that private Client file. A manual route preference omitted by the new routes returns `relationship-route-preference-unavailable` and leaves the file intact. The command never prints the device credential, key or route admission.

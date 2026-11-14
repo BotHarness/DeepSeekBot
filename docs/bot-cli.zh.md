@@ -11,6 +11,8 @@
 
 ### 电脑双向关系
 
+`relationships cancel <关系ID> --confirm` 仅在所属 Host 仍将关系视为待批准时取消提议。同步回复丢失但关系已激活时，返回 `relationship-already-active`，保留已批准关系及授权。浏览器取消登记时使用相同条件；清理回复不可用时不改为无条件重试。
+
 私有隧道的浏览器 Client 复用原有线路准入与固定身份的 Noise 通道。浏览器通过 WebSocket 子协议传递准入，入口消费该信息后只转发固定的公开协议标记，token 不进入 URL。Docker 私有中继需要升级到匹配的服务端版本才能支持浏览器；本功能不会部署或更新运行中的中继。旧服务端拒绝该浏览器握手，原生与 CLI 的请求头通路保持原样。
 
 使用 `route --device-file` 时，已认证的 Host 先验证新链接，CLI 再原子替换该 Client 的私密文件。新线路不含手动选定的线路时，返回 `relationship-route-preference-unavailable`，保留原文件。命令不输出设备凭据、密钥或线路准入信息。
