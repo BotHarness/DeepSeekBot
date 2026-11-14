@@ -720,6 +720,10 @@ const MessageGroupView = memo(function MessageGroupView({
   const nameColor =
     nameSource === undefined ? undefined : botNameColor(nameSource, surface.background);
   const dm = currentDmBotSlug !== undefined;
+  const foreignBot =
+    author.kind === 'bot' && displayBot === undefined && !dm
+      ? { slug: author.slug, name: author.displayName ?? t('team.someBot') }
+      : undefined;
   const avatar =
     dm || displayBot === undefined ? undefined : (
       <PersonaBotAvatar
@@ -786,6 +790,27 @@ const MessageGroupView = memo(function MessageGroupView({
       style={bubbleStyle}
       ref={surface.probe}
     >
+      {otherHuman && !dm ? (
+        <span className="bh-message-group-avatar">
+          {withAuthorCard(
+            <span className="bh-message-human-avatar" aria-hidden="true">
+              {authorName.slice(0, 1)}
+            </span>,
+          )}
+        </span>
+      ) : null}
+      {foreignBot === undefined ? null : (
+        <span className="bh-message-group-avatar" aria-hidden="true">
+          <PersonaBotAvatar
+            t={t}
+            personaBotId={foreignBot.slug}
+            name={foreignBot.name}
+            size={28}
+            indicator={false}
+            nativeTitle={false}
+          />
+        </span>
+      )}
       {avatar === undefined || author.kind !== 'bot' ? null : (
         <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(

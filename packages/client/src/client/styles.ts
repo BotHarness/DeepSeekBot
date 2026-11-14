@@ -4375,6 +4375,17 @@ ${STAMP_ME_SPACERS} {
 .bh-delivery-legend-human-unread {
   color: var(--dsw-alias-label-secondary);
 }
+.bh-message-human-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: ${radius.round};
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font-size: ${text.bodySize};
+  font-weight: ${text.strong};
+}
 .bh-delivery-human-avatar {
   display: grid;
   place-items: center;
