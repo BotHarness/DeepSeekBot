@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { parse } from 'yaml';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
 const marker = '.botharness-copy-imports.json';
@@ -42,6 +43,20 @@ export function reuseLegacyDependencies(directory, expectedManifest) {
   if (!existsSync(join(directory, 'node_modules')) || state === 'complete') return false;
   const installed = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
   if (!isDeepStrictEqual(installed, expectedManifest)) refuseLegacyUpdate();
+  let importer;
+  try {
+    importer = parse(readFileSync(join(directory, 'node_modules', '.pnpm', 'lock.yaml'), 'utf8'))
+      ?.importers?.['.'];
+  } catch {
+    refuseLegacyUpdate();
+  }
+  if (!importer) refuseLegacyUpdate();
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    const specifiers = Object.fromEntries(
+      Object.entries(importer[field] ?? {}).map(([name, entry]) => [name, entry?.specifier]),
+    );
+    if (!isDeepStrictEqual(specifiers, expectedManifest[field] ?? {})) refuseLegacyUpdate();
+  }
   return true;
 }
 

@@ -1,3 +1,4 @@
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -10,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   apply,
+  createCore,
   inject,
   mountOperationalDatabase,
   name,
@@ -53,7 +55,7 @@ afterEach(async () => {
 });
 
 function createStubContext(): { ctx: Context; stubs: Stubs } {
-  const ctx = new Context();
+  const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
   contexts.push(ctx);
   const stubs: Stubs = {
     tools: { register: vi.fn(() => () => undefined), guard: vi.fn(() => () => undefined) },
@@ -77,6 +79,31 @@ function logsSkill(stubs: { skills: { register: { mock: { calls: unknown[][] } }
 }
 
 describe('plugin entry', () => {
+  it('uses the canonical Team Owner for the Core live hub after transfer', async () => {
+    const core = createCore({ dshHome: createTempRoot('core-live-owner-') });
+    try {
+      await core.team.setOwnerPassword(OWNER_HUMAN_CONTEXT, 'owner-password-1');
+      await core.team.setMode(OWNER_HUMAN_CONTEXT, true);
+      const created = await core.team.createMember(OWNER_HUMAN_CONTEXT, 'bob', 'Bob');
+      const human = humanContext(created.member.humanId);
+      await core.team.changePassword(human, created.initialPassword, 'member-password-1');
+      const channel = core.channels.createGroup(human, { name: 'Private', members: [] });
+      if (!channel) throw new Error('missing DM');
+      const request = () =>
+        new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}`);
+      const before = core.live.open(OWNER_HUMAN_CONTEXT, request());
+      await before.body?.cancel();
+      expect(before.status).toBe(200);
+      await core.team.transferOwner(OWNER_HUMAN_CONTEXT, human.humanId, 'owner-password-1');
+      const after = core.live.open(OWNER_HUMAN_CONTEXT, request());
+      await after.body?.cancel();
+      expect(after.status).toBe(404);
+    } finally {
+      core.live.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it.each([
     ['browser', 'browser_open', 'browser_observe', 'botharnessBrowserTools'],
     ['computer', 'computer_click', 'computer_type_text', 'botharnessComputerTools'],
@@ -152,19 +179,34 @@ describe('plugin entry', () => {
         const owner = tracked.mock.contexts.at(-1);
         if (!(owner instanceof ChannelToolApproval)) throw new Error('Missing approval owner');
         await vi.waitFor(() => expect(owner.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'allowed-always-tool');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'allowed-always-tool',
+        );
         expect(await first).toEqual({ kind: 'allow' });
         expect(markAuthorized).not.toHaveBeenCalled();
         expect(await run(toolName, 'repeat')).toEqual({ kind: 'allow' });
         const sibling = run(siblingName, 'sibling');
         await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'rejected',
+        );
         expect(await sibling).toMatchObject({ kind: 'deny' });
         const rule = core.toolRules.list('ada').find((rule) => rule.toolName === toolName)!;
         core.toolRules.revoke('ada', rule.id);
         const revoked = run(toolName, 'revoked');
         await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'rejected',
+        );
         expect(await revoked).toMatchObject({ kind: 'deny' });
         expect(markAuthorized).not.toHaveBeenCalled();
       } finally {
@@ -568,6 +610,26 @@ describe('plugin entry', () => {
     expect(
       remoteMethods(bridge as object).map((marker) => marker.exportName ?? marker.method),
     ).toEqual([
+      'teamMode',
+      'teamModeSet',
+      'teamOwnerPasswordSet',
+      'teamInsecureHttpSet',
+      'members',
+      'memberCreate',
+      'permissionCatalog',
+      'roles',
+      'roleCreate',
+      'roleUpdate',
+      'roleDelete',
+      'memberRolesSet',
+      'memberDevices',
+      'memberDeviceRevoke',
+      'ownerTransfer',
+      'memberPasswordChange',
+      'memberPasswordReset',
+      'publicChannels',
+      'publicChannelJoin',
+      'channelPublicSet',
       'privateInputStatus',
       'privateInputSubmit',
       'privateInputCancel',

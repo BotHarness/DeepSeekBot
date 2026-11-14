@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -21,17 +22,17 @@ describe('Human personal replies', () => {
     try {
       for (const slug of ['ada', 'bea']) core.registry.create({ slug, displayName: slug });
       const channels = ['Launch', 'Release'].map((name) =>
-        core.channels.createGroup({ name, members: ['ada', 'bea'] }),
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name, members: ['ada', 'bea'] }),
       );
       for (const [index, channel] of channels.entries()) {
-        await core.channels.appendMessage(channel.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
           id: 'human-plan',
           at: '2026-10-01T01:00:00Z',
           author: { kind: 'human' },
           body: 'Review.',
         });
         for (const slug of ['ada', 'bea'])
-          await core.channels.appendMessage(channel.id, {
+          await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
             id: 'reply-' + slug,
             at: new Date(Date.UTC(2026, 9, 1, 1, index + 1)).toISOString(),
             author: { kind: 'bot', slug },
@@ -39,13 +40,13 @@ describe('Human personal replies', () => {
             replyTo: 'human-plan',
           });
       }
-      const all = core.humanAttention.list({ category: 'replies' }).items;
+      const all = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items;
       expect(all).toHaveLength(4);
       expect(all.slice(0, 2).every((item) => item.channelId === channels[1]!.id)).toBe(true);
       const ids: string[] = [];
       let cursor: string | undefined;
       do {
-        const page = core.humanAttention.list({
+        const page = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
           category: 'replies',
           limit: 1,
           ...(cursor === undefined ? {} : { cursor }),
@@ -54,17 +55,24 @@ describe('Human personal replies', () => {
         cursor = page.nextCursor;
       } while (cursor !== undefined);
       expect(ids).toEqual(all.map((item) => item.id));
-      const first = core.humanAttention.list({ category: 'replies', limit: 1 });
+      const first = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+        category: 'replies',
+        limit: 1,
+      });
       if (first.nextCursor === undefined) throw new Error('Expected another reply page');
       const firstCursor = first.nextCursor;
       expect(() =>
-        core.humanAttention.list({ category: 'replies', botSlug: 'ada', cursor: firstCursor }),
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+          category: 'replies',
+          botSlug: 'ada',
+          cursor: firstCursor,
+        }),
       ).toThrow('filters');
-      expect(() => core.humanAttention.list({ category: 'unread', cursor: firstCursor })).toThrow(
-        'filters',
-      );
+      expect(() =>
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', cursor: firstCursor }),
+      ).toThrow('filters');
       expect(
-        core.humanAttention.list({
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
           category: 'replies',
           botSlug: 'bea',
           channelId: channels[0]!.id,
@@ -80,21 +88,26 @@ describe('Human personal replies', () => {
     const core = createCore({ dshHome: createTempRoot('botharness-reply-visibility-'), agents });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const channel = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      await core.channels.appendMessage(channel.id, {
+      const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: 'human-plan',
         at: '2026-10-01T01:00:00Z',
         author: { kind: 'human' },
         body: 'Review.',
       });
-      await core.channels.appendMessage(channel.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: 'reply',
         at: '2026-10-01T01:01:00Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'Reviewed.',
         replyTo: 'human-plan',
       });
-      expect(core.humanAttention.list({ category: 'replies' }).items).toHaveLength(1);
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items,
+      ).toHaveLength(1);
       const database = attachOperationalModule(core.operationalDatabase, 'channels');
       database.transaction((db) =>
         db
@@ -103,10 +116,12 @@ describe('Human personal replies', () => {
           )
           .run(channel.id),
       );
-      expect(core.humanAttention.list({ category: 'replies' }).items).toEqual([]);
-      expect(core.humanAttention.list({ category: 'unread' }).items).toMatchObject([
-        { messageId: 'reply', unreadCount: 1 },
-      ]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items).toEqual(
+        [],
+      );
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+      ).toMatchObject([{ messageId: 'reply', unreadCount: 1 }]);
       database.transaction((db) =>
         db
           .prepare(
@@ -114,15 +129,19 @@ describe('Human personal replies', () => {
           )
           .run('2026-10-01T01:02:00Z', channel.id),
       );
-      expect(core.humanAttention.list({ category: 'replies' }).items).toEqual([]);
-      expect(core.humanAttention.status().unreadCount).toBe(0);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items).toEqual(
+        [],
+      );
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(0);
       database.transaction((db) =>
         db
           .prepare('UPDATE channel_human_members SET left_at = NULL WHERE channel_id = ?')
           .run(channel.id),
       );
       core.channels.deleteGroup(channel.id);
-      expect(core.humanAttention.list({ category: 'replies' }).items).toEqual([]);
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items).toEqual(
+        [],
+      );
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -136,10 +155,13 @@ describe('Human personal replies', () => {
     let groupId = '';
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Launch', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Launch',
+        members: ['ada'],
+      });
       groupId = group.id;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(group.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-plan',
         at: '2026-10-01T01:00:00Z',
         author: { kind: 'human' },
@@ -150,18 +172,18 @@ describe('Human personal replies', () => {
         { id: 'ordinary', body: 'General status.' },
         { id: 'bot-reply', body: 'Replying to Ada.', replyTo: 'personal' },
       ].entries())
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           ...message,
           at: new Date(Date.UTC(2026, 9, 1, 1, 1, index)).toISOString(),
           author: { kind: 'bot', slug: 'ada' },
         });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'private-update',
         at: '2026-10-01T01:02:00Z',
         author: { kind: 'bot', slug: 'ada' },
         body: 'Private update.',
       });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const response = methods.humanAttention({ category: 'replies' });
       expect(response).toMatchObject({
         ok: true,
@@ -182,9 +204,13 @@ describe('Human personal replies', () => {
       });
       if (!response.ok) throw new Error('Replies failed');
       expect(response.value.items).toHaveLength(1);
-      expect(core.humanAttention.status()).toEqual({ unreadCount: 4, hasAction: false });
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+        unreadCount: 4,
+        hasAction: false,
+      });
       expect(
-        core.humanAttention.list({ category: 'unread', channelId: group.id }).items,
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', channelId: group.id })
+          .items,
       ).toMatchObject([{ unreadCount: 2, messageId: 'bot-reply' }]);
       expect(methods.humanAttention({ category: 'replies', botSlug: 'bea' })).toMatchObject({
         ok: true,
@@ -194,8 +220,8 @@ describe('Human personal replies', () => {
         ok: true,
         value: { items: [] },
       });
-      await core.channels.markRead(group.id, 'personal');
-      expect(core.humanAttention.status().unreadCount).toBe(3);
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'personal');
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(3);
       const readReply = methods.humanAttention({ category: 'replies' });
       expect(readReply).toMatchObject({
         ok: true,
@@ -209,12 +235,16 @@ describe('Human personal replies', () => {
     }
     const resumed = createCore({ dshHome: home, agents });
     try {
-      expect(createBridgeMethods({ ...resumed }).humanAttention({ category: 'replies' })).toEqual({
+      expect(
+        createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...resumed }).humanAttention({
+          category: 'replies',
+        }),
+      ).toEqual({
         ok: true,
         value: expected,
       });
       expect(resumed.channels.readMessages(groupId)).toHaveLength(4);
-      expect(resumed.humanAttention.status().unreadCount).toBe(3);
+      expect(resumed.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(3);
     } finally {
       await resumed.runtime.close();
       resumed.operationalDatabase.close();

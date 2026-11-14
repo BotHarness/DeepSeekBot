@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -69,21 +70,24 @@ describe('Bot-scoped attention projection', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
       core.channels.setGroupWakePolicy(group.id, 'bea', {
         mode: 'mentions',
         count: 5,
         intervalSeconds: 30,
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'mention-1',
         at: '2026-09-26T00:00:00.000Z',
         author: { kind: 'human' },
         body: '@Ada please inspect this',
         mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
       });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.botAttention({ slug: 'ada' })).toMatchObject({
         ok: true,
         value: {
@@ -172,9 +176,12 @@ describe('Bot-scoped attention projection', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       for (let index = 0; index < 3; index += 1) {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id: 'mention-' + index,
           at: new Date(Date.UTC(2026, 8, 26, 0, 0, index)).toISOString(),
           author: { kind: 'human' },

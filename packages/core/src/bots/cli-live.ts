@@ -1,3 +1,5 @@
+import { isLanAddress } from '../devices/lan-address.js';
+import { TEAM_COMMANDS, TEAM_OPTIONS, runTeamCommand } from './cli-team.js';
 import { runDeviceActivity } from './cli-live-activity.js';
 import { GENUI_COMMANDS, GENUI_OPTIONS, runGenuiCommand } from './cli-genui.js';
 import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
@@ -181,6 +183,7 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  ...TEAM_OPTIONS,
   ...GENUI_OPTIONS,
   'new-home': { type: 'string' },
 
@@ -304,6 +307,7 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  ...TEAM_COMMANDS,
   ...GENUI_COMMANDS,
   ...PROFILE_BACKUP_COMMANDS,
   ...BROWSER_NOTIFICATION_COMMANDS,
@@ -614,6 +618,12 @@ interface LiveValues
     ApprovalTemplateValues,
     ApprovalReviewerValues,
     VoiceValues {
+  as?: string;
+  username?: string;
+  'display-name'?: string;
+  'initial-password-file'?: string;
+  'password-stdin'?: boolean;
+
   'new-home'?: string;
   'client-id'?: string;
   'device-file'?: string;
@@ -714,7 +724,7 @@ function hostUrl(value: string | undefined): URL {
     url.pathname !== '/' ||
     !(
       (loopback && (url.protocol === 'http:' || url.protocol === 'https:')) ||
-      (tailnet && url.protocol === 'https:')
+      ((tailnet || isLanAddress(name)) && url.protocol === 'https:')
     )
   ) {
     usage(
@@ -814,6 +824,28 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     value.replaceAll(secret, '[redacted]').replaceAll(encodeURIComponent(secret), '[redacted]');
   const rpc = async <T>(method: string, args: Record<string, unknown>): Promise<T> => {
     const name = method.includes('/') ? method : `botharness/${method}`;
+    if (values.as !== undefined) {
+      const [namespace, memberMethod, extra] = name.split('/');
+      if (!namespace || !memberMethod || extra)
+        throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
+      const answer = await request(new URL('/api/botharness/team-as', base), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ username: values.as, namespace, method: memberMethod, args }),
+      });
+      const result = await readResponse(answer);
+      if (result['ok'] !== true) {
+        const error = record(result['error']);
+        const failure = new CliLiveError(
+          typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
+          scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
+        );
+        const permission = record(error['details'])['permission'];
+        if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
+        throw failure;
+      }
+      return result['value'] as T;
+    }
     const response = await request(new URL(`/api/${name}`, base), {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
@@ -833,7 +865,10 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       const code = typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error';
       const message =
         typeof error['message'] === 'string' ? error['message'] : 'The Host refused the command.';
-      throw new CliLiveError(code, scrub(message));
+      const failure = new CliLiveError(code, scrub(message));
+      const permission = record(error['details'])['permission'];
+      if (typeof permission === 'string') failure.details = { permission: scrub(permission) };
+      throw failure;
     }
     return result['value'] as T;
   };
@@ -846,6 +881,8 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       description?: string;
     },
   ): Promise<T> => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const url = new URL('/api/botharness/bot-zip/import', base);
     for (const key of ['name', 'displayName', 'description'] as const) {
       if (metadata[key] !== undefined) url.searchParams.set(key, metadata[key]);
@@ -916,6 +953,8 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     path: string,
     body?: Record<string, unknown>,
   ): Promise<{ response: Response; bytes: Uint8Array }> => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const response = await request(new URL(path, base), {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
@@ -937,6 +976,8 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     return { response, bytes };
   };
   const stream = async (path: string, init: RequestInit = {}): Promise<Response> => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const response = await request(new URL(path, base), {
       ...init,
       headers: {
@@ -948,6 +989,8 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     return response;
   };
   const socket = (path: string): WebSocket => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const url = new URL(path, base);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     const Socket = WebSocket as unknown as new (
@@ -965,6 +1008,20 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (
+    values.as !== undefined &&
+    (['device-activity', 'device-notifications', 'phone-notifications'].includes(command) ||
+      DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+  )
+    throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
+  if (
+    TEAM_COMMANDS.some((entry) => entry.command === command) ||
+    command === 'channels' ||
+    (command === 'devices' && values.member !== undefined)
+  ) {
+    const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
+    return runTeamCommand(command, rest, values, io, host.rpc);
+  }
   if (isProfileBackupCommand(command))
     return runProfileBackupCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),

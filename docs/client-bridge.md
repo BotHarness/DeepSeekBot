@@ -104,6 +104,18 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 
 ## 6. 客户端包与 bundle 约束
 
+GenUI 独立预览使用 Host 的系统浏览器，与 Web 驱动的 Puppeteer 浏览器分开。
+core Plugin 的可选 `genuiPreviewBrowserPath` 可指定绝对可执行文件；空值保留系统发现，
+显式无效路径直接拒绝，不回退。隔离开发启动器的 `--genui-preview-browser` 参数通过
+本次 Profile 的 Patch 传入同一配置，不改系统 PATH。启动失败的有界脱敏 Browser
+诊断进入已有 `genui-preview` 开发者日志。verify 工作流的可选
+`genui_browser_diagnostic` 输入仅用于同 runner 双浏览器对照，两臂均需通过原预算；
+普通 PR 不增加第二臂。该诊断能力不代表已修复 #4030 的原始启动原因。
+
+普通 CI 明确选择锁文件所安装的 Puppeteer 浏览器作为预览可执行文件，避免随 runner
+镜像独立更新的系统 Chrome 改变测量环境。工作流只为这个具体路径加载临时 AppArmor
+用户命名空间规则，停止自有 Host 后卸载；不关闭 Chrome 隔离，不改变原有启动与性能预算。
+
 - **独立包** `@botharness/ui`（DSH 默认是「同一包两半侧」，本仓库按 ADR-0023 显式偏离）：package.json 声明 `dsh.client = { platform: 'web', inject: [] }` 与 `exports['./client']`，并作为独立 Loader entry 挂载。
 - **产物格式**：lazy-CJS closure factory，入口 `lib/client.js`，自注册 `window.__ModuleLoader__.load({ id: '@botharness/ui', factory: (require) => { … } })`，带 sourcemap。
 - **外置基线**：只外置 shell 注入的模块表（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-client-store`、`@deepseek-ai/dsh-client-ui-slots`、`@deepseek-ai/dsh-client-ui-primitives`、`@deepseek-ai/dsh-client-ui-dockkit`），以及在 `dsh.client.external` 中声明的 `@deepseek-ai/dsh-api-gateway/client`（官方流辅助类，ADR-0181）；其余依赖（含 blobatar）全部内联。
@@ -114,7 +126,7 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 
 日常 UI 迭代可使用隔离 Web Profile，或在原生 Windows checkout 的官方 Desktop 上使用本地链接 Client；官方 Desktop 的安装、文件夹选择和重启行为仍需原生验收。每个工作树使用独立的 DSH_HOME 与端口，启动器使用工作树已安装的 CLI，或通过 `--dsh-version` 选择独立运行时；不要求它与 SDK 固定版本一致。
 
-启动器为新建的独立 CLI runtime 和 Profile 安装依赖时，逐次传入 pnpm 的 `--package-import-method=copy`，成功后记录本地 copy-import 标记；不会修改全局配置。已有未标记依赖只在请求的 runtime 版本和 Profile manifest 均未变化时原样复用，跳过安装，仍执行原有 CLI、模型和 Bundle 校验。同一工作树重新构建链接 Bundle 后仍可正常重启；切换到另一工作树、改变 Bundle 依赖或升级旧 runtime 时，会以 `isolated-imports-required` 拒绝准备，要求新建 `--home`，保留旧数据和依赖。此选项不会把现有 hardlink 自动变成副本，故不会原地迁移或清除旧依赖；备份和后续迁移按原有 Profile 流程单独处理。
+启动器为新建的独立 CLI runtime 和 Profile 安装依赖时，逐次传入 pnpm 的 `--package-import-method=copy`，成功后记录本地 copy-import 标记；不会修改全局配置。已有未标记依赖只在请求的 runtime 版本和 Profile manifest 均未变化时原样复用，跳过安装，仍执行原有 CLI、模型和 Bundle 校验。复用还核对 pnpm 已安装 lockfile importer 中的依赖 specifier；该记录缺失或与请求不一致时安全拒绝，不修改 Home。同一工作树重新构建链接 Bundle 后仍可正常重启；切换到另一工作树、改变 Bundle 依赖或升级旧 runtime 时，会以 `isolated-imports-required` 拒绝准备，要求新建 `--home`，保留旧数据和依赖。此选项不会把现有 hardlink 自动变成副本，故不会原地迁移或清除旧依赖；备份和后续迁移按原有 Profile 流程单独处理。
 
 Windows 的两个隔离 runtime 曾共享原生 Client 文件 inode。私有副本实验确认：增加 hardlink 可只改变 ctime 和原生 HMR revision，文件内容与 mtime 均不变。独立副本避免未来准备操作通过该共享 inode 干扰另一实例；此前 `session-maybe` 白屏的实际触发者仍未证实，本改动不代表修复该事件。未创建独立 CLI 的路径继续只读使用工作树 CLI；主动更新链接 Client 仍属于正常开发热替换。见 [#4135](https://github.com/BotHarness/BotHarness/issues/4135)。
 

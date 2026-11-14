@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isChannelNotice } from './channel-notice.js';
 import { channelCallPictureRange, type ChannelCallWindowFilter } from './call-window.js';
 import { assertGenuiMessage } from './genui-message.js';
@@ -389,8 +390,13 @@ export interface CreateChannelGroupInput {
 }
 
 export interface ChannelStore {
-  genuiView?(channelId: string, messageId: string): import('./genui.js').GenuiPrivateView;
+  genuiView?(
+    human: HumanContext,
+    channelId: string,
+    messageId: string,
+  ): import('./genui.js').GenuiPrivateView;
   saveGenuiView?(
+    human: HumanContext,
     channelId: string,
     messageId: string,
     snapshotId: string,
@@ -398,21 +404,29 @@ export interface ChannelStore {
     state: unknown,
   ): import('./genui.js').GenuiPrivateView;
   rootDir: string;
-  humanIdentity(): LocalHumanIdentity;
-  setHumanDefaultName(displayName: string | null): LocalHumanIdentity;
-  humanNickname(id: string): string | null | undefined;
-  setHumanNickname(id: string, nickname: string | null): void;
+  humanIdentity(human: HumanContext): LocalHumanIdentity;
+  setHumanDefaultName(human: HumanContext, displayName: string | null): LocalHumanIdentity;
+  humanNickname(human: HumanContext, id: string): string | null | undefined;
+  setHumanNickname(human: HumanContext, id: string, nickname: string | null): void;
   list(): ChannelRecord[];
   get(id: string): ChannelRecord | undefined;
-  listHumanMembers(id: string): Array<{ humanId: string; displayName: string }>;
+  hasHumanMembership?(human: HumanContext, id: string): boolean;
+  listHumanMembers(
+    human: HumanContext,
+    id: string,
+  ): Array<{ humanId: string; displayName: string }>;
 
-  latestHumanMessageId?(id: string): string | undefined;
+  latestHumanMessageId?(human: HumanContext, id: string): string | undefined;
   latestMessage(id: string): ChannelMessage | undefined;
 
   hasMessage(id: string, messageId: string): boolean;
   message(id: string, messageId: string): ChannelMessage | undefined;
   humanSendStatus?(id: string, messageId: string): ChannelSendStatus | undefined;
-  observeOutput(id: string, messageId: string): ChannelOutputObservation | undefined;
+  observeOutput(
+    human: HumanContext,
+    id: string,
+    messageId: string,
+  ): ChannelOutputObservation | undefined;
   outputCheckpoint(): number | undefined;
   assertAttachmentRefs(refs: readonly ChannelAttachmentRef[]): void;
 
@@ -427,8 +441,9 @@ export interface ChannelStore {
     messageId: string,
     identity: string,
   ): ChannelAttachmentRef | undefined;
-  getOrCreateDm(botSlug: string, botName?: string): ChannelRecord | undefined;
+  getOrCreateDm(human: HumanContext, botSlug: string, botName?: string): ChannelRecord | undefined;
   getOrCreateBotDm(
+    human: HumanContext,
     firstBotSlug: string,
     secondBotSlug: string,
     name: string,
@@ -440,7 +455,7 @@ export interface ChannelStore {
     membership?: RemoteBotParticipant['membership'],
   ): void;
   getOrCreateRemoteBotDm(localBotSlug: string, remote: RemoteBotParticipant): ChannelRecord;
-  createGroup(input: CreateChannelGroupInput): ChannelRecord;
+  createGroup(human: HumanContext, input: CreateChannelGroupInput): ChannelRecord;
 
   inviteGroupBot(input: {
     invitationId?: string;
@@ -452,7 +467,7 @@ export interface ChannelStore {
     targetDmChannelId: string;
     botCausation?: BotMessageCausation;
   }): GroupInvitation;
-  setGroupAvatar(channelId: string, avatar: string | null): ChannelRecord;
+  setGroupAvatar(human: HumanContext, channelId: string, avatar: string | null): ChannelRecord;
 
   respondToGroupInvite(input: {
     invitationId: string;
@@ -514,19 +529,25 @@ export interface ChannelStore {
     causeSourceEventId: string;
     created: BotCreateAction;
   }): ChannelMessage | undefined;
-  rename(id: string, name: string): ChannelRecord | undefined;
+  rename(human: HumanContext, id: string, name: string): ChannelRecord | undefined;
   previewAllBotMention(id: string): AllBotPreview;
   grantRequestResolution?(channelId: string, requestMessageId: string): ChannelMessage | undefined;
   appendMessageOnce(
+    human: HumanContext,
     id: string,
     message: ChannelMessage,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
     canCommit?: (database?: DatabaseSync) => boolean,
   ): Promise<ChannelAppendOnceResult>;
-  readPosition(id: string): ChannelReadPosition | undefined;
-  markRead(id: string, messageId: string): Promise<ChannelReadPosition | undefined>;
+  readPosition(human: HumanContext, id: string): ChannelReadPosition | undefined;
+  markRead(
+    human: HumanContext,
+    id: string,
+    messageId: string,
+  ): Promise<ChannelReadPosition | undefined>;
   setHumanReaction?(
+    human: HumanContext,
     id: string,
     messageId: string,
     emoji: string,
@@ -540,6 +561,7 @@ export interface ChannelStore {
     active: boolean,
   ): ChannelReaction[] | undefined;
   appendMessage(
+    human: HumanContext,
     id: string,
     message: ChannelMessage,
     origin?: ChannelMessageOrigin,
@@ -548,15 +570,35 @@ export interface ChannelStore {
   readMessages(id: string, options?: ChannelReadOptions): ChannelMessage[];
   queryMessages(id: string, options?: ChannelMessageQueryOptions): ChannelMessageQueryPage;
   searchHumanMessages?(
+    human: HumanContext,
     id: string,
     options: Pick<ChannelMessageQueryOptions, 'text' | 'cursor' | 'limit'>,
   ): ChannelMessageQueryPage | undefined;
-  searchAllHumanMessages?(request: HumanMessageSearchRequest): HumanMessageSearchPage;
+  searchAllHumanMessages?(
+    human: HumanContext,
+    request: HumanMessageSearchRequest,
+  ): HumanMessageSearchPage;
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
-  readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
-  readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
-  readHumanFilesPage(id: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
-  readHumanChanges?(id: string, request: ChannelChangesRequest): ChannelChanges | undefined;
+  readHumanTimeline(
+    human: HumanContext,
+    id: string,
+    request?: ChannelTimelineRequest,
+  ): ChannelTimelinePage | undefined;
+  readHumanJournalPage(
+    human: HumanContext,
+    id: string,
+    request: ChannelJournalRequest,
+  ): ChannelJournalPage | undefined;
+  readHumanFilesPage(
+    human: HumanContext,
+    id: string,
+    request: ChannelFilesRequest,
+  ): ChannelFilesPage | undefined;
+  readHumanChanges?(
+    human: HumanContext,
+    id: string,
+    request: ChannelChangesRequest,
+  ): ChannelChanges | undefined;
   changeCursor?(): ChannelChangeCursor;
   channelChangeHead?(id: string): ChannelChangeCursor | undefined;
   readChangedChannels?(request: Omit<ChannelChangesRequest, 'limit'>): ChangedChannels;
@@ -572,9 +614,10 @@ export interface ChannelStore {
     attachment?: ChannelAttachmentRef,
   ): ChannelMessage | undefined;
 
-  latestBotActivity?(): ReadonlyMap<string, number>;
+  latestBotActivity?(human: HumanContext): ReadonlyMap<string, number>;
   privateInputRequests?(): Array<{ channelId: string; messageId: string }>;
   humanMessageCounts?(
+    human: HumanContext,
     from: string,
     to: string,
   ): Array<{
@@ -683,7 +726,13 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
   const channelDir = (id: string): string => join(rootDir, id);
   const recordFile = (id: string): string => join(channelDir(id), 'channel.json');
   const messagesFile = (id: string): string => join(channelDir(id), 'messages.ndjson');
-  const readPositionFile = (id: string): string => join(channelDir(id), 'read-position.json');
+  const readPositionFile = (human: HumanContext, id: string): string =>
+    join(
+      channelDir(id),
+      human.humanId === OWNER_HUMAN_CONTEXT.humanId
+        ? 'read-position.json'
+        : `read-position-${Buffer.from(human.humanId).toString('hex')}.json`,
+    );
   const revisions = new Map<string, number>();
   const assertAttachmentRefs = (refs: readonly ChannelAttachmentRef[]): void => {
     if (
@@ -744,11 +793,11 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
     return isChannelRecord(parsed, id) ? parsed : undefined;
   };
 
-  const readPosition = (id: string): ChannelReadPosition | undefined => {
+  const readPosition = (human: HumanContext, id: string): ChannelReadPosition | undefined => {
     if (read(id) === undefined) return undefined;
     let parsed: unknown;
     try {
-      parsed = JSON.parse(readFileSync(readPositionFile(id), 'utf8'));
+      parsed = JSON.parse(readFileSync(readPositionFile(human, id), 'utf8'));
     } catch (error) {
       if (isMissing(error) || error instanceof SyntaxError) return undefined;
       throw error;
@@ -803,34 +852,34 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
   return {
     rootDir,
     get: read,
-    humanIdentity: () => ({
-      humanId: 'local-human',
+    humanIdentity: (human: HumanContext) => ({
+      humanId: human.humanId,
       defaultDisplayName: null,
       displayName: 'Human',
     }),
-    setHumanDefaultName: () => {
+    setHumanDefaultName: (human: HumanContext) => {
       throw new Error('Human names require the operational database');
     },
-    humanNickname: () => undefined,
-    setHumanNickname: () => {
+    humanNickname: (human: HumanContext) => undefined,
+    setHumanNickname: (human: HumanContext) => {
       throw new Error('Human names require the operational database');
     },
-    listHumanMembers: () => [],
+    listHumanMembers: (human: HumanContext) => [],
     readPosition,
-    markRead(id, messageId) {
+    markRead(human: HumanContext, id, messageId) {
       return enqueue(id, () => {
         if (read(id) === undefined || messageId.trim().length === 0) return undefined;
         const messages = readValidMessages(id);
         const index = messages.findIndex((message) => message.id === messageId);
         if (index < 0) return undefined;
-        const previous = readPosition(id);
+        const previous = readPosition(human, id);
         if (previous !== undefined && previous.revision >= index + 1) return previous;
         const position: ChannelReadPosition = {
           messageId,
           revision: index + 1,
           readAt: now().toISOString(),
         };
-        atomicWriteFile(readPositionFile(id), `${JSON.stringify(position, null, 2)}\n`);
+        atomicWriteFile(readPositionFile(human, id), `${JSON.stringify(position, null, 2)}\n`);
         return position;
       });
     },
@@ -875,7 +924,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const message = messages.find((candidate) => candidate.id === messageId);
       return message === undefined ? undefined : projectReply(message, messageIndex(messages));
     },
-    observeOutput(id, messageId) {
+    observeOutput(human: HumanContext, id, messageId) {
       const channel = this.get(id);
       const message = this.message(id, messageId);
       if (!channel || channel.deletedAt !== undefined || !message) return undefined;
@@ -884,7 +933,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         message: { id: message.id, author: message.author, body: message.body },
         humanParticipant: channel.type === 'group' || channel.botSlug !== undefined,
         canRead:
-          this.readHumanTimeline(id, {
+          this.readHumanTimeline(human, id, {
             direction: 'around',
             around: messageId,
             olderLimit: 0,
@@ -910,7 +959,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
             right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id),
         );
     },
-    getOrCreateDm(botSlug, botName) {
+    getOrCreateDm(human: HumanContext, botSlug, botName) {
       if (!isValidSlug(botSlug)) return undefined;
       const id = dmChannelId(botSlug);
       const existing = read(id);
@@ -934,7 +983,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
     getOrCreateRemoteBotDm() {
       throw new Error('Remote Bot DMs require the operational database');
     },
-    getOrCreateBotDm(firstBotSlug, secondBotSlug, name) {
+    getOrCreateBotDm(human: HumanContext, firstBotSlug, secondBotSlug, name) {
       if (
         !isValidSlug(firstBotSlug) ||
         !isValidSlug(secondBotSlug) ||
@@ -965,7 +1014,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       write(record);
       return record;
     },
-    createGroup(input) {
+    createGroup(human: HumanContext, input) {
       const id = input.id ?? nextGroupId(input.name);
       if (!isValidChannelId(id) || read(id) !== undefined)
         throw new Error('Group Channel identity is unavailable');
@@ -986,7 +1035,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
     inviteGroupBot() {
       throw new Error('Group invitations require the operational Channel store');
     },
-    setGroupAvatar(channelId, avatar) {
+    setGroupAvatar(human: HumanContext, channelId, avatar) {
       const channel = read(channelId);
       if (channel?.type !== 'group') throw new Error('Group Channel not found');
       if (avatar !== null && !isGroupAvatar(avatar)) throw new Error('Invalid Group avatar');
@@ -1027,7 +1076,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
     appendMemoryCommits() {
       throw new Error('Memory commit notices require the operational Channel store');
     },
-    rename(id, name) {
+    rename(human: HumanContext, id, name) {
       const record = read(id);
       const trimmed = name.trim();
       if (record === undefined || trimmed.length === 0) return undefined;
@@ -1035,7 +1084,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       write(renamed);
       return renamed;
     },
-    appendMessage(id, message, origin, beforeCommit) {
+    appendMessage(human: HumanContext, id, message, origin, beforeCommit) {
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return undefined;
@@ -1086,7 +1135,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         (message) => message.grantRequestResolution?.requestMessageId === requestMessageId,
       );
     },
-    appendMessageOnce(id, message, preview, origin, canCommit) {
+    appendMessageOnce(human: HumanContext, id, message, preview, origin, canCommit) {
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return { status: 'missing' };
@@ -1159,7 +1208,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         .reverse()
         .map((message) => projectReply(message, byId));
     },
-    latestBotActivity() {
+    latestBotActivity(human: HumanContext) {
       const result = new Map<string, number>();
       for (const channel of this.list()) {
         if (isBotDmChannel(channel) || channel.deletedAt) continue;
@@ -1207,12 +1256,12 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const byId = messageIndex(messages);
       return { ...page, entries: page.entries.map((message) => projectReply(message, byId)) };
     },
-    readHumanTimeline(id, request) {
+    readHumanTimeline(human: HumanContext, id, request) {
       const channel = this.get(id);
       if (channel === undefined) return undefined;
       return this.readTimeline(id, request);
     },
-    readHumanFilesPage(id, request) {
+    readHumanFilesPage(human: HumanContext, id, request) {
       if (this.get(id) === undefined) return undefined;
       const limit = Math.min(Math.max(request.limit ?? CHANNEL_FILES_LIMIT, 1), CHANNEL_FILES_MAX);
       const entries = readValidMessages(id)
@@ -1229,7 +1278,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         ...(entries.length > limit && oldest !== undefined ? { nextBefore: oldest } : {}),
       };
     },
-    readHumanJournalPage(id, request) {
+    readHumanJournalPage(human: HumanContext, id, request) {
       if (this.get(id) === undefined) return undefined;
       const messages = readValidMessages(id);
       const page = pageChannelJournal(id, messages, request);

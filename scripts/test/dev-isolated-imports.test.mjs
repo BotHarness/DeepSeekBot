@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { stringify } from 'yaml';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   assertCopyImports,
@@ -22,6 +23,15 @@ describe('isolated dependency ownership', () => {
   it('allows an unchanged legacy manifest to restart without installing or marking it', () => {
     const home = fixture();
     mkdirSync(join(home, 'node_modules'));
+    mkdirSync(join(home, 'node_modules', '.pnpm'));
+    writeFileSync(
+      join(home, 'node_modules', '.pnpm', 'lock.yaml'),
+      stringify({
+        importers: {
+          '.': { dependencies: { bot: { specifier: 'link:original', version: 'link:original' } } },
+        },
+      }),
+    );
     writeFileSync(
       join(home, 'package.json'),
       JSON.stringify({ name: 'legacy', dependencies: { bot: 'link:original' } }),
@@ -39,6 +49,30 @@ describe('isolated dependency ownership', () => {
     expect(JSON.parse(readFileSync(join(home, 'package.json'), 'utf8')).dependencies.bot).toBe(
       'link:original',
     );
+  });
+  it('refuses an edited manifest that no longer matches the installed importer without modifying files', () => {
+    const home = fixture();
+    const manifest = { dependencies: { bot: 'link:new-worktree' } };
+    mkdirSync(join(home, 'node_modules', '.pnpm'), { recursive: true });
+    const installed = stringify({
+      importers: {
+        '.': {
+          dependencies: {
+            bot: {
+              specifier: 'link:old-worktree',
+              version: 'link:old-worktree',
+            },
+          },
+        },
+      },
+    });
+    const lock = join(home, 'node_modules', '.pnpm', 'lock.yaml');
+    writeFileSync(lock, installed);
+    writeFileSync(join(home, 'package.json'), JSON.stringify(manifest));
+    expect(() => reuseLegacyDependencies(home, manifest)).toThrow('isolated-imports-required');
+    expect(readFileSync(lock, 'utf8')).toBe(installed);
+    expect(readFileSync(join(home, 'package.json'), 'utf8')).toBe(JSON.stringify(manifest));
+    expect(existsSync(join(home, '.botharness-copy-imports.json'))).toBe(false);
   });
   it('refuses legacy dependencies before invoking pnpm or changing files', async () => {
     const home = fixture();

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -58,14 +59,18 @@ async function humanDm(
   id: string,
   body: string,
 ): Promise<void> {
-  const dm = core.channels.getOrCreateDm(slug, slug)!;
-  await core.channels.appendMessage(dm.id, {
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug)!;
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id,
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body,
   });
-  const admission = core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body });
+  const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+    channelId: dm.id,
+    messageId: id,
+    body,
+  });
   expect(admission).toMatchObject({ admitted: true });
 }
 
@@ -73,7 +78,7 @@ describe('A stopped PersonaBot stays stopped', () => {
   it('stops only the running turn; a later Bot message wakes it as usual', async () => {
     const fake = team();
     const core = createCore({ dshHome: createTempRoot('bh-stop-hold-'), agents: fake.agents });
-    const bridge = createBridgeMethods({ ...core });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });

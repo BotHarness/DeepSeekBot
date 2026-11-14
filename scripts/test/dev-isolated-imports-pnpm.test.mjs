@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { pnpmCommand } from '../dev-package-manager.mjs';
-import { installCopyDependencies } from '../dev-isolated-imports.mjs';
+import { installCopyDependencies, reuseLegacyDependencies } from '../dev-isolated-imports.mjs';
 import { dshCommand } from '../dev-instance.mjs';
 import { fileURLToPath } from 'node:url';
 
@@ -52,7 +52,7 @@ function pnpm(cwd, args) {
 }
 
 function snapshot(path) {
-  const info = statSync(path);
+  const info = statSync(path, { bigint: true });
   return {
     ino: info.ino,
     dev: info.dev,
@@ -113,12 +113,18 @@ it('real offline pnpm copy imports isolate executable files and leave legacy har
     expect(snapshot(first)).toEqual(before);
     expect(before.sha).toBe(other.sha);
     expect([before.dev, before.ino]).not.toEqual([other.dev, other.ino]);
-    expect(before.nlink).toBe(1);
-    expect(other.nlink).toBe(1);
+    expect(before.nlink).toBe(1n);
+    expect(other.nlink).toBe(1n);
 
     const legacy = await install('legacy', 'hardlink');
     const legacyBefore = snapshot(legacy);
-    expect(legacyBefore.nlink).toBeGreaterThan(1);
+    expect(legacyBefore.nlink).toBeGreaterThan(1n);
+    expect(
+      reuseLegacyDependencies(
+        join(root, 'legacy'),
+        JSON.parse(readFileSync(join(root, 'legacy', 'package.json'), 'utf8')),
+      ),
+    ).toBe(true);
     pnpm(join(root, 'legacy'), [
       'install',
       '--offline',

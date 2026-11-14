@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -9,20 +10,20 @@ async function fixture() {
   const home = createTempRoot('botharness-reactions-');
   const core = createCore({ dshHome: home });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-  await core.channels.appendMessage(dm.id, {
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'human-one',
     at: '2026-10-14T00:00:00.000Z',
     author: { kind: 'human' },
     body: 'Where is the launch checklist?',
   });
-  await core.channels.appendMessage(dm.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'bot-one',
     at: '2026-10-14T00:00:05.000Z',
     author: { kind: 'bot', slug: 'ada' },
     body: 'The launch checklist lives in docs/launch.md',
   });
-  const methods = createBridgeMethods({ ...core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   const close = async () => {
     await core.runtime.close();
     core.operationalDatabase.close();
@@ -42,6 +43,7 @@ describe('Channel reactions', () => {
     const { home, core, dm, methods, close } = await fixture();
     try {
       const response = core.live!.open(
+        OWNER_HUMAN_CONTEXT,
         new Request(`http://localhost/api/botharness/stream?channelId=${dm.id}&after=2`),
       );
       const reader = response.body!.getReader();
@@ -154,8 +156,11 @@ describe('Channel search', () => {
   it('hides group history from before the Human joined', async () => {
     const { core, methods, close } = await fixture();
     try {
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      await core.channels.appendMessage(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'bot-group',
         at: '2026-10-14T00:01:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -164,7 +169,8 @@ describe('Channel search', () => {
       const found = methods.channelSearch({ channelId: group.id, text: 'launch' });
       expect(found.ok && found.value.messages.map((m) => m.id)).toEqual(['bot-group']);
       expect(
-        core.channels.searchHumanMessages?.(group.id, { text: 'launch' })?.messages,
+        core.channels.searchHumanMessages?.(OWNER_HUMAN_CONTEXT, group.id, { text: 'launch' })
+          ?.messages,
       ).toHaveLength(1);
       expect(
         core.channels.queryMessages(group.id, { text: 'launch', visibleFrom: 2 }).messages,

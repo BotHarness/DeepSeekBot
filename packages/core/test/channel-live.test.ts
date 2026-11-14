@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,8 +40,8 @@ afterEach(() => {
 describe('Channel post-commit stream', () => {
   it('combines authoritative Channel replay with roster, purge and activity and cancels every owner', async () => {
     const store = createChannelStore({ rootDir: root() });
-    const channel = store.createGroup({ name: 'Shared', members: ['ada'] });
-    await store.appendMessage(channel.id, message('actual-placement'));
+    const channel = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Shared', members: ['ada'] });
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, message('actual-placement'));
     const listeners = new Set<() => void>();
     const hub = createChannelLiveHub(
       store,
@@ -59,7 +60,7 @@ describe('Channel post-commit stream', () => {
     const request = new Request(
       `http://localhost${CHANNEL_STREAM_PATH}?channelId=${channel.id}&after=0&roster=1&activity=1`,
     );
-    const response = hub.open(request);
+    const response = hub.open(OWNER_HUMAN_CONTEXT, request);
     expect(response.status).toBe(200);
     const reader = response.body!.getReader();
     const frames: string[] = [];
@@ -90,6 +91,7 @@ describe('Channel post-commit stream', () => {
     }
     expect(listeners.size).toBe(0);
     const invalid = hub.open(
+      OWNER_HUMAN_CONTEXT,
       new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=missing&roster=1&activity=1`),
     );
     expect(invalid.status).toBe(404);
@@ -103,7 +105,10 @@ describe('Channel post-commit stream', () => {
     });
     hubs.push(hub);
     const reader = hub
-      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster&activity=1`))
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster&activity=1`),
+      )
       .body!.getReader();
     try {
       await vi.advanceTimersByTimeAsync(120_000);
@@ -132,7 +137,10 @@ describe('Channel post-commit stream', () => {
     );
     hubs.push(hub);
     const reader = hub
-      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster&activity=1`))
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster&activity=1`),
+      )
       .body!.getReader();
     const read = async () => new TextDecoder().decode((await reader.read()).value);
     try {
@@ -172,7 +180,10 @@ describe('Channel post-commit stream', () => {
     hubs.push(hub);
     const connect = () =>
       hub
-        .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`))
+        .open(
+          OWNER_HUMAN_CONTEXT,
+          new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`),
+        )
         .body!.getReader();
     const reader = connect();
     const read = async () => new TextDecoder().decode((await reader.read()).value);
@@ -194,14 +205,18 @@ describe('Channel post-commit stream', () => {
   });
   it('restores processing receipts changed between the HTTP snapshot and stream connection', async () => {
     const store = createChannelStore({ rootDir: root() });
-    const channel = store.createGroup({ name: 'Receipt gap', members: ['ada'] });
-    await store.appendMessage(channel.id, {
+    const channel = store.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Receipt gap',
+      members: ['ada'],
+    });
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
       ...message('processing'),
       deliveries: [{ botSlug: 'ada', state: 'running' }],
     });
     const hub = createChannelLiveHub(store);
     hubs.push(hub);
     const response = hub.open(
+      OWNER_HUMAN_CONTEXT,
       new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}&after=1`),
     );
     const reader = response.body!.getReader();
@@ -226,7 +241,10 @@ describe('Channel post-commit stream', () => {
     };
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }), activity);
     hubs.push(hub);
-    const response = hub.open(new Request('http://localhost/api/botharness/stream?scope=activity'));
+    const response = hub.open(
+      OWNER_HUMAN_CONTEXT,
+      new Request('http://localhost/api/botharness/stream?scope=activity'),
+    );
     expect(response.status).toBe(200);
     const reader = response.body!.getReader();
     const read = async () => new TextDecoder().decode((await reader.read()).value);
@@ -240,6 +258,7 @@ describe('Channel post-commit stream', () => {
     await reader.cancel();
     states.setSessionState('ada', 'owned', 'thinking');
     const reconnected = hub.open(
+      OWNER_HUMAN_CONTEXT,
       new Request('http://localhost/api/botharness/stream?scope=activity'),
     );
     const reconnectReader = reconnected.body!.getReader();
@@ -264,7 +283,10 @@ describe('Channel post-commit stream', () => {
     });
     hubs.push(hub);
     const reader = hub
-      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=activity`))
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=activity`),
+      )
       .body!.getReader();
     for (revision = 1; revision <= 100; revision++) for (const listener of listeners) listener();
     revision = 100;
@@ -274,7 +296,10 @@ describe('Channel post-commit stream', () => {
     await reader.cancel();
     expect(listeners.size).toBe(0);
     const reconnected = hub
-      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=activity`))
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=activity`),
+      )
       .body!.getReader();
     expect(new TextDecoder().decode((await reconnected.read()).value)).toContain('"revision":100');
     hub.close();
@@ -289,7 +314,10 @@ describe('Channel post-commit stream', () => {
   it('broadcasts a roster invalidation only after the Host publishes a committed change', async () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
-    const response = hub.open(new Request('http://localhost/api/botharness/stream?scope=roster'));
+    const response = hub.open(
+      OWNER_HUMAN_CONTEXT,
+      new Request('http://localhost/api/botharness/stream?scope=roster'),
+    );
     expect(response.status).toBe(200);
     const reader = response.body?.getReader();
     expect(new TextDecoder().decode((await reader?.read())?.value)).toContain('retry: 1500');
@@ -302,12 +330,13 @@ describe('Channel post-commit stream', () => {
 
   it('sends one Human read baseline on connect and one update when the position advances', async () => {
     const store = createChannelStore({ rootDir: root() });
-    const group = store.createGroup({ name: 'Team', members: [] });
-    await store.appendMessage(group.id, message('one'));
-    await store.markRead(group.id, 'one');
+    const group = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, group.id, message('one'));
+    await store.markRead(OWNER_HUMAN_CONTEXT, group.id, 'one');
     const hub = createChannelLiveHub(store);
     hubs.push(hub);
     const response = hub.open(
+      OWNER_HUMAN_CONTEXT,
       new Request(`http://localhost/api/botharness/stream?channelId=${group.id}&after=1`),
     );
     const reader = response.body!.getReader();
@@ -339,10 +368,11 @@ describe('Channel post-commit stream', () => {
     });
     hub = createChannelLiveHub(store);
     hubs.push(hub);
-    const channel = store.createGroup({ name: 'Team', members: [] });
-    await store.appendMessage(channel.id, message('one'));
+    const channel = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, message('one'));
 
     const response = hub.open(
+      OWNER_HUMAN_CONTEXT,
       new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}&after=0`),
     );
     expect(response.status).toBe(200);
@@ -358,7 +388,7 @@ describe('Channel post-commit stream', () => {
       'event: channel/draft-baseline',
     );
 
-    await store.appendMessage(channel.id, message('two'));
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, message('two'));
     const live = await reader?.read();
     expect(new TextDecoder().decode(live?.value)).toContain('id: 2\nevent: channel/message');
     expect(observed.map((entry) => entry.revision)).toEqual([1, 2]);
@@ -368,9 +398,9 @@ describe('Channel post-commit stream', () => {
   it('rebuilds revisions after restart and resumes only unseen committed messages', async () => {
     const directory = root();
     const first = createChannelStore({ rootDir: directory });
-    const channel = first.createGroup({ name: 'Team', members: [] });
-    await first.appendMessage(channel.id, message('one'));
-    await first.appendMessage(channel.id, message('two'));
+    const channel = first.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
+    await first.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, message('one'));
+    await first.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, message('two'));
 
     const restarted = createChannelStore({ rootDir: directory });
     expect(restarted.revision(channel.id)).toBe(2);
@@ -380,6 +410,7 @@ describe('Channel post-commit stream', () => {
     const hub = createChannelLiveHub(restarted);
     hubs.push(hub);
     const response = hub.open(
+      OWNER_HUMAN_CONTEXT,
       new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}&after=0`, {
         headers: { 'Last-Event-ID': '1' },
       }),
@@ -397,17 +428,20 @@ describe('Channel post-commit stream', () => {
       rootDir: root(),
       onCommitted: (commit) => hub?.publishCommitted(commit),
     });
-    const dm = store.getOrCreateDm('persona-live', 'Live Bot');
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'persona-live', 'Live Bot');
     expect(dm).toBeDefined();
     if (dm === undefined) return;
     hub = createChannelLiveHub(store);
     hubs.push(hub);
     const reader = hub
-      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0`))
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0`),
+      )
       .body?.getReader();
     await reader?.read();
     await reader?.read();
-    await store.appendMessage(dm.id, {
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       ...message('reply'),
       author: { kind: 'bot', slug: 'persona-live' },
     });
@@ -419,16 +453,18 @@ describe('Channel post-commit stream', () => {
 
   it('streams only the appended draft text when the reader asks for appends', async () => {
     const store = createChannelStore({ rootDir: root() });
-    const dm = store.getOrCreateDm('ada', 'Ada')!;
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const hub = createChannelLiveHub(store);
     hubs.push(hub);
     expect(
       hub.open(
+        OWNER_HUMAN_CONTEXT,
         new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0&drafts=x`),
       ).status,
     ).toBe(400);
     const reader = hub
       .open(
+        OWNER_HUMAN_CONTEXT,
         new Request(
           `http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0&drafts=append`,
         ),
@@ -464,13 +500,16 @@ describe('Channel post-commit stream', () => {
       rootDir: root(),
       onCommitted: (commit) => hub?.publishCommitted(commit),
     });
-    const dm = store.getOrCreateDm('ada', 'Ada');
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     expect(dm).toBeDefined();
     if (dm === undefined) return;
     hub = createChannelLiveHub(store);
     hubs.push(hub);
     const reader = hub
-      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0`))
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0`),
+      )
       .body?.getReader();
     await reader?.read();
     expect(new TextDecoder().decode((await reader?.read())?.value)).toContain(
@@ -502,7 +541,7 @@ describe('Channel post-commit stream', () => {
       },
     });
     expect(new TextDecoder().decode((await reader?.read())?.value)).toContain('"body":"你好"');
-    await store.appendMessage(dm.id, {
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       ...message('reply'),
       author: { kind: 'bot', slug: 'ada' },
       body: '你好',
@@ -529,7 +568,7 @@ describe('Channel post-commit stream', () => {
       rootDir: root(),
       onCommitted: (commit) => hub?.publishCommitted(commit),
     });
-    const dm = store.getOrCreateDm('ada', 'Ada');
+    const dm = store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     expect(dm).toBeDefined();
     if (dm === undefined) return;
     hub = createChannelLiveHub(store);
@@ -544,13 +583,16 @@ describe('Channel post-commit stream', () => {
         body: 'partial',
       },
     });
-    await store.appendMessage(dm.id, {
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       ...message('reply'),
       author: { kind: 'bot', slug: 'ada' },
       body: 'corrected',
     });
     const reader = hub
-      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=1`))
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=1`),
+      )
       .body?.getReader();
     await reader?.read();
     const baseline = new TextDecoder().decode((await reader?.read())?.value);
@@ -560,20 +602,24 @@ describe('Channel post-commit stream', () => {
 
   it('rejects unknown Channels and malformed or future revisions', () => {
     const store = createChannelStore({ rootDir: root() });
-    const channel = store.createGroup({ name: 'Team', members: [] });
+    const channel = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const hub = createChannelLiveHub(store);
     hubs.push(hub);
     expect(
-      hub.open(new Request('http://localhost/api/botharness/stream?channelId=missing&after=0'))
-        .status,
+      hub.open(
+        OWNER_HUMAN_CONTEXT,
+        new Request('http://localhost/api/botharness/stream?channelId=missing&after=0'),
+      ).status,
     ).toBe(404);
     expect(
       hub.open(
+        OWNER_HUMAN_CONTEXT,
         new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}&after=-1`),
       ).status,
     ).toBe(400);
     expect(
       hub.open(
+        OWNER_HUMAN_CONTEXT,
         new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}&after=9`),
       ).status,
     ).toBe(409);

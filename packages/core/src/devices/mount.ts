@@ -1,3 +1,7 @@
+import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
+import { mountTeamGateway } from '../team/mount.js';
+import type { TeamService } from '../team/service.js';
+import type { TeamHttp } from '../team/http.js';
 import { createDirectPeers } from './direct.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
@@ -66,7 +70,7 @@ const PUSH_SWEEP_MS = 60_000;
 export interface DevicePushOptions {
   source: PushSource;
   watch(changed: () => void): () => void;
-  held?: () => boolean;
+  held?: (human: import('../humans/context.js').HumanContext) => boolean;
   sender?: ExpoSender;
 }
 
@@ -127,6 +131,7 @@ function pushDetail(event: PushEvent): string {
 export function mountDevicePairing(
   ctx: Context,
   options: {
+    team?: TeamService;
     database: OperationalDatabaseOwner;
     dshHome: string;
     push?: DevicePushOptions;
@@ -174,6 +179,7 @@ export function mountDevicePairing(
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
+    ...(options.team ? { ownerHumanId: () => options.team!.ownerContext().humanId } : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
@@ -205,6 +211,10 @@ export function mountDevicePairing(
           ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
         ),
   });
+  ctx.effect(
+    () => options.team?.bindPairing(pairing) ?? (() => {}),
+    'botharness: member device revocation',
+  );
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   const botNetworks = createBotNetworkRoutes({
@@ -313,6 +323,8 @@ export function mountDevicePairing(
     const delivery = createPushDelivery({
       database: attachOperationalModule(options.database, 'push'),
       source: watched.source,
+      deviceHuman: (deviceId) =>
+        pairedDeviceHuman(attachOperationalModule(options.database, 'push'), deviceId),
       sender: watched.sender ?? createExpoSender(),
       host: () => pairing.host(),
       deviceActive: (deviceId) =>
@@ -656,7 +668,16 @@ export function mountDevicePairing(
       activity = createActivityDelivery({
         database: attachOperationalModule(options.database, 'live-activity'),
         provider: account.activity,
-        request: options.requestStatus,
+        request: (channelId, messageId, deviceId) => {
+          const request = options.requestStatus?.(channelId, messageId);
+          if (!request || !deviceId) return undefined;
+          const allowed = deviceOwnsRequest(
+            attachOperationalModule(options.database, 'live-activity'),
+            deviceId,
+            request.sourceEventId,
+          );
+          return allowed ? request : undefined;
+        },
         deviceActive: (deviceId) =>
           pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
         record: (phase, detail) =>
@@ -852,7 +873,60 @@ export function mountDevicePairing(
       'botharness: publish phone route',
     );
 
+    let memberGateway: TeamHttp | undefined;
+    const teamService = options.team;
+    if (teamService)
+      write(
+        'team',
+        'carrier-waiting',
+        `team phase=waiting gateway=${Boolean(webCtx.get('typertGateway'))} access=${Boolean(webCtx.get('remoteAccess'))} modules=${Boolean(webCtx.get('clientModules'))}`,
+      );
+    if (teamService)
+      webCtx.inject(['typert', 'typertGateway', 'remoteAccess', 'clientModules'], (teamCtx) => {
+        try {
+          memberGateway = mountTeamGateway(
+            teamCtx,
+            teamService,
+            () => pairing.host().name,
+            (phase, facts) =>
+              write(
+                'team',
+                `carrier-${phase}`,
+                `team phase=${phase} facts=${JSON.stringify(facts)}`,
+              ),
+          );
+        } catch (error) {
+          write(
+            'team',
+            'carrier-failed',
+            `team phase=failed error=${error instanceof Error ? error.message.slice(0, 300) : 'runtime-error'}`,
+          );
+          throw error;
+        }
+        teamCtx.effect(
+          () => () => {
+            memberGateway = undefined;
+          },
+          'botharness: member carrier readiness',
+        );
+      });
+    const team = teamService
+      ? {
+          async handle(request: IncomingMessage, response: ServerResponse) {
+            if (memberGateway) return memberGateway.handle(request, response);
+            response.writeHead(503, {
+              'content-type': 'application/json',
+              'cache-control': 'no-store',
+            });
+            response.end(JSON.stringify({ code: 'member-carrier-unavailable' }));
+          },
+          async close() {
+            await memberGateway?.close();
+          },
+        }
+      : undefined;
     const gateway = createDeviceGateway({
+      ...(team ? { team } : {}),
       pairing,
       port: () => webServer.port,
       authenticatedUrl: (base) => connection.authenticatedUrl(base),

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { AttachmentStore } from '../attachments/store.js';
@@ -20,7 +21,7 @@ interface MediaRequest {
 }
 
 function authority(db: DatabaseSync, input: MediaRequest, active: (slug: string) => boolean) {
-  humanBridgeChannel(db, input.channelId);
+  humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, input.channelId);
   const row = db
     .prepare(`SELECT e.payload_json FROM source_events e
     JOIN channel_placements p USING(source_event_id)
@@ -77,7 +78,7 @@ function authority(db: DatabaseSync, input: MediaRequest, active: (slug: string)
     )
       return [];
     try {
-      bridgeChannel(db, input.channelId, grant.botSlug);
+      bridgeChannel(OWNER_HUMAN_CONTEXT, db, input.channelId, grant.botSlug);
       const identity = readMessagingIdentity(db, grant.bindingId);
       if (
         identity.revokedAt ||

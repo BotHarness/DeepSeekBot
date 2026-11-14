@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -52,10 +53,10 @@ describe('Stopping a working PersonaBot', () => {
   it('ends the running turn, records the stop and leaves the Bot idle', async () => {
     const fake = stoppableAgents();
     const core = createCore({ dshHome: createTempRoot('bh-turn-stop-'), agents: fake.agents });
-    const bridge = createBridgeMethods({ ...core });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       expect(await bridge.channelBotStop({ channelId: dm.id, botSlug: 'ada' })).toEqual({
         ok: false,
         error: { code: 'not-working', message: 'Ada is not working right now' },
@@ -110,10 +111,13 @@ describe('Stopping a working PersonaBot', () => {
   it('stops the turn a disbanded group started and tells the Bot why next time', async () => {
     const fake = stoppableAgents();
     const core = createCore({ dshHome: createTempRoot('bh-turn-disband-'), agents: fake.agents });
-    const bridge = createBridgeMethods({ ...core });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Trip', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Trip',
+        members: ['ada'],
+      });
       expect(
         bridge.channelGroupWakeSet({
           channelId: group.id,
@@ -137,7 +141,7 @@ describe('Stopping a working PersonaBot', () => {
       await core.runtime.whenIdle();
 
       fake.rearm();
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       await bridge.channelSend({
         channelId: dm.id,
         messageId: 'human-00000000-0000-4000-8000-000000000004',
@@ -161,11 +165,11 @@ describe('Stopping a working PersonaBot', () => {
       dshHome: createTempRoot('bh-turn-stop-refuse-'),
       agents: fake.agents,
     });
-    const bridge = createBridgeMethods({ ...core });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bo', displayName: 'Bo' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       expect(await bridge.channelBotStop({ channelId: dm.id, botSlug: 'bo' })).toMatchObject({
         ok: false,
         error: { code: 'invalid-input', message: 'Bo is not in this Channel' },

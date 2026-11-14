@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { MAX_PART_IMAGE_BYTES, partFromImage, readPartImage } from '../src/bots/part-image.js';
@@ -144,7 +145,7 @@ describe('plain PNG import and derived parts through the public Host bridge', ()
   it('shows the color count first, imports as fixed colors and records derived parents', async () => {
     const core = createCore({ dshHome: createTempRoot('bh-part-image-'), agents });
     try {
-      const bridge = createBridgeMethods({ ...core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const data = png(32, 16, crownPixels).toString('base64');
       const inspected = bridge.partLibraryImport({ data });
       expect(inspected).toMatchObject({

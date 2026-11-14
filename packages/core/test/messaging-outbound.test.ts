@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { rmSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -376,7 +377,7 @@ it('messaging RPC distinguishes storage and unexpected failures without exposing
         'messaging-storage-unavailable',
       ],
     ] as const) {
-      const methods = createBridgeMethods({
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         ...core,
         externalMessaging: {
           ...fx.service,
@@ -394,7 +395,7 @@ it('messaging RPC distinguishes storage and unexpected failures without exposing
     expect(warnings).toHaveLength(2);
     expect(warnings.join('')).not.toContain('sensitive-');
     expect(
-      await createBridgeMethods({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry: core.registry,
         states: core.states,
         channels: core.channels,

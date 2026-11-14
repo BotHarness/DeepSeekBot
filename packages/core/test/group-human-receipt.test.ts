@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import {
@@ -7,7 +8,7 @@ import {
 } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { createCore } from '../src/plugin.js';
-import { createTempRoot } from './helpers.js';
+import { createTempRoot, trackTestOwner } from './helpers.js';
 
 describe('local Human Group receipts', () => {
   it('migrates an existing shared position to the local Human without changing its revision', () => {
@@ -71,13 +72,76 @@ describe('local Human Group receipts', () => {
     }
   });
 
+  it('preserves already-migrated membership and read positions without rerunning generation 25', () => {
+    const home = createTempRoot('botharness-human-receipt-already-migrated-');
+    const prior = trackTestOwner(
+      mountOperationalDatabase({
+        dshHome: home,
+        schemaPlan: defineSchemaPlan(
+          BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
+            (migration) => migration.generation <= LOCAL_HUMAN_RECEIPTS_MIGRATION.generation,
+          ),
+        ),
+      }),
+    );
+    const priorPort = attachOperationalModule(prior, 'receipt-already-migrated-seed');
+    priorPort.transaction((db) => {
+      db.prepare('INSERT INTO channel_records (channel_id, record_json) VALUES (?, ?)').run(
+        'group-migrated',
+        JSON.stringify({
+          id: 'group-migrated',
+          type: 'group',
+          name: 'Migrated',
+          members: [],
+          createdAt: '2026-09-26T00:00:00.000Z',
+          updatedAt: '2026-09-26T00:00:00.000Z',
+        }),
+      );
+      db.prepare(`INSERT INTO channel_human_members
+        (channel_id, human_id, display_name, visible_from_revision, joined_at)
+        VALUES ('group-migrated', ?, 'Renamed Human', 7, '2026-09-26T00:01:00.000Z')`).run(
+        OWNER_HUMAN_CONTEXT.humanId,
+      );
+      db.prepare(`INSERT INTO channel_read_positions
+        (channel_id, human_id, message_id, revision, read_at)
+        VALUES ('group-migrated', ?, 'old-message', 17, '2026-09-26T00:02:00.000Z')`).run(
+        OWNER_HUMAN_CONTEXT.humanId,
+      );
+    });
+    const before = priorPort.read((db) => ({
+      members: db.prepare('SELECT * FROM channel_human_members').all(),
+      positions: db.prepare('SELECT * FROM channel_read_positions').all(),
+    }));
+    prior.close();
+    const migrate = vi.spyOn(LOCAL_HUMAN_RECEIPTS_MIGRATION, 'migrate');
+    try {
+      const upgraded = trackTestOwner(
+        mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      );
+      expect(upgraded.mode).toBe('ready');
+      const after = attachOperationalModule(upgraded, 'receipt-already-migrated-check').read(
+        (db) => ({
+          members: db.prepare('SELECT * FROM channel_human_members').all(),
+          positions: db.prepare('SELECT * FROM channel_read_positions').all(),
+        }),
+      );
+      expect(migrate).not.toHaveBeenCalled();
+      expect(after).toEqual(before);
+    } finally {
+      migrate.mockRestore();
+    }
+  });
+
   it('projects one named Human recipient for Bot messages and keeps sender messages out', async () => {
     const home = createTempRoot('botharness-human-receipt-');
     const core = createCore({ dshHome: home });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const first = await core.channels.appendMessage(group.id, {
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const first = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'bot-first',
         at: '2026-09-27T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -90,14 +154,14 @@ describe('local Human Group receipts', () => {
       expect(core.channels.queryMessages(group.id).messages[0]?.humanReceipts).toEqual(
         first?.humanReceipts,
       );
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-reply',
         at: '2026-09-27T00:01:00.000Z',
         author: { kind: 'human' },
         body: 'I will',
       });
       expect(core.channels.message(group.id, 'human-reply')?.humanReceipts).toBeUndefined();
-      await core.channels.markRead(group.id, 'human-reply');
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'human-reply');
       expect(core.channels.message(group.id, 'bot-first')?.humanReceipts).toEqual([
         { humanId: 'local-human', displayName: 'Human', state: 'read' },
       ]);

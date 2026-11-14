@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { OWNER_HUMAN_CONTEXT } from '../../core/src/humans/context.js';
 import { realpathSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createCore } from '../../core/src/plugin.js';
@@ -32,16 +33,16 @@ describe('Workspace request authorization round trip', () => {
       });
       try {
         core.registry.create({ slug: 'ada', displayName: 'Ada' });
-        const channel = core.channels.getOrCreateDm('ada', 'Ada')!;
+        const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
         if (legacy) await core.grants.create('ada', workspace.id);
-        await core.channels.appendMessage(channel.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
           id: 'request',
           at: new Date().toISOString(),
           author: { kind: 'bot', slug: 'ada' },
           body: 'Please authorize the project so I can write the result.',
           grantRequest: true,
         });
-        const methods = createBridgeMethods({ ...core });
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
         const call: BridgeCall = async (endpoint, payload) => {
           const method = methods[endpoint as keyof typeof methods];
           if (!method) throw new Error('Unexpected endpoint ' + endpoint);
