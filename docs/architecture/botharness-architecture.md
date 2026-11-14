@@ -1,5 +1,7 @@
 # BotHarness 架构与数据流
 
+Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、连接组件、relay 在线状态及公网设备通道的 TLS 与本机身份绑定 Noise 握手。它不创建 Device grant 或持久在线权威；结果五分钟后过期，账号或连接变化时失效，登录及组件恢复自动触发，手动检查走同一个已认证 Host API 与 CLI。并发合并、整体 20 秒及公网 8 秒上限，无新增后台轮询。检查通过仅证明本机当时可经公网连回自己，不能保证手机网络可达（#4170）。
+
 ## 已确认目标：环境面板与双向 Host 关系（逐片交付）
 
 2026-11-13 的整体确认扩展了 #4069 原先仅 Client 配对的范围。Control Rail Environment 面板在 Simple 模式替换当前面板，在 Advanced 模式增加独立列；Channels 与 Activity 共用 Client 本地 Environment Scope，Settings Target 独立且写入绑定精确 Host。Host Relationship 属于双端持久应用权威，每个 Client 仍取得自己的设备凭据，手机不自动继承，Bot 协作独立授权。每个方向的可达性和离线撤销确认分别呈现，不把账号退出、断开关系、关闭线路或删除远端数据混为一谈。通过现有 Device Pairing、凭据、operational database 与 API Gateway 边界交付，不能用布局状态或 Cordis Event 代替持久授权。

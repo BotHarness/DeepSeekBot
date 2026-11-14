@@ -1,3 +1,4 @@
+import { createConnectHealth } from './connect-health.js';
 import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
 import { mountTeamGateway } from '../team/mount.js';
 import type { TeamService } from '../team/service.js';
@@ -603,22 +604,44 @@ export function mountDevicePairing(
         }),
       'botharness: encrypted transport',
     );
+    let connectHealth: ReturnType<typeof createConnectHealth> | undefined;
     const connect = createDeviceConnect({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
       cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
       ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
-      record: (phase, info) =>
-        write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
+      record: (phase, info) => {
+        write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`);
+        if (phase === 'connected') void connectHealth?.check();
+        else if (phase === 'disabled' || phase === 'cloudflared-exited')
+          connectHealth?.invalidate();
+      },
     });
     const account = createConnectAccount({
       credentials: options.credentials ?? (() => undefined),
       connect,
+      onReady: () => {
+        if (connect.status().state === 'connected') void connectHealth?.check();
+      },
       record: (phase, info) => {
         write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`);
         recordConnectTelemetry(options.telemetry, phase);
+        if (phase === 'signed-out' || phase === 'session-revoked' || phase === 'session-expired')
+          connectHealth?.invalidate();
       },
     });
+    connectHealth = createConnectHealth({
+      connect,
+      account,
+      identity: async () => ({
+        hostId: pairing.host().id,
+        publicKey: (await identity.publicIdentity()).publicKey,
+      }),
+      record: (phase, detail) =>
+        write('connect-health', phase, `connect-health phase=${phase} ${detail}`),
+    });
+    const health = connectHealth;
+    webCtx.effect(() => () => health.close(), 'botharness: Connect self-check');
     let connectBots: ReturnType<typeof createConnectBotBridge> | undefined;
     if (options.botNetwork !== undefined) {
       const owners = options.botNetwork;
@@ -854,6 +877,7 @@ export function mountDevicePairing(
       routes,
       connect,
       account,
+      connectHealth: health,
       lan,
       ...(lanBots ? { lanBots } : {}),
       publish: async () => {
@@ -873,6 +897,7 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/approve-key`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
+      [`${DEVICES_PATH}/connect-health`, ['POST']],
       [`${DEVICES_PATH}/private`, ['POST']],
       [`${DEVICES_PATH}/private-tunnel`, ['POST']],
       [`${DEVICES_PATH}/account-hosts`, ['GET']],
