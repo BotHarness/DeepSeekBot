@@ -4,6 +4,20 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'relationships.title': '电脑之间的连接',
+  'relationships.approveOn': '请在 {name} 的连接设置中核对下方指纹，并批准双向访问。',
+  'relationships.pending': '等待批准双向访问',
+  'relationships.authorized': '已授权双向访问',
+  'relationships.revocationPending': '本机已断开，等待对方确认撤销',
+  'relationships.disconnected': '已断开',
+  'relationships.review': '核对并批准',
+  'relationships.approve': '批准双向访问',
+  'relationships.approveHint':
+    '与 {name} 屏幕上的指纹比较。批准后，两台电脑可访问对方的频道和设置。',
+  'relationships.disconnect': '断开双向访问',
+  'relationships.disconnectHint': '撤销与 {name} 的双向访问。独立配对的手机和远端数据不受影响。',
+  'relationships.open': '打开频道',
+  'relationships.failed': '连接操作未完成，请检查另一台电脑后重试。',
   'connections.namedRequirements': '需要自己的 Cloudflare 账号、域名和 Tunnel 令牌。',
   'connections.ingressRequirements': '需要手机和电脑都能访问的 HTTPS 地址及受信任证书。',
   'connections.privateReplacement':
@@ -5386,6 +5400,23 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'relationships.title': 'Computer relationships',
+  'relationships.approveOn':
+    'In Connections on {name}, compare this fingerprint and approve access in both directions.',
+  'relationships.pending': 'Waiting for reciprocal approval',
+  'relationships.authorized': 'Reciprocal access authorized',
+  'relationships.revocationPending': 'Disconnected here; peer revocation pending',
+  'relationships.disconnected': 'Disconnected',
+  'relationships.review': 'Review and approve',
+  'relationships.approve': 'Approve reciprocal access',
+  'relationships.approveHint':
+    'Compare with the fingerprint shown on {name}. Both computers will be able to access each other’s Channels and settings.',
+  'relationships.disconnect': 'Disconnect both directions',
+  'relationships.disconnectHint':
+    'Revoke reciprocal access with {name}. Independently paired phones and remote data are kept.',
+  'relationships.open': 'Open Channels',
+  'relationships.failed':
+    'The connection operation did not finish. Check the other computer and try again.',
   'connections.namedRequirements': 'Requires your Cloudflare account, domain and Tunnel token.',
   'connections.ingressRequirements':
     'Requires an HTTPS address reachable by the phone and computer, with a trusted certificate.',

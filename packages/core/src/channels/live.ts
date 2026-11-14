@@ -235,10 +235,9 @@ function combineLiveResponses(channel: Response, roster: Response): Response {
             if (ended) return;
             if (chunk.done) {
               completed++;
-              if (completed === readers.length) {
-                ended = true;
-                resume();
+              if (reader === readers[0] || completed === readers.length) {
                 controller.close();
+                await stop();
               }
               return;
             }

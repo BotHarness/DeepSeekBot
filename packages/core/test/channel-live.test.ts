@@ -38,6 +38,46 @@ afterEach(() => {
 });
 
 describe('Channel post-commit stream', () => {
+  it('ends a combined response with its Channel while keeping unrelated roster consumers open', async () => {
+    const store = createChannelStore({ rootDir: root() });
+    const channel = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Shared', members: [] });
+    const hub = createChannelLiveHub(store);
+    hubs.push(hub);
+    const combined = hub
+      .open(
+        OWNER_HUMAN_CONTEXT,
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${channel.id}&roster=1`),
+      )
+      .body!.getReader();
+    const roster = hub
+      .open(OWNER_HUMAN_CONTEXT, new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`))
+      .body!.getReader();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await roster.read();
+      hub.publishHumanIdentityChanged();
+      const ended = (async () => {
+        for (;;) {
+          if ((await combined.read()).done) return true;
+        }
+      })();
+      expect(
+        await Promise.race([
+          ended,
+          new Promise<boolean>((resolve) => {
+            timer = setTimeout(() => resolve(false), 500);
+          }),
+        ]),
+      ).toBe(true);
+      hub.publishRosterCommitted();
+      expect(new TextDecoder().decode((await roster.read()).value)).toContain('roster/changed');
+    } finally {
+      clearTimeout(timer);
+      await combined.cancel();
+      await roster.cancel();
+    }
+  });
+
   it('combines authoritative Channel replay with roster, purge and activity and cancels every owner', async () => {
     const store = createChannelStore({ rootDir: root() });
     const channel = store.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Shared', members: ['ada'] });

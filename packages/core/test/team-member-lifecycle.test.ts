@@ -7,6 +7,7 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -19,6 +20,9 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { createTobService } from '../src/tob/service.js';
+import { openPurgeLedger } from '../src/purge/ledger.js';
+import { createDevicePairing } from '../src/devices/pairing.js';
+import { createHostRelationships } from '../src/devices/relationships.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 
 const bob = humanContext('bob');
@@ -28,7 +32,17 @@ afterEach(async () => {
   for (const close of closes.splice(0).reverse()) await close();
 });
 
-function fixture(options: { dshHome?: string; running?: boolean; seed?: boolean } = {}) {
+function fixture(
+  options: {
+    dshHome?: string;
+    running?: boolean;
+    seed?: boolean;
+    coreOptions?: Pick<
+      NonNullable<Parameters<typeof createCore>[0]>,
+      'erasePrivateAccounts' | 'workspaces'
+    >;
+  } = {},
+) {
   const dshHome = options.dshHome ?? createTempRoot('m2-m9-lifecycle-');
   const pending = new Map<string, () => void>();
   const runs = vi.fn(async (run: OrchestratorAgentRun) => {
@@ -40,6 +54,7 @@ function fixture(options: { dshHome?: string; running?: boolean; seed?: boolean 
   });
   const core = createCore({
     dshHome,
+    ...options.coreOptions,
     agents: {
       runOrchestrator: runs,
       async runAssignment() {},
@@ -75,6 +90,31 @@ function fixture(options: { dshHome?: string; running?: boolean; seed?: boolean 
   return { core, dshHome, db, runs, stop };
 }
 
+async function restoreDeletionFact(f: ReturnType<typeof fixture>, privateBots: string[]) {
+  f.core.schedules.close();
+  f.core.externalMessaging.close();
+  await f.core.runtime.close();
+  f.core.operationalDatabase.close();
+  const ledger = openPurgeLedger(join(f.dshHome, 'botharness', 'purge', 'ledger.db'), true);
+  try {
+    ledger.union({
+      format: 'botharness-purge',
+      version: 3,
+      facts: [],
+      deletedHumans: [
+        {
+          humanId: 'bob',
+          deletedAt: '2026-11-14T00:00:00.000Z',
+          privateBots,
+          privateChannels: [],
+        },
+      ],
+    });
+  } finally {
+    ledger.close();
+  }
+}
+
 function createBot(f: ReturnType<typeof fixture>, human = bob, slug = 'bob-bot') {
   const result = f.core.registry.create({ slug, ownerHumanId: human.humanId, displayName: slug });
   if (!result.ok) throw new Error('Bot fixture failed');
@@ -97,6 +137,217 @@ async function send(f: ReturnType<typeof fixture>, slug: string, id: string) {
 }
 
 describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
+  it('purges a former Owner with relationship-derived devices while preserving the Host relationship', async () => {
+    const f = fixture({ seed: false });
+    const pairing = createDevicePairing({
+      database: f.db,
+      hostName: 'Host',
+      ownerHumanId: () => f.core.team.ownerContext().humanId,
+    });
+    const off = f.core.team.bindPairing(pairing);
+    closes.push(async () => {
+      off();
+      pairing.clearOffers();
+    });
+    const relationships = createHostRelationships({ database: f.db, pairing });
+    const peer = {
+      id: 'peer',
+      name: 'Peer',
+      publicKey: 'ab'.repeat(32),
+      routes: ['http://127.0.0.1:3000'],
+    };
+    const relationship = relationships.propose({ peer, direction: 'incoming' });
+    relationships.approve(relationship.id, peer.publicKey);
+    relationships.activate(relationship.id, peer.publicKey);
+    const publicKey = 'cd'.repeat(32);
+    const offer = relationships.enrollment(relationship.id, peer.publicKey, {
+      publicKey,
+      name: 'Owner device',
+    });
+    const device = pairing.redeem({ offer: offer.offer, publicKey });
+    if (!device.ok) throw new Error(device.code);
+    await f.core.team.setOwnerPassword(owner, 'owner-password-1');
+    await f.core.team.setMode(owner, true);
+    const next = await f.core.team.createMember(owner, 'next-owner', 'Next Owner');
+    const nextOwner = humanContext(next.member.humanId);
+    await f.core.team.changePassword(nextOwner, next.initialPassword, 'next-password-1');
+    await f.core.team.transferOwner(owner, nextOwner.humanId, 'owner-password-1');
+    await f.core.team.deactivate(nextOwner, owner.humanId);
+    const preview = f.core.team.purgePreview(nextOwner, owner.humanId);
+    await f.core.team.purgeConfirm(nextOwner, owner.humanId, preview.token, 'owner');
+    expect(f.core.operationalDatabase.mode).toBe('ready');
+    expect(
+      f.db.read((db) =>
+        db
+          .prepare('SELECT 1 FROM relationship_device_grants WHERE device_id = ?')
+          .get(device.device.id),
+      ),
+    ).toBeUndefined();
+    expect(relationships.list().find((entry) => entry.id === relationship.id)?.state).toBe(
+      'active',
+    );
+    const nextKey = 'ef'.repeat(32);
+    const nextOffer = relationships.enrollment(relationship.id, peer.publicKey, {
+      publicKey: nextKey,
+      name: 'New Owner device',
+    });
+    const nextDevice = pairing.redeem({ offer: nextOffer.offer, publicKey: nextKey });
+    if (!nextDevice.ok) throw new Error(nextDevice.code);
+    expect(pairing.admit(`Device ${nextDevice.credential}`).ok).toBe(true);
+    expect(f.db.read((db) => db.prepare('PRAGMA foreign_key_check').all())).toEqual([]);
+  });
+
+  it('fails closed if a remaining member-owned Bot loses its accepted deletion state', async () => {
+    const f = fixture();
+    const bot = createBot(f);
+    await f.core.team.deactivate(owner, 'bob');
+    const off = f.core.operationalDatabase.subscribe(({ topics }) => {
+      if (topics.includes('member-purged'))
+        f.db.transaction((db) => {
+          db.prepare('DELETE FROM persona_bot_deletions WHERE slug = ?').run(bot.bot.slug);
+        });
+    });
+    try {
+      const preview = f.core.team.purgePreview(owner, 'bob');
+      await expect(f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob')).rejects.toThrow(
+        'Deletion has not been accepted',
+      );
+      expect(f.core.operationalDatabase.mode).toBe('recovery');
+      expect(existsSync(bot.memory)).toBe(true);
+    } finally {
+      off();
+    }
+  });
+
+  it('stops restored member Bots and revokes resources even when Memory is already absent', async () => {
+    const path = createTempRoot('member-workspace-');
+    const workspace = {
+      id: 'workspace',
+      path,
+      title: 'Workspace',
+      status: async () => 'ok' as const,
+    };
+    const workspaces = () => ({
+      get: (id: string) => (id === workspace.id ? workspace : undefined),
+      list: () => [workspace],
+    });
+    const f = fixture({ coreOptions: { workspaces } });
+    const bot = createBot(f);
+    const grant = await f.core.grants.create(bot.bot.slug, workspace.id);
+    const rule = f.core.toolRules.createPending({
+      botSlug: bot.bot.slug,
+      role: 'orchestrator',
+      scopeKey: '*',
+      kind: 'tool',
+      toolName: 'read_file',
+      input: '{}',
+    });
+    f.core.toolRules.activate(bot.bot.slug, rule.id);
+    await restoreDeletionFact(f, [bot.bot.slug]);
+    rmSync(bot.memory, { recursive: true });
+    const erasePrivateAccounts = vi.fn(async () => {});
+    const restored = fixture({
+      dshHome: f.dshHome,
+      seed: false,
+      coreOptions: { workspaces, erasePrivateAccounts },
+    });
+    await restored.core.contentPurge.memberSettled();
+    expect(erasePrivateAccounts).toHaveBeenCalledWith(bot.bot.slug);
+    expect(
+      restored.core.grants.list(bot.bot.slug).find((entry) => entry.id === grant.id)?.revokedAt,
+    ).toBeDefined();
+    expect(
+      restored.core.toolRules.list(bot.bot.slug).find((entry) => entry.id === rule.id)?.revokedAt,
+    ).toBeDefined();
+    expect(restored.core.deletions.get(bot.bot.slug)).toMatchObject({
+      phase: 'complete',
+      memory: 'erased',
+    });
+  });
+
+  it.each([false, true])(
+    'preserves a restored different-owner Bot and fails closed on remaining cleanup failure=%s',
+    async (failStop) => {
+      const f = fixture();
+      const transferred = createBot(f, bob, 'transferred');
+      writeFileSync(join(transferred.memory, 'keep.md'), 'Alice retained Memory');
+      await f.core.team.transfer(owner, 'bob', 'alice');
+      const remaining = createBot(f, bob, 'remaining');
+      await restoreDeletionFact(f, [transferred.bot.slug, remaining.bot.slug]);
+      const erasePrivateAccounts = vi.fn(async () => {
+        if (failStop) throw new Error('cleanup-stop-unavailable');
+      });
+      const restored = fixture({
+        dshHome: f.dshHome,
+        seed: false,
+        coreOptions: { erasePrivateAccounts },
+      });
+      if (failStop) {
+        await expect(restored.core.contentPurge.memberSettled()).rejects.toThrow('unavailable');
+        expect(restored.core.operationalDatabase.mode).toBe('recovery');
+      } else {
+        await restored.core.contentPurge.memberSettled();
+        expect(restored.core.operationalDatabase.mode).toBe('ready');
+        expect(restored.core.registry.get(transferred.bot.slug)?.ownerHumanId).toBe('alice');
+        expect(restored.core.deletions.get(transferred.bot.slug)).toBeUndefined();
+        expect(restored.core.deletions.get(remaining.bot.slug)).toMatchObject({
+          phase: 'complete',
+          memory: 'erased',
+        });
+        expect(existsSync(remaining.memory)).toBe(false);
+      }
+      expect(erasePrivateAccounts).toHaveBeenCalledExactlyOnceWith(remaining.bot.slug);
+      expect(readFileSync(join(transferred.memory, 'keep.md'), 'utf8')).toBe(
+        'Alice retained Memory',
+      );
+    },
+  );
+
+  it.each([null, '2026-11-14T01:00:00Z'])(
+    'retains a Bot-owner DM with another Human membership, left_at=%s',
+    async (leftAt) => {
+      const f = fixture();
+      const shared = createBot(f, bob, 'shared-bot');
+      const privateBot = createBot(f, bob, 'private-bot');
+      f.db.transaction((db) =>
+        db
+          .prepare(`INSERT INTO channel_human_members
+      (channel_id, human_id, display_name, visible_from_revision, joined_at, left_at)
+      VALUES (?, 'alice', 'Alice', 1, '2026-11-14', ?)`)
+          .run(shared.dm.id, leftAt),
+      );
+      const upload = (name: string) =>
+        f.core.attachments.upload({
+          name,
+          data: (async function* () {
+            yield Buffer.from(name);
+          })(),
+        });
+      const sharedFile = await upload('alice-file.txt'),
+        privateFile = await upload('bob-file.txt');
+      for (const [human, channelId, file] of [
+        [alice, shared.dm.id, sharedFile],
+        [bob, privateBot.dm.id, privateFile],
+      ] as const)
+        await f.core.channels.appendMessage(human, channelId, {
+          id: 'message',
+          at: new Date().toISOString(),
+          author: { kind: 'human', humanId: human.humanId },
+          body: 'retained ' + human.humanId,
+          attachments: [file],
+        });
+      await f.core.team.deactivate(owner, 'bob');
+      const preview = f.core.team.purgePreview(owner, 'bob');
+      expect(preview.counts).toEqual({ channels: 1, bots: 2, messages: 1, files: 1 });
+      await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
+      expect(f.core.channels.get(shared.dm.id)).toBeDefined();
+      expect(f.core.channels.readMessages(shared.dm.id)[0]?.body).toBe('retained alice');
+      expect(f.core.attachments.has(sharedFile)).toBe(true);
+      expect(f.core.channels.get(privateBot.dm.id)).toBeUndefined();
+      expect(f.core.attachments.has(privateFile)).toBe(false);
+    },
+  );
+
   it.each(['purge', 'transfer-first'])(
     'scopes real channelDm, Tob and exclusive Bot DMs: %s',
     async (operation) => {
@@ -279,16 +530,20 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     },
   );
 
-  it('upgrades a database that already applied M2 generation 143 to 144 without losing identity or ownership', () => {
+  it('upgrades a database that already applied main generation 144 to 145 without losing identity or ownership', () => {
     const home = createTempRoot('m2-m9-migration-');
     const previous = mountOperationalDatabase({
       dshHome: home,
       schemaPlan: defineSchemaPlan(
-        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 143),
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 144),
       ),
     });
     const port = attachOperationalModule(previous, 'm2-m9-old');
+    expect(previous.generation).toBe(144);
     port.transaction((db) => {
+      db.prepare(`INSERT INTO host_relationships
+        (relationship_id, peer_host_id, peer_name, peer_key, peer_routes, direction, state, expires_at, created_at, updated_at)
+        VALUES ('relationship', 'peer', 'Peer', 'key', '[]', 'outgoing', 'active', 0, '2026-11-14', '2026-11-14')`).run();
       db.prepare(
         "INSERT INTO humans VALUES ('bob', 'Bob', 'active', '2026-11-14T00:00:00Z')",
       ).run();
@@ -312,8 +567,15 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
     );
     expect(upgraded.mode).toBe('ready');
-    expect(upgraded.generation).toBe(144);
+    expect(upgraded.generation).toBe(145);
     const check = attachOperationalModule(upgraded, 'm2-m9-new');
+    expect(
+      check.read((db) =>
+        db
+          .prepare('SELECT peer_host_id FROM host_relationships WHERE relationship_id = ?')
+          .get('relationship'),
+      ),
+    ).toEqual({ peer_host_id: 'peer' });
     expect(check.read((db) => db.prepare('PRAGMA foreign_key_check').all())).toEqual([]);
     expect(
       check.read((db) =>

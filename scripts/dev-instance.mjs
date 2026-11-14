@@ -1,5 +1,6 @@
 import { acquireHome, verifyStartedHost } from './dev-instance-lifecycle.mjs';
 import { developmentProfileManifest } from './dev-profile.mjs';
+import { genuiPreviewPatch } from './dev-genui-preview.mjs';
 import {
   packagedProfileManifest,
   packagedWorkspaceSettings,
@@ -27,7 +28,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -37,6 +38,7 @@ import {
   resolveDevSecret,
 } from './dev-secret.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
+import { installCopyDependencies, reuseLegacyDependencies } from './dev-isolated-imports.mjs';
 import {
   resolveAxModel,
   axModelEnvironment,
@@ -45,6 +47,7 @@ import {
   axRuntimeWorkspace,
   withoutAxRuntimePatch,
   installedGoAdapter,
+  goSessionPatch,
 } from './dev-model.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -110,6 +113,7 @@ export function parseArgs(argv) {
         '--worktree',
         '--trusted-host',
         '--product-artifacts',
+        '--genui-preview-browser',
       ].includes(flag) &&
       (typeof next !== 'string' || next.trim() === '' || next.startsWith('--'))
     )
@@ -138,6 +142,12 @@ export function parseArgs(argv) {
         break;
       case '--build':
         options.build = true;
+        break;
+      case '--genui-preview-browser':
+        if (!isAbsolute(next))
+          throw new Error('--genui-preview-browser needs an absolute executable');
+        options.genuiPreviewBrowser = next;
+        index += 1;
         break;
       case '--trusted-host':
         if (!next) throw new Error('--trusted-host needs a host or host:port authority');
@@ -182,6 +192,7 @@ export function profileDirectory(options) {
     join(profileDir, 'package.json'),
     join(profileDir, 'pnpm-workspace.yaml'),
     join(profileDir, 'botharness-ax-model.patch.yml'),
+    join(profileDir, 'botharness-genui-preview.patch.yml'),
   ]) {
     try {
       if (lstatSync(path).isSymbolicLink())
@@ -220,14 +231,15 @@ async function ensureProfile(options) {
   }
   const composed = options.imProvider ? withQualifiedImProvider(base) : base;
   profileDirectory(options);
-  if (options.productArtifacts) {
-    const workspace = join(profileDir, 'pnpm-workspace.yaml');
-    const existing = existsSync(workspace) ? readFileSync(workspace, 'utf8') : '';
-    writeFileSync(workspace, packagedWorkspaceSettings(existing, options.productArtifacts));
+  if (!reuseLegacyDependencies(profileDir, composed)) {
+    if (options.productArtifacts) {
+      const workspace = join(profileDir, 'pnpm-workspace.yaml');
+      const existing = existsSync(workspace) ? readFileSync(workspace, 'utf8') : '';
+      writeFileSync(workspace, packagedWorkspaceSettings(existing, options.productArtifacts));
+    }
+    writeFileSync(manifestPath, `${JSON.stringify(composed, null, 2)}\n`);
+    await installCopyDependencies(profileDir, (...args) => options.lease.run(...args));
   }
-  writeFileSync(manifestPath, `${JSON.stringify(composed, null, 2)}\n`);
-  const [pnpmExecutable, pnpmArgs] = pnpmCommand(['install']);
-  await options.lease.run(pnpmExecutable, pnpmArgs, { cwd: profileDir });
   if (options.productArtifacts) verifyPackagedProfile(profileDir, options.productArtifacts);
   if (options.productArtifacts) {
     const dump = await options.lease.run(
@@ -272,6 +284,7 @@ async function launch(options) {
       '--profile',
       options.profile,
       ...(options.modelPatch ? ['--patch', options.modelPatch] : []),
+      ...(options.genuiPreviewPatch ? ['--patch', options.genuiPreviewPatch] : []),
       '--port',
       String(options.port),
       ...options.trustedHosts.flatMap((host) => ['--trusted-host', host]),
@@ -362,38 +375,69 @@ async function main() {
       const version = options.dshVersion ?? installedDshVersion(options.worktree);
       assertDshVersion(version);
       options.runtime = join(options.home, options.productArtifacts ? 'packaged-cli' : 'ax-cli');
-      mkdirSync(options.runtime, { recursive: true });
-      const runtimeWorkspace = join(options.runtime, 'pnpm-workspace.yaml');
-      if (!existsSync(runtimeWorkspace))
+      const runtimeManifest = {
+        name: 'botharness-isolated-cli-qa',
+        private: true,
+        devDependencies: { '@deepseek-ai/dsh': version },
+      };
+      if (reuseLegacyDependencies(options.runtime, runtimeManifest)) {
+        if (installedDshVersion(options.runtime) !== version)
+          throw new Error(
+            'isolated-imports-required: the installed legacy CLI differs from its requested version; choose a fresh --home.',
+          );
+        if (options.axModel && goSessionPatch(installedGoAdapter(options.runtime).source) !== null)
+          throw new Error(
+            'isolated-imports-required: the legacy Go adapter needs the reviewed request patch; choose a fresh --home.',
+          );
+      } else {
+        mkdirSync(options.runtime, { recursive: true });
+        const runtimeWorkspace = join(options.runtime, 'pnpm-workspace.yaml');
+        if (!existsSync(runtimeWorkspace))
+          writeFileSync(
+            runtimeWorkspace,
+            "packages: [.]\nallowBuilds:\n  '@deepseek-ai/dsh-subprocess-local': true\n  '@google/genai': false\n  koffi: true\n  node-pty: true\n  protobufjs: false\n",
+          );
         writeFileSync(
           runtimeWorkspace,
-          "packages: [.]\nallowBuilds:\n  '@deepseek-ai/dsh-subprocess-local': true\n  '@google/genai': false\n  koffi: true\n  node-pty: true\n  protobufjs: false\n",
+          withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
         );
-      writeFileSync(
-        runtimeWorkspace,
-        withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
-      );
-      writeFileSync(
-        join(options.runtime, 'package.json'),
-        `${JSON.stringify({ name: 'botharness-isolated-cli-qa', private: true, devDependencies: { '@deepseek-ai/dsh': version } }, null, 2)}\n`,
-      );
-      const [command, args] = pnpmCommand(['install']);
-      await options.lease.run(command, args, { cwd: options.runtime });
-      if (options.axModel) {
-        const adapter = installedGoAdapter(options.runtime);
         writeFileSync(
-          runtimeWorkspace,
-          axRuntimeWorkspace(
-            readFileSync(runtimeWorkspace, 'utf8'),
-            options.runtime,
-            adapter.version,
-            adapter.source,
-          ),
+          join(options.runtime, 'package.json'),
+          `${JSON.stringify(runtimeManifest, null, 2)}\n`,
         );
-        await options.lease.run(command, args, { cwd: options.runtime });
+        await installCopyDependencies(options.runtime, (...args) => options.lease.run(...args));
+        if (options.axModel) {
+          const adapter = installedGoAdapter(options.runtime);
+          writeFileSync(
+            runtimeWorkspace,
+            axRuntimeWorkspace(
+              readFileSync(runtimeWorkspace, 'utf8'),
+              options.runtime,
+              adapter.version,
+              adapter.source,
+            ),
+          );
+          await installCopyDependencies(options.runtime, (...args) => options.lease.run(...args));
+        }
       }
     }
     const profileDir = await ensureProfile(options);
+    if (options.genuiPreviewBrowser) {
+      const runtime = options.runtime ?? options.worktree;
+      const [command, cli] = dshCommand(runtime);
+      const dump = await options.lease.run(
+        command,
+        [cli, '--profile', options.profile, '--dump-config'],
+        { env: { ...process.env, DSH_HOME: options.home }, cwd: runtime },
+      );
+      profileDirectory(options);
+      options.genuiPreviewPatch = join(profileDir, 'botharness-genui-preview.patch.yml');
+      writeFileSync(
+        options.genuiPreviewPatch,
+        genuiPreviewPatch(dump, options.genuiPreviewBrowser),
+        { mode: 0o600 },
+      );
+    }
     if (options.axModel) {
       const runtime = options.runtime ?? options.worktree;
       await assertInstalledGoModel(runtime, options.axModel.model);
@@ -428,10 +472,14 @@ async function main() {
     });
     const summary = {
       pid: child.pid,
+      startedAt: new Date().toISOString(),
       url,
       log: logPath,
       home: options.home,
       worktree: options.worktree,
+      genuiPreview: options.genuiPreviewBrowser
+        ? { selection: 'explicit', browserPath: options.genuiPreviewBrowser }
+        : { selection: 'system' },
       secret:
         options.axModel?.source ??
         secret?.source ??

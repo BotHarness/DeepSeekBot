@@ -5,6 +5,32 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### GenUI preview browser startup diagnostics (#4030)
+
+A passing plain timeline opens the Puppeteer driver, not the Host's separate GenUI
+preview browser. Record both executable versions and the runner image before
+comparing them. The preview uses system discovery by default; the core Plugin's
+`genuiPreviewBrowserPath` selects an absolute executable through the same Browser
+runtime and refuses an invalid explicit path. `dev-instance.mjs` and `verify-app.mjs`
+accept `--genui-preview-browser <absolute-executable>` and apply a Patch only to that
+isolated launch. They do not change system PATH or another Profile.
+
+Ordinary CI selects the lockfile-installed Puppeteer executable for preview too,
+so the preview no longer depends on the runner image's independently updated
+system Chrome. Its exact executable receives a temporary AppArmor profile allowing
+user namespaces; the workflow unloads it after stopping its owned Hosts. A quick
+`startup-sandbox` refusal is a separate setup error from `startup-timeout`; preserve
+Chrome sandboxing when correcting that permission. Merely setting
+`CHROME_DEVEL_SANDBOX` did not repair the controlled Ubuntu 26 runner (#4030).
+
+`genui-preview-browser-startup-timeout` means no DevTools endpoint appeared within
+the existing eight-second startup deadline, before CDP connection or document
+rendering. Inspect the retained bounded/redacted preview owner log; do not infer a
+rich-document rendering regression from an empty rich sample set. The verify
+workflow's `genui_browser_diagnostic` dispatch input runs system and controlled
+browser journeys sequentially on the same runner; both outcomes remain required.
+No budget increase, product retry or incident-root-cause fix is implied.
+
 ### DSH 0.2.2-rc.1 qualification
 
 Use [the recurring RC workflow](../../../docs/agents/dsh-upgrade.md) and
@@ -83,6 +109,27 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 - Wire contract: `POST /api/<namespace>/<method>` with `{ type: "client-request", rpcId, method, payload: { args: {…named args} } }`; `undefined` fields are rejected by the decoder. Failures come back as a `server-response` envelope (`ok:false`), not HTTP errors.
 
 ## Dev loop (WSL, fnm node)
+
+### Isolated dependency copies and legacy reuse (#4135)
+
+The launcher installs fresh owned CLI runtimes and Profile dependencies with per-command pnpm
+copy imports. Its completion marker records helper ownership; keep these installs helper-managed.
+Unmarked existing dependencies restart read-only when the requested runtime version and Profile
+manifest are unchanged, with the normal runtime/model/Bundle checks. Legacy reuse also compares
+requested dependency specifiers with pnpm's installed lockfile importer; missing or divergent
+installed records refuse without modifying the Home. A rebuild at the same source
+link remains usable. Changing a legacy source link, Bundle dependency or runtime version requires
+a fresh `--home`; `isolated-imports-required` preserves the old data and dependencies. Failed fresh
+installs remain preserved rather than receiving an implicit hardlink migration. The copy option
+does not retroactively detach existing files. Keep the old Home for backup or explicit migration.
+
+On Windows, two isolated runtimes shared native Client artifact inodes. An experiment on a private
+copy confirmed that another hardlink changes ctime and the installed DSH metadata-based artifact
+revision without changing bytes or mtime. Removing an existing live hardlink can itself affect
+other owners, so qualify future copies instead of repairing shared files in place. The original
+`session-maybe` incident's initiator remains unproven; this is an isolation mitigation, not a claim
+that its Client lifecycle cause is fixed. The workspace-CLI fallback remains read-only and deliberate
+source Client rebuilds still publish normally. Details: [local development loop](../../../docs/client-bridge.md#7-本地开发环路).
 
 The reproducible build baseline is `@deepseek-ai/dsh@0.2.2-rc.1`. The launcher uses the installed local CLI or an isolated `--dsh-version <version>` installation, accepts DSH `>=0.2.0-0` including future prereleases, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 

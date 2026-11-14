@@ -230,6 +230,8 @@ export function mountContentPurge(options: {
           db.prepare(
             `DELETE FROM ${table} WHERE device_id IN (SELECT device_id FROM paired_devices WHERE human_id = ?)`,
           ).run(fact.humanId);
+        db.prepare(`DELETE FROM relationship_device_grants WHERE device_id IN
+          (SELECT device_id FROM paired_devices WHERE human_id = ?)`).run(fact.humanId);
         db.prepare('DELETE FROM paired_devices WHERE human_id = ?').run(fact.humanId);
         for (const channelId of fact.privateChannels ?? [])
           db.prepare(
@@ -694,8 +696,9 @@ export function mountContentPurge(options: {
             LEFT JOIN persona_bots b ON b.slug = m.value WHERE b.owner_human_id IS NULL OR b.owner_human_id <> ?)) OR (
         EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ?)
         AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id <> ?)))
+      AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id <> ?)
       ORDER BY c.channel_id`)
-        .all(humanId, humanId, humanId, humanId, humanId);
+        .all(humanId, humanId, humanId, humanId, humanId, humanId);
       const rows = zSourceRows(
         db
           .prepare(`SELECT e.* FROM source_events e
@@ -749,6 +752,16 @@ export function mountContentPurge(options: {
     if (!provider) return Promise.reject(unavailable());
     const work = (async () => {
       for (const slug of slugs) {
+        const eligible = port.read((db) => {
+          const bot = db
+            .prepare('SELECT owner_human_id FROM persona_bots WHERE slug = ?')
+            .get(slug);
+          if (bot) return bot.owner_human_id === fact.humanId;
+          return (
+            db.prepare('SELECT 1 FROM persona_bot_deletions WHERE slug = ?').get(slug) !== undefined
+          );
+        });
+        if (!eligible) continue;
         const state = await provider.retry(slug);
         if (state.phase !== 'complete' || state.memory !== 'erased') throw unavailable();
         port.transaction(

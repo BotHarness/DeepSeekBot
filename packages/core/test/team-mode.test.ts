@@ -1074,10 +1074,41 @@ async function memberHttp(
         headers,
       )
     ).json();
-  return { origin, signIn, password, wire, rpc };
+  return { origin, signIn, password, wire, rpc, server };
 }
 
 describe('member HTTP carrier', { timeout: 60_000 }, () => {
+  it.each(['member', 'admin'])(
+    'never exposes Host relationships to an authenticated %s carrier',
+    async (role) => {
+      const f = await enabledFixture();
+      await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+      f.team.roles.set(owner, f.human.humanId, [role]);
+      const http = await memberHttp(f);
+      const cookie =
+        (await http.signIn('bob', 'member-password-1')).headers.get('set-cookie') ?? '';
+      for (const action of ['list', 'initiate', 'approve', 'sync', 'enroll', 'disconnect']) {
+        const response = await fetch(`${http.origin}${TEAM_PATH}/api/botharness/relationships`, {
+          method: action === 'list' ? 'GET' : 'POST',
+          headers: { cookie, 'content-type': 'application/json' },
+          ...(action === 'list'
+            ? {}
+            : { body: JSON.stringify({ action, id: 'a'.repeat(32), confirm: true }) }),
+        });
+        expect(response.status).toBe(403);
+        expect(await response.json()).toEqual({ code: 'remote-access/denied' });
+        expect(await http.rpc(cookie, 'relationships', { action })).toMatchObject({
+          result: { ok: false },
+        });
+      }
+      expect(f.database.read((db) => db.prepare('SELECT * FROM host_relationships').all())).toEqual(
+        [],
+      );
+      expect(
+        f.database.read((db) => db.prepare('SELECT * FROM relationship_device_grants').all()),
+      ).toEqual([]);
+    },
+  );
   it('allows cross-site top-level entry navigation but refuses cross-site subresources and POSTs', async () => {
     const f = await enabledFixture();
     const http = await memberHttp(f);
@@ -1138,14 +1169,20 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
   });
 
   it('reserves stream keys and peer/global capacity while gateway opens are pending', async () => {
+    const started = performance.now();
+    const phases: Array<{ phase: string; elapsedMs: number }> = [];
+    const phase = (value: string) =>
+      phases.push({ phase: value, elapsedMs: performance.now() - started });
     let now = 0;
     const f = await enabledFixture({ now: () => now });
+    phase('fixture-ready');
     await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
     const cookies: string[] = [];
     for (let i = 0; i < 17; i++) {
       now += 60_000;
       const login = await f.team.signIn('bob', 'member-password-1', `ip-${i}`);
       cookies.push(`botharness-member=${login.token}`);
+      phase(`signed-in-${i + 1}`);
     }
     const releases: Array<() => void> = [];
     const opened = vi
@@ -1157,6 +1194,8 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
           ),
       );
     const http = await memberHttp(f);
+    phase('server-listening');
+    http.server.once('close', () => phase('server-closed'));
     const open = (cookie: string, id: number) =>
       http.wire(cookie, {
         op: 'stream-open',
@@ -1164,19 +1203,57 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
         endpoint: 'botharness/followRoster',
         payload: { args: {} },
       });
-    const requests: Promise<Response>[] = [];
+    const requests: Array<Promise<PromiseSettledResult<Response>>> = [];
+    const observe = async (request: Promise<Response>): Promise<PromiseSettledResult<Response>> => {
+      try {
+        return { status: 'fulfilled', value: await request };
+      } catch (reason) {
+        return { status: 'rejected', reason };
+      }
+    };
+    let primary: unknown;
     try {
-      for (const cookie of cookies.slice(0, 16))
-        for (let id = 1; id <= 16; id++) requests.push(open(cookie, id));
-      await vi.waitFor(() => expect(opened).toHaveBeenCalledTimes(256), { timeout: 10000 });
+      const deadline = performance.now() + 10000;
+      for (const [index, cookie] of cookies.slice(0, 16).entries()) {
+        for (let id = 1; id <= 16; id++) requests.push(observe(open(cookie, id)));
+        const remaining = deadline - performance.now();
+        if (remaining <= 0) throw new Error('pending-stream-capacity-deadline');
+        await vi.waitFor(
+          () => {
+            expect(performance.now()).toBeLessThanOrEqual(deadline);
+            expect(opened).toHaveBeenCalledTimes((index + 1) * 16);
+          },
+          { timeout: remaining, interval: 10 },
+        );
+        phase(`pending-${(index + 1) * 16}`);
+      }
+      phase('all-pending-open');
+      expect(opened).toHaveBeenCalledTimes(256);
       expect((await open(cookies[0]!, 1)).status).toBe(429);
       expect((await open(cookies[0]!, 17)).status).toBe(429);
       expect((await open(cookies[16]!, 1)).status).toBe(429);
       expect(opened).toHaveBeenCalledTimes(256);
+    } catch (error) {
+      primary = error;
     } finally {
       for (const release of releases) release();
-      await Promise.all(requests);
     }
+    const results = await Promise.all(requests);
+    const failures = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    phase('requests-settled');
+    if (primary !== undefined || failures.length)
+      throw new AggregateError(
+        [
+          new Error(
+            JSON.stringify({ phases, opened: opened.mock.calls.length, refused: failures.length }),
+          ),
+          ...(primary === undefined ? [] : [primary]),
+          ...failures,
+        ],
+        'pending-stream-capacity-failed',
+      );
   });
 
   it('releases a failed or cancelled pending stream reservation', async () => {

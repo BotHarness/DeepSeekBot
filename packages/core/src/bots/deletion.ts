@@ -105,7 +105,7 @@ export function acceptMemberBotPurge({
     acceptedAt,
     memoryDir,
     eraseMemory: true,
-    phase: absent ? 'complete' : 'stopping',
+    phase: 'stopping',
     memory: absent ? 'erased' : 'pending',
     ...(proof ? { ownership: proof } : {}),
     ...(previous?.cleanupAccepted ? { cleanupAccepted: true } : {}),
