@@ -4,6 +4,9 @@ import { expect, it, vi } from 'vitest';
 import { createTempRoot } from './helpers.js';
 const paired = vi.hoisted(() => vi.fn());
 vi.mock('../../../apps/mobile/src/host/pairing.js', () => ({ pairHost: paired }));
+vi.mock('../src/devices/connect-identity-fetch.js', () => ({
+  requestConnectIdentity: (url: string, init?: RequestInit) => fetch(url, init),
+}));
 import { runDeviceClientCommand } from '../src/bots/cli-device-client.js';
 
 it('requires trusted-file confirmation and never returns saved device secrets on stdout', async () => {

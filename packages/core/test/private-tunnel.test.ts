@@ -1,3 +1,4 @@
+import { createTunnelLookup } from '../src/devices/tunnel-dns.js';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -20,7 +21,6 @@ import {
 } from '../../../deploy/private-relay/admission.mjs';
 import {
   createPrivateTunnel,
-  createQuickTunnelLookup,
   createTrustFetch,
   privateTunnelHostname,
   probeFailure,
@@ -714,7 +714,10 @@ it.skipIf(!openssl)(
       const result = spawnSync('openssl', args, { cwd: dir, encoding: 'utf8' });
       if (result.status !== 0) throw new Error(result.stderr);
     };
-    writeFileSync(join(dir, 'leaf.ext'), 'subjectAltName=DNS:localhost,IP:127.0.0.1\n');
+    writeFileSync(
+      join(dir, 'leaf.ext'),
+      'subjectAltName=DNS:localhost,DNS:qa.deepseekbot.dev,IP:127.0.0.1\n',
+    );
     run(
       'req',
       '-x509',
@@ -779,6 +782,27 @@ it.skipIf(!openssl)(
       );
       expect(trusted.status).toBe(200);
       expect(await trusted.text()).toBe('nonce-b');
+      const missing = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
+      const query = vi.fn((_host, callback) => callback(null, ['127.0.0.1']));
+      const recovered = vi.fn();
+      const lookup = createTunnelLookup({
+        systemLookup: (_host, _options, callback) => callback(missing, ''),
+        query,
+        onRecovery: recovered,
+      });
+      const alias = origin.replace('localhost', 'qa.deepseekbot.dev');
+      const repaired = await createTrustFetch(
+        () => [readFileSync(join(dir, 'ca.pem'), 'utf8')],
+        lookup,
+      )(`${alias}/nonce-recovered`);
+      expect(await repaired.text()).toBe('nonce-recovered');
+      expect(recovered).toHaveBeenCalledOnce();
+      const rejected = await createTrustFetch(
+        () => [],
+        lookup,
+      )(`${alias}/nonce-rejected`).catch((error: unknown) => error);
+      expect(probeFailure(rejected)).toBe('tls');
+
       const hung = await createTrustFetch(() => [readFileSync(join(dir, 'ca.pem'), 'utf8')])(
         `${origin}/hang`,
         { signal: AbortSignal.timeout(200) },
@@ -849,10 +873,10 @@ it('aborts a pending public check when its route closes', async () => {
 it('rechecks a Quick Tunnel DNS miss against configured DNS without changing other hosts or successful answers', () => {
   const missing = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
   const query = vi.fn((_host, callback) => callback(null, ['192.0.2.10']));
-  const lookup = createQuickTunnelLookup(
-    (_host, _options, callback) => callback(missing, ''),
+  const lookup = createTunnelLookup({
+    systemLookup: (_host, _options, callback) => callback(missing, ''),
     query,
-  );
+  });
   const result = vi.fn();
   lookup('new.trycloudflare.com', { all: true }, result);
   expect(result).toHaveBeenLastCalledWith(null, [{ address: '192.0.2.10', family: 4 }], 4);
@@ -860,11 +884,39 @@ it('rechecks a Quick Tunnel DNS miss against configured DNS without changing oth
   expect(result).toHaveBeenLastCalledWith(missing, '', undefined);
   lookup('new.trycloudflare.com', { family: 6 }, result);
   expect(query).toHaveBeenCalledTimes(1);
-  createQuickTunnelLookup((_host, _options, callback) => callback(null, '192.0.2.20', 4), query)(
-    'new.trycloudflare.com',
-    {},
-    result,
-  );
+  createTunnelLookup({
+    systemLookup: (_host, _options, callback) => callback(null, '192.0.2.20', 4),
+    query,
+  })('new.trycloudflare.com', {}, result);
   expect(result).toHaveBeenLastCalledWith(null, '192.0.2.20', 4);
   expect(query).toHaveBeenCalledTimes(1);
+});
+
+it('recovers an official Connect DNS miss using a fresh query without weakening unrelated DNS failures', () => {
+  const missing = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
+  const query = vi.fn((_host, callback) => callback(null, ['192.0.2.10']));
+  const lookup = createTunnelLookup({
+    systemLookup: (_host, _options, callback) => callback(missing, ''),
+    query,
+  });
+  const result = vi.fn();
+  lookup('habcdefgh2345.botharness.ai', { all: true }, result);
+  expect(result).toHaveBeenLastCalledWith(null, [{ address: '192.0.2.10', family: 4 }], 4);
+  lookup('habcdefgh2345.botharness.ai.attacker.example', {}, result);
+  expect(result).toHaveBeenLastCalledWith(missing, '', undefined);
+  expect(query).toHaveBeenCalledTimes(1);
+});
+
+it.each(['empty', 'failed'])('retains the DNS refusal when a fresh query is %s', (outcome) => {
+  const missing = Object.assign(new Error('not found'), { code: 'ENOTFOUND' });
+  const recovered = vi.fn();
+  const lookup = createTunnelLookup({
+    systemLookup: (_host, _options, callback) => callback(missing, ''),
+    query: (_host, callback) => callback(outcome === 'failed' ? missing : null, []),
+    onRecovery: recovered,
+  });
+  const result = vi.fn();
+  lookup('habcdefgh2345.botharness.ai', {}, result);
+  expect(result).toHaveBeenLastCalledWith(missing, '', undefined);
+  expect(recovered).not.toHaveBeenCalled();
 });
