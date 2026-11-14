@@ -117,7 +117,9 @@ export function ConnectHealthCard({
         ? t(reason[current.code])
         : t(
             current.state === 'passed'
-              ? 'connect.health.passed'
+              ? current.dnsRecovery
+                ? 'connect.health.dnsRecovered'
+                : 'connect.health.passed'
               : current.state === 'stale'
                 ? 'connect.health.stale'
                 : 'connect.health.idle',

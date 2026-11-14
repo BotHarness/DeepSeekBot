@@ -8,6 +8,7 @@ import { createHostClient } from '../../../../apps/mobile/src/host/client.js';
 import { isLanRoute, isEncryptedRoute } from '../../../../apps/mobile/src/host/route.js';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
 import { CliLiveError } from './cli-live-error.js';
+import { requestConnectIdentity } from '../devices/connect-identity-fetch.js';
 
 export const DEVICE_CLIENT_COMMANDS = [
   {
@@ -70,7 +71,10 @@ export async function runDeviceClientCommand(
               writeFileSync(file, session ?? '', { mode: 0o600 });
             },
             request: (url, init) =>
-              fetch(url, { ...init, signal: init?.signal ?? AbortSignal.timeout(15_000) }),
+              requestConnectIdentity(url, {
+                ...init,
+                signal: init?.signal ?? AbortSignal.timeout(15_000),
+              }),
             random: () => randomBytes(32).toString('base64url'),
             challenge: async (value) => createHash('sha256').update(value).digest('base64url'),
             authorize: async () => null,
