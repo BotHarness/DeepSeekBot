@@ -13,6 +13,9 @@
 6. **在沙箱落地之前，Team mode 现在有一个比"Shell 审批"更大的缺口**：按 ADR-0205，`workspace-write` 下的 Shell **不弹审批**，而 DSH 沙箱**只限制写、不限制读**。所以成员 Bot 现在不经任何审批，就能读到别人的 Memory、整个 SQLite 数据库、凭据文件，以及 Owner 的家目录（macOS 上包括 `~/.ssh`）。M5 目前的写法挡不住这些。建议 M5 加一个过渡性的硬门槛（见"对 M5/M6/M7 的影响"）。
 7. **关于"k8s 给每个账号起一个 Pod、Channel 服务独立出去"**：这是另一种产品形态（多租户 SaaS），不适合作为 Team mode 的隔离手段。如果以后要弹性伸缩，伸缩单位应该是**每个团队一个 Host**，或者**把执行（沙箱）卸载到可伸缩的执行 Pod**；Host 本身（身份、Channel、Memory、审批）保持为一个整体。详见"方案 F"。
 
+8. **分两阶段落地。** 第一阶段（最简，只要一台 VPS）：用专用系统用户运行 Host，再给 DSH 自带的 bwrap 包一个 `runnerCommand` 脚本，隐藏数据目录和其他空间。第二阶段：自研 `ctx.sandbox`（方案 A），覆盖 macOS。DSH 自带的沙箱**已经在用**，但它只限制写，也只提供本机执行，所以要在它之上补"读限制"。
+9. **共享 Bot 放在按受众划分的共享空间里**（Vain 已决定）：例如 `shared/team` 给全员，`shared/finance` 只给财务角色。财务这类机密只有受众内的人和受众内的 Bot 能看到。在读限制落地之前，机密数据不应放上 Host。
+
 ## 现状（读代码和 DSH 类型得出的事实）
 
 ### Bot 在哪里执行、以谁的身份执行
@@ -79,6 +82,37 @@
 - 在进程内运行的工具（MCP stdio 服务器启动、Browser、Computer use 等）不经过 `ctx.sandbox`。
 - 拒绝信号只能从 stderr 识别，没有带类型的拒绝通道。
 
+## DSH 自带的沙箱能不能直接用？
+
+能用一部分，而且我们**已经在用**：DSH 的 `dsh-base` 组合默认就挂了 `dsh-sandbox-local` + `dsh-sandbox-policy` + `dsh-bash-sandbox`。每个 Session 的 bash、终端、PTC 都在沙箱里跑，模式是 `read-only` / `workspace-write` / `danger-full-access`。BotHarness 把 Orchestrator 设成 `workspace-write`，可写范围是这个 Bot 的 Memory（它的 cwd），Assignment 的可写范围是 Grant 的目录。
+
+它做不到我们要的三件事：
+
+1. **不限制读。** bwrap 把整个宿主根目录以只读方式挂进去，Seatbelt 是默认允许、只拒绝写。所以 Bot 能读到别的 Memory、数据库、凭据和财务文件夹。这正是 Team mode 最需要挡住的部分。
+2. **不限制网络。**
+3. **不能指定"在另一个环境里执行"。** DSH 的设计允许把 `ctx.shell`、`ctx.fs`、`ctx.subprocess`、`ctx.sandbox` 整体换成远端或容器的实现（文档里叫 "remote compositions"），但 0.2.2-rc.1 **只提供本机实现**（`*-local`、`fs-sandbox`），没有现成的容器或远端执行包。要"让 Session 在指定环境里跑"，需要我们自己写这一组 provider。
+
+所以思路不是另起炉灶，而是**在 DSH 沙箱的基础上补上"读限制"**。下面两种做法都复用 DSH 的 bwrap/Seatbelt 和它的模式、审批、升级流程。
+
+## 最简部署方案（第一阶段推荐）
+
+目标：一台 VPS，不用 Docker、不用 k8s，其他人能用 Bot，Bot 读不到机密。
+
+1. **专用用户。** 用 systemd 以系统用户 `deepseekbot` 运行 Host。`DSH_HOME=/var/lib/deepseekbot`，空间放在 `/srv/deepseekbot/{spaces,shared}`，权限都是 0700。VPS 上的其他机密（`/root`、管理员的 `~/.ssh`、其他服务的 `.env`）归别的用户，Bot 读不到。
+2. **给 DSH 的 bwrap 包一层。** 配置 `dsh-sandbox-local` 的 `runnerCommand`，指向一个约 30 行的脚本。DSH 会把原本给 bwrap 的参数传给它；脚本在后面追加 `--tmpfs /var/lib/deepseekbot`、`--tmpfs /srv/deepseekbot`、`--tmpfs /home`，再把这次执行**有权访问**的目录 bind 回来：可写目录（DSH 参数里已有），加上 BotHarness 为这个 Bot 计算出的可读 Grant。bwrap 后面的挂载覆盖前面的，所以 Bot 只看得到自己那一份。这只是一行 patch 配置加一个脚本，不用写新插件。
+3. **成员 Bot 禁止 `danger-full-access`**（它会完全绕过沙箱；M5 已计划只给 Owner）。
+4. **本机访问也要登录**（ADR-0336 提供的选项），这样 Bot 连到 `127.0.0.1` 也拿不到 Owner 身份。
+5. **回归用例**：Alice 的 Bot 用 bash 读不到 Bob 的 Memory、数据库、API key 和 `shared/finance`；每次升级 DSH 后重跑一遍。
+
+限制：
+
+- 可读 Grant 的列表要从 BotHarness 传给脚本。最简单的办法是 BotHarness 在每次执行前，把这个 Session 的白名单写到一个按 cwd 命名的文件里，由脚本读取。具体做法要 spike 确认。
+- 脚本依赖 DSH 当前版本的 bwrap 参数格式。
+- 它防的是同事之间越权查看，防不了存心攻击的人（共用内核）。
+- macOS 上 `runnerCommand` 收到的也是 bwrap 风格的参数，需要脚本转写成 Seatbelt profile。所以 macOS 直接走第二阶段。
+
+**第二阶段**是前面的推荐方案 A：DeepSeekBot 自己实现 `ctx.sandbox` provider，按 `sessionId` 在进程内计算白名单，不依赖参数格式，同时覆盖 macOS。之后再考虑网络策略和配额 slice。
+
 ## 候选方案对比
 
 | 方案                                                                                                 | 隔离强度                         | 是否适合受众模型                                                                        | macOS                                             | 需要 root                                                                     | 本地能力（浏览器、Computer、GPU）        | 成本                                                                               |
@@ -123,7 +157,25 @@ Vain 描述的目标形态：
 | group Channel | 继续由 Host 里的 BotHarness 负责（现有的 Channel、审批、Activity），不拆出去                                                                                                    | 仍然在团队的 Host（控制面）里                           |
 | 共享空间      | `/srv/deepseekbot/shared/<rootId>/`，有自己的配额；按 M6/M7 授权给角色或成员，再作为 Grant bind 进对应 Bot 的执行（可读或可写）                                                 | RWX 卷，挂进被授权的执行 Pod                            |
 
-需要和产品模型对齐的一个问题：**ADR-0336 里的"共享 Bot"**（一个 Memory 记住所有成员的对话）在这个模型里放在哪？建议：共享 Bot 归属"团队空间"（Owner 或创建它的人管理，配额记在团队空间上），Memory 放在 `/srv/deepseekbot/spaces/team/bots/<slug>/memory`，执行规则不变。如果产品上决定不要共享 Bot（每个 Bot 都只属于一个账号，团队协作只通过 group Channel 和共享空间完成），那么模型会更简单：一个账号就是一个完整的隔离单位，换成 k8s 的"每账号一个执行 Pod"也更顺。**这个问题需要 Vain 决定。**
+### 共享 Bot 与机密空间（Vain 已决定：提供共享 Bot）
+
+Vain 的决定：**共享 Bot 要提供，放在共享空间里**。重点是：公司财务这类机密，要放在私密、不能被随意越权访问的地方，只有有权限的人才能访问。
+
+落地方式：共享空间不是只有"全员共享"一种，而是**按受众划分的多个空间**。每个空间都有自己的受众（ADR-0336 的 `roles:[…]` 或指定成员），共享 Bot 和共享文件夹都挂在某个空间下：
+
+| 空间               | 受众                                 | 里面放什么                                                  |
+| ------------------ | ------------------------------------ | ----------------------------------------------------------- |
+| `shared/team`      | 全员                                 | 全员可用的共享 Bot 及其 Memory、全员共享文件夹              |
+| `shared/finance`   | 角色 `finance`（加上被单独授权的人） | 财务 Bot（可见性 `roles:[finance]`）及其 Memory、财务文件夹 |
+| `spaces/<humanId>` | 本人                                 | 私有 Bot 及其 Memory、个人工作区                            |
+
+要守住三条线，缺一不可：
+
+1. **人的访问**：只有受众内的人能在 Client 里看到这个空间的 Bot、Channel 和文件（M4/M7 的受众检查）；Owner 查看私有内容要走 M11 审计。
+2. **Bot 的访问**：一个 Bot 执行时，只能看到"它自己的 Memory + 授权给它、并且受众覆盖它的空间"。非财务成员的私有 Bot 即使跑 `grep -r` 也看不到 `shared/finance`。**这一条必须靠读限制**：DSH 自带沙箱只限制写，不限制读，所以在推荐方案（或下面的最简部署方案）落地前，财务数据**不能**放到这台 Host 上。
+3. **内容流向**：财务 Bot 只能进入受众是财务子集的 Channel（ADR-0336 的 audience containment，M7 的验收用例"非财务成员看不到、DM 不了、也不能和财务 Bot 同处一个 Channel"）。它的回答不会出现在全员 Channel 里。
+
+存储配额：每个共享空间单独计配额，由创建它的 Admin 设定；不计入任何个人账号的配额。
 
 注意边界：配额 slice 解决的是"谁占用了多少资源"，**隐私靠的是每次执行的白名单**（方案 A），不是 slice。同一账号的两个 Bot 共用配额，但仍然看不到对方的 Memory。
 
@@ -179,8 +231,8 @@ Vain 描述的目标形态：
 2. **Spike：DeepSeekBot 自有 `ctx.sandbox` provider**：用 patch 停用 `sandbox` 行，换上 `@botharness/sandbox`；Linux bwrap 加 macOS Seatbelt，读写白名单加隐藏 `DSH_HOME`；回归用例为"Alice 的 Bot 通过 bash 读不到 Bob 的 Memory、DB 和凭据"。同时验证 HMR 重组以及 `runnerCommand` 后备方案。
 3. **Spike：执行沙箱的网络策略**：挡住 Host 回环端口（netns 加 pasta / Landlock ABI4 / Seatbelt）。
 4. **审计：Host 对 Bot 可写的 git 仓库运行 git 时的安全性**（仓库本地 config 里的 filter、diff 等驱动；统一使用加固参数，或放进 Bot 沙箱执行）。
-5. **账号空间与配额**：每个账号的 cgroup slice（CPU/内存）、目录磁盘配额（XFS project quota 或 btrfs）、共享空间配额；Bot 执行进入所属账号的 slice；macOS 上只做软配额。需要先由 Vain 决定共享 Bot 的归属（团队空间，还是不再提供共享 Bot）。
-6. **VPS 部署文档和 systemd unit**（服务账号、目录布局、bwrap/AppArmor 检查、可选的单 Host Docker 镜像）。
+5. **账号空间与配额**：每个账号的 cgroup slice（CPU/内存）、目录磁盘配额（XFS project quota 或 btrfs）、共享空间配额；Bot 执行进入所属账号的 slice；macOS 上只做软配额。共享 Bot 放在按受众划分的共享空间（`shared/team`、`shared/finance` 等）下，Memory 与空间同受众；回归用例为"非 finance 成员的 Bot 用 bash 读不到 `shared/finance`"。
+6. **最简部署方案（第一阶段）**：`deepseekbot` 系统用户加 systemd unit，`runnerCommand` 包装脚本隐藏 `DSH_HOME`、空间目录和 `/home`，只 bind 回授权目录；包含上面的回归用例。VPS 部署文档也放在这一项里，包括目录布局、bwrap/AppArmor 检查和可选的单 Host Docker 镜像（服务账号、目录布局、bwrap/AppArmor 检查、可选的单 Host Docker 镜像）。
 7. **ADR-0336 文字修正**（接缝名称、安全边界补充）。
 8. （以后）托管多租户：每个团队一个 Host 的 k8s 形态，以及远端执行 Pod 的 provider，单独写 spec。
 
