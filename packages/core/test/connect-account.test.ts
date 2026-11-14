@@ -240,7 +240,7 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000, onRead
     freePort: async () => 41001,
     sleep: async () => {},
     watchMs,
-    onReady,
+    ...(onReady === undefined ? {} : { onReady }),
   });
   return { account, credentials, tunnel, services };
 }
