@@ -23,6 +23,7 @@ import { createTobService } from '../src/tob/service.js';
 import { openPurgeLedger } from '../src/purge/ledger.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
+import { acceptMemberBotPurge } from '../src/bots/deletion.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 
 const bob = humanContext('bob');
@@ -137,6 +138,110 @@ async function send(f: ReturnType<typeof fixture>, slug: string, id: string) {
 }
 
 describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
+  it.each(['retained', 'pending', 'erased'] as const)(
+    'preserves a pending acceptance without upgrading its intent, memory=%s',
+    (memory) => {
+      const f = fixture();
+      const bot = createBot(f);
+      const state = {
+        slug: bot.bot.slug,
+        displayName: 'Bob',
+        acceptedAt: '2026-11-14T00:00:00Z',
+        memoryDir: bot.memory,
+        phase: 'stopping',
+        eraseMemory: memory !== 'retained',
+        memory,
+      };
+      f.db.transaction((db) => {
+        db.prepare("INSERT INTO deleted_humans VALUES ('bob', '2026-11-14T00:00:00Z')").run();
+        db.prepare('INSERT INTO persona_bot_deletions VALUES (?, ?)').run(
+          bot.bot.slug,
+          JSON.stringify(state),
+        );
+        const accept = () =>
+          acceptMemberBotPurge({
+            db,
+            humanId: 'bob',
+            slug: bot.bot.slug,
+            acceptedAt: '2026-11-15T00:00:00Z',
+            rootDir: f.core.registry.rootDir,
+          });
+        if (memory === 'pending') accept();
+        else expect(accept).toThrow('deletion-in-progress');
+        expect(
+          db.prepare('SELECT body FROM persona_bot_deletions WHERE slug = ?').get(bot.bot.slug)
+            ?.body,
+        ).toBe(JSON.stringify(state));
+      });
+      expect(existsSync(bot.memory)).toBe(true);
+    },
+  );
+
+  it.each(['preview', 'confirm'])(
+    'refuses member purge at %s until an ordinary retain-Memory deletion finishes',
+    async (stage) => {
+      let release!: () => void;
+      let started!: () => void;
+      const waiting = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const stopping = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const f = fixture({
+        coreOptions: {
+          erasePrivateAccounts: async () => {
+            started();
+            await waiting;
+          },
+        },
+      });
+      const bot = createBot(f);
+      await f.core.team.deactivate(owner, 'bob');
+      const preview = f.core.deletions.preview(bot.bot.slug);
+      const deletion = f.core.deletions.confirm(bot.bot.slug, preview.token, false);
+      let attempt: Promise<unknown> | undefined;
+      try {
+        await stopping;
+        expect(f.core.deletions.get(bot.bot.slug)).toMatchObject({
+          phase: 'stopping',
+          eraseMemory: false,
+        });
+        if (stage === 'confirm') {
+          vi.spyOn(f.core.deletions, 'memberPreview').mockImplementationOnce((_humanId, slug) =>
+            f.core.deletions.preview(slug),
+          );
+          const memberPreview = f.core.team.purgePreview(owner, 'bob');
+          attempt = f.core.team.purgeConfirm(owner, 'bob', memberPreview.token, 'bob');
+          void attempt.catch(() => {});
+          expect(f.core.contentPurge.checkpoint().deletedHumans).toBeUndefined();
+          await expect(attempt).rejects.toMatchObject({ code: 'purge-scope-unsupported' });
+        } else
+          expect(() => f.core.team.purgePreview(owner, 'bob')).toThrowError(
+            /outside current Human read access/u,
+          );
+        expect(f.core.contentPurge.checkpoint().deletedHumans).toBeUndefined();
+        expect(f.core.team.member('bob')?.status).toBe('deactivated');
+        expect(f.core.operationalDatabase.mode).toBe('ready');
+      } finally {
+        release();
+        await Promise.allSettled([deletion, ...(attempt ? [attempt] : [])]);
+      }
+      expect(f.core.deletions.get(bot.bot.slug)).toMatchObject({
+        phase: 'complete',
+        memory: 'retained',
+      });
+      expect(existsSync(bot.memory)).toBe(true);
+      const fresh = f.core.team.purgePreview(owner, 'bob');
+      await f.core.team.purgeConfirm(owner, 'bob', fresh.token, 'bob');
+      expect(f.core.deletions.get(bot.bot.slug)).toMatchObject({
+        phase: 'complete',
+        memory: 'erased',
+      });
+      expect(existsSync(bot.memory)).toBe(false);
+    },
+  );
+
   it('purges a former Owner with relationship-derived devices while preserving the Host relationship', async () => {
     const f = fixture({ seed: false });
     const pairing = createDevicePairing({

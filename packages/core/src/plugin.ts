@@ -1930,13 +1930,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       });
     }
   };
-  ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(
     () => async () => {
       await core.contentPurge.memberSettled().catch(() => {});
       core.contentPurge.close();
+      core.operationalDatabase.close();
     },
-    'botharness: purge ledger',
+    'botharness: purge ledger and operational database',
   );
   const storage = createStorageCleanup({
     dshHome,
