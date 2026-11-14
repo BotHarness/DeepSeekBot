@@ -665,10 +665,8 @@ export function RemoteHostRows({
               remote={remote}
               query={query}
               showSource={false}
-              rowsOverride={visible.filter(
-                (row) =>
-                  section.channelIds.includes(channelId(row) ?? '') &&
-                  !pins.has(channelId(row) ?? ''),
+              rowsOverride={section.channelIds.flatMap((id) =>
+                pins.has(id) ? [] : visible.filter((row) => channelId(row) === id),
               )}
               onOpen={onOpen}
               t={t}

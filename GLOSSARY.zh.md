@@ -824,7 +824,7 @@ PersonaBot 参与的 Feishu/Lark conversation——group 或 p2p——通过 `ch
 _避免使用_：room、channel、group（当含义也包括 p2p 时）；指移动端页面时说 Conversation screen
 
 **DM**：
-两位 Actor 之间的一对一 conversation——即 `dm` 类型的 Channel，或它的 bridged equivalent。Human–PersonaBot DM 是 Human 与一个 Bot 的直接对话；Bot-to-Bot DM 有两个 PersonaBot 参与者，Human 可以只读查看而不成为参与者。
+两位 Actor 之间的一对一 conversation——即 `dm` 类型的 Channel，或它的 bridged equivalent。Human–PersonaBot DM 是 Human 与一个 Bot 的直接对话；Human–Human DM 属于对应 Host 上的两位 Human 参与者，没有 Bot 参与者。Bot-to-Bot DM 有两个 PersonaBot 参与者，Human 可以只读查看而不成为参与者。
 _避免使用_：private chat、PM
 
 **Bot-to-Bot DM**：

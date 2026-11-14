@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   Button,
@@ -150,6 +150,7 @@ export function botZipError(error: unknown, t: BotHarnessTranslate): string {
 }
 
 export function ImportBotZipModal({
+  target,
   actions,
   sectionId,
   sectionName,
@@ -157,6 +158,7 @@ export function ImportBotZipModal({
   onCancel,
   onImported,
 }: {
+  target?: ReactNode;
   actions: BridgeActions;
   sectionId?: string;
   sectionName?: string;
@@ -207,6 +209,7 @@ export function ImportBotZipModal({
       }}
       onSubmit={submit}
     >
+      {target}
       <div {...stylex.props(styles.file)}>
         <span {...stylex.props(styles.fileName, file === undefined && styles.fileEmpty)}>
           {file?.name ?? t('botZip.import.none')}

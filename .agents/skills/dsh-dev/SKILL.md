@@ -15,12 +15,12 @@ on an empty or unrecognized record. A printed login URL alone did not prove Plug
 The exact creator of the empty record was not established; this is a qualified recovery
 procedure, not a claim that startup cancellation always causes an empty lock.
 
-Preserve the failure and inspect the installed native lock code. Before recovering this
-case, prove the exact task Home has no live or unknown users and that the unchanged lock is
+Preserve the failure and inspect the installed native lock code. Establish exclusion of other
+launchers and recovery attempts for this same Home before checking for live or unknown users;
+hold that exclusion through the lock-identity recheck and rename, and refuse recovery if it
+cannot be established. Then prove the exact task Home has no live or unknown users and that the unchanged lock is
 a canonical regular zero-byte file with one link. Record its inode and nanosecond timestamps,
-recheck them immediately before recovery. Coordinate with the task owner to exclude other
-launchers and recovery attempts for this same Home from that recheck through the rename;
-refuse recovery if this exclusion cannot be established. Retain the original by renaming only that lock
+recheck them immediately before recovery. Retain the original by renaming only that lock
 to a timestamped sibling inside the same Home. Leave credentials and preparation markers
 unchanged. Unknown ownership, redirected paths, nonempty records or changed identity refuse
 this procedure. Restart through the qualified lifecycle, require authenticated Plugin health

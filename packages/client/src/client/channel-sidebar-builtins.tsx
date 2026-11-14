@@ -1210,9 +1210,10 @@ export function createChannelSidebarBuiltins(
 ): readonly ChannelSidebarEntry[] {
   function SessionsWithNative(props: ChannelSidebarEntryProps): ReactElement {
     const host = useMessageHost();
-    const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
+    const localPrefs = host === undefined ? prefs : undefined;
+    const readLimit = () => localPrefs?.source.getSnapshot().assignmentConcurrencyLimit;
     const assignmentLimit = useSyncExternalStore(
-      prefs?.source.subscribe ?? inactiveSubscribe,
+      localPrefs?.source.subscribe ?? inactiveSubscribe,
       readLimit,
       readLimit,
     );
@@ -1233,6 +1234,7 @@ export function createChannelSidebarBuiltins(
     return <WorkspaceGrantsEntry {...props} developerMode={developerMode} />;
   }
   function SessionsHeader(props: ChannelSidebarEntryProps): ReactElement {
+    const host = useMessageHost();
     const target = useSessionTarget(props);
     const group = props.botSlug === undefined;
     const channel = useClientStore((state) =>
@@ -1273,7 +1275,7 @@ export function createChannelSidebarBuiltins(
         <SessionsHeaderWithSettings
           {...props}
           botSlug={target.kind === 'bot' ? target.slug : undefined}
-          prefs={group ? undefined : prefs}
+          prefs={group || host !== undefined ? undefined : prefs}
           targetItems={targetItems}
           targetId={targetId}
         />

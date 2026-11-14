@@ -185,8 +185,12 @@ export async function loadTeamDirectory(
   return list(await unwrap(call, 'teamDirectory', {}, signal), parseDirectoryEntry);
 }
 
-export async function openHumanDm(call: BridgeCall, humanId: string): Promise<string> {
-  const value = record(await unwrap(call, 'humanDm', { humanId }));
+export async function openHumanDm(
+  call: BridgeCall,
+  humanId: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const value = record(await unwrap(call, 'humanDm', { humanId }, signal));
   const channel = record(value?.['channel']);
   const channelId = channel?.['id'] ?? value?.['channelId'];
   if (typeof channelId !== 'string') throw new Error('invalid humanDm response');
