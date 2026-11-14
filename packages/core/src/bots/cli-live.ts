@@ -1002,6 +1002,12 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (
+    values.as !== undefined &&
+    (['device-activity', 'device-notifications', 'phone-notifications'].includes(command) ||
+      DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+  )
+    throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
   if (TEAM_COMMANDS.some((entry) => entry.command === command) || command === 'channels') {
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
     return runTeamCommand(command, rest, values, io, host.rpc);
