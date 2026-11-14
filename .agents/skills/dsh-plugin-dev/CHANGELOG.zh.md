@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 补充下游任务自有 Client 产物切换后，按当前公布的资源 revision 核验证据的方法；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)）。
+
 - 补充下游启动中断后空原生凭据写锁的所有权核验、任务所有者协调的同 Home 启动与恢复排他窗口，以及保留式恢复；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)）。
 
 - 补充下游已发布 Channel 权限146后的离线撤销、安全取消待批准关系与全新 generation147 验证要求；稳定 DSH/Cordis Context、Decision Tree 和上游验证来源不变（[#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)）。
