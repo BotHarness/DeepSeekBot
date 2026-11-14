@@ -3154,14 +3154,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const message = row && parseMessage(row.payload_json, row.body, row.message_id, id);
       if (!row || !message || message.id !== messageId) return undefined;
       const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
+      const readable = !humanAccess || humanAccess.canRead(human, id);
       return {
         position: row.position,
         channel,
         message: { id: message.id, author: message.author, body: message.body },
         humanParticipant: participates(human, id),
         canRead:
-          (channel.type === 'dm' && (!humanAccess || humanAccess.canRead(human, id))) ||
-          (member !== undefined && row.revision >= member.visible_from_revision),
+          readable &&
+          (channel.type === 'dm' ||
+            (member !== undefined && row.revision >= member.visible_from_revision)),
       };
     },
     outputCheckpoint() {

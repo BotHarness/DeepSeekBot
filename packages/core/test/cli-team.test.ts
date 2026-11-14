@@ -23,6 +23,7 @@ async function host(
     code: 'remote-access/denied',
     message: 'member-call-refused',
   },
+  policyFailure?: { code: string; message: string },
 ) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(async (request, response) => {
@@ -43,6 +44,7 @@ async function host(
     const value =
       input.method === 'botharness/channelGet'
         ? {
+            policyRevision: 'a'.repeat(64),
             policy: {
               addMembers: 'everyone',
               post: 'everyone',
@@ -79,7 +81,10 @@ async function host(
         JSON.stringify({
           type: 'server-response',
           rpcId: input.rpcId,
-          result: { ok: true, value },
+          result:
+            input.method === 'botharness/channelPolicySet' && policyFailure
+              ? { ok: false, error: policyFailure }
+              : { ok: true, value },
         }),
       );
   });
@@ -506,6 +511,7 @@ describe('M4 Channel policy CLI', () => {
       payload: {
         args: {
           channelId: 'group-1',
+          expectedRevision: 'a'.repeat(64),
           policy: {
             addMembers: 'everyone',
             post: 'admins',
@@ -515,6 +521,22 @@ describe('M4 Channel policy CLI', () => {
           },
         },
       },
+    });
+  });
+  it('reports a stale policy write without retrying or overwriting newer settings', async () => {
+    const f = await host(undefined, {
+      code: 'stale-channel-policy',
+      message: 'stale-channel-policy',
+    });
+    const result = await run(f.url, ['channels', 'policy', 'group-1', '--post', 'admins']);
+    expect(result.status).toBe(1);
+    expect(result.output).toMatchObject({ error: { code: 'stale-channel-policy' } });
+    expect(f.calls.map((call) => call.input.method)).toEqual([
+      'botharness/channelGet',
+      'botharness/channelPolicySet',
+    ]);
+    expect(f.calls[1]?.input).toMatchObject({
+      payload: { args: { expectedRevision: 'a'.repeat(64) } },
     });
   });
   it('keeps both read and mutation on --as and never falls back after denial', async () => {

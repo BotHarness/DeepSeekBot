@@ -19,6 +19,11 @@ const settingsSchema = z.object({
   visibility: z.string().transform((v) => channelVisibilitySchema.parse(JSON.parse(v))),
   policy: z.string().transform((v) => channelPolicySchema.parse(JSON.parse(v))),
 });
+const policyRevision = (policy: ChannelPolicy): string =>
+  createHash('sha256')
+    .update(JSON.stringify(channelPolicySchema.parse(policy)))
+    .digest('hex');
+
 export class TeamChannels {
   constructor(
     private readonly db: OperationalDatabaseModulePort,
@@ -157,6 +162,7 @@ export class TeamChannels {
     return {
       role: this.role(human, channelId),
       policy: settings.policy,
+      policyRevision: policyRevision(settings.policy),
       visibility: settings.visibility,
       admins,
     };
@@ -236,15 +242,29 @@ export class TeamChannels {
     this.changed(true);
     return null;
   }
-  policySet(human: HumanContext, channelId: string, policy: ChannelPolicy): null {
+  policySet(
+    human: HumanContext,
+    channelId: string,
+    policy: ChannelPolicy,
+    expectedRevision?: string,
+  ): null {
     this.requireManage(human, channelId);
-    this.db.transaction(
-      (db) =>
-        db
-          .prepare('UPDATE channel_records SET policy_json = ? WHERE channel_id = ?')
-          .run(JSON.stringify(policy), channelId),
+    const updated = this.db.transaction(
+      (db) => {
+        if (
+          expectedRevision !== undefined &&
+          expectedRevision !== policyRevision(this.settings(channelId).policy)
+        )
+          return false;
+        db.prepare('UPDATE channel_records SET policy_json = ? WHERE channel_id = ?').run(
+          JSON.stringify(policy),
+          channelId,
+        );
+        return true;
+      },
       ['channels', 'team'],
     );
+    if (!updated) throw new TeamError('stale-channel-policy');
     this.changed(true);
     return null;
   }

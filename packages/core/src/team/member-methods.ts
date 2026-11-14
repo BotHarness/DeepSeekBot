@@ -65,6 +65,7 @@ export const MEMBER_GLOBAL_METHODS = [
 export const MEMBER_CHANNEL_METHODS = [
   'channelRoleDirectory',
   'channelRename',
+  'channelGroupAvatarSet',
   'channelDescriptionSet',
   'channelHumanAdd',
   'channelGroupInvite',
