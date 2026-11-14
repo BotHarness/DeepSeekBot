@@ -1,3 +1,4 @@
+import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import { closeSync, fchmodSync, openSync, unlinkSync, writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { CliLiveError } from './cli-live-error.js';
@@ -5,6 +6,7 @@ import type { BotCreateCliIo } from './bot-create-cli.js';
 
 export const TEAM_OPTIONS = {
   as: { type: 'string' },
+  audience: { type: 'string' },
   to: { type: 'string' },
   preview: { type: 'boolean' },
   'token-stdin': { type: 'boolean' },
@@ -19,6 +21,11 @@ export const TEAM_OPTIONS = {
   'password-stdin': { type: 'boolean' },
 } as const;
 export const TEAM_COMMANDS = [
+  {
+    command: 'spaces',
+    description:
+      'list | create --name --audience | update <spaceId> [--name] [--audience] | delete <spaceId> --confirm',
+  },
   {
     command: 'roles',
     description:
@@ -37,6 +44,7 @@ export const TEAM_COMMANDS = [
 ] as const;
 
 type TeamValues = {
+  audience?: string;
   to?: string;
   preview?: boolean;
   'token-stdin'?: boolean;
@@ -127,6 +135,39 @@ export async function runTeamCommand(
   rpc: Rpc,
 ): Promise<unknown> {
   const [action, argument] = rest;
+  if (command === 'spaces') {
+    const audience = () => {
+      const value = values.audience;
+      if (value === 'everyone') return { kind: 'everyone' as const };
+      const [kind, ...parts] = (value ?? '').split(':');
+      if (parts.length !== 1 || !parts[0]) return usage();
+      const members = ids(parts[0]);
+      const parsed = spaceAudienceSchema.safeParse(
+        kind === 'roles' ? { kind, roleIds: members } : { kind, humanIds: members },
+      );
+      if (!parsed.success) return usage();
+      return parsed.data;
+    };
+    if (action === 'list' && rest.length === 1) return rpc('spaces', {});
+    if (action === 'create' && rest.length === 1 && values.name && values.audience)
+      return rpc('spaceCreate', { name: values.name, audience: audience() });
+    if (
+      action === 'update' &&
+      argument &&
+      rest.length === 2 &&
+      (values.name !== undefined || values.audience !== undefined)
+    )
+      return rpc('spaceUpdate', {
+        spaceId: argument,
+        ...(values.name === undefined ? {} : { name: values.name }),
+        ...(values.audience === undefined ? {} : { audience: audience() }),
+      });
+    if (action === 'delete' && argument && rest.length === 2) {
+      if (!values.confirm) throw new CliLiveError('confirm-required', 'confirm-required');
+      return rpc('spaceDelete', { spaceId: argument, confirm: true });
+    }
+    return usage();
+  }
   if (command === 'roles') {
     if (action === 'list' && rest.length === 1) return rpc('roles', {});
     if (action === 'catalog' && rest.length === 1) return rpc('permissionCatalog', {});

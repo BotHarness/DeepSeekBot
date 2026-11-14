@@ -1,4 +1,5 @@
 import { type HumanContext } from '../humans/context.js';
+import { ownsBot } from '../team/bot-access.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -39,12 +40,19 @@ export async function approveGrantRequest(
     const request = deps.channels.message(channelId, requestMessageId);
     if (
       !bot ||
+      !ownsBot(human, bot) ||
       bot.paused ||
       bot.createdAt !== initialBot?.createdAt ||
       !channel ||
       channel.deletedAt ||
       (channel.type === 'dm' ? channel.botSlug !== slug : !channel.members.includes(slug)) ||
       !request?.grantRequest ||
+      deps.channels.readHumanTimeline(human, channelId, {
+        direction: 'around',
+        around: requestMessageId,
+        olderLimit: 0,
+        newerLimit: 0,
+      }) === undefined ||
       request.author.kind !== 'bot' ||
       request.author.slug !== slug ||
       Date.parse(request.at) < Date.parse(bot.createdAt) ||

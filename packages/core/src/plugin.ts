@@ -1,3 +1,7 @@
+import { currentRoots } from './workspaces/grant-native-tools.js';
+import { recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
+import { WorkspaceSpaces } from './workspaces/spaces.js';
+import { accountMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -128,14 +132,14 @@ import { feedbackLinks } from './diagnostics/feedback-links.js';
 import { mountContentPurge } from './purge/owner.js';
 import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
-import type { SessionSeq } from '@deepseek-ai/dsh-session';
+import type { Session, SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -525,6 +529,8 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 
 export interface BotHarnessCore {
   team: TeamService;
+  spaces: WorkspaceSpaces;
+  currentRoots(session: Session, kind: 'read' | 'write'): string[];
   prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
@@ -728,9 +734,18 @@ function initializeCore(
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
+    startup.enter('workspace-spaces', 'relocate-memory');
+    if (operationalDatabase.mode === 'ready')
+      recoverSpaceTransfers(attachOperationalModule(operationalDatabase, 'workspace-spaces'));
+    if (operationalDatabase.mode === 'ready')
+      relocateSpaceMemories(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
     startup.enter('bot-registry', 'initialize');
     registry = createPersonaBotRegistry({
       rootDir,
+      defaultMemoryPath: (slug, humanId) => accountMemoryPath(realpathSync(dshHome), humanId, slug),
       database: operationalDatabase,
       onImport: (event) =>
         options.warn?.(
@@ -1037,6 +1052,7 @@ function initializeCore(
   }
   const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
     purge: contentPurge,
+    spaces: () => spaces,
     stopBots: async (slugs) => {
       if (!slugs.length) return;
       if (!runtime?.stopBot) throw new Error('member-bot-stop-unavailable');
@@ -1045,6 +1061,13 @@ function initializeCore(
     ensureTob: (human) => tob.ensure(human),
     log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
   });
+  const spaces = new WorkspaceSpaces(
+    attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+    dshHome,
+    team.roles,
+    undefined,
+    operationalDatabase.mode === 'ready',
+  );
   startup.enter('channel-live', 'initialize');
   live = createChannelLiveHub(
     channels,
@@ -1133,7 +1156,9 @@ function initializeCore(
   startup.enter('workspace-grants', 'initialize');
   const grants = createWorkspaceGrantStore({
     database: attachOperationalModule(operationalDatabase, 'workspace-grants'),
-    workspaces: options.workspaces ?? (() => undefined),
+    workspaces: () => spaces.workspaceLookup(options.workspaces?.()),
+    validateTree: (slug, path) => spaces.assertTree(slug, path),
+    validatePath: (slug, path, grant) => spaces.assertPath(slug, path, grant),
   });
   startup.enter('tool-rules', 'initialize');
   const toolRules = createToolApprovalRuleStore(
@@ -1155,6 +1180,7 @@ function initializeCore(
     channels,
     grants,
     workspaceRoot: join(dshHome, 'botharness', 'tob-workspaces'),
+    workspaceFor: (human) => spaces.ensureAccount(human.humanId),
     ...(options.ensureTobWorkspace ? { ensureWorkspace: options.ensureTobWorkspace } : {}),
     ...(options.tobSettings ? { settings: options.tobSettings } : {}),
   });
@@ -1466,6 +1492,9 @@ function initializeCore(
     mediaVersions,
     live,
     team,
+    spaces,
+    currentRoots: (session, kind) =>
+      currentRoots({ ownership, runtime, registry, grants }, session, kind),
     companions,
     roster,
     runtime,

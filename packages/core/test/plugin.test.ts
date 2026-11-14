@@ -686,6 +686,10 @@ describe('plugin entry', () => {
     expect(
       remoteMethods(bridge as object).map((marker) => marker.exportName ?? marker.method),
     ).toEqual([
+      'spaces',
+      'spaceCreate',
+      'spaceUpdate',
+      'spaceDelete',
       'teamMode',
       'teamModeSet',
       'teamOwnerPasswordSet',

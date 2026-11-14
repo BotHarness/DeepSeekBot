@@ -3,7 +3,7 @@ import type { BotCreateStep } from './bot-create-cli.js';
 export class CliLiveError extends Error {
   operation?: string;
   status?: number;
-  details?: { permission: string };
+  details?: { permission?: string; path?: string; spaceId?: string };
   constructor(
     readonly code: string,
     message: string,

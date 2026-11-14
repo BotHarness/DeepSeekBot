@@ -1,3 +1,5 @@
+import { accountSpaceFiles, prepareSpaceTransfer } from '../workspaces/space-lifecycle.js';
+import type { WorkspaceSpaces } from '../workspaces/spaces.js';
 import type { ContentPurge } from '../purge/contracts.js';
 import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
@@ -117,6 +119,12 @@ export class TeamService {
     ip: string | undefined;
   }>();
   private readonly purge: ContentPurge | undefined;
+  private readonly spaceProvider: (() => WorkspaceSpaces) | undefined;
+  get spaces(): WorkspaceSpaces {
+    const spaces = this.spaceProvider?.();
+    if (!spaces) throw new TeamError('unavailable');
+    return spaces;
+  }
   private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
   private readonly limiter: SignInRateLimit;
@@ -132,6 +140,7 @@ export class TeamService {
     private readonly channels: ChannelStore,
     options: {
       purge?: ContentPurge;
+      spaces?: () => WorkspaceSpaces;
       stopBots?: (slugs: readonly string[]) => Promise<void>;
       now?: () => number;
       ensureTob?: (human: HumanContext) => Promise<unknown>;
@@ -139,6 +148,7 @@ export class TeamService {
     } = {},
   ) {
     this.purge = options.purge;
+    this.spaceProvider = options.spaces;
     this.stopBots = options.stopBots;
     this.ensureTob = options.ensureTob;
     this.roles = new TeamRoles(db, () => this.invalidate());
@@ -394,6 +404,7 @@ export class TeamService {
       },
       ['team', 'human-identity'],
     );
+    this.spaceProvider?.().ensureAccount(humanId);
     this.invalidate();
     return { member: this.member(humanId)!, initialPassword };
   }
@@ -434,6 +445,7 @@ export class TeamService {
     if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
       throw new TeamError('credentials-invalid');
     this.active(this.member(member.humanId));
+    this.spaceProvider?.().ensureAccount(member.humanId);
     await this.ensureTob?.(humanContext(member.humanId));
     if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
       throw new TeamError('credentials-invalid');
@@ -807,7 +819,19 @@ export class TeamService {
       ),
     );
     const bots = this.ownedBots(humanId, true);
-    return { channels, bots };
+    return {
+      channels,
+      bots,
+      ...(this.spaceProvider
+        ? {
+            space: {
+              spaceId: 'spaces/' + humanId,
+              files: accountSpaceFiles(this.spaces.home, humanId),
+              memories: bots.map((bot) => ({ slug: bot.slug })),
+            },
+          }
+        : {}),
+    };
   }
 
   async transfer(human: HumanContext, humanId: string, toHumanId: string): Promise<null> {
@@ -816,36 +840,67 @@ export class TeamService {
     if (!target) throw new TeamError('member-not-found');
     if (target.humanId === humanId || (!target.owner && target.status !== 'active'))
       throw new TeamError('transfer-target-invalid');
+    this.manageTarget(human, humanId);
+    if (!this.isOwner(human)) this.roles.requireManagementTarget(human, toHumanId);
+    const currentTarget = this.member(toHumanId);
+    if (!currentTarget || (!currentTarget.owner && currentTarget.status !== 'active'))
+      throw new TeamError('transfer-target-invalid');
     const preview = this.transferPreview(human, humanId);
-    const transferred = JSON.stringify(preview.channels.map((channel) => channel.channelId));
-    this.db.transaction(
-      (db) => {
-        db.prepare(`UPDATE persona_bots SET owner_human_id = ?, body = json_set(body, '$.ownerHumanId', ?)
-          WHERE slug IN (SELECT value FROM json_each(?)) AND owner_human_id = ?`).run(
-          toHumanId,
-          toHumanId,
-          JSON.stringify(preview.bots.map((bot) => bot.slug)),
+    if (this.spaceProvider) {
+      this.spaces.ensureAccount(humanId);
+      this.spaces.ensureAccount(toHumanId);
+    }
+    const spaceTransfer = this.spaceProvider
+      ? prepareSpaceTransfer(
+          this.db,
+          this.spaces.home,
           humanId,
-        );
-        db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId', ?)
+          toHumanId,
+          preview.bots.map((bot) => bot.slug),
+        )
+      : undefined;
+    const transferred = JSON.stringify(preview.channels.map((channel) => channel.channelId));
+    try {
+      this.db.transaction(
+        (db) => {
+          spaceTransfer?.commit(db);
+          db.prepare(`UPDATE persona_bots SET owner_human_id = ?, body = json_set(body, '$.ownerHumanId', ?)
+          WHERE slug IN (SELECT value FROM json_each(?)) AND owner_human_id = ?`).run(
+            toHumanId,
+            toHumanId,
+            JSON.stringify(preview.bots.map((bot) => bot.slug)),
+            humanId,
+          );
+          db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId', ?)
         WHERE json_extract(record_json, '$.type') = 'group'
         AND json_extract(record_json, '$.ownerHumanId') = ?`).run(toHumanId, humanId);
-        db.prepare(`INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at)
+          db.prepare(`INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at)
         SELECT channel_id, ?, ?, 1, ? FROM channel_records
         WHERE channel_id IN (SELECT value FROM json_each(?))
           OR (json_extract(record_json, '$.type') = 'group' AND EXISTS
             (SELECT 1 FROM json_each(record_json, '$.members') m
               WHERE m.value IN (SELECT value FROM json_each(?))))
         ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL`).run(
-          toHumanId,
-          target.displayName,
-          new Date(this.now()).toISOString(),
-          transferred,
-          JSON.stringify(preview.bots.map((bot) => bot.slug)),
-        );
-      },
-      ['team', 'channel', 'bot-registry', 'bot-ownership'],
-    );
+            toHumanId,
+            target.displayName,
+            new Date(this.now()).toISOString(),
+            transferred,
+            JSON.stringify(preview.bots.map((bot) => bot.slug)),
+          );
+        },
+        [
+          'team',
+          'channel',
+          'bot-registry',
+          'bot-ownership',
+          'workspace-spaces',
+          'workspace-grants',
+        ],
+      );
+    } catch (error) {
+      spaceTransfer?.rollback();
+      throw error;
+    }
     this.invalidate();
     await this.stopBots?.(preview.bots.map((bot) => bot.slug));
     return null;

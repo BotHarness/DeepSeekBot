@@ -299,7 +299,7 @@ export function createPersonaBotDeletions(options: {
         'Exclusive managed ownership of this Memory repository is unproven; retain Memory',
       );
     const actual = memoryOwnership(path, partial);
-    const managedDefault = join(canonicalCandidate(options.registry.rootDir), slug, 'memory');
+    const managedDefault = canonicalCandidate(options.registry.defaultMemoryDirFor(slug));
     if (actual.path !== managedDefault) {
       for (const protectedPath of options.protectedPaths ?? [options.registry.rootDir]) {
         if (overlap(actual.path, canonicalCandidate(protectedPath)))

@@ -119,19 +119,19 @@ describe('bridge typert service', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('refuses workspace authorization without an authenticated Owner invocation', () => {
+  it('refuses workspace authorization without an authenticated Human invocation', () => {
     const { service, methods } = setup();
     Object.defineProperty(service, 'ctx', { value: new Context() });
     const approve = vi.spyOn(methods, 'grantRequestApprove');
     expect(() => service.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
-      /authenticated Owner/,
+      /Authenticated Human required/,
     );
     const guest = Object.create(service) as typeof service;
     Object.defineProperty(guest, 'ctx', {
       value: new Context().extend({ invocation: { peer: { principal: { kind: 'guest' } } } }),
     });
     expect(() => guest.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
-      /authenticated Owner/,
+      /Authenticated Human required/,
     );
     expect(approve).not.toHaveBeenCalled();
   });
@@ -661,6 +661,10 @@ describe('bridge typert service', () => {
     const { service } = setup();
 
     expect(remoteMethods(service).map((marker) => marker.exportName ?? marker.method)).toEqual([
+      'spaces',
+      'spaceCreate',
+      'spaceUpdate',
+      'spaceDelete',
       'teamMode',
       'teamModeSet',
       'teamOwnerPasswordSet',

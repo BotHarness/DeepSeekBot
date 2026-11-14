@@ -655,7 +655,7 @@ export interface OwnedSessionBot {
 }
 
 export interface BridgeError {
-  details?: { preview?: AllBotPreview; permission?: string };
+  details?: { preview?: AllBotPreview; permission?: string; path?: string; spaceId?: string };
   code: string;
   message: string;
 }
@@ -8153,13 +8153,27 @@ function buildBridgeMethods(
       try {
         return {
           ok: true,
-          value: { workspaces: deps.grants?.availableWorkspaces() ?? [] },
+          value: {
+            workspaces: deps.team
+              ? deps.team.spaces.list(human).map((space) => ({
+                  id: space.spaceId,
+                  title: space.name,
+                  path: join(deps.team!.spaces.path(space.spaceId), 'files'),
+                }))
+              : (deps.grants?.availableWorkspaces() ?? []),
+          },
         };
       } catch (error) {
         if (error instanceof WorkspaceGrantError) {
           return {
             ok: false,
-            error: { code: error.code, message: error.message },
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error instanceof WorkspaceGrantError && error.details
+                ? { details: error.details }
+                : {}),
+            },
           };
         }
         throw error;
@@ -8291,7 +8305,13 @@ function buildBridgeMethods(
         if (error instanceof WorkspaceGrantError)
           return {
             ok: false,
-            error: { code: error.code, message: error.message },
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error instanceof WorkspaceGrantError && error.details
+                ? { details: error.details }
+                : {}),
+            },
           };
         throw error;
       }
@@ -8324,7 +8344,13 @@ function buildBridgeMethods(
           if (error instanceof WorkspaceGrantError)
             return {
               ok: false,
-              error: { code: error.code, message: error.message },
+              error: {
+                code: error.code,
+                message: error.message,
+                ...(error instanceof WorkspaceGrantError && error.details
+                  ? { details: error.details }
+                  : {}),
+              },
             };
           throw error;
         }
@@ -8401,7 +8427,13 @@ function buildBridgeMethods(
         if (error instanceof WorkspaceGrantError) {
           return {
             ok: false,
-            error: { code: error.code, message: error.message },
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error instanceof WorkspaceGrantError && error.details
+                ? { details: error.details }
+                : {}),
+            },
           };
         }
         throw error;
@@ -8431,7 +8463,13 @@ function buildBridgeMethods(
         if (error instanceof WorkspaceGrantError) {
           return {
             ok: false,
-            error: { code: error.code, message: error.message },
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error instanceof WorkspaceGrantError && error.details
+                ? { details: error.details }
+                : {}),
+            },
           };
         }
         throw error;
@@ -8461,7 +8499,13 @@ function buildBridgeMethods(
         if (error instanceof WorkspaceGrantError)
           return {
             ok: false,
-            error: { code: error.code, message: error.message },
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error instanceof WorkspaceGrantError && error.details
+                ? { details: error.details }
+                : {}),
+            },
           };
         throw error;
       }
