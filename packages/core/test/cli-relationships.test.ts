@@ -189,11 +189,17 @@ it('recovers an existing private Client file without printing its admission or r
   const http = vi.fn(async () => ({
     bytes: new TextEncoder().encode(JSON.stringify({ relationship })),
   }));
+  const clock = vi.spyOn(Date, 'now');
+  const acceptedAt = Date.now();
+  http.mockImplementationOnce(async () => {
+    clock.mockReturnValue(acceptedAt + 120_000);
+    return { bytes: new TextEncoder().encode(JSON.stringify({ relationship })) };
+  });
   const result = await runRelationshipCommand(
     ['route', id],
     { 'link-file': linkFile, 'device-file': deviceFile },
     async () => ({ http }),
-  );
+  ).finally(() => clock.mockRestore());
   expect(JSON.stringify(result)).not.toContain(admission.token);
   expect(JSON.stringify(result)).not.toContain(saved.credential);
   expect(JSON.parse(readFileSync(deviceFile, 'utf8'))).toEqual({
@@ -225,4 +231,22 @@ it('recovers an existing private Client file without printing its admission or r
     ),
   ).rejects.toThrow('relationship-disconnected');
   expect(readFileSync(deviceFile, 'utf8')).toBe(beforeRefusal);
+});
+
+it('refuses an unreadable private Client file before changing the Host route', async () => {
+  const root = createTempRoot('relationship-cli-missing-device-');
+  const linkFile = join(root, 'link.private');
+  writeFileSync(linkFile, 'unused');
+  const { http, connect } = fixture();
+  await expect(
+    runRelationshipCommand(
+      ['route', id],
+      {
+        'link-file': linkFile,
+        'device-file': join(root, 'missing.private.json'),
+      },
+      connect,
+    ),
+  ).rejects.toMatchObject({ code: 'input-unavailable' });
+  expect(http).not.toHaveBeenCalled();
 });

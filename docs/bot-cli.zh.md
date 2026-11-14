@@ -17,6 +17,8 @@
 
 使用 `route --device-file` 时，已认证的 Host 先验证新链接，CLI 再原子替换该 Client 的私密文件。新线路不含手动选定的线路时，返回 `relationship-route-preference-unavailable`，保留原文件。命令不输出设备凭据、密钥或线路准入信息。
 
+Client 线路偏好检查或文件替换失败时，Host 线路可能已经更新。重试前先运行 `relationships list` 并检查私密 Client 文件；Client 文件失败不会回滚 Host。
+
 私有 relay/隧道 admission 保存在 Host 既有受保护凭据 owner 中，`list`、发起结果及 CLI 登记输出不打印 token。固定身份的加密控制交换与当前 Client 的已认证 ticket 将其交给既有 Noise 配对路径。等待对端确认撤销时保留线路引用；确认后仅删除该关系引用。私密存储失败返回 `relationship-route-secret-unavailable`。Tailscale HTTPS 登记同样走固定 Noise，后续 Feed 沿用既有 Host client 线路策略。
 
 `relationships` 通过已认证的本机 Host，使用与连接界面相同的审批所有者。每次 CLI 登记创建独立设备授权，本机 Host 不共享远端设备凭据。

@@ -98,7 +98,7 @@ export async function enrollRelationshipClient(options: {
       ticket.peer.routes,
     );
     const encryptedRoutes = privateRelay
-      ? [privateRelay.origin]
+      ? privateRouteOrigins(privateRelay)
       : ticket.peer.routes.filter((route) => isEncryptedRoute(route) || isTailscaleRoute(route));
     const loopback =
       encryptedRoutes.length === 0 &&
