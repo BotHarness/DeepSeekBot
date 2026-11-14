@@ -174,6 +174,7 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
 import { createCoreStartup } from './diagnostics/core-startup.js';
 import type { DiagnosticEvents } from './diagnostics/diagnostic-log.js';
+import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { recordDatabaseStartup } from './diagnostics/database-startup.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
@@ -461,6 +462,7 @@ export interface BotHarnessConfig {
   enabled: boolean;
   privateInputExecution?: boolean;
   privateInputWebUrl?: string;
+  genuiPreviewBrowserPath?: string;
 
   agentPreset?: string;
   subagent?: BotSubagentPresetConfig;
@@ -479,6 +481,9 @@ export const DEFAULT_CONFIG: BotHarnessConfig = {
 };
 
 export const Config: Schema<BotHarnessConfig> = Schema.object({
+  genuiPreviewBrowserPath: Schema.string().description(
+    'Absolute executable for isolated GenUI previews; omitted or empty discovers the system browser. Invalid explicit paths are refused.',
+  ),
   privateInputWebUrl: Schema.string().description(
     'Explicit credential-free Web origin for IM private input links; never use a login token URL.',
   ),
@@ -1599,8 +1604,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const turnRefusals = new Map<string, string>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
-    onGenuiDiagnostic: (event) =>
-      ctx.logger.info('genui-%s %j', event.component ?? 'preview', event),
+    ...(config.genuiPreviewBrowserPath === undefined
+      ? {}
+      : { genuiPreviewBrowserPath: config.genuiPreviewBrowserPath }),
+    onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
     genuiAttachmentContext: ctx,
     agents: ctx.agents,
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
