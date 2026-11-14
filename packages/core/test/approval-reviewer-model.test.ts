@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -54,7 +55,7 @@ function gate(settings: ApprovalReviewerSettings) {
   const channels = {
     get: vi.fn((id: string) => (id === channelId ? channel : undefined)),
     getOrCreateDm: vi.fn(() => channel),
-    appendMessage: vi.fn(async (_id: string, message: ChannelMessage) => {
+    appendMessage: vi.fn(async (_human: unknown, _id: string, message: ChannelMessage) => {
       messages.push(message);
       return message;
     }),
@@ -192,7 +193,14 @@ describe('Profile-wide reviewer model setting', () => {
         detail: 'Model deepseek/no-such-model is unavailable',
       }),
     );
-    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(
+      await state.broker.decide(
+        OWNER_HUMAN_CONTEXT,
+        botSlug,
+        state.messages[0]!.id,
+        'allowed-once',
+      ),
+    ).toBe(true);
     expect(await answer).toBe('allowed-once');
   });
 
@@ -228,7 +236,7 @@ describe('Profile-wide reviewer model setting', () => {
 
 describe('approvalReviewerModel bridge methods', () => {
   const methods = (settings: ApprovalReviewerSettings) =>
-    createBridgeMethods({
+    createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       approvalReviewer: settings,
       modelCatalog: { list: async () => [], validate },
     } as unknown as BridgeMethodsDeps);

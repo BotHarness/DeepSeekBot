@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { mkdirSync, rmSync } from 'node:fs';
@@ -51,7 +52,7 @@ async function setup() {
     }),
   });
   const grant = await grants.create('ada', 'workspace-1');
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     ownership,
     grants,

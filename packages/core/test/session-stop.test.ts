@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -64,14 +65,14 @@ async function fixture() {
       list: () => [],
     }),
   });
-  const bridge = createBridgeMethods({ ...core });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   createTestWorkspaceGrants(core.operationalDatabase, home);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   let sent = 0;
   async function human(body: string) {
     sent += 1;
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: `human-${sent}`,
       body,

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import {
   assertSupportedJsonSchema,
   type ToolDefinition,
@@ -45,15 +46,18 @@ async function fixture(
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     core.registry.create({ slug: 'bea', displayName: 'Bea' });
-    groupId = core.channels.createGroup({ name: 'Shared', members: ['ada', 'bea'] }).id;
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-    await core.channels.appendMessageOnce(dm.id, {
+    groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Shared',
+      members: ['ada', 'bea'],
+    }).id;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'trigger',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'Check attention',
     });
-    core.runtime.admitDmMessage({
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: 'trigger',
       body: 'Check attention',
@@ -315,7 +319,7 @@ describe('attention Tool contracts through the owning Host', () => {
       }
       const prior = core.channels.getGroupWakePolicy(groupId, 'ada');
       expect(
-        createBridgeMethods({ ...core }).channelGroupWakeSet({
+        createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelGroupWakeSet({
           channelId: groupId,
           botSlug: 'ada',
           mode: 'mentions',
@@ -336,7 +340,10 @@ describe('attention Tool contracts through the owning Host', () => {
         revision: prior.revision + 1,
       });
       expect(core.channels.getGroupWakePolicy(groupId, 'bea')).toEqual(bea);
-      const privateGroup = core.channels.createGroup({ name: 'Private', members: ['bea'] });
+      const privateGroup = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Private',
+        members: ['bea'],
+      });
       await expect(
         call(tools, 'group_attention_set', { channel_id: privateGroup.id, mode: 'silent' }),
       ).rejects.toThrow();

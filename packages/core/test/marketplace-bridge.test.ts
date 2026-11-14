@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createAttachmentStore } from '../src/attachments/store.js';
@@ -20,7 +21,7 @@ function methodsWith(marketplace?: MarketplaceClient, warn?: (message: string) =
   const root = createTempRoot('botharness-marketplace-');
   const registry = createTestRegistry({ rootDir: root });
   const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
-  return createBridgeMethods({
+  return createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     states: createBotStateTracker(),
     channels: createChannelStore({ rootDir: join(root, 'channels'), attachments }),

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { dmChannelId } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -886,6 +887,7 @@ export function createApprovalMessaging(options: {
         () =>
           void owner
             ?.decide(
+              OWNER_HUMAN_CONTEXT,
               value.botSlug,
               value.requestMessageId!,
               event.kind === 'approval-rule'

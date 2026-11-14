@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 import { createTestRosterStore } from './roster-fixture.js';
@@ -38,7 +39,7 @@ const modelOwners: OperationalDatabaseOwner[] = [];
 it('reports unavailable Group review without blaming roster storage', () => {
   const { registry, channels, methods } = setup();
   registry.create({ slug: 'ada', displayName: 'Ada' });
-  const channel = channels.createGroup({ name: 'Review', members: ['ada'] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Review', members: ['ada'] });
   vi.spyOn(channels, 'listHumanMembers').mockReturnValue([
     { humanId: 'local-human', displayName: 'Human' },
   ]);
@@ -54,7 +55,7 @@ it('reports unavailable Group review without blaming roster storage', () => {
 describe('composer recovery reference validation', () => {
   it('uses current Human-visible reply and attachment facts without accepting draft text', async () => {
     const { channels, attachments, methods } = setup();
-    const channel = channels.getOrCreateDm('ada', 'Ada')!;
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const sent = await methods.channelSend({
       channelId: channel.id,
       body: 'reply target',
@@ -154,7 +155,7 @@ function setup(
     states,
     channels,
     attachments,
-    methods: createBridgeMethods({
+    methods: createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry,
       modelPresets,
       ...(modelCatalog === undefined ? {} : { modelCatalog }),
@@ -216,7 +217,7 @@ describe('bridge methods', () => {
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
     registry.create({ slug: 'bea', displayName: 'Bea' });
-    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: ['ada'] });
     const input = {
       slug: 'ada',
       workspaceId: 'project',
@@ -275,7 +276,7 @@ describe('bridge methods', () => {
       read,
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const result = await methods.profileSessionUsage({
       channelId: dm.id,
       slug: 'outsider',
@@ -286,7 +287,7 @@ describe('bridge methods', () => {
     expect(result.value.weeks).toBe(26);
     expect(result.value.rows.map((row) => row.sessionId)).toEqual(['latest', 'assignment']);
     expect(read.mock.calls).toHaveLength(2);
-    const group = channels.createGroup({ name: 'Group', members: ['ada'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Group', members: ['ada'] });
     expect((await methods.profileSessionUsage({ channelId: group.id })).ok).toBe(false);
     expect((await methods.profileSessionUsage({ channelId: 'missing' })).ok).toBe(false);
     expect((await methods.profileSessionUsage({})).ok).toBe(false);
@@ -737,7 +738,7 @@ describe('bridge methods', () => {
       read,
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const rows = async () => {
       const result = await methods.profileSessionUsage({ channelId: dm.id });
       if (!result.ok) throw new Error('Expected scoped usage');
@@ -751,7 +752,7 @@ describe('bridge methods', () => {
     const { registry, channels, methods } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
     registry.create({ slug: 'outsider', displayName: 'Outsider' });
-    const group = channels.createGroup({ name: 'Bounded', members: ['ada'] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Bounded', members: ['ada'] });
     const preview = methods.channelAllBotPreview({ channelId: group.id });
     if (!preview.ok) throw new Error('Expected preview');
     const selection = {
@@ -760,7 +761,7 @@ describe('bridge methods', () => {
       label: 'All Bots',
       preview: preview.value,
     };
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     expect(
       await methods.channelSend({
         channelId: dm.id,
@@ -807,7 +808,7 @@ describe('bridge methods', () => {
   it('rejects All Bots when eligibility changes while the Channel commit is queued', async () => {
     const { registry, channels, methods } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = channels.createGroup({
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Queued preview',
       members: ['ada'],
     });
@@ -834,7 +835,7 @@ describe('bridge methods', () => {
     const { registry, channels, methods } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
     registry.create({ slug: 'bea', displayName: 'Bea' });
-    const group = channels.createGroup({
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Stale',
       members: ['ada', 'bea'],
     });
@@ -875,7 +876,7 @@ describe('bridge methods', () => {
     registry.create({ slug: 'archived', displayName: 'Archived' });
     registry.setPaused('archived', true);
     registry.create({ slug: 'outsider', displayName: 'Outsider' });
-    const group = channels.createGroup({
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'All Bots',
       members: ['bea', 'archived', 'ada'],
     });
@@ -942,7 +943,7 @@ describe('bridge methods', () => {
       const before = h.registry.get('ada');
       const write = vi.spyOn(h.registry, 'setBrowserProfile');
       const changed = vi.fn();
-      const methods = createBridgeMethods({
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry: h.registry,
         states: h.states,
         channels: h.channels,
@@ -1849,8 +1850,8 @@ describe('bridge methods', () => {
       grants,
     );
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    await channels.appendMessage(dm.id, {
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'grant-request-1',
       at: '2026-09-26T00:00:00.000Z',
       author: { kind: 'bot', slug: 'ada' },
@@ -1917,7 +1918,7 @@ describe('bridge methods', () => {
     const { registry, channels, methods } = setup([], ['ada', 'bea']);
     registry.create({ slug: 'ada', displayName: 'Ada' });
     registry.create({ slug: 'bea', displayName: 'Bea' });
-    const dm = channels.getOrCreateBotDm('ada', 'bea', 'Ada · Bea')!;
+    const dm = channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Ada · Bea')!;
     expect(methods.channelMessages({ channelId: dm.id })).toMatchObject({
       ok: true,
     });
@@ -1954,7 +1955,7 @@ describe('bridge methods', () => {
     }));
     expect(registry.create({ slug: 'ada', displayName: 'Alex' }).ok).toBe(true);
     expect(registry.create({ slug: 'bea', displayName: 'Alex' }).ok).toBe(true);
-    const group = channels.createGroup({
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Team',
       members: ['ada', 'bea'],
     });
@@ -2011,7 +2012,7 @@ describe('bridge methods', () => {
       admitBotDmMessage() {},
       async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
-      admitDmMessage(input) {
+      admitDmMessage(_human, input) {
         admitted.push(input.body);
         return { admitted: true as const, settled: Promise.resolve() };
       },
@@ -2020,7 +2021,7 @@ describe('bridge methods', () => {
       whenIdle: async () => undefined,
       close: async () => undefined,
     }));
-    channels.getOrCreateDm('ada', 'Ada');
+    channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const ref = await attachments.upload({
       data: (async function* () {
         yield new TextEncoder().encode('hello');
@@ -2054,7 +2055,7 @@ describe('bridge methods', () => {
 
   it('persists a Human Memory branch choice and rejects a conflicting retry', async () => {
     const { channels, methods } = setup();
-    channels.getOrCreateDm('ada', 'Ada');
+    channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const payload = {
       channelId: 'dm-ada',
       body: 'Switch Memory to history',
@@ -2094,7 +2095,7 @@ describe('bridge methods', () => {
       whenIdle: async () => undefined,
       close: async () => undefined,
     }));
-    channels.getOrCreateDm('ada', 'Ada');
+    channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const payload = {
       channelId: 'dm-ada',
       body: 'only once',
@@ -2131,6 +2132,8 @@ describe('bridge methods', () => {
       value: {
         bots: [
           {
+            ownerHumanId: 'local-human',
+            owner: true,
             slug: 'ada',
             displayName: 'Ada',
             roles: ['研究'],
@@ -2160,6 +2163,8 @@ describe('bridge methods', () => {
       value: {
         bots: [
           {
+            ownerHumanId: 'local-human',
+            owner: true,
             slug: 'plain',
             displayName: 'Plain',
             roles: [],
@@ -2242,6 +2247,8 @@ describe('bridge methods', () => {
       ok: true,
       value: {
         bot: {
+          ownerHumanId: 'local-human',
+          owner: true,
           slug: 'ada',
           displayName: 'Ada',
           roles: ['研究'],
@@ -2448,6 +2455,8 @@ describe('bridge methods', () => {
       ok: true,
       value: {
         bot: {
+          ownerHumanId: 'local-human',
+          owner: true,
           slug: 'ada',
           displayName: 'Ada Lovelace',
           roles: [],
@@ -2665,7 +2674,7 @@ describe('bridge methods', () => {
   it('returns only the changed channel summaries and the removed ids since a cursor (C3)', async () => {
     const { methods, channels } = setup();
     methods.create({ slug: 'ada', displayName: 'Ada' });
-    const team = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const team = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: ['ada'] });
     expect(await methods.channelListChanges({ sinceSeq: 0 })).toMatchObject({
       ok: false,
       error: { code: 'unavailable' },
@@ -2894,7 +2903,7 @@ describe('bridge methods', () => {
       admitBotDmMessage() {},
       async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
-      admitDmMessage(input) {
+      admitDmMessage(_human, input) {
         handled.push(input);
         settled = (async () => {
           const reply = {
@@ -2903,7 +2912,7 @@ describe('bridge methods', () => {
             author: { kind: 'bot' as const, slug: 'ada' },
             body: '已经完成发布状态核对。',
           };
-          await channels.appendMessage(input.channelId, reply);
+          await channels.appendMessage(OWNER_HUMAN_CONTEXT, input.channelId, reply);
         })();
         return { admitted: true as const, settled };
       },
@@ -3005,11 +3014,11 @@ describe('bridge methods', () => {
       admitBotDmMessage() {},
       async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
-      admitDmMessage(input) {
+      admitDmMessage(_human, input) {
         admitted.push(input.body);
         const settled = (async () => {
           await gate;
-          await channels.appendMessage(input.channelId, {
+          await channels.appendMessage(OWNER_HUMAN_CONTEXT, input.channelId, {
             id: `bot-reply-${admitted.length}`,
             at: '2026-09-19T00:00:02.000Z',
             author: { kind: 'bot' as const, slug: 'ada' },
@@ -3456,7 +3465,7 @@ describe('bridge methods', () => {
       usage,
     );
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const result = await methods.profileActivity({ channelId: dm.id });
     expect(result.ok && result.value.modelUsageRows[0]).toMatchObject({
       totalTokens: 674655,
@@ -3512,10 +3521,10 @@ describe('bridge methods', () => {
       usage,
     );
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     channels.admissionActivity = (slug, sinceIso) =>
       slug === 'ada' ? observed.filter((entry) => entry.at >= sinceIso) : [];
-    const group = channels.createGroup({ name: 'Team', members: [] });
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
 
     const result = await methods.profileActivity({ channelId: dm.id });
     expect(result.ok).toBe(true);
@@ -3586,7 +3595,7 @@ describe('bridge methods', () => {
   it('saves an illustrated appearance through its DM, derives a bounded snapshot, and preserves it after rejected input', async () => {
     const { root, registry, channels, methods, states } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const recipe = {
       schemaVersion: 1,
       family: 'illustrated',
@@ -3649,7 +3658,8 @@ describe('bridge methods', () => {
     }
     expect(
       methods.botAppearanceSet({
-        channelId: channels.createGroup({ name: 'Group', members: ['ada'] }).id,
+        channelId: channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Group', members: ['ada'] })
+          .id,
         recipe,
       }),
     ).toMatchObject({ ok: false });
@@ -3670,8 +3680,8 @@ describe('bridge methods', () => {
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/ZFsAAAAASUVORK5CYII=';
     const { root, registry, channels, methods } = setup();
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: ['ada'] });
     const subject = () => registry.get('ada')!;
     const listed = () => {
       const result = methods.list({});
@@ -3768,8 +3778,8 @@ describe('bridge methods', () => {
   it('sets a banner scene inside the DM and resets it to the name-seeded one', () => {
     const { registry, channels, methods } = setup();
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    const group = channels.createGroup({ name: 'Team', members: [] });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const recipe = { scene: 'night-sky', seed: 12 };
 
     expect(methods.botBannerSet({ channelId: dm.id, banner: { recipe } })).toMatchObject({
@@ -3799,8 +3809,8 @@ describe('bridge methods', () => {
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/ZFsAAAAASUVORK5CYII=';
     const { registry, channels, methods } = setup();
     expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
-    const dm = channels.getOrCreateDm('ada', 'Ada')!;
-    const group = channels.createGroup({ name: 'Team', members: [] });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: [] });
     const avatarUrl = expect.stringMatching(/^\/api\/botharness\/bot-avatar\?slug=ada&v=/u);
 
     const set = methods.botAvatarSet({ channelId: dm.id, avatar });
@@ -3840,7 +3850,7 @@ describe('bridge methods', () => {
 
 it('resolves attachment identity within its current message and keeps resend idempotency after an external save', async () => {
   const { attachments, channels, methods } = setup();
-  const channel = channels.createGroup({ name: 'Files', members: [] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Files', members: [] });
   const ref = await attachments.upload({
     data: (async function* () {
       yield Buffer.from('source');
@@ -3885,7 +3895,7 @@ it('resolves attachment identity within its current message and keeps resend ide
 it('logs why storage cleanup failed instead of hiding it behind storage-unavailable (#2882)', () => {
   const h = setup();
   const warn = vi.fn();
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: h.registry,
     states: h.states,
     channels: h.channels,

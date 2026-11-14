@@ -247,7 +247,10 @@ export function RelationshipSettings({
                       size="sm"
                       variant="outline"
                       disabled={busy}
-                      onClick={() => setConfirm({ item, action: 'approve' })}
+                      onClick={() => {
+                        setFailed(false);
+                        setConfirm({ item, action: 'approve' });
+                      }}
                     >
                       {t('relationships.review')}
                     </Button>
@@ -306,7 +309,10 @@ export function RelationshipSettings({
                       size="sm"
                       variant="outline"
                       disabled={busy}
-                      onClick={() => setConfirm({ item, action: 'disconnect' })}
+                      onClick={() => {
+                        setFailed(false);
+                        setConfirm({ item, action: 'disconnect' });
+                      }}
                     >
                       {t('relationships.disconnect')}
                     </Button>

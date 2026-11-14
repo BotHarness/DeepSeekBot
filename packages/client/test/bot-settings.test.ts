@@ -3,6 +3,9 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
+let member = false;
+vi.mock('../src/client/team-state.js', () => ({ useTeamMember: () => member }));
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Input: (props: object) => createElement('input', props),
   Modal: ({
@@ -92,6 +95,7 @@ let rendered: {
 }[];
 
 beforeEach(() => {
+  member = false;
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   host = document.createElement('div');
   document.body.append(host);
@@ -471,4 +475,28 @@ it('limits App preferences navigation and section mounting to Client-local owner
   );
   expect(shownSection()).toBe('models');
   expect(rendered.at(-1)).toMatchObject({ id: 'models', clientOnly: false });
+});
+
+it('intersects member access with Client preferences for navigation, search and direct section requests', () => {
+  member = true;
+  const settings = new BotSettings();
+  mount(
+    settings,
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id })),
+  );
+  act(() => settings.openClientPreferences());
+  expect(navLabels()).toEqual(['appearance', 'notifications', 'shortcuts']);
+  for (const id of ['team', 'models', 'companions']) {
+    act(() => settings.select(id));
+    expect(shownSection()).toBe('appearance');
+  }
+  const input = document.querySelector<HTMLInputElement>('input');
+  if (!input) throw Error('Settings search missing');
+  for (const query of ['团队', '伙伴', '模型']) {
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, query);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(document.querySelectorAll('.bh-settings-search-results button')).toHaveLength(0);
+  }
 });

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -17,11 +18,14 @@ it('marks captured Human Channel heads read, preserves requests and leaves later
   let core = createCore({ dshHome: home, agents });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-    const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-    const hidden = core.channels.getOrCreateBotDm('ada', 'bea', 'Private')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Team',
+      members: ['ada'],
+    });
+    const hidden = core.channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Private')!;
     for (const channel of [dm, group, hidden])
-      await core.channels.appendMessage(channel.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: 'head-' + channel.id,
         ...(channel.id === hidden.id
           ? {
@@ -36,41 +40,45 @@ it('marks captured Human Channel heads read, preserves requests and leaves later
         body: 'Update',
         at: new Date().toISOString(),
       });
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'grant-request',
       author: { kind: 'bot', slug: 'ada' },
       body: 'Choose workspace',
       grantRequest: true,
       at: new Date().toISOString(),
     });
-    const requests = core.humanAttention.actionCount();
+    const requests = core.humanAttention.actionCount(OWNER_HUMAN_CONTEXT);
     expect(requests).toBe(1);
     const original = core.channels.markRead.bind(core.channels);
     let injected = false;
-    core.channels.markRead = async (channelId, messageId) => {
+    core.channels.markRead = async (human, channelId, messageId) => {
       if (!injected) {
         injected = true;
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id: 'late',
           author: { kind: 'bot', slug: 'ada' },
           body: 'Late update',
           at: new Date().toISOString(),
         });
       }
-      return original(channelId, messageId);
+      return original(OWNER_HUMAN_CONTEXT, channelId, messageId);
     };
-    const result = await createBridgeMethods({ ...core }).channelMarkAllRead({});
+    const result = await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelMarkAllRead(
+      {},
+    );
     expect(result).toEqual({ ok: true, value: { channels: 2 } });
-    expect(core.channels.readPosition(dm.id)?.messageId).toBe('grant-request');
-    expect(core.channels.readPosition(group.id)?.messageId).toBe('head-' + group.id);
-    expect(core.channels.readPosition(hidden.id)).toBeUndefined();
-    expect(core.humanAttention.actionCount()).toBe(requests);
-    expect(core.humanAttention.status().unreadCount).toBe(1);
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, dm.id)?.messageId).toBe('grant-request');
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, group.id)?.messageId).toBe(
+      'head-' + group.id,
+    );
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, hidden.id)).toBeUndefined();
+    expect(core.humanAttention.actionCount(OWNER_HUMAN_CONTEXT)).toBe(requests);
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(1);
     await core.runtime.close();
     core.operationalDatabase.close();
     core = createCore({ dshHome: home, agents });
-    expect(core.humanAttention.status().unreadCount).toBe(1);
-    expect(core.humanAttention.actionCount()).toBe(1);
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(1);
+    expect(core.humanAttention.actionCount(OWNER_HUMAN_CONTEXT)).toBe(1);
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
@@ -82,12 +90,18 @@ it('excludes inaccessible heads and reports a corrupt latest placement instead o
   const fixture = attachOperationalModule(core.operationalDatabase, 'channels');
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-    const group = core.channels.createGroup({ name: 'Former membership', members: ['ada'] });
-    const deleted = core.channels.createGroup({ name: 'Deleted', members: ['ada'] });
-    const hidden = core.channels.getOrCreateBotDm('ada', 'bea', 'Private')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Former membership',
+      members: ['ada'],
+    });
+    const deleted = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Deleted',
+      members: ['ada'],
+    });
+    const hidden = core.channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Private')!;
     for (const channel of [dm, group, deleted, hidden])
-      await core.channels.appendMessage(channel.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: 'head-' + channel.id,
         author: { kind: 'bot', slug: 'ada' },
         body: 'Stored update',
@@ -103,21 +117,23 @@ it('excludes inaccessible heads and reports a corrupt latest placement instead o
         group.id,
       );
     });
-    expect(core.channels.latestHumanMessageId?.(hidden.id)).toBeUndefined();
-    expect(core.channels.latestHumanMessageId?.(deleted.id)).toBeUndefined();
-    expect(core.channels.latestHumanMessageId?.(group.id)).toBeUndefined();
+    expect(core.channels.latestHumanMessageId?.(OWNER_HUMAN_CONTEXT, hidden.id)).toBeUndefined();
+    expect(core.channels.latestHumanMessageId?.(OWNER_HUMAN_CONTEXT, deleted.id)).toBeUndefined();
+    expect(core.channels.latestHumanMessageId?.(OWNER_HUMAN_CONTEXT, group.id)).toBeUndefined();
     fixture.transaction((db) => {
       const result = db
         .prepare('UPDATE source_events SET payload_json = ? WHERE channel_id = ?')
         .run('{}', dm.id);
       expect(result.changes).toBeGreaterThan(0);
     });
-    expect(await createBridgeMethods({ ...core }).channelMarkAllRead({})).toMatchObject({
+    expect(
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).channelMarkAllRead({}),
+    ).toMatchObject({
       ok: false,
       error: { code: 'invalid-input' },
     });
-    expect(core.channels.readPosition(dm.id)).toBeUndefined();
-    expect(core.channels.readPosition(hidden.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, dm.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, hidden.id)).toBeUndefined();
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
@@ -129,30 +145,34 @@ it("marks only the chosen Channel, or only the chosen Bot's Channels", async () 
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     core.registry.create({ slug: 'bea', displayName: 'Bea' });
-    const ada = core.channels.getOrCreateDm('ada', 'Ada')!;
-    const bea = core.channels.getOrCreateDm('bea', 'Bea')!;
-    const team = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+    const ada = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const bea = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+    const team = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Team', members: ['ada'] });
     for (const channel of [ada, bea, team])
-      await core.channels.appendMessage(channel.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: 'head-' + channel.id,
         author: { kind: 'bot', slug: channel.id === bea.id ? 'bea' : 'ada' },
         body: 'Update',
         at: new Date().toISOString(),
       });
-    const methods = createBridgeMethods({ ...core });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     expect(await methods.channelMarkAllRead({ channelId: bea.id })).toEqual({
       ok: true,
       value: { channels: 1 },
     });
-    expect(core.channels.readPosition(bea.id)?.messageId).toBe('head-' + bea.id);
-    expect(core.channels.readPosition(ada.id)).toBeUndefined();
-    expect(core.channels.readPosition(team.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, bea.id)?.messageId).toBe(
+      'head-' + bea.id,
+    );
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, ada.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, team.id)).toBeUndefined();
     expect(await methods.channelMarkAllRead({ botSlug: 'ada' })).toEqual({
       ok: true,
       value: { channels: 2 },
     });
-    expect(core.channels.readPosition(ada.id)).toBeDefined();
-    expect(core.channels.readPosition(team.id)?.messageId).toBe('head-' + team.id);
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, ada.id)).toBeDefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, team.id)?.messageId).toBe(
+      'head-' + team.id,
+    );
     expect(await methods.channelMarkAllRead({ botSlug: 'ada' })).toEqual({
       ok: true,
       value: { channels: 0 },
