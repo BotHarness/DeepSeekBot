@@ -333,6 +333,15 @@ it('renders the native group header and self, other Human and Bot messages in th
     expect(mine('self')).toBe(true);
     expect(mine('human-other')).toBe(false);
     expect(mine('bot')).toBe(false);
+    const groupOf = (id: string) =>
+      view.element.querySelector('[data-message-id="' + id + '"]')?.closest('.bh-message-group');
+    expect(
+      groupOf('human-other')
+        ?.querySelector('.bh-message-group-human-avatar')
+        ?.getAttribute('aria-label'),
+    ).toBe('Human B');
+    expect(groupOf('self')?.querySelector('.bh-message-group-avatar')).toBeNull();
+    expect(groupOf('bot')?.querySelector('.bh-message-group-avatar')).not.toBeNull();
     expect(view.element.textContent).toContain('Human B');
     expect(
       view.element
@@ -344,6 +353,46 @@ it('renders the native group header and self, other Human and Bot messages in th
     expect(view.element.querySelector('[data-remote-composer]')).toBeNull();
     expect(store.getSnapshot().channels).toEqual([]);
     expect(view.localCall.mock.calls).toEqual([]);
+  } finally {
+    await view.close();
+  }
+});
+
+it('keeps Human DM edges free of group avatars and uses a Human empty hint', async () => {
+  const view = await mount((host, id) => {
+    host.methods.set('channels', () => ({
+      channels: [
+        {
+          id: 'shared',
+          type: 'dm',
+          name: 'Human B',
+          members: [],
+          humanParticipants: ['self-' + id, 'human-other'],
+          humanMembers: [{ humanId: 'human-other', displayName: 'Human B' }],
+          createdAt: at,
+          updatedAt: at,
+        },
+      ],
+    }));
+    if (id === 'c')
+      host.channel('shared').append({
+        id: 'other-dm',
+        body: 'Human DM reply',
+        author: { kind: 'human', humanId: 'human-other', displayName: 'Human B' },
+      });
+  }, false);
+  try {
+    await act(async () =>
+      vi.waitFor(() =>
+        expect(view.element.textContent).toContain(zhTranslate('main.humanChat.hint')),
+      ),
+    );
+    await view.open(other);
+    await act(async () =>
+      vi.waitFor(() => expect(view.element.textContent).toContain('Human DM reply')),
+    );
+    expect(view.element.querySelector('.bh-message-group-avatar')).toBeNull();
+    expect(view.element.querySelector('.bh-message-group-me')).toBeNull();
   } finally {
     await view.close();
   }
