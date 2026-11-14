@@ -11,6 +11,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 - 补充下游相同登记的官方地址恢复与保护隐私的账号邀请诊断；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)）。
 
+- 下游远端 Bot CLI 验证路径与已验证的原生 Profile、模型、工作区及审批控件对齐；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4118](https://github.com/BotHarness/DeepSeekBot/issues/4118)）。
+
 - 补充下游具名 Host 用量／存储路径及全新已发布149验证边界；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4119](https://github.com/BotHarness/DeepSeekBot/issues/4119)）。
 
 - 补充下游具名环境设置的验证路径，入口与实际「更多操作 → 设置」一致；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4117](https://github.com/BotHarness/DeepSeekBot/issues/4117)）。

@@ -139,6 +139,8 @@ deepseekbot search <words>
 
 ### 远程设置
 
+远端 Bot 会话复用现有 Profile、输入区「模型」「工作区授权」与审批控件，始终绑定该频道所属 Bot 与 Host，浏览环境筛选不能改变目标。对所属 Host 使用 `--host` 和 `--token-file`，先执行 `show <bot>`，再通过 `update <bot> --name <name> --expected-profile <profileFingerprint>` 改名。模型使用 `model-plan-customize` 或 `model-preset-apply`，传入已观察的 Bot 与预设修订。文件夹使用 `workspace-options`／`workspace-create`、`grants`、`grant-create` 和带 `--confirm` 的 `grant-revoke`；审批模板使用 `approval-template list --bot <bot>` 与 `approval-template-set`。修改后从同一 Host 读回 `show`、`model-plan`、`grants` 和所选模板，回执不确定时同样如此。这些操作不启用 Bot 协作或更改网络成员关系。Client 被移除或替换后，旧设置草稿不会借新授权重放，须关闭并重新打开 Bot 设置。远端文件夹使用目标 Host 的目录列表、正式 Workspace 创建和明确的授权确认。本机系统选择器保持不可用，不会回退到提供网页的 Host。
+
 本应用偏好只列出由既有设备本地所有者保存的 Client 外观、通知、快捷键和伙伴选项，导航与搜索均不包含 Host 选项。「更多设置」保留既有组合并标明范围：动效、Bot 模式图标和原生语言设置作用于本机 Host，窗口缩放作用于当前设备。这些 Host 选项始终绑定提供当前网页的 Host。
 
 创建预设的结果尚未确认时，设置草稿不会再次发送创建请求。收到成功回执后会保留预设 ID，「检查已创建的预设」只重读同一 Host。没有回执时，先检查预设列表并放弃草稿，再选择下一步；名称相同不能证明请求成功。放弃不会撤销可能已完成的 Host 写入。

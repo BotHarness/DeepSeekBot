@@ -15,6 +15,7 @@
 | Connect account recovery, encrypted pairing, resources and native private input | yes for DM/tool/private request; no for account recovery | `scripts/e2e-connect-account-recovery.mjs`; `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
 | SSH tunnel to an existing Linux Host | no | `verify-app` two-Host path and system SSH | [ssh-host.md](ssh-host.md) |
 | Browser Remote Host pairing, icon strip, local appearance/notifications and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
+| Exact remote Channel owner Bot name, models, Workspace grants and approval templates | no | `verify-app` isolated two-Host path + direct CLI | [remote-bot-settings.md](remote-bot-settings.md) |
 
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |

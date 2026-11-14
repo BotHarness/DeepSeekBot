@@ -18,6 +18,8 @@ E6 通过现有已认证账号列表与 `/offer` 发现同账号 Host：两端�
 
 本 Client 的 Forget/Remove 在原私有数组保留不含凭据的自动选择及新代次；临时登记不清除该选择，成功手动登记仅在准确凭据与已捕获选择（包括原先不存在）均未变化时清除。较晚 Forget 使旧手动流程拒绝完成并准确回收自己的授权；取消补偿不覆盖较新凭据或选择。pending confirmation 保留该快照供重载后收敛，attach 前重读并复用准确匹配的既有 Client，防止旧流程覆盖另一标签页的连接。
 
+E9 的远端 Bot 设置复用原有 ConversationView 内的资料、模型、Workspace Grant 与审批控件，来源上下文固定捕获所属 Host、Bot 与原 HostClient。写入仍经过原 Host 的 Registry、模型、Workspace 和审批 owners 与既有 Device Gateway/API Gateway；每次调用前后检查原 Client 及连接状态，离开来源、撤销或同 Host ID 换 Client 后，旧结果不能提交后续操作。Workspace 目录选择沿用目标 Host 的目录浏览与 Workspace owner，保留分页而不向远端暴露本机 OS picker。纯 Human 会话不显示 Bot 控件。删除独立远端 SettingsDialog，不增加持久数据、代理权限层或 Bot 协作成员授权。
+
 私有线路 admission 存入既有受保护 credentials owner，以准确关系和固定对端身份绑定；公开关系、CLI 结果及生命周期日志不包含 token。仅固定身份的加密控制交换学习 admission，并在已认证的登记 ticket 中交给当前 Client，沿用既有 Noise 配对。等待对端撤销确认期间保留原有引用；确认后只清理该关系引用，重启补清已确认残留。异步写入与清理按关系串行，并在 await 后重新核对 canonical 授权；已断开关系不能继续普通返回探测。Tailscale HTTPS 登记仍走固定 Noise，后续沿用既有 HostClient 线路策略。
 
 E4 在已发布 Channel 权限迁移 146 之后，以关系 owner 的 Operational Database generation 147 保存离线撤销的尝试次数、下次时间与主动断开抑制；同一 Fiber 有限重试准确代际的幂等撤销，八次后仍保留 pending 供检查及手动重试，不重放普通变更。本机先拒绝关系并撤销派生设备，对方恢复后通过固定 Noise 身份确认；旧代确认不触碰新代。仅用户/对端主动断开抑制自动登记，发起失败的内部清理不抑制；取消待批准关系在任何撤销或抑制写入前原子拒绝已激活关系；新链接及批准激活新代才解除。最多保留 256 条关系并安全拒绝超量新增，不删待确认事实或身份。Client 复用 SavedHost 的非权限关系引用关闭对应来源，移除当前选择回到 All；临时 exact-Host draft guard 在主动移除前等待保存成功或放弃，取消/失败不改关系。见 [ADR-0337](../adr/0337-offline-disconnect-retries-stay-with-the-relationship-owner.md)。

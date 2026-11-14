@@ -432,7 +432,7 @@ export async function loadWorkspaceOptions(client: HostClient): Promise<Workspac
   return some(rows, option);
 }
 
-async function createWorkspace(client: HostClient, path: string): Promise<string> {
+export async function createWorkspace(client: HostClient, path: string): Promise<string> {
   const workspace = record(
     record(await client.call<unknown>('workspace/create', { request: { path } }))?.['workspace'],
   );
