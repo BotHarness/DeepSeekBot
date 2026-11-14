@@ -1,3 +1,4 @@
+import { TeamService } from './team/service.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
@@ -1905,7 +1906,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let voiceCalls: VoiceCalls | undefined;
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
+  const team = new TeamService(
+    attachOperationalModule(core.operationalDatabase, 'team'),
+    core.channels,
+    { log: (phase, facts) => diagnosticEvents.record('team', phase, facts) },
+  );
   mountDevicePairing(ctx, {
+    team,
     calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
@@ -3022,6 +3029,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeDeps: BridgeMethodsDeps = {
+    team,
     hostVersion: () => release.version(),
     callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
@@ -3128,11 +3136,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       compactBot,
       compactReservedSession,
     },
-    composerIdentity: () =>
+    composerIdentity: (human) =>
       composerRecoveryIdentity(
         join(homedir(), '.config', 'botharness', 'composer-host-id'),
         join(core.rootDir, '..', 'composer-profile-id'),
-        core.channels.humanIdentity(OWNER_HUMAN_CONTEXT).humanId,
+        human.humanId,
       ),
     warn: (message) => ctx.logger.warn(message),
     registry: core.registry,
@@ -3536,21 +3544,27 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     registry: core.registry,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
-  registerBridge(ctx, invocationBridgeMethods, privateInputs, {
-    followRoster: (human, signal) => core.live.followRoster(signal),
-    followActivity: (human, signal) => core.live.followActivity(human, signal),
-    followChannel: (human, channelId, limit, signal, drafts) =>
-      core.live.followChannel(human, channelId, limit, signal, drafts),
-    journalPage: (human, channelId, request) =>
-      core.channels.readHumanJournalPage(human, channelId, request),
-    filesPage: (human, channelId, request) =>
-      core.channels.readHumanFilesPage(human, channelId, request),
-    changes: (human, channelId, request) =>
-      core.channels.readHumanChanges?.(human, channelId, request),
-    changeCursor: (human) => core.channels.changeCursor?.(),
-    followCompanion: (human, resume, lastEventId, signal) =>
-      followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
-  });
+  registerBridge(
+    ctx,
+    invocationBridgeMethods,
+    privateInputs,
+    {
+      followRoster: (human, signal) => core.live.followRoster(human, signal),
+      followActivity: (human, signal) => core.live.followActivity(human, signal),
+      followChannel: (human, channelId, limit, signal, drafts) =>
+        core.live.followChannel(human, channelId, limit, signal, drafts),
+      journalPage: (human, channelId, request) =>
+        core.channels.readHumanJournalPage(human, channelId, request),
+      filesPage: (human, channelId, request) =>
+        core.channels.readHumanFilesPage(human, channelId, request),
+      changes: (human, channelId, request) =>
+        core.channels.readHumanChanges?.(human, channelId, request),
+      changeCursor: (human) => core.channels.changeCursor?.(),
+      followCompanion: (human, resume, lastEventId, signal) =>
+        followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
+    },
+    team,
+  );
 
   ctx.inject(['skills'], (skillsCtx) => {
     const skills = (

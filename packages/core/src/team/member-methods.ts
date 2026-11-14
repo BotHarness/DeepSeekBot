@@ -1,0 +1,34 @@
+export const MEMBER_GLOBAL_METHODS = [
+  'teamMode',
+  'memberPasswordChange',
+  'publicChannels',
+  'publicChannelJoin',
+  'channels',
+  'channelListChanges',
+  'channelUnreadCounts',
+  'list',
+  'rosterGet',
+  'followRoster',
+  'humanIdentity',
+  'composerIdentity',
+  'ping',
+] as const;
+
+export const MEMBER_CHANNEL_METHODS = [
+  'channelMessages',
+  'channelTimeline',
+  'channelReadPosition',
+  'channelMarkRead',
+  'channelSend',
+  'channelReact',
+  'channelSearch',
+  'followChannel',
+  'channelJournalPage',
+  'channelFilesPage',
+  'channelChanges',
+] as const;
+
+export const MEMBER_METHODS: ReadonlySet<string> = new Set([
+  ...MEMBER_GLOBAL_METHODS,
+  ...MEMBER_CHANNEL_METHODS,
+]);

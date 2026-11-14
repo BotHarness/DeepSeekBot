@@ -1,3 +1,4 @@
+import { memberPage } from './member-page.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import type { BridgeActions } from './actions.js';
@@ -81,6 +82,7 @@ export class OnboardingController {
     companion?: WindowCompanions,
     select = false,
   ): Promise<void> {
+    if (memberPage()) return;
     try {
       const receipt = await this.actions.onboarding(slug, action);
       const first = this.state.receipt === undefined;

@@ -661,6 +661,17 @@ describe('bridge typert service', () => {
     const { service } = setup();
 
     expect(remoteMethods(service).map((marker) => marker.exportName ?? marker.method)).toEqual([
+      'teamMode',
+      'teamModeSet',
+      'teamOwnerPasswordSet',
+      'teamInsecureHttpSet',
+      'members',
+      'memberCreate',
+      'memberPasswordChange',
+      'memberPasswordReset',
+      'publicChannels',
+      'publicChannelJoin',
+      'channelPublicSet',
       'privateInputStatus',
       'privateInputSubmit',
       'privateInputCancel',

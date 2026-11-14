@@ -2653,6 +2653,22 @@ export async function runBotCreateCli(
     }
     if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
+    const teamChannels = command === 'channels' && (online || rest.length > 0);
+    if (
+      values.as !== undefined &&
+      (!online ||
+        (!teamChannels &&
+          command !== 'channel-messages' &&
+          !LIVE_COMMANDS.some((entry) => entry.command === command)))
+    )
+      throw usageError('as-online-required');
+    if (teamChannels || (values.as !== undefined && command === 'channel-messages')) {
+      if (!online) throw usageError('host-required');
+      if (values.home !== undefined)
+        throw usageError('Do not combine --home and an online Host target.');
+      out.stdout(JSON.stringify(await runLiveCli(command, rest, values, io), null, 2));
+      return 0;
+    }
     if (ZIP_UPLOAD_COMMANDS.some((entry) => entry === command)) {
       if (!online) throw usageError('Zip transfer commands require --host.');
       out.stdout(JSON.stringify(await runZipUploadCli(command, rest, values, io), null, 2));
