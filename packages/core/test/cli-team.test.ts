@@ -18,7 +18,12 @@ afterEach(async () => {
     ),
   );
 });
-async function host() {
+async function host(
+  memberFailure: { code: string; message: string; details?: { permission: string } } = {
+    code: 'remote-access/denied',
+    message: 'member-call-refused',
+  },
+) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(async (request, response) => {
     if (request.method === 'GET') {
@@ -36,18 +41,27 @@ async function host() {
     const input = JSON.parse(Buffer.concat(chunks).toString());
     calls.push({ path: request.url ?? '', input });
     const value =
-      input.method === 'botharness/memberCreate'
-        ? {
-            member: { username: 'bob', humanId: 'bob-id' },
-            initialPassword: 'private-initial-password',
-          }
-        : { done: true };
+      input.method === 'botharness/teamMode'
+        ? { viewer: { humanId: 'owner-id' } }
+        : input.method === 'botharness/members'
+          ? [
+              { username: 'bob', humanId: 'bob-id' },
+              { username: 'owner', humanId: 'local-human' },
+            ]
+          : input.method === 'botharness/memberCreate'
+            ? {
+                member: { username: 'bob', humanId: 'bob-id' },
+                initialPassword: 'private-initial-password',
+              }
+            : input.method === 'botharness/memberPasswordReset'
+              ? { initialPassword: 'private-reset-password' }
+              : { done: true };
     response.setHeader('content-type', 'application/json');
     if (request.url === '/api/botharness/team-as')
       response.end(
         JSON.stringify({
           ok: false,
-          error: { code: 'remote-access/denied', message: 'member-call-refused' },
+          error: memberFailure,
         }),
       );
     else
@@ -84,12 +98,89 @@ async function run(url: string, args: string[], stdin = '') {
   };
 }
 describe('Team CLI', () => {
+  it('recovers a committed username into a new private file without printing its password', async () => {
+    const f = await host();
+    const path = join(createTempRoot('team-cli-reset-'), 'reset-password');
+    const args = ['members', 'reset-password', 'bob', '--initial-password-file', path];
+    const reset = await run(f.url, args);
+    expect(reset.status).toBe(0);
+    expect(reset.output).toEqual({ humanId: 'bob-id', initialPasswordFile: path });
+    expect(readFileSync(path, 'utf8')).toBe('private-reset-password');
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
+    expect(reset.text + reset.errorText).not.toContain('private-reset-password');
+    expect(f.calls).toMatchObject([
+      { input: { method: 'botharness/members' } },
+      {
+        input: {
+          method: 'botharness/memberPasswordReset',
+          payload: { args: { humanId: 'bob-id' } },
+        },
+      },
+    ]);
+    const count = f.calls.length;
+    expect((await run(f.url, args)).output).toMatchObject({
+      error: { code: 'password-file-unavailable' },
+    });
+    expect(f.calls).toHaveLength(count);
+    const missing = join(createTempRoot('team-cli-missing-'), 'password');
+    expect(
+      (
+        await run(f.url, [
+          'members',
+          'reset-password',
+          'missing',
+          '--initial-password-file',
+          missing,
+        ])
+      ).output,
+    ).toMatchObject({ error: { code: 'member-not-found' } });
+    expect(existsSync(missing)).toBe(false);
+  });
+  it.each([
+    'device-activity',
+    'device-notifications',
+    'phone-notifications',
+    'device-pair',
+    'device-probe',
+  ])('refuses --as before %s device dispatch', async (command) => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', command]);
+    expect(result.output).toMatchObject({ error: { code: 'as-command-unsupported' } });
+    expect(f.calls).toHaveLength(0);
+  });
+  it.each([{ args: ['channels'] }, { args: ['channel-messages', 'group-1', '--as', 'bob'] }])(
+    'refuses --home before early hosted dispatch: %j',
+    async ({ args }) => {
+      const f = await host();
+      const result = await run(f.url, [...args, '--home', createTempRoot('team-cli-home-')]);
+      expect(result.status).not.toBe(0);
+      expect(f.calls).toHaveLength(0);
+    },
+  );
   it.each([
     [['team-mode', 'status'], 'teamMode', {}],
     [['team-mode', 'on'], 'teamModeSet', { enabled: true }],
     [['team-mode', 'off'], 'teamModeSet', { enabled: false }],
     [['team-mode', 'insecure-http', 'on', '--confirm'], 'teamInsecureHttpSet', { allowed: true }],
     [['members', 'list'], 'members', {}],
+    [['roles', 'list'], 'roles', {}],
+    [['roles', 'catalog'], 'permissionCatalog', {}],
+    [
+      ['roles', 'create', '--name', 'Reviewers', '--permissions', 'audit.view,usage.view'],
+      'roleCreate',
+      { name: 'Reviewers', permissions: ['audit.view', 'usage.view'] },
+    ],
+    [
+      ['roles', 'update', 'reviewers', '--permissions', ''],
+      'roleUpdate',
+      { roleId: 'reviewers', permissions: [] },
+    ],
+    [
+      ['roles', 'update', 'reviewers', '--name', 'Operators'],
+      'roleUpdate',
+      { roleId: 'reviewers', name: 'Operators' },
+    ],
+    [['roles', 'delete', 'reviewers', '--confirm'], 'roleDelete', { roleId: 'reviewers' }],
     [['channels', 'browse-public'], 'publicChannels', {}],
     [['channels', 'join-public', 'group-1'], 'publicChannelJoin', { channelId: 'group-1' }],
     [
@@ -148,7 +239,7 @@ describe('Team CLI', () => {
     expect(created.status).toBe(0);
     expect(created.output).toMatchObject({ initialPasswordFile: path });
     expect(readFileSync(path, 'utf8')).toBe('private-initial-password');
-    expect(statSync(path).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(created.text).not.toContain('private-initial-password');
     const callCount = f.calls.length;
     writeFileSync(path, 'keep-me');
@@ -193,6 +284,82 @@ describe('Team CLI', () => {
       },
     });
   });
+  it.each([
+    [
+      ['members', 'roles', 'bob', '--set', 'member,reviewers'],
+      'memberRolesSet',
+      { humanId: 'bob-id', roleIds: ['member', 'reviewers'] },
+    ],
+    [['devices', '--member', 'bob'], 'memberDevices', { humanId: 'bob-id' }],
+    [
+      ['devices', '--member', 'bob', '--revoke', 'browser-grant'],
+      'memberDeviceRevoke',
+      { humanId: 'bob-id', grantId: 'browser-grant' },
+    ],
+    [
+      ['team-mode', 'transfer-owner', 'bob', '--password-stdin', '--confirm'],
+      'ownerTransfer',
+      { humanId: 'bob-id', password: 'private-owner-password' },
+    ],
+  ] as const)('resolves usernames and dispatches %j', async (args, method, payload) => {
+    const f = await host();
+    const result = await run(f.url, [...args], 'private-owner-password\n');
+    expect(result.status).toBe(0);
+    expect(f.calls.map((call) => call.path)).toEqual([
+      '/api/botharness/teamMode',
+      '/api/botharness/members',
+      `/api/botharness/${method}`,
+    ]);
+    expect(f.calls[2]?.input).toMatchObject({ payload: { args: payload } });
+    expect(result.text + result.errorText).not.toContain('private-owner-password');
+  });
+
+  it.each([
+    ['team-mode', 'transfer-owner', 'bob', '--password-stdin'],
+    ['team-mode', 'transfer-owner', 'bob', '--confirm'],
+    ['roles', 'create', '--name', 'No permissions'],
+    ['devices', '--member', 'bob', '--member', 'alice'],
+  ])('refuses incomplete or ambiguous M3 commands %j without mutation', async (...args) => {
+    const f = await host();
+    expect((await run(f.url, args, 'private-owner-password')).status).not.toBe(0);
+    expect(f.calls).toEqual([]);
+  });
+
+  it.each([
+    ['roles', 'list'],
+    ['roles', 'catalog'],
+    ['roles', 'create', '--name', 'Audit', '--permissions', 'audit.view'],
+    ['roles', 'update', 'audit', '--permissions', ''],
+    ['roles', 'delete', 'audit', '--confirm'],
+    ['members', 'roles', 'alice', '--set', 'member'],
+    ['devices', '--member', 'bob'],
+    ['devices', '--member', 'bob', '--revoke', 'grant'],
+    ['team-mode', 'transfer-owner', 'alice', '--password-stdin', '--confirm'],
+  ])('keeps --as on the member carrier for M3 %j', async (...args) => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', ...args], 'private-owner-password');
+    expect(result.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]?.path).toBe('/api/botharness/team-as');
+    expect(result.text).not.toContain('private-owner-password');
+  });
+
+  it.each([false, true])(
+    'refuses role deletion without confirmation before RPC (as member: %s)',
+    async (member) => {
+      const f = await host();
+      const result = await run(f.url, [
+        ...(member ? ['--as', 'bob'] : []),
+        'roles',
+        'delete',
+        'reviewers',
+      ]);
+      expect(result.status).not.toBe(0);
+      expect(result.output).toMatchObject({ error: { code: 'confirm-required' } });
+      expect(f.calls).toEqual([]);
+    },
+  );
+
   it('admits certificate-verified private LAN HTTPS for the local Owner CLI', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = new URL(String(input));
@@ -215,6 +382,34 @@ describe('Team CLI', () => {
 });
 
 describe('M2 CLI member Bot and Activity dispatch', () => {
+  it.each([
+    {
+      code: 'permission-required',
+      message: 'permission-required',
+      details: { permission: 'bots.create' },
+    },
+    { code: 'member-suspended', message: 'member-suspended' },
+  ])('preserves $code from bots create --as without Owner fallback', async (failure) => {
+    const f = await host(failure);
+    const result = await run(f.url, [
+      'bots',
+      'create',
+      '--as',
+      'bob',
+      '--name',
+      'Denied Bot',
+      '--operation-key',
+      'denied-bot-create-0001',
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.output).toMatchObject({ error: failure });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]).toMatchObject({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', method: 'create' },
+    });
+  });
+
   it.each([
     { argv: ['bots', 'list'], method: 'list', stdin: '' },
     { argv: ['bots', 'list', '--administration'], method: 'list', stdin: '' },

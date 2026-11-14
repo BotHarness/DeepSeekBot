@@ -519,6 +519,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  team: TeamService;
   prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
@@ -1021,6 +1022,10 @@ function initializeCore(
         durableAttention.schedule();
     });
   }
+  const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
+    ensureTob: (human) => tob.ensure(human),
+    log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
+  });
   startup.enter('channel-live', 'initialize');
   live = createChannelLiveHub(
     channels,
@@ -1042,6 +1047,7 @@ function initializeCore(
           }),
         changed,
       ),
+    (human) => team.isOwner(human),
     (human, slug) => ownsBot(human, registry.getHistorical(slug)),
   );
   startup.enter('messaging', 'reconcile-paused-invitations');
@@ -1439,6 +1445,7 @@ function initializeCore(
     attachments,
     mediaVersions,
     live,
+    team,
     companions,
     roster,
     runtime,
@@ -1648,7 +1655,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               const steward = core.registry.get(core.ownership.resolve(actor.session.id)!.botSlug);
               if (!steward) return undefined;
               const human = humanContext(botOwner(steward));
-              const memberTob = human.humanId !== OWNER_HUMAN_CONTEXT.humanId;
+              const memberTob = !core.team.isOwner(human);
               const memberOperations = memberTob
                 ? createMemberTobOperations({
                     bridge: invocationBridgeMethods(human),
@@ -1658,7 +1665,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   })
                 : undefined;
               const requireOwner = () => {
-                if (memberTob) throw new TobError('permission-required');
+                if (!core.team.isOwner(human)) throw new TobError('permission-required');
               };
               let source: (() => void) & { markSideEffect?: () => void };
               try {
@@ -1943,14 +1950,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let voiceCalls: VoiceCalls | undefined;
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
-  const team = new TeamService(
-    attachOperationalModule(core.operationalDatabase, 'team'),
-    core.channels,
-    {
-      log: (phase, facts) => diagnosticEvents.record('team', phase, facts),
-      ensureTob: (human) => core.tob.ensure(human),
-    },
-  );
+  const team = core.team;
   mountDevicePairing(ctx, {
     team,
     calls: () => voiceCalls,

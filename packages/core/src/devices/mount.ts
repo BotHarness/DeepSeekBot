@@ -179,6 +179,7 @@ export function mountDevicePairing(
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
+    ...(options.team ? { ownerHumanId: () => options.team!.ownerContext().humanId } : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
@@ -210,6 +211,10 @@ export function mountDevicePairing(
           ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
         ),
   });
+  ctx.effect(
+    () => options.team?.bindPairing(pairing) ?? (() => {}),
+    'botharness: member device revocation',
+  );
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   const botNetworks = createBotNetworkRoutes({

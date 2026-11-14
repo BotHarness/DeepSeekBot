@@ -9258,12 +9258,12 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #memberBotEnabled(bot: PersonaBotRecord): boolean {
-    if (botOwner(bot) === 'local-human') return true;
     return (
       this.#database.read((db) =>
         db
           .prepare(`SELECT 1 FROM humans h, team_settings s
-      WHERE h.human_id = ? AND h.status = 'active' AND s.singleton = 1 AND s.enabled = 1`)
+      WHERE h.human_id = ? AND h.status = 'active' AND s.singleton = 1
+        AND (s.enabled = 1 OR s.owner_human_id = h.human_id)`)
           .get(botOwner(bot)),
       ) !== undefined
     );

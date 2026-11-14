@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: vi.fn(() => null) }));
+vi.mock('../src/host/host-session', () => ({ retainHostActivity: () => () => {} }));
 vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/ui/chat/message-menu', () => ({ copyMessage: vi.fn() }));
 vi.mock('../src/ui/primitives/fading-text', () => ({ FadingText: () => null }));

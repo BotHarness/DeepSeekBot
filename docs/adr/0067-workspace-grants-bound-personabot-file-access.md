@@ -5,6 +5,7 @@ Date: 2026-09-24
 
 # Workspace Grants bound PersonaBot file access
 
+> Amended by [ADR-0336](0336-hosts-have-members.md): in Team mode, Grants are also bounded by member and shared Workspace roots and audience containment; grants into another member's root, any Memory repository or the Host data directory are refused.
 > Amended by [ADR-0193](0193-full-access-also-unconfines-the-orchestrator.md): while the dangerous preset is on, the Orchestrator is unconfined too.
 > Amended by [ADR-0205](0205-bot-sessions-follow-dsh-permission-mode-for-shell-and-plugin-tools.md): Shell and other opaque tools follow the Session's DSH mode without a BotHarness approval for each call; DSH's own asks appear in the Bot Channel.
 

@@ -10,6 +10,7 @@ import { privateBotCreations } from '../src/bots/creation.js';
 import { createMemberTobOperations } from '../src/tob/member-operations.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
+import { createFakeRosterDomain, createTestRosterStore } from './roster-fixture.js';
 
 const alice = humanContext('alice');
 const bob = humanContext('bob');
@@ -46,12 +47,15 @@ function fixture(
         human.humanId,
         new Date().toISOString(),
       );
+    for (const human of [alice, bob])
+      db.prepare("INSERT INTO human_roles VALUES (?, 'member')").run(human.humanId);
     db.prepare('UPDATE team_settings SET enabled = 1').run();
   });
   const team = new TeamService(database, core.channels, {
     ensureTob: (human) => core.tob.ensure(human),
   });
-  const methods = createBridgeMethodsForHumans({ ...core, team });
+  const roster = createTestRosterStore({ database: core.operationalDatabase });
+  const methods = createBridgeMethodsForHumans({ ...core, team, roster });
   for (const human of [owner, alice, bob]) {
     const slug = human.humanId === owner.humanId ? 'owner-bot' : human.humanId + '-bot';
     expect(core.registry.create({ slug, displayName: slug, ownerHumanId: human.humanId }).ok).toBe(
@@ -59,10 +63,127 @@ function fixture(
     );
     core.channels.getOrCreateDm(human, slug, slug);
   }
-  return { core, database, team, methods };
+  return { core, database, team, methods, roster };
 }
 
 describe('M2 private Bot boundaries', () => {
+  it.each(['create', 'createLookup'] as const)(
+    'requires bots.create on every member %s invocation',
+    (method) => {
+      const f = fixture();
+      const bridge = f.methods(bob);
+      const reader = f.team.roles.create(owner, 'Reader', ['models.use']).role;
+      f.team.roles.set(owner, bob.humanId, [reader.roleId]);
+      const payload = { displayName: 'Permission guarded', operationKey: 'permission-guard-0001' };
+      const denied = {
+        ok: false,
+        error: {
+          code: 'permission-required',
+          message: 'permission-required',
+          details: { permission: 'bots.create' },
+        },
+      };
+      expect(bridge[method](payload)).toEqual(denied);
+      expect(f.core.registry.list('bob').map((bot) => bot.slug)).toEqual(['bob-bot']);
+      const creator = f.team.roles.create(owner, 'Creator', ['bots.create']).role;
+      f.team.roles.set(owner, bob.humanId, [reader.roleId, creator.roleId]);
+      expect(bridge[method](payload)).toMatchObject({ ok: true });
+      f.team.roles.set(owner, bob.humanId, [reader.roleId]);
+      expect(bridge[method](payload)).toEqual(denied);
+      expect(f.methods(owner)[method](payload)).toMatchObject({ ok: true });
+    },
+  );
+
+  it('blocks cached Bot reads, sends, creation and runtime admission after suspension', async () => {
+    const f = fixture();
+    const bridge = f.methods(bob);
+    expect(bridge.get({ slug: 'bob-bot' })).toMatchObject({ ok: true });
+    await f.team.suspend(owner, bob.humanId);
+    for (const method of ['create', 'createLookup'] as const)
+      expect(
+        bridge[method]({ displayName: 'Suspended', operationKey: 'suspended-create-0001' }),
+      ).toMatchObject({
+        ok: false,
+        error: { code: 'permission-required', details: { permission: 'bots.create' } },
+      });
+    expect(bridge.get({ slug: 'bob-bot' })).toMatchObject({
+      ok: false,
+      error: { code: 'member-suspended' },
+    });
+    expect(
+      await bridge.channelSend({ channelId: 'dm-bob-bot', body: 'Must not send' }),
+    ).toMatchObject({ ok: false, error: { code: 'member-suspended' } });
+    expect(
+      f.core.runtime.admitDmMessage(bob, {
+        channelId: 'dm-bob-bot',
+        messageId: 'suspended-request',
+        body: 'Must not run',
+      }),
+    ).toMatchObject({ admitted: false });
+    expect(f.core.channels.readMessages('dm-bob-bot')).toEqual([]);
+  });
+
+  it('rechecks Tob creation permission after preparation and for recovered receipts', async () => {
+    const f = fixture();
+    const ops = createMemberTobOperations({
+      bridge: f.methods(bob),
+      registry: privateBotRegistry(f.core.registry, bob),
+      creations: privateBotCreations(f.core.creations, bob),
+      isProtectedBot: (slug) => f.core.tob.isTob(slug),
+    });
+    const args = { displayName: 'Tob managed', operationKey: 'tob-permission-0001' };
+    const prepared = await ops('create', args);
+    expect(prepared).toBeDefined();
+    const reader = f.team.roles.create(owner, 'Reader', []).role;
+    f.team.roles.set(owner, bob.humanId, [reader.roleId]);
+    await expect(Promise.resolve().then(() => prepared!.run(() => {}))).rejects.toThrow(
+      'permission-required',
+    );
+    f.team.roles.set(owner, bob.humanId, ['member']);
+    await prepared!.run(() => {});
+    const recovered = await ops('create', args);
+    f.team.roles.set(owner, bob.humanId, [reader.roleId]);
+    await expect(ops('create', args)).rejects.toThrow('permission-required');
+    await expect(Promise.resolve().then(() => recovered!.run(() => {}))).rejects.toThrow(
+      'permission-required',
+    );
+  });
+
+  it('follows transferred Owner authority without transferring private Bot content', async () => {
+    const f = fixture();
+    await f.roster.attach(createFakeRosterDomain().facility);
+    await f.roster.pinsSet(['dm-owner-bot']);
+    const previous = f.methods(owner);
+    const incoming = f.methods(bob);
+    f.database.transaction((db) => {
+      db.prepare('UPDATE team_settings SET owner_human_id = ?').run('bob');
+      db.prepare('DELETE FROM human_roles WHERE human_id = ?').run('bob');
+      db.prepare("INSERT INTO human_roles VALUES ('local-human', 'member')").run();
+    });
+    expect(incoming.create({ displayName: 'Owner with no roles' })).toMatchObject({ ok: true });
+    expect(incoming.list({ administration: true })).toMatchObject({ ok: true });
+    expect(incoming.rosterGet({})).toMatchObject({ ok: true, value: { pins: [] } });
+    const home = await incoming.onboarding({});
+    expect(home).toMatchObject({ ok: true, value: { tutorial: 'skipped' } });
+    expect(JSON.stringify(home)).not.toContain('owner-bot');
+    expect(previous.list({ administration: true })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    expect(incoming.channelMessages({ channelId: 'dm-owner-bot' })).toMatchObject({
+      ok: false,
+      error: { code: 'bot-not-found' },
+    });
+    await f.team.suspend(bob, owner.humanId);
+    expect(
+      f.core.runtime.admitDmMessage(owner, {
+        channelId: 'dm-owner-bot',
+        messageId: 'suspended-former-owner',
+        body: 'Must not run',
+      }),
+    ).toMatchObject({ admitted: false });
+  });
+
   it('projects a joined public Group without Owner management or third-party pending data', () => {
     let autoAccept = false;
     const f = fixture(undefined, () => autoAccept);

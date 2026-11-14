@@ -438,7 +438,7 @@ export async function runOnlineManagement(
         bot = error.creation.bot;
         steps.push(...error.creation.steps);
       }
-      throw new CliLiveError(error.code, error.message, undefined, undefined, {
+      const failure = new CliLiveError(error.code, error.message, undefined, undefined, {
         ...(bot === undefined ? {} : { bot }),
         ...(operationKey === undefined
           ? {}
@@ -456,6 +456,8 @@ export async function runOnlineManagement(
         steps,
         outcome: bot !== undefined ? 'created' : submitted ? 'unknown' : 'not-created',
       });
+      if (error.details !== undefined) failure.details = error.details;
+      throw failure;
     }
     throw error;
   }

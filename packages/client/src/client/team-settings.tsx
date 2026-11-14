@@ -30,6 +30,19 @@ import {
   type TeamRefusal,
 } from './team-bridge.js';
 import { MemberPasswordDialog } from './team-password-dialog.js';
+import { DeviceList, MemberSheet, RolesSection } from './team-roles.js';
+import {
+  MANAGE_MEMBERS,
+  MANAGE_ROLES,
+  canManage,
+  loadMemberDevices,
+  loadPermissionCatalog,
+  loadRoles,
+  type MemberDevice,
+  type PermissionEntry,
+  type TeamRole,
+} from './team-roles-bridge.js';
+import { setTeamModeSnapshot } from './team-state.js';
 
 const styles = stylex.create({
   members: { display: 'flex', flexDirection: 'column', minWidth: 0 },
@@ -90,6 +103,16 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'username-taken': 'team.error.usernameTaken',
   'channel-not-public': 'team.error.channelNotPublic',
   'channel-not-found': 'team.error.channelNotFound',
+  'permission-required': 'team.error.permissionRequired',
+  'role-name-invalid': 'team.error.roleNameInvalid',
+  'role-name-taken': 'team.error.roleNameTaken',
+  'role-builtin': 'team.error.roleBuiltin',
+  'owner-protected': 'team.error.ownerProtected',
+  'member-not-found': 'team.error.memberNotFound',
+  'device-not-found': 'team.error.deviceNotFound',
+  'member-suspended': 'team.error.memberSuspended',
+  'permission-not-grantable': 'team.error.permissionNotGrantable',
+  'owner-transfer-target-unverified': 'team.error.ownerTransferUnverified',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
@@ -102,25 +125,44 @@ type Dialog =
   | { kind: 'insecure-http' }
   | { kind: 'add-member' }
   | { kind: 'created'; created: CreatedMember }
-  | { kind: 'own-password' };
+  | { kind: 'own-password' }
+  | { kind: 'member'; humanId: string }
+  | { kind: 'my-devices' };
 
 export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
   const [view, setView] = useState<TeamModeView>();
   const [members, setMembers] = useState<readonly TeamMember[]>();
+  const [roles, setRoles] = useState<readonly TeamRole[]>([]);
+  const [catalog, setCatalog] = useState<readonly PermissionEntry[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rowError, setRowError] = useState<string>();
   const [dialog, setDialog] = useState<Dialog>();
   const request = useRef(0);
+  const passwordSaved = useRef(false);
+  const publish = (next: TeamModeView): void => {
+    setView(next);
+    setTeamModeSnapshot(call, next);
+  };
 
   const refresh = async (signal?: AbortSignal): Promise<void> => {
     const version = ++request.current;
     try {
       const next = await loadTeamMode(call, signal);
-      const list = next.viewer.kind === 'owner' ? await loadMembers(call, signal) : [];
+      const admin = canManage(next.viewer, MANAGE_MEMBERS) || canManage(next.viewer, MANAGE_ROLES);
+      const canMembers = canManage(next.viewer, MANAGE_MEMBERS);
+      const [list, roleList, permissions] = admin
+        ? await Promise.all([
+            canMembers ? loadMembers(call, signal) : Promise.resolve([]),
+            loadRoles(call, signal).catch(() => []),
+            loadPermissionCatalog(call, signal).catch(() => []),
+          ])
+        : [[], [], []];
       if (signal?.aborted === true || version !== request.current) return;
-      setView(next);
+      publish(next);
       setMembers(list);
+      setRoles(roleList);
+      setCatalog(permissions);
       setLoadFailed(false);
     } catch {
       if (signal?.aborted !== true && version === request.current) setLoadFailed(true);
@@ -137,7 +179,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
     setBusy(true);
     setRowError(undefined);
     try {
-      setView(await action());
+      publish(await action());
       await refresh();
     } catch (error) {
       setRowError(teamErrorText(t, error));
@@ -166,6 +208,98 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
         {loadFailed ? <Note tone="danger">{t('team.error.load')}</Note> : null}
       </SettingsRows>
     );
+
+  const viewer = view.viewer;
+  const manageMembers = canManage(viewer, MANAGE_MEMBERS);
+  const manageRoles = canManage(viewer, MANAGE_ROLES);
+  const sheetMember =
+    dialog?.kind === 'member' ? members?.find((row) => row.humanId === dialog.humanId) : undefined;
+  const admin =
+    manageMembers || manageRoles ? (
+      <>
+        {view.enabled || (members !== undefined && members.length > 1) ? (
+          <SettingsSection>
+            <SettingsRow
+              title={t('team.members.title')}
+              control={
+                manageMembers ? (
+                  <Button
+                    variant="outline"
+                    disabled={!view.enabled}
+                    onClick={() => setDialog({ kind: 'add-member' })}
+                  >
+                    {t('team.members.add')}
+                  </Button>
+                ) : undefined
+              }
+            />
+            <div {...stylex.props(styles.members)} role="list" aria-label={t('team.members.title')}>
+              {(members ?? []).map((member) => (
+                <div role="listitem" key={member.humanId} data-team-member={member.username}>
+                  <SettingsRow
+                    title={member.displayName}
+                    description={memberMeta(t, member, roles)}
+                    control={
+                      <Button
+                        variant="outline"
+                        aria-label={t('team.members.manageNamed', { name: member.displayName })}
+                        onClick={() => setDialog({ kind: 'member', humanId: member.humanId })}
+                      >
+                        {t('team.members.manage')}
+                      </Button>
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </SettingsSection>
+        ) : null}
+        {roles.length > 0 ? (
+          <RolesSection
+            call={call}
+            t={t}
+            roles={roles}
+            catalog={catalog}
+            canEdit={manageRoles}
+            viewer={viewer}
+            onChanged={() => void refresh()}
+          />
+        ) : null}
+        {sheetMember === undefined ? null : (
+          <MemberSheet
+            call={call}
+            t={t}
+            member={sheetMember}
+            roles={roles}
+            canManageRoles={manageRoles || manageMembers}
+            canTransfer={viewer.owner && viewer.kind === 'owner'}
+            self={sheetMember.humanId === viewer.humanId}
+            viewer={viewer}
+            onClose={() => setDialog(undefined)}
+            onChanged={() => void refresh()}
+          />
+        )}
+        {dialog?.kind === 'add-member' ? (
+          <AddMemberDialog
+            t={t}
+            onCancel={() => setDialog(undefined)}
+            onCreate={async (input) => {
+              const created = await createMember(call, input);
+              setDialog({ kind: 'created', created });
+              await refresh();
+            }}
+          />
+        ) : null}
+        {dialog?.kind === 'created' ? (
+          <InitialPasswordDialog
+            t={t}
+            created={dialog.created}
+            urls={view.memberUrls}
+            onDone={() => setDialog(undefined)}
+          />
+        ) : null}
+      </>
+    ) : null;
 
   if (view.viewer.kind === 'member')
     return (
@@ -201,8 +335,25 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
               </Button>
             }
           />
+          <SettingsRow
+            title={t('team.devices.mine')}
+            control={
+              <Button variant="outline" onClick={() => setDialog({ kind: 'my-devices' })}>
+                {t('team.devices.manage')}
+              </Button>
+            }
+          />
           {rowError === undefined ? null : <Note tone="danger">{rowError}</Note>}
         </SettingsSection>
+        {admin}
+        {dialog?.kind === 'my-devices' ? (
+          <MyDevicesDialog
+            call={call}
+            t={t}
+            humanId={view.viewer.humanId}
+            onClose={() => setDialog(undefined)}
+          />
+        ) : null}
         {dialog?.kind === 'own-password' ? (
           <MemberPasswordDialog
             call={call}
@@ -289,40 +440,24 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
         </SettingsSection>
       ) : null}
 
-      {view.enabled || (members !== undefined && members.length > 1) ? (
-        <SettingsSection>
-          <SettingsRow
-            title={t('team.members.title')}
-            control={
-              <Button
-                variant="outline"
-                disabled={!view.enabled}
-                onClick={() => setDialog({ kind: 'add-member' })}
-              >
-                {t('team.members.add')}
-              </Button>
-            }
-          />
-          <div {...stylex.props(styles.members)} role="list" aria-label={t('team.members.title')}>
-            {(members ?? []).map((member) => (
-              <div role="listitem" key={member.humanId} data-team-member={member.username}>
-                <SettingsRow title={member.displayName} description={memberMeta(t, member)} />
-              </div>
-            ))}
-          </div>
-        </SettingsSection>
-      ) : null}
+      {admin}
 
       {dialog?.kind === 'owner-password' ? (
         <OwnerPasswordDialog
           t={t}
           hasPassword={view.ownerPasswordSet}
           thenEnable={dialog.thenEnable}
-          onCancel={() => setDialog(undefined)}
+          onCancel={() => {
+            passwordSaved.current = false;
+            setDialog(undefined);
+          }}
           onSubmit={async (password, current) => {
-            let next = await setOwnerPassword(call, password, current);
-            if (dialog.thenEnable) next = await setTeamMode(call, true);
-            setView(next);
+            if (!passwordSaved.current) {
+              publish(await setOwnerPassword(call, password, current));
+              passwordSaved.current = true;
+            }
+            if (dialog.thenEnable) publish(await setTeamMode(call, true));
+            passwordSaved.current = false;
             setDialog(undefined);
             await refresh();
           }}
@@ -343,33 +478,30 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
           }}
         />
       ) : null}
-      {dialog?.kind === 'add-member' ? (
-        <AddMemberDialog
-          t={t}
-          onCancel={() => setDialog(undefined)}
-          onCreate={async (input) => {
-            const created = await createMember(call, input);
-            setDialog({ kind: 'created', created });
-            await refresh();
-          }}
-        />
-      ) : null}
-      {dialog?.kind === 'created' ? (
-        <InitialPasswordDialog
-          t={t}
-          created={dialog.created}
-          urls={view.memberUrls}
-          onDone={() => setDialog(undefined)}
-        />
-      ) : null}
     </SettingsRows>
   );
 }
 
-function memberMeta(t: BotHarnessTranslate, member: TeamMember): string {
+function memberMeta(
+  t: BotHarnessTranslate,
+  member: TeamMember,
+  roles: readonly TeamRole[] = [],
+): string {
   const parts = [`@${member.username}`];
-  if (member.owner) parts.push(t('team.members.owner'));
-  else if (member.status === 'suspended') parts.push(t('team.members.suspended'));
+  if (member.owner) {
+    parts.push(t('team.members.owner'));
+    return parts.join(' · ');
+  }
+  for (const role of roles)
+    if (member.roleIds.includes(role.roleId))
+      parts.push(
+        role.builtin === 'admin'
+          ? t('team.role.admin')
+          : role.builtin === 'member'
+            ? t('team.role.member')
+            : role.name,
+      );
+  if (member.status === 'suspended') parts.push(t('team.members.suspended'));
   else if (member.mustChangePassword) parts.push(t('team.members.pendingPassword'));
   return parts.join(' · ');
 }
@@ -556,6 +688,59 @@ function InitialPasswordDialog({
         </Button>
       </div>
       <Note tone="warning">{t('team.members.shownOnce')}</Note>
+    </FormDialog>
+  );
+}
+
+function MyDevicesDialog({
+  call,
+  t,
+  humanId,
+  onClose,
+}: {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+  humanId: string;
+  onClose(): void;
+}): ReactElement {
+  const [devices, setDevices] = useState<readonly MemberDevice[]>();
+  const [failed, setFailed] = useState(false);
+  const load = (signal?: AbortSignal): void => {
+    loadMemberDevices(call, humanId, signal)
+      .then(setDevices)
+      .catch(() => {
+        if (signal?.aborted !== true) setFailed(true);
+      });
+  };
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [call, humanId]);
+  return (
+    <FormDialog
+      title={t('team.devices.mine')}
+      size="medium"
+      labels={{ close: t('common.close'), cancel: t('common.close') }}
+      submitLabel=""
+      showCancel={false}
+      onCancel={onClose}
+      onClose={onClose}
+    >
+      <div ref={mount}>
+        {failed ? (
+          <Note tone="danger">{t('team.error.generic')}</Note>
+        ) : (
+          <DeviceList
+            call={call}
+            t={t}
+            humanId={humanId}
+            devices={devices}
+            self
+            onRevoked={() => load()}
+          />
+        )}
+      </div>
     </FormDialog>
   );
 }

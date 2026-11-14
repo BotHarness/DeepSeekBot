@@ -1878,6 +1878,7 @@ deepseekbot team-mode owner-password --password-stdin < owner-password.txt
 deepseekbot team-mode on
 deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
 deepseekbot members list
+deepseekbot members reset-password bob --initial-password-file ./bob-reset.txt
 deepseekbot channels set-public <channel-id> on
 deepseekbot --as bob members password --password-stdin < password-change.json
 deepseekbot --as bob channels browse-public
@@ -1894,3 +1895,18 @@ Owner 密码从标准输入读取，可带一个结尾换行；修改已有密�
 `--as <username>` 由已认证的 Owner 创建临时成员授权，通过该成员自己的 Peer 和 Gateway 策略执行命令，随后撤销授权。它要求在线适配器；不支持的 HTTP、流式和维护命令会拒绝，不会改用 Owner 权限。团队模式关闭、账号停用和首次改密限制同样生效；浏览频道前先修改初始密码。此本地验证功能仍要求 Owner 的 Host 令牌。
 
 非回环地址的密码登录要求 Host 已知的 TLS 或加密设备网关。明确确认的 `insecure-http` 例外允许明文 HTTP，直到关闭；客户端转发的协议请求头不能证明 TLS。关闭团队模式会撤销成员授权并关闭其流，但保留身份、密码和频道成员关系；重新开启后需要重新登录。
+
+```bash
+deepseekbot roles catalog
+deepseekbot roles list
+deepseekbot roles create --name reviewers --permissions audit.view,usage.view
+deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles delete <roleId> --confirm
+deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
+deepseekbot members roles bob --set member,<roleId>
+deepseekbot --as bob devices --member bob
+deepseekbot devices --member bob --revoke <grantId>
+deepseekbot team-mode transfer-owner bob --password-stdin --confirm
+```
+
+`members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。

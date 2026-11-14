@@ -3,6 +3,7 @@ import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import { MEMBER_METHODS, MEMBER_BOT_METHODS } from './member-methods.js';
 import { ownsBot } from './bot-access.js';
+import { TeamError } from './error.js';
 
 const adminSettings = new Set([
   'get',
@@ -29,9 +30,9 @@ const object = (input: unknown): Record<string, unknown> =>
   typeof input === 'object' && input !== null && !Array.isArray(input)
     ? Object.fromEntries(Object.entries(input))
     : {};
-const refuse = (code: string): BridgeResult<never> => ({
+const refuse = (code: string, details?: { permission: string }): BridgeResult<never> => ({
   ok: false,
-  error: { code, message: code },
+  error: { code, message: code, ...(details ? { details } : {}) },
 });
 
 export function guardHumanBridge(
@@ -40,7 +41,6 @@ export function guardHumanBridge(
   methods: BridgeMethods,
   administration: () => BridgeMethods,
 ): BridgeMethods {
-  const owner = human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   let admin: BridgeMethods | undefined;
   const wrappers = new Map<PropertyKey, { operation: unknown; guarded: unknown }>();
   return new Proxy(methods, {
@@ -50,6 +50,21 @@ export function guardHumanBridge(
       const cached = wrappers.get(property);
       if (cached?.operation === operation) return cached.guarded;
       const guarded = (payload: unknown, ...args: unknown[]) => {
+        const owner = deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+        if (!owner && !deps.team && ['create', 'createLookup'].includes(property))
+          return refuse('permission-required', { permission: 'bots.create' });
+        if (!owner && deps.team) {
+          if (property === 'create' || property === 'createLookup') {
+            try {
+              deps.team.roles.require(human, 'bots.create');
+            } catch (error) {
+              if (error instanceof TeamError) return refuse(error.code, error.details);
+              throw error;
+            }
+          }
+          if (deps.team.member(human.humanId)?.status !== 'active')
+            return refuse('member-suspended');
+        }
         const input = object(payload);
         if (property === 'list' && input['administration'] === true) {
           if (!owner) return refuse('permission-required');
@@ -79,7 +94,10 @@ export function guardHumanBridge(
           }
         }
         const channelId = input['channelId'];
-        if (typeof channelId === 'string' && property !== 'publicChannelJoin') {
+        if (
+          typeof channelId === 'string' &&
+          !['publicChannelJoin', 'channelPublicSet'].includes(property)
+        ) {
           const channel = deps.channels.get(channelId);
           if (
             channel?.type === 'dm' &&

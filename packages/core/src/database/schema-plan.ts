@@ -1,3 +1,4 @@
+import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../team/permissions.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -3341,8 +3342,45 @@ const TEAM_MEMBERS_MIGRATION: SchemaMigration = {
   },
 };
 
-const PRIVATE_BOTS_MIGRATION: SchemaMigration = {
+const TEAM_ROLES_MIGRATION: SchemaMigration = {
   generation: 142,
+  module: 'team',
+  description: 'Host Roles, member assignments and transferable Owner authority',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE team_settings_next (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        insecure_http_allowed INTEGER NOT NULL DEFAULT 0 CHECK (insecure_http_allowed IN (0, 1)),
+        owner_human_id TEXT NOT NULL REFERENCES humans(human_id)
+      );
+      INSERT INTO team_settings_next SELECT singleton, enabled, insecure_http_allowed, 'local-human' FROM team_settings;
+      DROP TABLE team_settings;
+      ALTER TABLE team_settings_next RENAME TO team_settings;
+      CREATE TABLE host_roles (
+        role_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        builtin TEXT UNIQUE CHECK (builtin IN ('admin', 'member')),
+        permissions_json TEXT NOT NULL
+      );
+      CREATE TABLE human_roles (
+        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        role_id TEXT NOT NULL REFERENCES host_roles(role_id),
+        PRIMARY KEY (human_id, role_id)
+      );
+      CREATE INDEX human_roles_role ON human_roles(role_id, human_id);
+    `);
+    const insert = database.prepare('INSERT INTO host_roles VALUES (?, ?, ?, ?)');
+    insert.run('admin', 'admin', 'admin', JSON.stringify(ADMIN_PERMISSIONS));
+    insert.run('member', 'member', 'member', JSON.stringify(MEMBER_PERMISSIONS));
+    database.exec(
+      `INSERT INTO human_roles SELECT human_id, 'member' FROM humans WHERE human_id <> 'local-human'`,
+    );
+  },
+};
+
+const PRIVATE_BOTS_MIGRATION: SchemaMigration = {
+  generation: 143,
   module: 'team',
   description: 'Private Bot ownership and one durable Tob identity per Human',
   migrate(database) {
@@ -3502,5 +3540,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   DEVICE_FEED_READ_MIGRATION,
   SOURCE_EVENT_HUMAN_MIGRATION,
   TEAM_MEMBERS_MIGRATION,
+  TEAM_ROLES_MIGRATION,
   PRIVATE_BOTS_MIGRATION,
 ]);

@@ -655,7 +655,7 @@ export interface OwnedSessionBot {
 }
 
 export interface BridgeError {
-  details?: { preview: AllBotPreview };
+  details?: { preview?: AllBotPreview; permission?: string };
   code: string;
   message: string;
 }
@@ -2067,6 +2067,8 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
 }
 
 function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): BridgeMethods {
+  const isHostOwner = () =>
+    deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   async function appendStopNotice(
     channelId: string,
     botSlug: string,
@@ -2211,7 +2213,7 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
       : undefined;
   };
   const channelView = (channel: ChannelRecord): ChannelListItem => {
-    if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) {
+    if (!isHostOwner()) {
       const {
         invitations: _invitations,
         joinRequests: _requests,
@@ -2255,10 +2257,7 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
     };
   };
   const listedChannels = async (): Promise<ChannelRecord[]> => {
-    if (
-      human.humanId === OWNER_HUMAN_CONTEXT.humanId &&
-      deps.channels.list().some((channel) => channel.remoteBot !== undefined)
-    )
+    if (isHostOwner() && deps.channels.list().some((channel) => channel.remoteBot !== undefined))
       await deps.runtime?.refreshBotContacts?.();
     for (const bot of deps.registry.list())
       deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
@@ -2266,9 +2265,9 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
       .list()
       .filter((channel) =>
         channel.type === 'dm'
-          ? (human.humanId === OWNER_HUMAN_CONTEXT.humanId && channel.remoteBot !== undefined) ||
+          ? (isHostOwner() && channel.remoteBot !== undefined) ||
             channel.members.every((slug) => deps.registry.get(slug) !== undefined)
-          : human.humanId === OWNER_HUMAN_CONTEXT.humanId || deps.team?.belongs(human, channel.id),
+          : isHostOwner() || deps.team?.belongs(human, channel.id),
       );
   };
   const listItem = (channel: ChannelRecord): ChannelListItem => {
@@ -5624,6 +5623,22 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
       if (changed.reset === true) return { ok: true, value: changed };
       const ids = new Set(changed.channelIds);
       const present = new Set(listed.map((channel) => channel.id));
+      if (
+        !isHostOwner() &&
+        changed.channelIds.some(
+          (id) =>
+            !present.has(id) &&
+            !deps.channels.get(id) &&
+            !deps.channels.hasHumanMembership?.(human, id),
+        )
+      )
+        return { ok: true, value: { reset: true, cursor: changed.cursor } };
+      if (
+        !isHostOwner() &&
+        !deps.channels.hasHumanMembership &&
+        changed.channelIds.some((id) => !present.has(id))
+      )
+        return { ok: true, value: { reset: true, cursor: changed.cursor } };
       return {
         ok: true,
         value: {
@@ -5639,13 +5654,7 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
               return channel.members.every(
                 (slug) => deps.registry.getHistorical(slug) !== undefined,
               );
-            return (
-              human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
-              (channel?.type === 'group' &&
-                deps.channels
-                  .listHumanMembers(human, id)
-                  .some((member) => member.humanId === human.humanId))
-            );
+            return isHostOwner() || deps.channels.hasHumanMembership?.(human, id) === true;
           }),
           cursor: changed.cursor,
         },
@@ -5670,7 +5679,7 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
     channelGet(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
-      if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) {
+      if (!isHostOwner()) {
         const channel = deps.channels.get(channelId);
         if (channel === undefined || channel.deletedAt !== undefined)
           return unknownChannel(channelId);
@@ -7783,9 +7792,7 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
           ok: true,
           value: {
             channels: (deps.humanAttention?.unreadByChannel(human) ?? []).filter(
-              (entry) =>
-                human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
-                deps.team?.belongs(human, entry.channelId),
+              (entry) => isHostOwner() || deps.team?.belongs(human, entry.channelId),
             ),
           },
         };

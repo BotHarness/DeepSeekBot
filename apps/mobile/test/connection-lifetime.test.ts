@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createConnectionLifetime } from '../src/host/connection-lifetime';
 
 describe('paired connection lifetime', () => {
@@ -147,4 +147,47 @@ describe('paired connection lifetime', () => {
     lifetime.foreground(true);
     expect(changes).toEqual(['connected', 'stopped', 'connected']);
   });
+});
+
+it('keeps a system activity retained until foreground resumes, without a stop/start gap', () => {
+  vi.useFakeTimers();
+  const connection = { start: vi.fn(), stop: vi.fn() };
+  try {
+    const lifetime = createConnectionLifetime(true);
+    lifetime.add(connection);
+    const release = lifetime.retain(connection, { untilForeground: true });
+    lifetime.foreground(false);
+    vi.advanceTimersByTime(60_000);
+    expect(connection.stop).not.toHaveBeenCalled();
+    release();
+    release();
+    vi.advanceTimersByTime(1_000);
+    expect(connection.stop).not.toHaveBeenCalled();
+    lifetime.foreground(true);
+    vi.advanceTimersByTime(2_000);
+    expect(connection.start).toHaveBeenCalledTimes(1);
+    expect(connection.stop).not.toHaveBeenCalled();
+    lifetime.foreground(false);
+    expect(connection.stop).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('bounds a released system activity when another app stays foreground', () => {
+  vi.useFakeTimers();
+  const connection = { start: vi.fn(), stop: vi.fn() };
+  try {
+    const lifetime = createConnectionLifetime(true);
+    lifetime.add(connection);
+    const release = lifetime.retain(connection, { untilForeground: true });
+    lifetime.foreground(false);
+    release();
+    vi.advanceTimersByTime(1_499);
+    expect(connection.stop).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(connection.stop).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
 });

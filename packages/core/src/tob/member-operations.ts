@@ -15,11 +15,24 @@ export function createMemberTobOperations(deps: {
   const creation = createTobBotCreationOperations(deps);
   const profile = createTobBotProfileOperations({ ...deps, bridge: () => deps.bridge });
   return async (command, args, signal) => {
+    const authorizeCreation = () => {
+      if (command !== 'create') return;
+      const result = deps.bridge.createLookup(args);
+      if (!result.ok) throw new TobError(result.error.code);
+    };
+    authorizeCreation();
     if (typeof args.slug === 'string' && !deps.registry.get(args.slug))
       throw new TobError('bot-not-found');
     const prepared =
       (await creation(command, args, signal)) ?? (await profile(command, args, signal));
-    if (prepared) return prepared;
+    if (prepared)
+      return {
+        ...prepared,
+        run(guard, beforeEffect) {
+          authorizeCreation();
+          return prepared.run(guard, beforeEffect);
+        },
+      };
     if (
       command !== 'cli' ||
       !Array.isArray(args.argv) ||
