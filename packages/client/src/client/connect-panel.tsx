@@ -1,3 +1,5 @@
+import { ConnectHealthCard } from './connect-health-card.js';
+import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -39,6 +41,7 @@ export interface ConnectAccountStatus {
 }
 
 export interface ConnectTunnelStatus {
+  health?: ConnectHealthStatus;
   state: 'off' | 'starting' | 'connected' | 'error';
   hostname?: string;
 }
@@ -270,18 +273,22 @@ export function ConnectPanel({
     status = (
       <Card
         icon={state === 'connected' ? 'check' : 'globe'}
-        tone={state === 'connected' ? 'success' : state === 'error' ? 'warning' : 'neutral'}
+        tone={state === 'error' ? 'warning' : 'neutral'}
         title={t(
           state === 'unknown'
             ? 'devices.connection.unchecked'
             : state === 'connected'
-              ? 'devices.connect.connected'
+              ? 'connect.health.connectorReady'
               : state === 'error'
                 ? 'devices.connect.reconnecting'
                 : 'devices.connect.starting',
         )}
         body={t(
-          state === 'error' ? 'devices.connect.recovery' : 'devices.connect.panel.connectedBody',
+          state === 'error'
+            ? 'devices.connect.recovery'
+            : state === 'connected'
+              ? 'connect.health.connectorHint'
+              : 'devices.connect.panel.connectedBody',
         )}
         data={{ 'data-connect-tunnel': state }}
       >
@@ -302,6 +309,14 @@ export function ConnectPanel({
         {t('devices.connect.title')}
       </StatusHeading>
       {status}
+      {account.state === 'signed-in' ? (
+        <ConnectHealthCard
+          t={t}
+          health={tunnel?.health}
+          reloadSnapshot={reloadSnapshot}
+          fresh={fresh}
+        />
+      ) : null}
       {linked ? (
         <StatusDisclosure
           icon="user"
@@ -339,7 +354,14 @@ export function ConnectPanel({
               />
             </StatusFact>
           )}
-          <ConnectAccountHosts t={t} account={account} reloadSnapshot={reloadSnapshot} />
+          <ConnectAccountHosts
+            t={t}
+            account={account}
+            reloadSnapshot={reloadSnapshot}
+            refreshOn={
+              tunnel?.health && 'checkedAt' in tunnel.health ? tunnel.health.checkedAt : undefined
+            }
+          />
         </StatusDisclosure>
       ) : null}
     </StatusStack>
