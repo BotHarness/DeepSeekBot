@@ -147,6 +147,7 @@ import { installOrchestratorFileTools } from './workspaces/orchestrator-file-too
 import { ProtectedExecution } from './credentials/protected-execution.js';
 import { privateInputLog } from './credentials/diagnostics.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
+import { executionAllowlistStoreFor } from './workspaces/execution-allowlist.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
 import { startAttachmentSweep } from './attachments/sweep.js';
 import { startMediaBackfill } from './attachments/media-backfill.js';
@@ -327,7 +328,8 @@ import { mountPrivateInputs } from './credentials/mount.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
   createAssignmentAccessStore,
-  type AssignmentAccessStore,
+  restrictMemberAssignmentAccess,
+  type RestrictableAssignmentAccessStore,
 } from './workspaces/assignment-access.js';
 import {
   createToolApprovalRuleStore,
@@ -582,7 +584,7 @@ export interface BotHarnessCore {
   voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
-  assignmentAccess: AssignmentAccessStore;
+  assignmentAccess: RestrictableAssignmentAccessStore;
 }
 
 function describeToolCall(
@@ -1145,8 +1147,12 @@ function initializeCore(
     externalMessaging.approvals.refreshRules(slug);
   };
   startup.enter('assignment-access', 'initialize');
-  const assignmentAccess = createAssignmentAccessStore(
-    attachOperationalModule(operationalDatabase, 'assignment-access'),
+  const assignmentAccess = restrictMemberAssignmentAccess(
+    createAssignmentAccessStore(attachOperationalModule(operationalDatabase, 'assignment-access')),
+    (slug) => {
+      const bot = registry.get(slug);
+      return bot !== undefined && !team.isOwner(humanContext(botOwner(bot)));
+    },
   );
   startup.enter('tob', 'initialize');
   const tob = createTobService({
@@ -1479,6 +1485,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     profile === undefined ? [] : [profile.installAnchor, join(profile.dir, 'package.json')];
   installedPackage.identity(releaseAnchors);
   const dshHome = resolveDshHome();
+  // Team sandbox runner handoff (docs/ops/team-vps.md); undefined unless the
+  // Host runs DSH's bwrap profile through deepseekbot's sandbox runner.
+  const executionAllowlists = executionAllowlistStoreFor(dshHome);
   applyPendingDataReset({
     dshHome,
     home: homedir(),
@@ -1663,7 +1672,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         agentCtx,
         agent,
         ctx.get('agentPresets') as DshAgentPresetHost | undefined,
-        (name, args) => nativeExecutionRoot(core, agent.session, name, args),
+        (name, args) => {
+          const root = nativeExecutionRoot(core, agent.session, name, args);
+          executionAllowlists?.prepare(core, agent.session, [root]);
+          return root;
+        },
         (shellCtx, shell) =>
           installTobCliShell(shellCtx, shell, {
             capture: (execution) => {
@@ -2891,6 +2904,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           ? undefined
           : core.ownership.resolve(execution.agent.session.id);
       if (owner === undefined) return next();
+      executionAllowlists?.prepare(core, execution.agent!.session);
       const untrack =
         isDshGovernedTool(execution.name) &&
         !requiresHumanToolApproval(execution.name, execution.arguments, templateInUse)

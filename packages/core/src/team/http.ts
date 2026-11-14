@@ -105,9 +105,13 @@ function sameOrigin(request: IncomingMessage, tls: boolean): boolean {
   if (!origin) return header(request, 'sec-fetch-site') !== 'cross-site';
   try {
     const parsed = new URL(origin);
+    const encrypted = tls || isConnectRequest(request);
+    // A TLS-terminating proxy (Cloudflare Tunnel, tailscale serve) in front of
+    // a plain-HTTP listener keeps the authority and upgrades the scheme, as in
+    // DSH's own api-request-trust. Password transport is decided separately.
     return (
       parsed.host === header(request, 'host') &&
-      parsed.protocol === (tls || isConnectRequest(request) ? 'https:' : 'http:')
+      (parsed.protocol === 'https:' || (!encrypted && parsed.protocol === 'http:'))
     );
   } catch {
     return false;

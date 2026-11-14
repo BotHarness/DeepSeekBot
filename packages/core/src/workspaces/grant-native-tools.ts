@@ -68,35 +68,51 @@ function canonicalRoot(root: string): string | undefined {
   }
 }
 
-export function currentRoots(core: GrantCore, session: Session, kind: AccessKind): string[] {
-  let owner = core.ownership.resolve(session.id);
-  if (owner === undefined) return [];
+type SessionOwner = NonNullable<ReturnType<GrantCore['ownership']['resolve']>>;
+
+export function rootSessionOwner(
+  core: Pick<GrantCore, 'ownership'>,
+  sessionId: string,
+): SessionOwner | undefined {
+  let owner = core.ownership.resolve(sessionId);
+  if (owner === undefined) return undefined;
   const seen = new Set<string>();
   while (owner.parentSessionId !== undefined) {
-    if (seen.has(owner.sessionId)) return [];
+    if (seen.has(owner.sessionId)) return undefined;
     seen.add(owner.sessionId);
     const parent = core.ownership.resolve(owner.parentSessionId);
-    if (parent === undefined) return [];
+    if (parent === undefined) return undefined;
     owner = parent;
   }
-  if (owner.rootRole === 'orchestrator') {
-    const memory = core.registry.memoryDirFor(owner.botSlug);
-    if (memory === undefined) return [];
-    const active = core.grants
-      .list(owner.botSlug)
-      .filter((grant) => grant.revokedAt === undefined)
-      .flatMap((grant) => {
-        try {
-          const current = core.grants.requireActive(owner.botSlug, grant.id);
-          return kind === 'read' || current.orchestratorWrite === true
-            ? [current.workspacePath]
-            : [];
-        } catch {
-          return [];
-        }
-      });
-    return [memory, ...active];
-  }
+  return owner;
+}
+
+/** The Orchestrator's roots: its Memory, then each active Grant it may read (or write). */
+export function orchestratorRoots(
+  core: Pick<GrantCore, 'grants' | 'registry'>,
+  botSlug: string,
+  kind: AccessKind,
+): string[] {
+  const memory = core.registry.memoryDirFor(botSlug);
+  if (memory === undefined) return [];
+  const active = core.grants
+    .list(botSlug)
+    .filter((grant) => grant.revokedAt === undefined)
+    .flatMap((grant) => {
+      try {
+        const current = core.grants.requireActive(botSlug, grant.id);
+        return kind === 'read' || current.orchestratorWrite === true ? [current.workspacePath] : [];
+      } catch {
+        return [];
+      }
+    });
+  return [memory, ...active];
+}
+
+export function currentRoots(core: GrantCore, session: Session, kind: AccessKind): string[] {
+  const owner = rootSessionOwner(core, session.id);
+  if (owner === undefined) return [];
+  if (owner.rootRole === 'orchestrator') return orchestratorRoots(core, owner.botSlug, kind);
   if (owner.rootRole !== 'assignment') return [];
   const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
   if (permission === undefined || permission.primaryCwd !== session.header.cwd) return [];

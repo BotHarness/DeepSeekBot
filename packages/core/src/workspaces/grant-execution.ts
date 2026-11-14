@@ -7,7 +7,20 @@ import { sameDirectory } from '../fs/same-directory.js';
 import type { BotHarnessCore } from '../plugin.js';
 import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
 
-type AccessCore = { assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> };
+type AccessCore = {
+  assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> &
+    Partial<Pick<BotHarnessCore['assignmentAccess'], 'restricted'>>;
+};
+
+export const MEMBER_FULL_ACCESS_REFUSAL = 'Member PersonaBots cannot run with full access';
+export const MEMBER_ESCALATION_REFUSAL = 'Member PersonaBots cannot leave the sandbox';
+
+/** A tool call asking DSH to run outside the Session's sandbox mode. */
+function requestsEscalation(args: unknown, mode: string): boolean {
+  if (typeof args !== 'object' || args === null) return false;
+  const requested = (args as Record<string, unknown>)['sandbox_permissions'];
+  return requested !== undefined && requested !== mode && requested !== 'read-only';
+}
 
 type Owner = NonNullable<ReturnType<BotHarnessCore['ownership']['resolve']>>;
 
@@ -129,7 +142,8 @@ export function sessionHasFullAccess(
   sessionId: string,
 ): boolean {
   const owner = rootOwner(core, sessionId);
-  if (owner === undefined) return false;
+  if (owner === undefined || core.assignmentAccess?.restricted?.(owner.botSlug) === true)
+    return false;
   if (owner.rootRole === 'assignment')
     return (
       core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission?.mode ===
@@ -189,6 +203,8 @@ export function grantExecutionDenial(
   }
   const mode = policy.resolve({ session }).mode;
   const approvalPolicy = approval.overrideOf(session);
+  if (mode === 'danger-full-access' && core.assignmentAccess?.restricted?.(owner.botSlug) === true)
+    return MEMBER_FULL_ACCESS_REFUSAL;
   if (owner.rootRole === 'orchestrator') {
     if (delegatedSubagent) {
       if (mode !== orchestratorPermission(core, owner.botSlug).mode || approvalPolicy !== 'never')
@@ -421,7 +437,14 @@ export function grantToolExecutionDenial(
 ): string | undefined {
   const denial = grantExecutionDenial(core, session, policy, approval);
   if (denial !== undefined) return denial;
-  if (core.ownership.resolve(session.id) === undefined) return undefined;
+  const slug = core.ownership.resolve(session.id)?.botSlug;
+  if (slug === undefined) return undefined;
+  if (
+    core.assignmentAccess?.restricted?.(slug) === true &&
+    policy !== undefined &&
+    requestsEscalation(args, policy.resolve({ session }).mode)
+  )
+    return MEMBER_ESCALATION_REFUSAL;
   if (
     name === 'ask_user_question' &&
     core.ownership.resolve(session.id)?.rootRole !== 'orchestrator'

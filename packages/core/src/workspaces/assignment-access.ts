@@ -90,3 +90,39 @@ export function createAssignmentAccessStore(
     },
   };
 }
+
+export class AssignmentAccessRestrictedError extends Error {
+  constructor() {
+    super('Member PersonaBots cannot use dangerous access');
+  }
+}
+
+export interface RestrictableAssignmentAccessStore extends AssignmentAccessStore {
+  /** True when this Bot may never leave the sandbox (a Team member's Bot). */
+  restricted(botSlug: string): boolean;
+}
+
+/**
+ * Team mode: `danger-full-access` bypasses the sandbox provider entirely, so a
+ * member's Bot always resolves to `workspace-write` and cannot be set otherwise,
+ * whatever an older row says.
+ */
+export function restrictMemberAssignmentAccess(
+  store: AssignmentAccessStore,
+  restricted: (botSlug: string) => boolean,
+): RestrictableAssignmentAccessStore {
+  return {
+    restricted,
+    get(botSlug) {
+      const preset = store.get(botSlug);
+      return restricted(botSlug) && preset.mode === 'danger-full-access'
+        ? { ...preset, mode: 'workspace-write', scope: 'chat' }
+        : preset;
+    },
+    set(botSlug, mode, scope) {
+      if (mode === 'danger-full-access' && restricted(botSlug))
+        throw new AssignmentAccessRestrictedError();
+      return store.set(botSlug, mode, scope);
+    },
+  };
+}

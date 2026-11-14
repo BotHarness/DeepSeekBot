@@ -1407,6 +1407,28 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
     expect(await cross.json()).toEqual({ code: 'origin-refused' });
   });
 
+  it('signs a member in through a TLS-terminating tunnel only after the Owner allows the plain hop', async () => {
+    const f = await enabledFixture();
+    const http = await memberHttp(f);
+    const tunnel = {
+      origin: `https://${new URL(http.origin).host}`,
+      'x-forwarded-for': '203.0.113.7',
+      'x-forwarded-proto': 'https',
+      'cf-connecting-ip': '203.0.113.7',
+    };
+    const denied = await http.signIn('bob', f.initialPassword, tunnel);
+    expect([denied.status, await denied.json()]).toEqual([403, { code: 'insecure-transport' }]);
+    f.team.setInsecureHttp(owner, true);
+    const allowed = await http.signIn('bob', f.initialPassword, tunnel);
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get('set-cookie')).toContain('HttpOnly');
+    const foreign = await http.signIn('bob', f.initialPassword, {
+      ...tunnel,
+      origin: 'https://attacker.example',
+    });
+    expect([foreign.status, await foreign.json()]).toEqual([403, { code: 'origin-refused' }]);
+  });
+
   it('uses Secure for Host-known TLS and refuses new sign-ins after Team mode is disabled', async () => {
     const f = await enabledFixture();
     const http = await memberHttp(f, true, true);
