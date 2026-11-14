@@ -570,13 +570,16 @@ export function ChannelMessageBody({
     return <TakeoverCard message={message} channelId={channelId} actions={actions} t={t} />;
   if (message.userQuestionRequest !== undefined && actions !== undefined) {
     return (
-      <UserQuestionCard
-        message={message}
-        actions={actions}
-        resolution={userQuestionResolution}
-        channelId={channelId}
-        t={t}
-      />
+      <>
+        <UserQuestionCard
+          message={message}
+          actions={actions}
+          resolution={userQuestionResolution}
+          channelId={channelId}
+          t={t}
+        />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
     );
   }
   if (message.grantRequest === true && actions !== undefined) {

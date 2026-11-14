@@ -952,7 +952,13 @@ function parseAuthor(value: unknown): ChannelAuthor | undefined {
       return { kind: 'system' };
     case 'bot':
       return typeof record['slug'] === 'string' && record['slug'].length > 0
-        ? { kind: 'bot', slug: record['slug'] }
+        ? {
+            kind: 'bot',
+            slug: record['slug'],
+            ...(typeof record['displayName'] === 'string' && record['displayName'].length > 0
+              ? { displayName: record['displayName'] }
+              : {}),
+          }
         : undefined;
     case 'remote-bot':
       return typeof record['hostId'] === 'string' &&

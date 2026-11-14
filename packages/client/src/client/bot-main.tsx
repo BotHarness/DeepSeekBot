@@ -303,8 +303,12 @@ function authorLabel(
       return message.author.displayName ?? humanLabel(humanName, t);
     case 'system':
       return t('main.author.system');
-    case 'bot':
-      return memberName(bots, message.author.slug);
+    case 'bot': {
+      const { slug, displayName } = message.author;
+      return bots.some((bot) => bot.slug === slug)
+        ? memberName(bots, slug)
+        : (displayName ?? t('team.someBot'));
+    }
     case 'remote-bot':
       return remoteBot?.hostId === message.author.hostId &&
         remoteBot.botSlug === message.author.slug

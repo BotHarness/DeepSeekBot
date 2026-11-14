@@ -579,7 +579,9 @@ function channelPreview(
           ? t('rail.you')
           : (message.author.displayName ?? t('team.otherMember'))
       : message.author.kind === 'bot'
-        ? (bots.get(message.author.slug)?.displayName ?? t('team.someBot'))
+        ? (bots.get(message.author.slug)?.displayName ??
+          message.author.displayName ??
+          t('team.someBot'))
         : message.author.kind === 'bridged'
           ? message.author.source
           : undefined;
