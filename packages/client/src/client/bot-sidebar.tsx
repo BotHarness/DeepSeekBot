@@ -1,3 +1,4 @@
+import { MessagePersonDialog } from './message-person-dialog.js';
 import { PublicChannelsDialog } from './public-channels-dialog.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
 import { useTeamMode } from './team-state.js';
@@ -1016,7 +1017,8 @@ type CreateRequest =
     }
   | { kind: 'channel'; sectionId?: string }
   | { kind: 'marketplace' }
-  | { kind: 'public-channels' };
+  | { kind: 'public-channels' }
+  | { kind: 'message-person' };
 
 type FlatBlockView =
   | { kind: 'section'; section: RosterSection; channels: ChannelSummary[] }
@@ -1551,6 +1553,7 @@ export function BotSidebar({
     if (id === 'section') setCreateRequest({ kind: 'section' });
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
     if (id === 'public-channels') setCreateRequest({ kind: 'public-channels' });
+    if (id === 'message-person') setCreateRequest({ kind: 'message-person' });
     if (id === 'remote') setAddingRemote(true);
   };
 
@@ -3037,6 +3040,19 @@ export function BotSidebar({
           }}
         />
       ) : null}
+      {createRequest?.kind === 'message-person' && actions.teamCall !== undefined ? (
+        <MessagePersonDialog
+          call={actions.teamCall}
+          t={t}
+          onClose={() => {
+            setCreateRequest(undefined);
+          }}
+          onOpened={(channelId) => {
+            setCreateRequest(undefined);
+            void actions.refreshRoster().then(() => actions.openChannel(channelId));
+          }}
+        />
+      ) : null}
       {createRequest?.kind === 'public-channels' && actions.teamCall !== undefined ? (
         <PublicChannelsDialog
           call={actions.teamCall}
@@ -3974,7 +3990,12 @@ export function ChannelMoveMenu({
   );
 }
 
-const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set(['channel', 'section', 'public-channels']);
+const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set([
+  'channel',
+  'section',
+  'public-channels',
+  'message-person',
+]);
 
 function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
   if (id === 'bot' || id === 'bot:empty') return 'empty';
@@ -4012,6 +4033,11 @@ function menuItems(
             id: 'public-channels',
             label: t('team.channels.browse'),
             icon: <ChannelSidebarIcon name="hash" size={16} />,
+          },
+          {
+            id: 'message-person',
+            label: t('team.dm.menu'),
+            icon: <ChannelSidebarIcon name="user" size={16} />,
           },
         ]
       : []),

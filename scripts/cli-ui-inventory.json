@@ -1079,13 +1079,15 @@
         "setting:packages/client/src/client/team-settings.tsx:{t('team.mode.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.ownerPassword.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{view.viewer.displayName}",
-        "setting:packages/client/src/client/channel-public-setting.tsx:{t('team.channelPublic.title')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.admins')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.visibility')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t(`channelAccess.policy.${key}`)}",
         "setting:packages/client/src/client/team-roles.tsx:{name}",
         "setting:packages/client/src/client/team-roles.tsx:{roleLabel(t, role)}",
         "setting:packages/client/src/client/team-roles.tsx:{t('team.roles.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}"
       ],
-      "commands": ["team-mode", "members", "channels", "roles", "devices"]
+      "commands": ["team-mode", "members", "channels", "roles", "devices", "dm"]
     },
     {
       "id": "team-member-browser-sign-out",

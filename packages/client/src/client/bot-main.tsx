@@ -1,3 +1,4 @@
+import { AnnouncementGate } from './announcement-gate.js';
 import { humanIdOf, useSelfHumanId } from './self-human.js';
 import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
@@ -3486,90 +3487,96 @@ function ConversationView({
                     ))}
                   </section>
                 ) : null}
-                <ChannelComposer
-                  key={channelId}
-                  context={composerContext}
-                  sendKey={sendKey}
-                  value={draft}
-                  mentions={mentionTokens}
-                  channelRefs={channelRefTokens}
-                  channelCandidates={
-                    channel?.type === 'dm' && channel.botSlug !== undefined
-                      ? state.channels.filter((candidate) => candidate.type === 'group')
-                      : []
-                  }
-                  allBotPreview={channel?.type === 'group' ? allBotPreview : undefined}
-                  allBotNotice={allBotNotice}
-                  mentionCandidates={
-                    channel?.type === 'group'
-                      ? channelBots
-                      : channel?.type === 'dm' && channel.botSlug !== undefined
-                        ? state.bots.filter(
-                            (candidate) =>
-                              candidate.slug !== channel.botSlug &&
-                              candidate.paused !== true &&
-                              !candidate.deleted,
-                          )
-                        : []
-                  }
-                  placeholder={t('composer.placeholder', { name: title })}
-                  holdPlaceholder={t('composer.holdToTalk', { name: title })}
-                  dictation={dictationPort}
-                  dictating={dictating}
-                  sending={conversation.sending || recovery.blocked}
-                  focusSignal={restoreFocusSignal}
-                  attachments={uploadItems}
-                  onAddFiles={addFiles}
-                  onRetryAttachment={(id) => {
-                    const item = uploadItems.find((candidate) => candidate.id === id);
-                    if (item !== undefined) startUpload(item);
-                  }}
-                  onRemoveAttachment={(id) => {
-                    const item = uploadItems.find((candidate) => candidate.id === id);
-                    if (item !== undefined) {
-                      const next = removeAttachmentReferences(
-                        draft,
-                        item,
-                        mentionTokens,
-                        channelRefTokens,
-                      );
-                      recovery.update({
-                        text: next.value,
-                        mentions: next.mentions,
-                        channelRefs: next.channelRefs,
-                      });
-                    }
-                    uploadControllers.current.get(id)?.abort();
-                    uploadControllers.current.delete(id);
-                    setUploadItems((current) => current.filter((item) => item.id !== id));
-                  }}
-                  reply={
-                    replyTarget === undefined
-                      ? undefined
-                      : {
-                          id: replyTarget.id,
-                          author: authorLabel(
-                            replyTarget,
-                            state.bots,
-                            t,
-                            channelHumanName(channel),
-                          ),
-                          body: replyTarget.body,
-                        }
-                  }
+                <AnnouncementGate
+                  call={channel?.type === 'group' ? actions.teamCall : undefined}
+                  channelId={channelId ?? ''}
                   t={t}
-                  onChange={(value, mentions, channelRefs) => {
-                    recovery.update({
-                      text: value,
-                      mentions: mentions ?? [],
-                      channelRefs: channelRefs ?? [],
-                    });
-                    setRestoreBlocked(false);
-                  }}
-                  onCancelReply={() => setReplyTarget(undefined)}
-                  onRecall={recallInput}
-                  onSubmit={submit}
-                />
+                >
+                  <ChannelComposer
+                    key={channelId}
+                    context={composerContext}
+                    sendKey={sendKey}
+                    value={draft}
+                    mentions={mentionTokens}
+                    channelRefs={channelRefTokens}
+                    channelCandidates={
+                      channel?.type === 'dm' && channel.botSlug !== undefined
+                        ? state.channels.filter((candidate) => candidate.type === 'group')
+                        : []
+                    }
+                    allBotPreview={channel?.type === 'group' ? allBotPreview : undefined}
+                    allBotNotice={allBotNotice}
+                    mentionCandidates={
+                      channel?.type === 'group'
+                        ? channelBots
+                        : channel?.type === 'dm' && channel.botSlug !== undefined
+                          ? state.bots.filter(
+                              (candidate) =>
+                                candidate.slug !== channel.botSlug &&
+                                candidate.paused !== true &&
+                                !candidate.deleted,
+                            )
+                          : []
+                    }
+                    placeholder={t('composer.placeholder', { name: title })}
+                    holdPlaceholder={t('composer.holdToTalk', { name: title })}
+                    dictation={dictationPort}
+                    dictating={dictating}
+                    sending={conversation.sending || recovery.blocked}
+                    focusSignal={restoreFocusSignal}
+                    attachments={uploadItems}
+                    onAddFiles={addFiles}
+                    onRetryAttachment={(id) => {
+                      const item = uploadItems.find((candidate) => candidate.id === id);
+                      if (item !== undefined) startUpload(item);
+                    }}
+                    onRemoveAttachment={(id) => {
+                      const item = uploadItems.find((candidate) => candidate.id === id);
+                      if (item !== undefined) {
+                        const next = removeAttachmentReferences(
+                          draft,
+                          item,
+                          mentionTokens,
+                          channelRefTokens,
+                        );
+                        recovery.update({
+                          text: next.value,
+                          mentions: next.mentions,
+                          channelRefs: next.channelRefs,
+                        });
+                      }
+                      uploadControllers.current.get(id)?.abort();
+                      uploadControllers.current.delete(id);
+                      setUploadItems((current) => current.filter((item) => item.id !== id));
+                    }}
+                    reply={
+                      replyTarget === undefined
+                        ? undefined
+                        : {
+                            id: replyTarget.id,
+                            author: authorLabel(
+                              replyTarget,
+                              state.bots,
+                              t,
+                              channelHumanName(channel),
+                            ),
+                            body: replyTarget.body,
+                          }
+                    }
+                    t={t}
+                    onChange={(value, mentions, channelRefs) => {
+                      recovery.update({
+                        text: value,
+                        mentions: mentions ?? [],
+                        channelRefs: channelRefs ?? [],
+                      });
+                      setRestoreBlocked(false);
+                    }}
+                    onCancelReply={() => setReplyTarget(undefined)}
+                    onRecall={recallInput}
+                    onSubmit={submit}
+                  />
+                </AnnouncementGate>
               </div>
             </div>
           )}

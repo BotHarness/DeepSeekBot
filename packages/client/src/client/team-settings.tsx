@@ -113,6 +113,9 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'member-suspended': 'team.error.memberSuspended',
   'permission-not-grantable': 'team.error.permissionNotGrantable',
   'owner-transfer-target-unverified': 'team.error.ownerTransferUnverified',
+  'role-not-found': 'team.error.roleNotFound',
+  'channel-post-restricted': 'team.error.channelPostRestricted',
+  'channel-mention-restricted': 'team.error.channelMentionRestricted',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
