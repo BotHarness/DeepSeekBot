@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   ContentPurgeError,
+  deletedHumanSchema,
   purgeCheckpointSchema,
   purgeFactSchema,
   type PurgeCheckpoint,
@@ -31,7 +32,11 @@ export function openPurgeLedger(path: string, required: boolean) {
     const version = db.prepare('SELECT version FROM ledger_meta WHERE singleton = 1').get();
     if (version?.version !== 1 || db.prepare('PRAGMA quick_check').get()?.quick_check !== 'ok')
       throw new Error('Invalid ledger');
+    db.exec(`CREATE TABLE IF NOT EXISTS deleted_humans (human_id TEXT PRIMARY KEY, fact TEXT NOT NULL CHECK(json_valid(fact)));
+      CREATE TRIGGER IF NOT EXISTS deleted_humans_no_update BEFORE UPDATE ON deleted_humans BEGIN SELECT RAISE(ABORT, 'monotonic purge ledger'); END;
+      CREATE TRIGGER IF NOT EXISTS deleted_humans_no_delete BEFORE DELETE ON deleted_humans BEGIN SELECT RAISE(ABORT, 'monotonic purge ledger'); END;`);
     read();
+    readDeletedHumans();
   } catch {
     db.close();
     throw new ContentPurgeError(
@@ -50,22 +55,38 @@ export function openPurgeLedger(path: string, required: boolean) {
         return fact;
       });
   }
+  function readDeletedHumans() {
+    return db
+      .prepare('SELECT human_id, fact FROM deleted_humans ORDER BY human_id')
+      .all()
+      .map((row) => {
+        const fact = deletedHumanSchema.parse(JSON.parse(String(row.fact)));
+        if (fact.humanId !== row.human_id) throw new Error('Invalid member selector');
+        return fact;
+      });
+  }
   function checkpoint(): PurgeCheckpoint {
     const facts = read();
+    const deletedHumans = readDeletedHumans();
     return {
       format: 'botharness-purge',
-      version: facts.some(
-        (fact) => fact.managedFiles !== undefined || !['human', 'bot'].includes(fact.author.kind),
-      )
-        ? 2
-        : 1,
+      version: deletedHumans.length
+        ? 3
+        : facts.some(
+              (fact) =>
+                fact.managedFiles !== undefined || !['human', 'bot'].includes(fact.author.kind),
+            )
+          ? 2
+          : 1,
       facts,
+      ...(deletedHumans.length ? { deletedHumans } : {}),
     };
   }
   return {
     checkpoint,
     union(input: unknown): void {
-      const packageFacts = purgeCheckpointSchema.parse(input).facts;
+      const parsed = purgeCheckpointSchema.parse(input);
+      const packageFacts = parsed.facts;
       const unique = new Map<string, PurgeFact>();
       for (const fact of [...read(), ...packageFacts]) {
         const previous = unique.get(fact.sourceEventId);
@@ -92,6 +113,18 @@ export function openPurgeLedger(path: string, required: boolean) {
             fact.sourceEventId,
             JSON.stringify(fact),
           );
+        for (const fact of parsed.deletedHumans ?? []) {
+          const serialized = JSON.stringify(fact);
+          const stored = db
+            .prepare('SELECT fact FROM deleted_humans WHERE human_id = ?')
+            .get(fact.humanId);
+          if (stored !== undefined && stored.fact !== serialized)
+            throw new Error('Conflicting deleted Human');
+          db.prepare('INSERT OR IGNORE INTO deleted_humans VALUES (?, ?)').run(
+            fact.humanId,
+            serialized,
+          );
+        }
         db.exec('COMMIT');
       } catch (error) {
         if (db.isTransaction) db.exec('ROLLBACK');

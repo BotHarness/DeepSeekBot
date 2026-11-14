@@ -194,6 +194,7 @@ export interface ChannelLiveHub {
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
+  publishHumanIdentityChanged(): void;
   close(): void;
 }
 
@@ -234,10 +235,9 @@ function combineLiveResponses(channel: Response, roster: Response): Response {
             if (ended) return;
             if (chunk.done) {
               completed++;
-              if (completed === readers.length) {
-                ended = true;
-                resume();
+              if (reader === readers[0] || completed === readers.length) {
                 controller.close();
+                await stop();
               }
               return;
             }
@@ -1032,6 +1032,10 @@ export function createChannelLiveHub(
     },
     publishRosterCommitted() {
       for (const subscriber of rosterSubscribers) subscriber.push();
+    },
+    publishHumanIdentityChanged() {
+      for (const group of subscribers.values())
+        for (const subscriber of [...group]) subscriber.close();
     },
     publishContentPurged() {
       const placements = redactions?.() ?? [];

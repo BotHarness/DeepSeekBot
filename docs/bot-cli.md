@@ -2019,4 +2019,16 @@ deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
-`members reset-password <username> --initial-password-file <path>` is Owner-only recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+`members reset-password <username> --initial-password-file <path>` requires `members.manage` and coverage of the target roles (Admin targets require the Owner); it provides recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+
+```sh
+deepseekbot --as bob members change-password --password-stdin --sign-out-others=false < password-change.json
+deepseekbot members deactivate bob
+deepseekbot members reactivate bob
+deepseekbot members transfer bob --preview
+deepseekbot members transfer bob --to alice
+deepseekbot members purge bob --preview
+deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
+```
+
+Password changes default to signing out every other browser and paired device; `false` keeps them except during the forced first change. Lifecycle operations require `members.manage` with the target-role ceiling; Owner and self targets are protected, and only the Owner can manage Admin targets. Deactivation preserves data and revokes every grant. Reactivation requires fresh sign-in. Transfer moves group Channel ownership and the member's private Bots, with their Memory and DM history, to an active member or the Owner; preview lists both before anything moves. The member's Tob stays with them until purge. Purge requires deactivation and completed transfer, then a single-use, five-minute token from the preview. The username argument supplies the exact username confirmation; stdin supplies only the token. Shared messages retain `author.humanId` with `author.deleted: true` and no display name. `team-mode status` includes `activeMembers`; `team-mode off` also returns `suspendedMembers`. Previously deactivated accounts remain deactivated after off/on. Purge also removes the member's Tob and any private Bots still owned by them, with their Memory; DMs that another Human took part in are kept.
