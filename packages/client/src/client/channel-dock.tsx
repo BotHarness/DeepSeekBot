@@ -1,7 +1,4 @@
 import { mountWorkspaceChrome, updateWorkspaceChrome } from './workspace-chrome.js';
-import { useRemoteHosts } from './host-tabs.js';
-import { RemoteConversationView } from './remote-conversation-view.js';
-import { conversationKey } from './remote-hosts.js';
 import { AppearancePanelHeader } from './appearance-panel-header.js';
 import { AppearanceContext } from './appearance-context.js';
 import { PanelAppearanceSettings } from './appearance-panel-settings.js';
@@ -219,6 +216,7 @@ interface SubpanelColumnView {
 }
 
 interface DockContextValue {
+  conversation(node: ReactNode): ReactNode;
   channelPanelIds: readonly string[];
   column?: SubpanelColumnView | undefined;
   childLayout: { tree: ChannelSplit; setTree(next: ChannelSplit): void };
@@ -254,6 +252,13 @@ interface DockSlots {
 }
 
 const DockContext = createContext<DockContextValue | undefined>(undefined);
+export function useChannelPanelClose(panelId: string): (() => void) | undefined {
+  const dock = useContext(DockContext);
+  return useMemo(
+    () => (dock === undefined ? undefined : () => dock.close(panelId)),
+    [dock, panelId],
+  );
+}
 const DockSlotContext = createContext<DockSlots | undefined>(undefined);
 
 const IDLE_RUNTIME: EntryRuntime = { refreshRevision: 0, expandable: true };
@@ -392,10 +397,7 @@ function workspaceState(dock: DockContextValue, id: string): SubpanelState | und
 
 function ChannelBodyPanel(): ReactElement {
   const dock = useDock();
-  const remote = useRemoteHosts().open;
-  if (remote !== undefined)
-    return <RemoteConversationView key={conversationKey(remote)} target={remote} t={dock.t} />;
-  if (dock.column) return <SimpleMessageContent column={dock.column} />;
+  if (dock.column) return <>{dock.conversation(<SimpleMessageContent column={dock.column} />)}</>;
   const panels: Record<string, { label: string; header?: ReactNode; content: ReactNode }> = {
     [MESSAGE_LEAF]: { label: dock.t('workspace.messages'), content: <ChannelMessageContent /> },
   };
@@ -411,12 +413,16 @@ function ChannelBodyPanel(): ReactElement {
       };
   }
   return (
-    <ChannelWorkspace
-      channelId={dock.channel?.id}
-      tree={dock.childLayout.tree}
-      setTree={dock.childLayout.setTree}
-      panels={panels}
-    />
+    <>
+      {dock.conversation(
+        <ChannelWorkspace
+          channelId={dock.channel?.id}
+          tree={dock.childLayout.tree}
+          setTree={dock.childLayout.setTree}
+          panels={panels}
+        />,
+      )}
+    </>
   );
 }
 
@@ -919,9 +925,11 @@ function SubpanelColumnEntry({
             onToggle: () => column.toggleEntry(entry.id),
           }}
           badge={
-            Badge === undefined || props === undefined ? undefined : (
-              <EntryPart key={entryScopeKey(props)} part={Badge} props={props} />
-            )
+            Badge === undefined || props === undefined
+              ? undefined
+              : dock.conversation(
+                  <EntryPart key={entryScopeKey(props)} part={Badge} props={props} />,
+                )
           }
           action={
             HeaderAction === undefined && PanelAction === undefined ? undefined : (
@@ -931,15 +939,20 @@ function SubpanelColumnEntry({
                 onPointerDown={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.stopPropagation()}
               >
-                {HeaderAction === undefined || props === undefined ? null : (
-                  <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
-                )}
-                {PanelAction && (
-                  <PanelAction
-                    key={panel?.scope === 'channel' ? dock.channel?.id : undefined}
-                    channel={panel?.scope === 'channel' ? dock.channel : undefined}
-                  />
-                )}
+                {HeaderAction === undefined || props === undefined
+                  ? null
+                  : dock.conversation(
+                      <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />,
+                    )}
+                {PanelAction &&
+                  scopePanelPart(
+                    dock,
+                    panel,
+                    <PanelAction
+                      key={panel?.scope === 'channel' ? dock.channel?.id : undefined}
+                      channel={panel?.scope === 'channel' ? dock.channel : undefined}
+                    />,
+                  )}
               </span>
             )
           }
@@ -1019,13 +1032,27 @@ function DockPanelBody({ panel }: { panel: DockPanelRegistration }): ReactElemen
           data-dock-panel-body=""
           {...stylex.props(styles.body, dock.railed && styles.workspaceBody)}
         >
-          <panel.component key={channel?.id} channel={channel} />
+          {panel.scope === 'channel' || panel.binding === 'current-bot' ? (
+            dock.conversation(<panel.component key={channel?.id} channel={channel} />)
+          ) : (
+            <panel.component key={channel?.id} channel={channel} />
+          )}
         </div>
       ) : (
         <PanelEmptyState icon={panel?.icon}>{dock.t('dock.empty')}</PanelEmptyState>
       )}
     </section>
   );
+}
+
+function scopePanelPart(
+  dock: DockContextValue,
+  panel: DockPanelRegistration | undefined,
+  node: ReactNode,
+): ReactNode {
+  return panel?.scope === 'channel' || panel?.binding === 'current-bot'
+    ? dock.conversation(node)
+    : node;
 }
 
 function ChannelEntryPanel({ params }: IDockviewPanelProps<{ entryId: string }>): ReactElement {
@@ -1051,7 +1078,9 @@ function ChannelEntryContent({ entryId }: { entryId: string }): ReactElement {
               props.flush && styles.flushBody,
             )}
           >
-            <EntryPart key={entryScopeKey(props)} part={entry.component} props={props} />
+            {dock.conversation(
+              <EntryPart key={entryScopeKey(props)} part={entry.component} props={props} />,
+            )}
           </div>
         ) : null
       ) : (
@@ -1222,14 +1251,16 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
             entryId === CHANNEL_BODY_PANEL && dock.hasHeader ? <ChannelBreadcrumb /> : undefined
           }
           badge={
-            Badge === undefined || props === undefined ? undefined : (
-              <EntryPart key={entryScopeKey(props)} part={Badge} props={props} />
-            )
+            Badge === undefined || props === undefined
+              ? undefined
+              : dock.conversation(
+                  <EntryPart key={entryScopeKey(props)} part={Badge} props={props} />,
+                )
           }
           tabs={
-            HeaderTabs === undefined || props === undefined ? undefined : (
-              <HeaderTabs key={entryScopeKey(props)} {...props} />
-            )
+            HeaderTabs === undefined || props === undefined
+              ? undefined
+              : dock.conversation(<HeaderTabs key={entryScopeKey(props)} {...props} />)
           }
           action={
             <span
@@ -1239,15 +1270,20 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
               onMouseDown={(event) => event.stopPropagation()}
             >
               {entryId === CHANNEL_BODY_PANEL && dock.hasHeader && <ChannelHeaderActions />}
-              {HeaderAction === undefined || props === undefined ? null : (
-                <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
-              )}
-              {PanelAction && (
-                <PanelAction
-                  key={panel.scope === 'channel' ? dock.channel?.id : undefined}
-                  channel={panel.scope === 'channel' ? dock.channel : undefined}
-                />
-              )}
+              {HeaderAction === undefined || props === undefined
+                ? null
+                : dock.conversation(
+                    <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />,
+                  )}
+              {PanelAction &&
+                scopePanelPart(
+                  dock,
+                  panel,
+                  <PanelAction
+                    key={panel.scope === 'channel' ? dock.channel?.id : undefined}
+                    channel={panel.scope === 'channel' ? dock.channel : undefined}
+                  />,
+                )}
               {entryId === WORKSPACE_CHANNELS && (
                 <span className="bh-workspace-channel-actions" ref={dock.setChannelsHeader} />
               )}
@@ -1472,7 +1508,11 @@ function buildDefaultLayout(api: DockviewApi, entries: ReadonlyMap<string, DockP
   hideBodyHeader(api);
 }
 
+const passthroughConversation = (node: ReactNode): ReactNode => node;
+
 export interface ChannelDockProps {
+  conversation?: ((node: ReactNode) => ReactNode) | undefined;
+  hasBots?: boolean | undefined;
   header?: ChannelHeaderView | undefined;
   body: ReactNode;
   files?: ChannelFilesView | undefined;
@@ -1498,6 +1538,8 @@ function markWorkspaceDock(): () => void {
 }
 
 export function ChannelDock({
+  conversation = passthroughConversation,
+  hasBots = true,
   header,
   body,
   files,
@@ -1531,7 +1573,7 @@ export function ChannelDock({
       ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
     ]),
   ];
-  const channelPanelIds = ['sessions', ...botPanelIds];
+  const channelPanelIds = hasBots ? ['sessions', ...botPanelIds] : [];
   const [initial] = useState(() => readChannelDock(storage, workspace !== undefined));
   const [storageFailed, setStorageFailed] = useState(false);
   const seed = useRef(initial?.sessionSeed ?? DEFAULT_CHANNEL_WORKSPACE);
@@ -2487,6 +2529,7 @@ export function ChannelDock({
     );
   const value = useSame<DockContextValue>(
     {
+      conversation,
       channelPanelIds: stablePanelIds,
       column: columnValue,
       childLayout,
@@ -2517,8 +2560,23 @@ export function ChannelDock({
     return markWorkspaceDock();
   }, [workspace]);
   const slots = useMemo<DockSlots>(
-    () => ({ header, body, files: files?.content, rail, menu: workspaceMode ? null : menu }),
-    [header, body, files?.content, rail, menu, workspaceMode],
+    () => ({
+      header:
+        header === undefined
+          ? undefined
+          : {
+              ...header,
+              icon: conversation(header.icon),
+              label: header.label === undefined ? undefined : conversation(header.label),
+              status: conversation(header.status),
+              actions: conversation(header.actions),
+            },
+      body: conversation(body),
+      files: conversation(files?.content),
+      rail,
+      menu: workspaceMode ? null : menu,
+    }),
+    [header, body, files?.content, rail, menu, workspaceMode, conversation],
   );
 
   return (

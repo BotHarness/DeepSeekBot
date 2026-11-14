@@ -4,6 +4,20 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
+const environmentProbe = vi.hoisted((): { snapshot: RemoteHostsSnapshot } => ({
+  snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
+}));
+vi.mock('../src/client/host-tabs.js', async (original) => ({
+  ...(await original<typeof import('../src/client/host-tabs.js')>()),
+  useRemoteHosts: () => environmentProbe.snapshot,
+}));
+
+vi.mock('../src/client/channel-dock.js', async (original) => ({
+  ...(await original<typeof import('../src/client/channel-dock.js')>()),
+  useChannelDockActive: () => environmentProbe.snapshot.hosts.length > 0,
+}));
+
 const captured = vi.hoisted(() => ({
   dock: false,
   menus: [] as Array<{
@@ -710,6 +724,7 @@ function menuWithItem(id: string): {
 
 beforeEach(() => {
   captured.dock = false;
+  environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'local' };
   captured.menus.length = 0;
   store.setMode('dsh');
   store.setQuery('');
@@ -2598,4 +2613,94 @@ it('keeps a successfully created section when the subsequent move fails, without
     await act(async () => root.unmount());
     host.remove();
   }
+});
+
+describe('All Environment local row interactions', () => {
+  async function mountMixed() {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    environmentProbe.snapshot = {
+      tab: 'all',
+      avatars: new Map(),
+      hosts: [
+        {
+          host: {
+            hostId: 'remote',
+            hostName: 'Remote',
+            routes: ['http://localhost:12345'],
+            credential: 'fixture',
+            deviceId: 'device',
+          },
+          snapshot: {
+            connection: { status: 'connected', route: 'http://localhost:12345' },
+            roster: { bots: [], channels: [] },
+          },
+          inbox: {
+            status: 'ready',
+            sections: { action: [], replies: [], unread: [], handled: [] },
+            unread: {},
+          },
+        },
+      ],
+    };
+    store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
+    setRoster({
+      pins: [FLAT_CHANNEL.id],
+      sections: [section('s1', 'Collapsed', [SECTION_CHANNEL.id])],
+    });
+    store.setConfig(config({ collapsed: { s1: true } }));
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    await act(() =>
+      root.render(
+        createElement(BotSidebar, {
+          wide: true,
+          actions: stubActions(),
+          useBotModePrefs: (selector) => selector(prefs),
+          setSortMode,
+          setSectionSortMode,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    return { node, root };
+  }
+  it('offers Unpin for a pinned channel presented as a mixed row', async () => {
+    const { node, root } = await mountMixed();
+    try {
+      const row = node.querySelector('[data-channel-id="c-flat"]');
+      if (!row) throw Error('missing pinned mixed row');
+      await act(() =>
+        row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      expect(menuWithItem('unpin').items.some((item) => item['id'] === 'pin')).toBe(false);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+  it('selects a displayed channel from a collapsed section and ranges in mixed order', async () => {
+    const { node, root } = await mountMixed();
+    try {
+      const rows = [
+        ...node.querySelectorAll<HTMLButtonElement>('[data-environment-channel] [data-channel-id]'),
+      ];
+      expect(rows.map((row) => row.dataset.channelId)).toEqual(['c-flat', 'c-section']);
+      const sectionRow = rows.find((row) => row.dataset.channelId === 'c-section');
+      if (!sectionRow) throw Error('missing section mixed row');
+      await act(() =>
+        sectionRow.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true })),
+      );
+      expect(sectionRow.getAttribute('aria-pressed')).toBe('true');
+      const first = rows[0];
+      if (!first) throw Error('missing first row');
+      await act(() =>
+        first.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })),
+      );
+      expect(rows.map((row) => row.getAttribute('aria-pressed'))).toEqual(['true', 'true']);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
 });

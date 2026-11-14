@@ -59,6 +59,50 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('shares native purge notifications only with subscribers of the owning Host', async () => {
+    const host = new FakeHost();
+    const otherHost = new FakeHost();
+    const legacy = vi.fn();
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+      onPurged: legacy,
+    });
+    const other = createHostClient({
+      routes: [ROUTE],
+      credential: otherHost.credential,
+      carrier: otherHost.carrier,
+    });
+    const received = vi.fn();
+    const unrelated = vi.fn();
+    const unsubscribe = client.onPurged!(received);
+    const unsubscribeOther = other.onPurged!(unrelated);
+    try {
+      client.start();
+      other.start();
+      await until(client, (state) => state.connection.status === 'connected');
+      await until(other, (state) => state.connection.status === 'connected');
+      expect(received).toHaveBeenCalled();
+      received.mockClear();
+      unrelated.mockClear();
+      legacy.mockClear();
+      const placements = [{ channelId: 'shared-id', messageId: 'message-1' }];
+      expect(host.push('botharness/followRoster', { type: 'purged', placements })).toBe(true);
+      expect(received).toHaveBeenCalledExactlyOnceWith(placements);
+      expect(legacy).toHaveBeenCalledExactlyOnceWith(placements);
+      expect(unrelated).not.toHaveBeenCalled();
+      unsubscribe();
+      host.push('botharness/followRoster', { type: 'purged', placements });
+      expect(received).toHaveBeenCalledOnce();
+      expect(legacy).toHaveBeenCalledTimes(2);
+    } finally {
+      unsubscribe();
+      unsubscribeOther();
+      other.stop();
+    }
+  });
+
   it('acknowledges the first loaded Feed once and keeps ordinary refreshes free of acknowledgement traffic', async () => {
     const host = new FakeHost();
     const target = connect(host);

@@ -1,13 +1,19 @@
-import { useRef, useSyncExternalStore } from 'react';
+import { createContext, useContext, useRef, useSyncExternalStore } from 'react';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 
 import { store, type BotSummary, type ClientState, type ClientStore } from './store.js';
+
+export const ClientStoreContext = createContext<ClientStore>(store);
+
+export function useConversationStore(): ClientStore {
+  return useContext(ClientStoreContext);
+}
 
 export const useClientStore: SnapshotSelectorHook<ClientState> = function useClientStore<S>(
   select: (state: ClientState) => S,
   equal: (a: S, b: S) => boolean = Object.is,
 ): S {
-  return useStoreSlice(store, select, equal);
+  return useStoreSlice(useConversationStore(), select, equal);
 };
 
 export function useStoreSlice<S>(
@@ -97,8 +103,9 @@ const fieldSelections = new WeakMap<
 
 export function useClientFields<K extends keyof ClientState>(
   keys: readonly K[],
-  source: Pick<ClientStore, 'subscribe' | 'getSnapshot'> = store,
+  source?: Pick<ClientStore, 'subscribe' | 'getSnapshot'>,
 ): Pick<ClientState, K> {
+  const contextual = useConversationStore();
   let selection = fieldSelections.get(keys);
   if (selection === undefined) {
     selection = {
@@ -110,5 +117,8 @@ export function useClientFields<K extends keyof ClientState>(
     };
     fieldSelections.set(keys, selection);
   }
-  return useStoreSlice(source, selection.select, selection.equal) as Pick<ClientState, K>;
+  return useStoreSlice(source ?? contextual, selection.select, selection.equal) as Pick<
+    ClientState,
+    K
+  >;
 }

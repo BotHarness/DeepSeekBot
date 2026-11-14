@@ -806,7 +806,7 @@ function ModelStep({
     try {
       if (initial !== routeKey(route) || route.reasoningEffort !== undefined) {
         await actions.onboardingModel(undefined, 0, route, true);
-        invalidateInheritedModelPlans();
+        invalidateInheritedModelPlans(actions);
         setInitial(routeKey(route));
         setPlanned(undefined);
       }

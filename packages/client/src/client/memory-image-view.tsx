@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { MemoryImage, MemoryImageComparison } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { useHostImage } from './host-image.js';
 import { SingleImageGallery } from './message-image-gallery.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
@@ -76,6 +77,9 @@ function ImageContent({
   }, []);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const src = useHostImage(
+    image.status === 'ready' && visible ? memoryImageUrl(slug, path, image) : undefined,
+  );
   if (image.status !== 'ready' || failed)
     return (
       <div role="status" className="bh-note">
@@ -86,7 +90,6 @@ function ImageContent({
             : t(`memory.image.${image.status}`)}
       </div>
     );
-  const src = memoryImageUrl(slug, path, image);
   return (
     <div ref={observe}>
       {!loaded ? (
@@ -94,7 +97,7 @@ function ImageContent({
           {t('memory.loading')}
         </span>
       ) : null}
-      {visible ? (
+      {visible && src !== undefined ? (
         <SingleImageGallery t={t}>
           {(open) => (
             <button

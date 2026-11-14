@@ -12,7 +12,7 @@ import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
-import { WORKSPACE_GRANTS_CHANGED } from './workspace-grant-events.js';
+import { subscribeWorkspaceGrantChanges } from './workspace-grant-events.js';
 import type { CompanionRequestTarget } from './companion-requests.js';
 import { approvalCountdown } from './approval-countdown.js';
 import { ApprovalInput } from './approval-input.js';
@@ -137,17 +137,14 @@ export function ToolApprovalCard({
         },
       );
     };
-    const onGrantChanged = (event: Event): void => {
-      if ((event as CustomEvent<{ slug: string }>).detail?.slug === botSlug) refreshStatus();
-    };
     if (effectiveDecision === undefined) refreshStatus();
     refreshExecution();
-    window.addEventListener(WORKSPACE_GRANTS_CHANGED, onGrantChanged);
+    const stopGrants = subscribeWorkspaceGrantChanges(botSlug, refreshStatus, actions);
     return () => {
       active = false;
       mounted.current = false;
       clearTimeout(poll);
-      window.removeEventListener(WORKSPACE_GRANTS_CHANGED, onGrantChanged);
+      stopGrants();
     };
   }, [
     actions,
