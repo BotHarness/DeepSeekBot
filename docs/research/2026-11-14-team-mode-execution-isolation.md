@@ -3,6 +3,22 @@
 日期：2026-11-14 · 读者：Vain、架构师 · 状态：调研建议，不是已接受的决定
 关联：spec #4137、hub #4138、[ADR-0336](../adr/0336-hosts-have-members.md)、[ADR-0205](../adr/0205-bot-sessions-follow-dsh-permission-mode-for-shell-and-plugin-tools.md)、[ADR-0067](../adr/0067-workspace-grants-bound-personabot-file-access.md)、M5 #4144、M6 #4145、M7 #4150
 
+## 已敲定的范围（2026-11-14，Vain 确认）
+
+下文是调研过程和备选方案；最终交付范围以本节为准，已写入 spec #4137、hub #4138、M5 #4144、M6 #4145、M7 #4150 和 [team-mode.md](../architecture/team-mode.md#execution-isolation-amended-2026-11-14)。
+
+1. **新增切片 M12（#4183）**：Linux Host 上的 Bot 执行隔离。在 DSH 的 bwrap 外包一层 `runnerCommand` 脚本，隐藏 `DSH_HOME`、各空间目录和 `/home`，只挂回这个 Session 有权访问的目录；用网络命名空间拒绝本机和私有网段。机密放在 Host 上，所以结束试用前必须完成 M12。
+2. **M12 之前以轻量试用形态开放**：只显示一句告知，不对 Shell 做逐次审批；成员 Bot 不能升级。
+3. **M5**：显示试用告知；M12 达到完整隔离后，自动换成"成员之间互相隔离"。
+4. **M6/M7**：账号空间和按受众划分的共享空间。共享 Bot 的 Memory 放在它所属的共享空间里，和可以授权的 `files/` 目录分开。
+5. **不做**：账号的 CPU、内存、磁盘配额。
+6. **macOS 上的 Team Host**：可以开放，只显示同样的试用告知；M12 只做 Linux。
+7. **单独的 bug（#4184）**：Bot Browser 的 Chrome 调试端口没有认证，与是否开启 Team mode 无关。
+8. **暂不做**：systemd、Cloudflare Access 的部署文档和检查脚本。
+9. **高敏感数据放在单独的 Host 上**：只作为文档建议。
+
+下文中与以上范围不一致的建议（逐次审批过渡门槛、配额 slice、第一阶段部署清单等），以本节为准。
+
 ## 结论（先看这里）
 
 1. **隐私的隔离单位应该是"每次 Bot 执行"；账号只作为配额和归属的单位。** 我们推荐：Host 仍是一个进程、一个 OS 服务账号；DeepSeekBot 用自己的实现替换 DSH 的 `ctx.sandbox` 提供者。每次执行 Shell、终端或 PTC 时，按 Session 找到对应的 Bot 和受众，生成一份**读写都受限**的白名单：这个 Bot 自己的 Memory、它的有效 Workspace Grant，加上系统只读目录。其余部分，包括 Host 数据目录、其他 Bot 的 Memory 和其他成员的根目录，在沙箱里看不见。Linux 用 bubblewrap（无法使用时退到 Landlock），macOS 用 Seatbelt。
