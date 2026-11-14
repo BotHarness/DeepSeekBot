@@ -741,7 +741,9 @@ SELECT 'handled:' || request.source_event_id AS id,
                OR (json_extract(request.payload_json, '$.grantRequest') = 1
                    AND json_extract(response.payload_json, '$.grantRequestResolution.requestMessageId') = request.message_id))
              AND json_extract(c.record_json, '$.deletedAt') IS NULL
-             AND (json_extract(c.record_json, '$.type') = 'group'
+             AND ((json_extract(c.record_json, '$.type') = 'group'
+                   AND ($humanId = 'local-human' OR EXISTS (SELECT 1 FROM channel_human_members m
+                     WHERE m.channel_id = c.channel_id AND m.human_id = $humanId AND m.left_at IS NULL)))
                OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = request.bot_slug))
              AND request.source_kind = 'bot-message'
              AND NOT EXISTS (SELECT 1 FROM source_events earlier INDEXED BY source_events_human_native_response

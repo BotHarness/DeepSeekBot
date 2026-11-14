@@ -1,4 +1,8 @@
-import { resolveBotMentionText } from '../channels/bot-mention-text.js';
+import {
+  resolveBotMentionText,
+  AmbiguousBotMentionError,
+  botMentionLabel,
+} from '../channels/bot-mention-text.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import { MEMBER_METHODS, MEMBER_BOT_METHODS } from './member-methods.js';
@@ -123,16 +127,51 @@ export function guardHumanBridge(
             typeof input['body'] === 'string' &&
             input['body'].includes('@')
           ) {
-            for (const id of channel.members) {
+            const candidates = channel.members.flatMap((id) => {
               const bot = deps.registry.get(id);
+              return bot
+                ? [{ botSlug: bot.slug, displayName: bot.displayName, eligible: true }]
+                : [];
+            });
+            let body = input['body'];
+            if (Array.isArray(input['mentions']) && input['mentions'].length <= 20)
+              for (const selected of input['mentions']) {
+                const token = object(selected);
+                const bot =
+                  typeof token['botSlug'] === 'string'
+                    ? deps.registry.get(token['botSlug'])
+                    : undefined;
+                const start = token['start'];
+                const end = token['end'];
+                if (
+                  bot &&
+                  ownsBot(human, bot) &&
+                  channel.members.includes(bot.slug) &&
+                  bot.paused !== true &&
+                  typeof start === 'number' &&
+                  typeof end === 'number' &&
+                  Number.isSafeInteger(start) &&
+                  Number.isSafeInteger(end) &&
+                  start >= 0 &&
+                  end > start &&
+                  end <= input['body'].length &&
+                  input['body'].slice(start, end) === '@' + botMentionLabel(bot.displayName)
+                )
+                  body = body.slice(0, start) + ' '.repeat(end - start) + body.slice(end);
+              }
+            try {
               if (
-                bot &&
-                !ownsBot(human, bot) &&
-                resolveBotMentionText(input['body'], [
-                  { botSlug: bot.slug, displayName: bot.displayName, eligible: true },
-                ]).botSlugs.length
+                candidates.some(
+                  (candidate) => !ownsBot(human, deps.registry.get(candidate.botSlug)),
+                ) &&
+                resolveBotMentionText(body, candidates).botSlugs.some(
+                  (id) => !ownsBot(human, deps.registry.get(id)),
+                )
               )
                 return refuse('bot-not-found');
+            } catch (error) {
+              if (error instanceof AmbiguousBotMentionError) return refuse('bot-not-found');
+              throw error;
             }
           }
           const refs = input['channelRefs'];
@@ -147,6 +186,17 @@ export function guardHumanBridge(
           if (
             input['allBotMention'] !== undefined &&
             channel?.members.some((id) => !ownsBot(human, deps.registry.get(id)))
+          )
+            return refuse('bot-not-found');
+        }
+        if (['userQuestionStatus', 'userQuestionAnswer'].includes(property)) {
+          const message =
+            typeof channelId === 'string' && typeof input['messageId'] === 'string'
+              ? deps.channels.message(channelId, input['messageId'])
+              : undefined;
+          if (
+            message?.author.kind !== 'bot' ||
+            !ownsBot(human, deps.registry.get(message.author.slug))
           )
             return refuse('bot-not-found');
         }

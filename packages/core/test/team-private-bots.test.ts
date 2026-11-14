@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
-import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { createBridgeMethods, createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { createApprovalTemplateLibrary } from '../src/workspaces/approval-templates.js';
+import { join } from 'node:path';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { TeamService } from '../src/team/service.js';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -11,6 +13,7 @@ import { createMemberTobOperations } from '../src/tob/member-operations.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { createFakeRosterDomain, createTestRosterStore } from './roster-fixture.js';
+import { ChannelUserQuestions } from '../src/channels/user-questions.js';
 
 const alice = humanContext('alice');
 const bob = humanContext('bob');
@@ -67,6 +70,233 @@ function fixture(
 }
 
 describe('M2 private Bot boundaries', () => {
+  it.each(['dm', 'group'] as const)(
+    'allows only the asking private Bot owner to poll and answer questions in a %s',
+    async (kind) => {
+      const f = fixture();
+      const group = f.core.channels.createGroup(bob, {
+        name: 'Questions',
+        members: ['bob-bot', 'alice-bot'],
+      });
+      const channelId = kind === 'group' ? group.id : 'dm-bob-bot';
+      const service = new ChannelUserQuestions(f.core.channels, f.core.ownership);
+      const answer = vi.spyOn(service, 'answer').mockResolvedValue(true);
+      const methods = createBridgeMethodsForHumans({
+        ...f.core,
+        team: f.team,
+        userQuestions: service,
+      });
+      for (const slug of ['bob-bot', 'alice-bot'])
+        await f.core.channels.appendMessage(bob, kind === 'group' ? group.id : 'dm-' + slug, {
+          id: 'question-' + slug,
+          at: new Date().toISOString(),
+          author: { kind: 'bot', slug },
+          body: 'Pick one',
+          userQuestionRequest: {
+            sessionId: 'session-' + slug,
+            questions: [{ id: 'pick', question: 'Pick', options: [{ label: 'Yes' }] }],
+          },
+        });
+      for (const method of ['userQuestionStatus', 'userQuestionAnswer'] as const) {
+        const input = {
+          channelId,
+          messageId: 'question-bob-bot',
+          answer: { answers: [{ id: 'pick', selected: ['Yes'] }] },
+        };
+        expect(await methods(bob)[method](input)).toMatchObject({ ok: true });
+        expect(
+          await methods(bob)[method]({
+            ...input,
+            channelId: kind === 'group' ? group.id : 'dm-alice-bot',
+            messageId: 'question-alice-bot',
+          }),
+        ).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
+      }
+      expect(answer).toHaveBeenCalledExactlyOnceWith(
+        'bob-bot',
+        'question-bob-bot',
+        { answers: [{ id: 'pick', selected: ['Yes'] }] },
+        bob,
+      );
+      service.close();
+    },
+  );
+
+  it.each([
+    'update',
+    'setMemoryDir',
+    'setAppearance',
+    'setBanner',
+    'setPrimaryColor',
+    'setPaused',
+    'setComputerAccess',
+    'setBrowserAccess',
+    'setBrowserProfile',
+    'setApprovalTemplate',
+    'setVoice',
+    'setAsr',
+    'setMarketplaceListing',
+    'setPromptSettings',
+    'setStandingLimits',
+    'inheritModel',
+    'applyModelPreset',
+    'migrateLegacyModel',
+    'customizeModelPlan',
+    'setAssignmentModels',
+    'setModelPlan',
+  ] as const)('keeps scoped Registry %s writes inside the owning Human', (method) => {
+    const f = fixture();
+    const scoped = privateBotRegistry(f.core.registry, bob);
+    const before = f.core.registry.retainedRecordBody('alice-bot');
+    expect(Reflect.apply(scoped[method], scoped, ['alice-bot', {}])).toEqual({
+      ok: false,
+      reason: 'not-found',
+    });
+    expect(f.core.registry.retainedRecordBody('alice-bot')).toBe(before);
+    expect(scoped.update('bob-bot', { displayName: 'Owned update' })).toMatchObject({ ok: true });
+  });
+
+  it('keeps scoped Registry removal and retained Memory reads private', () => {
+    const f = fixture();
+    const scoped = privateBotRegistry(f.core.registry, bob);
+    expect(scoped.remove('alice-bot')).toBe(false);
+    expect(scoped.memoryDirFor('alice-bot')).toBeUndefined();
+    expect(scoped.retainedRecordBody('alice-bot')).toBeUndefined();
+    expect(scoped.memoryDirFor('bob-bot')).toBeDefined();
+  });
+
+  it('clears deleted global preset and template references across private Bots without listing them', () => {
+    const f = fixture();
+    const methods = createBridgeMethods(owner, {
+      ...f.core,
+      team: f.team,
+      approvalTemplates: createApprovalTemplateLibrary(
+        join(f.core.registry.rootDir, '..', 'approval-templates'),
+      ),
+    });
+    const created = methods.promptPresetCreate({
+      name: 'Shared preset',
+      parts: { triage: 'Review this.' },
+    });
+    if (!created.ok) throw new Error('preset-create-failed');
+    const id = created.value.preset.id;
+    const template = 'shared-policy';
+    expect(
+      methods.approvalTemplateCreate({ name: template, text: '# Shared\n\nReview first.\n' }),
+    ).toMatchObject({ ok: true });
+    for (const slug of ['owner-bot', 'alice-bot', 'bob-bot']) {
+      f.core.registry.setPromptSettings(slug, { preset: id });
+      f.core.registry.setApprovalTemplate(slug, template);
+    }
+    expect(methods.approvalTemplates({})).toMatchObject({
+      ok: true,
+      value: {
+        templates: expect.arrayContaining([
+          expect.objectContaining({ name: template, usedBy: ['owner-bot'] }),
+        ]),
+      },
+    });
+    expect(methods.promptPresetDelete({ id })).toMatchObject({
+      ok: true,
+      value: { clearedBots: ['owner-bot'] },
+    });
+    expect(methods.approvalTemplateDelete({ name: template })).toMatchObject({
+      ok: true,
+      value: { clearedBots: ['owner-bot'] },
+    });
+    for (const slug of ['owner-bot', 'alice-bot', 'bob-bot']) {
+      expect(f.core.registry.get(slug)?.promptPreset).toBeUndefined();
+      expect(f.core.registry.get(slug)?.approvalTemplate).toBeUndefined();
+    }
+  });
+
+  it.each([false, true])(
+    'resolves longer owned mention labels before private-prefix checks (selected=%s)',
+    async (selected) => {
+      const f = fixture();
+      f.core.registry.update('bob-bot', { displayName: 'Research Assistant' });
+      f.core.registry.update('alice-bot', { displayName: 'Research' });
+      const group = f.core.channels.createGroup(bob, {
+        name: 'Mention group',
+        members: ['bob-bot', 'alice-bot'],
+      });
+      const result = await f.methods(bob).channelSend({
+        channelId: group.id,
+        body: '@Research Assistant help',
+        ...(selected
+          ? { mentions: [{ botSlug: 'bob-bot', label: 'Research Assistant', start: 0, end: 19 }] }
+          : {}),
+      });
+      expect(result).toMatchObject({ ok: true });
+      expect(
+        await f.methods(bob).channelSend({ channelId: group.id, body: '@Research help' }),
+      ).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
+    },
+  );
+
+  it('hides handled Group requests when the requesting Bot owner leaves', async () => {
+    const f = fixture();
+    const group = f.core.channels.createGroup(bob, {
+      name: 'Former membership secret',
+      members: ['bob-bot'],
+    });
+    await f.core.channels.appendMessage(bob, group.id, {
+      id: 'request',
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'bob-bot' },
+      body: 'Handled secret',
+      userQuestionRequest: {
+        sessionId: 'handled-session',
+        questions: [{ id: 'pick', question: 'Pick', options: [{ label: 'Yes' }] }],
+      },
+    });
+    await f.core.channels.appendMessage(bob, group.id, {
+      id: 'response',
+      at: new Date().toISOString(),
+      author: { kind: 'human', humanId: bob.humanId },
+      body: 'Done',
+      replyTo: 'request',
+      userQuestionResolution: {
+        requestMessageId: 'request',
+        state: 'answered',
+        answers: [{ id: 'pick', selected: ['Yes'] }],
+      },
+    });
+    expect(f.core.humanAttention.list(bob, { category: 'handled' }).items).toHaveLength(1);
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          'UPDATE channel_human_members SET left_at = ? WHERE channel_id = ? AND human_id = ?',
+        )
+        .run(new Date().toISOString(), group.id, bob.humanId),
+    );
+    expect(f.core.humanAttention.list(bob, { category: 'handled' }).items).toEqual([]);
+  });
+
+  it('retries a member-owned Bot with the authorized Human instead of the Owner', async () => {
+    let runs = 0;
+    const f = fixture(async () => {
+      if (++runs === 1) throw new Error('transport');
+    });
+    await f.core.channels.appendMessage(bob, 'dm-bob-bot', {
+      id: 'retry-member',
+      at: new Date().toISOString(),
+      author: { kind: 'human', humanId: bob.humanId },
+      body: 'Retry me',
+    });
+    const admission = f.core.runtime.admitDmMessage(bob, {
+      channelId: 'dm-bob-bot',
+      messageId: 'retry-member',
+      body: 'Retry me',
+    });
+    if (!admission.admitted) throw new Error('admission-failed');
+    await admission.settled.catch(() => {});
+    await f.core.runtime.whenIdle();
+    await f.core.runtime.retryDmMessage!('dm-bob-bot', 'retry-member', bob);
+    await f.core.runtime.whenIdle();
+    expect(runs).toBe(2);
+  });
+
   it.each(['create', 'createLookup'] as const)(
     'requires bots.create on every member %s invocation',
     (method) => {

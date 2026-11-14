@@ -1993,7 +1993,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           offPresence();
         };
       },
-      held: () => presence.active(),
+      held: (human) => presence.active(human),
     },
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
@@ -3679,7 +3679,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           path: PRESENCE_PATH,
           methods: ['GET', 'POST'],
           requestBody: 'buffered',
-          fetch: presence.fetch,
+          fetch: (request) => presence.fetch(request, team.ownerContext()),
         }),
       'botharness: desktop presence route',
     );

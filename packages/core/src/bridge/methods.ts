@@ -2058,15 +2058,19 @@ export function createBridgeMethodsForHumans(
 export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): BridgeMethods {
   const scoped = {
     ...deps,
-    registry: privateBotRegistry(deps.registry, human),
+    ...(deps.registry ? { registry: privateBotRegistry(deps.registry, human) } : {}),
     ...(deps.creations ? { creations: privateBotCreations(deps.creations, human) } : {}),
   };
-  return guardHumanBridge(human, deps, buildBridgeMethods(human, scoped), () =>
+  return guardHumanBridge(human, deps, buildBridgeMethods(human, scoped, deps.registry), () =>
     buildBridgeMethods(human, deps),
   );
 }
 
-function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): BridgeMethods {
+function buildBridgeMethods(
+  human: HumanContext,
+  deps: BridgeMethodsDeps,
+  globalRegistry = deps.registry,
+): BridgeMethods {
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   async function appendStopNotice(
@@ -2177,8 +2181,8 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
   }
 
   const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
-  const templateUsers = (name: string): string[] =>
-    deps.registry
+  const templateUsers = (name: string, registry = deps.registry): string[] =>
+    registry
       .list()
       .filter((record) => record.approvalTemplate === name)
       .map((record) => record.slug);
@@ -3313,16 +3317,19 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
           const failure = deps.channels.message(channelId, failureMessageId)?.sessionFailure;
           if (failure?.requestMessageId !== messageId)
             return invalidInput('Failure does not belong to this message');
-          await deps.runtime.recoverDmMessage({
-            channelId,
-            failureMessageId,
-            action: recovery,
-            compact: async (sessionId) => {
-              const result = await deps.idleCompaction?.compactReservedSession?.(sessionId);
-              return result?.outcome === 'compacted';
+          await deps.runtime.recoverDmMessage(
+            {
+              channelId,
+              failureMessageId,
+              action: recovery,
+              compact: async (sessionId) => {
+                const result = await deps.idleCompaction?.compactReservedSession?.(sessionId);
+                return result?.outcome === 'compacted';
+              },
             },
-          });
-        } else await deps.runtime.retryDmMessage(channelId, messageId);
+            human,
+          );
+        } else await deps.runtime.retryDmMessage(channelId, messageId, human);
         return { ok: true, value: { accepted: true } };
       } catch (error) {
         if (error instanceof SessionRecoveryError)
@@ -5043,12 +5050,18 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
       if (typeof id !== 'string') return invalidInput('id is required');
       const result = deps.prompts.library.delete(id);
       if (!result.ok) return promptPresetFailure(result.reason);
-      const clearedBots = deps.registry
+      const clearedBots = globalRegistry
         .list()
         .filter((record) => record.promptPreset === id)
         .map((record) => record.slug);
-      for (const slug of clearedBots) deps.registry.setPromptSettings(slug, { preset: null });
-      return { ok: true, value: { id, clearedBots } };
+      for (const slug of clearedBots) globalRegistry.setPromptSettings(slug, { preset: null });
+      return {
+        ok: true,
+        value: {
+          id,
+          clearedBots: clearedBots.filter((slug) => deps.registry.get(slug) !== undefined),
+        },
+      };
     },
     promptGlobalSet(payload) {
       if (deps.prompts === undefined) return unavailable();
@@ -5109,9 +5122,15 @@ function buildBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): Bridg
       if (typeof name !== 'string') return invalidInput('name is required');
       const result = approvalTemplateLibrary.delete(name);
       if (!result.ok) return templateWriteFailure(name, result.reason);
-      const clearedBots = templateUsers(name);
-      for (const slug of clearedBots) deps.registry.setApprovalTemplate(slug, undefined);
-      return { ok: true, value: { template: { name }, clearedBots } };
+      const clearedBots = templateUsers(name, globalRegistry);
+      for (const slug of clearedBots) globalRegistry.setApprovalTemplate(slug, undefined);
+      return {
+        ok: true,
+        value: {
+          template: { name },
+          clearedBots: clearedBots.filter((slug) => deps.registry.get(slug) !== undefined),
+        },
+      };
     },
     botApprovalTemplateSet(payload) {
       const slug = asSlug(payload);

@@ -47,6 +47,8 @@ export const MEMBER_GLOBAL_METHODS = [
 ] as const;
 
 export const MEMBER_CHANNEL_METHODS = [
+  'userQuestionStatus',
+  'userQuestionAnswer',
   'channelGet',
   'channelSendStatus',
   'channelMessages',

@@ -479,6 +479,47 @@ describe('Host members', { timeout: 60_000 }, () => {
 });
 
 describe('member confidentiality', { timeout: 60_000 }, () => {
+  it('rejects a password superseded while private Tob preparation is pending', async () => {
+    const f = await enabledFixture();
+    let resume!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const pending = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    const team = new TeamService(f.database, f.channels, {
+      ensureTob: async () => {
+        entered();
+        await pending;
+      },
+    });
+    const grant = vi.fn();
+    const off = team.bindRuntime({
+      createPeer: (principal) => {
+        grant();
+        return new Peer(f.ctx, { principal });
+      },
+      invalidate: () => {},
+      urls: () => [],
+    });
+    try {
+      const signingIn = team.signIn('bob', f.initialPassword, 'tob-race');
+      const result = signingIn.then(
+        () => 'grant-issued',
+        (error: unknown) => (error instanceof TeamError ? error.code : String(error)),
+      );
+      await started;
+      await f.team.resetPassword(owner, f.human.humanId);
+      resume();
+      expect(await result).toBe('credentials-invalid');
+      expect(grant).not.toHaveBeenCalled();
+    } finally {
+      resume();
+      await off();
+    }
+  });
   it('delivers deleted-group removals and purges only to retained members, resetting unknown tombstones', async () => {
     const f = await enabledFixture();
     const joined = f.channels.createGroup(owner, { name: 'Deleted joined', members: [] });
@@ -715,7 +756,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   it('audits every member-allowed method against Owner Channels and embedded results', async () => {
     const f = await enabledFixture();
     f.registry.create({ slug: 'owner-secret-bot', displayName: 'Owner secret Bot' });
-    f.registry.create({ slug: 'shared-bot', displayName: 'Shared Bot' });
+    f.registry.create({
+      slug: 'shared-bot',
+      displayName: 'Shared Bot',
+      ownerHumanId: f.human.humanId,
+    });
     const dm = f.channels.getOrCreateDm(owner, 'owner-secret-bot', 'Owner private DM')!;
     const privateGroup = f.channels.createGroup(owner, {
       name: 'Owner private group',
@@ -775,7 +820,22 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     f.setPlacements([
       { sourceEventId: 'secret-source', channelId: dm.id, messageId: `message-${dm.id}` },
     ]);
+    await f.channels.appendMessage(f.human, memberGroup.id, {
+      id: 'audit-question',
+      at: '2026-11-14T00:01:00Z',
+      author: { kind: 'bot', slug: 'shared-bot' },
+      body: 'Member question',
+      userQuestionRequest: {
+        sessionId: 'member-question',
+        questions: [{ id: 'pick', question: 'Pick', options: [{ label: 'Yes' }] }],
+      },
+    });
     const args: Record<string, Record<string, unknown>> = {
+      userQuestionStatus: { messageId: 'audit-question' },
+      userQuestionAnswer: {
+        messageId: 'audit-question',
+        answer: { answers: [{ id: 'pick', selected: ['Yes'] }] },
+      },
       roleCreate: { name: 'Operators', permissions: [] },
       roleUpdate: { roleId: 'member' },
       roleDelete: { roleId: 'member' },

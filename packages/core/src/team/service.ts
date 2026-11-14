@@ -395,6 +395,8 @@ export class TeamService {
       throw new TeamError('credentials-invalid');
     this.active(member);
     await this.ensureTob?.(humanContext(member.humanId));
+    if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
+      throw new TeamError('credentials-invalid');
     return { ...this.createGrant(member), member };
   }
 
