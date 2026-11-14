@@ -22,7 +22,7 @@ Enter Bot mode, open Bot settings, choose **Data & privacy**, then **Manage…**
 ## Driving it with verify-app
 
 1. Launch a disposable Host with `verify-app launch --name <name>`.
-2. Seed media: upload a file to `/api/botharness/attachments/upload` with `content-type: application/octet-stream`, send it in a DM with `channelSend`, and wait until the Bot has handled the message. For an old message, backdate `source_events.created_at` and the message `at` in the operational database while the Host is stopped.
+2. Seed disposable media through the existing Owner: create a Human-only Group with `group-create`, upload a file to `/api/botharness/attachment/upload?name=<file-name>` with `content-type: application/octet-stream`, then send it with `channelSend`. Use **Any age** or `--older-than-days 0`; no database date edits are needed. A Bot DM instead requires the Bot to handle the message before its media can qualify.
 3. `deepseekbot storage-usage` lists the chat with its `mediaBytes`.
 4. `deepseekbot storage-cleanup-preview --older-than-days 0 --media image` returns a token, `files` and `freedBytes`.
 5. Pipe that JSON to `deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm`.
@@ -36,6 +36,8 @@ Use two new task-owned schema149 Profiles after published TEAM_MODELS148 and MEM
 ## Gotchas
 
 - A token is valid for ten minutes and only for the previewed scope; any new matching message refuses with `storage-preview-stale`.
+- The preview freezes its `before` time. A later upload beyond that cutoff, or a plain-text append that does not change the selected media, need not invalidate a media preview. To prove a stale refusal, change an attachment actually included in that preview through its owning cleanup command.
+- The cleanup dialog refuses Close while its request is busy. For a real late-result/source-loss check, interrupt the task-owned peer connection, observe the unavailable state remove the dialog, change settings target, then release the original held response; do not report an ignored busy Close as a successful target switch.
 - Media in a message the Bot has not handled yet is kept as `bot-working`, so a fresh send shows nothing to clear until the Bot replies.
 - Message cleanup refuses anything placed in a chat the Human cannot read and keeps a message whose Bot admission is still pending, running or retryable; DM messages need the Bot's reply before they qualify.
 - The mobile app hides purged messages instead of drawing a tombstone.
