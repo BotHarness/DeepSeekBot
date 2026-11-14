@@ -114,10 +114,13 @@ export function RolesSection({
           <div role="listitem" key={role.roleId} data-team-role={role.roleId}>
             <SettingsRow
               title={roleLabel(t, role)}
-              description={t('team.roles.summary', {
-                people: String(role.memberCount),
-                permissions: String(role.permissions.length),
-              })}
+              description={t(
+                role.memberCount === 1 ? 'team.roles.summaryOne' : 'team.roles.summary',
+                {
+                  people: String(role.memberCount),
+                  permissions: String(role.permissions.length),
+                },
+              )}
               control={
                 canEdit && canGrantAll(viewer, role.permissions) ? (
                   <Button
