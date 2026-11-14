@@ -1566,3 +1566,36 @@ describe('media bubbles', () => {
     expect(container.textContent).not.toContain('+');
   });
 });
+
+it('keeps the displayed image mounted when reply becomes unavailable and recovers', () => {
+  native.os = 'android';
+  const message = human({
+    author: 'bot',
+    body: 'image',
+    attachments: [
+      {
+        key: 'photo',
+        name: 'photo.png',
+        kind: 'image',
+        local: false,
+        source: { uri: 'https://example.test/photo.png', headers: {} },
+      },
+    ],
+  });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const reply = vi.fn();
+  try {
+    act(() => root.render(<MessageBubble message={message} onReply={reply} />));
+    const image = container.querySelector('[data-native="Image"]');
+    expect(image).not.toBeNull();
+    act(() => root.render(<MessageBubble message={message} />));
+    expect(container.querySelector('[data-native="Image"]')).toBe(image);
+    expect(container.querySelector('[data-nativeid="horizontal-swipe-owner"]')).toBeNull();
+    act(() => root.render(<MessageBubble message={message} onReply={reply} />));
+    expect(container.querySelector('[data-native="Image"]')).toBe(image);
+    expect(container.querySelector('[data-nativeid="horizontal-swipe-owner"]')).not.toBeNull();
+  } finally {
+    act(() => root.unmount());
+  }
+});

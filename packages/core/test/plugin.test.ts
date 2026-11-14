@@ -600,6 +600,7 @@ describe('plugin entry', () => {
       'memberDeviceRevoke',
       'ownerTransfer',
       'memberPasswordChange',
+      'memberPasswordReset',
       'publicChannels',
       'publicChannelJoin',
       'channelPublicSet',

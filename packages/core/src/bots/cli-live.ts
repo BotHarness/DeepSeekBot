@@ -1003,6 +1003,12 @@ export async function runLiveCli(
   io: BotCreateCliIo,
 ): Promise<unknown> {
   if (
+    values.as !== undefined &&
+    (['device-activity', 'device-notifications', 'phone-notifications'].includes(command) ||
+      DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+  )
+    throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
+  if (
     TEAM_COMMANDS.some((entry) => entry.command === command) ||
     command === 'channels' ||
     (command === 'devices' && values.member !== undefined)

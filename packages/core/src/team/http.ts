@@ -93,6 +93,15 @@ function json(response: ServerResponse, status: number, value: unknown): void {
 }
 function sameOrigin(request: IncomingMessage, tls: boolean): boolean {
   const origin = header(request, 'origin');
+  if (
+    request.method === 'GET' &&
+    [TEAM_PATH, `${TEAM_PATH}/`].includes(
+      new URL(request.url ?? '/', 'http://member.invalid').pathname,
+    ) &&
+    header(request, 'sec-fetch-mode') === 'navigate' &&
+    header(request, 'sec-fetch-dest') === 'document'
+  )
+    return true;
   if (!origin) return header(request, 'sec-fetch-site') !== 'cross-site';
   try {
     const parsed = new URL(origin);
@@ -121,7 +130,11 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
       polling: boolean;
     }
   >();
+  const pending = new Map<string, { peer: PeerScope; controller: AbortController }>();
   const cancel = async (key: string): Promise<void> => {
+    const opening = pending.get(key);
+    pending.delete(key);
+    opening?.controller.abort();
     const stream = streams.get(key);
     if (!stream) return;
     streams.delete(key);
@@ -150,13 +163,25 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
         )
           throw new TeamError('invalid-input');
         options.team.assertCall(peer.principal, method);
-        const value = await options.gateway.invoke({
-          namespace,
-          method,
-          args: command.body.payload?.args ?? {},
-          peer,
-          signal: peer.signal,
-        });
+        const invoke = () =>
+          options.gateway.invoke({
+            namespace,
+            method,
+            args: command.body.payload?.args ?? {},
+            peer,
+            signal: peer.signal,
+          });
+        const changingPassword = namespace === 'botharness' && method === 'memberPasswordChange';
+        if (changingPassword && !passwordTransportAllowed(request, options))
+          throw new TeamError('insecure-transport');
+        const value =
+          changingPassword && peer.principal.kind === 'botharness-member'
+            ? await options.team.withPasswordCaller(
+                peer.principal,
+                request.socket.remoteAddress ?? 'unknown',
+                invoke,
+              )
+            : await invoke();
         return { type: 'server-response', rpcId, result: { ok: true, value } };
       } catch (error) {
         return {
@@ -174,11 +199,15 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
     if (command.op === 'stream-open') {
       if (
         streams.has(key) ||
-        [...streams.values()].filter((stream) => stream.peer === peer).length >= 16 ||
-        streams.size >= 256
+        pending.has(key) ||
+        [...streams.values(), ...pending.values()].filter((stream) => stream.peer === peer)
+          .length >= 16 ||
+        streams.size + pending.size >= 256
       )
         throw new TeamError('rate-limited');
       const controller = new AbortController();
+      const reservation = { peer, controller };
+      pending.set(key, reservation);
       try {
         const signal = AbortSignal.any([peer.signal, controller.signal]);
         options.team.assertCall(peer.principal, command.endpoint.split('/').at(-1) ?? '');
@@ -189,9 +218,14 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           peer,
           signal,
         );
+        const iterator = iterable[Symbol.asyncIterator]();
+        if (signal.aborted || pending.get(key) !== reservation) {
+          await iterator.return?.();
+          throw new TeamError('credentials-invalid');
+        }
         streams.set(key, {
           peer,
-          iterator: iterable[Symbol.asyncIterator](),
+          iterator,
           controller,
           lastSeen: Date.now(),
           polling: false,
@@ -200,6 +234,8 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
       } catch (error) {
         controller.abort();
         return { failure: failure(error) };
+      } finally {
+        if (pending.get(key) === reservation) pending.delete(key);
       }
     }
     const stream = streams.get(key);
@@ -400,7 +436,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
     },
     async close() {
       clearInterval(sweep);
-      await Promise.all([...streams.keys()].map(cancel));
+      await Promise.all([...new Set([...streams.keys(), ...pending.keys()])].map(cancel));
     },
   };
 }

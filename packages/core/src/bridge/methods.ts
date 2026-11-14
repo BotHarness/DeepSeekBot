@@ -5578,6 +5578,22 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       if (changed.reset === true) return { ok: true, value: changed };
       const ids = new Set(changed.channelIds);
       const present = new Set(listed.map((channel) => channel.id));
+      if (
+        human.humanId !== OWNER_HUMAN_CONTEXT.humanId &&
+        changed.channelIds.some(
+          (id) =>
+            !present.has(id) &&
+            !deps.channels.get(id) &&
+            !deps.channels.hasHumanMembership?.(human, id),
+        )
+      )
+        return { ok: true, value: { reset: true, cursor: changed.cursor } };
+      if (
+        human.humanId !== OWNER_HUMAN_CONTEXT.humanId &&
+        !deps.channels.hasHumanMembership &&
+        changed.channelIds.some((id) => !present.has(id))
+      )
+        return { ok: true, value: { reset: true, cursor: changed.cursor } };
       return {
         ok: true,
         value: {
@@ -5590,10 +5606,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
             (id) =>
               !present.has(id) &&
               (human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
-                (deps.channels.get(id)?.type === 'group' &&
-                  deps.channels
-                    .listHumanMembers(human, id)
-                    .some((member) => member.humanId === human.humanId))),
+                deps.channels.hasHumanMembership?.(human, id) === true),
           ),
           cursor: changed.cursor,
         },

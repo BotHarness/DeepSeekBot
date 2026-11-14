@@ -1878,6 +1878,7 @@ deepseekbot team-mode owner-password --password-stdin < owner-password.txt
 deepseekbot team-mode on
 deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
 deepseekbot members list
+deepseekbot members reset-password bob --initial-password-file ./bob-reset.txt
 deepseekbot channels set-public <channel-id> on
 deepseekbot --as bob members password --password-stdin < password-change.json
 deepseekbot --as bob channels browse-public
@@ -1907,3 +1908,5 @@ deepseekbot --as bob devices --member bob
 deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
+
+`members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。

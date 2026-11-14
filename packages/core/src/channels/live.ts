@@ -276,7 +276,11 @@ export function createChannelLiveHub(
   const visiblePlacements = (human: HumanContext, placements: PurgedPlacement[]) =>
     human.humanId === OWNER_HUMAN_CONTEXT.humanId
       ? placements
-      : placements.filter((placement) => visibleChannel(human, placement.channelId));
+      : placements.filter(
+          (placement) =>
+            channels.hasHumanMembership?.(human, placement.channelId) ??
+            visibleChannel(human, placement.channelId),
+        );
   const subscribers = new Map<string, Set<Subscriber>>();
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();

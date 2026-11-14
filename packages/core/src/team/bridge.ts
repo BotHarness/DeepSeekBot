@@ -114,6 +114,13 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .parse(payload);
         return service.createMember(human, username, displayName, roleIds);
       }),
+    memberPasswordReset: (payload: unknown) =>
+      call((service) =>
+        service.resetPassword(
+          human,
+          z.object({ humanId: z.string().min(1) }).parse(payload).humanId,
+        ),
+      ),
     memberPasswordChange: (payload: unknown) =>
       call((service) => {
         const { current, next } = z
