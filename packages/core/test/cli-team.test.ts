@@ -390,6 +390,16 @@ describe('M4 CLI parity', () => {
   const cases = [
     { args: ['channels', 'browse'], method: 'browsableChannels', payload: {} },
     {
+      args: ['channels', 'admins', 'group-1', '--set', 'alice,bob'],
+      method: 'channelAdminsSet',
+      payload: { channelId: 'group-1', humanIds: ['alice', 'bob'] },
+    },
+    {
+      args: ['channels', 'add-member', 'group-1', 'alice'],
+      method: 'channelHumanAdd',
+      payload: { channelId: 'group-1', humanId: 'alice' },
+    },
+    {
       args: ['channels', 'join', 'group-1'],
       method: 'channelJoin',
       payload: { channelId: 'group-1' },

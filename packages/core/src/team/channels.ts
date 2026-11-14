@@ -7,6 +7,7 @@ import type { TeamRoles } from './roles.js';
 import { TeamError } from './error.js';
 import {
   channelPolicySchema,
+  channelRoleEligibleSql,
   channelVisibilitySchema,
   type ChannelPolicy,
   type ChannelVisibility,
@@ -43,16 +44,13 @@ export class TeamChannels {
     if (!row) throw new TeamError('channel-not-found');
     return settingsSchema.parse(row);
   }
-  private qualifies(human: HumanContext, visibility: ChannelVisibility): boolean {
-    return (
-      visibility.kind !== 'roles' ||
-      !!this.db.read((db) =>
-        db
-          .prepare(
-            'SELECT 1 FROM human_roles WHERE human_id = ? AND role_id IN (SELECT value FROM json_each(?)) LIMIT 1',
-          )
-          .get(human.humanId, JSON.stringify(visibility.roleIds)),
-      )
+  private qualifies(human: HumanContext, channelId: string): boolean {
+    return !!this.db.read((db) =>
+      db
+        .prepare(`SELECT 1 FROM channel_records c
+      JOIN humans h ON h.human_id = ? WHERE c.channel_id = ?
+      AND ${channelRoleEligibleSql('c', 'h.human_id')}`)
+        .get(human.humanId, channelId),
     );
   }
   private joined(human: HumanContext, channelId: string): boolean {
@@ -71,7 +69,7 @@ export class TeamChannels {
         OR (json_extract(c.record_json, '$.humanParticipants') IS NULL AND h.human_id = s.owner_human_id)))
       OR (json_extract(c.record_json, '$.type') = 'group'
         AND (m.human_id IS NOT NULL ${joinedOnly ? '' : "OR json_extract(c.visibility_json, '$.kind') IN ('public','roles')"})
-        AND (json_extract(c.visibility_json, '$.kind') <> 'roles' OR EXISTS(SELECT 1 FROM human_roles r JOIN json_each(c.visibility_json, '$.roleIds') v ON v.value = r.role_id WHERE r.human_id = h.human_id))))`;
+        AND ${channelRoleEligibleSql('c', 'h.human_id')}))`;
   }
   private accessQuery(joinedOnly: boolean, includeDeleted = false): string {
     return `SELECT c.channel_id FROM channel_records c CROSS JOIN team_settings s JOIN humans h ON h.human_id = ?
@@ -126,6 +124,7 @@ export class TeamChannels {
       throw new TeamError('channel-not-found');
     }
     if (
+      this.roles.permissions(human).includes('channels.manageAll') ||
       this.settings(channelId).policy[key] === 'everyone' ||
       this.role(human, channelId) !== 'member'
     )
@@ -186,11 +185,24 @@ export class TeamChannels {
     this.changed(true);
     return null;
   }
-  adminsSet(human: HumanContext, channelId: string, humanIds: string[]): null {
+  private memberId(reference: string): string {
+    const row = this.db.read((db) =>
+      db
+        .prepare(`SELECT human_id FROM (
+      SELECT human_id, 0 AS priority FROM humans WHERE human_id = ?
+      UNION ALL SELECT human_id, 1 AS priority FROM member_credentials WHERE username = ?
+      ) ORDER BY priority LIMIT 1`)
+        .get(reference, reference.toLowerCase()),
+    );
+    if (!row) throw new TeamError('member-not-found');
+    return z.object({ human_id: z.string() }).parse(row).human_id;
+  }
+  adminsSet(human: HumanContext, channelId: string, references: string[]): null {
     this.settings(channelId);
     if (!this.canRead(human, channelId, true)) throw new TeamError('channel-not-found');
     if (!this.active(human) || this.role(human, channelId) !== 'owner')
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
+    const humanIds = references.map((reference) => this.memberId(reference));
     const ceiling = new Set(this.roles.permissions(human));
     const previous = z
       .array(z.object({ human_id: z.string() }))
@@ -224,8 +236,7 @@ export class TeamChannels {
     return null;
   }
   policySet(human: HumanContext, channelId: string, policy: ChannelPolicy): null {
-    if (!this.canRead(human, channelId, true)) throw new TeamError('channel-not-found');
-    if (this.role(human, channelId) === 'member') throw new TeamError('permission-required');
+    this.requireManage(human, channelId);
     this.db.transaction(
       (db) =>
         db
@@ -254,13 +265,15 @@ export class TeamChannels {
       .parse(
         this.db.read((db) =>
           db
-            .prepare(`SELECT c.channel_id AS channelId, json_extract(c.record_json, '$.name') AS name, json_extract(c.record_json, '$.description') AS description,
+            .prepare(`WITH viewer AS (SELECT human_id FROM humans WHERE human_id = ? AND status = 'active')
+      SELECT c.channel_id AS channelId, json_extract(c.record_json, '$.name') AS name, json_extract(c.record_json, '$.description') AS description,
       COALESCE(json_array_length(c.record_json, '$.members'),0) + (SELECT COUNT(*) FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.left_at IS NULL) AS memberCount,
-      EXISTS(SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = ? AND m.left_at IS NULL) AS joined,
+      EXISTS(SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = h.human_id AND m.left_at IS NULL) AS joined,
       json_extract(c.visibility_json, '$.kind') AS visibility
-      FROM channel_records c WHERE EXISTS(SELECT 1 FROM humans WHERE human_id = ? AND status = 'active') AND json_extract(c.record_json, '$.type') = 'group' AND json_extract(c.record_json, '$.deletedAt') IS NULL
-      AND (json_extract(c.visibility_json, '$.kind') = 'public' OR (json_extract(c.visibility_json, '$.kind') = 'roles' AND EXISTS(SELECT 1 FROM human_roles r JOIN json_each(c.visibility_json, '$.roleIds') v ON v.value = r.role_id WHERE r.human_id = ?))) ORDER BY c.channel_id`)
-            .all(human.humanId, human.humanId, human.humanId),
+      FROM channel_records c CROSS JOIN viewer h WHERE json_extract(c.record_json, '$.type') = 'group' AND json_extract(c.record_json, '$.deletedAt') IS NULL
+      AND json_extract(c.visibility_json, '$.kind') IN ('public','roles')
+      AND ${channelRoleEligibleSql('c', 'h.human_id')} ORDER BY c.channel_id`)
+            .all(human.humanId),
         ),
       );
   }
@@ -279,10 +292,11 @@ export class TeamChannels {
     this.changed();
     return null;
   }
-  addMember(human: HumanContext, channelId: string, humanId: string): null {
+  addMember(human: HumanContext, channelId: string, reference: string): null {
     this.requirePolicy(human, channelId, 'addMembers');
+    const humanId = this.memberId(reference);
     if (!this.active(humanContext(humanId))) throw new TeamError('member-not-found');
-    if (!this.qualifies(humanContext(humanId), this.settings(channelId).visibility))
+    if (!this.qualifies(humanContext(humanId), channelId))
       throw new TeamError('permission-required', undefined, { permission: 'addMembers' });
     const ceiling = new Set(this.roles.permissions(human));
     if (
