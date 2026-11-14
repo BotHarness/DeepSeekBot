@@ -13,6 +13,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 - 记录下游隔离依赖副本、旧安装只读重启与已验证的共享文件元数据风险；稳定 DSH Skill 版本及上游验证来源保持不变（[#4135](https://github.com/BotHarness/BotHarness/issues/4135)）。
 
+- 在 [CLI 指南](../../../docs/bot-cli.md#reciprocal-computer-relationships) 中补充下游 Host 部分关系的独立方向检查、固定身份线路恢复与安全取消待批准关系；稳定 DSH/Cordis Context、Decision Tree 和上游验证来源不变（[#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)）。
+
 - 补充下游独立 GenUI 浏览器启动诊断、明确可执行文件选择与按路径配置的 CI 隔离权限；稳定 Context/Decision Tree 及已验证 DSH 来源不变（[#4030](https://github.com/BotHarness/DeepSeekBot/issues/4030)）。
 
 - 准备下游 Tobs 1.7.0 发布日志、版本亮点与候选包隐私复核指南；独立版本的 DSH Skill 及其已验证上游来源保持不变（[#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)）。

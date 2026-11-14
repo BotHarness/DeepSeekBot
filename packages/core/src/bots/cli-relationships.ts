@@ -1,17 +1,24 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { CliLiveError } from './cli-live-error.js';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
-import { enrollRelationshipClient } from '../devices/relationship-enrollment.js';
-import { serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
-import { revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
-import { relationshipListSchema } from '../devices/relationship-contract.js';
+import {
+  enrollRelationshipClient,
+  updateRelationshipClientRoute,
+} from '../devices/relationship-enrollment.js';
+import { serializeSavedHost, parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
+import { revokePairing, parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
+import {
+  relationshipListSchema,
+  relationshipReplySchema,
+} from '../devices/relationship-contract.js';
 
 export const RELATIONSHIP_COMMANDS = [
   {
     command: 'relationships',
     description:
-      'list, initiate, approve, sync, enroll or disconnect reciprocal Hosts; independent device keys stay in private files',
+      'list, initiate, approve, sync, route, enroll, cancel or disconnect reciprocal Hosts; independent device keys stay in private files',
   },
 ] as const;
 const PATH = '/api/botharness/relationships';
@@ -22,6 +29,7 @@ export async function runRelationshipCommand(
     'link-file'?: string;
     out?: string;
     'device-name'?: string;
+    'device-file'?: string;
   },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
@@ -29,14 +37,19 @@ export async function runRelationshipCommand(
   signal?: AbortSignal,
 ) {
   const [action, id, publicKey] = rest;
-  if (!action || !['list', 'initiate', 'approve', 'sync', 'enroll', 'disconnect'].includes(action))
+  if (
+    !action ||
+    !['list', 'initiate', 'approve', 'sync', 'route', 'enroll', 'cancel', 'disconnect'].includes(
+      action,
+    )
+  )
     throw new CliLiveError(
       'usage',
-      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, enroll <id>, or disconnect <id>.',
+      'relationships takes list, initiate <public-key>, approve <id> <public-key>, sync <id>, route <id> --link-file <file>, enroll <id>, cancel <id>, or disconnect <id>.',
     );
   if (rest.length !== (action === 'list' ? 1 : action === 'approve' ? 3 : 2))
     throw new CliLiveError('usage', 'Invalid relationship arguments.');
-  if (['initiate', 'approve', 'disconnect'].includes(action) && values.confirm !== true)
+  if (['initiate', 'approve', 'cancel', 'disconnect'].includes(action) && values.confirm !== true)
     throw new CliLiveError(
       'confirm-required',
       'Confirm the named reciprocal relationship with --confirm.',
@@ -48,8 +61,8 @@ export async function runRelationshipCommand(
     !/^[0-9a-f]{64}$/u.test(action === 'initiate' ? id! : publicKey!)
   )
     throw new CliLiveError('usage', 'Compare the full Host identity and supply its public key.');
-  if ((action === 'initiate') !== (values['link-file'] !== undefined))
-    throw new CliLiveError('usage', 'Only initiate requires --link-file.');
+  if (['initiate', 'route'].includes(action) !== (values['link-file'] !== undefined))
+    throw new CliLiveError('usage', 'Initiate and route require --link-file.');
   if ((action === 'enroll') !== (values.out !== undefined))
     throw new CliLiveError('usage', 'Only enroll requires --out.');
   if (
@@ -61,6 +74,8 @@ export async function runRelationshipCommand(
     throw new CliLiveError('usage', 'Only enroll accepts --device-name (1–60 characters).');
   if (values.out && (!isAbsolute(values.out) || existsSync(values.out)))
     throw new CliLiveError('output-invalid', 'Choose a new absolute private --out file.');
+  if (values['device-file'] && (action !== 'route' || !isAbsolute(values['device-file'])))
+    throw new CliLiveError('usage', 'Only route accepts an existing absolute --device-file.');
   let link: string | undefined;
   if (values['link-file']) {
     try {
@@ -110,12 +125,56 @@ export async function runRelationshipCommand(
     return { hostId: result.host.hostId, deviceId: result.host.deviceId, encrypted: true };
   }
   if (action === 'initiate') return request({ action, link, confirmedKey: id, confirm: true });
+  if (action === 'route') {
+    const deviceFile = values['device-file'];
+    if (!deviceFile) return request({ action, id, link });
+    let saved: ReturnType<typeof parseSavedHost>;
+    try {
+      saved = parseSavedHost(JSON.parse(readFileSync(deviceFile, 'utf8')));
+    } catch {
+      throw new CliLiveError('input-unavailable', 'Cannot read the private device file.');
+    }
+    if (!saved) throw new CliLiveError('input-unavailable', 'The private device file is invalid.');
+    const parsed = parsePairingLink(link!);
+    if (!parsed.ok)
+      throw new CliLiveError('relationship-link-invalid', 'The new connection link is invalid.');
+    const result = await request({ action, id, link });
+    const { relationship } = relationshipReplySchema.parse(result);
+    const privateRelay = parsed.payload.encryption?.privateRelay;
+    const updated = updateRelationshipClientRoute({
+      host: saved,
+      peer: relationship.peer,
+      ...(privateRelay ? { privateRelay } : {}),
+    });
+    if (!updated.ok)
+      throw new CliLiveError(updated.code, 'The existing Client route was not changed.');
+    const temporary = `${deviceFile}.route-${randomUUID()}.tmp`;
+    try {
+      writeFileSync(temporary, `${JSON.stringify(serializeSavedHost(updated.host))}\n`, {
+        flag: 'wx',
+        mode: 0o600,
+      });
+      renameSync(temporary, deviceFile);
+    } catch {
+      try {
+        unlinkSync(temporary);
+      } catch {}
+      throw new CliLiveError(
+        'output-unavailable',
+        'The private device file was not replaced. Read back the relationship before retrying.',
+      );
+    }
+    return {
+      ...result,
+      client: { hostId: updated.host.hostId, deviceId: updated.host.deviceId, updated: true },
+    };
+  }
   return request({
     action,
     id,
     ...(action === 'approve'
       ? { confirmedKey: publicKey, confirm: true }
-      : action === 'disconnect'
+      : action === 'disconnect' || action === 'cancel'
         ? { confirm: true }
         : {}),
   });

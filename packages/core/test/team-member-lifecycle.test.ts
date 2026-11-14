@@ -46,7 +46,12 @@ function fixture(
 ) {
   const dshHome = options.dshHome ?? createTempRoot('m2-m9-lifecycle-');
   const pending = new Map<string, () => void>();
+  let notifyFirstRun: (() => void) | undefined;
+  const firstRun = new Promise<void>((resolve) => {
+    notifyFirstRun = resolve;
+  });
   const runs = vi.fn(async (run: OrchestratorAgentRun) => {
+    notifyFirstRun?.();
     if (options.running) await new Promise<void>((resolve) => pending.set(run.bot.slug, resolve));
   });
   const stop = vi.fn(async (slug: string) => {
@@ -88,7 +93,7 @@ function fixture(
       }
       connection.prepare('UPDATE team_settings SET enabled = 1').run();
     });
-  return { core, dshHome, db, runs, stop };
+  return { core, dshHome, db, runs, stop, firstRun };
 }
 
 async function restoreDeletionFact(f: ReturnType<typeof fixture>, privateBots: string[]) {
@@ -775,8 +780,11 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     const options = { running: true };
     const f = fixture(options);
     createBot(f);
-    await send(f, 'bob-bot', 'first-turn');
-    await vi.waitFor(() => expect(f.runs).toHaveBeenCalledOnce());
+    const admission = await send(f, 'bob-bot', 'first-turn');
+    expect(admission.admitted).toBe(true);
+    if (!admission.admitted) throw new Error(admission.reason);
+    await Promise.race([f.firstRun, admission.settled]);
+    expect(f.runs).toHaveBeenCalledOnce();
     await send(f, 'bob-bot', 'queued-turn');
     await f.core.team.transfer(owner, 'bob', 'alice');
     expect(f.runs).toHaveBeenCalledOnce();
@@ -961,7 +969,9 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       );
       const result = await send(f, 'bob-bot', 'running');
       expect(result.admitted).toBe(true);
-      await vi.waitFor(() => expect(f.runs).toHaveBeenCalledOnce());
+      if (!result.admitted) throw new Error(result.reason);
+      await Promise.race([f.firstRun, result.settled]);
+      expect(f.runs).toHaveBeenCalledOnce();
       if (operation === 'deactivate') await f.core.team.deactivate(owner, 'bob');
       else await f.core.team.setMode(owner, false);
       expect(f.stop.mock.calls.map(([slug]) => slug)).toContain('bob-bot');

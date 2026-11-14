@@ -53,6 +53,29 @@ function fixture() {
 }
 
 describe('Host relationship authorization', () => {
+  it('persists recovered routes under the same approved relationship and refuses changed identity', () => {
+    const test = fixture();
+    const first = test.open();
+    const relationship = first.relationships.propose({ peer, direction: 'incoming' });
+    first.relationships.approve(relationship.id, peer.publicKey);
+    first.relationships.activate(relationship.id, peer.publicKey);
+    expect(() =>
+      first.relationships.updateRoutes(relationship.id, 'ff'.repeat(32), [
+        'http://127.0.0.1:31003',
+      ]),
+    ).toThrow('relationship-identity-mismatch');
+    first.relationships.updateRoutes(relationship.id, peer.publicKey, ['http://127.0.0.1:31003']);
+    first.owner.close();
+    const restarted = test.open();
+    expect(restarted.relationships.list()).toMatchObject([
+      {
+        id: relationship.id,
+        state: 'active',
+        peer: { publicKey: peer.publicKey, routes: ['http://127.0.0.1:31003'] },
+      },
+    ]);
+    expect(restarted.pairing.list()).toEqual([]);
+  });
   it('binds derived offers and credentials to the current Owner while retaining relationship admission', () => {
     const test = fixture();
     const host = test.open();

@@ -105,6 +105,25 @@ export function createHostRelationships(options: {
   };
   return {
     read,
+    check(id: string, peerKey: string): HostRelationship {
+      const relationship = authenticated(id, peerKey);
+      live(relationship);
+      return relationship;
+    },
+    updateRoutes(id: string, peerKey: string, routes: string[]): HostRelationship {
+      const relationship = authenticated(id, peerKey);
+      live(relationship);
+      if (JSON.stringify(relationship.peer.routes) === JSON.stringify(routes)) return relationship;
+      database.transaction(
+        (db) => {
+          db.prepare(
+            'UPDATE host_relationships SET peer_routes = ?, updated_at = ? WHERE relationship_id = ?',
+          ).run(JSON.stringify(routes), new Date(now()).toISOString(), id);
+        },
+        ['host-relationships'],
+      );
+      return read(id);
+    },
     list(): HostRelationship[] {
       return database.read((db) =>
         (

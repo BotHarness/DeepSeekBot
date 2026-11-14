@@ -463,3 +463,58 @@ it('names why the first handshake frame could not be sent', async () => {
   await expect(socket.ready).rejects.toThrow('channel-handshake-failed:channel-frame-invalid');
   expect(closed).toHaveBeenCalledWith('channel-handshake-failed:channel-frame-invalid');
 });
+
+it('updates same-route admission on the next encrypted dial and never carries its header to a public route', async () => {
+  const origin = 'https://private.example';
+  const encryption = {
+    protocol: 'connect-noise-xk-v1' as const,
+    hostKey: '11'.repeat(32),
+    deviceKey: '22'.repeat(32),
+    privateRelay: { origin, token: '33'.repeat(32) },
+  };
+  const headers: (Record<string, string> | undefined)[] = [];
+  const request = vi.fn(async () => ({
+    status: 200,
+    text: async () => JSON.stringify({ type: 'server-response', result: { ok: true, value: {} } }),
+    bytes: async () => new Uint8Array(),
+  }));
+  const client = createHostClient({
+    hostId: 'host',
+    routes: [origin],
+    credential: 'device.private',
+    encryption,
+    timeoutMs: 30,
+    carrier: {
+      request,
+      openSocket(_url, events, value) {
+        headers.push(value);
+        queueMicrotask(() => events.closed('offline'));
+        return { send() {}, close() {} };
+      },
+    },
+  });
+  try {
+    await expect(client.call('list')).rejects.toThrow();
+    expect(headers[0]?.['X-BotHarness-Admission']).toBe('33'.repeat(32));
+    client.updateRoutes!([origin], {
+      ...encryption,
+      privateRelay: { origin, token: '44'.repeat(32) },
+    });
+    await expect(client.call('list')).rejects.toThrow();
+    expect(headers.at(-1)?.['X-BotHarness-Admission']).toBe('44'.repeat(32));
+    expect(request).not.toHaveBeenCalled();
+    expect(() =>
+      client.updateRoutes!([origin], { ...encryption, deviceKey: 'ff'.repeat(32) }),
+    ).toThrow('host-key-mismatch');
+    client.updateRoutes!(['https://public.example.ts.net'], {
+      protocol: encryption.protocol,
+      hostKey: encryption.hostKey,
+      deviceKey: encryption.deviceKey,
+    });
+    expect(await client.testRoute!('https://public.example.ts.net')).toBe(true);
+    expect(JSON.stringify(request.mock.calls)).not.toContain('44'.repeat(32));
+    expect(JSON.stringify(request.mock.calls)).not.toContain('X-BotHarness-Admission');
+  } finally {
+    client.stop();
+  }
+});
