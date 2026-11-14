@@ -1237,12 +1237,12 @@ export function BotSidebar({
   const hasPinnableChannels = state.channels.some(
     (channel) =>
       !hiddenChannelSet.has(channel.id) &&
-      (channel.type === 'group' || channel.botSlug !== undefined),
+      (channel.type === 'group' || channel.botSlug !== undefined || isHumanDmChannel(channel)),
   );
   const pinnedChannels = pinnedChannelIds.flatMap((channelId) => {
     const channel = state.channels.find((candidate) => candidate.id === channelId);
     if (channel === undefined) return [];
-    if (channel.type === 'group') {
+    if (channel.type === 'group' || isHumanDmChannel(channel)) {
       return matchesQuery(query, channel.name) ? [channel] : [];
     }
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
@@ -1251,11 +1251,12 @@ export function BotSidebar({
   const arrangedChannels = state.channels.filter(
     (channel) =>
       !allPinnedChannelSet.has(channel.id) &&
-      (channel.type === 'group' || channel.botSlug !== undefined),
+      (channel.type === 'group' || channel.botSlug !== undefined || isHumanDmChannel(channel)),
   );
   const rosterChannels = arrangedChannels.filter((channel) => !hiddenChannelSet.has(channel.id));
   const channels = rosterChannels.filter((channel) => {
-    if (channel.type === 'group') return matchesQuery(query, channel.name);
+    if (channel.type === 'group' || isHumanDmChannel(channel))
+      return matchesQuery(query, channel.name);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
     return bot !== undefined && matchesQuery(query, bot.displayName, ...bot.roles);
   });

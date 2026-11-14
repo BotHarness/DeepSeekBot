@@ -8,9 +8,10 @@ export function visibilitySummary(
 ): string {
   if (visibility.kind === 'public') return t('channelAccess.publicHint');
   if (visibility.kind === 'private') return t('channelAccess.privateHint');
-  const names = visibility.roleIds.map(
-    (roleId) => roles.find((role) => role.roleId === roleId)?.name ?? roleId,
-  );
+  const names = visibility.roleIds.map((roleId) => {
+    const role = roles.find((candidate) => candidate.roleId === roleId);
+    return role === undefined ? roleId : roleChoiceLabel(t, role);
+  });
   return t('channelAccess.rolesHint', { roles: names.join(', ') });
 }
 
@@ -27,4 +28,10 @@ export function filterDirectory<T extends { readonly displayName: string }>(
   return needle.length === 0
     ? sorted
     : sorted.filter((person) => person.displayName.toLocaleLowerCase().includes(needle));
+}
+
+export function roleChoiceLabel(t: BotHarnessTranslate, role: RoleChoice): string {
+  if (role.roleId === 'admin') return t('team.role.admin');
+  if (role.roleId === 'member') return t('team.role.member');
+  return role.name;
 }

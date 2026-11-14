@@ -26,10 +26,11 @@ import {
 } from './team-channels-bridge.js';
 import { teamErrorText } from './team-settings.js';
 import { useTeamMode } from './team-state.js';
-import { visibilitySummary } from './channel-access.js';
+import { roleChoiceLabel, visibilitySummary } from './channel-access.js';
 
 const styles = stylex.create({
   checks: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  inline: { display: 'flex', alignItems: 'flex-start' },
 });
 
 type Dialog = 'roles' | 'admins';
@@ -126,9 +127,11 @@ export function ChannelAccessSettings({
         }
       >
         {current.visibility.kind === 'roles' ? (
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => setDialog('roles')}>
-            {t('channelAccess.chooseRoles')}
-          </Button>
+          <div {...stylex.props(styles.inline)}>
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => setDialog('roles')}>
+              {t('channelAccess.chooseRoles')}
+            </Button>
+          </div>
         ) : null}
       </SettingsRow>
       {POLICY_KEYS.map((key) => (
@@ -174,7 +177,7 @@ export function ChannelAccessSettings({
           title={t('channelAccess.rolesTitle')}
           description={t('channelAccess.rolesBody')}
           empty={t('channelAccess.rolesEmpty')}
-          options={roles.map((role) => ({ id: role.roleId, label: role.name }))}
+          options={roles.map((role) => ({ id: role.roleId, label: roleChoiceLabel(t, role) }))}
           initial={current.visibility.kind === 'roles' ? current.visibility.roleIds : []}
           requireOne
           busy={busy}
