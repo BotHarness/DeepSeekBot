@@ -394,7 +394,7 @@ export interface ChannelStore {
   requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
   bindHumanAccess?(access: {
     canRead(human: HumanContext, id: string): boolean;
-    requirePost(human: HumanContext, id: string, all: boolean): void;
+    requirePost(human: HumanContext, id: string, all: boolean, message?: ChannelMessage): void;
     requirePolicy(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
   }): void;
   getOrCreateHumanDm?(human: HumanContext, id: string, participants: string[]): ChannelRecord;
@@ -694,8 +694,12 @@ function projectReplyBase(
 }
 
 function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean {
+  const actor = (message: ChannelMessage) =>
+    message.author.kind === 'human'
+      ? { kind: 'human', humanId: message.author.humanId ?? OWNER_HUMAN_CONTEXT.humanId }
+      : message.author;
   return (
-    JSON.stringify(left.author) === JSON.stringify(right.author) &&
+    JSON.stringify(actor(left)) === JSON.stringify(actor(right)) &&
     JSON.stringify(left.genui) === JSON.stringify(right.genui) &&
     JSON.stringify(left.genuiReply) === JSON.stringify(right.genuiReply) &&
     left.genuiReplyContext === right.genuiReplyContext &&
@@ -1094,7 +1098,18 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       write(renamed);
       return renamed;
     },
-    appendMessage(human: HumanContext, id, message, origin, beforeCommit) {
+    appendMessage(human: HumanContext, id, input, origin, beforeCommit) {
+      const message =
+        input.author.kind === 'human'
+          ? ({
+              ...input,
+              author: {
+                kind: 'human',
+                humanId: human.humanId,
+                displayName: this.humanIdentity(human).displayName,
+              },
+            } satisfies ChannelMessage)
+          : input;
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return undefined;
@@ -1145,7 +1160,18 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         (message) => message.grantRequestResolution?.requestMessageId === requestMessageId,
       );
     },
-    appendMessageOnce(human: HumanContext, id, message, preview, origin, canCommit) {
+    appendMessageOnce(human: HumanContext, id, input, preview, origin, canCommit) {
+      const message =
+        input.author.kind === 'human'
+          ? ({
+              ...input,
+              author: {
+                kind: 'human',
+                humanId: human.humanId,
+                displayName: this.humanIdentity(human).displayName,
+              },
+            } satisfies ChannelMessage)
+          : input;
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return { status: 'missing' };

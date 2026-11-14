@@ -56,7 +56,15 @@ it('projects today committed messages and current sender names without changing 
             bot: 1,
             other: 1,
             senders: expect.arrayContaining([
-              { author: { kind: 'human' }, displayName: 'Captain', count: 1 },
+              {
+                author: {
+                  kind: 'human',
+                  humanId: OWNER_HUMAN_CONTEXT.humanId,
+                  displayName: 'Human',
+                },
+                displayName: 'Captain',
+                count: 1,
+              },
               { author: { kind: 'bot', slug: 'ada' }, displayName: 'Ada', count: 1 },
               { author: { kind: 'system' }, displayName: 'System', count: 1 },
             ]),

@@ -1,3 +1,4 @@
+import type { ApprovalCard } from '../team/approval-contract.js';
 import type { ChannelVisibility, ChannelPolicy } from '../team/channel-contract.js';
 import { TeamError, type TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
@@ -562,7 +563,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
         message: 'Live stream is unavailable',
       });
     try {
-      yield* this.live.followActivity(this.invocationHuman(), signal);
+      const human = this.invocationHuman();
+      for await (const frame of this.live.followActivity(human, signal))
+        yield this.team?.approvals.project(human, frame) ?? frame;
     } catch (error) {
       if (error instanceof LiveUnavailable)
         throw toRemoteError({ code: 'unavailable', message: error.message });
@@ -586,7 +589,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         code: 'not-found',
         message: 'Channel journal page is unavailable',
       });
-    return page;
+    return this.team?.approvals.project(this.invocationHuman(), page, channelId) ?? page;
   }
 
   channelFilesPage(channelId: string, before?: number, limit?: number): ChannelFilesPage {
@@ -596,7 +599,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         code: 'not-found',
         message: 'Channel files page is unavailable',
       });
-    return page;
+    return this.team?.approvals.project(this.invocationHuman(), page, channelId) ?? page;
   }
 
   channelChanges(
@@ -612,7 +615,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     });
     if (changes === undefined)
       throw toRemoteError({ code: 'not-found', message: 'Channel changes are unavailable' });
-    return changes;
+    return this.team?.approvals.project(this.invocationHuman(), changes, channelId) ?? changes;
   }
 
   channelChangeCursor(): ChannelChangeCursor {
@@ -634,13 +637,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
         message: 'Live stream is unavailable',
       });
     try {
-      yield* this.live.followChannel(
-        this.invocationHuman(),
+      const human = this.invocationHuman();
+      for await (const frame of this.live.followChannel(
+        human,
         channelId,
         limit,
         signal,
         drafts ?? 'full',
-      );
+      ))
+        yield this.team?.approvals.project(human, frame, channelId) ?? frame;
     } catch (error) {
       if (error instanceof ChannelLiveRefused)
         throw toRemoteError({ code: error.code, message: error.message });
@@ -667,10 +672,40 @@ export class BotharnessBridgeService extends TypertRemoteService {
     }
   }
 
-  privateInputStatus(channelId: string, messageId: string): { status: PrivateInputStatus } {
-    this.requirePrivateOwner();
+  private requireApproval(channelId: string, messageId: string): HumanContext {
+    if (!this.team) this.requirePrivateOwner();
+    const human = this.invocationHuman();
+    try {
+      this.team?.approvals.requireRequest(human, channelId, messageId);
+    } catch (error) {
+      if (error instanceof TeamError)
+        throw toRemoteError({
+          code: error.code,
+          message: error.code,
+          ...(error.details ? { details: error.details } : {}),
+        });
+      throw error;
+    }
+    return human;
+  }
+
+  privateInputStatus(
+    channelId: string,
+    messageId: string,
+  ): { status: PrivateInputStatus; approval?: ApprovalCard } {
+    if (!this.team) this.requirePrivateOwner();
+    const human = this.invocationHuman();
+    if (
+      this.team &&
+      !this.team.belongs(human, channelId) &&
+      !this.team.approvals.ownsRequest(human, channelId, messageId)
+    )
+      throw toRemoteError({ code: 'channel-not-found', message: 'channel-not-found' });
+    const message = this.team?.approvals.request(channelId, messageId);
+    const approval = message && this.team?.approvals.card(human, channelId, message);
     return {
       status: this.privateInputs?.status(channelId, messageId) ?? 'expired',
+      ...(approval ? { approval } : {}),
     };
   }
 
@@ -679,19 +714,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     messageId: string,
     values: Record<string, string>,
   ): Promise<{ accepted: boolean; reason?: string }> {
-    this.requirePrivateOwner();
+    const human = this.requireApproval(channelId, messageId);
     if (this.privateInputs === undefined) return { accepted: false, reason: 'store-unavailable' };
-    return await this.privateInputs.submission(true, {
-      channelId,
-      messageId,
-      values,
-    });
+    return await this.privateInputs.submission(true, { channelId, messageId, values }, human);
   }
 
   async privateInputCancel(channelId: string, messageId: string): Promise<{ accepted: boolean }> {
-    this.requirePrivateOwner();
+    const human = this.requireApproval(channelId, messageId);
     return {
-      accepted: (await this.privateInputs?.cancel(true, channelId, messageId)) ?? false,
+      accepted: (await this.privateInputs?.cancel(true, channelId, messageId, human)) ?? false,
     };
   }
 
@@ -755,7 +786,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   async privateAccountRevoke(channelId: string, messageId: string) {
     this.requirePrivateOwner();
     return (
-      this.privateInputs?.revoke(true, channelId, messageId) ?? {
+      this.privateInputs?.revoke(true, channelId, messageId, this.invocationHuman()) ?? {
         accepted: false,
         stopped: 0,
         completed: 0,
@@ -2446,6 +2477,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId: string,
     messageId: string,
   ): {
+    approval?: ApprovalCard;
     status: 'pending' | 'expired' | 'stopped';
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   } {
@@ -2474,7 +2506,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   userQuestionStatus(
     channelId: string,
     messageId: string,
-  ): { status: 'pending' | 'submitted' | 'answered' | 'expired' } {
+  ): { status: 'pending' | 'submitted' | 'answered' | 'expired'; approval?: ApprovalCard } {
     return unwrap(this.methods.userQuestionStatus({ channelId, messageId }));
   }
 

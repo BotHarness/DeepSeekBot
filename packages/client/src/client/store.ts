@@ -109,7 +109,7 @@ export interface ChannelSummary {
 
 export type ChannelAuthor =
   | { kind: 'human'; humanId?: string; displayName?: string; deleted?: boolean }
-  | { kind: 'bot'; slug: string }
+  | { kind: 'bot'; slug: string; displayName?: string }
   | { kind: 'remote-bot'; hostId: string; slug: string }
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
@@ -147,6 +147,8 @@ export interface ToolApprovalRequestCard {
   input: string;
   botCreatePreview?: BotCreatePreview;
 }
+
+export type ApprovalCardView = import('../../../core/src/team/approval-contract.js').ApprovalCard;
 
 export interface ToolApprovalDecision {
   requestMessageId: string;
@@ -279,6 +281,7 @@ export interface ChannelMessage {
   assignmentReply?: { sessionId: string; sourceEventId: string };
   grantRequestResolution?: { requestMessageId: string; grantId: string };
   toolApprovalRequest?: ToolApprovalRequestCard;
+  approval?: ApprovalCardView;
   sessionFailure?: SessionFailureCard;
   toolApprovalDecision?: ToolApprovalDecision;
   userQuestionRequest?: UserQuestionRequestCard;

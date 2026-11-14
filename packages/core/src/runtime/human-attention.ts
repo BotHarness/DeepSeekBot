@@ -1,3 +1,6 @@
+import { channelRoleEligibleSql } from '../team/channel-contract.js';
+import type { ApprovalCard } from '../team/approval-contract.js';
+import type { ChannelMessageAuthor } from '../channels/message-author.js';
 import { type HumanContext } from '../humans/context.js';
 import { createHash } from 'node:crypto';
 import { notChannelNoticeSql } from '../channels/channel-notice.js';
@@ -21,6 +24,8 @@ export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 
 export type HumanAttentionSort = 'newest' | 'oldest' | 'mentions-first';
 
 export interface HumanAttentionItem {
+  author?: Extract<ChannelMessageAuthor, { kind: 'bot' }>;
+  approval?: ApprovalCard;
   id: string;
   category: HumanAttentionCategory;
   kind:
@@ -150,6 +155,11 @@ const attentionBotOwner = (slug: string): string =>
 const attentionDmOwner = (channel: string): string =>
   attentionBotOwner(`json_extract(${channel}.record_json, '$.botSlug')`);
 
+const approvalAudience = (channel: string, humanId: string): string => `(
+  (json_extract(${channel}.record_json, '$.type') <> 'group' OR ${channelRoleEligibleSql(channel, humanId)})
+  AND (json_extract(${channel}.record_json, '$.humanParticipants') IS NULL OR EXISTS (
+    SELECT 1 FROM json_each(${channel}.record_json, '$.humanParticipants') participant WHERE participant.value = ${humanId})))`;
+
 const ACTION_ATTENTION_CTE = `WITH all_attention AS (
           SELECT 'pairing:' || pairing.id AS id,
                  'action' AS category, 'pairing-request' AS kind,
@@ -189,8 +199,8 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             JOIN channel_placements p ON p.source_event_id = e.source_event_id
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
-               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
-             AND ${attentionDmOwner('c')}))
+               OR (json_extract(c.record_json, '$.type') = 'dm' AND (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL
+               OR (json_extract(c.record_json, '$.botSlug') IS NOT NULL AND ${attentionDmOwner('c')}))))
              AND json_extract(c.record_json, '$.deletedAt') IS NULL
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.userQuestionRequest') IS NOT NULL
@@ -212,8 +222,8 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             JOIN channel_placements p ON p.source_event_id = e.source_event_id
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
-               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
-             AND ${attentionDmOwner('c')}))
+               OR (json_extract(c.record_json, '$.type') = 'dm' AND (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL
+               OR (json_extract(c.record_json, '$.botSlug') IS NOT NULL AND ${attentionDmOwner('c')}))))
              AND json_extract(c.record_json, '$.deletedAt') IS NULL
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.toolApprovalRequest') IS NOT NULL
@@ -259,7 +269,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             JOIN channel_placements p ON p.source_event_id = e.source_event_id
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
-               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = e.bot_slug))
+               OR (json_extract(c.record_json, '$.type') = 'dm' AND (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL OR json_extract(c.record_json, '$.botSlug') = e.bot_slug)))
              AND json_extract(c.record_json, '$.deletedAt') IS NULL
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.privateInputRequest') IS NOT NULL
@@ -384,10 +394,34 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
              AND d.source_event_id IS NULL
         ), attention AS (
           SELECT * FROM all_attention candidate
-          WHERE ${attentionBotOwner('candidate.bot_slug')}
-            AND ($humanId = 'local-human' OR candidate.channel_id IS NULL
-              OR NOT EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = candidate.channel_id AND json_extract(c.record_json, '$.type') = 'group')
-              OR EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL))
+          WHERE (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input')
+            OR EXISTS (SELECT 1 FROM channel_records approval_channel WHERE approval_channel.channel_id = candidate.channel_id
+              AND ${approvalAudience('approval_channel', '$humanId')})) AND (
+(candidate.kind IN ('tool-approval', 'user-question', 'private-input') AND (
+            EXISTS (SELECT 1 FROM channel_human_members m JOIN humans h USING(human_id)
+              WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL AND h.status = 'active')
+            OR (${attentionBotOwner('candidate.bot_slug')} AND NOT EXISTS (
+              SELECT 1 FROM channel_human_members m JOIN humans h USING(human_id)
+              WHERE m.channel_id = candidate.channel_id AND m.left_at IS NULL AND h.status = 'active'
+                AND EXISTS (SELECT 1 FROM channel_records approval_channel WHERE approval_channel.channel_id = candidate.channel_id
+                  AND ${approvalAudience('approval_channel', 'h.human_id')})
+                AND (h.human_id = (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug)
+                  OR h.human_id = (SELECT owner_human_id FROM team_settings)
+                  OR EXISTS (SELECT 1 FROM human_roles hr JOIN host_roles r USING(role_id), json_each(r.permissions_json) permission_entry
+                    WHERE hr.human_id = h.human_id AND permission_entry.value = 'approvals.opaqueTools'))
+                AND (candidate.kind <> 'tool-approval'
+                  OR (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug) = (SELECT owner_human_id FROM team_settings)
+                  OR h.human_id = (SELECT owner_human_id FROM team_settings)
+                  OR EXISTS (SELECT 1 FROM human_roles hr JOIN host_roles r USING(role_id), json_each(r.permissions_json) permission_entry
+                    WHERE hr.human_id = h.human_id AND permission_entry.value = 'approvals.opaqueTools'))
+            ))))
+            OR (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input') AND
+              ${attentionBotOwner('candidate.bot_slug')}
+              AND ($humanId = 'local-human' OR candidate.channel_id IS NULL
+                OR NOT EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = candidate.channel_id AND json_extract(c.record_json, '$.type') = 'group')
+                OR EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL)))
+
+          )
         )`;
 
 const channelAttentionCte = (
@@ -529,6 +563,7 @@ export function createHumanAttentionQuery(
   activePrivateInputMessageIds: () => readonly string[] = () => [],
   mutedChannelIds: () => readonly string[] = () => [],
   now: () => Date = () => new Date(),
+  project: <T>(human: HumanContext, value: T) => T = (_human, value) => value,
 ): HumanAttentionQuery {
   let lowerRegistered = false;
   const activeSnooze = (id: string, source: string, at: string): string =>
@@ -609,7 +644,7 @@ export function createHumanAttentionQuery(
                 sourceKey,
               ) as AttentionRow | undefined,
         );
-        return row === undefined ? undefined : attentionItem(row);
+        return row === undefined ? undefined : project(human, attentionItem(row));
       }
       const prefix = id.split(':')[0];
       const category =
@@ -815,7 +850,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         const page = rows.slice(0, limit);
         const last = page.at(-1);
         return {
-          items: page.map(attentionItem),
+          items: project(human, page.map(attentionItem)),
           ...(rows.length > limit && last !== undefined
             ? {
                 nextCursor: Buffer.from(
@@ -885,19 +920,22 @@ SELECT 'handled:' || request.source_event_id AS id,
         }>;
         const page = rows.slice(0, limit);
         const last = page.at(-1);
-        const items = page.map((row): HumanAttentionItem => ({
-          id: row.id,
-          category: 'replies',
-          kind: row.is_mention === 1 ? 'channel-mention' : 'channel-reply',
-          createdAt: row.created_at,
-          channelId: row.channel_id,
-          channelName: row.channel_name,
-          botSlug: row.bot_slug,
-          summary: attentionSummary(row.summary),
-          messageId: row.message_id,
-          sourceEventId: row.source_event_id,
-          isUnread: row.is_unread === 1,
-        }));
+        const items = project(
+          human,
+          page.map((row): HumanAttentionItem => ({
+            id: row.id,
+            category: 'replies',
+            kind: row.is_mention === 1 ? 'channel-mention' : 'channel-reply',
+            createdAt: row.created_at,
+            channelId: row.channel_id,
+            channelName: row.channel_name,
+            botSlug: row.bot_slug,
+            summary: attentionSummary(row.summary),
+            messageId: row.message_id,
+            sourceEventId: row.source_event_id,
+            isUnread: row.is_unread === 1,
+          })),
+        );
         return {
           items: snoozedOnly ? snoozedUntil(human, items) : items,
           ...(rows.length > limit && last !== undefined
@@ -971,19 +1009,22 @@ SELECT 'handled:' || request.source_event_id AS id,
         const page = rows.slice(0, limit);
         const last = page.at(-1);
         return {
-          items: page.map((row) => ({
-            id: row.id,
-            category: 'unread' as const,
-            kind: 'channel-unread' as const,
-            createdAt: row.created_at,
-            channelId: row.channel_id,
-            channelName: row.channel_name,
-            botSlug: row.bot_slug,
-            summary: attentionSummary(row.summary),
-            messageId: row.message_id,
-            sourceEventId: row.source_event_id,
-            unreadCount: row.unread_count,
-          })),
+          items: project(
+            human,
+            page.map((row) => ({
+              id: row.id,
+              category: 'unread' as const,
+              kind: 'channel-unread' as const,
+              createdAt: row.created_at,
+              channelId: row.channel_id,
+              channelName: row.channel_name,
+              botSlug: row.bot_slug,
+              summary: attentionSummary(row.summary),
+              messageId: row.message_id,
+              sourceEventId: row.source_event_id,
+              unreadCount: row.unread_count,
+            })),
+          ),
           ...(rows.length > limit && last !== undefined
             ? {
                 nextCursor: Buffer.from(
@@ -1039,7 +1080,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             ) as unknown as AttentionRow[],
       );
       const page = rows.slice(0, limit);
-      const mapped = withAutoRejection(page.map(attentionItem));
+      const mapped = project(human, withAutoRejection(page.map(attentionItem)));
       const items = snoozedOnly ? snoozedUntil(human, mapped) : mapped;
       const last = page.at(-1);
       return {
@@ -1212,18 +1253,21 @@ SELECT 'handled:' || request.source_event_id AS id,
             bot_slug: string;
           }>,
       );
-      return rows.map((row) => ({
-        id: `dm-reply:${row.source_event_id}`,
-        category: 'replies',
-        kind: 'channel-reply',
-        createdAt: row.created_at,
-        channelId: row.channel_id,
-        botSlug: row.bot_slug,
-        summary: attentionSummary(row.body),
-        messageId: row.message_id,
-        sourceEventId: row.source_event_id,
-        isUnread: true,
-      }));
+      return project(
+        human,
+        rows.map<HumanAttentionItem>((row) => ({
+          id: `dm-reply:${row.source_event_id}`,
+          category: 'replies',
+          kind: 'channel-reply',
+          createdAt: row.created_at,
+          channelId: row.channel_id,
+          botSlug: row.bot_slug,
+          summary: attentionSummary(row.body),
+          messageId: row.message_id,
+          sourceEventId: row.source_event_id,
+          isUnread: true,
+        })),
+      );
     },
     unreadByChannel(human: HumanContext) {
       return database.read((db) =>

@@ -19,6 +19,7 @@ function view(humanId: string, kind: 'owner' | 'member'): TeamModeView {
     ownerPasswordSet: true,
     insecureHttpAllowed: false,
     memberUrls: [],
+    isolation: 'trial',
     viewer: {
       humanId,
       kind,

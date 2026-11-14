@@ -319,8 +319,12 @@ function authorLabel(
       return message.author.displayName ?? humanLabel(humanName, t);
     case 'system':
       return t('main.author.system');
-    case 'bot':
-      return memberName(bots, message.author.slug);
+    case 'bot': {
+      const { slug, displayName } = message.author;
+      return bots.some((bot) => bot.slug === slug)
+        ? memberName(bots, slug)
+        : (displayName ?? t('team.someBot'));
+    }
     case 'remote-bot':
       return remoteBot?.hostId === message.author.hostId &&
         remoteBot.botSlug === message.author.slug
@@ -734,6 +738,10 @@ const MessageGroupView = memo(function MessageGroupView({
   const nameColor =
     nameSource === undefined ? undefined : botNameColor(nameSource, surface.background);
   const dm = currentDmBotSlug !== undefined;
+  const foreignBot =
+    author.kind === 'bot' && displayBot === undefined && !dm
+      ? { slug: author.slug, name: author.displayName ?? t('team.someBot') }
+      : undefined;
   const avatar =
     dm || displayBot === undefined ? undefined : (
       <PersonaBotAvatar
@@ -800,6 +808,18 @@ const MessageGroupView = memo(function MessageGroupView({
       style={bubbleStyle}
       ref={surface.probe}
     >
+      {foreignBot === undefined ? null : (
+        <span className="bh-message-group-avatar" aria-hidden="true">
+          <PersonaBotAvatar
+            t={t}
+            personaBotId={foreignBot.slug}
+            name={foreignBot.name}
+            size={28}
+            indicator={false}
+            nativeTitle={false}
+          />
+        </span>
+      )}
       {otherHuman && channelType === 'group' ? (
         <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(

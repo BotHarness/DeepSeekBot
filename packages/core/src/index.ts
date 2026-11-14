@@ -1,3 +1,10 @@
+export { isMaskedApprovalCard, maskedApprovalCardSchema } from './team/approval-contract.js';
+export type {
+  ApprovalCard,
+  ApprovalDecider,
+  MaskedApprovalCard,
+  ProjectedApprovalMessage,
+} from './team/approval-contract.js';
 export { humanContext, OWNER_HUMAN_CONTEXT } from './humans/context.js';
 export type { HumanId, HumanContext } from './humans/context.js';
 export {

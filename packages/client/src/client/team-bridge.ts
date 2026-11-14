@@ -17,6 +17,7 @@ export interface TeamModeView {
   readonly ownerPasswordSet: boolean;
   readonly insecureHttpAllowed: boolean;
   readonly memberUrls: readonly string[];
+  readonly isolation: 'trial' | 'enforced';
   readonly viewer: TeamViewer;
 }
 
@@ -138,6 +139,7 @@ export function parseTeamMode(value: unknown): TeamModeView {
     ownerPasswordSet: row['ownerPasswordSet'] === true,
     insecureHttpAllowed: row['insecureHttpAllowed'] === true,
     memberUrls: urls,
+    isolation: row['isolation'] === 'enforced' ? 'enforced' : 'trial',
     viewer,
   };
 }

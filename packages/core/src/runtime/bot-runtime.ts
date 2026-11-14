@@ -1,3 +1,4 @@
+import { TeamError } from '../team/error.js';
 import { botOwner } from '../team/bot-access.js';
 import { humanContext } from '../humans/context.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
@@ -9510,6 +9511,14 @@ class BotRuntimeImplementation implements BotRuntime {
       mode: 'workspace-write' as const,
       revision: 0,
     };
+    if (
+      access.mode === 'danger-full-access' &&
+      bot.ownerHumanId !== undefined &&
+      bot.ownerHumanId !==
+        (this.#database.read((db) => db.prepare('SELECT owner_human_id FROM team_settings').get())
+          ?.owner_human_id ?? OWNER_HUMAN_CONTEXT.humanId)
+    )
+      throw new TeamError('permission-required');
     const permission: AssignmentPermissionSnapshot = {
       grantId: grant.id,
       workspaceId: grant.workspaceId,

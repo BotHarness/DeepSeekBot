@@ -1,3 +1,4 @@
+import { ApprovalDecider, MaskedApprovalCard, OpaqueToolWarning } from './approval-mask.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import {
@@ -542,31 +543,45 @@ export function ChannelMessageBody({
         nativeChatT={nativeChatT}
       />
     );
+  if (message.approval?.masked === true)
+    return <MaskedApprovalCard approval={message.approval} t={t} />;
   if (message.toolApprovalRequest !== undefined && actions !== undefined) {
     return (
-      <ToolApprovalCard
-        message={message}
-        actions={actions}
-        decision={toolApprovalDecision}
-        channelId={channelId}
-        t={t}
-      />
+      <>
+        <OpaqueToolWarning approval={message.approval} t={t} />
+        <ToolApprovalCard
+          message={message}
+          actions={actions}
+          decision={toolApprovalDecision}
+          channelId={channelId}
+          t={t}
+        />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
     );
   }
   if (message.privateInputRequest !== undefined && actions !== undefined) {
-    return <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />;
+    return (
+      <>
+        <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
+    );
   }
   if (message.takeoverRequest !== undefined && actions !== undefined)
     return <TakeoverCard message={message} channelId={channelId} actions={actions} t={t} />;
   if (message.userQuestionRequest !== undefined && actions !== undefined) {
     return (
-      <UserQuestionCard
-        message={message}
-        actions={actions}
-        resolution={userQuestionResolution}
-        channelId={channelId}
-        t={t}
-      />
+      <>
+        <UserQuestionCard
+          message={message}
+          actions={actions}
+          resolution={userQuestionResolution}
+          channelId={channelId}
+          t={t}
+        />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
     );
   }
   if (message.grantRequest === true && actions !== undefined) {

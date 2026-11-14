@@ -1,3 +1,4 @@
+import type { ApprovalCard } from '../team/approval-contract.js';
 import type { ChannelMessageAuthor } from './message-author.js';
 import type { ChannelReplyPreview } from './reply-preview.js';
 import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
@@ -534,6 +535,7 @@ export interface ChannelMessage {
 
   grantRequestResolution?: { requestMessageId: string; grantId: string };
 
+  approval?: ApprovalCard;
   toolApprovalRequest?: ToolApprovalRequestCard;
 
   sessionFailure?: SessionFailureCard;
@@ -654,7 +656,11 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
     case 'system':
       return true;
     case 'bot':
-      return typeof author['slug'] === 'string' && author['slug'].length > 0;
+      return (
+        typeof author['slug'] === 'string' &&
+        author['slug'].length > 0 &&
+        (author['displayName'] === undefined || typeof author['displayName'] === 'string')
+      );
     case 'remote-bot':
       return (
         typeof author['hostId'] === 'string' &&
@@ -978,6 +984,28 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       message['replyTo'] !== target['recordMessageId']
     )
       return false;
+  }
+  for (const key of [
+    'toolApprovalRequest',
+    'userQuestionRequest',
+    'privateInputRequest',
+    'toolApprovalDecision',
+    'userQuestionResolution',
+    'privateInputResolution',
+  ]) {
+    const decision = message[key];
+    if (decision !== null && typeof decision === 'object' && 'decidedBy' in decision) {
+      const decider = decision.decidedBy;
+      if (
+        decider === null ||
+        typeof decider !== 'object' ||
+        !('humanId' in decider) ||
+        typeof decider.humanId !== 'string' ||
+        decider.humanId.length === 0 ||
+        ('displayName' in decider && typeof decider.displayName !== 'string')
+      )
+        return false;
+    }
   }
   const toolDecision = message['toolApprovalDecision'];
   if (toolDecision !== undefined) {
@@ -1352,11 +1380,16 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (message['author'] as ChannelMessageAuthor)?.kind !== 'bot'
     )
       return false;
-    const { sessionId, expiresAt, replacesMessageId, ...declaration } = privateRequest as Record<
-      string,
-      unknown
-    >;
+    const {
+      sessionId,
+      expiresAt,
+      replacesMessageId,
+      opaque,
+      decidedBy: _decidedBy,
+      ...declaration
+    } = privateRequest as Record<string, unknown>;
     if (
+      (opaque !== undefined && typeof opaque !== 'boolean') ||
       (sessionId === undefined
         ? replacesMessageId === undefined
         : typeof sessionId !== 'string' || sessionId.length === 0) ||
@@ -1379,7 +1412,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     const resolution = privateResolution as Record<string, unknown>;
     if (
       Object.keys(resolution).some(
-        (key) => !['requestMessageId', 'state', 'references'].includes(key),
+        (key) => !['requestMessageId', 'state', 'references', 'decidedBy'].includes(key),
       ) ||
       typeof resolution.requestMessageId !== 'string' ||
       message['replyTo'] !== resolution.requestMessageId ||

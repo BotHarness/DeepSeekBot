@@ -75,7 +75,7 @@ describe('Group Profile activity', () => {
     expect(activity.authors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          author: { kind: 'human' },
+          author: { kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' },
           total: (MAX_MESSAGE_PAGE + 2) / 2,
         }),
         expect.objectContaining({

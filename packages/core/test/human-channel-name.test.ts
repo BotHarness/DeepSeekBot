@@ -111,9 +111,14 @@ describe('Human Channel nicknames', () => {
           const { humanReceipts, ...current } = core.channels.message(groupId, 'trusted')!;
           expect(current).toEqual(source);
           expect(humanReceipts?.[0]?.displayName).toBe('教授 🐻');
-          expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' })).toEqual(
-            personal,
-          );
+          expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' })).toEqual({
+            ...personal,
+            items: personal.items.map((item) =>
+              item.author?.kind === 'bot' && item.author.slug === 'ada'
+                ? { ...item, author: { ...item.author, displayName: '教授 🐻' } }
+                : item,
+            ),
+          });
           expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual(unread);
           expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, groupId)).toEqual(read);
           expect(core.channels.revision(groupId)).toBe(revision);
@@ -157,7 +162,7 @@ describe('Human Channel nicknames', () => {
         body: 'Inspect names',
       });
       await core.runtime.whenIdle();
-      expect(failures).toEqual([]);
+      if (failures.length) throw failures[0];
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();

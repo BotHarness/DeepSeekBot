@@ -5,8 +5,12 @@ import type {
 } from '@deepseek-ai/dsh-api-remote-access';
 import { humanContext } from '../humans/context.js';
 import type { MemberPrincipal, TeamService } from './service.js';
-import { MEMBER_CHANNEL_METHODS, MEMBER_METHODS } from './member-methods.js';
-const channelMethods = new Set<string>(MEMBER_CHANNEL_METHODS);
+import {
+  MEMBER_CHANNEL_METHODS,
+  MEMBER_APPROVAL_METHODS,
+  MEMBER_METHODS,
+} from './member-methods.js';
+const channelMethods = new Set<string>([...MEMBER_CHANNEL_METHODS, ...MEMBER_APPROVAL_METHODS]);
 
 export function memberPolicy(team: TeamService): RemoteAccessPolicy<MemberPrincipal> {
   return {
@@ -21,7 +25,16 @@ export function memberPolicy(team: TeamService): RemoteAccessPolicy<MemberPrinci
           const id = request.args['channelId'];
           if (
             typeof id !== 'string' ||
-            !team.channelAccess.canRead(humanContext(principal.humanId), id)
+            (!team.channelAccess.canRead(humanContext(principal.humanId), id) &&
+              !(
+                MEMBER_APPROVAL_METHODS.some((name) => name === method) &&
+                typeof request.args['messageId'] === 'string' &&
+                team.approvals.ownsRequest(
+                  humanContext(principal.humanId),
+                  id,
+                  request.args['messageId'],
+                )
+              ))
           )
             return { kind: 'deny', reason: 'channel-not-found' };
         }

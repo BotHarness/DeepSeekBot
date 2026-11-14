@@ -1,5 +1,6 @@
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import type { ChannelMessageAuthor } from '../channels/message-author.js';
 
 export const PUSH_KINDS = ['approval', 'question', 'private-input', 'reply'] as const;
 export type PushKind = (typeof PUSH_KINDS)[number];
@@ -25,6 +26,8 @@ const TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]{8,128}\]$/u;
 const MAX_QUIET_CHANNELS = 500;
 
 export interface PushCandidate {
+  author?: Extract<ChannelMessageAuthor, { kind: 'bot' }>;
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   id: string;
   kind: PushKind;
   attentionKind: string;
@@ -43,6 +46,8 @@ export interface PushSource {
 }
 
 export interface PushData {
+  author?: PushCandidate['author'];
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   v: 1;
   hostId: string;
   itemId?: string;
@@ -519,7 +524,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
       );
       const messages: ExpoMessage[] = notify.map((item) => {
-        const sender = source.botName(item.botSlug) ?? item.botSlug;
+        const sender = item.author?.displayName ?? source.botName(item.botSlug) ?? item.botSlug;
         const { message, ...shown } = text(item, sender, localeOf(device.locale));
         const drawn = device.platform === 'android' && device.render === 'app';
         const data: PushData = {
@@ -527,6 +532,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           hostId,
           itemId: item.id,
           kind: item.attentionKind,
+          ...(item.author ? { author: item.author } : {}),
+          ...(item.approval ? { approval: item.approval } : {}),
           botSlug: item.botSlug,
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),

@@ -2851,7 +2851,7 @@ describe('bridge methods', () => {
         message: {
           id: expect.any(String),
           at: expect.any(String),
-          author: { kind: 'human' },
+          author: { kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' },
           body: 'hello',
         },
       },

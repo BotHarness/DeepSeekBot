@@ -1650,3 +1650,5 @@ The [M9 lifecycle runtime](team-mode-m9-runtime.md) adds permission-scoped passw
 The [M4 Host/CLI runtime](team-mode-m4-runtime.md) adds canonical Channel visibility, ownership/admins and policy, plus two-Human DM identity. The same audience Service scopes reads, SQL search, unread lists and live delivery; revocation closes existing browser Peers and paired-device streams. Private-content auditing remains M11.
 
 The Team usage and Role model policy runtime is described in [M10 Host and CLI logic](team-mode-m10-runtime.md).
+
+The [M5 approval logic](team-mode-m5-runtime.md) adds caller-scoped masking across Channel projections, Activity and push, Human decision attribution and unattended routing to the Bot owner. Member-owned Sessions refuse full access, suppressed asks and escalation. Team status and invitation responses identify the current isolation as `trial`; M12 owns enforcement qualification.

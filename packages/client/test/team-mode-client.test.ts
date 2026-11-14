@@ -166,4 +166,38 @@ describe('member view of Bot settings', () => {
     ])
       expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(false);
   });
+
+  it('shows the isolation trial notice only while Team mode is in trial', () => {
+    const trial = renderTeamSignInPage({
+      language: 'zh',
+      hostName: 'Office',
+      nonce: 'x',
+      isolation: 'trial',
+    });
+    expect(trial).toContain('data-team-isolation="trial"');
+    expect(trial).toContain('试用阶段');
+    expect(
+      renderTeamSignInPage({
+        language: 'en',
+        hostName: 'Office',
+        nonce: 'x',
+        isolation: 'enforced',
+      }),
+    ).not.toContain('data-team-isolation');
+  });
+
+  it('reads isolation from teamMode and defaults to trial', () => {
+    const viewer = {
+      kind: 'owner',
+      humanId: 'h',
+      displayName: 'Owner',
+      owner: true,
+      permissions: [],
+      roleIds: [],
+    };
+    expect(parseTeamMode({ enabled: true, viewer }).isolation).toBe('trial');
+    expect(parseTeamMode({ enabled: true, isolation: 'enforced', viewer }).isolation).toBe(
+      'enforced',
+    );
+  });
 });

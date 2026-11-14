@@ -313,7 +313,11 @@ export function QuickSwitcher({
       case 'system':
         return t('main.author.system');
       case 'bot':
-        return bots.get(message.author.slug)?.displayName ?? message.author.slug;
+        return (
+          bots.get(message.author.slug)?.displayName ??
+          message.author.displayName ??
+          t('team.someBot')
+        );
       case 'remote-bot':
         return message.author.slug;
       case 'bridged':

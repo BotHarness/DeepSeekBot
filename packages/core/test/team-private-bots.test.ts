@@ -71,7 +71,7 @@ function fixture(
 
 describe('M2 private Bot boundaries', () => {
   it.each(['dm', 'group'] as const)(
-    'allows only the asking private Bot owner to poll and answer questions in a %s',
+    'masks shared questions and permits only an approver to answer in a %s',
     async (kind) => {
       const f = fixture();
       const group = f.core.channels.createGroup(bob, {
@@ -110,7 +110,13 @@ describe('M2 private Bot boundaries', () => {
             channelId: kind === 'group' ? group.id : 'dm-alice-bot',
             messageId: 'question-alice-bot',
           }),
-        ).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
+        ).toMatchObject(
+          kind === 'dm'
+            ? { ok: false, error: { code: 'bot-not-found' } }
+            : method === 'userQuestionStatus'
+              ? { ok: true, value: { approval: { masked: true } } }
+              : { ok: false, error: { code: 'approval-not-allowed' } },
+        );
       }
       expect(answer).toHaveBeenCalledExactlyOnceWith(
         'bob-bot',

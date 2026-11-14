@@ -135,7 +135,7 @@ describe('allow this once anyway from the Human Inbox', () => {
     expect(override.ok).toBe(true);
     const overrideMessage = f.messages().find((message) => message.toolAutoApprovalOverride);
     expect(overrideMessage).toMatchObject({
-      author: { kind: 'human' },
+      author: { kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' },
       replyTo: item.messageId,
       toolAutoApprovalOverride: { botSlug: 'ada', sessionId: f.sessionId, toolName: 'bash' },
     });

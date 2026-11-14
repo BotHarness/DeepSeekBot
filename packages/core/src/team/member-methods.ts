@@ -65,6 +65,16 @@ export const MEMBER_GLOBAL_METHODS = [
   'botSessionIds',
 ] as const;
 
+export const MEMBER_APPROVAL_METHODS = [
+  'toolApprovalStatus',
+  'toolApprovalDecide',
+  'privateInputStatus',
+  'privateInputSubmit',
+  'privateInputCancel',
+  'userQuestionStatus',
+  'userQuestionAnswer',
+] as const;
+
 export const MEMBER_CHANNEL_METHODS = [
   'channelRoleDirectory',
   'channelRename',
@@ -74,8 +84,6 @@ export const MEMBER_CHANNEL_METHODS = [
   'channelGroupInvite',
   'channelAllBotPreview',
   'composerValidate',
-  'userQuestionStatus',
-  'userQuestionAnswer',
   'channelGet',
   'channelSendStatus',
   'channelMessages',
@@ -115,10 +123,13 @@ export const MEMBER_BOT_METHODS = [
   'botAttention',
   'sessions',
   'channelDm',
+  'assignmentAccessGet',
+  'assignmentAccessSet',
 ] as const;
 
 export const MEMBER_METHODS: ReadonlySet<string> = new Set([
   ...MEMBER_GLOBAL_METHODS,
   ...MEMBER_CHANNEL_METHODS,
+  ...MEMBER_APPROVAL_METHODS,
   ...MEMBER_BOT_METHODS,
 ]);

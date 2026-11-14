@@ -315,6 +315,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             t={t}
             created={dialog.created}
             urls={view.memberUrls}
+            isolation={view.isolation}
             onDone={() => setDialog(undefined)}
           />
         ) : null}
@@ -326,6 +327,9 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
       <SettingsRows rootRef={mount}>
         <SettingsSection title={t('team.account.title')}>
           <SettingsRow title={view.viewer.displayName} description={t('team.account.memberOf')} />
+          <Note tone={view.isolation === 'trial' ? 'warning' : 'muted'}>
+            {t(view.isolation === 'trial' ? 'team.isolation.trial' : 'team.isolation.enforced')}
+          </Note>
           <SettingsRow
             title={t('team.account.password')}
             control={
@@ -406,6 +410,11 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             />
           }
         />
+        {view.enabled ? (
+          <Note tone={view.isolation === 'trial' ? 'warning' : 'muted'}>
+            {t(view.isolation === 'trial' ? 'team.isolation.trial' : 'team.isolation.enforced')}
+          </Note>
+        ) : null}
         <SettingsRow
           title={t('team.ownerPassword.title')}
           description={t(
@@ -683,11 +692,13 @@ function InitialPasswordDialog({
   t,
   created,
   urls,
+  isolation,
   onDone,
 }: {
   t: BotHarnessTranslate;
   created: CreatedMember;
   urls: readonly string[];
+  isolation: 'trial' | 'enforced';
   onDone(): void;
 }): ReactElement {
   const [copied, setCopied] = useState(false);
@@ -726,6 +737,7 @@ function InitialPasswordDialog({
         </Button>
       </div>
       <Note tone="warning">{t('team.members.shownOnce')}</Note>
+      {isolation === 'trial' ? <Note>{t('team.isolation.trial')}</Note> : null}
     </FormDialog>
   );
 }

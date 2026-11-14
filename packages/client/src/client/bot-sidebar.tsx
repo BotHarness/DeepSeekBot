@@ -572,6 +572,9 @@ function channelPreview(
       { name: message.memberDeparture.displayName },
     );
   const body =
+    (message.approval?.masked === true
+      ? t(`approval.masked.${message.approval.kind}`)
+      : undefined) ??
     toolApprovalText(message, t) ??
     (plainMarkdown(attachmentReferenceLabels(message.body, message.attachments ?? []))
       .replace(/\s+/gu, ' ')
@@ -586,7 +589,9 @@ function channelPreview(
           ? t('rail.you')
           : (message.author.displayName ?? t('team.otherMember'))
       : message.author.kind === 'bot'
-        ? (bots.get(message.author.slug)?.displayName ?? message.author.slug)
+        ? (bots.get(message.author.slug)?.displayName ??
+          message.author.displayName ??
+          t('team.someBot'))
         : message.author.kind === 'bridged'
           ? message.author.source
           : undefined;

@@ -5,7 +5,7 @@ import {
 } from '../channels/bot-mention-text.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
-import { MEMBER_METHODS, MEMBER_BOT_METHODS } from './member-methods.js';
+import { MEMBER_METHODS, MEMBER_BOT_METHODS, MEMBER_APPROVAL_METHODS } from './member-methods.js';
 import { ownsBot } from './bot-access.js';
 import { TeamError } from './error.js';
 
@@ -84,6 +84,17 @@ export function guardHumanBridge(
             return refuse('bot-not-found');
         }
         if (!owner && !MEMBER_METHODS.has(property)) return refuse('permission-required');
+        if (property === 'assignmentAccessSet' && input['mode'] === 'danger-full-access') {
+          if (!owner) return refuse('owner-only');
+          const bot =
+            typeof input['slug'] === 'string' ? deps.registry.get(input['slug']) : undefined;
+          if (
+            bot &&
+            (bot.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId) !==
+              (deps.team?.ownerContext() ?? OWNER_HUMAN_CONTEXT).humanId
+          )
+            return refuse('permission-required');
+        }
         const slug = input['slug'];
         if (typeof slug === 'string') {
           const bot = deps.registry.getHistorical?.(slug) ?? deps.registry.get(slug);
@@ -130,7 +141,12 @@ export function guardHumanBridge(
           if (
             !owner &&
             channel?.type === 'group' &&
-            !deps.team?.channelAccess.canRead(human, channelId)
+            !deps.team?.channelAccess.canRead(human, channelId) &&
+            !(
+              MEMBER_APPROVAL_METHODS.some((method) => method === property) &&
+              typeof input['messageId'] === 'string' &&
+              deps.team?.approvals.ownsRequest(human, channelId, input['messageId'])
+            )
           )
             return refuse('channel-not-found');
         }
@@ -206,16 +222,18 @@ export function guardHumanBridge(
           )
             return refuse('bot-not-found');
         }
-        if (['userQuestionStatus', 'userQuestionAnswer'].includes(property)) {
-          const message =
-            typeof channelId === 'string' && typeof input['messageId'] === 'string'
-              ? deps.channels.message(channelId, input['messageId'])
-              : undefined;
-          if (
-            message?.author.kind !== 'bot' ||
-            !ownsBot(human, deps.registry.get(message.author.slug))
-          )
-            return refuse('bot-not-found');
+        if (
+          ['toolApprovalDecide', 'userQuestionAnswer'].includes(property) &&
+          deps.team &&
+          typeof channelId === 'string' &&
+          typeof input['messageId'] === 'string'
+        ) {
+          try {
+            deps.team.approvals.requireRequest(human, channelId, input['messageId']);
+          } catch (error) {
+            if (error instanceof TeamError) return refuse(error.code, error.details);
+            throw error;
+          }
         }
         if (!owner && property === 'update' && object(input['patch'])['workspaces'] !== undefined)
           return refuse('permission-required');
@@ -253,7 +271,48 @@ export function guardHumanBridge(
           ['memoryDir', 'memoryLocation', 'workspaces'].some((field) => input[field] !== undefined)
         )
           return refuse('permission-required');
-        return Reflect.apply(operation, target, [payload, ...args]);
+        const result: unknown = Reflect.apply(operation, target, [payload, ...args]);
+        const project = (result: unknown): unknown => {
+          if (
+            !deps.team ||
+            ![
+              'channelGet',
+              'channels',
+              'channelListChanges',
+              'activitySnapshot',
+              'channelMessages',
+              'channelTimeline',
+              'channelSearch',
+              'messageSearch',
+              'humanAttention',
+              'toolApprovalStatus',
+              'userQuestionStatus',
+            ].includes(property)
+          )
+            return result;
+          const record = object(result);
+          if (
+            record['ok'] === true &&
+            ['toolApprovalStatus', 'userQuestionStatus'].includes(property) &&
+            typeof channelId === 'string' &&
+            typeof input['messageId'] === 'string'
+          ) {
+            const message = deps.team.approvals.request(channelId, input['messageId']);
+            const approval = message && deps.team.approvals.card(human, channelId, message);
+            if (approval) return { ...record, value: { ...object(record['value']), approval } };
+          }
+          return deps.team.approvals.project(
+            human,
+            result,
+            typeof channelId === 'string' ? channelId : undefined,
+          );
+        };
+        return result instanceof Promise
+          ? result.then(project, (error: unknown) => {
+              if (error instanceof TeamError) return refuse(error.code, error.details);
+              throw error;
+            })
+          : project(result);
       };
       wrappers.set(property, { operation, guarded });
       return guarded;

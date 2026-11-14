@@ -1,3 +1,4 @@
+import type { ApprovalAuthority, ApprovalDecider } from '../team/approval-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { randomUUID } from 'node:crypto';
@@ -16,6 +17,8 @@ import type { SessionOwnership } from '../sessions/ownership.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval.js';
 
 export interface ChannelQuestionRequest {
+  opaque?: boolean;
+  decidedBy?: ApprovalDecider;
   sessionId: string;
   callId?: string;
   questions: AskUserQuestionItem[];
@@ -58,6 +61,7 @@ export interface ChannelQuestionResolution {
   state: 'answered' | 'cancelled';
   answers?: AskUserQuestionAnswerItem[];
   actor?: ToolApprovalActor;
+  decidedBy?: ApprovalDecider;
 }
 
 export interface ChannelQuestionNotice extends ChannelQuestionRequest {
@@ -135,6 +139,7 @@ export class ChannelUserQuestions {
     changed: (slug: string, count: number) => void = () => undefined,
     timed?: TimedQuestionPort,
     askChannel?: (sessionId: string) => string | undefined,
+    private readonly approvals?: ApprovalAuthority,
   ) {
     this.#askChannel = askChannel;
     this.#channels = channels;
@@ -322,9 +327,11 @@ export class ChannelUserQuestions {
     botSlug: string,
     messageId: string,
     channelId = dmChannelId(botSlug),
+    includeHistory = true,
   ): ChannelQuestionStatus {
     const pending = this.#pending.get(messageId);
     if (pending === undefined) {
+      if (!includeHistory) return 'expired';
       const message = this.#channels.message(channelId, messageId);
       if (message?.userQuestionRequest === undefined) return 'expired';
       let before: string | undefined;
@@ -375,6 +382,7 @@ export class ChannelUserQuestions {
       (external !== undefined && !pending.committed)
     )
       return false;
+    this.approvals?.requireRequest(human, pending.channelId, messageId);
     if (external && !external.authorized()) return false;
     if (!this.#holds(messageId, pending)) return false;
     if (!validAnswer(pending.questions, answer)) return false;
@@ -385,6 +393,7 @@ export class ChannelUserQuestions {
     )
       return false;
     pending.deciding = true;
+    pending.answeringHuman = human;
     try {
       if (pending.deferred && pending.callId !== undefined) {
         const timed = this.#timed;
@@ -403,6 +412,7 @@ export class ChannelUserQuestions {
               timed.read(pending.sessionId, callId)?.state !== 'continued'
             )
               return false;
+            this.approvals?.requireRequest(human, pending.channelId, messageId);
             return timed.answer(pending.sessionId, callId, answer);
           };
           const deliver =
@@ -423,6 +433,7 @@ export class ChannelUserQuestions {
         }
       }
       if (pending.callId !== undefined) {
+        this.approvals?.requireRequest(human, pending.channelId, messageId);
         pending.deferred = true;
         pending.submitted = true;
         pending.resolve(answer);
@@ -438,13 +449,17 @@ export class ChannelUserQuestions {
           requestMessageId: messageId,
           state: 'answered',
           answers: answer.answers,
+          decidedBy: this.approvals?.decider(human) ?? { humanId: human.humanId },
           ...(external ? { actor: external.actor } : {}),
         },
       };
       if (
-        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () =>
-          external ? this.#pending.get(messageId) === pending && external.authorized() : true,
-        )) === undefined
+        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () => {
+          this.approvals?.requireRequest(human, pending.channelId, messageId);
+          return external
+            ? this.#pending.get(messageId) === pending && external.authorized()
+            : true;
+        })) === undefined
       )
         return false;
       if (this.#pending.get(messageId) !== pending || pending.signal?.aborted) return false;
@@ -585,6 +600,9 @@ export class ChannelUserQuestions {
                 requestMessageId: id,
                 state: 'answered',
                 answers: native.answer.answers,
+                decidedBy: this.approvals?.decider(pending.answeringHuman) ?? {
+                  humanId: pending.answeringHuman.humanId,
+                },
               },
             },
           );
