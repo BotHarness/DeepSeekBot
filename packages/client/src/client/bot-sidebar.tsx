@@ -2255,9 +2255,13 @@ export function BotSidebar({
               </button>
             </Tooltip>
           }
-          items={menuItems(t, gitReady(state.git), hostTabs, teamMode?.enabled === true).filter(
-            (item) => teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id),
-          )}
+          items={menuItems(
+            t,
+            gitReady(state.git),
+            hostTabs,
+            teamMode?.enabled === true,
+            teamMode?.viewer.kind === 'member',
+          ).filter((item) => teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id))}
           onSelect={selectMenu}
           onClose={() => {
             setMenuOpen(false);
@@ -3993,6 +3997,7 @@ function menuItems(
   gitAvailable: boolean,
   remotes: boolean,
   team = false,
+  member = false,
 ): MenuEntry[] {
   const disabled = !gitAvailable;
   return [
@@ -4002,8 +4007,12 @@ function menuItems(
       icon: <IconAgentPresetOutlineRegular size={16} />,
       submenu: [
         { id: 'bot:empty', label: t('roster.menu.createBot.empty'), disabled },
-        { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
-        { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+        ...(member
+          ? []
+          : [
+              { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
+              { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+            ]),
       ],
     },
     {
