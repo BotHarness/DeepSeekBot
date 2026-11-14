@@ -28,6 +28,8 @@ AX default model setup and credential reuse: follow `docs/agents/ax-model.md` fo
 
 ## Conventions
 
+- Prefer cross-platform scripts and commands. Use Node.js ESM (`.mjs`) for automation and Bash for interactive terminal wizards; avoid PowerShell (`.ps1`) as the default implementation or user-facing entry point. Use PowerShell only when a required Windows-native capability has no practical portable alternative, and explain that exception. Resolve paths relative to the script or workspace and use configurable executables instead of hard-coded machine-specific paths.
+- Always give complete absolute paths in user-facing execution commands and file references. Do not assume the user's terminal is in the repository or require an unstated working directory. Name the intended shell explicitly when shells interpret paths differently (for example, Git Bash versus WSL on Windows), and quote paths that contain spaces. Keep script internals portable through relative path resolution; this does not justify relative paths in copy-and-run instructions.
 - TypeScript ESM; tests live in `packages/*/test/` (vitest).
 - Repo scripts are Node `.mjs` run as `node scripts/<name>.mjs` — no new `.ps1`/`.cmd`/`.bat` files. Spawn child processes with direct `argv` (`shell: false`; resolve `.cmd` shims through `scripts/dev-package-manager.mjs`) and `windowsHide: true` on every spawn so no conhost window flashes on Windows; keep CLI action/flag names, exit codes and JSON shapes stable when porting a helper.
 - Never commit secrets: the Feishu App Secret goes to the DSH credentials service, never to config or the repo (ADR-0006).
