@@ -11,19 +11,22 @@ export function parseContentRedactions(event: Event): PurgedPlacement[] {
   try {
     const value: unknown = JSON.parse((event as MessageEvent<string>).data);
     if (typeof value !== 'object' || value === null || !('placements' in value)) return [];
-    const placements = value.placements;
-    if (!Array.isArray(placements) || placements.length > 100) return [];
-    return placements.filter(
-      (item): item is PurgedPlacement =>
-        typeof item === 'object' &&
-        item !== null &&
-        ['sourceEventId', 'channelId', 'messageId'].every(
-          (key) => typeof item[key] === 'string' && item[key].length > 0 && item[key].length <= 200,
-        ),
-    );
+    return parsePurgedPlacements(value.placements);
   } catch {
     return [];
   }
+}
+
+export function parsePurgedPlacements(placements: unknown): PurgedPlacement[] {
+  if (!Array.isArray(placements) || placements.length > 100) return [];
+  return placements.filter(
+    (item): item is PurgedPlacement =>
+      typeof item === 'object' &&
+      item !== null &&
+      ['sourceEventId', 'channelId', 'messageId'].every(
+        (key) => typeof item[key] === 'string' && item[key].length > 0 && item[key].length <= 200,
+      ),
+  );
 }
 
 export function sameItems<T>(next: readonly T[], previous: readonly T[]): boolean {

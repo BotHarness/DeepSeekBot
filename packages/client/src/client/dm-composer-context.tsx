@@ -55,6 +55,7 @@ const compactTokens = new Intl.NumberFormat('en', {
 });
 
 export function useDmComposerContext({
+  scopeKey,
   bot,
   channelId,
   actions,
@@ -65,6 +66,7 @@ export function useDmComposerContext({
   onUsage,
   avgPerf,
 }: {
+  scopeKey?: string | undefined;
   bot: BotSummary | undefined;
   channelId: string | undefined;
   actions: BridgeActions;
@@ -79,11 +81,15 @@ export function useDmComposerContext({
   const [panel, setPanel] = useScopedState<{
     slug: string;
     kind: 'model' | 'workspace';
-  }>(channelId);
+  }>(scopeKey ?? channelId);
+  const subscribePlans = useCallback(
+    (listener: () => void) => subscribeModelPlans(listener, actions),
+    [actions],
+  );
   const plan = useSyncExternalStore(
-    subscribeModelPlans,
-    () => modelPlanOf(bot?.slug),
-    () => modelPlanOf(bot?.slug),
+    subscribePlans,
+    () => modelPlanOf(bot?.slug, actions),
+    () => modelPlanOf(bot?.slug, actions),
   );
   const [modelData, setModelData] = useScopedState<{
     slug: string;
@@ -91,9 +97,12 @@ export function useDmComposerContext({
     state: ModelPlanStateView;
     inheritedRoute?: ModelRouteView;
     unavailable?: boolean;
-  }>(channelId);
-  const [modelBusy, setModelBusy] = useScopedState(channelId, false);
-  const [modelError, setModelError] = useScopedState<string | undefined>(channelId, undefined);
+  }>(scopeKey ?? channelId);
+  const [modelBusy, setModelBusy] = useScopedState(scopeKey ?? channelId, false);
+  const [modelError, setModelError] = useScopedState<string | undefined>(
+    scopeKey ?? channelId,
+    undefined,
+  );
   const companionState = useSyncExternalStore(
     companion?.subscribe ?? subscribeUnavailable,
     companion?.getSnapshot ?? unavailableSnapshot,
@@ -111,7 +120,7 @@ export function useDmComposerContext({
         .modelPlanState(modelSlug)
         .then(async (state) => {
           if (!active || current !== generation) return;
-          rememberModelPlan(modelSlug, state?.plan);
+          rememberModelPlan(modelSlug, state?.plan, actions);
           const catalog = await actions.modelCatalog();
           if (!active || current !== generation) return;
           const route = catalog.default;
@@ -148,8 +157,8 @@ export function useDmComposerContext({
     };
     refresh();
     const unsubscribe = subscribeModelPlans(() => {
-      if (modelPlanOf(modelSlug) === undefined) refresh();
-    });
+      if (modelPlanOf(modelSlug, actions) === undefined) refresh();
+    }, actions);
     return () => {
       active = false;
       unsubscribe();
@@ -254,7 +263,7 @@ export function useDmComposerContext({
       <>
         <span ref={modelMount} aria-hidden="true" style={{ display: 'contents' }} />
         <DmComposerContextView
-          key={bot.slug}
+          key={scopeKey ?? bot.slug}
           footerSettings={footerSettings}
           avgPerf={avgPerf}
           bot={bot}
@@ -353,12 +362,12 @@ function DmComposerContextView({
     [actions, bot.slug, route?.provider, route?.model],
   );
   const subscribeGrants = useCallback(
-    (listener: () => void) => subscribeWorkspaceGrantChanges(bot.slug, listener),
-    [bot.slug],
+    (listener: () => void) => subscribeWorkspaceGrantChanges(bot.slug, listener, actions),
+    [bot.slug, actions],
   );
   const revision = useSyncExternalStore(
     subscribeGrants,
-    () => workspaceGrantRevision(bot.slug),
+    () => workspaceGrantRevision(bot.slug, actions),
     () => 0,
   );
   const request = useRef(0);

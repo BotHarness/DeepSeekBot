@@ -1136,7 +1136,7 @@ export function BotSidebar({
     void Promise.all([actions.modelCatalog(), actions.modelPlanState(menuModelSlug)]).then(
       ([catalog, planState]) => {
         if (!active) return;
-        rememberModelPlan(menuModelSlug, planState.plan);
+        rememberModelPlan(menuModelSlug, planState.plan, actions);
         setMenuModelOptions({ slug: menuModelSlug, catalog, state: planState });
       },
       (failure: unknown) => {
