@@ -1019,6 +1019,7 @@ function initializeCore(
     });
   }
   const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
+    purge: contentPurge,
     log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
   });
   startup.enter('channel-live', 'initialize');

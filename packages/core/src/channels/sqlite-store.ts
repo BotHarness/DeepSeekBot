@@ -1985,6 +1985,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const record: ChannelRecord = {
         id,
         type: 'group',
+        ...(input.ownerBotSlug === undefined ? { ownerHumanId: human.humanId } : {}),
         name: input.name.trim() || id,
         members: [...input.members],
         ...(input.ownerBotSlug === undefined ? {} : { ownerBotSlug: input.ownerBotSlug }),

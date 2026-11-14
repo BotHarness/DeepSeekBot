@@ -3379,6 +3379,36 @@ const TEAM_ROLES_MIGRATION: SchemaMigration = {
   },
 };
 
+const MEMBER_LIFECYCLE_MIGRATION: SchemaMigration = {
+  generation: 143,
+  module: 'team',
+  description: 'Deactivation, mode suspension and deleted member identities',
+  rebuildsReferencedTables: true,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE humans_next (
+        human_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'suspended', 'deactivated')),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO humans_next SELECT * FROM humans;
+      DROP TABLE humans;
+      ALTER TABLE humans_next RENAME TO humans;
+      CREATE INDEX humans_status ON humans(status, human_id);
+      CREATE TABLE team_mode_suspensions (
+        human_id TEXT PRIMARY KEY REFERENCES humans(human_id),
+        previous_status TEXT NOT NULL CHECK (previous_status IN ('active', 'deactivated'))
+      );
+      CREATE TABLE deleted_humans (human_id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL);
+      UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId',
+        (SELECT owner_human_id FROM team_settings))
+        WHERE json_extract(record_json, '$.type') = 'group'
+          AND json_extract(record_json, '$.ownerBotSlug') IS NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3521,4 +3551,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SOURCE_EVENT_HUMAN_MIGRATION,
   TEAM_MEMBERS_MIGRATION,
   TEAM_ROLES_MIGRATION,
+  MEMBER_LIFECYCLE_MIGRATION,
 ]);

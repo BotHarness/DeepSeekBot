@@ -375,3 +375,81 @@ describe('Team CLI', () => {
     expect(plain.status).not.toBe(0);
   });
 });
+
+describe('M9 lifecycle CLI', () => {
+  it.each([
+    {
+      args: ['members', 'deactivate', 'bob'],
+      method: 'memberDeactivate',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'reactivate', 'bob'],
+      method: 'memberReactivate',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'transfer', 'bob', '--preview'],
+      method: 'memberTransferPreview',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'transfer', 'bob', '--to', 'owner'],
+      method: 'memberTransfer',
+      payload: { humanId: 'bob-id', toHumanId: 'local-human' },
+    },
+    {
+      args: ['members', 'purge', 'bob', '--preview'],
+      method: 'memberPurgePreview',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'purge', 'bob', '--token-stdin', '--confirm'],
+      method: 'memberPurgeConfirm',
+      payload: { humanId: 'bob-id', token: 'private-token', username: 'bob' },
+    },
+    {
+      args: ['members', 'change-password', '--password-stdin', '--sign-out-others=false'],
+      method: 'memberPasswordChange',
+      payload: { current: 'old-password', next: 'new-password', signOutOthers: false },
+    },
+    {
+      args: ['members', 'change-password', '--password-stdin'],
+      method: 'memberPasswordChange',
+      payload: { current: 'old-password', next: 'new-password', signOutOthers: true },
+    },
+  ])('dispatches $method using the agreed payload', async ({ args, method, payload }) => {
+    const f = await host();
+    const result = await run(
+      f.url,
+      args,
+      method === 'memberPasswordChange'
+        ? JSON.stringify({ current: 'old-password', next: 'new-password' })
+        : 'private-token',
+    );
+    expect(result.status).toBe(0);
+    expect(f.calls.at(-1)?.input).toMatchObject({
+      method: `botharness/${method}`,
+      payload: { args: payload },
+    });
+    expect(result.text + result.errorText).not.toContain('private-token');
+  });
+  it.each([
+    ['members', 'purge', 'bob', '--token-stdin'],
+    ['members', 'purge', 'bob', '--confirm'],
+    ['members', 'transfer', 'bob'],
+    ['members', 'change-password', '--password-stdin', '--sign-out-others=maybe'],
+  ])('refuses incomplete or invalid lifecycle commands: %s', async (...args) => {
+    const f = await host();
+    expect((await run(f.url, args, 'private-token')).status).not.toBe(0);
+    expect(
+      f.calls.some((call) =>
+        [
+          'botharness/memberPurgeConfirm',
+          'botharness/memberTransfer',
+          'botharness/memberPasswordChange',
+        ].includes(String(call.input.method)),
+      ),
+    ).toBe(false);
+  });
+});

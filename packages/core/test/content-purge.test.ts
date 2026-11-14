@@ -469,3 +469,170 @@ describe('owning Content Purge tracer', () => {
     ).toBe('unknown-outcome');
   });
 });
+
+describe('M9 Content Purge member deletion', () => {
+  async function memberFixture(options: Partial<Parameters<typeof mountContentPurge>[0]> = {}) {
+    const home = createTempRoot('m9-member-purge-');
+    const f = mount(home, options);
+    f.port.transaction((db) => {
+      db.prepare(
+        "INSERT INTO humans VALUES ('bob-id', 'Bob private name', 'deactivated', '2026-11-14T00:00:00Z')",
+      ).run();
+      db.prepare("INSERT INTO human_roles VALUES ('bob-id', 'member')").run();
+    });
+    const shared = f.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Shared', members: [] });
+    const dm = f.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'private-bot', 'Private title');
+    if (!dm) throw new Error('missing DM');
+    f.port.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId', 'bob-id') WHERE channel_id = ?",
+        )
+        .run(dm.id),
+    );
+    const file = await f.attachments.upload({
+      name: 'private.txt',
+      data: (async function* () {
+        yield Buffer.from('private file bytes');
+      })(),
+    });
+    for (const [channelId, id, body, attachments] of [
+      [shared.id, 'shared', 'shared body', []],
+      [dm.id, 'private', 'private body', [file]],
+    ] as const)
+      await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+        id,
+        at: '2026-11-14T00:00:00.000Z',
+        author: { kind: 'human', humanId: 'bob-id', displayName: 'Bob private name' },
+        body,
+        attachments: [...attachments],
+      });
+    return { ...f, home, shared, dm, file };
+  }
+
+  it('reports private files, removes bytes and replays anonymous authorship over an older database snapshot', async () => {
+    const f = await memberFixture();
+    const snapshot = join(f.home, 'before-delete.db');
+    f.database.close();
+    copyFileSync(join(f.home, 'botharness', 'botharness.db'), snapshot);
+    const live = mount(f.home);
+    const preview = live.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+    expect(preview.counts).toEqual({ channels: 1, bots: 0, messages: 1, files: 1 });
+    live.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token);
+    expect(live.attachments.has(f.file)).toBe(false);
+    expect(live.channels.readMessages(f.shared.id)[0]?.author).toEqual({
+      kind: 'human',
+      humanId: 'bob-id',
+      deleted: true,
+    });
+    live.database.close();
+    copyFileSync(snapshot, join(f.home, 'botharness', 'botharness.db'));
+    const restored = mount(f.home);
+    expect(restored.database.mode).toBe('ready');
+    expect(
+      restored.port.read((db) =>
+        db.prepare("SELECT 1 FROM humans WHERE human_id = 'bob-id'").get(),
+      ),
+    ).toBeUndefined();
+    expect(restored.channels.readMessages(f.shared.id)[0]?.body).toBe('shared body');
+    expect(restored.channels.readMessages(f.shared.id)[0]?.author).toEqual({
+      kind: 'human',
+      humanId: 'bob-id',
+      deleted: true,
+    });
+    expect(
+      restored.port.read((db) =>
+        db.prepare('SELECT body FROM source_events WHERE message_id = ?').get('private'),
+      ),
+    ).toMatchObject({ body: '' });
+    expect(restored.attachments.has(f.file)).toBe(false);
+    expect(restored.channels.get(f.dm.id)).toBeUndefined();
+    expect(JSON.stringify(restored.purge.checkpoint())).not.toContain('Bob private name');
+  });
+
+  it.each(['after-acceptance', 'during-application'] as const)(
+    'recovers member deletion after %s without resurrecting credentials or private bytes',
+    async (stage) => {
+      const f = await memberFixture({
+        faultInjector: (current) => {
+          if (current === stage) throw new Error('M9 interruption');
+        },
+      });
+      const preview = f.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+      expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrow(
+        'unavailable',
+      );
+      expect(f.database.mode).toBe('recovery');
+      f.database.close();
+      const restored = mount(f.home);
+      expect(restored.database.mode).toBe('ready');
+      expect(
+        restored.port.read((db) =>
+          db.prepare("SELECT 1 FROM humans WHERE human_id = 'bob-id'").get(),
+        ),
+      ).toBeUndefined();
+      expect(restored.attachments.has(f.file)).toBe(false);
+      expect(restored.channels.readMessages(f.shared.id)[0]?.author).toEqual({
+        kind: 'human',
+        humanId: 'bob-id',
+        deleted: true,
+      });
+    },
+  );
+
+  it('deletes a member whose private messages were already purged without conflicting with prior file tombstones', async () => {
+    const f = await memberFixture();
+    const source = f.port.read((db) =>
+      db.prepare('SELECT source_event_id FROM source_events WHERE channel_id = ?').get(f.dm.id),
+    );
+    if (!source || !f.file.fileId) throw new Error('missing private source or file');
+    f.database.close();
+    const live = mount(f.home, {
+      restoring: true,
+      restoreCheckpoint: {
+        format: 'botharness-purge',
+        version: 2,
+        facts: [
+          {
+            sourceEventId: String(source.source_event_id),
+            channelId: f.dm.id,
+            messageId: 'private',
+            eventAt: '2026-11-14T00:00:00.000Z',
+            author: { kind: 'human' },
+            managedFiles: [f.file.fileId],
+            actor: 'local-human',
+            reason: 'human-request',
+            acceptedAt: '2026-11-14T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+    const preview = live.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+    expect(preview.counts).toEqual({ channels: 1, bots: 0, messages: 0, files: 0 });
+    live.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token);
+    expect(
+      live.port.read((db) => db.prepare("SELECT 1 FROM humans WHERE human_id = 'bob-id'").get()),
+    ).toBeUndefined();
+    expect(live.channels.readMessages(f.shared.id)[0]?.body).toBe('shared body');
+    expect(live.attachments.has(f.file)).toBe(false);
+  });
+
+  it('refuses a changed private scope and consumes the token even on a rejected confirmation', async () => {
+    const f = await memberFixture();
+    const preview = f.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+    await f.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+      id: 'late-private',
+      at: '2026-11-14T00:00:01.000Z',
+      author: { kind: 'human', humanId: 'bob-id' },
+      body: 'late',
+    });
+    expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrowError(
+      'purge-token-invalid',
+    );
+    expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrowError(
+      'purge-token-invalid',
+    );
+    expect(f.channels.readMessages(f.dm.id)).toHaveLength(2);
+    expect(f.attachments.has(f.file)).toBe(true);
+  });
+});
