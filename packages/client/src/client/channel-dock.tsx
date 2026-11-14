@@ -545,7 +545,7 @@ function columnEntries(dock: DockContextValue): ColumnEntry[] {
     return panel ? [{ id, label: panel.title, icon: panel.icon }] : [];
   };
   return [
-    ...registered('sessions'),
+    ...(dock.channelPanelIds.includes('sessions') ? registered('sessions') : []),
     ...(bot ? builtIn.flatMap(registered) : []),
     ...(channel.type === 'group' && dock.members && dock.panels.has('members')
       ? [{ id: 'members', label: dock.t('entry.members'), icon: 'users' }]
