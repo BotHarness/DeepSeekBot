@@ -26,6 +26,8 @@ const IMAGE_COMMANDS = new Set([
 ]);
 const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide', 'cli']);
 const CODES = new Set([
+  'bot-not-found',
+  'permission-required',
   ...DIAGNOSTIC_ERROR_CODES,
   ...TOB_HOST_CLI_ERROR_CODES,
   ...SHARE_DRAFT_ERROR_CODES,

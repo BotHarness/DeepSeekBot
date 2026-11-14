@@ -410,6 +410,7 @@ export interface ChannelStore {
   setHumanNickname(human: HumanContext, id: string, nickname: string | null): void;
   list(): ChannelRecord[];
   get(id: string): ChannelRecord | undefined;
+  hasHumanMembership?(human: HumanContext, id: string): boolean;
   listHumanMembers(
     human: HumanContext,
     id: string,

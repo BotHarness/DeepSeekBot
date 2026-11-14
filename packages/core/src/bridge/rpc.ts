@@ -1,3 +1,4 @@
+import { TeamError, type TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BotImportsService } from '../bots/imports.js';
 import type { GenuiMessageReply, GenuiPrivateView, GenuiViewState } from '../channels/genui.js';
@@ -331,8 +332,28 @@ async function unwrapAsync<T>(result: Promise<BridgeResult<T>>): Promise<T> {
 export function resolveInvocationHuman(
   peer: unknown,
   connection: unknown,
+  team?: TeamService,
 ): HumanContext | undefined {
-  return isAuthenticatedOwner(peer, connection) ? OWNER_HUMAN_CONTEXT : undefined;
+  if (isAuthenticatedOwner(peer, connection)) return team?.ownerContext() ?? OWNER_HUMAN_CONTEXT;
+  if (peer !== null && typeof peer === 'object' && 'principal' in peer) {
+    const principal = peer.principal;
+    if (
+      principal !== null &&
+      typeof principal === 'object' &&
+      'kind' in principal &&
+      principal.kind === 'botharness-member' &&
+      'humanId' in principal &&
+      typeof principal.humanId === 'string' &&
+      'grantId' in principal &&
+      typeof principal.grantId === 'string'
+    )
+      return team?.resolve({
+        kind: 'botharness-member',
+        humanId: principal.humanId,
+        grantId: principal.grantId,
+      });
+  }
+  return undefined;
 }
 
 export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
@@ -341,7 +362,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
   private readonly invocationMethods: InvocationBridgeMethods;
 
   private invocationHuman(): HumanContext {
-    const human = resolveInvocationHuman(this.ctx.invocation?.peer, this.ctx.get('connection'));
+    const human = resolveInvocationHuman(
+      this.ctx.invocation?.peer,
+      this.ctx.get('connection'),
+      this.team,
+    );
+    const invocation = this.ctx.invocation;
+    if (invocation && this.team) {
+      try {
+        this.team.assertCall(invocation.peer.principal, invocation.request?.method ?? '');
+      } catch (error) {
+        if (error instanceof TeamError)
+          throw toRemoteError({
+            code: error.code,
+            message: error.code,
+            ...(error.details ? { details: error.details } : {}),
+          });
+        throw error;
+      }
+    }
     if (human === undefined)
       throw new RemoteError('forbidden' as RemoteError['code'], 'Authenticated Human required', {});
     return human;
@@ -356,9 +395,82 @@ export class BotharnessBridgeService extends TypertRemoteService {
     methods: InvocationBridgeMethods,
     private readonly privateInputs?: PrivateInputs,
     private readonly live?: BridgeLive,
+    private readonly team?: TeamService,
   ) {
     super(ctx, BRIDGE_SERVICE_KEY, { namespace: BRIDGE_NAMESPACE });
     this.invocationMethods = methods;
+  }
+
+  teamMode() {
+    return unwrapAsync(this.methods.teamMode({}));
+  }
+  teamModeSet(enabled: boolean) {
+    return unwrapAsync(this.methods.teamModeSet({ enabled }));
+  }
+  teamOwnerPasswordSet(password: string, current?: string) {
+    return unwrapAsync(this.methods.teamOwnerPasswordSet({ password, current }));
+  }
+  teamInsecureHttpSet(allowed: boolean) {
+    return unwrapAsync(this.methods.teamInsecureHttpSet({ allowed }));
+  }
+  members() {
+    return unwrapAsync(this.methods.members({}));
+  }
+  memberCreate(username: string, displayName: string, roleIds?: string[]) {
+    return unwrapAsync(this.methods.memberCreate({ username, displayName, roleIds }));
+  }
+  permissionCatalog() {
+    return unwrapAsync(this.methods.permissionCatalog({}));
+  }
+  roles() {
+    return unwrapAsync(this.methods.roles({}));
+  }
+  roleCreate(name: string, permissions: string[]) {
+    return unwrapAsync(this.methods.roleCreate({ name, permissions }));
+  }
+  roleUpdate(roleId: string, name?: string, permissions?: string[]) {
+    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions }));
+  }
+  roleDelete(roleId: string) {
+    return unwrapAsync(this.methods.roleDelete({ roleId }));
+  }
+  memberRolesSet(humanId: string, roleIds: string[]) {
+    return unwrapAsync(this.methods.memberRolesSet({ humanId, roleIds }));
+  }
+  memberDevices(humanId: string) {
+    const principal = this.ctx.invocation?.peer.principal;
+    return unwrapAsync(
+      this.methods.memberDevices(
+        { humanId },
+        principal?.kind === 'botharness-member' ? principal.grantId : undefined,
+      ),
+    );
+  }
+  memberDeviceRevoke(humanId: string, grantId: string) {
+    return unwrapAsync(this.methods.memberDeviceRevoke({ humanId, grantId }));
+  }
+  ownerTransfer(humanId: string, password: string) {
+    return unwrapAsync(this.methods.ownerTransfer({ humanId, password }));
+  }
+  memberPasswordChange(current: string, next: string) {
+    const principal = this.ctx.invocation?.peer.principal;
+    if (principal?.kind === 'botharness-member' && this.team)
+      return this.team.withPasswordCaller(principal, undefined, () =>
+        unwrapAsync(this.methods.memberPasswordChange({ current, next })),
+      );
+    return unwrapAsync(this.methods.memberPasswordChange({ current, next }));
+  }
+  memberPasswordReset(humanId: string) {
+    return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
+  }
+  publicChannels() {
+    return unwrapAsync(this.methods.publicChannels({}));
+  }
+  publicChannelJoin(channelId: string) {
+    return unwrapAsync(this.methods.publicChannelJoin({ channelId }));
+  }
+  channelPublicSet(channelId: string, publicValue: boolean) {
+    return unwrapAsync(this.methods.channelPublicSet({ channelId, public: publicValue }));
   }
 
   followRoster(signal: AbortSignal): AsyncIterable<RosterLiveFrame> {
@@ -1044,8 +1156,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  list(query?: string): { bots: PersonaBotSummary[] } {
-    return unwrap(this.methods.list({ query }));
+  list(query?: string, administration?: boolean): { bots: PersonaBotSummary[] } {
+    return unwrap(
+      this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
+    );
   }
 
   activitySnapshot(): PersonaBotActivitySnapshot {
@@ -1593,7 +1707,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 
-  channelGet(channelId: string): ChannelManagementResult {
+  channelGet(channelId: string): { channel: ChannelRecord } | ChannelManagementResult {
     return unwrap(this.methods.channelGet({ channelId }));
   }
 
@@ -2869,6 +2983,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
 }
 
 markRemoteMethods(BotharnessBridgeService.prototype, [
+  'teamMode',
+  'teamModeSet',
+  'teamOwnerPasswordSet',
+  'teamInsecureHttpSet',
+  'members',
+  'memberCreate',
+  'permissionCatalog',
+  'roles',
+  'roleCreate',
+  'roleUpdate',
+  'roleDelete',
+  'memberRolesSet',
+  'memberDevices',
+  'memberDeviceRevoke',
+  'ownerTransfer',
+  'memberPasswordChange',
+  'memberPasswordReset',
+  'publicChannels',
+  'publicChannelJoin',
+  'channelPublicSet',
   'privateInputStatus',
   'privateInputSubmit',
   'privateInputCancel',
@@ -3196,6 +3330,7 @@ export function registerBridge(
   methods: InvocationBridgeMethods,
   privateInputs?: PrivateInputs,
   live?: BridgeLive,
+  team?: TeamService,
 ): BotharnessBridgeService {
-  return new BotharnessBridgeService(ctx, methods, privateInputs, live);
+  return new BotharnessBridgeService(ctx, methods, privateInputs, live, team);
 }
