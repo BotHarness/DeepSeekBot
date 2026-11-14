@@ -191,6 +191,7 @@ export const LIVE_OPTIONS = {
   'connection-id': { type: 'string' },
   fingerprint: { type: 'string' },
   'link-file': { type: 'string' },
+  'account-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
@@ -630,6 +631,7 @@ interface LiveValues
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
+  'account-file'?: string;
   'connection-id'?: string;
   fingerprint?: string;
   'remote-host-id'?: string;
