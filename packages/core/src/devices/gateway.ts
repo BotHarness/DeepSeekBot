@@ -79,6 +79,7 @@ export type GatewayRefusal =
   | 'ticket-invalid'
   | 'relay-signature-invalid'
   | 'host-session-unavailable'
+  | 'relationship-local-client-required'
   | 'not-found';
 
 export interface DeviceGatewayOptions {
@@ -369,6 +370,12 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     if (!admission.ok) return refuse(response, 401, admission.code);
     const pathname = new URL(request.url ?? '/', 'http://device').pathname;
     const endpoint = pathname.slice(`${prefix}/api/`.length);
+    if (
+      decodeURIComponent(endpoint)
+        .replace(/\/{2,}/gu, '/')
+        .startsWith('botharness/relationships')
+    )
+      return refuse(response, 403, 'relationship-local-client-required');
     if (
       await refuseConnectRpc(request, response, endpoint, () =>
         log('device-gateway phase=secret-route-refused'),

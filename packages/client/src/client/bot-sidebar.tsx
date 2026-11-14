@@ -570,9 +570,11 @@ function channelPreview(
       t('roster.latestActivity'));
   const author =
     message.author.kind === 'human'
-      ? humanIdOf(message.author) === selfHumanId()
-        ? t('rail.you')
-        : (message.author.displayName ?? t('channelActivity.human'))
+      ? message.author.deleted === true
+        ? t('team.deletedMember')
+        : humanIdOf(message.author) === selfHumanId()
+          ? t('rail.you')
+          : (message.author.displayName ?? t('team.otherMember'))
       : message.author.kind === 'bot'
         ? (bots.get(message.author.slug)?.displayName ?? message.author.slug)
         : message.author.kind === 'bridged'
@@ -2266,7 +2268,13 @@ export function BotSidebar({
               </button>
             </Tooltip>
           }
-          items={menuItems(t, gitReady(state.git), hostTabs, teamMode?.enabled === true).filter(
+          items={menuItems(
+            t,
+            gitReady(state.git),
+            hostTabs,
+            teamMode?.enabled === true,
+            teamMode?.viewer.kind === 'member',
+          ).filter(
             (item) =>
               (teamMode?.viewer.kind !== 'member' || MEMBER_MENU_ITEMS.has(item.id)) &&
               (item.id !== 'message-person' ||
@@ -2376,7 +2384,7 @@ export function BotSidebar({
         <div className="bh-error">{t('roster.error', { error: state.error })}</div>
       ) : null}
       {state.roster.readOnly ? <div className="bh-note">{t('roster.readOnly')}</div> : null}
-      {state.status === 'ready' && state.bots.length === 0 && teamMode?.viewer.kind !== 'member' ? (
+      {state.status === 'ready' && state.bots.length === 0 ? (
         <PanelEmptyState
           icon="hash"
           action={
@@ -4003,6 +4011,7 @@ export function ChannelMoveMenu({
 }
 
 const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set([
+  'bot',
   'channel',
   'section',
   'public-channels',
@@ -4021,6 +4030,7 @@ function menuItems(
   gitAvailable: boolean,
   remotes: boolean,
   team = false,
+  member = false,
 ): MenuEntry[] {
   const disabled = !gitAvailable;
   return [
@@ -4030,8 +4040,12 @@ function menuItems(
       icon: <IconAgentPresetOutlineRegular size={16} />,
       submenu: [
         { id: 'bot:empty', label: t('roster.menu.createBot.empty'), disabled },
-        { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
-        { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+        ...(member
+          ? []
+          : [
+              { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
+              { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
+            ]),
       ],
     },
     {

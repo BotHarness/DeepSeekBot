@@ -9,6 +9,25 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ## Usage
 
+### Reciprocal computer relationships
+
+`relationships` uses the authenticated local Host and the same approval owner as Connections. Each CLI enrollment creates its own device grant; no remote credential is shared through the local Host.
+
+This is a current-Owner capability: member/Admin carriers and `--as` cannot manage or enroll Host relationships. Derived device grants retain the Owner Human captured when their offer was created; Owner transfer invalidates old offers and old-Owner admission. Private Bots and Channels retain their existing per-Human access checks. E1 adds migration144 after published Team141–143; internal Environment-preview databases are not a supported upgrade source.
+
+| Command                                                                                  | Purpose                                                                                                                   |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `relationships list`                                                                     | Read persisted peers, approval state and pending peer revocation.                                                         |
+| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm` | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                           |
+| `relationships approve <id> <peer-public-key> --confirm`                                 | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                               |
+| `relationships sync <id>`                                                                | Read the peer's approval and complete the authenticated reciprocal handshake.                                             |
+| `relationships enroll <id> --device-name <name> --out <new-absolute-private-file>`       | Enroll this named CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers. |
+| `relationships disconnect <id> --confirm`                                                | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending.  |
+
+Use the existing `--host` / `--token-file` options to select the exact local owner. Repeat `enroll` against the other local Host for its independent CLI Client; `device-probe --device-file <absolute-private-file>` reads that Client's real remote Feed. Phones cannot invoke relationship enrollment through their device gateway. Do not retry an uncertain initiation blindly: inspect `relationships list` first. The E1 command persists pending peer revocation; automatic retry after an offline peer returns belongs to E4.
+
+To verify separate Clients, enroll twice into different new private files with distinct `--device-name` values (1–60 characters; default `CLI desktop`). On the remote owner, `devices` lists their distinct identifiers and names. Run `device-revoke <device-id> --confirm` for one, then probe both files: only that grant must fail. Keep an independently paired device in this check. A new relationship generation never revives an old one; use `relationships list` and the exact active ID. Web Clients use **Connections → Computer relationships → Use on this client**, give the Client a name, then open its remote Channel. Already enrolled Clients select **Open Channels** without issuing another grant.
+
 ### Recoverable Zip transfer and import
 
 Use the same authenticated Host as the phone. `bot-zip-upload --from-zip <file> --upload-key <stable-key> --host <url>` returns `sha256`, `sizeBytes`, `offset`, `chunkBytes` and `expiresAt`. It uses `zipUploadBegin` and `zipUploadChunk`, resuming acknowledged chunks with the same key and exact file. Raw chunks are 256 KiB so their base64 envelopes fit the encrypted device transport's 4 MiB request limit.
@@ -1601,6 +1620,31 @@ Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
 `connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
 the stored token; paired devices keep their credentials.
 
+### Check this computer's public connection
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` runs the same
+self-check as **Connections → Tobs Connect → Check again**. Signing in and starting or
+restarting the connector trigger it automatically. It checks the account, connector,
+relay-reported online state, then a fresh TLS-verified WebSocket and Noise handshake pinned
+to this Host's identity through the public device channel. It creates no device grant.
+
+The JSON `health` observation is also included in `connect-status`:
+`idle`, `checking` (with `stage`), `passed`, `failed`, or `stale`.
+Completed checks include `checkedAt` and `elapsedMs`; failures include `stage` and a bounded
+`code` such as `dns`, `tls`, `http`, `timeout`, `handshake`, `identity`, `relay-offline` or
+`connector-unavailable`. HTTP refusals add only a numeric `httpStatus`.
+The UI can copy these safe fields without account names, addresses, tokens or raw responses.
+
+Concurrent callers share one check. Each check has a 20-second overall budget and an
+8-second public handshake budget. Success expires after five minutes; opening or refreshing
+the dialog does not start a background probe. A passed check proves reachability from this
+computer at that time, not from every phone network. Use the phone's diagnostics separately
+if it still cannot connect. A stopped connector or changed account invalidates old success.
+
+The manual Web request has a 25-second transport deadline and aborts when its card closes. The public WebSocket accepts at most 1 KiB per handshake message and disables compression before authenticating the Host.
+
+The public stage retries only transient DNS/network/timeout and HTTP 429/5xx failures, at most four attempts with 1/3/6-second waits inside the same 20-second overall deadline. Certificate and identity failures do not retry. Completed checks refresh the visible account computer list once.
+
 ### Account sign-in
 
 ```sh
@@ -1964,4 +2008,16 @@ deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
 
-`members reset-password <username> --initial-password-file <path>` is Owner-only recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+`members reset-password <username> --initial-password-file <path>` requires `members.manage` and coverage of the target roles (Admin targets require the Owner); it provides recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+
+```sh
+deepseekbot --as bob members change-password --password-stdin --sign-out-others=false < password-change.json
+deepseekbot members deactivate bob
+deepseekbot members reactivate bob
+deepseekbot members transfer bob --preview
+deepseekbot members transfer bob --to alice
+deepseekbot members purge bob --preview
+deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
+```
+
+Password changes default to signing out every other browser and paired device; `false` keeps them except during the forced first change. Lifecycle operations require `members.manage` with the target-role ceiling; Owner and self targets are protected, and only the Owner can manage Admin targets. Deactivation preserves data and revokes every grant. Reactivation requires fresh sign-in. Transfer moves group Channel ownership and the member's private Bots, with their Memory and DM history, to an active member or the Owner; preview lists both before anything moves. The member's Tob stays with them until purge. Purge requires deactivation and completed transfer, then a single-use, five-minute token from the preview. The username argument supplies the exact username confirmation; stdin supplies only the token. Shared messages retain `author.humanId` with `author.deleted: true` and no display name. `team-mode status` includes `activeMembers`; `team-mode off` also returns `suspendedMembers`. Previously deactivated accounts remain deactivated after off/on. Purge also removes the member's Tob and any private Bots still owned by them, with their Memory; DMs that another Human took part in are kept.

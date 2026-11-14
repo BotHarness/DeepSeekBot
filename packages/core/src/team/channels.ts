@@ -7,6 +7,7 @@ import type { TeamRoles } from './roles.js';
 import { TeamError } from './error.js';
 import {
   channelPolicySchema,
+  channelBotDmEligibleSql,
   channelRoleEligibleSql,
   channelVisibilitySchema,
   type ChannelPolicy,
@@ -66,7 +67,7 @@ export class TeamChannels {
     return `h.status = 'active' ${includeDeleted ? '' : "AND json_extract(c.record_json, '$.deletedAt') IS NULL"} AND (
       (json_extract(c.record_json, '$.type') = 'dm' AND (
         (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL AND EXISTS(SELECT 1 FROM json_each(c.record_json, '$.humanParticipants') p WHERE p.value = h.human_id))
-        OR (json_extract(c.record_json, '$.humanParticipants') IS NULL AND h.human_id = s.owner_human_id)))
+        OR (json_extract(c.record_json, '$.humanParticipants') IS NULL AND ${channelBotDmEligibleSql('c', 'h.human_id')})))
       OR (json_extract(c.record_json, '$.type') = 'group'
         AND (m.human_id IS NOT NULL ${joinedOnly ? '' : "OR json_extract(c.visibility_json, '$.kind') IN ('public','roles')"})
         AND ${channelRoleEligibleSql('c', 'h.human_id')}))`;

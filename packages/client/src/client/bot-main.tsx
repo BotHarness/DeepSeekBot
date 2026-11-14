@@ -299,6 +299,7 @@ function authorLabel(
 ): string {
   switch (message.author.kind) {
     case 'human':
+      if (message.author.deleted === true) return t('team.deletedMember');
       return message.author.displayName ?? humanLabel(humanName, t);
     case 'system':
       return t('main.author.system');

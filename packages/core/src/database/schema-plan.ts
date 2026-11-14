@@ -3380,20 +3380,100 @@ const TEAM_ROLES_MIGRATION: SchemaMigration = {
   },
 };
 
-const CHANNEL_ACCESS_MIGRATION: SchemaMigration = {
+const PRIVATE_BOTS_MIGRATION: SchemaMigration = {
   generation: 143,
+  module: 'team',
+  description: 'Private Bot ownership and one durable Tob identity per Human',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE persona_bots ADD COLUMN owner_human_id TEXT NOT NULL DEFAULT 'local-human';
+      CREATE INDEX persona_bots_owner ON persona_bots(owner_human_id, slug);
+      UPDATE persona_bots SET body = json_set(body, '$.ownerHumanId', owner_human_id);
+      ALTER TABLE tob_identity RENAME TO tob_identity_owner;
+      CREATE TABLE tob_identity (
+        human_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL UNIQUE
+      );
+      INSERT INTO tob_identity SELECT 'local-human', bot_slug FROM tob_identity_owner;
+      DROP TABLE tob_identity_owner;
+    `);
+  },
+};
+
+const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
+  generation: 144,
+  module: 'host-relationships',
+  description: 'Persist pinned reciprocal Host relationships and derived device provenance',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE host_relationships (
+        relationship_id TEXT PRIMARY KEY,
+        peer_host_id TEXT NOT NULL,
+        peer_name TEXT NOT NULL,
+        peer_key TEXT NOT NULL,
+        peer_routes TEXT NOT NULL,
+        direction TEXT NOT NULL CHECK (direction IN ('incoming', 'outgoing')),
+        state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'active', 'disconnected')),
+        expires_at INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        peer_revocation_pending INTEGER NOT NULL DEFAULT 0 CHECK (peer_revocation_pending IN (0, 1))
+      );
+      CREATE UNIQUE INDEX host_relationship_live_peer ON host_relationships(peer_host_id)
+        WHERE state != 'disconnected';
+      CREATE TABLE relationship_device_grants (
+        device_id TEXT PRIMARY KEY REFERENCES paired_devices(device_id),
+        relationship_id TEXT NOT NULL REFERENCES host_relationships(relationship_id)
+      );
+      CREATE INDEX relationship_grant_owner ON relationship_device_grants(relationship_id);
+    `);
+  },
+};
+
+const MEMBER_LIFECYCLE_MIGRATION: SchemaMigration = {
+  generation: 145,
+  module: 'team',
+  description: 'Deactivation, mode suspension and deleted member identities',
+  rebuildsReferencedTables: true,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE humans_next (
+        human_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'suspended', 'deactivated')),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO humans_next SELECT * FROM humans;
+      DROP TABLE humans;
+      ALTER TABLE humans_next RENAME TO humans;
+      CREATE INDEX humans_status ON humans(status, human_id);
+      CREATE TABLE team_mode_suspensions (
+        human_id TEXT PRIMARY KEY REFERENCES humans(human_id),
+        previous_status TEXT NOT NULL CHECK (previous_status IN ('active', 'deactivated'))
+      );
+      CREATE TABLE deleted_humans (human_id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL);
+      UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId',
+        (SELECT owner_human_id FROM team_settings))
+        WHERE json_extract(record_json, '$.type') = 'group'
+          AND json_extract(record_json, '$.ownerBotSlug') IS NULL;
+    `);
+  },
+};
+
+const CHANNEL_ACCESS_MIGRATION: SchemaMigration = {
+  generation: 146,
   module: 'team',
   description: 'Channel visibility, Human ownership, policy and admins',
   migrate(database) {
     database.exec(`
       ALTER TABLE channel_records ADD COLUMN visibility_json TEXT NOT NULL DEFAULT '{"kind":"private"}';
       ALTER TABLE channel_records ADD COLUMN policy_json TEXT NOT NULL DEFAULT '${JSON.stringify(DEFAULT_CHANNEL_POLICY)}';
-      ALTER TABLE channel_records ADD COLUMN owner_human_id TEXT REFERENCES humans(human_id);
+      ALTER TABLE channel_records ADD COLUMN owner_human_id TEXT REFERENCES humans(human_id) ON DELETE SET NULL;
       UPDATE channel_records SET visibility_json = '{"kind":"public"}' WHERE public = 1;
-      UPDATE channel_records SET owner_human_id = (SELECT owner_human_id FROM team_settings);
+      UPDATE channel_records SET owner_human_id = COALESCE(json_extract(record_json, '$.ownerHumanId'), (SELECT owner_human_id FROM team_settings));
       CREATE TABLE channel_admins (
         channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
-        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
         PRIMARY KEY(channel_id, human_id)
       );
     `);
@@ -3542,5 +3622,8 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SOURCE_EVENT_HUMAN_MIGRATION,
   TEAM_MEMBERS_MIGRATION,
   TEAM_ROLES_MIGRATION,
+  PRIVATE_BOTS_MIGRATION,
+  HOST_RELATIONSHIP_MIGRATION,
+  MEMBER_LIFECYCLE_MIGRATION,
   CHANNEL_ACCESS_MIGRATION,
 ]);

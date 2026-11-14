@@ -2132,6 +2132,8 @@ describe('bridge methods', () => {
       value: {
         bots: [
           {
+            ownerHumanId: 'local-human',
+            owner: true,
             slug: 'ada',
             displayName: 'Ada',
             roles: ['研究'],
@@ -2161,6 +2163,8 @@ describe('bridge methods', () => {
       value: {
         bots: [
           {
+            ownerHumanId: 'local-human',
+            owner: true,
             slug: 'plain',
             displayName: 'Plain',
             roles: [],
@@ -2243,6 +2247,8 @@ describe('bridge methods', () => {
       ok: true,
       value: {
         bot: {
+          ownerHumanId: 'local-human',
+          owner: true,
           slug: 'ada',
           displayName: 'Ada',
           roles: ['研究'],
@@ -2449,6 +2455,8 @@ describe('bridge methods', () => {
       ok: true,
       value: {
         bot: {
+          ownerHumanId: 'local-human',
+          owner: true,
           slug: 'ada',
           displayName: 'Ada Lovelace',
           roles: [],

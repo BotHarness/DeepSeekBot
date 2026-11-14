@@ -434,15 +434,34 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     if (known !== undefined && known !== key) throw new Error('network-host-key-conflict');
   };
 
+  let channelAccessSchemaReady = false;
+  const hasChannelAccessSchema = (): boolean => {
+    if (!channelAccessSchemaReady)
+      channelAccessSchemaReady = database.read((db) =>
+        db
+          .prepare('PRAGMA table_info(channel_records)')
+          .all()
+          .some((column) => column.name === 'owner_human_id'),
+      );
+    return channelAccessSchemaReady;
+  };
+
   const writeRecord = (human: HumanContext, record: ChannelRecord): void => {
     database.transaction(
       (db) => {
-        db.prepare(`INSERT INTO channel_records (channel_id, record_json, owner_human_id) VALUES (?, ?, ?)
-        ON CONFLICT(channel_id) DO UPDATE SET record_json = excluded.record_json`).run(
-          record.id,
-          JSON.stringify(record),
-          human.humanId,
-        );
+        if (hasChannelAccessSchema())
+          db.prepare(`INSERT INTO channel_records (channel_id, record_json, owner_human_id) VALUES (?, ?, ?)
+          ON CONFLICT(channel_id) DO UPDATE SET record_json = excluded.record_json`).run(
+            record.id,
+            JSON.stringify(record),
+            record.ownerHumanId ?? human.humanId,
+          );
+        else
+          db.prepare(`INSERT INTO channel_records (channel_id, record_json) VALUES (?, ?)
+          ON CONFLICT(channel_id) DO UPDATE SET record_json = excluded.record_json`).run(
+            record.id,
+            JSON.stringify(record),
+          );
         if (record.type === 'group')
           db.prepare(`
             INSERT OR IGNORE INTO channel_human_members
@@ -1760,6 +1779,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       humanAccess = access;
     },
     getOrCreateHumanDm(human, id, participants) {
+      if (!hasChannelAccessSchema()) throw new TeamError('unavailable');
       const existing = readRecord(id);
       if (existing) return existing;
       const timestamp = now().toISOString();
@@ -2032,6 +2052,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const record: ChannelRecord = {
         id,
         type: 'group',
+        ...(input.ownerBotSlug === undefined ? { ownerHumanId: human.humanId } : {}),
         name: input.name.trim() || id,
         members: [...input.members],
         ...(input.ownerBotSlug === undefined ? {} : { ownerBotSlug: input.ownerBotSlug }),
@@ -2984,13 +3005,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         SELECT p.message_id FROM channel_placements p
         JOIN source_events e ON e.source_event_id = p.source_event_id
         JOIN channel_records c ON c.channel_id = p.channel_id
+        ${humanAccess ? "JOIN humans viewer ON viewer.human_id = ? AND viewer.status = 'active'" : ''}
         LEFT JOIN channel_human_members h ON h.channel_id = p.channel_id AND h.human_id = ? AND h.left_at IS NULL
         WHERE p.channel_id = ? AND json_extract(c.record_json, '$.deletedAt') IS NULL ${humanAccess ? `AND ${channelAudienceSql('c', 'h')}` : ''}
           AND ((json_extract(c.record_json, '$.type') = 'dm' AND (json_extract(c.record_json, '$.botSlug') IS NOT NULL OR (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL AND h.human_id IS NOT NULL))) OR
           (json_extract(c.record_json, '$.type') = 'group' AND h.human_id IS NOT NULL AND p.revision >= h.visible_from_revision))
         ORDER BY p.revision DESC LIMIT 1
       `)
-          .get(human.humanId, id),
+          .get(...(humanAccess ? [human.humanId] : []), human.humanId, id),
       ) as { message_id: string } | undefined;
       return row?.message_id;
     },
@@ -3584,13 +3606,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             JOIN inbox_history_documents d ON d.rowid = e.rowid
             ${indexed ? 'JOIN inbox_history_fts ON inbox_history_fts.rowid = e.rowid' : ''}
             JOIN channel_records c ON c.channel_id = p.channel_id
-            LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
+            ${humanAccess ? "JOIN humans viewer ON viewer.human_id = ? AND viewer.status = 'active'" : ''}
+        LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
               AND m.human_id = ? AND m.left_at IS NULL
            WHERE ${where.join(' AND ')}
            ORDER BY e.created_at DESC, p.channel_id DESC, p.message_id DESC
            LIMIT ?
         `)
-                .all(human.humanId, ...values, limit + 1);
+                .all(...(humanAccess ? [human.humanId] : []), human.humanId, ...values, limit + 1);
             }) as unknown as Array<{
               channel_id: string;
               message_id: string;
@@ -3909,7 +3932,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
              AND EXISTS (
                SELECT 1 FROM channel_placements p
                  JOIN channel_records c ON c.channel_id = p.channel_id
-                 LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
+                 ${humanAccess ? "JOIN humans viewer ON viewer.human_id = ? AND viewer.status = 'active'" : ''}
+        LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
                    AND m.human_id = ? AND m.left_at IS NULL
                 WHERE p.source_event_id = e.source_event_id
                   AND json_extract(c.record_json, '$.deletedAt') IS NULL ${humanAccess ? `AND ${channelAudienceSql()}` : ''}
@@ -3922,7 +3946,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         ) AS at
           FROM slugs WHERE slug IS NOT NULL
       `)
-          .all(human.humanId),
+          .all(...(humanAccess ? [human.humanId] : []), human.humanId),
       ) as Array<{ slug: string; at: number }>;
       return new Map(
         rows.filter((row) => Number.isFinite(row.at)).map((row) => [row.slug, row.at]),
@@ -4004,7 +4028,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           FROM source_events e
           CROSS JOIN channel_placements p ON p.source_event_id = e.source_event_id
           JOIN channel_records c ON c.channel_id = p.channel_id
-          LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
+          ${humanAccess ? "JOIN humans viewer ON viewer.human_id = ? AND viewer.status = 'active'" : ''}
+        LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
             AND m.human_id = ? AND m.left_at IS NULL
          WHERE e.created_at >= date(?, '-1 day') AND e.created_at < date(?, '+2 day')
            AND json_extract(c.record_json, '$.deletedAt') IS NULL ${humanAccess ? `AND ${channelAudienceSql()}` : ''}
@@ -4016,7 +4041,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
            AND julianday(e.created_at) >= julianday(?) AND julianday(e.created_at) < julianday(?)
          GROUP BY p.channel_id, author_json
       `)
-          .all(human.humanId, from, to, from, to),
+          .all(...(humanAccess ? [human.humanId] : []), human.humanId, from, to, from, to),
       ) as Array<{ channel_id: string; author_json: string; count: number }>;
       return rows.map((row) => {
         const author: unknown = JSON.parse(row.author_json);

@@ -2,6 +2,16 @@
   "version": 1,
   "groups": [
     {
+      "id": "host-relationships",
+      "description": "Reciprocal Host approval, independent client enrollment and relationship disconnection.",
+      "scope": "Local Host",
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:RELATIONSHIPS_PATH",
+        "setting:packages/client/src/client/relationship-settings.tsx:{item.peer.name}"
+      ],
+      "commands": ["relationships", "device-probe"]
+    },
+    {
       "id": "client-preferences",
       "description": "Theme, locale, notifications, file opening and presentation preferences; native Settings fields already have generic settings CLI, but local services need a target Client.",
       "scope": "Client",
@@ -67,7 +77,7 @@
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/private`, ['POST']], [`${DEVICES_PATH}/private-tunnel`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/connect-health`, ['POST']], [`${DEVICES_PATH}/private`, ['POST']], [`${DEVICES_PATH}/private-tunnel`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
         "setting:packages/client/src/client/private-tunnel-settings.tsx:{t('privateTunnel.ingressLan')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
         "setting:packages/client/src/client/paired-devices.tsx:{item.name}",

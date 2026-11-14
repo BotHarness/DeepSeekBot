@@ -1,4 +1,5 @@
 import { channelVisibilitySchema, channelPolicySchema } from './channel-contract.js';
+import { ContentPurgeError } from '../purge/contracts.js';
 import { PERMISSION_CATALOG } from './permissions.js';
 import { z } from 'zod';
 import type { HumanContext } from '../humans/context.js';
@@ -16,7 +17,7 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
       return { ok: true, value };
     } catch (error) {
       const code =
-        error instanceof TeamError
+        error instanceof TeamError || error instanceof ContentPurgeError
           ? error.code
           : error instanceof z.ZodError
             ? 'invalid-input'
@@ -126,10 +127,50 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
       ),
     memberPasswordChange: (payload: unknown) =>
       call((service) => {
-        const { current, next } = z
-          .object({ current: z.string().max(1024), next: z.string().max(1024) })
+        const { current, next, signOutOthers } = z
+          .object({
+            current: z.string().max(1024),
+            next: z.string().max(1024),
+            signOutOthers: z.boolean().optional(),
+          })
           .parse(payload);
-        return service.changePassword(human, current, next);
+        return service.changePassword(human, current, next, signOutOthers);
+      }),
+    memberDeactivate: (payload: unknown) =>
+      call((service) =>
+        service.deactivate(human, z.object({ humanId: z.string().min(1) }).parse(payload).humanId),
+      ),
+    memberReactivate: (payload: unknown) =>
+      call((service) =>
+        service.reactivate(human, z.object({ humanId: z.string().min(1) }).parse(payload).humanId),
+      ),
+    memberTransferPreview: (payload: unknown) =>
+      call((service) =>
+        service.transferPreview(
+          human,
+          z.object({ humanId: z.string().min(1) }).parse(payload).humanId,
+        ),
+      ),
+    memberTransfer: (payload: unknown) =>
+      call((service) => {
+        const { humanId, toHumanId } = z
+          .object({ humanId: z.string().min(1), toHumanId: z.string().min(1) })
+          .parse(payload);
+        return service.transfer(human, humanId, toHumanId);
+      }),
+    memberPurgePreview: (payload: unknown) =>
+      call((service) =>
+        service.purgePreview(
+          human,
+          z.object({ humanId: z.string().min(1) }).parse(payload).humanId,
+        ),
+      ),
+    memberPurgeConfirm: (payload: unknown) =>
+      call((service) => {
+        const { humanId, token, username } = z
+          .object({ humanId: z.string().min(1), token: z.string().max(1024), username: z.string() })
+          .parse(payload);
+        return service.purgeConfirm(human, humanId, token, username);
       }),
     channelRoleDirectory: (payload: unknown) =>
       call((service) =>

@@ -18,7 +18,12 @@ afterEach(async () => {
     ),
   );
 });
-async function host() {
+async function host(
+  memberFailure: { code: string; message: string; details?: { permission: string } } = {
+    code: 'remote-access/denied',
+    message: 'member-call-refused',
+  },
+) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(async (request, response) => {
     if (request.method === 'GET') {
@@ -66,7 +71,7 @@ async function host() {
       response.end(
         JSON.stringify({
           ok: false,
-          error: { code: 'remote-access/denied', message: 'member-call-refused' },
+          error: memberFailure,
         }),
       );
     else
@@ -103,6 +108,21 @@ async function run(url: string, args: string[], stdin = '') {
   };
 }
 describe('Team CLI', () => {
+  it.each([
+    ['list'],
+    ['approve', 'a'.repeat(32), 'ab'.repeat(32), '--confirm'],
+    ['enroll', 'a'.repeat(32), '--out', 'private-relationship-client.json'],
+    ['disconnect', 'a'.repeat(32), '--confirm'],
+    ['sync', 'a'.repeat(32)],
+  ])(
+    'refuses member impersonation for relationship %j without an Owner HTTP fallback',
+    async (...args) => {
+      const f = await host();
+      const result = await run(f.url, ['--as', 'bob', 'relationships', ...args]);
+      expect(result.output).toMatchObject({ error: { code: 'as-command-unsupported' } });
+      expect(f.calls).toHaveLength(0);
+    },
+  );
   it('recovers a committed username into a new private file without printing its password', async () => {
     const f = await host();
     const path = join(createTempRoot('team-cli-reset-'), 'reset-password');
@@ -508,5 +528,141 @@ describe('M4 Channel policy CLI', () => {
       path: '/api/botharness/team-as',
       input: { username: 'bob', method: 'channelGet' },
     });
+  });
+});
+
+describe('M9 lifecycle CLI', () => {
+  it.each([
+    {
+      args: ['members', 'deactivate', 'bob'],
+      method: 'memberDeactivate',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'reactivate', 'bob'],
+      method: 'memberReactivate',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'transfer', 'bob', '--preview'],
+      method: 'memberTransferPreview',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'transfer', 'bob', '--to', 'owner'],
+      method: 'memberTransfer',
+      payload: { humanId: 'bob-id', toHumanId: 'local-human' },
+    },
+    {
+      args: ['members', 'purge', 'bob', '--preview'],
+      method: 'memberPurgePreview',
+      payload: { humanId: 'bob-id' },
+    },
+    {
+      args: ['members', 'purge', 'bob', '--token-stdin', '--confirm'],
+      method: 'memberPurgeConfirm',
+      payload: { humanId: 'bob-id', token: 'private-token', username: 'bob' },
+    },
+    {
+      args: ['members', 'change-password', '--password-stdin', '--sign-out-others=false'],
+      method: 'memberPasswordChange',
+      payload: { current: 'old-password', next: 'new-password', signOutOthers: false },
+    },
+    {
+      args: ['members', 'change-password', '--password-stdin'],
+      method: 'memberPasswordChange',
+      payload: { current: 'old-password', next: 'new-password', signOutOthers: true },
+    },
+  ])('dispatches $method using the agreed payload', async ({ args, method, payload }) => {
+    const f = await host();
+    const result = await run(
+      f.url,
+      args,
+      method === 'memberPasswordChange'
+        ? JSON.stringify({ current: 'old-password', next: 'new-password' })
+        : 'private-token',
+    );
+    expect(result.status).toBe(0);
+    expect(f.calls.at(-1)?.input).toMatchObject({
+      method: `botharness/${method}`,
+      payload: { args: payload },
+    });
+    expect(result.text + result.errorText).not.toContain('private-token');
+  });
+  it.each([
+    ['members', 'purge', 'bob', '--token-stdin'],
+    ['members', 'purge', 'bob', '--confirm'],
+    ['members', 'transfer', 'bob'],
+    ['members', 'change-password', '--password-stdin', '--sign-out-others=maybe'],
+  ])('refuses incomplete or invalid lifecycle commands: %s', async (...args) => {
+    const f = await host();
+    expect((await run(f.url, args, 'private-token')).status).not.toBe(0);
+    expect(
+      f.calls.some((call) =>
+        [
+          'botharness/memberPurgeConfirm',
+          'botharness/memberTransfer',
+          'botharness/memberPasswordChange',
+        ].includes(String(call.input.method)),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('M2 CLI member Bot and Activity dispatch', () => {
+  it.each([
+    {
+      code: 'permission-required',
+      message: 'permission-required',
+      details: { permission: 'bots.create' },
+    },
+    { code: 'member-suspended', message: 'member-suspended' },
+  ])('preserves $code from bots create --as without Owner fallback', async (failure) => {
+    const f = await host(failure);
+    const result = await run(f.url, [
+      'bots',
+      'create',
+      '--as',
+      'bob',
+      '--name',
+      'Denied Bot',
+      '--operation-key',
+      'denied-bot-create-0001',
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.output).toMatchObject({ error: failure });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]).toMatchObject({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', method: 'create' },
+    });
+  });
+
+  it.each([
+    { argv: ['bots', 'list'], method: 'list', stdin: '' },
+    { argv: ['bots', 'list', '--administration'], method: 'list', stdin: '' },
+    { argv: ['bots', 'show', 'alice-bot'], method: 'get', stdin: '' },
+    {
+      argv: ['bots', 'create', '--name', 'Member Bot', '--operation-key', 'member-cli-0001'],
+      method: 'create',
+      stdin: '',
+    },
+    {
+      argv: ['bots', 'delete', 'alice-bot', '--confirm', '--confirmation-stdin'],
+      method: 'deletionConfirm',
+      stdin: '{"token":"reviewed-deletion-token"}',
+    },
+    { argv: ['activity', 'list'], method: 'humanAttention', stdin: '' },
+  ])('keeps $method on the member Peer without Owner fallback', async ({ argv, method, stdin }) => {
+    const f = await host();
+    const result = await run(f.url, ['--as', 'bob', ...argv], stdin);
+    expect(result.status).not.toBe(0);
+    expect(result.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls).toEqual([
+      expect.objectContaining({
+        path: '/api/botharness/team-as',
+        input: expect.objectContaining({ username: 'bob', namespace: 'botharness', method }),
+      }),
+    ]);
   });
 });

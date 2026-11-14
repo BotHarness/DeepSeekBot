@@ -33,9 +33,22 @@ export function channelRoleEligibleSql(channel: string, humanId: string): string
         WHERE ca.channel_id = ${channel}.channel_id AND ca.human_id = ${humanId}))))`;
 }
 
+export function channelBotDmEligibleSql(channel: string, humanId: string): string {
+  return `((json_extract(${channel}.record_json, '$.remoteBot') IS NOT NULL
+      AND ${humanId} = (SELECT owner_human_id FROM team_settings))
+    OR (json_extract(${channel}.record_json, '$.remoteBot') IS NULL
+      AND json_array_length(${channel}.record_json, '$.members') > 0
+      AND NOT EXISTS (SELECT 1 FROM json_each(${channel}.record_json, '$.members') mb
+        LEFT JOIN persona_bots b ON b.slug = mb.value
+        WHERE b.slug IS NULL OR b.owner_human_id <> ${humanId})))`;
+}
+
 export function channelAudienceSql(channel = 'c', membership = 'm'): string {
   return `(
-    (json_extract(${channel}.record_json, '$.humanParticipants') IS NULL OR ${membership}.human_id IS NOT NULL)
-    AND (json_extract(${channel}.record_json, '$.type') <> 'group'
-      OR ${channelRoleEligibleSql(channel, `${membership}.human_id`)}))`;
+    (json_extract(${channel}.record_json, '$.type') = 'dm' AND (
+      (json_extract(${channel}.record_json, '$.humanParticipants') IS NOT NULL AND ${membership}.human_id IS NOT NULL)
+      OR (json_extract(${channel}.record_json, '$.humanParticipants') IS NULL
+        AND ${channelBotDmEligibleSql(channel, 'viewer.human_id')})))
+    OR (json_extract(${channel}.record_json, '$.type') = 'group'
+      AND ${channelRoleEligibleSql(channel, 'viewer.human_id')}))`;
 }

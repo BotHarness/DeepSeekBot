@@ -1,6 +1,9 @@
 import { TeamError } from '../team/error.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
+import { guardHumanBridge } from '../team/bridge-access.js';
+import { botOwner, privateBotRegistry } from '../team/bot-access.js';
+import { privateBotCreations } from '../bots/creation.js';
 import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
 import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
@@ -505,6 +508,8 @@ export interface ActivityOverview {
 }
 
 export interface PersonaBotSummary {
+  ownerHumanId?: string;
+  owner?: boolean;
   lastActivityAt?: number;
   tob?: { defaultName: boolean; defaultAvatar: boolean };
   slug: string;
@@ -829,6 +834,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
     payload: unknown,
   ): BridgeResult<
     | ChannelManagementResult
+    | { channel: ChannelRecord; channelFingerprint?: never }
     | ({ channel: ChannelRecord; channelFingerprint?: never } & ReturnType<TeamChannels['view']>)
   >;
   channelCreate(
@@ -2059,6 +2065,23 @@ export function createBridgeMethodsForHumans(
 }
 
 export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps): BridgeMethods {
+  const scoped = {
+    ...deps,
+    ...(deps.registry ? { registry: privateBotRegistry(deps.registry, human) } : {}),
+    ...(deps.creations ? { creations: privateBotCreations(deps.creations, human) } : {}),
+  };
+  return guardHumanBridge(human, deps, buildBridgeMethods(human, scoped, deps.registry), () =>
+    buildBridgeMethods(human, deps),
+  );
+}
+
+function buildBridgeMethods(
+  human: HumanContext,
+  deps: BridgeMethodsDeps,
+  globalRegistry = deps.registry,
+): BridgeMethods {
+  const isHostOwner = () =>
+    deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   async function appendStopNotice(
     channelId: string,
     botSlug: string,
@@ -2167,8 +2190,8 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
   }
 
   const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
-  const templateUsers = (name: string): string[] =>
-    deps.registry
+  const templateUsers = (name: string, registry = deps.registry): string[] =>
+    registry
       .list()
       .filter((record) => record.approvalTemplate === name)
       .map((record) => record.slug);
@@ -2203,7 +2226,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       : undefined;
   };
   const channelView = (channel: ChannelRecord): ChannelListItem => {
-    if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) {
+    if (!isHostOwner()) {
       const {
         invitations: _invitations,
         joinRequests: _requests,
@@ -2251,23 +2274,22 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
     };
   };
   const listedChannels = async (): Promise<ChannelRecord[]> => {
-    if (deps.channels.list().some((channel) => channel.remoteBot !== undefined))
+    if (isHostOwner() && deps.channels.list().some((channel) => channel.remoteBot !== undefined))
       await deps.runtime?.refreshBotContacts?.();
+    for (const bot of deps.registry.list())
+      deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
     if (deps.team) {
-      if (deps.team.isOwner(human))
-        for (const bot of deps.registry.list())
-          deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
       const visible = deps.team.channelAccess.visibleIds(human);
       return deps.channels.list().filter((channel) => visible.has(channel.id));
     }
-    if (human.humanId === OWNER_HUMAN_CONTEXT.humanId) {
-      for (const bot of deps.registry.list())
-        deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
-      return deps.channels
-        .list()
-        .filter((channel) => !deps.team || deps.team.belongs(human, channel.id));
-    }
-    return deps.channels.list().filter((channel) => deps.team?.belongs(human, channel.id));
+    return deps.channels
+      .list()
+      .filter((channel) =>
+        channel.type === 'dm'
+          ? (isHostOwner() && channel.remoteBot !== undefined) ||
+            channel.members.every((slug) => deps.registry.get(slug) !== undefined)
+          : isHostOwner(),
+      );
   };
   const listItem = (channel: ChannelRecord): ChannelListItem => {
     const latest = deps.channels.latestMessage(channel.id);
@@ -2410,7 +2432,12 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
   };
   const createBotId = deps.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
   const detailOf = (record: PersonaBotRecord): { bot: PersonaBotDetail } => ({
-    bot: detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
+    bot: {
+      ...detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
+      ownerHumanId: botOwner(record),
+      owner: botOwner(record) === human.humanId,
+      ...(botOwner(record) !== human.humanId ? { sessions: {} } : {}),
+    },
   });
 
   const rosterWrite = async <T>(operation: () => Promise<T>): Promise<BridgeResult<T>> => {
@@ -3065,7 +3092,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
     async tobHome() {
       if (!deps.tob) return unavailable();
       try {
-        const home = await deps.tob.ensure();
+        const home = await deps.tob.ensure(human);
         const attention = deps.humanAttention?.status(human);
         return {
           ok: true,
@@ -3083,6 +3110,21 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
     },
     async onboarding(payload) {
       if (deps.onboarding === undefined) return unavailable();
+      if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) {
+        if (!deps.tob) return unavailable();
+        const home = await deps.tob.ensure(human);
+        return {
+          ok: true,
+          value: {
+            profileId: human.humanId,
+            tutorial: 'skipped',
+            completed: true,
+            preparation: 'ready',
+            defaultBotSlug: home.botSlug,
+            channelId: home.channelId,
+          },
+        };
+      }
       const source = asObject(payload);
       const action = source['action'];
       if (
@@ -3292,16 +3334,19 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
           const failure = deps.channels.message(channelId, failureMessageId)?.sessionFailure;
           if (failure?.requestMessageId !== messageId)
             return invalidInput('Failure does not belong to this message');
-          await deps.runtime.recoverDmMessage({
-            channelId,
-            failureMessageId,
-            action: recovery,
-            compact: async (sessionId) => {
-              const result = await deps.idleCompaction?.compactReservedSession?.(sessionId);
-              return result?.outcome === 'compacted';
+          await deps.runtime.recoverDmMessage(
+            {
+              channelId,
+              failureMessageId,
+              action: recovery,
+              compact: async (sessionId) => {
+                const result = await deps.idleCompaction?.compactReservedSession?.(sessionId);
+                return result?.outcome === 'compacted';
+              },
             },
-          });
-        } else await deps.runtime.retryDmMessage(channelId, messageId);
+            human,
+          );
+        } else await deps.runtime.retryDmMessage(channelId, messageId, human);
         return { ok: true, value: { accepted: true } };
       } catch (error) {
         if (error instanceof SessionRecoveryError)
@@ -3885,7 +3930,6 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       }
     },
     list(payload) {
-      if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId) return { ok: true, value: { bots: [] } };
       const activity = new Map(deps.channels.latestBotActivity?.(human));
       for (const [slug, at] of deps.runtime?.latestAssignmentActivity?.() ?? [])
         activity.set(slug, Math.max(activity.get(slug) ?? 0, at));
@@ -3902,7 +3946,11 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
         })
         .map((record) => ({
           ...summarize(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
-          ...(activity.has(record.slug) ? { lastActivityAt: activity.get(record.slug)! } : {}),
+          ownerHumanId: botOwner(record),
+          owner: botOwner(record) === human.humanId,
+          ...(botOwner(record) === human.humanId && activity.has(record.slug)
+            ? { lastActivityAt: activity.get(record.slug)! }
+            : {}),
           ...(deps.registry.get(record.slug) === undefined
             ? {
                 deleted: true,
@@ -4705,7 +4753,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       const slug = shareDraftSlug(payload);
       if (deps.shareDrafts === undefined || deps.tob === undefined) return marketplaceUnavailable();
       if (slug === undefined) return invalidInput('slug must name one of your Bots');
-      const home = await deps.tob.ensure();
+      const home = await deps.tob.ensure(human);
       return uploadResult(
         deps.shareDrafts.exportTo(slug, join(home.workspacePath, 'share-exports', slug)),
       );
@@ -5019,12 +5067,18 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       if (typeof id !== 'string') return invalidInput('id is required');
       const result = deps.prompts.library.delete(id);
       if (!result.ok) return promptPresetFailure(result.reason);
-      const clearedBots = deps.registry
+      const clearedBots = globalRegistry
         .list()
         .filter((record) => record.promptPreset === id)
         .map((record) => record.slug);
-      for (const slug of clearedBots) deps.registry.setPromptSettings(slug, { preset: null });
-      return { ok: true, value: { id, clearedBots } };
+      for (const slug of clearedBots) globalRegistry.setPromptSettings(slug, { preset: null });
+      return {
+        ok: true,
+        value: {
+          id,
+          clearedBots: clearedBots.filter((slug) => deps.registry.get(slug) !== undefined),
+        },
+      };
     },
     promptGlobalSet(payload) {
       if (deps.prompts === undefined) return unavailable();
@@ -5085,9 +5139,15 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       if (typeof name !== 'string') return invalidInput('name is required');
       const result = approvalTemplateLibrary.delete(name);
       if (!result.ok) return templateWriteFailure(name, result.reason);
-      const clearedBots = templateUsers(name);
-      for (const slug of clearedBots) deps.registry.setApprovalTemplate(slug, undefined);
-      return { ok: true, value: { template: { name }, clearedBots } };
+      const clearedBots = templateUsers(name, globalRegistry);
+      for (const slug of clearedBots) globalRegistry.setApprovalTemplate(slug, undefined);
+      return {
+        ok: true,
+        value: {
+          template: { name },
+          clearedBots: clearedBots.filter((slug) => deps.registry.get(slug) !== undefined),
+        },
+      };
     },
     botApprovalTemplateSet(payload) {
       const slug = asSlug(payload);
@@ -5600,7 +5660,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       const ids = new Set(changed.channelIds);
       const present = new Set(listed.map((channel) => channel.id));
       if (
-        human.humanId !== OWNER_HUMAN_CONTEXT.humanId &&
+        !isHostOwner() &&
         changed.channelIds.some(
           (id) =>
             !present.has(id) &&
@@ -5610,7 +5670,7 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
       )
         return { ok: true, value: { reset: true, cursor: changed.cursor } };
       if (
-        human.humanId !== OWNER_HUMAN_CONTEXT.humanId &&
+        !isHostOwner() &&
         !deps.channels.hasHumanMembership &&
         changed.channelIds.some((id) => !present.has(id))
       )
@@ -5654,6 +5714,20 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
     channelGet(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
+      if (!isHostOwner()) {
+        const channel = deps.channels.get(channelId);
+        if (channel === undefined || channel.deletedAt !== undefined)
+          return unknownChannel(channelId);
+        return {
+          ok: true,
+          value: {
+            channel: channelView(channel),
+            ...(channel.type === 'group' && deps.team
+              ? deps.team.channelAccess.view(human, channelId)
+              : {}),
+          },
+        };
+      }
       if (!deps.channelManagement)
         return {
           ok: false,
@@ -9714,14 +9788,23 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
         try {
           const input = asObject(payload);
           const id = asNonBlank(input, 'channelId');
-          if (scoped.has(key) && id && !deps.team!.channelAccess.canRead(human, id))
+          if (
+            scoped.has(key) &&
+            id &&
+            (!isHostOwner() || deps.channels.get(id)) &&
+            !deps.team!.channelAccess.canRead(human, id, key === 'channelSendStatus')
+          )
             throw new TeamError('channel-not-found');
           if (key === 'channelCreate') deps.team!.roles.require(human, 'channels.create');
-          if (id && ['channelRename', 'channelGroupAvatarSet'].includes(key))
+          if (
+            id &&
+            deps.channels.get(id)?.type === 'group' &&
+            ['channelRename', 'channelGroupAvatarSet'].includes(key)
+          )
             deps.team!.channelAccess.requirePolicy(human, id, 'editDetails');
-          if (id && key === 'channelGroupInvite')
+          if (id && deps.channels.get(id)?.type === 'group' && key === 'channelGroupInvite')
             deps.team!.channelAccess.requirePolicy(human, id, 'addBots');
-          if (id && key === 'channelSend') {
+          if (id && deps.channels.get(id) && key === 'channelSend') {
             deps.team!.channelAccess.requirePolicy(human, id, 'post');
             if (input['allBotMention'] !== undefined)
               deps.team!.channelAccess.requirePolicy(human, id, 'mentionAll');

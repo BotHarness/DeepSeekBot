@@ -81,6 +81,7 @@ export interface ChannelRecord {
   remoteBot?: RemoteBotParticipant;
 
   ownerBotSlug?: string;
+  ownerHumanId?: string;
   invitations?: GroupInvitation[];
   joinRequests?: GroupJoinRequest[];
   wakePolicies?: Record<string, GroupWakePolicy>;
@@ -646,6 +647,7 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
   switch (author['kind']) {
     case 'human':
       return (
+        (author['deleted'] === undefined || typeof author['deleted'] === 'boolean') &&
         (author['humanId'] === undefined || typeof author['humanId'] === 'string') &&
         (author['displayName'] === undefined || typeof author['displayName'] === 'string')
       );
@@ -725,6 +727,9 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
     )
       return false;
   }
+  const ownerHumanId = record['ownerHumanId'];
+  if (ownerHumanId !== undefined && (typeof ownerHumanId !== 'string' || !ownerHumanId))
+    return false;
   const ownerBotSlug = record['ownerBotSlug'];
   if (ownerBotSlug !== undefined) {
     if (

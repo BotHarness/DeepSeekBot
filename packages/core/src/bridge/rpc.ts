@@ -453,13 +453,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ownerTransfer(humanId: string, password: string) {
     return unwrapAsync(this.methods.ownerTransfer({ humanId, password }));
   }
-  memberPasswordChange(current: string, next: string) {
+  memberPasswordChange(current: string, next: string, signOutOthers?: boolean) {
     const principal = this.ctx.invocation?.peer.principal;
     if (principal?.kind === 'botharness-member' && this.team)
       return this.team.withPasswordCaller(principal, undefined, () =>
-        unwrapAsync(this.methods.memberPasswordChange({ current, next })),
+        unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers })),
       );
-    return unwrapAsync(this.methods.memberPasswordChange({ current, next }));
+    return unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers }));
   }
   memberPasswordReset(humanId: string) {
     return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
@@ -496,6 +496,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   humanDmByUsername(username: string) {
     return unwrapAsync(this.methods.humanDmByUsername({ username }));
+  }
+  memberDeactivate(humanId: string) {
+    return unwrapAsync(this.methods.memberDeactivate({ humanId }));
+  }
+  memberReactivate(humanId: string) {
+    return unwrapAsync(this.methods.memberReactivate({ humanId }));
+  }
+  memberTransferPreview(humanId: string) {
+    return unwrapAsync(this.methods.memberTransferPreview({ humanId }));
+  }
+  memberTransfer(humanId: string, toHumanId: string) {
+    return unwrapAsync(this.methods.memberTransfer({ humanId, toHumanId }));
+  }
+  memberPurgePreview(humanId: string) {
+    return unwrapAsync(this.methods.memberPurgePreview({ humanId }));
+  }
+  memberPurgeConfirm(humanId: string, token: string, username: string) {
+    return unwrapAsync(this.methods.memberPurgeConfirm({ humanId, token, username }));
   }
   publicChannels() {
     return unwrapAsync(this.methods.publicChannels({}));
@@ -1190,8 +1208,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  list(query?: string): { bots: PersonaBotSummary[] } {
-    return unwrap(this.methods.list({ query }));
+  list(query?: string, administration?: boolean): { bots: PersonaBotSummary[] } {
+    return unwrap(
+      this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
+    );
   }
 
   activitySnapshot(): PersonaBotActivitySnapshot {
@@ -3043,6 +3063,12 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'teamDirectory',
   'humanDm',
   'humanDmByUsername',
+  'memberDeactivate',
+  'memberReactivate',
+  'memberTransferPreview',
+  'memberTransfer',
+  'memberPurgePreview',
+  'memberPurgeConfirm',
   'publicChannels',
   'publicChannelJoin',
   'channelPublicSet',

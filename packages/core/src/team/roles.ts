@@ -208,6 +208,29 @@ export class TeamRoles {
     return ids;
   }
 
+  requireManagementTarget(human: HumanContext, humanId: string): void {
+    this.require(human, 'members.manage');
+    if (this.isOwner(humanContext(humanId))) throw new TeamError('owner-protected');
+    if (human.humanId === humanId)
+      throw new TeamError('permission-required', undefined, { permission: 'owner' });
+    const rows = this.db.read((db) =>
+      db
+        .prepare(`SELECT r.role_id, r.permissions_json
+      FROM human_roles h JOIN host_roles r USING(role_id) WHERE h.human_id = ?`)
+        .all(humanId),
+    );
+    const authority = this.authority(human);
+    if (authority.kind === 'owner') return;
+    if (rows.some((row) => row.role_id === 'admin'))
+      throw new TeamError('permission-required', undefined, { permission: 'owner' });
+    for (const row of rows)
+      this.checkPermissions(
+        authority,
+        z.array(z.string()).parse(JSON.parse(String(row.permissions_json))),
+        'manage',
+      );
+  }
+
   set(human: HumanContext, humanId: string, roleIds: string[]): null {
     if (human.humanId === humanId && !this.isOwner(human))
       throw new TeamError('permission-required', undefined, { permission: 'owner' });

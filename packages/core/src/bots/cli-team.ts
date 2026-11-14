@@ -12,6 +12,10 @@ export const TEAM_OPTIONS = {
   'mention-all': { type: 'string' },
   'add-bots': { type: 'string' },
   'edit-details': { type: 'string' },
+  to: { type: 'string' },
+  preview: { type: 'boolean' },
+  'token-stdin': { type: 'boolean' },
+  'sign-out-others': { type: 'string' },
   permissions: { type: 'string' },
   set: { type: 'string' },
   revoke: { type: 'string' },
@@ -37,7 +41,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'members',
     description:
-      'list | create --username --display-name --initial-password-file [--role-ids] | roles <username> --set | reset-password <username> --initial-password-file | password --password-stdin',
+      'list | create --username --display-name --initial-password-file [--role-ids] | roles <username> --set | reset-password <username> --initial-password-file | deactivate|reactivate <username> | transfer <username> --to <username> [--preview] | purge <username> --preview | purge <username> --token-stdin --confirm | change-password --password-stdin [--sign-out-others=true|false]',
   },
 ] as const;
 
@@ -48,6 +52,10 @@ type TeamValues = {
   'mention-all'?: string;
   'add-bots'?: string;
   'edit-details'?: string;
+  to?: string;
+  preview?: boolean;
+  'token-stdin'?: boolean;
+  'sign-out-others'?: string;
   username?: string;
   name?: string;
   permissions?: string;
@@ -202,11 +210,39 @@ export async function runTeamCommand(
         roleIds: ids(values.set),
       });
     if (action === 'list' && rest.length === 1) return rpc('members', {});
-    if (action === 'password' && rest.length === 1 && values['password-stdin'])
-      return rpc(
-        'memberPasswordChange',
-        secretJson(z.object({ current: z.string(), next: z.string() }), await secret(io)),
+    if (
+      (action === 'password' || action === 'change-password') &&
+      rest.length === 1 &&
+      values['password-stdin']
+    ) {
+      const signOut = values['sign-out-others'];
+      if (signOut !== undefined && signOut !== 'true' && signOut !== 'false') return usage();
+      const input = secretJson(
+        z.object({ current: z.string(), next: z.string() }),
+        await secret(io),
       );
+      return rpc('memberPasswordChange', { ...input, signOutOthers: signOut !== 'false' });
+    }
+    if ((action === 'deactivate' || action === 'reactivate') && argument && rest.length === 2)
+      return rpc(action === 'deactivate' ? 'memberDeactivate' : 'memberReactivate', {
+        humanId: await memberId(argument, rpc, values.as),
+      });
+    if (action === 'transfer' && argument && rest.length === 2) {
+      const humanId = await memberId(argument, rpc, values.as);
+      if (values.preview) return rpc('memberTransferPreview', { humanId });
+      if (!values.to) return usage();
+      return rpc('memberTransfer', {
+        humanId,
+        toHumanId: await memberId(values.to, rpc, values.as),
+      });
+    }
+    if (action === 'purge' && argument && rest.length === 2) {
+      const humanId = await memberId(argument, rpc, values.as);
+      if (values.preview) return rpc('memberPurgePreview', { humanId });
+      if (!values.confirm) throw new CliLiveError('confirm-required', 'confirm-required');
+      if (!values['token-stdin']) return usage();
+      return rpc('memberPurgeConfirm', { humanId, token: await secret(io), username: argument });
+    }
     if (
       action === 'reset-password' &&
       argument &&

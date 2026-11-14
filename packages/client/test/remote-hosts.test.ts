@@ -70,6 +70,59 @@ const link = (hostId = 'host-b') =>
   });
 
 describe('remote hosts', () => {
+  it('keeps a disabled member provider away from Owner credentials, network and enrollment', async () => {
+    const storage = memoryStorage({
+      [REMOTE_HOSTS_STORAGE_KEY]: 'owner-private-saved-hosts',
+      [HOST_TAB_STORAGE_KEY]: 'owner-host',
+    });
+    const read = vi.spyOn(storage, 'getItem');
+    const write = vi.spyOn(storage, 'setItem');
+    const remove = vi.spyOn(storage, 'removeItem');
+    const { carrier, calls } = fakeCarrier();
+    const sources = createRemoteHosts({ enabled: false, storage, carrier });
+    const off = sources.subscribe(() => {});
+    expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
+    expect(await sources.pair(link(), 'Member')).toEqual({ ok: false, code: 'owner-required' });
+    expect(
+      await sources.enrollRelationship(
+        {
+          id: 'a'.repeat(32),
+          peer: {
+            id: 'host-b',
+            name: 'Studio',
+            publicKey: 'ab'.repeat(32),
+            routes: ['http://127.0.0.1:47001'],
+          },
+        },
+        'Member',
+      ),
+    ).toEqual({
+      ok: false,
+      code: 'owner-required',
+    });
+    expect(() => sources.select('owner-host')).toThrow('owner-required');
+    expect(() =>
+      sources.open({ hostId: 'owner-host', channelId: 'private', title: 'Private' }),
+    ).toThrow('owner-required');
+    await expect(sources.remove('owner-host')).rejects.toMatchObject({ code: 'owner-required' });
+    await expect(sources.forgetLocal('owner-host')).rejects.toMatchObject({
+      code: 'owner-required',
+    });
+    await expect(sources.notifications.set('owner-host', { enabled: false })).rejects.toMatchObject(
+      { code: 'owner-required' },
+    );
+    expect(() => sources.notifications.forget('owner-host')).toThrow('owner-required');
+    await expect(
+      sources.markRead({ hostId: 'owner-host', channelId: 'private', title: 'Private' }, 'message'),
+    ).rejects.toMatchObject({ code: 'owner-required' });
+    sources.close();
+    off();
+    expect(read).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+    expect(storage.values.get(REMOTE_HOSTS_STORAGE_KEY)).toBe('owner-private-saved-hosts');
+  });
   it('pairs another remote with this browser and remembers it in browser storage', async () => {
     const storage = memoryStorage();
     const { carrier, calls } = fakeCarrier();
