@@ -277,3 +277,46 @@ it('refreshes once after a completed self-check without resetting an open manage
   expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
   expect(container.querySelector('[role="dialog"]')).not.toBeNull();
 });
+
+it('replaces an interrupted post-revoke list read when a health refresh arrives while busy', async () => {
+  let reads = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_path: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        hosts = [current];
+        return Response.json({ ok: true });
+      }
+      reads++;
+      if (reads === 2)
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        });
+      return Response.json({ hosts });
+    }),
+  );
+  const account = { state: 'signed-in', hostId: current.id };
+  const view = (refreshOn?: string) => (
+    <ConnectAccountHosts
+      t={t}
+      account={account}
+      reloadSnapshot={reloadSnapshot}
+      refreshOn={refreshOn}
+    />
+  );
+  await act(async () => root.render(view()));
+  await click(t('devices.connect.signOutNamed', { name: remote.name }));
+  const confirm = container.querySelector('[role="dialog"] button:last-child');
+  if (!(confirm instanceof HTMLButtonElement)) throw new Error('missing-confirmation');
+  await act(async () => confirm.click());
+  expect(reads).toBe(2);
+  await act(async () => root.render(view('2026-11-14T00:00:00Z')));
+  expect(reads).toBe(3);
+  const refresh = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === t('devices.connect.refreshComputers'),
+  );
+  expect(refresh?.disabled).toBe(false);
+  expect(container.textContent).not.toContain(remote.name);
+});

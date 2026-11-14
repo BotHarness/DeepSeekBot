@@ -116,7 +116,7 @@ export function ConnectAccountHosts({
         setActionError(false);
       }
       previousMount.current = { node, accountKey };
-      if (eligible && !busyRef.current) void load();
+      if (eligible) void load();
       return () => {
         mounted.current = false;
         request.current?.abort();

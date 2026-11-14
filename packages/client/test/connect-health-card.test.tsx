@@ -11,12 +11,14 @@ afterEach(() => {
   for (const dispose of mounted.splice(0)) dispose();
   vi.unstubAllGlobals();
 });
-function render(health: ConnectHealthStatus) {
+function render(health: ConnectHealthStatus, fresh = true) {
   const el = document.createElement('div');
   document.body.append(el);
   const root = createRoot(el);
   const reload = vi.fn(async () => {});
-  act(() => root.render(<ConnectHealthCard t={t} health={health} reloadSnapshot={reload} />));
+  act(() =>
+    root.render(<ConnectHealthCard t={t} health={health} reloadSnapshot={reload} fresh={fresh} />),
+  );
   mounted.push(() => {
     act(() => root.unmount());
     el.remove();
@@ -130,4 +132,57 @@ it('does not expose the previous success as current while a retry is pending', a
     'checking',
   );
   await act(async () => release(Response.json({ health: { state: 'passed' } })));
+});
+
+it('allows recovery from a stale checking snapshot with no local request', () => {
+  const { el } = render(
+    { state: 'checking', stage: 'public', startedAt: '2026-11-14T00:00:00Z' },
+    false,
+  );
+  const button = [...el.querySelectorAll('button')].find((b) => b.textContent === '重新检查');
+  expect(button?.disabled).toBe(false);
+  expect(el.textContent).not.toContain('正在检查连接');
+});
+it('bounds a stalled manual request and restores retry', async () => {
+  vi.useFakeTimers();
+  let signal: AbortSignal | undefined;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      (_path: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          signal = init?.signal ?? undefined;
+          signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        }),
+    ),
+  );
+  try {
+    const { el } = render({ state: 'idle' });
+    const button = [...el.querySelectorAll('button')].find((b) => b.textContent === '重新检查');
+    await act(async () => button?.click());
+    await act(async () => vi.advanceTimersByTimeAsync(25000));
+    expect(signal?.aborted).toBe(true);
+    expect(button?.disabled).toBe(false);
+    expect(el.textContent).toContain('暂时无法检查');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it('aborts the active manual request when the card unmounts', async () => {
+  let signal: AbortSignal | undefined;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      (_path: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          signal = init?.signal ?? undefined;
+          signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        }),
+    ),
+  );
+  const { el } = render({ state: 'idle' });
+  const button = [...el.querySelectorAll('button')].find((b) => b.textContent === '重新检查');
+  await act(async () => button?.click());
+  for (const dispose of mounted.splice(0)) dispose();
+  expect(signal?.aborted).toBe(true);
 });

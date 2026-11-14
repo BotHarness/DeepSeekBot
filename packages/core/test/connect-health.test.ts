@@ -369,3 +369,52 @@ it('cancels the retry wait at the overall deadline and leaves no later probes', 
     health.close();
   }
 });
+
+it('classifies incomplete certificate chains as TLS refusals', async () => {
+  await expect(
+    checkPublicConnect({
+      origin: 'https://qa.invalid',
+      hostId: 'qa',
+      publicKey: 'a'.repeat(64),
+      signal: new AbortController().signal,
+      socket: (url) =>
+        new WebSocket(url, {
+          lookup: (_hostname, _options, callback) =>
+            callback(
+              Object.assign(new Error('incomplete-chain'), {
+                code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+              }),
+              '',
+              4,
+            ),
+        }),
+    }),
+  ).resolves.toEqual({ ok: false, code: 'tls' });
+});
+it('rejects oversized public handshake messages before delivering them to the Noise decoder', async () => {
+  const server = createServer();
+  const peers = new WebSocketServer({ server });
+  peers.on('connection', (peer) => peer.send('h' + '00'.repeat(4096)));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('no-test-port');
+  disposals.push(async () => {
+    for (const peer of peers.clients) peer.terminate();
+    await new Promise<void>((resolve) => peers.close(() => server.close(() => resolve())));
+  });
+  let delivered = 0;
+  await expect(
+    checkPublicConnect({
+      origin: `https://127.0.0.1:${address.port}`,
+      hostId: 'qa',
+      publicKey: 'a'.repeat(64),
+      signal: new AbortController().signal,
+      socket: (url, limits) => {
+        const ws = new WebSocket(url.replace(/^wss:/u, 'ws:'), limits);
+        ws.on('message', () => delivered++);
+        return ws;
+      },
+    }),
+  ).resolves.toMatchObject({ ok: false });
+  expect(delivered).toBe(0);
+});

@@ -32,7 +32,13 @@ function networkFailure(error: unknown): PublicConnectResult {
   const value = errorCode.safeParse(error);
   const code = value.success ? value.data.code : '';
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return { ok: false, code: 'dns' };
-  if (code.includes('CERT') || code.includes('TLS') || code === 'DEPTH_ZERO_SELF_SIGNED_CERT')
+  if (code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH') return { ok: false, code: 'identity' };
+  if (
+    code.includes('CERT') ||
+    code.includes('TLS') ||
+    code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+    code === 'INVALID_CA'
+  )
     return { ok: false, code: 'tls' };
   return { ok: false, code: 'network' };
 }
@@ -41,7 +47,7 @@ export function checkPublicConnect(options: {
   hostId: string;
   publicKey: string;
   signal: AbortSignal;
-  socket?: (url: string) => WebSocket;
+  socket?: (url: string, limits: { maxPayload: number; perMessageDeflate: false }) => WebSocket;
   timeoutMs?: number;
 }): Promise<PublicConnectResult> {
   return new Promise((resolve) => {
@@ -67,7 +73,11 @@ export function checkPublicConnect(options: {
         ephemeralKey: randomBytes(32),
         hostKey: Uint8Array.from(Buffer.from(options.publicKey, 'hex')),
       });
-      ws = options.socket?.(url.href) ?? new WebSocket(url.href);
+      const limits: { maxPayload: number; perMessageDeflate: false } = {
+        maxPayload: 1024,
+        perMessageDeflate: false,
+      };
+      ws = options.socket?.(url.href, limits) ?? new WebSocket(url.href, limits);
     } catch {
       resolve({ ok: false, code: 'identity' });
       return;

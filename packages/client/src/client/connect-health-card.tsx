@@ -1,5 +1,6 @@
 import type { BotHarnessKey } from './locale.js';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useMountedResource } from './mounted-resource.js';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import {
@@ -38,6 +39,19 @@ export function ConnectHealthCard({
   reloadSnapshot(): Promise<unknown>;
   fresh?: boolean;
 } & PropsLocale<'botharness'>) {
+  const mounted = useRef(false);
+  const request = useRef<{ controller: AbortController; timer: ReturnType<typeof setTimeout> }>();
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (request.current) {
+        clearTimeout(request.current.timer);
+        request.current.controller.abort();
+        request.current = undefined;
+      }
+    };
+  }, []);
   const [requestStarted, setRequestStarted] = useState<string>();
   const busy = requestStarted !== undefined;
   const [requestFailed, setRequestFailed] = useState<{
@@ -55,20 +69,28 @@ export function ConnectHealthCard({
           stage: observed.state === 'checking' ? observed.stage : 'account',
           startedAt: requestStarted,
         }
-      : !fresh && observed.state === 'passed'
-        ? ({ ...observed, state: 'stale' } satisfies ConnectHealthStatus)
-        : observed;
+      : !fresh && observed.state === 'checking'
+        ? { state: 'idle' }
+        : !fresh && observed.state === 'passed'
+          ? ({ ...observed, state: 'stale' } satisfies ConnectHealthStatus)
+          : observed;
   const checking = busy || current.state === 'checking';
   const check = async () => {
+    if (request.current) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25_000);
+    request.current = { controller, timer };
     setRequestStarted(new Date().toISOString());
     setRequestFailed(undefined);
     try {
       const response = await fetch('./api/botharness/devices/connect-health', {
+        signal: controller.signal,
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: '{}',
       });
+      if (!mounted.current || controller.signal.aborted) return;
       if (!response.ok) {
         setRequestFailed({
           code: 'http',
@@ -79,9 +101,12 @@ export function ConnectHealthCard({
       }
       await reloadSnapshot();
     } catch {
-      setRequestFailed({ code: 'network', occurredAt: new Date().toISOString() });
+      if (mounted.current)
+        setRequestFailed({ code: 'network', occurredAt: new Date().toISOString() });
     } finally {
-      setRequestStarted(undefined);
+      clearTimeout(timer);
+      if (request.current?.controller === controller) request.current = undefined;
+      if (mounted.current) setRequestStarted(undefined);
     }
   };
   const label = requestFailed
@@ -98,61 +123,63 @@ export function ConnectHealthCard({
                 : 'connect.health.idle',
           );
   return (
-    <StatusBlock
-      icon="shield"
-      title={t('connect.health.title')}
-      body={label}
-      tone={
-        requestFailed || current.state === 'failed'
-          ? 'warning'
-          : current.state === 'passed'
-            ? 'success'
-            : 'neutral'
-      }
-      action={
-        <Button variant="outline" size="sm" disabled={checking} onClick={() => void check()}>
-          {t('connect.health.check')}
-        </Button>
-      }
-      data={{ 'data-connect-health': current.state }}
-    >
-      {requestFailed ? <Note tone="danger">{t('connect.health.requestFailed')}</Note> : null}
-      {current.state === 'passed' || current.state === 'failed' || current.state === 'stale' ? (
-        <StatusFact label={t('connect.health.checkedAt')}>
-          {new Date(current.checkedAt).toLocaleString()}
-        </StatusFact>
-      ) : null}
-      <StatusDisclosure
-        icon="info"
-        title={t('connect.health.details')}
-        open={details}
-        onToggle={() => setDetails(!details)}
+    <div ref={mount}>
+      <StatusBlock
+        icon="shield"
+        title={t('connect.health.title')}
+        body={label}
+        tone={
+          requestFailed || current.state === 'failed'
+            ? 'warning'
+            : current.state === 'passed'
+              ? 'success'
+              : 'neutral'
+        }
+        action={
+          <Button variant="outline" size="sm" disabled={checking} onClick={() => void check()}>
+            {t('connect.health.check')}
+          </Button>
+        }
+        data={{ 'data-connect-health': current.state }}
       >
-        <Note>{t('connect.health.scope')}</Note>
-        {current.state === 'failed' || current.state === 'checking' ? (
-          <StatusFact label={t('connect.health.stage')}>
-            {t(`connect.health.stage.${current.stage}`)}
+        {requestFailed ? <Note tone="danger">{t('connect.health.requestFailed')}</Note> : null}
+        {current.state === 'passed' || current.state === 'failed' || current.state === 'stale' ? (
+          <StatusFact label={t('connect.health.checkedAt')}>
+            {new Date(current.checkedAt).toLocaleString()}
           </StatusFact>
         ) : null}
-        <CopyChip
-          value={
-            requestFailed
-              ? JSON.stringify(
-                  {
-                    version: 1,
-                    health: JSON.parse(connectHealthDiagnostic(current)),
-                    requestFailure: requestFailed,
-                  },
-                  null,
-                  2,
-                )
-              : connectHealthDiagnostic(current)
-          }
-          copyLabel={t('connect.health.copy')}
-          copiedLabel={t('devices.connect.copied')}
-          well
-        />
-      </StatusDisclosure>
-    </StatusBlock>
+        <StatusDisclosure
+          icon="info"
+          title={t('connect.health.details')}
+          open={details}
+          onToggle={() => setDetails(!details)}
+        >
+          <Note>{t('connect.health.scope')}</Note>
+          {current.state === 'failed' || current.state === 'checking' ? (
+            <StatusFact label={t('connect.health.stage')}>
+              {t(`connect.health.stage.${current.stage}`)}
+            </StatusFact>
+          ) : null}
+          <CopyChip
+            value={
+              requestFailed
+                ? JSON.stringify(
+                    {
+                      version: 1,
+                      health: JSON.parse(connectHealthDiagnostic(current)),
+                      requestFailure: requestFailed,
+                    },
+                    null,
+                    2,
+                  )
+                : connectHealthDiagnostic(current)
+            }
+            copyLabel={t('connect.health.copy')}
+            copiedLabel={t('devices.connect.copied')}
+            well
+          />
+        </StatusDisclosure>
+      </StatusBlock>
+    </div>
   );
 }
