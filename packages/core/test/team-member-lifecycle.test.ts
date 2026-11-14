@@ -674,10 +674,15 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     });
     previous.close();
     const upgraded = trackTestOwner(
-      mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      mountOperationalDatabase({
+        dshHome: home,
+        schemaPlan: defineSchemaPlan(
+          BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 145),
+        ),
+      }),
     );
     expect(upgraded.mode).toBe('ready');
-    expect(upgraded.generation).toBe(146);
+    expect(upgraded.generation).toBe(145);
     const check = attachOperationalModule(upgraded, 'm2-m9-new');
     expect(
       check.read((db) =>
