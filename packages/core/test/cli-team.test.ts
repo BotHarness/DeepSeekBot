@@ -23,6 +23,7 @@ async function host(
     code: 'remote-access/denied',
     message: 'member-call-refused',
   },
+  policyFailure?: { code: string; message: string },
 ) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(async (request, response) => {
@@ -41,21 +42,32 @@ async function host(
     const input = JSON.parse(Buffer.concat(chunks).toString());
     calls.push({ path: request.url ?? '', input });
     const value =
-      input.method === 'botharness/teamMode'
-        ? { viewer: { humanId: 'owner-id' } }
-        : input.method === 'botharness/members'
-          ? [
-              { username: 'bob', humanId: 'bob-id' },
-              { username: 'owner', humanId: 'local-human' },
-            ]
-          : input.method === 'botharness/memberCreate'
-            ? {
-                member: { username: 'bob', humanId: 'bob-id' },
-                initialPassword: 'private-initial-password',
-              }
-            : input.method === 'botharness/memberPasswordReset'
-              ? { initialPassword: 'private-reset-password' }
-              : { done: true };
+      input.method === 'botharness/channelGet'
+        ? {
+            policyRevision: 'a'.repeat(64),
+            policy: {
+              addMembers: 'everyone',
+              post: 'everyone',
+              mentionAll: 'everyone',
+              addBots: 'admins',
+              editDetails: 'admins',
+            },
+          }
+        : input.method === 'botharness/teamMode'
+          ? { viewer: { humanId: 'owner-id' } }
+          : input.method === 'botharness/members'
+            ? [
+                { username: 'bob', humanId: 'bob-id' },
+                { username: 'owner', humanId: 'local-human' },
+              ]
+            : input.method === 'botharness/memberCreate'
+              ? {
+                  member: { username: 'bob', humanId: 'bob-id' },
+                  initialPassword: 'private-initial-password',
+                }
+              : input.method === 'botharness/memberPasswordReset'
+                ? { initialPassword: 'private-reset-password' }
+                : { done: true };
     response.setHeader('content-type', 'application/json');
     if (request.url === '/api/botharness/team-as')
       response.end(
@@ -69,7 +81,10 @@ async function host(
         JSON.stringify({
           type: 'server-response',
           rpcId: input.rpcId,
-          result: { ok: true, value },
+          result:
+            input.method === 'botharness/channelPolicySet' && policyFailure
+              ? { ok: false, error: policyFailure }
+              : { ok: true, value },
         }),
       );
   });
@@ -393,6 +408,148 @@ describe('Team CLI', () => {
     expect(result.status).toBe(0);
     const plain = await run('http://192.168.1.20', ['team-mode', 'status']);
     expect(plain.status).not.toBe(0);
+  });
+});
+
+describe('M4 CLI parity', () => {
+  const cases = [
+    { args: ['channels', 'browse'], method: 'browsableChannels', payload: {} },
+    {
+      args: ['channels', 'admins', 'group-1', '--set', 'alice,bob'],
+      method: 'channelAdminsSet',
+      payload: { channelId: 'group-1', humanIds: ['alice', 'bob'] },
+    },
+    {
+      args: ['channels', 'add-member', 'group-1', 'alice'],
+      method: 'channelHumanAdd',
+      payload: { channelId: 'group-1', humanId: 'alice' },
+    },
+    {
+      args: ['channels', 'join', 'group-1'],
+      method: 'channelJoin',
+      payload: { channelId: 'group-1' },
+    },
+    {
+      args: ['channels', 'visibility', 'group-1', 'public'],
+      method: 'channelVisibilitySet',
+      payload: { channelId: 'group-1', visibility: { kind: 'public' } },
+    },
+    {
+      args: ['channels', 'visibility', 'group-1', 'private'],
+      method: 'channelVisibilitySet',
+      payload: { channelId: 'group-1', visibility: { kind: 'private' } },
+    },
+    {
+      args: ['channels', 'visibility', 'group-1', 'roles:ops,eng'],
+      method: 'channelVisibilitySet',
+      payload: { channelId: 'group-1', visibility: { kind: 'roles', roleIds: ['ops', 'eng'] } },
+    },
+    {
+      args: ['channels', 'admins', 'group-1', '--set', 'bob-id,alice-id'],
+      method: 'channelAdminsSet',
+      payload: { channelId: 'group-1', humanIds: ['bob-id', 'alice-id'] },
+    },
+    {
+      args: ['channels', 'add-member', 'group-1', 'bob-id'],
+      method: 'channelHumanAdd',
+      payload: { channelId: 'group-1', humanId: 'bob-id' },
+    },
+    {
+      args: ['channels', 'description', 'group-1', '--body-stdin'],
+      method: 'channelDescriptionSet',
+      payload: { channelId: 'group-1', description: 'details' },
+    },
+    { args: ['dm', 'bob'], method: 'humanDmByUsername', payload: { username: 'bob' } },
+    { args: ['dm', '--human-id', 'bob-id'], method: 'humanDm', payload: { humanId: 'bob-id' } },
+    { args: ['team-directory'], method: 'teamDirectory', payload: {} },
+  ];
+  it.each(cases)(
+    'maps $method to the Host without model or UI',
+    async ({ args, method, payload }) => {
+      const f = await host();
+      expect((await run(f.url, args, 'details')).status).toBe(0);
+      expect(f.calls.at(-1)?.input).toMatchObject({
+        method: `botharness/${method}`,
+        payload: { args: payload },
+      });
+    },
+  );
+  it.each(cases)(
+    'keeps --as scoped for $method and propagates refusal',
+    async ({ args, method, payload }) => {
+      const f = await host();
+      expect((await run(f.url, [...args, '--as', 'bob'], 'details')).output).toMatchObject({
+        error: { code: 'remote-access/denied' },
+      });
+      expect(f.calls).toHaveLength(1);
+      expect(f.calls[0]).toMatchObject({
+        path: '/api/botharness/team-as',
+        input: { username: 'bob', namespace: 'botharness', method, args: payload },
+      });
+    },
+  );
+});
+
+describe('M4 Channel policy CLI', () => {
+  it('patches the observed full policy without resetting omitted flags', async () => {
+    const f = await host();
+    expect(
+      (
+        await run(f.url, [
+          'channels',
+          'policy',
+          'group-1',
+          '--post',
+          'admins',
+          '--mention-all',
+          'admins',
+        ])
+      ).status,
+    ).toBe(0);
+    expect(f.calls.at(-1)?.input).toMatchObject({
+      method: 'botharness/channelPolicySet',
+      payload: {
+        args: {
+          channelId: 'group-1',
+          expectedRevision: 'a'.repeat(64),
+          policy: {
+            addMembers: 'everyone',
+            post: 'admins',
+            mentionAll: 'admins',
+            addBots: 'admins',
+            editDetails: 'admins',
+          },
+        },
+      },
+    });
+  });
+  it('reports a stale policy write without retrying or overwriting newer settings', async () => {
+    const f = await host(undefined, {
+      code: 'stale-channel-policy',
+      message: 'stale-channel-policy',
+    });
+    const result = await run(f.url, ['channels', 'policy', 'group-1', '--post', 'admins']);
+    expect(result.status).toBe(1);
+    expect(result.output).toMatchObject({ error: { code: 'stale-channel-policy' } });
+    expect(f.calls.map((call) => call.input.method)).toEqual([
+      'botharness/channelGet',
+      'botharness/channelPolicySet',
+    ]);
+    expect(f.calls[1]?.input).toMatchObject({
+      payload: { args: { expectedRevision: 'a'.repeat(64) } },
+    });
+  });
+  it('keeps both read and mutation on --as and never falls back after denial', async () => {
+    const f = await host();
+    expect(
+      (await run(f.url, ['channels', 'policy', 'group-1', '--post', 'admins', '--as', 'bob']))
+        .output,
+    ).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]).toMatchObject({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', method: 'channelGet' },
+    });
   });
 });
 

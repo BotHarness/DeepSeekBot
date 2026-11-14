@@ -1,3 +1,6 @@
+import { TeamError } from '../team/error.js';
+import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
+import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
 import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
@@ -827,7 +830,13 @@ export interface BridgeMethods extends TeamBridgeMethods {
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
   channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
-  channelGet(payload: unknown): BridgeResult<{ channel: ChannelRecord } | ChannelManagementResult>;
+  channelGet(
+    payload: unknown,
+  ): BridgeResult<
+    | ChannelManagementResult
+    | { channel: ChannelRecord; channelFingerprint?: never }
+    | ({ channel: ChannelRecord; channelFingerprint?: never } & ReturnType<TeamChannels['view']>)
+  >;
   channelCreate(
     payload: unknown,
   ): BridgeResult<{ channel: ChannelRecord } | ChannelManagementResult>;
@@ -2237,6 +2246,10 @@ function buildBridgeMethods(
           Object.entries(channel.wakePolicies).filter(([slug]) => memberSlugs.has(slug)),
         );
     }
+    if (channel.humanParticipants && deps.team) {
+      const other = channel.humanParticipants.find((id) => id !== human.humanId);
+      channel = { ...channel, name: other ? (deps.team.member(other)?.displayName ?? '') : '' };
+    }
     const humanNickname = deps.channels.humanNickname(human, channel.id);
     const remoteContact =
       channel.remoteBot === undefined || channel.members[0] === undefined
@@ -2265,13 +2278,17 @@ function buildBridgeMethods(
       await deps.runtime?.refreshBotContacts?.();
     for (const bot of deps.registry.list())
       deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
+    if (deps.team) {
+      const visible = deps.team.channelAccess.visibleIds(human);
+      return deps.channels.list().filter((channel) => visible.has(channel.id));
+    }
     return deps.channels
       .list()
       .filter((channel) =>
         channel.type === 'dm'
           ? (isHostOwner() && channel.remoteBot !== undefined) ||
             channel.members.every((slug) => deps.registry.get(slug) !== undefined)
-          : isHostOwner() || deps.team?.belongs(human, channel.id),
+          : isHostOwner(),
       );
   };
   const listItem = (channel: ChannelRecord): ChannelListItem => {
@@ -2518,7 +2535,7 @@ function buildBridgeMethods(
     );
   };
 
-  return {
+  const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
@@ -5541,7 +5558,7 @@ function buildBridgeMethods(
       if (
         channel === undefined ||
         (channel.type === 'dm'
-          ? channel.botSlug === undefined
+          ? channel.botSlug === undefined && !channel.humanParticipants?.includes(human.humanId)
           : !deps.channels
               .listHumanMembers(human, channel.id)
               .some((member) => member.humanId === deps.channels.humanIdentity(human).humanId))
@@ -5643,6 +5660,14 @@ function buildBridgeMethods(
       const ids = new Set(changed.channelIds);
       const present = new Set(listed.map((channel) => channel.id));
       if (
+        deps.team &&
+        (changed.all ||
+          changed.channelIds.some(
+            (id) => !present.has(id) && !deps.team!.channelAccess.canKnow(human, id),
+          ))
+      )
+        return { ok: true, value: { reset: true, cursor: changed.cursor } };
+      if (
         !isHostOwner() &&
         changed.channelIds.some(
           (id) =>
@@ -5666,15 +5691,14 @@ function buildBridgeMethods(
               (channel) => changed.all || ids.has(channel.id) || channel.remoteBot !== undefined,
             )
             .map(listItem),
-          removed: changed.channelIds.filter((id) => {
-            if (present.has(id)) return false;
-            const channel = deps.channels.get(id);
-            if (channel?.type === 'dm')
-              return channel.members.every(
-                (slug) => deps.registry.getHistorical(slug) !== undefined,
-              );
-            return isHostOwner() || deps.channels.hasHumanMembership?.(human, id) === true;
-          }),
+          removed: changed.channelIds.filter(
+            (id) =>
+              !present.has(id) &&
+              (deps.team
+                ? deps.team.channelAccess.canKnow(human, id)
+                : human.humanId === OWNER_HUMAN_CONTEXT.humanId ||
+                  deps.channels.hasHumanMembership?.(human, id) === true),
+          ),
           cursor: changed.cursor,
         },
       };
@@ -5698,11 +5722,22 @@ function buildBridgeMethods(
     channelGet(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
+      const participantDm = deps.channels.get(channelId);
+      if (participantDm?.type === 'dm' && participantDm.humanParticipants?.includes(human.humanId))
+        return { ok: true, value: { channel: channelView(participantDm) } };
       if (!isHostOwner()) {
         const channel = deps.channels.get(channelId);
         if (channel === undefined || channel.deletedAt !== undefined)
           return unknownChannel(channelId);
-        return { ok: true, value: { channel: channelView(channel) } };
+        return {
+          ok: true,
+          value: {
+            channel: channelView(channel),
+            ...(channel.type === 'group' && deps.team
+              ? deps.team.channelAccess.view(human, channelId)
+              : {}),
+          },
+        };
       }
       if (!deps.channelManagement)
         return {
@@ -5713,6 +5748,30 @@ function buildBridgeMethods(
           },
         };
       try {
+        if (deps.team && deps.channels.get(channelId)?.type === 'group') {
+          const view = deps.team.channelAccess.view(human, channelId);
+          const result = deps.channelManagement.snapshot(channelId);
+          const channel = channelView(result.channel);
+          if (view.role === 'member') {
+            const {
+              invitations: _invitations,
+              joinRequests: _requests,
+              wakePolicies: _policies,
+              ...visible
+            } = channel;
+            return { ok: true, value: { channel: visible, ...view } };
+          }
+          const members = new Set(channel.members);
+          return {
+            ok: true,
+            value: {
+              ...result,
+              channel,
+              ...view,
+              wakePolicies: result.wakePolicies.filter(({ botSlug }) => members.has(botSlug)),
+            },
+          };
+        }
         const result = deps.channelManagement.snapshot(channelId);
         const channel = channelView(result.channel);
         const members = new Set(channel.members);
@@ -6998,7 +7057,7 @@ function buildBridgeMethods(
           throw error;
         }
       }
-      if (channel.type === 'dm' && channel.botSlug === undefined)
+      if (channel.type === 'dm' && channel.botSlug === undefined && !channel.humanParticipants)
         return invalidInput('Bot-to-Bot DMs are read-only for Human');
       if (
         replyTo !== undefined &&
@@ -7211,7 +7270,7 @@ function buildBridgeMethods(
           deps.runtime?.admitGroupMessage(channelId, appended.id);
         } catch {}
       }
-      if (channel.type === 'dm' && deps.runtime !== undefined) {
+      if (channel.type === 'dm' && !channel.humanParticipants && deps.runtime !== undefined) {
         const admission = deps.runtime.admitDmMessage(human, {
           channelId,
           messageId: appended.id,
@@ -7807,11 +7866,14 @@ function buildBridgeMethods(
     },
     channelUnreadCounts() {
       try {
+        const visible = deps.team?.channelAccess.visibleIds(human);
         return {
           ok: true,
           value: {
-            channels: (deps.humanAttention?.unreadByChannel(human) ?? []).filter(
-              (entry) => isHostOwner() || deps.team?.belongs(human, entry.channelId),
+            channels: (deps.humanAttention?.unreadByChannel(human) ?? []).filter((entry) =>
+              visible
+                ? visible.has(entry.channelId)
+                : human.humanId === OWNER_HUMAN_CONTEXT.humanId,
             ),
           },
         };
@@ -9728,6 +9790,72 @@ function buildBridgeMethods(
       };
     },
   };
+  const scoped = new Set<string>(MEMBER_CHANNEL_METHODS);
+  return new Proxy(methods, {
+    get(target, key, receiver) {
+      const method: unknown = Reflect.get(target, key, receiver);
+      if (typeof method !== 'function' || typeof key !== 'string' || !deps.team) return method;
+      return (payload: unknown, ...args: unknown[]) => {
+        try {
+          const input = asObject(payload);
+          const id = asNonBlank(input, 'channelId');
+          if (
+            scoped.has(key) &&
+            id &&
+            (!isHostOwner() || deps.channels.get(id)) &&
+            !deps.team!.channelAccess.canRead(human, id, key === 'channelSendStatus')
+          )
+            throw new TeamError('channel-not-found');
+          if (key === 'channelCreate') deps.team!.roles.require(human, 'channels.create');
+          if (
+            id &&
+            deps.channels.get(id)?.type === 'group' &&
+            ['channelRename', 'channelGroupAvatarSet'].includes(key)
+          )
+            deps.team!.channelAccess.requirePolicy(human, id, 'editDetails');
+          if (id && deps.channels.get(id)?.type === 'group' && key === 'channelGroupInvite')
+            deps.team!.channelAccess.requirePolicy(human, id, 'addBots');
+          if (id && deps.channels.get(id) && key === 'channelSend') {
+            deps.team!.channelAccess.requirePolicy(human, id, 'post');
+            if (input['allBotMention'] !== undefined)
+              deps.team!.channelAccess.requirePolicy(human, id, 'mentionAll');
+            if (Array.isArray(input['channelRefs']))
+              for (const ref of input['channelRefs']) {
+                const refId = asNonBlank(asObject(ref), 'channelId');
+                if (refId && !deps.team!.channelAccess.canRead(human, refId))
+                  throw new TeamError('channel-not-found');
+              }
+          }
+          const result: unknown = Reflect.apply(method, target, [payload, ...args]);
+          if (result instanceof Promise)
+            return result.catch((error: unknown) => {
+              if (error instanceof TeamError)
+                return {
+                  ok: false,
+                  error: {
+                    code: error.code,
+                    message: error.code,
+                    ...(error.details ? { details: error.details } : {}),
+                  },
+                };
+              throw error;
+            });
+          return result;
+        } catch (error) {
+          if (error instanceof TeamError)
+            return {
+              ok: false,
+              error: {
+                code: error.code,
+                message: error.code,
+                ...(error.details ? { details: error.details } : {}),
+              },
+            };
+          throw error;
+        }
+      };
+    },
+  });
 }
 
 function localMidnight(day: string): Date {

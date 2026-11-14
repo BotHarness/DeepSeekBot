@@ -57,6 +57,7 @@ export interface ChannelHumanMember {
 export interface ChannelSummary {
   remoteAvailability?: 'available' | 'unavailable' | 'withdrawn' | 'bot-unavailable';
   humanMembers?: ChannelHumanMember[];
+  humanParticipants?: string[];
   humanNickname?: string | null;
   id: string;
   type: 'dm' | 'group';

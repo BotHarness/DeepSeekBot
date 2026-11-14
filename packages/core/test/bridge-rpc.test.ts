@@ -1,3 +1,4 @@
+import { DEFAULT_CHANNEL_POLICY } from '../src/team/channel-contract.js';
 import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
@@ -134,6 +135,33 @@ describe('bridge typert service', () => {
       /authenticated Owner/,
     );
     expect(approve).not.toHaveBeenCalled();
+  });
+
+  it('forwards optional policy revisions and preserves stale-policy refusals', async () => {
+    const { service, methods } = setup();
+    const set = vi.spyOn(methods, 'channelPolicySet').mockResolvedValue({ ok: true, value: null });
+    expect(parameterNames(service.channelPolicySet)).toEqual([
+      'channelId',
+      'policy',
+      'expectedRevision',
+    ]);
+    await expect(
+      service.channelPolicySet('group-1', DEFAULT_CHANNEL_POLICY, 'a'.repeat(64)),
+    ).resolves.toBeNull();
+    expect(set).toHaveBeenLastCalledWith({
+      channelId: 'group-1',
+      policy: DEFAULT_CHANNEL_POLICY,
+      expectedRevision: 'a'.repeat(64),
+    });
+    await service.channelPolicySet('group-1', DEFAULT_CHANNEL_POLICY);
+    expect(set).toHaveBeenLastCalledWith({ channelId: 'group-1', policy: DEFAULT_CHANNEL_POLICY });
+    set.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'stale-channel-policy', message: 'stale-channel-policy' },
+    });
+    await expect(
+      service.channelPolicySet('group-1', DEFAULT_CHANNEL_POLICY, 'a'.repeat(64)),
+    ).rejects.toMatchObject({ code: 'stale-channel-policy' });
   });
 
   it('refuses reviewed or keyed Channel writes when the durable owner is unavailable', () => {
@@ -678,6 +706,17 @@ describe('bridge typert service', () => {
       'ownerTransfer',
       'memberPasswordChange',
       'memberPasswordReset',
+      'channelRoleDirectory',
+      'browsableChannels',
+      'channelJoin',
+      'channelVisibilitySet',
+      'channelAdminsSet',
+      'channelPolicySet',
+      'channelHumanAdd',
+      'channelDescriptionSet',
+      'teamDirectory',
+      'humanDm',
+      'humanDmByUsername',
       'memberDeactivate',
       'memberReactivate',
       'memberTransferPreview',

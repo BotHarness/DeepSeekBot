@@ -11,15 +11,20 @@ interface Entry {
 }
 
 const entries = new WeakMap<BridgeCall, Entry>();
+const isolatedIdentity = new WeakSet<BridgeCall>();
+
+export function isolateTeamIdentity(call: BridgeCall): void {
+  isolatedIdentity.add(call);
+}
 
 let viewerKind: 'owner' | 'member' | undefined;
 const viewerListeners = new Set<() => void>();
 
-function publish(current: Entry, value: TeamModeView): void {
+function publish(call: BridgeCall, current: Entry, value: TeamModeView): void {
   current.value = value;
-  setSelfHumanId(value.viewer.humanId);
+  if (!isolatedIdentity.has(call)) setSelfHumanId(value.viewer.humanId);
   for (const listener of current.listeners) listener();
-  if (viewerKind !== value.viewer.kind) {
+  if (!isolatedIdentity.has(call) && viewerKind !== value.viewer.kind) {
     viewerKind = value.viewer.kind;
     for (const listener of viewerListeners) listener();
   }
@@ -50,7 +55,7 @@ function entry(call: BridgeCall): Entry {
 export function refreshTeamMode(call: BridgeCall): Promise<void> {
   const current = entry(call);
   current.loading ??= loadTeamMode(call)
-    .then((value) => publish(current, value))
+    .then((value) => publish(call, current, value))
     .catch(() => {})
     .finally(() => {
       current.loading = undefined;
@@ -59,7 +64,7 @@ export function refreshTeamMode(call: BridgeCall): Promise<void> {
 }
 
 export function setTeamModeSnapshot(call: BridgeCall, value: TeamModeView): void {
-  publish(entry(call), value);
+  publish(call, entry(call), value);
 }
 
 export function useTeamMode(call: BridgeCall | undefined): TeamModeView | undefined {

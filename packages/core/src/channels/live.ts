@@ -193,6 +193,7 @@ export interface ChannelLiveHub {
   publishAttachments(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
+  refreshAccess(): void;
   publishContentPurged(): void;
   publishHumanIdentityChanged(): void;
   close(): void;
@@ -269,8 +270,11 @@ export function createChannelLiveHub(
   isOwner: (human: HumanContext) => boolean = (human) =>
     human.humanId === OWNER_HUMAN_CONTEXT.humanId,
   ownsBot?: (human: HumanContext, slug: string) => boolean,
+  canRead?: (human: HumanContext, channelId: string) => boolean,
+  canKnow?: (human: HumanContext, channelId: string) => boolean,
 ): ChannelLiveHub {
   const visibleChannel = (human: HumanContext, channelId: string): boolean => {
+    if (canRead) return canRead(human, channelId);
     if (!ownsBot && isOwner(human)) return true;
     const channel = channels.get(channelId);
     if (!channel || channel.deletedAt) return false;
@@ -284,6 +288,7 @@ export function createChannelLiveHub(
   };
   const visiblePlacements = (human: HumanContext, placements: PurgedPlacement[]) =>
     placements.filter((placement) => {
+      if (canRead) return (canKnow ?? canRead)(human, placement.channelId);
       const channel = channels.get(placement.channelId);
       if (channel?.type === 'dm')
         return channel.remoteBot !== undefined || !ownsBot
@@ -857,6 +862,11 @@ export function createChannelLiveHub(
   };
 
   return {
+    refreshAccess() {
+      for (const group of subscribers.values())
+        for (const subscriber of [...group]) subscriber.close();
+      for (const subscriber of [...rosterSubscribers]) subscriber.close();
+    },
     followRoster,
     followActivity,
     followChannel,

@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { useMountedResource } from './mounted-resource.js';
+import { isolateTeamIdentity } from './team-state.js';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { loadJournalPage, type BridgeCall } from './bridge.js';
@@ -127,6 +128,7 @@ export function createRemoteNativeConversation(
       throw new Error('remote-conversation-unavailable');
     return { ok: true, value };
   };
+  isolateTeamIdentity(call);
   const actions = createActions(call, store, undefined, {
     async download(path, name) {
       const signal = lifetime.signal;

@@ -39,14 +39,6 @@ export interface CreatedMember {
   readonly initialPassword: string;
 }
 
-export interface PublicChannel {
-  readonly channelId: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly memberCount: number;
-  readonly joined: boolean;
-}
-
 export const TEAM_REFUSALS = [
   'owner-password-required',
   'password-weak',
@@ -72,6 +64,10 @@ export const TEAM_REFUSALS = [
   'transfer-required',
   'member-active',
   'purge-token-invalid',
+  'role-not-found',
+  'channel-post-restricted',
+  'channel-mention-restricted',
+  'stale-channel-policy',
 ] as const;
 export type TeamRefusal = (typeof TEAM_REFUSALS)[number];
 
@@ -165,23 +161,7 @@ export function parseTeamMember(value: unknown): TeamMember | undefined {
   };
 }
 
-export function parsePublicChannel(value: unknown): PublicChannel | undefined {
-  const row = record(value);
-  const channelId = text(row?.['channelId']);
-  const name = text(row?.['name']);
-  if (row === undefined || channelId === undefined || name === undefined) return undefined;
-  const description = text(row['description']);
-  const count = row['memberCount'];
-  return {
-    channelId,
-    name,
-    ...(description === undefined ? {} : { description }),
-    memberCount: typeof count === 'number' && Number.isFinite(count) && count >= 0 ? count : 0,
-    joined: row['joined'] === true,
-  };
-}
-
-function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
+export function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
   const items = Array.isArray(value) ? value : (record(value)?.['items'] ?? []);
   return Array.isArray(items)
     ? items.flatMap((item: unknown) => {
@@ -243,25 +223,6 @@ export async function changeOwnPassword(
     next,
     ...(signOutOthers === undefined ? {} : { signOutOthers }),
   });
-}
-
-export async function loadPublicChannels(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<PublicChannel[]> {
-  return list(await unwrap(call, 'publicChannels', {}, signal), parsePublicChannel);
-}
-
-export async function joinPublicChannel(call: BridgeCall, channelId: string): Promise<void> {
-  await unwrap(call, 'publicChannelJoin', { channelId });
-}
-
-export async function setChannelPublic(
-  call: BridgeCall,
-  channelId: string,
-  open: boolean,
-): Promise<void> {
-  await unwrap(call, 'channelPublicSet', { channelId, public: open });
 }
 
 export function validUsername(value: string): boolean {

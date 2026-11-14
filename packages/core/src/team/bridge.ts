@@ -1,3 +1,8 @@
+import {
+  channelVisibilitySchema,
+  channelPolicySchema,
+  channelPolicyRevisionSchema,
+} from './channel-contract.js';
 import { ContentPurgeError } from '../purge/contracts.js';
 import { PERMISSION_CATALOG } from './permissions.js';
 import { z } from 'zod';
@@ -11,7 +16,9 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
   ): Promise<BridgeResult<T>> => {
     try {
       if (!team) throw new TeamError('unavailable');
-      return { ok: true, value: await run(team) };
+      const value = await run(team);
+      await team.accessSettled();
+      return { ok: true, value };
     } catch (error) {
       const code =
         error instanceof TeamError || error instanceof ContentPurgeError
@@ -168,6 +175,77 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .object({ humanId: z.string().min(1), token: z.string().max(1024), username: z.string() })
           .parse(payload);
         return service.purgeConfirm(human, humanId, token, username);
+      }),
+    channelRoleDirectory: (payload: unknown) =>
+      call((service) =>
+        service.channelAccess.roleDirectory(
+          human,
+          z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
+        ),
+      ),
+    browsableChannels: (_payload: unknown) =>
+      call((service) => service.channelAccess.browse(human)),
+    channelJoin: (payload: unknown) =>
+      call((service) =>
+        service.channelAccess.join(
+          human,
+          z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
+        ),
+      ),
+    channelVisibilitySet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, visibility } = z
+          .object({ channelId: z.string().min(1), visibility: channelVisibilitySchema })
+          .parse(payload);
+        return service.channelAccess.visibilitySet(human, channelId, visibility);
+      }),
+    channelAdminsSet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, humanIds } = z
+          .object({ channelId: z.string().min(1), humanIds: z.array(z.string()).max(1000) })
+          .parse(payload);
+        return service.channelAccess.adminsSet(human, channelId, humanIds);
+      }),
+    channelPolicySet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, policy, expectedRevision } = z
+          .object({
+            channelId: z.string().min(1),
+            policy: channelPolicySchema,
+            expectedRevision: channelPolicyRevisionSchema.optional(),
+          })
+          .parse(payload);
+        return service.channelAccess.policySet(human, channelId, policy, expectedRevision);
+      }),
+    teamDirectory: (_payload: unknown) => call((service) => service.channelAccess.directory(human)),
+    humanDm: (payload: unknown) =>
+      call((service) =>
+        service.channelAccess.dm(
+          human,
+          z.object({ humanId: z.string().min(1) }).parse(payload).humanId,
+        ),
+      ),
+    humanDmByUsername: (payload: unknown) =>
+      call((service) => {
+        service.roles.require(human, 'dm.humans');
+        const { username } = z.object({ username: z.string().min(1) }).parse(payload);
+        const target = service.memberByUsername(username);
+        if (!target) throw new TeamError('member-not-found');
+        return service.channelAccess.dm(human, target.humanId);
+      }),
+    channelHumanAdd: (payload: unknown) =>
+      call((service) => {
+        const { channelId, humanId } = z
+          .object({ channelId: z.string().min(1), humanId: z.string().min(1) })
+          .parse(payload);
+        return service.channelAccess.addMember(human, channelId, humanId);
+      }),
+    channelDescriptionSet: (payload: unknown) =>
+      call((service) => {
+        const { channelId, description } = z
+          .object({ channelId: z.string().min(1), description: z.string().max(4096) })
+          .parse(payload);
+        return service.channelAccess.descriptionSet(human, channelId, description);
       }),
     publicChannels: (_payload: unknown) => call((service) => service.publicChannels(human)),
     publicChannelJoin: (payload: unknown) =>
