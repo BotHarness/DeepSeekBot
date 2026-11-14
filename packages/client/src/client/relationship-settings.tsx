@@ -19,6 +19,7 @@ import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
 import { useMountedResource } from './mounted-resource.js';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
 
 export function RelationshipSettings({
   t,
@@ -59,10 +60,13 @@ export function RelationshipSettings({
         await relationshipRequest({ action: 'sync', id: item.id }, abort.current?.signal),
       );
       if (!abort.current?.signal.aborted) {
-        await remoteHosts().learnRelationshipRoutes(
-          result.relationship.peer,
-          parsed?.ok ? parsed.payload.encryption?.privateRelay : undefined,
-        );
+        if (result.relationship.state === 'disconnected') await source.retireRelationship(item.id);
+        else {
+          await remoteHosts().learnRelationshipRoutes(
+            result.relationship.peer,
+            parsed?.ok ? parsed.payload.encryption?.privateRelay : undefined,
+          );
+        }
         setItems((current) =>
           current.map((entry) => (entry.id === item.id ? result.relationship : entry)),
         );
@@ -105,6 +109,8 @@ export function RelationshipSettings({
       );
       if (abort.current?.signal.aborted) return;
       setItems(result.relationships);
+      for (const item of result.relationships)
+        if (item.state === 'disconnected') await source.retireRelationship(item.id);
       const ready = result.relationships.find(
         (item) => item.id === approved.current && item.state === 'active',
       );
@@ -137,11 +143,13 @@ export function RelationshipSettings({
     setFailed(false);
     const { item, action } = confirm;
     try {
+      if (action === 'disconnect' && !(await hostSettingsDrafts.prepare(item.peer.id))) return;
       await relationshipRequest(
         { action, id: item.id, confirmedKey: item.peer.publicKey, confirm: true },
         abort.current?.signal,
       );
       if (action === 'approve') approved.current = item.id;
+      else await source.retireRelationship(item.id);
       if (!abort.current?.signal.aborted) {
         setConfirm(undefined);
         await load();
@@ -190,6 +198,12 @@ export function RelationshipSettings({
                         ? 'relationships.authorized'
                         : 'relationships.pending',
                   )}
+                  {item.state === 'disconnected' ? (
+                    <div>{t('relationships.reconnectHint')}</div>
+                  ) : null}
+                  {item.peerRevocationPending && (item.revocationAttempts ?? 0) >= 8 ? (
+                    <div>{t('relationships.retryPaused')}</div>
+                  ) : null}
                   {item.state === 'active' ? (
                     <>
                       <div>
@@ -216,6 +230,18 @@ export function RelationshipSettings({
               }
               control={
                 <>
+                  {item.state === 'disconnected' && item.peerRevocationPending ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => {
+                        void check(item);
+                      }}
+                    >
+                      {t('relationships.retryRevocation')}
+                    </Button>
+                  ) : null}
                   {item.direction === 'incoming' && item.state === 'pending' ? (
                     <Button
                       size="sm"

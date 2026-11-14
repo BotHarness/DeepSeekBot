@@ -592,15 +592,16 @@ describe('M10 member usage and role models', () => {
     }
   });
 
-  it('upgrades main generation 146 to 148 without rewriting or losing buckets', () => {
+  it('upgrades main generation 147 to 149 without rewriting or losing buckets', () => {
     const home = createTempRoot('m10-main-upgrade-');
     const previous = mountOperationalDatabase({
       dshHome: home,
       schemaPlan: defineSchemaPlan(
-        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 146),
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 147),
       ),
     });
     expect(previous.mode).toBe('ready');
+    expect(previous.generation).toBe(147);
     const old = attachOperationalModule(previous, 'm10-main-fixture');
     old.transaction((db) => {
       db.prepare(
@@ -612,6 +613,12 @@ describe('M10 member usage and role models', () => {
         JSON.stringify({ slug: 'ada', ownerHumanId: 'member' }),
       );
       db.prepare("INSERT INTO tob_identity VALUES ('member', 'ada')").run();
+      db.prepare(`INSERT INTO host_relationships
+        (relationship_id, peer_host_id, peer_name, peer_key, peer_routes, direction, state,
+         expires_at, created_at, updated_at, peer_revocation_pending, revocation_attempts,
+         revocation_retry_at, automatic_enrollment_suppressed)
+        VALUES ('pending', 'peer', 'Peer', ?, '[]', 'outgoing', 'disconnected',
+         0, 'before', 'before', 1, 3, 99, 1)`).run('ab'.repeat(32));
     });
     previous.close();
     for (let restart = 0; restart < 2; restart++) {
@@ -619,7 +626,7 @@ describe('M10 member usage and role models', () => {
         mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
       );
       expect(upgraded.mode).toBe('ready');
-      expect(upgraded.generation).toBe(148);
+      expect(upgraded.generation).toBe(149);
       attachOperationalModule(upgraded, 'm10-upgraded-fixture').read((db) => {
         expect(db.prepare('SELECT human_id, legacy, total_tokens FROM usage_daily').all()).toEqual([
           { human_id: 'local-human', legacy: 1, total_tokens: 13 },
@@ -642,6 +649,17 @@ describe('M10 member usage and role models', () => {
         expect(db.prepare('SELECT * FROM tob_identity').all()).toEqual([
           { human_id: 'member', bot_slug: 'ada' },
         ]);
+        expect(
+          db
+            .prepare(`SELECT peer_revocation_pending, revocation_attempts, revocation_retry_at,
+            automatic_enrollment_suppressed FROM host_relationships WHERE relationship_id = 'pending'`)
+            .get(),
+        ).toEqual({
+          peer_revocation_pending: 1,
+          revocation_attempts: 3,
+          revocation_retry_at: 99,
+          automatic_enrollment_suppressed: 1,
+        });
         expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
       });
       upgraded.close();

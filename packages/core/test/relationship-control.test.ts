@@ -28,12 +28,16 @@ async function host(
   options: {
     credentials?: RelationshipCredentialProvider;
     privateAdmission?: () => PrivateAdmission | undefined;
+    retained?: { home: string; privateKey: Uint8Array; port: number };
+    beforeReceive?: () => Promise<void>;
     beforeReply?: (input: unknown, response: Record<string, unknown>) => Promise<void>;
   } = {},
 ) {
+  const retained = options.retained;
+  const home = retained?.home ?? createTempRoot('relationship-wire-');
   const owner = trackTestOwner(
     mountOperationalDatabase({
-      dshHome: createTempRoot('relationship-wire-'),
+      dshHome: home,
       schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
     }),
   );
@@ -44,8 +48,9 @@ async function host(
   const relationships = createHostRelationships({
     database: attachOperationalModule(owner, 'host-relationships'),
     pairing,
+    now: clock,
   });
-  const privateKey = randomBytes(32);
+  const privateKey = retained ? Buffer.from(retained.privateKey) : randomBytes(32);
   const publicKey = noisePublicKey(privateKey);
   const identity: Pick<ReturnType<typeof createNoiseIdentity>, 'key' | 'publicIdentity'> = {
     key: async () => Uint8Array.from(privateKey),
@@ -58,7 +63,7 @@ async function host(
     }),
   };
   const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => server.listen(retained?.port ?? 0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   const routes = [`http://127.0.0.1:${port}`];
   const advertisedRoutes = [...routes];
@@ -76,6 +81,7 @@ async function host(
     key: identity.key,
     port: () => port,
     relationship: async (peerKey, input) => {
+      await options.beforeReceive?.();
       const response = await control.receive(peerKey, input);
       await options.beforeReply?.(input, response);
       return response;
@@ -85,6 +91,8 @@ async function host(
     void gateway.upgrade(request, socket, head);
   });
   return {
+    disposeAuthority: () => owner.close(),
+    retained: { home, privateKey: Uint8Array.from(privateKey), port },
     pairing,
     relationships,
     control,
@@ -109,9 +117,151 @@ async function host(
         server.close((error) => (error ? reject(error) : resolve())),
       );
       privateKey.fill(0);
+      owner.close();
     },
   };
 }
+
+it('aborts an in-flight retirement before disposing its authority without late reads or an unhandled rejection', async () => {
+  let gate: Promise<void> | undefined;
+  let release = () => {};
+  let arrived = () => {};
+  const a = await host('A');
+  const b = await host('B', Date.now, {
+    beforeReceive: async () => {
+      if (gate) {
+        arrived();
+        await gate;
+      }
+    },
+  });
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const received = new Promise<void>((resolve) => {
+      arrived = resolve;
+    });
+    const pending = a.control.disconnect(relationship.id);
+    await received;
+    a.control.close();
+    a.disposeAuthority();
+    expect(await pending).toMatchObject({ state: 'disconnected', peerRevocationPending: true });
+    release();
+  } finally {
+    release();
+    await a.close();
+    await b.close();
+  }
+});
+
+it('acknowledges simultaneous retirements before cleaning only their admission references', async () => {
+  const deleted: [string[], string[]] = [[], []];
+  const credentials = (index: 0 | 1): RelationshipCredentialProvider => ({
+    readRecord: async () => undefined,
+    modifyRecord: async (_key, mutate) => {
+      await mutate(undefined);
+    },
+    deleteRecord: async (key) => {
+      deleted[index].push(key);
+    },
+  });
+  const a = await host('A', Date.now, { credentials: credentials(0) });
+  const b = await host('B', Date.now, { credentials: credentials(1) });
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const outcomes = await Promise.all([
+      a.control.disconnect(relationship.id),
+      b.control.disconnect(relationship.id),
+    ]);
+    expect(
+      outcomes.every((item) => item.state === 'disconnected' && !item.peerRevocationPending),
+    ).toBe(true);
+    expect(deleted.map((keys) => keys.length)).toEqual([1, 1]);
+    expect(deleted.flat().every((key) => key.includes('relationship-route-'))).toBe(true);
+  } finally {
+    await a.close();
+    await b.close();
+  }
+});
+
+it('persists offline retirement across both Host restarts and retries the exact generation through the encrypted gateway', async () => {
+  let clock = Date.now();
+  let a = await host('A', () => clock);
+  let b = await host('B', () => clock);
+  let aOpen = true;
+  let bOpen = true;
+  try {
+    const relationship = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(relationship.id, a.publicKey);
+    await a.control.sync(relationship.id);
+    const grant = await enrollRelationshipClient({
+      relationshipId: relationship.id,
+      expectedPeer: relationship.peer,
+      name: 'Browser',
+      carrier: nodeDeviceCarrier(),
+      request: (input) =>
+        a.control.enroll(relationship.id, String(input['publicKey']), String(input['name'])),
+    });
+    if (!grant.ok) throw new Error(grant.code);
+    const phone = b.pairing.redeem({ offer: b.pairing.createOffer().offer });
+    if (!phone.ok) throw new Error(phone.code);
+    const aState = a.retained;
+    const bState = b.retained;
+    await b.close();
+    bOpen = false;
+    expect(await a.control.disconnect(relationship.id)).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: true,
+      revocationAttempts: 1,
+    });
+    await a.close();
+    aOpen = false;
+    a = await host('A', () => clock, { retained: aState });
+    aOpen = true;
+    expect(a.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: true,
+      automaticEnrollmentSuppressed: true,
+      revocationAttempts: 1,
+    });
+    await expect(a.control.enroll(relationship.id, 'cd'.repeat(32), 'Late')).rejects.toThrow(
+      'relationship-inactive',
+    );
+    b = await host('B', () => clock, { retained: bState });
+    bOpen = true;
+    expect(b.pairing.check(grant.host.deviceId).ok).toBe(true);
+    clock += 3000;
+    await a.control.retryPending();
+    expect(a.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      peerRevocationPending: false,
+    });
+    expect(b.control.list()[0]).toMatchObject({
+      state: 'disconnected',
+      automaticEnrollmentSuppressed: true,
+    });
+    expect(b.pairing.check(grant.host.deviceId).ok).toBe(false);
+    expect(b.pairing.admit(`Device ${phone.credential}`).ok).toBe(true);
+    const fresh = await a.control.initiate(await b.link(), b.publicKey);
+    b.control.approve(fresh.id, a.publicKey);
+    await a.control.sync(fresh.id);
+    expect(
+      await b.control.receive(a.publicKey, { action: 'disconnect', id: relationship.id }),
+    ).toMatchObject({ ok: true, state: 'disconnected' });
+    expect(b.relationships.read(fresh.id).state).toBe('active');
+    expect(b.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+    expect(a.relationships.read(fresh.id).state).toBe('active');
+  } finally {
+    if (aOpen) await a.close();
+    if (bOpen) await b.close();
+  }
+});
 
 it('establishes exact reciprocal authorization over real Noise sockets and retires only derived grants', async () => {
   const a = await host('A');
@@ -191,6 +341,8 @@ it('retires an unapproved proposal through pending-only cleanup', async () => {
     expect(b.control.list()).toMatchObject([
       { state: 'disconnected', peerRevocationPending: false },
     ]);
+    expect(a.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
+    expect(b.relationships.read(relationship.id).automaticEnrollmentSuppressed).toBe(false);
   } finally {
     await Promise.all([a.close(), b.close()]);
   }
@@ -203,6 +355,7 @@ it('preserves an activated relationship when stale pending cleanup arrives after
     const relationship = await a.control.initiate(await b.link(), b.publicKey);
     b.control.approve(relationship.id, a.publicKey);
     await a.control.sync(relationship.id);
+    const before = [a.relationships.read(relationship.id), b.relationships.read(relationship.id)];
     const response = await createRelationshipHttp(a.control)(
       new Request('http://localhost/api/botharness/relationships', {
         method: 'POST',
@@ -217,6 +370,9 @@ it('preserves an activated relationship when stale pending cleanup arrives after
     expect(await response.json()).toEqual({ code: 'relationship-already-active' });
     expect(a.control.list()).toMatchObject([{ state: 'active', peerRevocationPending: false }]);
     expect(b.control.list()).toMatchObject([{ state: 'active', peerRevocationPending: false }]);
+    expect([a.relationships.read(relationship.id), b.relationships.read(relationship.id)]).toEqual(
+      before,
+    );
   } finally {
     await Promise.all([a.close(), b.close()]);
   }
