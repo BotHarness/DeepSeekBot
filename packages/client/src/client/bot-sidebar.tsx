@@ -1329,14 +1329,21 @@ export function BotSidebar({
     if (query.length > 0) return blocks.filter((block) => block.channels.length > 0);
     return blocks;
   })();
-  const visibleChannelIds = [
-    ...pinnedChannels.map((channel) => channel.id),
-    ...flatBlocks.flatMap((block) =>
-      block.kind === 'section' && state.config.collapsed[block.section.id] === true
-        ? []
-        : block.channels.map((channel) => channel.id),
-    ),
-  ];
+  const showSource =
+    hostTabs && remoteHostsState.tab === ALL_HOSTS && remoteHostsState.hosts.length > 0;
+  const environmentChannels = showSource
+    ? mixedEnvironmentChannels([...pinnedChannels, ...channels], remoteHostsState.hosts, query)
+    : [];
+  const visibleChannelIds = showSource
+    ? environmentChannels.flatMap((entry) => (entry.kind === 'local' ? [entry.channel.id] : []))
+    : [
+        ...pinnedChannels.map((channel) => channel.id),
+        ...flatBlocks.flatMap((block) =>
+          block.kind === 'section' && state.config.collapsed[block.section.id] === true
+            ? []
+            : block.channels.map((channel) => channel.id),
+        ),
+      ];
   const visibleIdsKey = visibleChannelIds.join('|');
   const [previousVisibleIdsKey, setPreviousVisibleIdsKey] = useState(visibleIdsKey);
   if (previousVisibleIdsKey !== visibleIdsKey) {
@@ -2008,8 +2015,6 @@ export function BotSidebar({
     useSectionDrag(commitSectionDrag);
   dragActiveRef.current = channelDragActive || sectionDragActive;
 
-  const showSource =
-    hostTabs && remoteHostsState.tab === ALL_HOSTS && remoteHostsState.hosts.length > 0;
   const renderChannelRow = (channel: ChannelSummary, scopeId: ScopeId): ReactElement => {
     const drag = channelDragProps(scopeId, channel.id);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
@@ -2018,7 +2023,8 @@ export function BotSidebar({
     const pinDragStart = (channelId: string): void => startPinDrag(channelId, 'roster');
     const callbacks: RowCallbacks<ChannelMenuRequest> = {
       onActivate: (event) => activateChannel(channel, event),
-      onMenu: openChannelMenu,
+      onMenu: (request) =>
+        openChannelMenu({ ...request, pinnedView: allPinnedChannelSet.has(channel.id) }),
       onPinDragStart: pinDragStart,
       onPinDragEnd: endPinDrag,
       drag,
@@ -2671,11 +2677,7 @@ export function BotSidebar({
       </div>
       <div className="bh-roster-list">
         {showSource
-          ? mixedEnvironmentChannels(
-              [...pinnedChannels, ...channels],
-              remoteHostsState.hosts,
-              query,
-            ).map((entry) => (
+          ? environmentChannels.map((entry) => (
               <div key={entry.key} data-environment-channel={entry.key}>
                 {entry.kind === 'local' ? (
                   renderChannelRow(entry.channel, undefined)

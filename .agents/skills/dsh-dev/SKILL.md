@@ -5,6 +5,28 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### Empty native credential writer lock after interrupted startup (#4114)
+
+On Windows with DSH 0.2.2-rc.1, an interrupted task-Host startup was followed by a zero-byte
+`.credentials.yaml.lock`; a normal restart refused in the required Connection Plugin with
+`atomic-write: timed out waiting for the writer lock`. The installed native atomic-write
+owner recovers a lock containing an exited PID followed by a newline, but deliberately waits
+on an empty or unrecognized record. A printed login URL alone did not prove Plugin health.
+The exact creator of the empty record was not established; this is a qualified recovery
+procedure, not a claim that startup cancellation always causes an empty lock.
+
+Preserve the failure and inspect the installed native lock code. Before recovering this
+case, prove the exact task Home has no live or unknown users and that the unchanged lock is
+a canonical regular zero-byte file with one link. Record its inode and nanosecond timestamps,
+recheck them immediately before recovery. Coordinate with the task owner to exclude other
+launchers and recovery attempts for this same Home from that recheck through the rename;
+refuse recovery if this exclusion cannot be established. Retain the original by renaming only that lock
+to a timestamped sibling inside the same Home. Leave credentials and preparation markers
+unchanged. Unknown ownership, redirected paths, nonempty records or changed identity refuse
+this procedure. Restart through the qualified lifecycle, require authenticated Plugin health
+and normal native lock release, and retain the backup and metadata. This does not authorize
+automatic lock deletion, a generic stale-lock repair, or a longer startup deadline.
+
 ### CredentialKey segments and opaque identifiers
 
 The pinned native credentials service accepts lowercase letter/digit/hyphen key segments. An opaque application ID can contain uppercase letters or underscores: hash the exact ID for its protected-record key and bind the original identity in the payload. Lowercasing the ID can merge distinct owners. Use `modifyRecord` for writes and keep route admission separate from per-device credentials. Verify protected writes and readback through the running Host, with secret-free output.
