@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { inboxFixture } from './inbox-fixture.js';
@@ -34,7 +35,7 @@ describe('GenUI through canonical message ownership', () => {
   it('persists HTML private state across clients with CAS, reset, access and purge fences', async () => {
     const fixture = await inboxFixture();
     try {
-      await fixture.core.channels.appendMessage(fixture.dm.id, {
+      await fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, {
         id: 'html-document',
         at: '2026-01-01T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -44,6 +45,7 @@ describe('GenUI through canonical message ownership', () => {
       const initial = initialGenuiDocumentState(htmlDocument);
       expect(() =>
         fixture.core.channels.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
           fixture.dm.id,
           'html-document',
           htmlDocument.snapshotId,
@@ -51,13 +53,16 @@ describe('GenUI through canonical message ownership', () => {
           undefined,
         ),
       ).toThrow('explicit');
-      expect(fixture.core.channels.genuiView?.(fixture.dm.id, 'html-document')).toEqual({
+      expect(
+        fixture.core.channels.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'html-document'),
+      ).toEqual({
         version: 0,
         state: initial,
       });
       const state = { version: 1, values: { selection: 'beta', expanded: true } };
       expect(
         fixture.core.channels.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
           fixture.dm.id,
           'html-document',
           htmlDocument.snapshotId,
@@ -69,21 +74,52 @@ describe('GenUI through canonical message ownership', () => {
         rootDir: fixture.core.channels.rootDir,
         database: attachOperationalModule(fixture.core.operationalDatabase, 'html-second-client'),
       });
-      expect(second.genuiView?.(fixture.dm.id, 'html-document')).toEqual({ version: 1, state });
+      expect(second.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'html-document')).toEqual({
+        version: 1,
+        state,
+      });
       expect(() =>
-        second.saveGenuiView?.(fixture.dm.id, 'html-document', htmlDocument.snapshotId, 0, initial),
+        second.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
+          fixture.dm.id,
+          'html-document',
+          htmlDocument.snapshotId,
+          0,
+          initial,
+        ),
       ).toThrow('changed');
       expect(() =>
-        second.saveGenuiView?.(fixture.dm.id, 'html-document', 'forged', 1, initial),
+        second.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
+          fixture.dm.id,
+          'html-document',
+          'forged',
+          1,
+          initial,
+        ),
       ).toThrow('unavailable');
       expect(() =>
-        second.saveGenuiView?.(fixture.dm.id, 'html-document', htmlDocument.snapshotId, 1, {
-          version: 1,
-          values: { selection: 'unknown', expanded: true },
-        }),
+        second.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
+          fixture.dm.id,
+          'html-document',
+          htmlDocument.snapshotId,
+          1,
+          {
+            version: 1,
+            values: { selection: 'unknown', expanded: true },
+          },
+        ),
       ).toThrow();
       expect(
-        second.saveGenuiView?.(fixture.dm.id, 'html-document', htmlDocument.snapshotId, 1, initial),
+        second.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
+          fixture.dm.id,
+          'html-document',
+          htmlDocument.snapshotId,
+          1,
+          initial,
+        ),
       ).toEqual({ version: 2, state: initial });
       const database = attachOperationalModule(
         fixture.core.operationalDatabase,
@@ -95,9 +131,18 @@ describe('GenUI through canonical message ownership', () => {
           .prepare('UPDATE channel_records SET record_json = ? WHERE channel_id = ?')
           .run(JSON.stringify({ ...record, deletedAt: new Date().toISOString() }), fixture.dm.id),
       );
-      expect(() => second.genuiView?.(fixture.dm.id, 'html-document')).toThrow('unavailable');
+      expect(() => second.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'html-document')).toThrow(
+        'unavailable',
+      );
       expect(() =>
-        second.saveGenuiView?.(fixture.dm.id, 'html-document', htmlDocument.snapshotId, 2, state),
+        second.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
+          fixture.dm.id,
+          'html-document',
+          htmlDocument.snapshotId,
+          2,
+          state,
+        ),
       ).toThrow('unavailable');
       database.transaction((db) =>
         db
@@ -108,13 +153,24 @@ describe('GenUI through canonical message ownership', () => {
         htmlDocument,
       );
       const scope = { before: '2026-02-01T00:00:00.000Z', channelIds: [fixture.dm.id] };
-      const preview = fixture.core.contentPurge.textPreview(scope);
-      expect(fixture.core.contentPurge.textConfirm(scope, preview.token)).toMatchObject({
+      const preview = fixture.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+      expect(
+        fixture.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, scope, preview.token),
+      ).toMatchObject({
         messages: 1,
       });
-      expect(() => second.genuiView?.(fixture.dm.id, 'html-document')).toThrow('unavailable');
+      expect(() => second.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'html-document')).toThrow(
+        'unavailable',
+      );
       expect(() =>
-        second.saveGenuiView?.(fixture.dm.id, 'html-document', htmlDocument.snapshotId, 2, state),
+        second.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
+          fixture.dm.id,
+          'html-document',
+          htmlDocument.snapshotId,
+          2,
+          state,
+        ),
       ).toThrow('unavailable');
       expect(
         database.read((db) =>
@@ -128,14 +184,14 @@ describe('GenUI through canonical message ownership', () => {
   it('binds HTML follow-ups to canonical document hash and validated untrusted state, with safe retries', async () => {
     const fixture = await inboxFixture();
     try {
-      await fixture.core.channels.appendMessage(fixture.dm.id, {
+      await fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, {
         id: 'html-document',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Synthetic HTML summary.',
         genui: htmlDocument,
       });
-      const methods = createBridgeMethods({ ...fixture.core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fixture.core });
       const payload = {
         channelId: fixture.dm.id,
         messageId: `human-${randomUUID()}`,
@@ -179,7 +235,7 @@ describe('GenUI through canonical message ownership', () => {
         genuiReplyContext: sent.value.message.genuiReplyContext,
       });
       await expect(
-        fixture.core.channels.appendMessage(fixture.dm.id, {
+        fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, {
           ...sent.value.message,
           id: `human-${randomUUID()}`,
           genuiReplyContext: 'Forged model instructions',
@@ -188,7 +244,7 @@ describe('GenUI through canonical message ownership', () => {
       const orphanContext = { ...sent.value.message, id: `human-${randomUUID()}` };
       delete orphanContext.genuiReply;
       await expect(
-        fixture.core.channels.appendMessage(fixture.dm.id, orphanContext),
+        fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, orphanContext),
       ).rejects.toThrow('Human continuation');
       expect(await methods.channelSend(payload)).toMatchObject({
         ok: true,
@@ -201,7 +257,7 @@ describe('GenUI through canonical message ownership', () => {
         body: `${payload.body}\n\n${sent.value.message.genuiReplyContext}`,
       };
       delete legacyMessage.genuiReplyContext;
-      await fixture.core.channels.appendMessage(fixture.dm.id, legacyMessage);
+      await fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, legacyMessage);
       expect(await methods.channelSend({ ...payload, messageId: legacyId })).toMatchObject({
         ok: true,
         value: {
@@ -254,8 +310,8 @@ describe('GenUI through canonical message ownership', () => {
         before: new Date(Date.now() + 1000).toISOString(),
         channelIds: [fixture.dm.id],
       };
-      const preview = fixture.core.contentPurge.textPreview(scope);
-      fixture.core.contentPurge.textConfirm(preview.scope, preview.token);
+      const preview = fixture.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+      fixture.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
       const database = attachOperationalModule(
         fixture.core.operationalDatabase,
         'html-reply-context-purge',
@@ -335,7 +391,7 @@ describe('GenUI through canonical message ownership', () => {
   it('removes private views through actual Content Purge without deleting placements', async () => {
     const fixture = await inboxFixture();
     try {
-      await fixture.core.channels.appendMessage(fixture.dm.id, {
+      await fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, {
         id: 'purge-report',
         at: '2026-01-01T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -343,6 +399,7 @@ describe('GenUI through canonical message ownership', () => {
         genui: comparisonReport,
       });
       fixture.core.channels.saveGenuiView?.(
+        OWNER_HUMAN_CONTEXT,
         fixture.dm.id,
         'purge-report',
         comparisonReport.snapshotId,
@@ -350,9 +407,11 @@ describe('GenUI through canonical message ownership', () => {
         { ...initialGenuiView(), selectedIds: ['alpha'] },
       );
       const scope = { before: '2026-02-01T00:00:00.000Z', channelIds: [fixture.dm.id] };
-      const preview = fixture.core.contentPurge.textPreview(scope);
+      const preview = fixture.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
       expect(preview.messages).toBe(1);
-      expect(fixture.core.contentPurge.textConfirm(scope, preview.token)).toMatchObject({
+      expect(
+        fixture.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, scope, preview.token),
+      ).toMatchObject({
         messages: 1,
       });
       const database = attachOperationalModule(
@@ -373,9 +432,9 @@ describe('GenUI through canonical message ownership', () => {
             .get(fixture.dm.id, 'purge-report'),
         ),
       ).toMatchObject({ count: 1 });
-      expect(() => fixture.core.channels.genuiView?.(fixture.dm.id, 'purge-report')).toThrow(
-        'unavailable',
-      );
+      expect(() =>
+        fixture.core.channels.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'purge-report'),
+      ).toThrow('unavailable');
     } finally {
       await fixture.close();
     }
@@ -383,18 +442,23 @@ describe('GenUI through canonical message ownership', () => {
   it('persists a private draft, fences stale writes and keeps it out of the message', async () => {
     const fixture = await inboxFixture();
     try {
-      await fixture.core.channels.appendMessage(fixture.dm.id, {
+      await fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, {
         id: 'report-1',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Synthetic options compared.',
         genui: comparisonReport,
       });
-      const first = fixture.core.channels.genuiView?.(fixture.dm.id, 'report-1');
+      const first = fixture.core.channels.genuiView?.(
+        OWNER_HUMAN_CONTEXT,
+        fixture.dm.id,
+        'report-1',
+      );
       expect(first).toEqual({ version: 0, state: initialGenuiView() });
       const state = { ...initialGenuiView(), selectedIds: ['alpha'], filter: 'Al' };
       expect(
         fixture.core.channels.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
           fixture.dm.id,
           'report-1',
           comparisonReport.snapshotId,
@@ -402,7 +466,9 @@ describe('GenUI through canonical message ownership', () => {
           state,
         ),
       ).toEqual({ version: 1, state });
-      expect(fixture.core.channels.genuiView?.(fixture.dm.id, 'report-1')).toEqual({
+      expect(
+        fixture.core.channels.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'report-1'),
+      ).toEqual({
         version: 1,
         state,
       });
@@ -410,7 +476,10 @@ describe('GenUI through canonical message ownership', () => {
         rootDir: fixture.core.channels.rootDir,
         database: attachOperationalModule(fixture.core.operationalDatabase, 'genui-second-client'),
       });
-      expect(second.genuiView?.(fixture.dm.id, 'report-1')).toEqual({ version: 1, state });
+      expect(second.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'report-1')).toEqual({
+        version: 1,
+        state,
+      });
       const accessDatabase = attachOperationalModule(
         fixture.core.operationalDatabase,
         'genui-access-test',
@@ -421,9 +490,18 @@ describe('GenUI through canonical message ownership', () => {
           .prepare('UPDATE channel_records SET record_json = ? WHERE channel_id = ?')
           .run(JSON.stringify({ ...record, deletedAt: new Date().toISOString() }), fixture.dm.id),
       );
-      expect(() => second.genuiView?.(fixture.dm.id, 'report-1')).toThrow('unavailable');
+      expect(() => second.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'report-1')).toThrow(
+        'unavailable',
+      );
       expect(() =>
-        second.saveGenuiView?.(fixture.dm.id, 'report-1', comparisonReport.snapshotId, 1, state),
+        second.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
+          fixture.dm.id,
+          'report-1',
+          comparisonReport.snapshotId,
+          1,
+          state,
+        ),
       ).toThrow('unavailable');
       accessDatabase.transaction((db) =>
         db
@@ -432,6 +510,7 @@ describe('GenUI through canonical message ownership', () => {
       );
       expect(() =>
         fixture.core.channels.saveGenuiView?.(
+          OWNER_HUMAN_CONTEXT,
           fixture.dm.id,
           'report-1',
           comparisonReport.snapshotId,
@@ -451,7 +530,9 @@ describe('GenUI through canonical message ownership', () => {
           .prepare('DELETE FROM channel_placements WHERE channel_id = ? AND message_id = ?')
           .run(fixture.dm.id, 'report-1'),
       );
-      expect(() => second.genuiView?.(fixture.dm.id, 'report-1')).toThrow('unavailable');
+      expect(() => second.genuiView?.(OWNER_HUMAN_CONTEXT, fixture.dm.id, 'report-1')).toThrow(
+        'unavailable',
+      );
       expect(
         database.read((db) =>
           db.prepare('SELECT COUNT(*) AS count FROM genui_private_views').get(),
@@ -464,14 +545,14 @@ describe('GenUI through canonical message ownership', () => {
   it('submits one ordinary Human request with canonical snapshot context and rejects changed reuse', async () => {
     const fixture = await inboxFixture();
     try {
-      await fixture.core.channels.appendMessage(fixture.dm.id, {
+      await fixture.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fixture.dm.id, {
         id: 'report-1',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Synthetic options compared.',
         genui: comparisonReport,
       });
-      const methods = createBridgeMethods({ ...fixture.core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fixture.core });
       const payload = {
         channelId: fixture.dm.id,
         body: 'Compare my selection',

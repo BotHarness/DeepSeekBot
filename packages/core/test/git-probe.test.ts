@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -134,9 +135,9 @@ describe('Git probe', () => {
       installable: true,
       install: { phase: 'idle' as const },
     };
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       git: { status: () => status, install: () => status },
-    } as unknown as Parameters<typeof createBridgeMethods>[0]);
+    } as unknown as Parameters<typeof createBridgeMethods>[1]);
     expect(methods.gitStatus()).toEqual({ ok: true, value: status });
   });
 });

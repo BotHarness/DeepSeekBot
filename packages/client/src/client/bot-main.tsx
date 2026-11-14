@@ -1,3 +1,4 @@
+import { humanIdOf, useSelfHumanId } from './self-human.js';
 import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
 import { BubbleHoveredContext, BubbleToolbar } from './bubble-toolbar.js';
@@ -297,7 +298,7 @@ function authorLabel(
 ): string {
   switch (message.author.kind) {
     case 'human':
-      return humanLabel(humanName, t);
+      return message.author.displayName ?? humanLabel(humanName, t);
     case 'system':
       return t('main.author.system');
     case 'bot':
@@ -692,7 +693,9 @@ const MessageGroupView = memo(function MessageGroupView({
   const humanName = channelHumanName({ humanMembers: [...humanMembers] });
   const first = group.messages[0]!;
   const author = first.author;
-  const human = author.kind === 'human';
+  const self = useSelfHumanId();
+  const human = author.kind === 'human' && humanIdOf(author) === self;
+  const otherHuman = author.kind === 'human' && !human;
   const authorBot =
     author.kind === 'bot' ? bots.find((candidate) => candidate.slug === author.slug) : undefined;
   const welcomeBot =
@@ -702,7 +705,7 @@ const MessageGroupView = memo(function MessageGroupView({
   const displayBot = authorBot ?? welcomeBot;
   const reactorName = (actor: { kind: 'human' | 'bot'; id: string }): string =>
     actor.kind === 'human'
-      ? actor.id === 'local-human'
+      ? actor.id === self
         ? t('message.reaction.you')
         : (humanMembers.find((member) => member.humanId === actor.id)?.displayName ?? actor.id)
       : (bots.find((candidate) => candidate.slug === actor.id)?.displayName ?? actor.id);
@@ -740,7 +743,7 @@ const MessageGroupView = memo(function MessageGroupView({
         ? undefined
         : displayBot !== undefined
           ? messageAuthorCardModel({ kind: 'bot', bot: displayBot }, currentDmBotSlug, t)
-          : human
+          : human || otherHuman
             ? messageAuthorCardModel({ kind: 'human', name: authorName }, currentDmBotSlug, t)
             : undefined;
   const withAuthorCard = (anchor: ReactElement): ReactElement =>

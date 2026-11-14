@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { dmChannelId } from '../channels/channel.js';
 import type { HumanAttentionItem, HumanAttentionQuery } from '../runtime/human-attention.js';
 import type { PushCandidate, PushKind, PushSource } from './delivery.js';
@@ -102,11 +103,14 @@ function candidate(
   ];
 }
 
-function unreadReplies(attention: Pick<HumanAttentionQuery, 'list'>): HumanAttentionItem[] {
+function unreadReplies(
+  attention: Pick<HumanAttentionQuery, 'list'>,
+  human: HumanContext,
+): HumanAttentionItem[] {
   const items: HumanAttentionItem[] = [];
   let cursor: string | undefined;
   do {
-    const page = attention.list({
+    const page = attention.list(human, {
       category: 'replies',
       unreadOnly: true,
       limit: Math.min(PAGE_LIMIT, REPLY_LIMIT - items.length),
@@ -124,13 +128,16 @@ export function activityListPushSource(
   approval?: PushApprovalLookup,
 ): PushSource {
   return {
-    pending() {
-      const action = attention.list({ category: 'action', limit: ACTION_LIMIT }).items;
-      const replies = unreadReplies(attention).filter((item) => item.isUnread !== false);
-      const dms = attention.dmReplies(REPLY_LIMIT);
+    pending(human = OWNER_HUMAN_CONTEXT) {
+      const action = attention.list(human, {
+        category: 'action',
+        limit: ACTION_LIMIT,
+      }).items;
+      const replies = unreadReplies(attention, human).filter((item) => item.isUnread !== false);
+      const dms = attention.dmReplies(human, REPLY_LIMIT);
       return {
         items: [...action, ...replies, ...dms].flatMap((item) => candidate(item, approval)),
-        badge: attention.actionCount(),
+        badge: attention.actionCount(human),
       };
     },
     botName,

@@ -12,6 +12,14 @@
       "gap": "Two-Host Web and direct CLI qualification is separate from installed Desktop, native mobile and Human acceptance."
     },
     {
+      "id": "team.member-sign-in",
+      "label": "Host member sign-in, public Channels and local CLI member dispatch",
+      "source": "packages/core/src/team/http.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
+      "task": 4140,
+      "gap": "Native mobile sign-in is M8; the member browser journey is qualified on a LAN address of the Host machine with a task-only certificate."
+    },
+    {
       "id": "question.durable-recovery",
       "label": "Original timed-question answers after durable continuation and Host restart",
       "source": "packages/core/src/channels/native-timed-questions.ts",
@@ -845,6 +853,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/desktop-window-zoom.md",
       "task": 2268,
       "gap": "Explicitly opted-in macOS0.2.1-rc.2 product composition qualified on representative input/popup/native guest paths; unknown versions/arbitrary pages are not qualified. Windows/Linux remain S3. CI and unmerged PR delivery are separate from runtime evidence."
+    },
+    {
+      "id": "client.team-mode",
+      "label": "Turn on Team mode, add a member with a one-time password, sign the member in and join a public channel",
+      "source": "packages/client/src/client/team-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
+      "task": 4140,
+      "gap": "A second physical machine is not part of automated verification; the member browser runs in an isolated context against the Host's LAN HTTPS address."
     },
     {
       "id": "client.global-search",
@@ -2256,7 +2272,7 @@
       "path": "scripts/e2e-tob-home.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged.",
+      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings \u203a Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged.",
       "task": 3092,
       "sha256": "245ecfc859d40454440557fc658725f03fb701ed91b8de29dc7654dae7615336"
     },
@@ -2528,7 +2544,7 @@
       "path": "scripts/e2e-phone-recovery.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing"],
-      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA. #2793: re-audited Connections → Manage selectors and generic Connect a device label; fault-injection boundaries unchanged.",
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA. #2793: re-audited Connections \u2192 Manage selectors and generic Connect a device label; fault-injection boundaries unchanged.",
       "task": 2731,
       "sha256": "df679869173191f5bd7381e2fbed2135c077bb191675786e62dc29a372d686d9"
     },

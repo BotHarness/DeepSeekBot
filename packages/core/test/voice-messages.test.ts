@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -66,7 +67,7 @@ async function setup(status = 200, speak?: Parameters<typeof createVoiceMessages
     now: FIXED_NOW,
     onVoiceChanged: (_channelId, messageId, message) => notifications.push({ messageId, message }),
   });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const providers = new VoiceProviders({
     database: attachOperationalModule(owner, 'voice'),
     credentials: () => ctx.credentials,

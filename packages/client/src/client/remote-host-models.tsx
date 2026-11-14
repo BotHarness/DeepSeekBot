@@ -41,6 +41,23 @@ type PresetCreation =
   | { kind: 'unknown' }
   | { kind: 'receipt'; id: string };
 
+function settingsFailure(cause: unknown): 'unsupported' | 'locked' | 'failed' {
+  if (unsupported(cause)) return 'unsupported';
+  if (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'code' in cause &&
+    cause.code === 'invalid-input' &&
+    'message' in cause &&
+    typeof cause.message === 'string' &&
+    cause.message.includes(
+      '"agent-default-model" is overridden by a home patch or command-line overlay',
+    )
+  )
+    return 'locked';
+  return 'failed';
+}
+
 function unsupported(error: unknown): boolean {
   return (
     typeof error === 'object' &&
@@ -121,7 +138,7 @@ function Models({
 }) {
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, scope]);
   const [value, setValue] = useState<ModelSettingsState>();
-  const [error, setError] = useState<'unsupported' | 'failed'>();
+  const [error, setError] = useState<ReturnType<typeof settingsFailure>>();
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string>();
   const [creation, setCreation] = useState<PresetCreation>({ kind: 'idle' });
@@ -135,7 +152,7 @@ function Models({
       const next = await resource.refresh();
       if (generation.current === request) setValue(next);
     } catch (cause) {
-      if (generation.current === request) setError(unsupported(cause) ? 'unsupported' : 'failed');
+      if (generation.current === request) setError(settingsFailure(cause));
     }
   };
   const mount = useMountedResource<HTMLDivElement>(() => {
@@ -162,7 +179,7 @@ function Models({
       const observed = await resource.refresh().catch(() => undefined);
       if (generation.current === request) {
         if (observed !== undefined) setValue(observed);
-        setError(unsupported(cause) ? 'unsupported' : 'failed');
+        setError(settingsFailure(cause));
       }
       return false;
     } finally {
@@ -320,7 +337,9 @@ function Models({
           {t(
             error === 'unsupported'
               ? 'environment.settings.unsupported'
-              : 'remoteHosts.settings.error',
+              : error === 'locked'
+                ? 'environment.settings.defaultLocked'
+                : 'remoteHosts.settings.error',
           )}
         </Note>
       ) : null}

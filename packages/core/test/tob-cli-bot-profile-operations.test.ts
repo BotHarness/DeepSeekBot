@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -27,7 +28,7 @@ function fixture() {
   const core = createCore({ dshHome: root });
   cores.push(core);
   expect(core.registry.create({ slug: 'research', displayName: 'Research' }).ok).toBe(true);
-  core.channels.getOrCreateDm('research');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'research');
   const stop = vi.fn(async () => {});
   const dependencies = {
     sessions: [] as string[],
@@ -43,7 +44,7 @@ function fixture() {
     allWorkspacePaths: () => [],
     stop,
   });
-  const bridge = createBridgeMethods({ ...core, deletions });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, deletions });
   const prepare = createTobBotProfileOperations({
     registry: core.registry,
     bridge: () => bridge,

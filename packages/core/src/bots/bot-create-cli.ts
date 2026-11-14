@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -530,6 +531,7 @@ const SECRET_ARGV = new Set([
 ]);
 
 const CREATE_OPTIONS = {
+  administration: { type: 'boolean' },
   name: { type: 'string' },
   persona: { type: 'string' },
   'persona-stdin': { type: 'boolean' },
@@ -1570,7 +1572,7 @@ async function runMemorySave(
       join(resolveHome(values, io), 'botharness', 'bots', opened.record.slug, 'memory');
     const head = expectedHead ?? currentHead(dataDir);
     const commit = callMemory(() =>
-      opened.memory.saveHuman({
+      opened.memory.saveHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: opened.record.slug,
         path,
         body: text,
@@ -1722,7 +1724,7 @@ function runHumanNameSet(
   try {
     const channels = openChannels(dshHome, owner, registry);
     try {
-      const identity = channels.setHumanDefaultName(clear ? null : name!);
+      const identity = channels.setHumanDefaultName(OWNER_HUMAN_CONTEXT, clear ? null : name!);
       io.stderr(`tobs: set the Human display name`);
       return { human: { humanId: identity.humanId, displayName: identity.displayName } };
     } catch (error) {
@@ -1758,7 +1760,7 @@ function runChannelHumanNameSet(
       throw new CliFailure('unknown-channel', `Unknown channel: ${channelId}`, 1);
     }
     try {
-      channels.setHumanNickname(channelId, clear ? null : nickname!);
+      channels.setHumanNickname(OWNER_HUMAN_CONTEXT, channelId, clear ? null : nickname!);
     } catch (error) {
       throw new CliFailure(
         'invalid-input',
@@ -1767,7 +1769,10 @@ function runChannelHumanNameSet(
       );
     }
     io.stderr(`tobs: set the Human nickname in ${channelId}`);
-    return { channel: { id: channelId }, nickname: channels.humanNickname(channelId) ?? null };
+    return {
+      channel: { id: channelId },
+      nickname: channels.humanNickname(OWNER_HUMAN_CONTEXT, channelId) ?? null,
+    };
   } finally {
     owner.close();
   }
@@ -2525,6 +2530,7 @@ function runSecretUnset(
 }
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
+  { command: 'bots', description: 'bots list|create|show|delete' },
   ...ZIP_UPLOAD_COMMANDS.map((command) => ({
     command,
     description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
@@ -2627,7 +2633,20 @@ export async function runBotCreateCli(
       allowPositionals: true,
       strict: true,
     });
-    const [command, ...rest] = positionals;
+    let [command, ...rest] = positionals;
+    if (command === 'bots') {
+      const [action, ...targets] = rest;
+      const aliases: Record<string, string> = {
+        list: 'list',
+        show: 'show',
+        create: 'create',
+        delete: 'bot-delete-confirm',
+      };
+      if (!action || !aliases[action]) throw usageError('invalid-input');
+      command = aliases[action];
+      rest = targets;
+    } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
+    if (values.administration && command !== 'list') throw usageError('invalid-input');
     compactOutput = values.compact === true;
     if (command === 'voice-local-kit') {
       out.stdout(
@@ -2649,6 +2668,25 @@ export async function runBotCreateCli(
     }
     if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
+    const teamChannels = command === 'channels' && (online || rest.length > 0);
+    if (
+      values.as !== undefined &&
+      (!online ||
+        (!teamChannels &&
+          command !== 'channel-messages' &&
+          !ONLINE_MANAGEMENT_COMMANDS.some((entry) => entry === command) &&
+          !LIFECYCLE_COMMANDS.some((entry) => entry.command === command) &&
+          !DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) &&
+          !LIVE_COMMANDS.some((entry) => entry.command === command)))
+    )
+      throw usageError('as-online-required');
+    if (teamChannels || (values.as !== undefined && command === 'channel-messages')) {
+      if (!online) throw usageError('host-required');
+      if (values.home !== undefined)
+        throw usageError('Do not combine --home and an online Host target.');
+      out.stdout(JSON.stringify(await runLiveCli(command, rest, values, io), null, 2));
+      return 0;
+    }
     if (ZIP_UPLOAD_COMMANDS.some((entry) => entry === command)) {
       if (!online) throw usageError('Zip transfer commands require --host.');
       out.stdout(JSON.stringify(await runZipUploadCli(command, rest, values, io), null, 2));
@@ -2938,6 +2976,7 @@ export async function runBotCreateCli(
             error: {
               code: error.code,
               message: error.message,
+              ...(error.details === undefined ? {} : { details: error.details }),
               ...(error.operation === undefined ? {} : { operation: error.operation }),
             },
             ...(error.receipt === undefined ? {} : { receipt: error.receipt }),

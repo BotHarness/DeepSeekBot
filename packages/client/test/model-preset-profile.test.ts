@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { OWNER_HUMAN_CONTEXT } from '../../core/src/humans/context.js';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -197,7 +198,7 @@ function remoteOwner() {
     assignmentDefault: route,
   });
   let validate = async () => {};
-  const bridge = createBridgeMethods({
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     ...core,
     modelCatalog: { list: async () => catalog, validate: () => validate() },
     defaultModel: { currentSelection: () => route, saveSelection: async () => {} },

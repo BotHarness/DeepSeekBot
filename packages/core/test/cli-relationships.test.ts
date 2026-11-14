@@ -5,6 +5,17 @@ import { join } from 'node:path';
 import { createTempRoot } from './helpers.js';
 import { pairingLink } from '../src/devices/http.js';
 import { noiseFingerprint, NOISE_PROTOCOL } from '../src/devices/noise/xk.js';
+import { enrollRelationshipClient } from '../src/devices/relationship-enrollment.js';
+import { tmpdir } from 'node:os';
+
+vi.mock('../src/devices/relationship-enrollment.js', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../src/devices/relationship-enrollment.js')>();
+  return {
+    ...original,
+    enrollRelationshipClient: vi.fn(async () => ({ ok: false, code: 'cancelled' })),
+  };
+});
 
 const id = 'a'.repeat(32);
 const publicKey = 'ab'.repeat(32);
@@ -13,6 +24,42 @@ const fixture = () => {
   const http = vi.fn(async () => ({ bytes: new TextEncoder().encode(JSON.stringify(response)) }));
   return { http, connect: async () => ({ http }) };
 };
+it('passes the command deadline into encrypted relationship enrollment', async () => {
+  const { http, connect } = fixture();
+  http.mockResolvedValueOnce({
+    bytes: new TextEncoder().encode(
+      JSON.stringify({
+        relationships: [
+          {
+            id,
+            peer: {
+              id: 'peer',
+              name: 'Peer',
+              publicKey,
+              routes: ['http://127.0.0.1:47001'],
+            },
+            direction: 'outgoing',
+            state: 'active',
+            expiresAt: Date.now() + 60_000,
+            peerRevocationPending: false,
+          },
+        ],
+      }),
+    ),
+  });
+  const abort = new AbortController();
+  await expect(
+    runRelationshipCommand(
+      ['enroll', id],
+      { out: join(tmpdir(), `e1-enroll-${crypto.randomUUID()}.json`) },
+      connect,
+      abort.signal,
+    ),
+  ).rejects.toMatchObject({ code: 'cancelled' });
+  expect(enrollRelationshipClient).toHaveBeenCalledWith(
+    expect.objectContaining({ signal: abort.signal }),
+  );
+});
 it('lists relationships through the authenticated owning Host', async () => {
   const { http, connect } = fixture();
   expect(await runRelationshipCommand(['list'], {}, connect)).toEqual(response);

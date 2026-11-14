@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import type { SQLInputValue } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
@@ -7,6 +8,10 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { createHumanAttentionQuery, UNREAD_COUNT_LIMIT } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+
+const canonicalHistorySql = `SELECT source_event_id, source_kind, bot_slug, channel_id, message_id,
+  assignment_session_id, body, created_at, handled_at, attempt_state, side_effect_started_at,
+  expects_reply, observed_at, payload_json FROM source_events ORDER BY source_event_id`;
 
 const indexes = [
   'source_events_attention_question',
@@ -50,11 +55,7 @@ describe('Human attention candidate indexes', () => {
       const facts = () =>
         database.read((connection) =>
           createHash('sha256')
-            .update(
-              JSON.stringify(
-                connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
-              ),
-            )
+            .update(JSON.stringify(connection.prepare(canonicalHistorySql).all()))
             .digest('hex'),
         );
       const before = facts();
@@ -67,11 +68,7 @@ describe('Human attention candidate indexes', () => {
       const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
       const after = current.read((connection) =>
         createHash('sha256')
-          .update(
-            JSON.stringify(
-              connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
-            ),
-          )
+          .update(JSON.stringify(connection.prepare(canonicalHistorySql).all()))
           .digest('hex'),
       );
       expect(after).toBe(before);
@@ -107,7 +104,7 @@ describe('Human attention candidate indexes', () => {
     );
     const database = attachOperationalModule(owner, 'attention-index-plan');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
-    const channel = channels.getOrCreateDm('ada', 'Ada')!;
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     database.transaction((connection) => {
       const event = connection.prepare(`INSERT INTO source_events
         (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
@@ -164,7 +161,7 @@ describe('Human attention candidate indexes', () => {
         );
       },
     };
-    expect(createHumanAttentionQuery(observed).status()).toEqual({
+    expect(createHumanAttentionQuery(observed).status(OWNER_HUMAN_CONTEXT)).toEqual({
       unreadCount: UNREAD_COUNT_LIMIT,
       hasAction: false,
     });

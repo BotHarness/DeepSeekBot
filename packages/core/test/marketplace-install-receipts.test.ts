@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -141,12 +142,12 @@ describe('installing from the Marketplace', () => {
       },
     };
     let next = 0;
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry,
       states: createBotStateTracker(),
       createBotId: () => `bot-${(next += 1)}`,
       marketplaceReceipts: receipts,
-    } as unknown as Parameters<typeof createBridgeMethods>[0]);
+    } as unknown as Parameters<typeof createBridgeMethods>[1]);
     return { methods, sent };
   }
 

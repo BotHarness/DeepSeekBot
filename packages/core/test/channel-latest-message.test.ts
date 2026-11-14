@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -41,7 +42,10 @@ function fixture() {
     rootDir: join(root, 'channels'),
     attachments: files,
   });
-  const channel = channels.createGroup({ name: 'Latest preview', members: ['ada'] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Latest preview',
+    members: ['ada'],
+  });
   let revision = 0;
   const seed = (...messages: ChannelMessage[]) => {
     database.transaction((db) => {
@@ -227,7 +231,7 @@ describe('SQLite latest Channel preview', () => {
       reactions: [{ emoji: '👍' }],
       humanReceipts: [{ humanId: 'local-human', state: 'unread' }],
     });
-    await f.channels.markRead(f.channel.id, 'latest');
+    await f.channels.markRead(OWNER_HUMAN_CONTEXT, f.channel.id, 'latest');
     f.assertLatest('latest');
     expect(f.channels.latestMessage(f.channel.id)?.humanReceipts?.[0]?.state).toBe('read');
   });

@@ -359,6 +359,7 @@ export interface DshAgentPresetHost {
 
 export interface DshBotAgentAdapterOptions {
   onGenuiDiagnostic?: (event: GenuiPreviewDiagnostic) => void;
+  genuiPreviewBrowserPath?: string;
   genuiAttachmentContext?: Pick<Context, 'get'>;
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
@@ -572,6 +573,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #promptText: (sessionId: string) => PromptText;
   readonly #hasSession: DshBotAgentAdapterOptions['hasSession'];
   readonly #onGenuiDiagnostic: DshBotAgentAdapterOptions['onGenuiDiagnostic'];
+  readonly #genuiPreviewBrowserPath: DshBotAgentAdapterOptions['genuiPreviewBrowserPath'];
   readonly #genuiAttachmentContext: DshBotAgentAdapterOptions['genuiAttachmentContext'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #defaultAgentPreset: string | undefined;
@@ -610,6 +612,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
   constructor(options: DshBotAgentAdapterOptions) {
     this.#onGenuiDiagnostic = options.onGenuiDiagnostic;
+    this.#genuiPreviewBrowserPath = options.genuiPreviewBrowserPath;
     this.#genuiAttachmentContext = options.genuiAttachmentContext;
     this.#agents = options.agents;
     this.#defaultModel = options.defaultModel;
@@ -1251,6 +1254,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     );
     registerTool(
       createGenuiPreviewTool({
+        browserPath: this.#genuiPreviewBrowserPath,
         onDiagnostic: this.#onGenuiDiagnostic,
         saveImage: async (data) => {
           const attachments =
