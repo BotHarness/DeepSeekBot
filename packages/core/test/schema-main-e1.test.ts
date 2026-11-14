@@ -8,11 +8,11 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-describe('published Human and Team schemas to E1 relationship144', () => {
+describe('published Human and Team schemas through M9 lifecycle145', () => {
   const e1SchemaPlan = defineSchemaPlan(
-    BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 144),
+    BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 145),
   );
-  it.each([138, 139, 140, 141, 142, 143])(
+  it.each([138, 139, 140, 141, 142, 143, 144])(
     'upgrades supported generation %i with Human data and independent pairing intact',
     (generation) => {
       const home = createTempRoot('schema-main-e1-');
@@ -60,7 +60,7 @@ describe('published Human and Team schemas to E1 relationship144', () => {
           mountOperationalDatabase({ dshHome: home, schemaPlan: e1SchemaPlan }),
         );
         expect(owner.mode).toBe('ready');
-        expect(owner.generation).toBe(144);
+        expect(owner.generation).toBe(145);
         const current = attachOperationalModule(owner, 'migration-fixture');
         const reopened = createDevicePairing({ database: current, hostName: 'Existing' });
         expect(reopened.admit(`Device ${deviceId}.${secret}`).ok).toBe(true);

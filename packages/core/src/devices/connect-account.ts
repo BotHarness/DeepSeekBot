@@ -103,7 +103,7 @@ export interface ConnectAccount {
   start(): Promise<void>;
   signIn(): Promise<AccountResult>;
   signOut(): Promise<AccountResult>;
-  connectedHosts(): Promise<ConnectedHostsResult>;
+  connectedHosts(signal?: AbortSignal): Promise<ConnectedHostsResult>;
   revokeConnectedHost(hostId: string): Promise<AccountResult>;
   close(): Promise<void>;
 }
@@ -274,6 +274,7 @@ export function createConnectAccount(options: {
   sleep?: (ms: number) => Promise<void>;
   watchMs?: number;
   record?: (phase: string, detail?: string) => void;
+  onReady?: () => void;
 }): ConnectAccount {
   const key = credentialKey('botharness-core', 'connect-account');
   const relay = relaySchema.parse(
@@ -397,7 +398,9 @@ export function createConnectAccount(options: {
       response = await fetcher(`${relay}${path}`, {
         method,
         ...(timeoutMs === undefined
-          ? {}
+          ? signal === undefined
+            ? {}
+            : { signal }
           : {
               signal: signal
                 ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
@@ -450,12 +453,17 @@ export function createConnectAccount(options: {
     return parsed.data;
   };
 
-  const refresh = async (current: AccountRecord): Promise<string> => {
-    const reply = await post('refresh-token', TOKEN_ENDPOINT, {
-      grant_type: 'refresh_token',
-      client_id: current.clientId,
-      refresh_token: current.refreshToken,
-    });
+  const refresh = async (current: AccountRecord, signal?: AbortSignal): Promise<string> => {
+    const reply = await post(
+      'refresh-token',
+      TOKEN_ENDPOINT,
+      {
+        grant_type: 'refresh_token',
+        client_id: current.clientId,
+        refresh_token: current.refreshToken,
+      },
+      signal,
+    );
     const access = reply.body['access_token'];
     const rotated = reply.body['refresh_token'];
     if (!reply.ok || typeof access !== 'string') {
@@ -679,11 +687,13 @@ export function createConnectAccount(options: {
         const bound = originPort(connect);
         if (bound !== undefined && bound !== port) await requestTunnel(current, access, bound);
         if (generation !== attempt || signOutRequested || botNetworkClosed) return;
+        const becameReady = status.state !== 'signed-in' || status.hostId !== current.hostId;
         status = {
           state: 'signed-in',
           ...(current.email ? { email: current.email } : {}),
           ...(current.hostId ? { hostId: current.hostId } : {}),
         };
+        if (becameReady) options.onReady?.();
       } catch (error) {
         await revoke(error, current);
       }
@@ -968,13 +978,25 @@ export function createConnectAccount(options: {
       call: activityCall,
     },
     status: () => ({ ...status }),
-    connectedHosts: () =>
+    connectedHosts: (signal) =>
       serial(async (): Promise<ConnectedHostsResult> => {
         let current: AccountRecord | undefined;
         try {
+          signal?.throwIfAborted();
           current = await read();
+          signal?.throwIfAborted();
           if (current === undefined) return { ok: false, code: 'signed-out' };
-          const reply = await relayCall('list-hosts', 'GET', '/v1/hosts', await refresh(current));
+          const access = await refresh(current, signal);
+          signal?.throwIfAborted();
+          const reply = await relayCall(
+            'list-hosts',
+            'GET',
+            '/v1/hosts',
+            access,
+            undefined,
+            undefined,
+            signal,
+          );
           const parsed = connectedHostsSchema.safeParse(reply.body);
           if (reply.status !== 200 || !parsed.success)
             return { ok: false, code: 'relay-unavailable' };
