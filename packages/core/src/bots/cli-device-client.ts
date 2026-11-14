@@ -1,5 +1,7 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { createConnectAccount } from '../../../../apps/mobile/src/host/connect-account.js';
 import { pairHost } from '../../../../apps/mobile/src/host/pairing.js';
 import { parseSavedHost, serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { createHostClient } from '../../../../apps/mobile/src/host/client.js';
@@ -8,6 +10,11 @@ import { nodeDeviceCarrier } from '../devices/node-carrier.js';
 import { CliLiveError } from './cli-live-error.js';
 
 export const DEVICE_CLIENT_COMMANDS = [
+  {
+    command: 'device-account-pair',
+    description:
+      'enroll --host-id through the account in a private --account-file --confirm; save keys to a new --out file',
+  },
   {
     command: 'device-pair',
     description:
@@ -26,6 +33,8 @@ export async function runDeviceClientCommand(
   values: {
     'link-file'?: string;
     'device-file'?: string;
+    'account-file'?: string;
+    'host-id'?: string;
     out?: string;
     confirm?: boolean;
   },
@@ -34,8 +43,11 @@ export async function runDeviceClientCommand(
   },
 ): Promise<unknown> {
   if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
-  if (command === 'device-pair') {
-    if (!values['link-file'] || !values.out || !isAbsolute(values.out))
+  if (command === 'device-pair' || command === 'device-account-pair') {
+    const accountPair = command === 'device-account-pair';
+    if (accountPair && (!values['account-file'] || !values['host-id']))
+      throw new CliLiveError('usage', 'Provide --account-file and --host-id.');
+    if ((!accountPair && !values['link-file']) || !values.out || !isAbsolute(values.out))
       throw new CliLiveError('usage', 'Provide --link-file and a new absolute --out file.');
     if (!values.confirm)
       throw new CliLiveError(
@@ -43,9 +55,33 @@ export async function runDeviceClientCommand(
         'Confirm this file came from the trusted computer with --confirm.',
       );
     if (existsSync(values.out)) throw new CliLiveError('output-exists', 'Choose a new --out file.');
-    let text: string;
+    let text: Parameters<typeof pairHost>[0]['text'];
     try {
-      text = readFileSync(values['link-file'], 'utf8');
+      if (accountPair) {
+        const file = values['account-file']!;
+        const account = createConnectAccount({
+          ...(process.env['DEEPSEEKBOT_CONNECT_RELAY']
+            ? { relay: process.env['DEEPSEEKBOT_CONNECT_RELAY'] }
+            : {}),
+          redirectUri: 'cli:/callback',
+          runtime: {
+            read: async () => readFileSync(file, 'utf8'),
+            write: async (session) => {
+              writeFileSync(file, session ?? '', { mode: 0o600 });
+            },
+            request: (url, init) =>
+              fetch(url, { ...init, signal: init?.signal ?? AbortSignal.timeout(15_000) }),
+            random: () => randomBytes(32).toString('base64url'),
+            challenge: async (value) => createHash('sha256').update(value).digest('base64url'),
+            authorize: async () => null,
+            now: Date.now,
+          },
+        });
+        text = async () => {
+          const result = await account.offer(values['host-id']!, 'CLI device');
+          return result.ok ? { ok: true, payload: result.value } : result;
+        };
+      } else text = readFileSync(values['link-file']!, 'utf8');
     } catch {
       throw new CliLiveError('invalid-input', 'Cannot read the trusted pairing file.');
     }
@@ -53,7 +89,7 @@ export async function runDeviceClientCommand(
     let reported = false;
     const result = await pairHost({
       text,
-      method: 'paste',
+      method: accountPair ? 'account' : 'paste',
       deviceName: 'CLI device',
       carrier: nodeDeviceCarrier(),
       confirmFingerprint: async () => true,
@@ -81,7 +117,9 @@ export async function runDeviceClientCommand(
     if (!result.ok)
       throw new CliLiveError(
         result.code,
-        'Device pairing refused. Approve the pending exact key on the trusted Host.',
+        accountPair
+          ? 'Account pairing failed. Check the account session and the connection diagnostic before retrying.'
+          : 'Device pairing refused. Approve the pending exact key on the trusted Host.',
       );
     return summary;
   }

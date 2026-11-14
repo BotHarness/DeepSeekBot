@@ -748,10 +748,7 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     const changed = rosters.map((roster) => roster.next());
     try {
       await f.core.team.transfer(owner, 'bob', 'alice');
-      expect(await Promise.all(changed)).toMatchObject([
-        { value: { type: 'changed' } },
-        { value: { type: 'changed' } },
-      ]);
+      expect(await Promise.all(changed)).toMatchObject([{ done: true }, { done: true }]);
     } finally {
       controller.abort();
       await Promise.all(rosters.map((roster) => roster.return?.()));
@@ -984,13 +981,15 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       expect(f.core.registry.get('bob-bot')?.paused).toBeUndefined();
       expect((await send(f, 'bob-bot', 'blocked')).admitted).toBe(false);
       expect((await send(f, tob.botSlug, 'blocked-tob')).admitted).toBe(false);
-      await f.core.channels.appendMessage(bob, group.id, {
-        id: 'blocked-mention',
-        at: new Date().toISOString(),
-        author: { kind: 'human', humanId: 'bob' },
-        body: '@bob-bot must not run',
-        mentions: [{ botSlug: 'bob-bot', label: 'bob-bot', start: 0, end: 8 }],
-      });
+      await expect(
+        f.core.channels.appendMessage(bob, group.id, {
+          id: 'blocked-mention',
+          at: new Date().toISOString(),
+          author: { kind: 'human', humanId: 'bob' },
+          body: '@bob-bot must not run',
+          mentions: [{ botSlug: 'bob-bot', label: 'bob-bot', start: 0, end: 8 }],
+        }),
+      ).rejects.toMatchObject({ code: 'channel-not-found' });
       f.core.runtime.admitGroupMessage(group.id, 'blocked-mention');
       f.core.schedules.runNow('bob-bot', schedule.id);
       await f.core.runtime.whenIdle();

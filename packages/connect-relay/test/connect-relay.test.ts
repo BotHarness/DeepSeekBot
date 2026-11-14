@@ -795,6 +795,31 @@ describe('Connect relay phone offers', () => {
     expect(enrollment.signature).toBe(await hmac(tunnel.body['relayKey'], enrollment.body));
   });
 
+  it('authorizes a client-side attempt without probing an offline connector, scoped to the account', async () => {
+    const probe = vi.fn(async () => {
+      throw new Error('Relay cannot reach Host');
+    });
+    const { call, row } = await linked(probe);
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect((await row('haaaaaaaaaaab'))?.tunnel_status).not.toBe('healthy');
+    const body = { verifierHash: VERIFIER_HASH, identitySource: 'client' };
+    expect(
+      (await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as: 'user_bob', body })).status,
+    ).toBe(404);
+    const result = await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as: 'user_alice', body });
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      identitySource: 'client',
+      hostname: 'haaaaaaaaaaab.deepseekbot.dev',
+      enrollment: { body: expect.any(String), signature: expect.any(String) },
+    });
+    expect(result.body.host).toBeUndefined();
+    expect(probe).not.toHaveBeenCalled();
+  });
+
   it('refuses offers for other accounts, bad verifiers and unreachable Hosts', async () => {
     let answer: () => Promise<Response> = async () => {
       throw new Error('offline');

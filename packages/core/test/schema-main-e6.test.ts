@@ -7,18 +7,18 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-it('appends account147 to offline146 while preserving Team lifecycle, retry state and existing grants', () => {
+it('appends account148 to offline147 while preserving published Channel access, Team lifecycle, retries and grants', () => {
   const home = createTempRoot('schema-main-e6-');
   const previous = trackTestOwner(
     mountOperationalDatabase({
       dshHome: home,
       schemaPlan: defineSchemaPlan(
-        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 146),
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 147),
       ),
     }),
   );
   expect(previous.mode).toBe('ready');
-  expect(previous.generation).toBe(146);
+  expect(previous.generation).toBe(147);
   const database = attachOperationalModule(previous, 'migration-fixture');
   const key = 'ab'.repeat(32);
   const activeId = 'a'.repeat(32),
@@ -55,6 +55,24 @@ it('appends account147 to offline146 while preserving Team lifecycle, retry stat
       '[]',
     );
     db.prepare('INSERT INTO relationship_device_grants VALUES (?,?)').run(derivedId, activeId);
+    db.prepare(`INSERT INTO channel_records(channel_id,record_json,visibility_json,owner_human_id)
+      VALUES (?,?,?,?)`).run(
+      'retained-channel',
+      JSON.stringify({
+        id: 'retained-channel',
+        type: 'group',
+        name: 'Retained Channel',
+        members: [],
+        createdAt: 'before',
+        updatedAt: 'before',
+      }),
+      '{"kind":"public"}',
+      'suspended',
+    );
+    db.prepare('INSERT INTO channel_admins(channel_id,human_id) VALUES (?,?)').run(
+      'retained-channel',
+      'suspended',
+    );
   });
   const tables = [
     'paired_devices',
@@ -62,6 +80,8 @@ it('appends account147 to offline146 while preserving Team lifecycle, retry stat
     'humans',
     'team_mode_suspensions',
     'deleted_humans',
+    'channel_records',
+    'channel_admins',
   ];
   const before = database.read((db) =>
     Object.fromEntries(
@@ -74,7 +94,7 @@ it('appends account147 to offline146 while preserving Team lifecycle, retry stat
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
   );
   expect(owner.mode).toBe('ready');
-  expect(owner.generation).toBe(147);
+  expect(owner.generation).toBe(148);
   const current = attachOperationalModule(owner, 'migration-fixture');
   expect(
     current.read((db) =>

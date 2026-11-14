@@ -117,6 +117,10 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'transfer-required': 'team.error.transferRequired',
   'member-active': 'team.error.memberActive',
   'purge-token-invalid': 'team.error.purgeTokenInvalid',
+  'role-not-found': 'team.error.roleNotFound',
+  'channel-post-restricted': 'team.error.channelPostRestricted',
+  'channel-mention-restricted': 'team.error.channelMentionRestricted',
+  'stale-channel-policy': 'team.error.staleChannelPolicy',
 };
 
 export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {

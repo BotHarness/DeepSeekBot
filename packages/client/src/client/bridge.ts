@@ -904,6 +904,11 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
           }),
         }
       : {}),
+    ...(type === 'dm' &&
+    Array.isArray(record['humanParticipants']) &&
+    stringArray(record['humanParticipants']).length === 2
+      ? { humanParticipants: stringArray(record['humanParticipants']) }
+      : {}),
     createdAt: typeof createdAt === 'string' ? createdAt : '',
     updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
     ...(typeof botSlug === 'string' ? { botSlug } : {}),

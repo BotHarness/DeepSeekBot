@@ -1,3 +1,8 @@
+import {
+  channelPolicySchema,
+  channelVisibilitySchema,
+  channelPolicyRevisionSchema,
+} from '../team/channel-contract.js';
 import { closeSync, fchmodSync, openSync, unlinkSync, writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { CliLiveError } from './cli-live-error.js';
@@ -5,6 +10,12 @@ import type { BotCreateCliIo } from './bot-create-cli.js';
 
 export const TEAM_OPTIONS = {
   as: { type: 'string' },
+  'human-id': { type: 'string' },
+  post: { type: 'string' },
+  'add-members': { type: 'string' },
+  'mention-all': { type: 'string' },
+  'add-bots': { type: 'string' },
+  'edit-details': { type: 'string' },
   to: { type: 'string' },
   preview: { type: 'boolean' },
   'token-stdin': { type: 'boolean' },
@@ -19,6 +30,8 @@ export const TEAM_OPTIONS = {
   'password-stdin': { type: 'boolean' },
 } as const;
 export const TEAM_COMMANDS = [
+  { command: 'dm', description: '<username>' },
+  { command: 'team-directory', description: 'active DM recipients' },
   {
     command: 'roles',
     description:
@@ -37,6 +50,12 @@ export const TEAM_COMMANDS = [
 ] as const;
 
 type TeamValues = {
+  'human-id'?: string;
+  post?: string;
+  'add-members'?: string;
+  'mention-all'?: string;
+  'add-bots'?: string;
+  'edit-details'?: string;
   to?: string;
   preview?: boolean;
   'token-stdin'?: boolean;
@@ -265,12 +284,61 @@ export async function runTeamCommand(
     }
     return usage();
   }
+  if (command === 'team-directory' && rest.length === 0) return rpc('teamDirectory', {});
+  if (command === 'dm' && rest.length === 0 && values['human-id'])
+    return rpc('humanDm', { humanId: values['human-id'] });
+  if (command === 'dm' && rest.length === 1) return rpc('humanDmByUsername', { username: action });
   if (command === 'channels') {
     if (rest.length === 0) return rpc('channels', {});
     if (action === 'send' && argument && rest.length === 2 && values['body-stdin']) {
       const body = await io.readStdin?.();
       if (!body?.trim()) return usage();
       return rpc('channelSend', { channelId: argument, body });
+    }
+    if (action === 'roles' && argument && rest.length === 2)
+      return rpc('channelRoleDirectory', { channelId: argument });
+    if (action === 'browse' && rest.length === 1) return rpc('browsableChannels', {});
+    if (action === 'join' && argument && rest.length === 2)
+      return rpc('channelJoin', { channelId: argument });
+    if (action === 'get' && argument && rest.length === 2)
+      return rpc('channelGet', { channelId: argument });
+    if (action === 'visibility' && argument && rest.length === 3) {
+      const value = rest[2]!;
+      const parsed = channelVisibilitySchema.safeParse(
+        value.startsWith('roles:')
+          ? { kind: 'roles', roleIds: ids(value.slice(6)) }
+          : { kind: value },
+      );
+      if (!parsed.success) return usage();
+      return rpc('channelVisibilitySet', { channelId: argument, visibility: parsed.data });
+    }
+    if (action === 'admins' && argument && rest.length === 2 && values.set !== undefined)
+      return rpc('channelAdminsSet', { channelId: argument, humanIds: ids(values.set) });
+    if (action === 'add-member' && argument && rest.length === 3)
+      return rpc('channelHumanAdd', { channelId: argument, humanId: rest[2] });
+    if (action === 'description' && argument && rest.length === 2 && values['body-stdin'])
+      return rpc('channelDescriptionSet', {
+        channelId: argument,
+        description: (await io.readStdin?.()) ?? '',
+      });
+    if (action === 'policy' && argument && rest.length === 2) {
+      const snapshot = z
+        .object({ policy: channelPolicySchema, policyRevision: channelPolicyRevisionSchema })
+        .parse(await rpc('channelGet', { channelId: argument }));
+      const policy = channelPolicySchema.safeParse({
+        ...snapshot.policy,
+        ...(values.post === undefined ? {} : { post: values.post }),
+        ...(values['add-members'] === undefined ? {} : { addMembers: values['add-members'] }),
+        ...(values['mention-all'] === undefined ? {} : { mentionAll: values['mention-all'] }),
+        ...(values['add-bots'] === undefined ? {} : { addBots: values['add-bots'] }),
+        ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
+      });
+      if (!policy.success) return usage();
+      return rpc('channelPolicySet', {
+        channelId: argument,
+        policy: policy.data,
+        expectedRevision: snapshot.policyRevision,
+      });
     }
     if (action === 'browse-public' && rest.length === 1) return rpc('publicChannels', {});
     if (action === 'join-public' && argument && rest.length === 2)
