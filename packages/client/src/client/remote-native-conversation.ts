@@ -173,13 +173,14 @@ export function createRemoteNativeConversation(
       await actions.refreshRoster();
       if (!running || !current()) return;
       const identity = store.getSnapshot().composerIdentity;
-      if (identity?.hostId !== target.hostId) throw new Error('remote-composer-identity-mismatch');
+      if (identity === undefined) throw new Error('remote-composer-identity-unavailable');
       if (target.channelId !== undefined) await actions.openChannel(target.channelId);
       else if (target.botSlug !== undefined) await actions.openBot(target.botSlug);
       else throw new Error('remote-conversation-target-invalid');
     } catch (error) {
       if (running)
         store.setConversation({
+          status: 'error',
           error: error instanceof Error ? error.message : 'remote-conversation-unavailable',
         });
     } finally {
@@ -192,15 +193,16 @@ export function createRemoteNativeConversation(
     actions,
     host,
     available: () =>
-      running &&
-      current() &&
-      connected &&
-      store.getSnapshot().composerIdentity?.hostId === target.hostId,
+      running && current() && connected && store.getSnapshot().composerIdentity !== undefined,
     start() {
       if (running) return;
       running = true;
       lifetime = new AbortController();
       store.setMode('bot');
+      if (target.channelId !== undefined)
+        store.select({ kind: 'channel', channelId: target.channelId });
+      else if (target.botSlug !== undefined) store.select({ kind: 'bot', slug: target.botSlug });
+      store.setConversation({ status: 'loading' });
       stopLive = mountChannelLive(store, actions, undefined, {
         follow: createHostChannelFollow(client, call),
       });

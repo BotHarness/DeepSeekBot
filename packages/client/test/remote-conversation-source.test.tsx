@@ -153,8 +153,8 @@ async function mount(
       target: { path: '/host/asset', relativePath: 'asset', kind: 'file' },
     }));
     host.methods.set('composerIdentity', () => ({
-      hostId: id,
-      profileId: 'profile',
+      hostId: 'shared-composer-machine',
+      profileId: 'profile-' + id,
       humanId: 'self-' + id,
     }));
     host.methods.set('channels', () => ({ channels }));
