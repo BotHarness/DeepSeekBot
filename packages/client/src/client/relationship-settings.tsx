@@ -25,7 +25,10 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
   const working = useRef(false);
   const join = async (item: ClientRelationship) => {
     const source = remoteHosts();
-    if (source.getSnapshot().hosts.some((entry) => entry.host.hostId === item.peer.id)) return;
+    if (source.getSnapshot().hosts.some((entry) => entry.host.hostId === item.peer.id)) {
+      source.select(item.peer.id);
+      return;
+    }
     const result = await source.enrollRelationship(
       item.id,
       'Desktop browser',
@@ -112,7 +115,10 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
                       size="sm"
                       variant="outline"
                       disabled={busy}
-                      onClick={() => setConfirm({ item, action: 'approve' })}
+                      onClick={() => {
+                        setFailed(false);
+                        setConfirm({ item, action: 'approve' });
+                      }}
                     >
                       {t('relationships.review')}
                     </Button>
@@ -142,7 +148,10 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
                       size="sm"
                       variant="outline"
                       disabled={busy}
-                      onClick={() => setConfirm({ item, action: 'disconnect' })}
+                      onClick={() => {
+                        setFailed(false);
+                        setConfirm({ item, action: 'disconnect' });
+                      }}
                     >
                       {t('relationships.disconnect')}
                     </Button>
@@ -171,6 +180,7 @@ export function RelationshipSettings({ t }: { t: BotHarnessTranslate }) {
           )}
           busy={busy}
           danger={confirm.action === 'disconnect'}
+          error={failed ? t('relationships.failed') : undefined}
           onCancel={() => setConfirm(undefined)}
           onConfirm={() => {
             void perform();

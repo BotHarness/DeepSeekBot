@@ -24,6 +24,7 @@ export async function runRelationshipCommand(
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
+  signal?: AbortSignal,
 ) {
   const [action, id, publicKey] = rest;
   if (!action || !['list', 'initiate', 'approve', 'sync', 'enroll', 'disconnect'].includes(action))
@@ -74,6 +75,7 @@ export async function runRelationshipCommand(
       name: 'CLI desktop',
       carrier: nodeDeviceCarrier(),
       request,
+      ...(signal ? { signal } : {}),
     });
     if (!result.ok) throw new CliLiveError(result.code, 'Relationship device enrollment refused.');
     try {
