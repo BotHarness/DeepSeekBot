@@ -141,7 +141,7 @@ it('keeps only general Channel files in the Human-only conversation column', asy
         },
         panels: registry.panels(),
         registry,
-        channel: { id: 'human-dm', type: 'dm' },
+        channel: { id: 'human-dm', type: 'dm', botSlug: undefined },
         entryProps: { ...entryProps, scope: 'channel', channelId: 'human-dm', botSlug: undefined },
         shows: () => false,
         t: zhTranslate,
