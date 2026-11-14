@@ -414,6 +414,188 @@ it('keeps the global dock and its local input mounted while switching remote Hos
   }
 });
 
+it('exposes an initial identity read failure and retries without sending or changing the target', async () => {
+  let reads = 0;
+  const view = await mount((host, id) => {
+    if (id !== 'b') return;
+    host.methods.set('composerIdentity', () =>
+      ++reads === 1
+        ? {}
+        : {
+            hostId: 'shared-composer-machine',
+            profileId: 'profile-b',
+            humanId: 'self-b',
+          },
+    );
+    host.channel('shared').append({ id: 'recovered', body: 'Recovered first read' });
+  });
+  try {
+    await act(async () =>
+      vi.waitFor(() =>
+        expect(view.element.querySelector('.bh-error')?.textContent).toContain(
+          'remote-composer-identity-unavailable',
+        ),
+      ),
+    );
+    expect(view.sources.getSnapshot().open).toEqual(first);
+    await act(async () =>
+      view.element.querySelector<HTMLButtonElement>('.bh-error button')!.click(),
+    );
+    await act(async () =>
+      vi.waitFor(() => expect(view.element.textContent).toContain('Recovered first read')),
+    );
+    expect(view.sources.getSnapshot().open).toEqual(first);
+    expect(view.hosts.b.calls.some((c) => c.method === 'channelSend')).toBe(false);
+  } finally {
+    await view.close();
+  }
+});
+
+it('retries hydration when reconnect happens before the earlier read settles', async () => {
+  let reads = 0;
+  let rejectFirst!: (error: Error) => void;
+  const pending = new Promise<never>((_, reject) => {
+    rejectFirst = reject;
+  });
+  const view = await mount((host, id) => {
+    if (id !== 'b') return;
+    host.methods.set('composerIdentity', () =>
+      ++reads === 1
+        ? pending
+        : {
+            hostId: 'shared-composer-machine',
+            profileId: 'profile-b',
+            humanId: 'self-b',
+          },
+    );
+    host.channel('shared').append({ id: 'reconnected', body: 'Hydrated after reconnect race' });
+  });
+  try {
+    await vi.waitFor(() => expect(reads).toBe(1));
+    const client = view.sources.client('b')!;
+    await act(async () => {
+      view.hosts.b.kill();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).not.toBe('connected'));
+      view.hosts.b.restart();
+      client.retryNow();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'), {
+        timeout: 5000,
+      });
+      rejectFirst(new Error('Earlier read failed after reconnect'));
+    });
+    await act(async () =>
+      vi.waitFor(() => expect(view.element.textContent).toContain('Hydrated after reconnect race')),
+    );
+    expect(reads).toBe(2);
+  } finally {
+    rejectFirst(new Error('Test source closed'));
+    await view.close();
+  }
+});
+
+it('applies every typed purge placement above a 100-item boundary only to its owning Host', async () => {
+  const view = await mount((host) => {
+    host.channel('shared').append({ id: 'purge-0', body: 'First batch private content' });
+    host.channel('shared').append({ id: 'purge-100', body: 'Last batch private content' });
+  });
+  try {
+    await act(async () =>
+      vi.waitFor(() => expect(view.element.textContent).toContain('Last batch private content')),
+    );
+    await act(async () => {
+      expect(
+        view.hosts.b.push('botharness/followRoster', {
+          type: 'purged',
+          placements: Array.from({ length: 101 }, (_, i) => ({
+            sourceEventId: 'source-' + i,
+            channelId: 'shared',
+            messageId: 'purge-' + i,
+          })),
+        }),
+      ).toBe(true);
+    });
+    expect(view.element.textContent).not.toContain('First batch private content');
+    expect(view.element.textContent).not.toContain('Last batch private content');
+    await view.open(other);
+    await act(async () =>
+      vi.waitFor(() => expect(view.element.textContent).toContain('Last batch private content')),
+    );
+    expect(view.element.textContent).toContain('First batch private content');
+  } finally {
+    await view.close();
+  }
+});
+
+it('rejects offline file drops before inserting an uploading item and keeps the draft sendable after reconnect', async () => {
+  const view = await mount(undefined, false);
+  try {
+    await view.type('Retained offline draft');
+    const client = view.sources.client('b')!;
+    await act(async () => {
+      view.hosts.b.kill();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).not.toBe('connected'));
+    });
+    const event = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'dataTransfer', {
+      value: { types: ['Files'], files: [new File(['private'], 'offline.txt')], getData: () => '' },
+    });
+    await act(async () => {
+      view.element.querySelector('.bh-chat-pane')!.dispatchEvent(event);
+    });
+    expect(view.text()).toBe('Retained offline draft');
+    expect(view.element.querySelector('[data-attachment-card]')).toBeNull();
+    expect(view.hosts.b.uploads).toEqual([]);
+    await act(async () => {
+      view.hosts.b.restart();
+      client.retryNow();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    });
+    await view.send();
+    await vi.waitFor(() =>
+      expect(
+        view.hosts.b.channel('shared').messages.some((m) => m.body === 'Retained offline draft'),
+      ).toBe(true),
+    );
+  } finally {
+    await view.close();
+  }
+});
+
+it('keeps navigation inside the target Host when the connection returns', async () => {
+  const view = await mount((host) => {
+    host
+      .channel('shared')
+      .append({ id: 'bot', body: 'Open my native DM', author: { kind: 'bot', slug: 'ada' } });
+  });
+  try {
+    await act(async () =>
+      vi.waitFor(() =>
+        expect(view.element.querySelector('.bh-message-group-avatar-link')).not.toBeNull(),
+      ),
+    );
+    await act(async () =>
+      view.element.querySelector<HTMLButtonElement>('.bh-message-group-avatar-link')!.click(),
+    );
+    await act(async () =>
+      vi.waitFor(() => expect(view.input().getAttribute('aria-label')).toContain('Ada b')),
+    );
+    const client = view.sources.client('b')!;
+    await act(async () => {
+      view.hosts.b.kill();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).not.toBe('connected'));
+      view.hosts.b.restart();
+      client.retryNow();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    });
+    await act(async () =>
+      vi.waitFor(() => expect(view.input().getAttribute('aria-label')).toContain('Ada b')),
+    );
+    expect(view.element.querySelector('[data-message-id="bot"]')).toBeNull();
+  } finally {
+    await view.close();
+  }
+});
+
 it('keeps the native input and generic channel controls without Bot-only composer context for Human-only conversations', async () => {
   const view = await mount(undefined, false);
   try {

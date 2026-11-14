@@ -15,6 +15,7 @@ import { parsePurgedPlacements } from './content-redactions.js';
 import { createStore, type ClientStore } from './store.js';
 import { fetchMessageResource, type MessageHost } from './message-host.js';
 import { conversationKey, remoteHosts, type RemoteConversationTarget } from './remote-hosts.js';
+import { hostBridgeCall } from './host-bridge-call.js';
 
 export function createHostChannelFollow(client: HostClient, call: BridgeCall): ChannelFollow {
   let ready = false;
@@ -98,6 +99,7 @@ export interface RemoteNativeConversation {
   readonly actions: BridgeActions;
   readonly host: MessageHost;
   available(): boolean;
+  retry(): void;
   start(): void;
   stop(): void;
 }
@@ -112,22 +114,17 @@ export function createRemoteNativeConversation(
   const store = createStore();
   let running = false;
   let loading = false;
+  let refreshPending = false;
   let connected = false;
   let stopLive = () => {};
   let stopRoster = () => {};
   let stopConnection = () => {};
   let stopPurge = () => {};
   let lifetime = new AbortController();
-  const call: BridgeCall = async (method, payload, signal) => {
-    signal?.throwIfAborted();
-    if (!running || !current() || client.getSnapshot().connection.status !== 'connected')
-      throw new Error('remote-conversation-unavailable');
-    const value = await client.call(method, payload);
-    signal?.throwIfAborted();
-    if (!running || !current() || client.getSnapshot().connection.status !== 'connected')
-      throw new Error('remote-conversation-unavailable');
-    return { ok: true, value };
-  };
+  const call = hostBridgeCall(
+    client,
+    () => running && current() && client.getSnapshot().connection.status === 'connected',
+  );
   isolateTeamIdentity(call);
   const actions = createActions(call, store, undefined, {
     async download(path, name) {
@@ -154,7 +151,11 @@ export function createRemoteNativeConversation(
     },
   });
   const subscribePurges: NonNullable<MessageHost['subscribePurges']> = (listener) =>
-    client.onPurged?.((raw) => listener(parsePurgedPlacements(raw))) ?? (() => {});
+    client.onPurged?.((raw) => {
+      if (!Array.isArray(raw)) return;
+      for (let offset = 0; offset < raw.length; offset += 100)
+        listener(parsePurgedPlacements(raw.slice(offset, offset + 100)));
+    }) ?? (() => {});
   const host: MessageHost = {
     hostId: target.hostId,
     client,
@@ -166,16 +167,24 @@ export function createRemoteNativeConversation(
     subscribePurges,
   };
   const hydrate = async (): Promise<void> => {
-    if (!running || loading || !current() || client.getSnapshot().connection.status !== 'connected')
+    if (!running || !current() || client.getSnapshot().connection.status !== 'connected') return;
+    if (loading) {
+      refreshPending = true;
       return;
+    }
     loading = true;
     try {
       await actions.refreshRoster();
       if (!running || !current()) return;
       const identity = store.getSnapshot().composerIdentity;
       if (identity === undefined) throw new Error('remote-composer-identity-unavailable');
-      if (target.channelId !== undefined) await actions.openChannel(target.channelId);
-      else if (target.botSlug !== undefined) await actions.openBot(target.botSlug);
+      const selection = store.getSnapshot().selection;
+      if (selection?.kind === 'channel') await actions.openChannel(selection.channelId);
+      else if (selection?.kind === 'bot')
+        await actions.openBot(
+          selection.slug,
+          selection.profile ? 'profile' : selection.inboxRequest ? 'inbox' : undefined,
+        );
       else throw new Error('remote-conversation-target-invalid');
     } catch (error) {
       if (running)
@@ -185,6 +194,10 @@ export function createRemoteNativeConversation(
         });
     } finally {
       loading = false;
+      if (refreshPending) {
+        refreshPending = false;
+        void hydrate();
+      }
     }
   };
   return {
@@ -194,6 +207,9 @@ export function createRemoteNativeConversation(
     host,
     available: () =>
       running && current() && connected && store.getSnapshot().composerIdentity !== undefined,
+    retry() {
+      void hydrate();
+    },
     start() {
       if (running) return;
       running = true;
