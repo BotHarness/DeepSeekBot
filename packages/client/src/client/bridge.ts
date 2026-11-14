@@ -698,6 +698,7 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
     ...(record['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
     ...(typeof record['paused'] === 'boolean' ? { paused: record['paused'] } : {}),
     ...(record['deleted'] === true ? { deleted: true } : {}),
+    ...(record['modelAllowed'] === false ? { modelAllowed: false as const } : {}),
     ...(parseStandingLimits(record['standingLimits']) ?? {}),
   };
 }

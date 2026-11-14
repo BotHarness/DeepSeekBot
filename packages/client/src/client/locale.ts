@@ -5355,6 +5355,7 @@ export const zh = {
   'team.usage.deleted': '已删除',
   'team.usage.legacy': '启用 Team 模式之前的用量计入 Owner。',
   'team.error.modelNotAllowed': '你的角色不能使用此模型。',
+  'team.models.notAllowed': '你的角色不能使用此 Bot 当前的模型。请换一个模型，否则它不会再回复。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -11066,6 +11067,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'team.usage.deleted': 'Deleted',
   'team.usage.legacy': 'Usage from before Team mode is counted under the Owner.',
   'team.error.modelNotAllowed': 'Your role can’t use this model.',
+  'team.models.notAllowed':
+    'Your role can’t use this Bot’s current model. Choose another model or it won’t reply.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;

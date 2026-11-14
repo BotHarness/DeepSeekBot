@@ -1087,7 +1087,7 @@
         "setting:packages/client/src/client/team-usage-section.tsx:{member.displayName}",
         "setting:packages/client/src/client/team-usage-section.tsx:{t('team.usage.period')}"
       ],
-      "commands": ["team-mode", "members", "channels", "roles", "devices", "usage"]
+      "commands": ["team-mode", "members", "channels", "roles", "devices", "usage", "models"]
     },
     {
       "id": "team-member-browser-sign-out",

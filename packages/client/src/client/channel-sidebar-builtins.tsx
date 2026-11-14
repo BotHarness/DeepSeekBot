@@ -1009,8 +1009,16 @@ function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactEle
   const deleted = useClientStore((state) =>
     state.bots.some((bot) => bot.slug === botSlug && bot.deleted === true),
   );
+  const disallowed = useClientStore((state) =>
+    state.bots.some((bot) => bot.slug === botSlug && bot.modelAllowed === false),
+  );
   if (botSlug === undefined || deleted) return <></>;
-  return <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />;
+  return (
+    <>
+      {disallowed ? <Note tone="warning">{t('team.models.notAllowed')}</Note> : null}
+      <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />
+    </>
+  );
 }
 
 function useModelPlan(
