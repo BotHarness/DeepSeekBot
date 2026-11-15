@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import type { SkillCatalogEntry, SkillOwner } from './entries.js';
@@ -39,9 +40,17 @@ export const MAX_SKILL_INVOCATION_CONTENT = 64_000;
 
 const PROJECT_SOURCES = new Set(['project-agents', 'project-dsh']);
 
+function real(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
 function inside(root: string, path: string | undefined): boolean {
   if (path === undefined) return false;
-  const rel = relative(resolve(root), resolve(path));
+  const rel = relative(real(root), real(path));
   return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
 }
 

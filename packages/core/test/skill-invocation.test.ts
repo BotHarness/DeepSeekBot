@@ -1,3 +1,4 @@
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -106,6 +107,21 @@ describe('SkillCatalog', () => {
     expect(await catalog.resolve('outside', { kind: 'bot', botSlug: 'ada' })).toBeUndefined();
     expect(await catalog.resolve('review', { kind: 'host' })).toBeUndefined();
     expect(await catalog.resolve('hidden', { kind: 'host' })).toBeUndefined();
+  });
+
+  it('matches a Memory Repository reached through a symlink against DSH real paths', async () => {
+    const root = createTempRoot('botharness-skill-symlink-');
+    const real = join(root, 'real-memory');
+    const link = join(root, 'linked-memory');
+    mkdirSync(join(real, '.agents/skills/qa'), { recursive: true });
+    writeFileSync(join(real, '.agents/skills/qa/SKILL.md'), 'x');
+    symlinkSync(real, link);
+    const skillPath = join(realpathSync(real), '.agents/skills/qa/SKILL.md');
+    const catalog = new SkillCatalog({ memoryDirFor: () => link });
+    catalog.attach(registry([], new Map([[link, [skill('qa', 'project-agents', skillPath)]]])));
+    expect((await catalog.list(['ada'])).map((entry) => entry.owner)).toEqual([
+      { kind: 'bot', botSlug: 'ada' },
+    ]);
   });
 
   it('ranks name prefix, then name subsequence, then description', () => {
