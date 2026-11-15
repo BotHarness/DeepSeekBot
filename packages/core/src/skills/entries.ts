@@ -1,6 +1,5 @@
 import { isValidSlug } from '../bots/slug.js';
 
-/** Who a Skill belongs to: the Host (user level) or one PersonaBot's Memory Repository. */
 export type SkillOwner = { kind: 'host' } | { kind: 'bot'; botSlug: string };
 
 export interface SkillCatalogEntry {
@@ -21,10 +20,6 @@ export function parseSkillOwnerKey(value: string): SkillOwner | undefined {
   return isValidSlug(botSlug) ? { kind: 'bot', botSlug } : undefined;
 }
 
-/**
- * Orders catalog entries for a `/` query: name prefix, then name subsequence,
- * then description substring. Ties keep catalog order.
- */
 export function rankSkillEntries<T extends { name: string; description: string }>(
   entries: readonly T[],
   rawQuery: string,

@@ -121,7 +121,6 @@ export interface ChannelComposerProps {
   skills?: readonly SelectedSkill[] | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
   t?: BotHarnessTranslate | undefined;
-  /** Omitted `skills` means the caller did not track Skill chips; the owner rebases them. */
   onChange(
     value: string,
     mentions?: SelectedMention[],

@@ -55,10 +55,6 @@ export async function runSkillCommand(
   };
 }
 
-/**
- * Turns `--skill <owner>/<name>` values into Skill Invocation tokens for the
- * first matching `/name` in the message body. Owner is `host` or `bot:<slug>`.
- */
 export function skillInvocationTokens(
   body: string,
   values: readonly string[] | undefined,

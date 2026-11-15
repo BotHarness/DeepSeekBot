@@ -11,7 +11,6 @@ export {
   type SkillOwner,
 } from './entries.js';
 
-/** The subset of DSH's `ctx.skills` registry the catalog reads. */
 export interface SkillRegistryPort {
   list(options?: { cwd?: string; scope?: object }): Promise<readonly SkillRegistrySummary[]>;
   get(
@@ -67,12 +66,6 @@ function inside(root: string, path: string | undefined): boolean {
   return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
-/**
- * Lists and resolves the Skills a Human can invoke in a conversation: Host
- * Skills plus the Project Skills of each PersonaBot's Memory Repository.
- * DSH discovery stays the authority; this module only labels owners and
- * keeps a Bot's same-named Skill from hiding the Host one in the menu.
- */
 export class SkillCatalog {
   #registry: SkillRegistryPort | undefined;
   readonly #memoryDirFor: (botSlug: string) => string | undefined;
@@ -144,7 +137,6 @@ export class SkillCatalog {
     return [...entries, ...hostEntries];
   }
 
-  /** Reads the current text of one Skill so a message can keep a snapshot of it. */
   async resolve(
     name: string,
     owner: SkillOwner,

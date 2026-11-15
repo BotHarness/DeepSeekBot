@@ -47,7 +47,6 @@ function skill(
   };
 }
 
-/** A DSH-shaped registry: project roots win over Host rows of the same name. */
 function registry(
   host: SkillRegistryDefinition[],
   project: Map<string, SkillRegistryDefinition[]>,

@@ -1,6 +1,6 @@
 # Skill Invocation in a Bot DM
 
-A Human types `/` in a PersonaBot DM, picks a Skill, and sends it. The Host stores the Skill's text with the message and the Bot reads it as a `<skill_invocation>` block ([ADR-0342](../../../../docs/adr/0342-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)).
+A Human types `/` in a PersonaBot DM, picks a Skill, and sends it. The Host stores the Skill's text with the message and the Bot reads it as a `<skill_invocation>` block ([ADR-0345](../../../../docs/adr/0345-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)).
 
 ## Sub-features
 

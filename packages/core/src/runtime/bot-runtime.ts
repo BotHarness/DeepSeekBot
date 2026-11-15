@@ -730,10 +730,6 @@ export interface DirectBotToolCall {
 
 const DIRECT_TOOL_CALL_LIMIT = 50;
 
-/**
- * Wraps each picked `/name` token as `[/name]`. DSH loads a Skill again for any
- * bare `/name` in user input; the snapshot below is the one the Human sent.
- */
 export function markSkillTokens(
   text: string,
   invocations: readonly ChannelSkillInvocation[] | undefined,
@@ -751,10 +747,6 @@ function xmlAttribute(value: string): string {
   return value.replace(/&/gu, '&amp;').replace(/"/gu, '&quot;').replace(/</gu, '&lt;');
 }
 
-/**
- * Renders the Skills a Human picked with `/` as text the Bot reads with the
- * message. Each block is the snapshot taken when the message was sent.
- */
 export function skillInvocationPrompt(
   invocations: readonly ChannelSkillInvocation[] | undefined,
 ): string {

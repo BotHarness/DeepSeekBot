@@ -1,7 +1,6 @@
 import type { SkillCatalogEntry, SkillOwner } from '../../../core/src/skills/entries.js';
 import type { BotSummary } from './store.js';
 
-/** A Skill chip in the composer: the `/name` token and whose Skill it is. */
 export interface SelectedSkill {
   name: string;
   owner: SkillOwner;
@@ -15,7 +14,6 @@ export interface SkillQuery {
   query: string;
 }
 
-/** A `/` menu row: a catalog entry plus the owning PersonaBot, when it has one. */
 export type ComposerSkillOption = SkillCatalogEntry & { bot?: BotSummary | undefined };
 
 export function sameSkillOwner(left: SkillOwner, right: SkillOwner): boolean {
@@ -24,7 +22,6 @@ export function sameSkillOwner(left: SkillOwner, right: SkillOwner): boolean {
     : right.kind === 'bot' && left.botSlug === right.botSlug;
 }
 
-/** The `/query` the caret is typing, when it starts a line or follows whitespace. */
 export function activeSkillQuery(
   value: string,
   caret: number,
@@ -86,7 +83,6 @@ export function selectSkill(
   };
 }
 
-/** Keeps only chips whose `/name` text is still exactly where it was picked. */
 export function liveSkills(value: string, skills: readonly SelectedSkill[]): SelectedSkill[] {
   return skills.filter((item) => value.slice(item.start, item.end) === '/' + item.name);
 }

@@ -247,6 +247,11 @@ import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from '
 import type { ChannelDraftEvent } from './channels/draft.js';
 import { SkillCatalog, type SkillRegistryPort } from './skills/catalog.js';
 import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-view.js';
+import {
+  degradeHostCapability,
+  hostAgentPresets,
+  hostSkillRegistry,
+} from './runtime/native-agent-compat.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
 import type { ChannelStore } from './channels/store.js';
@@ -3257,7 +3262,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
       presetFor: (slug) =>
         core.registry.get(slug)?.preset ?? config.agentPreset ?? DEFAULT_AGENT_PRESET,
-      agentPresets: () => ctx.get('agentPresets') as SkillAgentPresetsPort<Agent> | undefined,
+      agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
     }),
   });
   const bridgeDeps: BridgeMethodsDeps = {
@@ -3836,10 +3841,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
     });
     developerModeTarget.gate = gate;
-    skillsCtx.effect(
-      () => skillCatalog.attach((skillsCtx as unknown as { skills: SkillRegistryPort }).skills),
-      'botharness: skill catalog',
-    );
+    skillsCtx.effect(() => {
+      const registry = hostSkillRegistry<SkillRegistryPort>(skillsCtx);
+      return registry === undefined
+        ? degradeHostCapability(skillsCtx, 'skills.list')
+        : skillCatalog.attach(registry);
+    }, 'botharness: skill catalog');
     skillsCtx.effect(
       () =>
         skills.register({

@@ -288,10 +288,6 @@ export interface ChannelReference {
   end: number;
 }
 
-/**
- * A Skill Invocation: the `/name` token a Human picked from the `/` menu, with
- * the Skill's text captured when the message was sent. It addresses no one.
- */
 export interface ChannelSkillInvocation {
   name: string;
   owner: SkillOwner;
@@ -301,7 +297,6 @@ export interface ChannelSkillInvocation {
   content: string;
 }
 
-/** What a Client sends for a Skill Invocation; the Host adds the text snapshot. */
 export type ChannelSkillInvocationToken = Pick<
   ChannelSkillInvocation,
   'name' | 'owner' | 'start' | 'end'
@@ -309,7 +304,6 @@ export type ChannelSkillInvocationToken = Pick<
 
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
-/** Checks a Skill Invocation's name, owner and `/name` position inside `body`. */
 export function isSkillInvocationToken(
   item: unknown,
   body: string,
