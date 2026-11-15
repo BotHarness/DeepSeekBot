@@ -1944,10 +1944,11 @@ describe('member devices', { timeout: 60_000 }, () => {
       args: { humanId: alice.member.humanId },
       peer: signed.peer,
     });
-    expect(result).toMatchObject({
-      ok: true,
-      value: { link: expect.stringContaining('deepseekbot://team?i=') },
-    });
+    const invitation = z.object({ link: z.string() }).parse(result);
+    const payload = JSON.parse(
+      Buffer.from(new URL(invitation.link).searchParams.get('i')!, 'base64url').toString(),
+    );
+    expect(payload).toMatchObject({ username: 'alice', host: { id: f.pairing.host().id } });
     f.team.roles.set(owner, alice.member.humanId, ['admin']);
     expect(() => f.team.invitation(f.human, alice.member.humanId)).toThrow('permission-required');
   });
