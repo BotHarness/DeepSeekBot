@@ -920,6 +920,26 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
     ...(remoteContact === undefined ? {} : { remoteContact }),
     ...(remoteBot === undefined ? {} : { remoteAvailability }),
     ...(typeof record['ownerBotSlug'] === 'string' ? { ownerBotSlug: record['ownerBotSlug'] } : {}),
+    ...(type === 'dm' && record['readOnly'] === true ? { readOnly: true } : {}),
+    ...(type === 'dm' && typeof record['proactiveOptOut'] === 'boolean'
+      ? { proactiveOptOut: record['proactiveOptOut'] }
+      : {}),
+    ...(type === 'group' && Array.isArray(record['memberBots'])
+      ? {
+          memberBots: record['memberBots'].flatMap((raw: unknown) => {
+            const bot = asRecord(raw);
+            return typeof bot?.['slug'] === 'string' && typeof bot['displayName'] === 'string'
+              ? [
+                  {
+                    slug: bot['slug'],
+                    displayName: bot['displayName'],
+                    ...(typeof bot['avatar'] === 'string' ? { avatar: bot['avatar'] } : {}),
+                  },
+                ]
+              : [];
+          }),
+        }
+      : {}),
     ...(invitations === undefined ? {} : { invitations }),
     ...(joinRequests === undefined ? {} : { joinRequests }),
     ...(wakePolicies === undefined ? {} : { wakePolicies }),

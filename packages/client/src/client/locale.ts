@@ -2737,6 +2737,7 @@ export const zh = {
   'messages.error': '消息加载失败：{error}',
   'messages.loadFailed': '消息加载失败。',
   'composer.placeholder': '发消息给 {name}',
+  'composer.readOnly': '你已经不能再给这个 Bot 发消息了，之前的消息仍保留在这里。',
   'composer.holdToTalk': '按住说话，点击给 {name} 发消息',
   'composer.dictate': '语音输入',
   'composer.dictateHint': '点一下开始语音输入，再点麦克风或输入框结束；也可以按住说话',
@@ -5641,6 +5642,8 @@ export const zh = {
   'botAccess.switch.joinPrincipalChannels.hint': '关掉后，它会离开现在所在的频道。',
   'botAccess.switch.speakerContext': '知道是谁在说话',
   'botAccess.switch.speakerContext.hint': '每条消息附上发言人的名字和角色，以及对应的角色策略。',
+  'botAccess.allowProactive': '允许它主动私信我',
+  'botAccess.allowProactive.hint': '关掉后，这个 Bot 不会再主动给你发消息。',
   'team.models.notAllowed': '你的角色不能使用此 Bot 当前的模型。请换一个模型，否则它不会再回复。',
   'team.models.notAllowedAsk':
     '你的角色不能使用此 Bot 当前的模型，它不会再回复。请让管理员为它换一个模型。',
@@ -8633,6 +8636,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'messages.error': 'Messages failed to load: {error}',
   'messages.loadFailed': 'Could not load messages.',
   'composer.placeholder': 'Message {name}',
+  'composer.readOnly': 'You can no longer message this Bot. Earlier messages stay here.',
   'composer.holdToTalk': 'Hold to talk, or click to message {name}',
   'composer.dictate': 'Dictate',
   'composer.dictateHint':
@@ -11738,6 +11742,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botAccess.switch.speakerContext': 'Knows who is speaking',
   'botAccess.switch.speakerContext.hint':
     'Adds the speaker’s name and roles to each message, with their role policy.',
+  'botAccess.allowProactive': 'Let it message me first',
+  'botAccess.allowProactive.hint': 'Turn this off and this Bot won’t start conversations with you.',
   'team.models.notAllowed':
     'Your role can’t use this Bot’s current model. Choose another model or it won’t reply.',
   'team.models.notAllowedAsk':

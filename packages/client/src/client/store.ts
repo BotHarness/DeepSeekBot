@@ -76,6 +76,9 @@ export interface ChannelSummary {
     capabilities: string[];
   };
   ownerBotSlug?: string;
+  readOnly?: boolean;
+  proactiveOptOut?: boolean;
+  memberBots?: Array<{ slug: string; displayName: string; avatar?: string }>;
   wakePolicies?: Record<
     string,
     {

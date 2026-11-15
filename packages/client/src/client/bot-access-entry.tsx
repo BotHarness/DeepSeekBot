@@ -13,11 +13,13 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { useClientStore } from './use-client-store.js';
 import {
   loadBotAccess,
   sameVisibility,
   setBotSwitches,
   setBotVisibility,
+  setProactiveOptOut,
   type BotAccess,
   type BotSwitches,
   type BotVisibility,
@@ -88,7 +90,8 @@ export function BotAccessEntry({
     );
     return () => controller.abort();
   }, [call, botSlug, enabled, refreshRevision]);
-  if (!enabled || access === 'denied') return null;
+  if (!enabled) return null;
+  if (access === 'denied') return <ProactiveOptOutRow call={call} t={t} slug={botSlug} />;
   const ready = access !== undefined && access !== 'failed' ? access : undefined;
   return (
     <div ref={mount} data-bot-access={botSlug}>
@@ -278,5 +281,48 @@ function VisibilityDialog({
         {visibility.kind === 'public' ? <Note>{t('botAccess.memoryNote')}</Note> : null}
       </FieldStack>
     </FormDialog>
+  );
+}
+
+function ProactiveOptOutRow({
+  call,
+  t,
+  slug,
+}: {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+  slug: string;
+}): ReactElement | null {
+  const stored = useClientStore((state) =>
+    state.conversation.channel?.botSlug === slug
+      ? state.conversation.channel.proactiveOptOut
+      : undefined,
+  );
+  const [optOut, setOptOut] = useState<boolean>();
+  const [error, setError] = useState<string>();
+  const current = optOut ?? stored;
+  if (current === undefined) return null;
+  return (
+    <SettingsSection>
+      <SettingsRow
+        title={t('botAccess.allowProactive')}
+        description={t('botAccess.allowProactive.hint')}
+        data={{ 'data-bot-access-row': 'proactive-opt-out' }}
+        control={
+          <Switch
+            label={t('botAccess.allowProactive')}
+            checked={!current}
+            onChange={(checked) => {
+              setError(undefined);
+              void setProactiveOptOut(call, slug, !checked).then(
+                () => setOptOut(!checked),
+                (failure: unknown) => setError(teamErrorText(t, failure)),
+              );
+            }}
+          />
+        }
+      />
+      {error === undefined ? null : <Note tone="danger">{error}</Note>}
+    </SettingsSection>
   );
 }

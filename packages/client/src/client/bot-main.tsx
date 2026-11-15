@@ -3625,12 +3625,16 @@ function ConversationView({
                             )
                           : []
                     }
-                    placeholder={t('composer.placeholder', { name: title })}
+                    placeholder={
+                      channel?.readOnly === true
+                        ? t('composer.readOnly')
+                        : t('composer.placeholder', { name: title })
+                    }
                     holdPlaceholder={t('composer.holdToTalk', { name: title })}
                     dictation={dictationPort}
                     dictating={dictating}
                     sending={conversation.sending || recovery.blocked}
-                    disabled={unavailable}
+                    disabled={unavailable || channel?.readOnly === true}
                     focusSignal={restoreFocusSignal}
                     attachments={uploadItems}
                     onAddFiles={addFiles}
