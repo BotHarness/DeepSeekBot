@@ -2371,7 +2371,8 @@ export function createActions(
           clientStore.setConversation({ channel, error: undefined });
           await actions.refreshChannelMessages(channel.id);
           await refreshUnreadDivider(channel.id, active);
-          await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+          if (bot.sharedBy === undefined)
+            await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
           return;
         }
         if (cached) {
@@ -2428,7 +2429,8 @@ export function createActions(
           sending: false,
         });
       }
-      await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+      if (bot.sharedBy === undefined)
+        await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
     },
     refreshBotInbox(slug) {
       const selection = currentSelection();
