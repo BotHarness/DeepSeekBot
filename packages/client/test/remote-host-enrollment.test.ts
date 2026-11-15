@@ -640,3 +640,48 @@ it('preserves a replacement persisted before cancelled cleanup obtains the crede
   );
   expect(revoke).toHaveBeenCalledOnce();
 });
+
+it('refuses persisted member credentials as relationship enrollment identities', () => {
+  const host = grant().host;
+  const member = {
+    humanId: 'member-human',
+    username: 'bob',
+    displayName: 'Bob',
+    fingerprint: 'ab'.repeat(32),
+    mustChangePassword: false,
+  };
+  expect(
+    enrollment.parseRelationshipSavedHost({
+      ...host,
+      credential: `member.${'a'.repeat(43)}`,
+      member,
+    }),
+  ).toBeUndefined();
+  expect(enrollment.parseRelationshipSavedHost(host)).toBeDefined();
+});
+
+it('revokes and refuses a member grant returned to the Owner relationship enrollment path', async () => {
+  const host = grant().host;
+  const memberHost = {
+    ...host,
+    credential: `member.${'a'.repeat(43)}`,
+    member: {
+      humanId: 'member-human',
+      username: 'bob',
+      displayName: 'Bob',
+      fingerprint: 'ab'.repeat(32),
+      mustChangePassword: false,
+    },
+  };
+  vi.spyOn(pairing, 'redeemPairing').mockResolvedValue({ ok: true, host: memberHost });
+  const revoke = vi.spyOn(pairing, 'revokePairing').mockResolvedValue('revoked');
+  const result = await enrollment.enrollRelationshipClient({
+    relationshipId: relationship().id,
+    expectedPeer: { id: 'b', publicKey: 'ab'.repeat(32) },
+    name: 'Desktop',
+    carrier: { ...carrier, randomBytes: () => new Uint8Array(32).fill(5) },
+    request: async () => ({ peer: relationship().peer, offer: 'offer', expiresAt: '2030-01-01' }),
+  });
+  expect(result).toEqual({ ok: false, code: 'owner-required' });
+  expect(revoke).toHaveBeenCalledWith({ host: memberHost, carrier: expect.any(Object) });
+});

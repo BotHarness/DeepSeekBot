@@ -27,6 +27,16 @@ export interface SavedHost {
   credential: string;
 }
 
+export type SavedHostIdentity =
+  | { kind: 'owner' }
+  | { kind: 'member'; humanId: string; username: string };
+
+export function savedHostIdentity(host: SavedHost): SavedHostIdentity {
+  return host.member
+    ? { kind: 'member', humanId: host.member.humanId, username: host.member.username }
+    : { kind: 'owner' };
+}
+
 export interface SavedHosts {
   hosts: SavedHost[];
   current?: string;

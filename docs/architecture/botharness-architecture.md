@@ -1687,6 +1687,8 @@ The application-defined Devices private connection owner manages a Quick Tunnel 
 
 ### Team mode M1 identity and transport
 
+Desktop and mobile share the pure `host-protocol` contracts and the framework-independent `host-client` session logic. Native storage and transports stay in the mobile app behind injected interfaces. The desktop remote-host adapter drives member sign-in without creating relationship grants; see [Desktop Team sign-in contract](team-mode-desktop-sign-in.md) for states, identity persistence and ownership boundaries.
+
 The application-defined Team member owner separates durable identity, password credentials and revocable grants from the DSH-native Peer lifetime. Member page resources render for that Peer, and unary/stream operations dispatch through the API Gateway with an explicit member principal and default-deny access policy. Existing Owner devices retain `local-human`. Group public visibility reuses canonical Channel membership. See [Team mode M1 runtime boundaries](team-mode-m1-runtime.md) for persistence, transport, CLI and performance constraints; later Team slices remain separate.
 
 M2 adds application-defined private Bot ownership, one Tob per Human, scoped Activity projections and Human-bound push/Live Activity delivery. The member Peer remains the API Gateway principal; no Owner cookie is used by member traffic or a member Tob. See [Team mode M2 runtime boundaries](team-mode-m2-runtime.md) for persistence, authorization, CLI integration and regression budgets.

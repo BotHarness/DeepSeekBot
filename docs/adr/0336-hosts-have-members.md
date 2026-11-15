@@ -45,3 +45,7 @@ First delivery is **permission isolation among colleagues, not OS isolation agai
 Deliver as tracer bullets under a dedicated spec and hub, parallel to the Environment hub. M0 threads explicit Human context through Host methods with no behavior change. M1 is the first end-to-end slice: enable Team mode, set the Owner password, create a member, sign that member in from a LAN browser over HTTPS, show only the Tobs Client, join a public Channel and exchange messages with the Owner, with matching CLI. Seek Human feedback before broadening. Every slice proves refusals as well as successes: a member cannot read another member's private Bot, Channel, DM, Workspace root or approval content through the Client, the Gateway, the CLI with `--as`, or a Bot tool call.
 
 The design narrative and question log live in [Team mode design](../architecture/team-mode.md).
+
+## Shared client implementation seam (#4201)
+
+The Team invitation, pairing and Noise formats belong to the pure `packages/host-protocol` workspace. Desktop and mobile use `packages/host-client` for member requests, saved identities and the fingerprint → sign-in → forced-password-change flow. Native storage, installed version and key-agreement adapters remain application-owned and injected. This avoids package imports of the mobile app and preserves the Host as the sole identity/grant authority. The [desktop UI contract](../architecture/team-mode-desktop-sign-in.md) describes the adapter and its regression limits; visual and native acceptance are separate.

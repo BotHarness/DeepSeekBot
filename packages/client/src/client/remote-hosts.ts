@@ -1,4 +1,16 @@
 import {
+  prepareTeamSignIn,
+  type TeamSignInTarget,
+  type TeamSignInFlow,
+  type TeamSignInError,
+} from '@botharness/host-client/team-sign-in';
+import {
+  parseTeamInvitation,
+  type TeamResult,
+  type TeamInvitation,
+} from '@botharness/host-protocol/team-invitation';
+import { prepareMemberIdentity } from '@botharness/host-client/member-identity';
+import {
   connectionOperationIndexSchema,
   pendingConnectionSchema,
   type PendingConnection,
@@ -29,10 +41,7 @@ import {
   type HostClient,
   type HostSnapshot,
 } from '@botharness/host-client/client';
-import {
-  createConversation,
-  type Conversation,
-} from '@botharness/host-client/conversation';
+import { createConversation, type Conversation } from '@botharness/host-client/conversation';
 import {
   parseSavedHost,
   serializeSavedHost,
@@ -96,11 +105,13 @@ export interface RemoteHostsSnapshot {
 }
 
 export type HostPairResult =
+  | { ok: false; code: 'team-sign-in-required'; invitation: TeamInvitation }
   | { ok: true; host: SavedHost }
   | {
       ok: false;
       code:
         | PairingRefusal
+        | TeamSignInError
         | 'already-paired'
         | 'pairing-in-progress'
         | 'this-host'
@@ -118,6 +129,11 @@ export interface RemotePairTrust {
 }
 
 export interface RemoteHosts {
+  teamSignIn(
+    target: TeamSignInTarget,
+    localHostId?: string,
+    signal?: AbortSignal,
+  ): Promise<TeamResult<TeamSignInFlow, TeamSignInError>>;
   withConnectionOperation<T>(
     hostId: string,
     client: HostClient,
@@ -1210,9 +1226,83 @@ export function createRemoteHosts(options: {
         notifications.stop();
       };
     },
+    async teamSignIn(target, localHostId, signal) {
+      if (!enabled) return { ok: false, code: 'owner-required' };
+      const preparedFlow = await prepareTeamSignIn({
+        target,
+        carrier,
+        ...(signal ? { signal } : {}),
+        previous: (hostId) => readHosts(storage).find((host) => host.hostId === hostId),
+        async commit(host, confirmed, flowSignal) {
+          if (host.hostId === localHostId) return { ok: false, code: 'this-host' };
+          if (flowSignal.aborted) return { ok: false, code: 'request-cancelled' };
+          if (
+            hostSettingsDrafts.hasDirty(host.hostId) &&
+            !(await hostSettingsDrafts.prepare(host.hostId))
+          )
+            return { ok: false, code: 'request-cancelled' };
+          const previous = readHosts(storage).find((item) => item.hostId === host.hostId);
+          let refusal: TeamSignInError | undefined;
+          try {
+            await persistCredential(host.hostId, previous, (current) => {
+              if (flowSignal.aborted) throw new Error('request-cancelled');
+              const prepared = prepareMemberIdentity(
+                { hosts: current ? [current] : [] },
+                host,
+                confirmed,
+              );
+              if (!prepared.ok) {
+                refusal = prepared.code;
+                throw new Error(prepared.code);
+              }
+              return host;
+            });
+          } catch {
+            return {
+              ok: false,
+              code: refusal ?? (flowSignal.aborted ? 'request-cancelled' : 'storage-failed'),
+            };
+          }
+          const existing = clients.get(host.hostId);
+          if (existing) {
+            const releasing = releaseRemoteHostViewers(existing.client);
+            retireEntry(existing);
+            await releasing.catch(() => undefined);
+          }
+          attach(host);
+          tab = host.hostId;
+          try {
+            storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+          } catch {}
+          publish();
+          if (previous && previous.credential !== host.credential) {
+            try {
+              await revokePairing({ host: previous, carrier });
+            } catch {}
+          }
+          return { ok: true, value: host };
+        },
+      });
+      if (preparedFlow.ok) {
+        const step = preparedFlow.value.getSnapshot();
+        if (step.kind === 'fingerprint' && step.host.id === localHostId) {
+          await preparedFlow.value.cancel();
+          return { ok: false, code: 'this-host' };
+        }
+      }
+      return preparedFlow;
+    },
     async pair(link, deviceName, localHostId, trust) {
       if (!enabled) return { ok: false, code: 'owner-required' };
       if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
+      try {
+        if (new URL(link.trim()).hostname === 'team') {
+          const invitation = parseTeamInvitation(link);
+          return invitation.ok
+            ? { ok: false, code: 'team-sign-in-required', invitation: invitation.value }
+            : invitation;
+        }
+      } catch {}
       const parsed = parsePairingLink(link);
       const refused = (code: 'this-host' | 'already-paired') => {
         record('remote_host:host_pair_complete', { outcome: 'refused' });
