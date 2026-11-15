@@ -1,4 +1,5 @@
 import { useTeamMode } from './team-state.js';
+import { BotAccessEntry } from './bot-access-entry.js';
 import type { ConversationStateView } from './store.js';
 import { Menu } from './appearance-primitives.js';
 import { ChannelNicknameEntry, ChannelTraceEntry } from './channel-personal-settings.js';
@@ -1356,6 +1357,15 @@ export function createChannelSidebarBuiltins(
       order: 2,
       scope: 'personabot',
       component: ChannelTraceEntry,
+    },
+    {
+      id: 'bot-access',
+      surface: 'settings',
+      icon: 'users',
+      label: t('entry.botAccess'),
+      order: 19,
+      scope: 'personabot',
+      component: BotAccessEntry,
     },
     {
       id: 'workspace-grants',
