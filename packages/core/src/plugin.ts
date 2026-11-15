@@ -218,6 +218,7 @@ import {
   type TelemetryCapture,
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
+import { startTokenUsage } from './telemetry/token-usage.js';
 import {
   createActiveDay,
   readHumanMessageCounts,
@@ -2150,6 +2151,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           log: (message) => ctx.logger.info(message),
         }),
       'botharness: telemetry daily usage',
+    );
+    ctx.effect(
+      () =>
+        startTokenUsage({
+          telemetry,
+          snapshot: () => core.usage?.telemetrySnapshot(),
+          log: (message) => ctx.logger.info(message),
+        }),
+      'botharness: telemetry token usage',
     );
     ctx.effect(
       () =>

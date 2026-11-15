@@ -12,6 +12,14 @@
       "gap": "Local HTTP replay on a real Host; production provider and IM delivery require separate qualification."
     },
     {
+      "id": "telemetry.bot-tokens",
+      "label": "Anonymous Bot Session token snapshots",
+      "source": "packages/core/src/telemetry/token-usage.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/token-telemetry.md",
+      "task": 4255,
+      "gap": "Wire comparison uses real local Host usage and production reporter source; hourly scheduling, provider coverage, PostHog ingestion and Human QA remain distinct checks."
+    },
+    {
       "id": "settings.first-tob-loading",
       "label": "Responsive lightweight settings during first-Tob Memory preparation",
       "source": "packages/core/src/tob/service.ts",
@@ -2626,6 +2634,14 @@
       "reason": "Same gateway rejection on base and fixed Tobs builds with the native isolated compaction service.",
       "task": 4253,
       "sha256": "e381ea1fa0e0d23dc7e7100cd477c3a894dff86f5c3bb489453b2391352230ce"
+    },
+    {
+      "path": "scripts/e2e-token-telemetry.mjs",
+      "category": "mapped",
+      "behaviors": ["telemetry.bot-tokens"],
+      "reason": "Compares live Host Overview with production token snapshot reader and serializer; optional separately marked QA wire send.",
+      "task": 4255,
+      "sha256": "925304c37a3fd15e198ecdc54fe954e6f888d4b68dc3fd6e6a8760867d61e2ef"
     }
   ],
   "native": [
