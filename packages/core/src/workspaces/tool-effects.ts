@@ -148,6 +148,10 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
   if (!declared) return undefined;
   const { approval: _approval, ...effects } = declared;
   const operation = typeof args === 'object' && args !== null ? args : undefined;
+  if (name === 'secret_http' && operation && 'method' in operation && operation.method === 'GET')
+    return { ...effects, changes: 'none' };
+  if (name === 'browser_tabs' && operation && 'action' in operation && operation.action === 'close')
+    return { ...effects, reach: 'local' };
   if (
     declared.approval === 'attachment' &&
     operation &&

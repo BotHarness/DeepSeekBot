@@ -8,6 +8,25 @@ import {
 
 describe('public tool effects', () => {
   it.each([
+    [
+      'secret_http',
+      { method: 'GET' },
+      { changes: 'none', reach: 'external', personalData: true, secrets: true },
+    ],
+    [
+      'secret_http',
+      { method: 'POST' },
+      { changes: 'irreversible', reach: 'external', personalData: true, secrets: true },
+    ],
+    [
+      'browser_tabs',
+      { action: 'close' },
+      { changes: 'irreversible', reach: 'local', personalData: true },
+    ],
+  ] as const)('resolves mixed-purpose effects for %s %j', (name, input, expected) => {
+    expect(toolEffects(name, input)).toEqual(expected);
+  });
+  it.each([
     ['channel_read', {}, { changes: 'none', reach: 'local', personalData: true }],
     [
       'channel_attachment_open',
