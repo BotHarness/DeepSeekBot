@@ -1649,9 +1649,23 @@ function ConversationView({
   const botActivity = bot === undefined ? undefined : personaBotActivity(state, bot);
   const channelBots =
     channel !== undefined && (channel.type === 'group' || botDm)
-      ? channel.members.flatMap((slug) => {
+      ? channel.members.flatMap((slug): BotSummary[] => {
           const member = state.bots.find((candidate) => candidate.slug === slug);
-          return member === undefined ? [] : [member];
+          if (member !== undefined) return [member];
+          const shared = channel.memberBots?.find((candidate) => candidate.slug === slug);
+          return shared === undefined
+            ? []
+            : [
+                {
+                  slug: shared.slug,
+                  displayName: shared.displayName,
+                  ...(shared.avatar === undefined ? {} : { avatar: shared.avatar }),
+                  roles: [],
+                  aggregateState: 'idle',
+                  workspaces: [],
+                  createdAt: '',
+                },
+              ];
         })
       : [];
   const channelFacepile: PersonaBotFacepileItem[] = channelBots.map((member) => ({
