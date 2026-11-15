@@ -376,6 +376,7 @@ describe('online CLI management', () => {
       roles: ['QA'],
     });
     expect(live.calls[2]?.args).toEqual({ slug: 'minted', presetId: 'preset' });
+    expect(live.calls.at(-1)?.args).toEqual({ slug: 'minted', displayName: 'Ada' });
   });
 
   it('forwards a chosen Memory location to the Host create owner', async () => {

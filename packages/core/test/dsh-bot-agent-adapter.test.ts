@@ -116,6 +116,37 @@ const reportRun: OrchestratorAgentRun = {
   },
 };
 
+it('registers speaker_policy without external messaging when Team policy is available', async () => {
+  const policy = { humanId: 'bob', displayName: 'Bob', roles: [], resolved: [] };
+  const speakerPolicy = vi.fn(() => policy);
+  const host = new FakeAgentHost(
+    { kind: 'completed' },
+    {
+      onTurn: async (_session, tools) => {
+        const tool = tools.find((tool) => tool.name === 'speaker_policy');
+        expect(tool).toBeDefined();
+        const result = await tool!.execute({ humanId: 'bob', topic: 'money' }, {
+          signal: new AbortController().signal,
+        } as ToolRunContext);
+        expect(JSON.parse(String(result))).toEqual(policy);
+      },
+    },
+  );
+  const adapter = createDshBotAgentAdapter({
+    agents: host,
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => {},
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+  });
+  try {
+    expect(adapter.directTools?.().map((tool) => tool.name)).toContain('speaker_policy');
+    await adapter.runOrchestrator({ ...reportRun, speakerPolicy });
+    expect(speakerPolicy).toHaveBeenCalledWith('bob', 'money');
+  } finally {
+    await adapter.close();
+  }
+});
+
 describe('direct Subagent execution', () => {
   it('passes the report identity through the direct inspect tool without selecting latest text', async () => {
     const reportPage = vi.fn(async () => ({

@@ -414,7 +414,7 @@ export async function runOnlineManagement(
     });
     if (typeof detail.bot?.memoryDir !== 'string')
       throw new CliLiveError('host-protocol-error', 'The Host returned no Bot Memory path.');
-    const channelId = await resolveBotDm(rpc, bot.id);
+    const channelId = await resolveBotDm(rpc, bot.id, bot.name);
     steps.push({ name: 'dm', status: 'ok' });
     const output: BotCreateResult = {
       bot,

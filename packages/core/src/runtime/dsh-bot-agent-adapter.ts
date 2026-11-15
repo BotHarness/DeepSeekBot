@@ -2009,24 +2009,25 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         },
       }),
     );
-    registerBridgeTool(
-      defineTool({
-        name: 'speaker_policy',
-        description:
-          'Read the current Host Human roles and resolved advisory topic policy. Latest revision wins and Deny wins conflicts. Omit humanId for the current speaker. This grants no resource access.',
-        parameters: { humanId: { type: 'string' }, topic: { type: 'string' } },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args) => {
-          const active = this.#runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator' || !active.run.speakerPolicy)
-            throw new Error('speaker-policy-unavailable');
-          return JSON.stringify(active.run.speakerPolicy(args.humanId, args.topic));
-        },
-      }),
-    );
+    if (run === CATALOG_RUN || run.speakerPolicy)
+      registerTool(
+        defineTool({
+          name: 'speaker_policy',
+          description:
+            'Read the current Host Human roles and resolved advisory topic policy. Latest revision wins and Deny wins conflicts. Omit humanId for the current speaker. This grants no resource access.',
+          parameters: { humanId: { type: 'string' }, topic: { type: 'string' } },
+          output: {
+            schema: { type: 'string' },
+            render: (_args, value) => [{ type: 'text', text: value }],
+          },
+          execute: async (args) => {
+            const active = this.#runs.get(run.sessionId);
+            if (active?.role !== 'orchestrator' || !active.run.speakerPolicy)
+              throw new Error('speaker-policy-unavailable');
+            return JSON.stringify(active.run.speakerPolicy(args.humanId, args.topic));
+          },
+        }),
+      );
     registerBridgeTool(
       defineTool({
         name: 'bridge_sender_permissions',

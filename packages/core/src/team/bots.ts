@@ -529,10 +529,12 @@ export class TeamBots {
       if (channel.botSlug || !channel.members.includes(slug) || channel.members.length !== 2)
         return false;
       const peer = this.bot(channel.members.find((id) => id !== slug)!);
+      const participant = channel.dmHumanId ?? bot.owner;
       if (peer.visibility.kind === 'private' && bot.visibility.kind === 'public')
-        return this.audience(peer.owner, bot) && this.active(peer.owner);
-      if (peer.visibility.kind === 'public') return this.audience(bot.owner, peer);
-      return peer.owner === bot.owner;
+        return this.audience(participant, bot) && this.active(peer.owner);
+      if (peer.visibility.kind === 'public')
+        return this.audience(participant, bot) && this.audience(participant, peer);
+      return participant === bot.owner && peer.owner === participant;
     } catch (e) {
       if (e instanceof TeamError) return false;
       throw e;

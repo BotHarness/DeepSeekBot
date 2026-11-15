@@ -484,3 +484,87 @@ it('upgrades the prior schema without rewriting the legacy local-Human arrangeme
     upgraded.close();
   }
 });
+
+it('allows reachable shared Bot attention filters while keeping results Human-scoped', async () => {
+  const f = await fixture();
+  const own = f.core.team.bots.dm(bob, 'public')!;
+  const foreign = f.core.team.bots.dm(manager, 'public')!;
+  for (const [dm, body] of [
+    [own, 'bob-only'],
+    [foreign, 'manager-only'],
+  ] as const)
+    await f.core.channels.appendMessage(owner, dm.id, {
+      id: body,
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'public' },
+      body,
+    });
+  const result = await f.bridge(bob).humanAttention({ botSlug: 'public', category: 'unread' });
+  expect(result.ok).toBe(true);
+  expect(JSON.stringify(result)).toContain('bob-only');
+  expect(JSON.stringify(result)).not.toContain('manager-only');
+  expect(await f.bridge(bob).humanAttention({ botSlug: 'private' })).toMatchObject({
+    ok: false,
+    error: { code: 'bot-not-found' },
+  });
+});
+
+it('uses each Human roster mute in attention lists, status, notifications and item lookup', async () => {
+  const f = await fixture();
+  const dm = f.core.team.bots.dm(bob, 'public')!;
+  await f.core.channels.appendMessage(owner, dm.id, {
+    id: 'unread-muted',
+    at: new Date().toISOString(),
+    author: { kind: 'bot', slug: 'public' },
+    body: 'unread',
+  });
+  const before = f.core.humanAttention
+    .list(bob, { category: 'unread' })
+    .items.find((item) => item.channelId === dm.id);
+  expect(before).toBeDefined();
+  await f.core.roster.forHuman(bob.humanId).mutedSet(dm.id, true);
+  expect(
+    f.core.humanAttention
+      .list(bob, { category: 'unread' })
+      .items.some((item) => item.channelId === dm.id),
+  ).toBe(false);
+  expect(f.core.humanAttention.status(bob, true).unreadCount).toBe(0);
+  expect(f.core.humanAttention.item(bob, before!.id, before!.sourceEventId)).toBeUndefined();
+  expect(await f.bridge(bob).humanAttention({ notifications: true })).toMatchObject({
+    ok: true,
+    value: { items: [] },
+  });
+  expect(f.core.roster.snapshot().muted).toEqual([]);
+});
+
+it('shows handled shared-DM questions only to the recorded participant', async () => {
+  const f = await fixture();
+  const dm = f.core.team.bots.dm(bob, 'public')!;
+  await f.core.channels.appendMessage(owner, dm.id, {
+    id: 'question',
+    at: '2026-11-15T00:00:00Z',
+    author: { kind: 'bot', slug: 'public' },
+    body: 'Proceed?',
+    userQuestionRequest: {
+      sessionId: 'session',
+      questions: [{ id: 'continue', question: 'Proceed?' }],
+    },
+  });
+  await f.core.channels.appendMessage(bob, dm.id, {
+    id: 'answer',
+    at: '2026-11-15T00:01:00Z',
+    author: { kind: 'human', humanId: bob.humanId },
+    body: 'yes',
+    replyTo: 'question',
+    userQuestionResolution: {
+      requestMessageId: 'question',
+      state: 'answered',
+      answers: [{ id: 'continue', selected: [], custom: 'yes' }],
+    },
+  });
+  expect(f.core.humanAttention.list(bob, { category: 'handled' }).items).toContainEqual(
+    expect.objectContaining({ messageId: 'question', category: 'handled', channelId: dm.id }),
+  );
+  for (const human of [alice, owner, manager])
+    expect(f.core.humanAttention.list(human, { category: 'handled' }).items).toEqual([]);
+});

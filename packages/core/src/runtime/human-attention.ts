@@ -569,7 +569,7 @@ export function createHumanAttentionQuery(
   activeQuestionMessageIds: () => readonly string[] = () => [],
   activeToolApprovalMessageIds: () => readonly string[] = () => [],
   activePrivateInputMessageIds: () => readonly string[] = () => [],
-  mutedChannelIds: () => readonly string[] = () => [],
+  mutedChannelIds: (human: HumanContext) => readonly string[] = () => [],
   now: () => Date = () => new Date(),
   project: <T>(human: HumanContext, value: T) => T = (_human, value) => value,
 ): HumanAttentionQuery {
@@ -647,7 +647,7 @@ export function createHumanAttentionQuery(
         `)
               .get(
                 { humanId: human.humanId },
-                JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
+                JSON.stringify(mutedChannelIds(human)),
                 id,
                 sourceKey,
               ) as AttentionRow | undefined,
@@ -807,7 +807,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             JOIN channel_placements reply_placement ON reply_placement.source_event_id = response.source_event_id
               AND reply_placement.channel_id = c.channel_id
            WHERE response.source_kind = 'human-message'
-             AND ${attentionBotOwner('request.bot_slug')}
+             AND (CASE WHEN json_extract(c.record_json, '$.type') = 'dm' THEN ${attentionDmOwner('c')} ELSE ${attentionBotOwner('request.bot_slug')} END)
              AND json_extract(response.payload_json, '$.author.kind') = 'human'
              AND ((json_extract(request.payload_json, '$.userQuestionRequest') IS NOT NULL
                    AND json_extract(response.payload_json, '$.userQuestionResolution.requestMessageId') = request.message_id
@@ -855,7 +855,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             JOIN channel_placements placement ON placement.source_event_id = response.source_event_id
             JOIN channel_records c ON c.channel_id = placement.channel_id
            WHERE response.source_kind = 'human-message'
-             AND ${attentionBotOwner('request.bot_slug')}
+             AND (CASE WHEN json_extract(c.record_json, '$.type') = 'dm' THEN ${attentionDmOwner('c')} ELSE ${attentionBotOwner('request.bot_slug')} END)
              AND json_extract(response.payload_json, '$.author.kind') = 'human'
              AND json_extract(c.record_json, '$.type') = 'dm'
              AND json_extract(c.record_json, '$.botSlug') = a.bot_slug
@@ -931,7 +931,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             .all(
               { humanId: human.humanId },
               search,
-              JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
+              JSON.stringify(mutedChannelIds(human)),
               input.itemId ?? null,
               input.itemId ?? null,
               input.botSlug ?? null,
@@ -1023,7 +1023,7 @@ SELECT 'handled:' || request.source_event_id AS id,
               .all(
                 { humanId: human.humanId },
                 search,
-                JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
+                JSON.stringify(mutedChannelIds(human)),
                 input.botSlug ?? null,
                 input.botSlug ?? null,
                 input.itemId ?? null,
@@ -1216,7 +1216,7 @@ SELECT 'handled:' || request.source_event_id AS id,
       };
     },
     status(human: HumanContext, messageCounts = false) {
-      const muted = JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []);
+      const muted = JSON.stringify(mutedChannelIds(human));
       const count = (human: HumanContext, sql: string) =>
         database.read(
           (db) =>
@@ -1279,7 +1279,7 @@ SELECT 'handled:' || request.source_event_id AS id,
       `)
             .all(
               { humanId: human.humanId },
-              JSON.stringify(human.humanId === 'local-human' ? mutedChannelIds() : []),
+              JSON.stringify(mutedChannelIds(human)),
               before?.createdAt ?? null,
               before?.createdAt ?? null,
               before?.createdAt ?? null,

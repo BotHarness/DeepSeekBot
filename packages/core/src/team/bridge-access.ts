@@ -378,7 +378,10 @@ export function guardHumanBridge(
           botIds.some((id) => {
             const bot = deps.registry.get(id);
             if (!bot) return !owner && !property.startsWith('humanAttention');
-            if (!interaction) return !ownsBot(human, bot);
+            if (!interaction)
+              return property.startsWith('humanAttention')
+                ? !ownsBot(human, bot) && !(deps.team?.bots.canReach(human, id) ?? false)
+                : !ownsBot(human, bot);
             const reachable = () => deps.team?.bots.canReach(human, id) ?? ownsBot(human, bot);
             if (property !== 'channelSend' && property !== 'channelAllBotPreview')
               return !reachable();

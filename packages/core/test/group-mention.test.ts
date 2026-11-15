@@ -388,6 +388,12 @@ describe('Group mention tracer', () => {
       });
       expect(dmAdmission.admitted).toBe(true);
       await started;
+      core.team.roles.update(OWNER_HUMAN_CONTEXT, 'member', {
+        policy: [{ topic: 'steer', text: 'Steered policy revision', effect: 'deny' }],
+      });
+      attachOperationalModule(core.operationalDatabase, 'steer-role-test').transaction((db) =>
+        db.prepare("INSERT OR IGNORE INTO human_roles VALUES ('local-human','member')").run(),
+      );
       await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'group-context',
         at: '2026-09-25T00:00:00.500Z',
@@ -403,10 +409,13 @@ describe('Group mention tracer', () => {
         mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
       });
       core.runtime.admitGroupMessage(group.id, 'group-steer');
-      expect(steered[0]).toMatch(/^Source Event ID: [^\n]+\n\[Bot Inbox: direct Group mention/);
+      expect(steered[0]).toMatch(/^Source Event ID: [^\n]+/);
+      expect(steered[0]).toContain('[Bot Inbox: direct Group mention');
       expect(steered).toHaveLength(1);
       expect(steered[0]).toContain(group.id);
       expect(steered[0]).toContain('The answer is STEER-17');
+      expect(steered[0]).toContain('[Human · member]');
+      expect(steered[0]).toContain('Steered policy revision');
       expect(steered[0]).toContain('You may finish without replying');
       expect(core.channels.message(group.id, 'group-steer')?.deliveries).toEqual([
         { botSlug: 'ada', state: 'running' },

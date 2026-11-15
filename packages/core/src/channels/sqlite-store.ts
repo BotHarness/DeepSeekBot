@@ -2407,6 +2407,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (request.status === status) return { channel, request, notified: false };
       if (request.status !== 'pending' || channel.members.includes(request.requesterBotSlug))
         throw new Error('Group join request is no longer pending');
+      if (input.accept) humanAccess?.requireBotJoin?.(request.requesterBotSlug, channel.id);
       const timestamp = now().toISOString();
       const decided: GroupJoinRequest = {
         ...request,

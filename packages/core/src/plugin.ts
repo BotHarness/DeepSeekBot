@@ -1068,9 +1068,9 @@ function initializeCore(
     options.activeQuestionMessageIds,
     options.activeToolApprovalMessageIds,
     options.activePrivateInputMessageIds,
-    () => {
+    (human) => {
       try {
-        return roster.snapshot().muted;
+        return roster.forHuman(human.humanId).snapshot().muted;
       } catch {
         return [];
       }

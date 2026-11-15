@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { join } from 'node:path';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
@@ -67,7 +67,7 @@ function proactiveFixture(teamEnabled: boolean) {
   const core = createCore({
     dshHome: root,
     agents: createDshBotAgentAdapter({
-      agents: new FakeAgentHost({ kind: 'completed' }),
+      agents: new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => {} }),
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       orchestratorCwd: () => join(root, 'memory'),
     }),
@@ -101,6 +101,226 @@ function post(id: string, author: 'human' | 'bot' = 'human', slug = 'alice-bot')
 }
 
 describe('M7 Bot principal and participant authority', () => {
+  it('preserves omitted switches and performs no write for a slug-only bridge read', async () => {
+    const f = fixture();
+    f.team.bots.switches(alice, 'alice-bot', {
+      proactiveDms: true,
+      joinPrincipalChannels: false,
+      speakerContext: false,
+    });
+    const methods = createTeamBridge(alice, f.team);
+    expect(await methods.botSwitches({ slug: 'alice-bot', speakerContext: true })).toMatchObject({
+      ok: true,
+      value: {
+        switches: { proactiveDms: true, joinPrincipalChannels: false, speakerContext: true },
+      },
+    });
+    const writes = vi.spyOn(f.db, 'transaction');
+    expect(await methods.botSwitches({ slug: 'alice-bot' })).toMatchObject({
+      ok: true,
+      value: {
+        switches: { proactiveDms: true, joinPrincipalChannels: false, speakerContext: true },
+      },
+    });
+    expect(writes).not.toHaveBeenCalled();
+  });
+  it.each([{ operationKey: '' }, { expectedChannel: '' }, { operationKey: 'unsupported' }])(
+    'does not persist invitation provenance after rejected input %j',
+    (input) => {
+      const f = fixture();
+      const group = f.channels.createGroup(alice, { name: 'Invite', members: [] });
+      const result = f
+        .bridge(alice)
+        .channelGroupInvite({ channelId: group.id, botSlug: 'alice-bot', ...input });
+      expect(result.ok).toBe(false);
+      expect(
+        f.db.read((db) =>
+          db.prepare('SELECT * FROM bot_channel_adders WHERE channel_id=?').all(group.id),
+        ),
+      ).toEqual([]);
+      expect(f.channels.get(group.id)?.invitations ?? []).toEqual([]);
+    },
+  );
+  it('keeps Bot DM authorization tied to the recorded participant after either Bot transfers', () => {
+    const f = fixture();
+    publicBot(f);
+    const channel = f.channels.getOrCreateBotDm(bob, 'bob-bot', 'alice-bot', 'DM')!;
+    f.db.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE persona_bots SET owner_human_id='carol',body=json_set(body,'$.ownerHumanId','carol') WHERE slug='bob-bot'",
+        )
+        .run(),
+    );
+    expect(f.team.bots.canRead('bob-bot', channel)).toBe(false);
+    expect(f.team.bots.canRead('alice-bot', channel)).toBe(true);
+    f.team.bots.setVisibility(
+      owner,
+      'alice-bot',
+      { kind: 'public', audience: { kind: 'members', humanIds: ['carol'] } },
+      true,
+    );
+    expect(f.team.bots.canRead('alice-bot', channel)).toBe(false);
+    expect(f.team.bots.canRead('bob-bot', channel)).toBe(false);
+  });
+  it('rechecks pending Group join eligibility before accepting without writing a decision', () => {
+    const f = fixture();
+    const group = f.channels.createGroup(alice, { name: 'Join', members: [] });
+    const bot = f.registry.get('alice-bot')!;
+    const dm = f.channels.getOrCreateDm(alice, bot.slug)!;
+    const request = f.channels.requestGroupJoin({
+      channelId: group.id,
+      requesterBotSlug: bot.slug,
+      requesterBotCreatedAt: bot.createdAt,
+    });
+    f.team.bots.switches(alice, bot.slug, { joinPrincipalChannels: false });
+    const decide = (accept: boolean) =>
+      f.channels.decideGroupJoin({
+        channelId: group.id,
+        requestId: request.id,
+        accept,
+        decidedBy: 'human',
+        requesterBotCreatedAt: bot.createdAt,
+        requesterDmChannelId: dm.id,
+      });
+    expect(() => decide(true)).toThrow('bot-principal-channel-denied');
+    expect(f.channels.get(group.id)?.joinRequests?.[0]?.status).toBe('pending');
+    expect(f.channels.get(group.id)?.members).toEqual([]);
+    expect(decide(false).request.status).toBe('declined');
+  });
+  it('does not exempt direct sends merely because the participant DM has historical placements', async () => {
+    const { core, db } = proactiveFixture(true);
+    core.team.bots.setVisibility(owner, 'helper', everyone);
+    const dm = core.team.bots.dm(bob, 'helper')!;
+    await core.channels.appendMessage(bob, dm.id, post('past-turn'));
+    const admission = core.runtime.admitDmMessage(bob, {
+      channelId: dm.id,
+      messageId: 'past-turn',
+      body: 'past-turn',
+    });
+    if (!admission.admitted) throw new Error('not-admitted');
+    await admission.settled;
+    const source = db.read((db) =>
+      db
+        .prepare(
+          'SELECT source_event_id FROM channel_placements WHERE channel_id=? AND message_id=?',
+        )
+        .get(dm.id, 'past-turn'),
+    );
+    const send = () =>
+      core.runtime.runDirectBotTool!(
+        'helper',
+        'bot_send_message',
+        { channel_id: dm.id, body: 'unsolicited' },
+        new AbortController().signal,
+      );
+    await expect(send()).rejects.toMatchObject({ code: 'bot-proactive-denied' });
+    await expect(
+      core.runtime.runDirectBotTool!(
+        'helper',
+        'bot_send_message',
+        { source_event_id: source?.['source_event_id'], body: 'explicit reply' },
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({ result: { status: 'committed' } });
+    core.team.bots.switches(owner, 'helper', { proactiveDms: true });
+    core.team.bots.optOut(bob, 'helper', true);
+    await expect(send()).rejects.toMatchObject({ code: 'bot-proactive-denied' });
+  });
+  it('reattaches speaker policy after refused steering and commits only accepted delivery', async () => {
+    let release = () => {};
+    let started = () => {};
+    const active = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const steered: string[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('m7-steer-policy-'),
+      agents: {
+        async runOrchestrator() {
+          started();
+          await active;
+        },
+        steerOrchestrator(_slug, text) {
+          steered.push(text);
+          return steered.length > 1;
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('unexpected');
+        },
+        async close() {},
+      },
+    });
+    closes.push(async () => {
+      release();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    });
+    core.registry.create({ slug: 'worker', displayName: 'Worker' });
+    const dm = core.channels.getOrCreateDm(owner, 'worker')!;
+    const group = core.channels.createGroup(owner, { name: 'Steer policy', members: ['worker'] });
+    await core.channels.appendMessage(owner, dm.id, post('start'));
+    const admission = core.runtime.admitDmMessage(owner, {
+      channelId: dm.id,
+      messageId: 'start',
+      body: 'start',
+    });
+    if (!admission.admitted) throw new Error('not-admitted');
+    await ready;
+    core.team.roles.update(owner, 'member', {
+      policy: [{ topic: 'steer', effect: 'deny', text: 'Retry policy' }],
+    });
+    const db = attachOperationalModule(core.operationalDatabase, 'steer-policy-test');
+    db.transaction((db) =>
+      db.prepare("INSERT OR IGNORE INTO human_roles VALUES ('local-human','member')").run(),
+    );
+    const attached = () =>
+      db.read((db) =>
+        db.prepare("SELECT revision FROM session_speaker_policies WHERE role_id='member'").all(),
+      );
+    for (const id of ['refused', 'accepted']) {
+      await core.channels.appendMessage(owner, group.id, {
+        ...post(id),
+        body: '@Worker check',
+        mentions: [{ botSlug: 'worker', label: 'Worker', start: 0, end: 7 }],
+      });
+      core.runtime.admitGroupMessage(group.id, id);
+      if (id === 'refused') expect(attached()).toEqual([]);
+    }
+    expect(steered).toHaveLength(2);
+    for (const text of steered) expect(text).toContain('Retry policy');
+    expect(attached()).toEqual([{ revision: 2 }]);
+    release();
+    await admission.settled;
+    await core.runtime.whenIdle();
+  });
+  it('leaves adder provenance unchanged on a stale Channel invitation', () => {
+    const { core, db } = proactiveFixture(true);
+    const group = core.channels.createGroup(owner, { name: 'Stale invite', members: [] });
+    const methods = createBridgeMethodsForHumans(core)(owner);
+    const result = methods.channelGroupInvite({
+      channelId: group.id,
+      botSlug: 'helper',
+      expectedChannel: '0'.repeat(64),
+      operationKey: 'm7-stale-invite',
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: 'stale-channel' } });
+    expect(
+      db.read((db) =>
+        db.prepare('SELECT * FROM bot_channel_adders WHERE channel_id=?').all(group.id),
+      ),
+    ).toEqual([]);
+    expect(methods.channelGroupInvite({ channelId: group.id, botSlug: 'helper' }).ok).toBe(true);
+    expect(
+      db.read((db) =>
+        db.prepare('SELECT human_id FROM bot_channel_adders WHERE channel_id=?').all(group.id),
+      ),
+    ).toEqual([{ human_id: owner.humanId }]);
+  });
   it('defaults private, requires createPublic for widening and returns metadata-only reachability', async () => {
     const f = fixture();
     const customRole = f.team.roles.create(owner, 'Audience role', []).role;

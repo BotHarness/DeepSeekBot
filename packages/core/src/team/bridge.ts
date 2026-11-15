@@ -1,4 +1,4 @@
-import { botVisibilitySchema, botSwitchesSchema, rolePolicySchema } from './bot-contract.js';
+import { botVisibilitySchema, rolePolicySchema } from './bot-contract.js';
 import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import { roleModelsSchema, PERMISSION_CATALOG } from './permissions.js';
 import {
@@ -57,9 +57,13 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
       }),
     botSwitches: (payload: unknown) =>
       call((service) => {
-        const { slug, ...patch } = botSwitchesSchema
-          .partial()
-          .extend({ slug: z.string() })
+        const { slug, ...patch } = z
+          .object({
+            slug: z.string(),
+            proactiveDms: z.boolean().optional(),
+            joinPrincipalChannels: z.boolean().optional(),
+            speakerContext: z.boolean().optional(),
+          })
           .strict()
           .parse(payload);
         return service.bots.switches(human, slug, {

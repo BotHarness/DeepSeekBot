@@ -3109,15 +3109,24 @@ class BotRuntimeImplementation implements BotRuntime {
       botSlug,
       admissions.map((item) => item.sourceEventId),
     );
+    const body = [
+      mentionPrompt,
+      ...(claimed === undefined ? [] : [this.#groupContextSection(claimed)]),
+    ].join('\n\n');
+    const sessionId = this.#turnSources.get(botSlug)?.sessionId;
+    const envelope =
+      sessionId === undefined
+        ? undefined
+        : this.#speakerInput(
+            botSlug,
+            sessionId,
+            admissions.map((item) => item.sourceEventId),
+            body,
+          );
     let delivered: boolean;
     try {
-      delivered = this.#steerWithMemory(
-        botSlug,
-        [
-          mentionPrompt,
-          ...(claimed === undefined ? [] : [this.#groupContextSection(claimed)]),
-        ].join('\n\n'),
-      );
+      delivered = this.#steerWithMemory(botSlug, envelope?.text ?? body);
+      if (delivered) envelope?.commit();
     } catch (error) {
       this.#database.transaction(
         (database) => {
@@ -8648,8 +8657,10 @@ class BotRuntimeImplementation implements BotRuntime {
               .prepare('SELECT channel_id FROM source_events WHERE source_event_id = ?')
               .get(
                 input.replySourceEventId ??
-                  this.#turnSourceIn(botSlug, channel.id, readAdmissions) ??
-                  sourceEventId ??
+                  (steered?.sessionId === sessionId
+                    ? this.#turnSourceIn(botSlug, channel.id, readAdmissions)
+                    : undefined) ??
+                  (sessionId.startsWith('direct-') ? undefined : sourceEventId) ??
                   null,
               ),
           );
@@ -10269,8 +10280,34 @@ class BotRuntimeImplementation implements BotRuntime {
     };
   }
 
+  #assignmentDmChannel(row: AssignmentRow): ChannelRecord | undefined {
+    const bot = this.#registry.get(row.bot_slug);
+    if (!bot) return undefined;
+    const requester = this.#database.read((db) =>
+      db
+        .prepare(`
+      SELECT coalesce(
+        (SELECT human_id FROM source_events WHERE source_event_id = ?),
+        (SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 ORDER BY turn LIMIT 1)
+      ) AS human_id
+    `)
+        .get(row.source_event_id, row.session_id),
+    );
+    const principal = botOwner(bot);
+    const humanId = typeof requester?.['human_id'] === 'string' ? requester['human_id'] : principal;
+    return this.#channels
+      .list()
+      .find(
+        (channel) =>
+          channel.type === 'dm' &&
+          channel.botSlug === row.bot_slug &&
+          !channel.deletedAt &&
+          (channel.dmHumanId ?? principal) === humanId,
+      );
+  }
+
   #publishAssignmentRefusal(row: AssignmentRow, error: unknown): void {
-    const channel = this.#dmChannel(row.bot_slug);
+    const channel = this.#assignmentDmChannel(row);
     if (channel === undefined) return;
     const notice = this.#publishSessionFailure({
       channelId: channel.id,
@@ -10335,7 +10372,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const row = this.#assignmentRow(undefined, sessionId);
         if (row?.stop_state !== 'running') return;
         if (row !== undefined) {
-          const channel = this.#dmChannel(row.bot_slug);
+          const channel = this.#assignmentDmChannel(row);
           if (channel !== undefined) {
             await this.#publishSessionFailure({
               channelId: channel.id,
