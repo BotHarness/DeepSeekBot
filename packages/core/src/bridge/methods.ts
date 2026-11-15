@@ -7434,6 +7434,13 @@ function buildBridgeMethods(
         return dmAdmissionFailure(channelId, channel.botSlug, 'archived-bot');
       }
       const skillInvocations: ChannelSkillInvocation[] = [];
+      const skillViewer =
+        skillTokens.length === 0
+          ? undefined
+          : (channel.type === 'group' ? channel.members : [channel.botSlug]).find((slug) => {
+              const bot = slug === undefined ? undefined : deps.registry.get(slug);
+              return bot !== undefined && bot.paused !== true;
+            });
       for (const token of skillTokens) {
         if (
           token.owner.kind === 'bot' &&
@@ -7442,7 +7449,10 @@ function buildBridgeMethods(
             : channel.botSlug === token.owner.botSlug)
         )
           return invalidInput(`Skill /${token.name} belongs to a PersonaBot outside this Channel`);
-        const resolved = await deps.skills?.resolve(token.name, token.owner);
+        const resolved =
+          skillViewer === undefined
+            ? undefined
+            : await deps.skills?.resolve(token.name, token.owner, skillViewer);
         if (resolved === undefined)
           return {
             ok: false,

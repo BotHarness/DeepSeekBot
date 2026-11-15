@@ -246,6 +246,7 @@ import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
 import { SkillCatalog, type SkillRegistryPort } from './skills/catalog.js';
+import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-view.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
 import type { ChannelStore } from './channels/store.js';
@@ -3249,6 +3250,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const skillCatalog = new SkillCatalog({
     memoryDirFor: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+    viewFor: createSkillViewPort({
+      agentFor: (slug) => {
+        const sessionId = core.runtime.currentOrchestratorSessionId?.(slug);
+        return sessionId == null ? undefined : liveAgent(sessionId);
+      },
+      presetFor: (slug) =>
+        core.registry.get(slug)?.preset ?? config.agentPreset ?? DEFAULT_AGENT_PRESET,
+      agentPresets: () => ctx.get('agentPresets') as SkillAgentPresetsPort<Agent> | undefined,
+    }),
   });
   const bridgeDeps: BridgeMethodsDeps = {
     team,

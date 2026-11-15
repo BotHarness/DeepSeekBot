@@ -13,9 +13,22 @@ export {
 
 /** The subset of DSH's `ctx.skills` registry the catalog reads. */
 export interface SkillRegistryPort {
-  list(options?: { cwd?: string }): Promise<readonly SkillRegistrySummary[]>;
-  get(name: string, options?: { cwd?: string }): Promise<SkillRegistryDefinition | undefined>;
+  list(options?: { cwd?: string; scope?: object }): Promise<readonly SkillRegistrySummary[]>;
+  get(
+    name: string,
+    options?: { cwd?: string; scope?: object },
+  ): Promise<SkillRegistryDefinition | undefined>;
 }
+
+export interface SkillRegistryView extends AsyncDisposable {
+  readonly registry: SkillRegistryPort;
+  readonly scope?: object;
+}
+
+export type SkillViewPort = (
+  botSlug: string,
+  registry: SkillRegistryPort,
+) => Promise<SkillRegistryView>;
 
 export interface SkillRegistrySummary {
   readonly name: string;
@@ -63,9 +76,14 @@ function inside(root: string, path: string | undefined): boolean {
 export class SkillCatalog {
   #registry: SkillRegistryPort | undefined;
   readonly #memoryDirFor: (botSlug: string) => string | undefined;
+  readonly #viewFor: SkillViewPort | undefined;
 
-  constructor(options: { memoryDirFor(botSlug: string): string | undefined }) {
+  constructor(options: {
+    memoryDirFor(botSlug: string): string | undefined;
+    viewFor?: SkillViewPort;
+  }) {
     this.#memoryDirFor = options.memoryDirFor;
+    this.#viewFor = options.viewFor;
   }
 
   get available(): boolean {
@@ -79,67 +97,93 @@ export class SkillCatalog {
     };
   }
 
+  async #withView<T>(
+    botSlug: string,
+    registry: SkillRegistryPort,
+    read: (registry: SkillRegistryPort, options: { scope?: object }) => Promise<T>,
+  ): Promise<T> {
+    if (this.#viewFor === undefined) return read(registry, {});
+    await using view = await this.#viewFor(botSlug, registry);
+    return await read(view.registry, view.scope === undefined ? {} : { scope: view.scope });
+  }
+
   async list(botSlugs: readonly string[]): Promise<SkillCatalogEntry[]> {
     const registry = this.#registry;
     if (registry === undefined) return [];
     const entries: SkillCatalogEntry[] = [];
+    const hostEntries: SkillCatalogEntry[] = [];
+    let hostListed = false;
     for (const botSlug of new Set(botSlugs)) {
       const root = this.#memoryDirFor(botSlug);
       if (root === undefined) continue;
-      for (const skill of await registry.list({ cwd: root }))
-        if (
-          skill.invocation.userInvocable &&
-          PROJECT_SOURCES.has(skill.source) &&
-          inside(root, skill.path)
-        )
-          entries.push({
-            name: skill.name,
-            description: skill.description,
-            owner: { kind: 'bot', botSlug },
-            ...(skill.path === undefined ? {} : { path: skill.path }),
-          });
+      await this.#withView(botSlug, registry, async (registry, options) => {
+        for (const skill of await registry.list({ ...options, cwd: root }))
+          if (
+            skill.invocation.userInvocable &&
+            PROJECT_SOURCES.has(skill.source) &&
+            inside(root, skill.path)
+          )
+            entries.push({
+              name: skill.name,
+              description: skill.description,
+              owner: { kind: 'bot', botSlug },
+              ...(skill.path === undefined ? {} : { path: skill.path }),
+            });
+        if (hostListed) return;
+        for (const skill of await registry.list(options))
+          if (skill.invocation.userInvocable && !PROJECT_SOURCES.has(skill.source))
+            hostEntries.push({
+              name: skill.name,
+              description: skill.description,
+              owner: { kind: 'host' },
+              ...(skill.path === undefined ? {} : { path: skill.path }),
+            });
+        hostListed = true;
+      });
     }
-    for (const skill of await registry.list())
-      if (skill.invocation.userInvocable && !PROJECT_SOURCES.has(skill.source))
-        entries.push({
-          name: skill.name,
-          description: skill.description,
-          owner: { kind: 'host' },
-          ...(skill.path === undefined ? {} : { path: skill.path }),
-        });
-    return entries;
+    return [...entries, ...hostEntries];
   }
 
   /** Reads the current text of one Skill so a message can keep a snapshot of it. */
-  async resolve(name: string, owner: SkillOwner): Promise<ResolvedSkill | undefined> {
+  async resolve(
+    name: string,
+    owner: SkillOwner,
+    viewerBotSlug: string,
+  ): Promise<ResolvedSkill | undefined> {
     const registry = this.#registry;
     if (registry === undefined) return undefined;
-    if (owner.kind === 'host') {
-      const skill = await registry.get(name);
-      if (skill === undefined || !skill.invocation.userInvocable) return undefined;
-      if (PROJECT_SOURCES.has(skill.source)) return undefined;
-      return {
-        name,
-        owner,
-        content: skill.content.slice(0, MAX_SKILL_INVOCATION_CONTENT),
-        ...(skill.path === undefined ? {} : { path: skill.path }),
-      };
-    }
-    const root = this.#memoryDirFor(owner.botSlug);
-    if (root === undefined) return undefined;
-    const skill = await registry.get(name, { cwd: root });
-    if (
-      skill === undefined ||
-      !skill.invocation.userInvocable ||
-      !PROJECT_SOURCES.has(skill.source) ||
-      !inside(root, skill.path)
-    )
-      return undefined;
-    return {
-      name,
-      owner,
-      content: skill.content.slice(0, MAX_SKILL_INVOCATION_CONTENT),
-      ...(skill.path === undefined ? {} : { path: skill.path }),
-    };
+    return this.#withView(
+      owner.kind === 'bot' ? owner.botSlug : viewerBotSlug,
+      registry,
+      async (registry, options) => {
+        if (owner.kind === 'host') {
+          const skill = await registry.get(name, options);
+          if (skill === undefined || !skill.invocation.userInvocable) return undefined;
+          if (PROJECT_SOURCES.has(skill.source)) return undefined;
+          return {
+            name,
+            owner,
+            content: skill.content.slice(0, MAX_SKILL_INVOCATION_CONTENT),
+            ...(skill.path === undefined ? {} : { path: skill.path }),
+          };
+        }
+        const root = this.#memoryDirFor(owner.botSlug);
+        if (root === undefined) return undefined;
+        const skill = await registry.get(name, { ...options, cwd: root });
+        if (
+          skill === undefined ||
+          !skill.invocation.userInvocable ||
+          !PROJECT_SOURCES.has(skill.source) ||
+          !inside(root, skill.path)
+        )
+          return undefined;
+        return {
+          name,
+          owner,
+          content: skill.content.slice(0, MAX_SKILL_INVOCATION_CONTENT),
+          ...(skill.path === undefined ? {} : { path: skill.path }),
+        };
+      },
+    );
   }
 }

@@ -1,7 +1,7 @@
 import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { skillInvocationTokens } from '../src/bots/cli-skills.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -14,7 +14,9 @@ import {
   rankSkillEntries,
   type SkillRegistryDefinition,
   type SkillRegistryPort,
+  type SkillViewPort,
 } from '../src/skills/catalog.js';
+import { createSkillViewPort } from '../src/skills/agent-view.js';
 import { createTempRoot } from './helpers.js';
 
 function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentAdapter {
@@ -50,26 +52,178 @@ function registry(
   host: SkillRegistryDefinition[],
   project: Map<string, SkillRegistryDefinition[]>,
 ) {
-  const view = (cwd?: string) => {
+  const view = (cwd?: string, scope?: object) => {
+    if (scope === undefined) return host.filter((item) => item.source === 'runtime');
     const local = cwd === undefined ? [] : (project.get(cwd) ?? []);
     const names = new Set(local.map((item) => item.name));
     return [...local, ...host.filter((item) => !names.has(item.name))];
   };
   const port: SkillRegistryPort = {
     async list(options) {
-      return view(options?.cwd);
+      return view(options?.cwd, options?.scope);
     },
     async get(name, options) {
-      return view(options?.cwd).find((item) => item.name === name);
+      return view(options?.cwd, options?.scope).find((item) => item.name === name);
     },
   };
   return port;
 }
 
+const liveAgent = { session: { id: 'ada-orchestrator' } };
+const liveView: SkillViewPort = async (_slug, registry) => ({
+  registry,
+  scope: liveAgent,
+  async [Symbol.asyncDispose]() {},
+});
+
 describe('SkillCatalog', () => {
+  it('uses the live Orchestrator scope and its isolated registry for both lookups', async () => {
+    const memory = '/profiles/ada/memory';
+    const scoped = registry(
+      [skill('host', 'custom', '/host/SKILL.md')],
+      new Map([
+        [memory, [skill('qa', 'project-agents', join(memory, '.agents/skills/qa/SKILL.md'))]],
+      ]),
+    );
+    const list = vi.spyOn(scoped, 'list');
+    const get = vi.spyOn(scoped, 'get');
+    const acquireScope = vi.fn();
+    const serviceFor = vi.fn(() => scoped);
+    const viewFor = vi.fn(
+      createSkillViewPort({
+        agentFor: () => liveAgent,
+        presetFor: () => 'bot-preset',
+        agentPresets: () => ({ serviceFor, acquireScope }),
+      }),
+    );
+    const catalog = new SkillCatalog({ memoryDirFor: () => memory, viewFor });
+    catalog.attach(registry([], new Map()));
+    expect((await catalog.list(['ada', 'ada'])).map((row) => row.name)).toEqual(['qa', 'host']);
+    expect(list.mock.calls).toEqual([[{ cwd: memory, scope: liveAgent }], [{ scope: liveAgent }]]);
+    expect(viewFor).toHaveBeenCalledTimes(1);
+    expect(serviceFor).toHaveBeenCalledWith(liveAgent, 'skills');
+    expect(acquireScope).not.toHaveBeenCalled();
+    await catalog.resolve('qa', { kind: 'bot', botSlug: 'ada' }, 'bob');
+    await catalog.resolve('host', { kind: 'host' }, 'bob');
+    expect(viewFor.mock.calls.map(([slug]) => slug)).toEqual(['ada', 'ada', 'bob']);
+    expect(get.mock.calls).toEqual([
+      ['qa', { cwd: memory, scope: liveAgent }],
+      ['host', { scope: liveAgent }],
+    ]);
+  });
+
+  it('releases a standing scope after list and resolve, including failed lookups', async () => {
+    const scope = {};
+    let active = 0;
+    const release = vi.fn(async () => {
+      active--;
+    });
+    const port: SkillRegistryPort = {
+      async list(options) {
+        expect(active).toBe(1);
+        expect(options?.scope).toBe(scope);
+        return [skill('host', 'user-agents', '/host/SKILL.md')];
+      },
+      async get(name, options) {
+        expect(active).toBe(1);
+        expect(options?.scope).toBe(scope);
+        if (name === 'host') return skill('host', 'user-agents', '/host/SKILL.md');
+        throw new Error('lookup failed');
+      },
+    };
+    const acquireScope = vi.fn(async (_id?: string) => {
+      active++;
+      return { key: scope, [Symbol.asyncDispose]: release };
+    });
+    const catalog = new SkillCatalog({
+      memoryDirFor: () => '/memory',
+      viewFor: createSkillViewPort({
+        agentFor: () => undefined,
+        presetFor: () => 'bot-preset',
+        agentPresets: () => ({ serviceFor: vi.fn(), acquireScope }),
+      }),
+    });
+    catalog.attach(port);
+    await catalog.list(['ada']);
+    expect(active).toBe(0);
+    expect(await catalog.resolve('host', { kind: 'host' }, 'ada')).toMatchObject({ name: 'host' });
+    expect(active).toBe(0);
+    await expect(catalog.resolve('broken', { kind: 'host' }, 'ada')).rejects.toThrow(
+      'lookup failed',
+    );
+    expect(active).toBe(0);
+    vi.spyOn(port, 'list').mockRejectedValueOnce(new Error('list failed'));
+    await expect(catalog.list(['ada'])).rejects.toThrow('list failed');
+    expect(active).toBe(0);
+    expect(release).toHaveBeenCalledTimes(4);
+    expect(acquireScope.mock.calls).toEqual([
+      ['bot-preset'],
+      ['bot-preset'],
+      ['bot-preset'],
+      ['bot-preset'],
+    ]);
+  });
+
+  it('keeps the live scope when its preset uses the Host registry', async () => {
+    const catalog = new SkillCatalog({
+      memoryDirFor: () => '/memory',
+      viewFor: createSkillViewPort({
+        agentFor: () => liveAgent,
+        presetFor: () => 'default',
+        agentPresets: () => ({ serviceFor: () => undefined, acquireScope: vi.fn() }),
+      }),
+    });
+    catalog.attach(registry([skill('host', 'user-dsh', '/host/SKILL.md')], new Map()));
+    expect(await catalog.resolve('host', { kind: 'host' }, 'ada')).toMatchObject({ name: 'host' });
+  });
+
+  it('keeps the plain global registry fallback when agent presets are absent', async () => {
+    const catalog = new SkillCatalog({
+      memoryDirFor: () => '/memory',
+      viewFor: createSkillViewPort({
+        agentFor: () => liveAgent,
+        presetFor: () => 'default',
+        agentPresets: () => undefined,
+      }),
+    });
+    catalog.attach(
+      registry(
+        [
+          skill('runtime', 'runtime', '/runtime/SKILL.md'),
+          skill('filesystem', 'user-agents', '/host/SKILL.md'),
+        ],
+        new Map(),
+      ),
+    );
+    expect((await catalog.list(['ada'])).map((row) => row.name)).toEqual(['runtime']);
+    expect(await catalog.resolve('runtime', { kind: 'host' }, 'ada')).toMatchObject({
+      name: 'runtime',
+    });
+    expect(await catalog.resolve('filesystem', { kind: 'host' }, 'ada')).toBeUndefined();
+    expect(await catalog.list([])).toEqual([]);
+  });
+
+  it('lists Host Skills only from the first eligible Bot view', async () => {
+    const viewFor = vi.fn<SkillViewPort>(async (slug) => ({
+      registry: registry([skill(`host-${slug}`, 'bundled', '/host/SKILL.md')], new Map()),
+      scope: {},
+      async [Symbol.asyncDispose]() {},
+    }));
+    const catalog = new SkillCatalog({
+      memoryDirFor: (slug) => (slug === 'ghost' ? undefined : `/memory/${slug}`),
+      viewFor,
+    });
+    catalog.attach(registry([], new Map()));
+    expect((await catalog.list(['ghost', 'ada', 'bob', 'ada'])).map((row) => row.name)).toEqual([
+      'host-ada',
+    ]);
+    expect(viewFor.mock.calls.map(([slug]) => slug)).toEqual(['ada', 'bob']);
+  });
+
   it('lists Host Skills and each Bot Memory Skill, keeping same-named Host Skills visible', async () => {
     const memory = '/profiles/ada/memory';
     const catalog = new SkillCatalog({
+      viewFor: liveView,
       memoryDirFor: (slug) => (slug === 'ada' ? memory : undefined),
     });
     expect(await catalog.list(['ada'])).toEqual([]);
@@ -97,16 +251,18 @@ describe('SkillCatalog', () => {
       ['review', { kind: 'bot', botSlug: 'ada' }],
       ['pdf', { kind: 'host' }],
     ]);
-    expect(await catalog.resolve('pdf', { kind: 'host' })).toMatchObject({
+    expect(await catalog.resolve('pdf', { kind: 'host' }, 'ada')).toMatchObject({
       content: 'Body of pdf',
       path: '/home/.agents/skills/pdf/SKILL.md',
     });
-    expect(await catalog.resolve('pdf', { kind: 'bot', botSlug: 'ada' })).toMatchObject({
+    expect(await catalog.resolve('pdf', { kind: 'bot', botSlug: 'ada' }, 'bob')).toMatchObject({
       path: join(memory, '.agents/skills/pdf/SKILL.md'),
     });
-    expect(await catalog.resolve('outside', { kind: 'bot', botSlug: 'ada' })).toBeUndefined();
-    expect(await catalog.resolve('review', { kind: 'host' })).toBeUndefined();
-    expect(await catalog.resolve('hidden', { kind: 'host' })).toBeUndefined();
+    expect(
+      await catalog.resolve('outside', { kind: 'bot', botSlug: 'ada' }, 'bob'),
+    ).toBeUndefined();
+    expect(await catalog.resolve('review', { kind: 'host' }, 'ada')).toBeUndefined();
+    expect(await catalog.resolve('hidden', { kind: 'host' }, 'ada')).toBeUndefined();
   });
 
   it('matches a Memory Repository reached through a symlink against DSH real paths', async () => {
@@ -117,7 +273,10 @@ describe('SkillCatalog', () => {
     writeFileSync(join(real, '.agents/skills/qa/SKILL.md'), 'x');
     symlinkSync(real, link);
     const skillPath = join(realpathSync(real), '.agents/skills/qa/SKILL.md');
-    const catalog = new SkillCatalog({ memoryDirFor: () => link });
+    const catalog = new SkillCatalog({
+      viewFor: liveView,
+      memoryDirFor: () => link,
+    });
     catalog.attach(registry([], new Map([[link, [skill('qa', 'project-agents', skillPath)]]])));
     expect((await catalog.list(['ada'])).map((entry) => entry.owner)).toEqual([
       { kind: 'bot', botSlug: 'ada' },
@@ -141,6 +300,43 @@ describe('SkillCatalog', () => {
 });
 
 describe('Skill Invocation in a Human DM', () => {
+  it('uses the DM Bot and first eligible Group Bot when resolving Host Skills', async () => {
+    const core = createCore({
+      dshHome: createTempRoot('botharness-skill-viewer-'),
+      agents: adapter(async () => {}),
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      core.registry.create({ slug: 'bob', displayName: 'Bob' });
+      core.registry.setPaused('ada', true);
+      const viewFor = vi.fn(liveView);
+      const catalog = new SkillCatalog({
+        memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+        viewFor,
+      });
+      catalog.attach(registry([skill('host', 'user-agents', '/host/SKILL.md')], new Map()));
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bob'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bob', 'Bob')!;
+      for (const channelId of [group.id, dm.id]) {
+        expect(
+          await methods.channelSend({
+            channelId,
+            body: '/host',
+            skillInvocations: [{ name: 'host', owner: { kind: 'host' }, start: 0, end: 5 }],
+          }),
+        ).toMatchObject({ ok: true });
+      }
+      expect(viewFor.mock.calls.map(([slug]) => slug)).toEqual(['bob', 'bob']);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('snapshots the picked Skill and delivers it without a bare /name', async () => {
     const home = createTempRoot('botharness-skill-invocation-');
     const runs: string[] = [];
@@ -162,6 +358,7 @@ describe('Skill Invocation in a Human DM', () => {
         ],
       ]);
       const catalog = new SkillCatalog({
+        viewFor: liveView,
         memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
       });
       catalog.attach(registry([skill('pdf', 'user-agents', '/home/pdf/SKILL.md')], project));
@@ -236,6 +433,7 @@ describe('Skill Invocation in a Human DM', () => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bob', displayName: 'Bob' });
       const catalog = new SkillCatalog({
+        viewFor: liveView,
         memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
       });
       catalog.attach(registry([skill('pdf', 'user-agents', '/home/pdf/SKILL.md')], new Map()));
