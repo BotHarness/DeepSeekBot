@@ -115,6 +115,7 @@ export type { HumanAssignmentContext } from '../../../core/src/runtime/assignmen
 import type {
   MessagingApp,
   MessagingSnapshot,
+  MessagingReadMode,
   MessagingGrant,
   OutboxIntent,
 } from '../../../core/src/messaging/outbound.js';
@@ -6387,11 +6388,29 @@ export async function saveMessagingDefaults(
   await unwrap(call, 'messagingDefaultsSet', { input });
   return loadMessagingDefaults(call, input.platform);
 }
+function validReceptionRecovery(value: unknown): boolean {
+  if (value === undefined) return true;
+  const row = asRecord(value);
+  if (row?.['kind'] === 'action-required')
+    return typeof row['reason'] === 'string' && row['reason'].length > 0;
+  return (
+    row?.['kind'] === 'retrying' &&
+    row['reason'] === 'provider-unavailable' &&
+    Number.isSafeInteger(row['attempt']) &&
+    Number(row['attempt']) > 0 &&
+    typeof row['nextRetryAt'] === 'string' &&
+    Number.isFinite(Date.parse(row['nextRetryAt']))
+  );
+}
+
 export async function loadChannelBridges(
   call: BridgeCall,
   channelId: string,
+  mode?: MessagingReadMode,
 ): Promise<ChannelBridgeSnapshot> {
-  const value = asRecord(await unwrap(call, 'channelBridges', { channelId }));
+  const value = asRecord(
+    await unwrap(call, 'channelBridges', { channelId, ...(mode ? { mode } : {}) }),
+  );
   const source = (item: unknown) => {
     const row = asRecord(item);
     return (
@@ -6407,7 +6426,10 @@ export async function loadChannelBridges(
   if (
     !value ||
     value['channelId'] !== channelId ||
+    (value['checks'] !== undefined && !['pending', 'complete'].includes(String(value['checks']))) ||
     (value['canTargetInbox'] !== undefined && typeof value['canTargetInbox'] !== 'boolean') ||
+    (value['receptionNeedsAttention'] !== undefined &&
+      typeof value['receptionNeedsAttention'] !== 'boolean') ||
     !Array.isArray(value['sources']) ||
     !value['sources'].every(source) ||
     !Array.isArray(value['bridges']) ||
@@ -6424,7 +6446,8 @@ export async function loadChannelBridges(
         Number(row['revision']) > 0 &&
         ['mentions', 'all'].includes(String(row['collection'])) &&
         ['available', 'unavailable', 'rebind-required'].includes(String(row['availability'])) &&
-        ['off', 'connecting', 'receiving', 'unavailable'].includes(String(row['reception']))
+        ['off', 'connecting', 'receiving', 'unavailable'].includes(String(row['reception'])) &&
+        validReceptionRecovery(row['recovery'])
       );
     })
   )
@@ -6593,13 +6616,24 @@ export async function loadMessagingApps(
 export async function loadMessagingSnapshot(
   call: BridgeCall,
   slug: string,
+  mode?: MessagingReadMode,
 ): Promise<MessagingSnapshot> {
-  const value = await unwrap(call, 'messagingSnapshot', { slug });
+  const value = await unwrap(call, 'messagingSnapshot', { slug, ...(mode ? { mode } : {}) });
   const record = asRecord(value);
   if (
     !record ||
+    (record['checks'] !== undefined &&
+      !['pending', 'complete'].includes(String(record['checks']))) ||
     !Array.isArray(record['accounts']) ||
     !Array.isArray(record['grants']) ||
+    !record['grants'].every((item: unknown) =>
+      validReceptionRecovery(asRecord(item)?.['recovery']),
+    ) ||
+    (record['identities'] !== undefined &&
+      (!Array.isArray(record['identities']) ||
+        !record['identities'].every((item: unknown) =>
+          validReceptionRecovery(asRecord(item)?.['recovery']),
+        ))) ||
     !Array.isArray(record['intents']) ||
     (record['setup'] !== undefined && !validLarkSetupSnapshot(record['setup'])) ||
     (record['channelTargets'] !== undefined &&

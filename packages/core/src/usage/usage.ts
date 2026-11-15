@@ -18,6 +18,7 @@ import {
 import type { IdleCompactionRecord } from '../runtime/idle-compaction.js';
 import type { SessionOwnership, SessionOwnershipRecord } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
+import { queryTokenUsageDays, type UsageTelemetrySnapshot } from './telemetry.js';
 
 export interface UsageDayRow {
   day: string;
@@ -61,6 +62,8 @@ export interface SessionUsageSummary {
 }
 
 export interface UsageProjection {
+  telemetrySnapshot(): UsageTelemetrySnapshot | undefined;
+
   handleSessionEvent(sessionId: string, event: DshSessionEvent): void;
 
   primeSession(sessionId: string, events: readonly DshSessionEvent[]): void;
@@ -482,6 +485,15 @@ export function createUsageProjection(options: {
   };
 
   return {
+    telemetrySnapshot() {
+      if (rebuilding || reconciledAt === null) return undefined;
+      return {
+        days: database.read((connection) =>
+          queryTokenUsageDays(connection, options.now?.() ?? new Date()),
+        ),
+        isReconciled: !reconciliationFailed,
+      };
+    },
     async sessionSummary(botSlug, sessionId, sinceIso, readLog) {
       const root = ownership.resolve(sessionId);
       const available = (): boolean => {

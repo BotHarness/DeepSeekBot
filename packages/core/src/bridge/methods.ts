@@ -2648,11 +2648,16 @@ function buildBridgeMethods(
     }),
     channelBridges(payload) {
       const input = z
-        .object({ channelId: z.string().min(1).max(128) })
+        .object({
+          channelId: z.string().min(1).max(128),
+          mode: z.enum(['saved', 'status']).optional(),
+        })
         .strict()
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Known Group Channel required'));
-      return messagingCall((service) => service.channelBridges(input.data.channelId));
+      return messagingCall((service) =>
+        service.channelBridges(input.data.channelId, input.data.mode),
+      );
     },
     channelIngests(payload) {
       const input = z
@@ -2983,10 +2988,14 @@ function buildBridgeMethods(
       }));
     },
     messagingSnapshot(payload) {
+      const input = z
+        .object({ slug: z.string(), mode: z.enum(['saved', 'status']).optional() })
+        .strict()
+        .safeParse(payload);
       const slug = asSlug(payload);
-      if (slug === undefined || deps.registry.get(slug) === undefined)
+      if (!input.success || slug === undefined || deps.registry.get(slug) === undefined)
         return Promise.resolve(invalidInput('Known bot required'));
-      return messagingCall((service) => service.snapshot(slug));
+      return messagingCall((service) => service.snapshot(slug, input.data.mode));
     },
     messagingReachable(payload) {
       const input = z

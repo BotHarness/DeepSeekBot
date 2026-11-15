@@ -113,6 +113,7 @@ import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
   MessagingSnapshot,
+  MessagingReadMode,
   MessagingGrant,
   OutboxIntent,
 } from '../../../core/src/messaging/outbound.js';
@@ -553,7 +554,7 @@ export interface BridgeActions {
     turns: import('../../../core/src/runtime/prompt-inspection.js').TurnInputView[];
   }>;
 
-  channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
+  channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
   channelIngests(channelId: string): Promise<ConversationIngestSnapshot>;
   channelIngest(channelId: string, input: ConversationIngestInput): Promise<void>;
@@ -578,7 +579,7 @@ export interface BridgeActions {
   messagingIdentity(slug: string, input: MessagingIdentityInput): Promise<MessagingIdentity>;
   messagingConversation(slug: string, input: MessagingConversationInput): Promise<void>;
   appSetup?: ProviderAppSetup;
-  messagingSnapshot(slug: string): Promise<MessagingSnapshot>;
+  messagingSnapshot(slug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot>;
   messagingReachable?(
     slug: string,
     bindingId: string,
@@ -3237,7 +3238,7 @@ export function createActions(
       setMessagingGroupPolicy(call, slug, grantId, policy),
     messagingReceive: (slug, grantId, enabled) => setMessagingReceive(call, slug, grantId, enabled),
     messagingSource: (slug, sourceEventId) => readMessagingSource(call, slug, sourceEventId),
-    channelBridges: (channelId) => loadChannelBridges(call, channelId),
+    channelBridges: (channelId, mode) => loadChannelBridges(call, channelId, mode),
     channelBridge: (channelId, input) => manageChannelBridge(call, channelId, input),
     channelIngests: (channelId) => loadChannelIngests(call, channelId),
     channelIngest: (channelId, input) => manageChannelIngest(call, channelId, input),
@@ -3254,7 +3255,7 @@ export function createActions(
     senderAccess: (slug, input) => changeExternalSenderAccess(call, slug, input),
     messagingIdentity: (slug, input) => manageMessagingIdentity(call, slug, input),
     messagingConversation: (slug, input) => manageMessagingConversation(call, slug, input),
-    messagingSnapshot: (slug) => loadMessagingSnapshot(call, slug),
+    messagingSnapshot: (slug, mode) => loadMessagingSnapshot(call, slug, mode),
     messagingReachable: (slug, bindingId, cursor) =>
       loadMessagingReachable(call, slug, bindingId, cursor),
     messagingPostConversation: (slug, bindingId, conversationId, requestId, text) =>
