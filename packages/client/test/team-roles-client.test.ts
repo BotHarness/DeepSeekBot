@@ -6,6 +6,8 @@ import {
   loadMemberDevices,
   loadPermissionCatalog,
   loadRoles,
+  parsePolicy,
+  policyConflicts,
   setMemberRoles,
   updateRole,
 } from '../src/client/team-roles-bridge.js';
@@ -62,8 +64,26 @@ describe('Team roles bridge', () => {
         permissions: ['roles.manage'],
         models: { kind: 'all' },
         memberCount: 2,
+        policy: [],
+        policyRevision: 0,
       },
     ]);
+  });
+
+  it('reads role policy items and flags Allow/Deny conflicts by topic', () => {
+    expect(
+      parsePolicy([
+        { topic: 'Salaries', text: 'Share pay bands', effect: 'allow' },
+        { topic: 'x', text: 'y', effect: 'maybe' },
+      ]),
+    ).toEqual([{ topic: 'Salaries', text: 'Share pay bands', effect: 'allow' }]);
+    expect(
+      policyConflicts([
+        { name: 'Finance', policy: [{ topic: 'Salaries', text: 'ok', effect: 'allow' }] },
+        { name: 'Intern', policy: [{ topic: ' salaries ', text: 'no', effect: 'deny' }] },
+        { name: 'Ops', policy: [{ topic: 'Rota', text: 'no', effect: 'deny' }] },
+      ]),
+    ).toEqual([{ topic: 'Salaries', allowRole: 'Finance', denyRole: 'Intern' }]);
   });
 
   it('sends the agreed payloads', async () => {

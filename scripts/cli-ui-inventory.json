@@ -1134,6 +1134,17 @@
       ],
       "exemption": "Sign-out ends the cookie grant of one member browser and has no Host-side setting to read or change; the local CLI acts as the Owner, and --as uses a temporary grant that it revokes itself.",
       "configurable": false
+    },
+    {
+      "id": "team-bot-access",
+      "description": "A Bot's owner chooses who can use it (private, everyone, chosen roles or people) and sets its proactive-DM, principal-Channel and speaker-context switches; people who use someone else's Bot can stop it messaging them first.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/bot-access-entry.tsx:{t('botAccess.who')}",
+        "setting:packages/client/src/client/bot-access-entry.tsx:{t(`botAccess.switch.${key}`)}",
+        "setting:packages/client/src/client/bot-access-entry.tsx:{t('botAccess.allowProactive')}"
+      ],
+      "commands": ["bot-access"]
     }
   ]
 }

@@ -10,6 +10,9 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { RoleModelsField } from './team-role-models.js';
+import { RolePolicyField } from './role-policy-field.js';
+import { policyConflicts, policyReady, trimmedPolicy } from './team-roles-bridge.js';
+import type { PolicyItem } from './team-roles-bridge.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { TeamMember } from './team-bridge.js';
 import {
@@ -179,11 +182,12 @@ function RoleDialog({
   const [name, setName] = useState(role?.name ?? '');
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set(role?.permissions ?? []));
   const [models, setModels] = useState<RoleModels>(role?.models ?? { kind: 'all' });
+  const [policy, setPolicy] = useState<PolicyItem[]>([...(role?.policy ?? [])]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const builtin = role?.builtin ?? null;
-  const ready = builtin !== null || name.trim().length > 0;
+  const ready = (builtin !== null || name.trim().length > 0) && policyReady(policy);
   const run = (work: () => Promise<unknown>): void => {
     setBusy(true);
     setError(undefined);
@@ -239,12 +243,18 @@ function RoleDialog({
       onSubmit={() =>
         run(() =>
           role === undefined
-            ? createRole(call, { name: name.trim(), permissions: [...chosen], models })
+            ? createRole(call, {
+                name: name.trim(),
+                permissions: [...chosen],
+                models,
+                policy: trimmedPolicy(policy),
+              })
             : updateRole(call, {
                 roleId: role.roleId,
                 ...(builtin === null ? { name: name.trim() } : {}),
                 permissions: [...chosen],
                 ...(builtin === 'admin' ? {} : { models }),
+                policy: trimmedPolicy(policy),
               }),
         )
       }
@@ -292,6 +302,7 @@ function RoleDialog({
         {builtin === 'admin' ? null : (
           <RoleModelsField call={call} t={t} value={models} disabled={busy} onChange={setModels} />
         )}
+        <RolePolicyField t={t} value={policy} disabled={busy} onChange={setPolicy} />
       </FieldStack>
     </FormDialog>
   );
@@ -430,6 +441,14 @@ export function MemberSheet({
               ))}
             </div>
           </fieldset>
+        )}
+        {member.owner ? null : (
+          <PolicyConflictNote
+            t={t}
+            roles={roles
+              .filter((role) => chosen.has(role.roleId))
+              .map((role) => ({ name: roleLabel(t, role), policy: role.policy }))}
+          />
         )}
         <DeviceList
           call={call}
@@ -602,5 +621,26 @@ function TransferOwnershipDialog({
         initialFocus
       />
     </FormDialog>
+  );
+}
+
+function PolicyConflictNote({
+  t,
+  roles,
+}: {
+  t: BotHarnessTranslate;
+  roles: readonly { name: string; policy: readonly PolicyItem[] }[];
+}): ReactElement | null {
+  const conflicts = policyConflicts(roles);
+  if (conflicts.length === 0) return null;
+  return (
+    <Note tone="warning">
+      <span data-policy-conflicts={conflicts.length}>
+        {[
+          t('team.policy.conflictLead'),
+          ...conflicts.map((conflict) => t('team.policy.conflict', { ...conflict })),
+        ].join(' ')}
+      </span>
+    </Note>
   );
 }
