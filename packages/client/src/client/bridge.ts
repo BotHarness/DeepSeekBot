@@ -1,3 +1,7 @@
+import {
+  skillCatalogChangeSchema,
+  type SkillCatalogChange,
+} from '../../../core/src/skills/events.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
 import { memberPage } from './member-page.js';
 import {
@@ -1152,6 +1156,17 @@ function parseSkillInvocations(
       },
     ];
   });
+}
+
+export function parseSkillCatalogChange(value: unknown): SkillCatalogChange | undefined {
+  try {
+    const parsed = skillCatalogChangeSchema.safeParse(
+      typeof value === 'string' ? JSON.parse(value) : value,
+    );
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function loadChannelSkillCatalog(

@@ -247,12 +247,15 @@ import { createMediaVersions, type MediaVersions } from './attachments/media-ver
 import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
+import { watchSkillCatalog } from './skills/refresh.js';
 import { SkillCatalog, type SkillRegistryPort } from './skills/catalog.js';
 import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-view.js';
 import {
   degradeHostCapability,
   hostAgentPresets,
   hostSkillRegistry,
+  installHostSkillInvalidation,
+  onHostSkillsChange,
 } from './runtime/native-agent-compat.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
@@ -3271,6 +3274,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     drafts: shareDrafts,
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
+  let invalidateNativeSkills: (() => void) | undefined;
   const skillCatalog = new SkillCatalog({
     memoryDirFor: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
@@ -3284,6 +3288,49 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
     }),
   });
+  ctx.effect(() => {
+    if (core.operationalDatabase.mode !== 'ready') return () => undefined;
+    const refresh = watchSkillCatalog({
+      catalog: skillCatalog,
+      invalidateNative: () => invalidateNativeSkills?.(),
+      bots: () =>
+        core.registry.list().flatMap((bot) => {
+          const memoryDir = core.registry.memoryDirFor(bot.slug);
+          return memoryDir === undefined
+            ? []
+            : [
+                {
+                  slug: bot.slug,
+                  memoryDir,
+                  ...(bot.preset === undefined ? {} : { preset: bot.preset }),
+                },
+              ];
+        }),
+      changed: (botSlugs) =>
+        core.live.publishSkillCatalogChanged({
+          botSlugs,
+          channelIds: core.channels
+            .list()
+            .filter(
+              (channel) =>
+                channel.deletedAt === undefined &&
+                channel.members.some((slug) => botSlugs.includes(slug)),
+            )
+            .map((channel) => channel.id),
+        }),
+      diagnostic: (phase, fields) => diagnosticEvents.record('skills', phase, fields),
+    });
+    const offRegistry = core.operationalDatabase.subscribe(({ topics }) => {
+      if (topics.some((topic) => ['bot-registry', 'member-purged'].includes(topic)))
+        refresh.reconcile();
+    });
+    const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
+    return () => {
+      offHost();
+      offRegistry();
+      refresh.close();
+    };
+  }, 'botharness: live skill catalog');
   const bridgeDeps: BridgeMethodsDeps = {
     team,
     skills: skillCatalog,
@@ -3862,9 +3909,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     developerModeTarget.gate = gate;
     skillsCtx.effect(() => {
       const registry = hostSkillRegistry<SkillRegistryPort>(skillsCtx);
-      return registry === undefined
-        ? degradeHostCapability(skillsCtx, 'skills.list')
-        : skillCatalog.attach(registry);
+      if (registry === undefined) return degradeHostCapability(skillsCtx, 'skills.list');
+      const detach = skillCatalog.attach(registry);
+      const stop = installHostSkillInvalidation(skillsCtx, (invalidate) => {
+        invalidateNativeSkills = invalidate;
+        return () => {
+          if (invalidateNativeSkills === invalidate) invalidateNativeSkills = undefined;
+        };
+      });
+      return () => {
+        stop();
+        detach();
+      };
     }, 'botharness: skill catalog');
     skillsCtx.effect(
       () =>

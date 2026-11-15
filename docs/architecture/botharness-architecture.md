@@ -981,6 +981,14 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 Zip 使用既有已认证 RPC 上传 256 KiB 原始数据块，避免整包超过加密网关的单请求边界。手机保留应用内文件、SHA-256 与大小；Host 暂存清单和不可变分块支持重启后核对，完整校验后才通过既有导入 owner 发布。暂存最多八个未过期会话、合计 400 MiB 预留，每个会话自首次接收起 24 小时到期；新上传接收时回收过期内容。规范导入回执独立于暂存期限，已完成操作无需原文件即可查回；未完成操作若需重选文件，必须匹配原哈希和大小。该暂存仅负责传输，不成为 Memory 或 Bot 的第二份权威。
 
+### Skill catalog live refresh（#4234）
+
+Skill 文件仍由 [ADR-0345](../adr/0345-project-skills-travel-with-their-directory.md) 与 [ADR-0346](../adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md) 定义。Host 的 `SkillCatalog` 按 Bot 分开缓存 Project 与 Host 目录：Memory Repository 下 `.agents/skills`、`.dsh/skills` 的原生文件事件只清该 Bot 的 Project 部分；DSH-native `skills/change` 是不区分 Host 与 Project 的通知：先核对已缓存 Host 目录的摘要及文件版本，只有 Host 部分确有变化才清所有 Bot 的 Host 部分并广播，避免把 Project 文件通知扩散到无关会话。监听器只递归 Skill 目录，缺失目录的创建由浅层父目录监听接续；Registry 提交后协调新增、删除与 Memory 移动，Host Plugin/Fiber dispose 关闭所有监听器及合并通知定时器。没有轮询或第二份持久化目录。
+
+Memory 文件事件通过兼容层持有的 DSH-native Provider registration control 使原 Registry 的 cwd/scope 缓存失效；该生命周期适配 Provider 不提供 Skill 候选项，目录仍只来自 DSH 的原 Provider，查询保留原 Agent Scope。这样无需跨运行时模块实例创建 Scope 继承关系，也不调用私有缓存方法。应用定义的 `skills/catalog-changed` 通知携带 `{botSlugs, channelIds}`，复用既有 roster SSE 与 typed live stream，并按 Human 的 Channel 访问权过滤。Client action `subscribeSkillCatalog(channelId, invalidate)` 只通知相关会话，在重连 baseline 时补读；`skillCatalog(channelId)` 与 CLI `skills-list` 共用 `channelSkillCatalog`。React composer 的订阅接线由 UI 切片完成。
+
+性能边界：无变更时 RPC 复用每 Bot 的目录；文件事件按 Bot 合并 25 ms 后推送，重算仍为按需。无范围的 DSH 通知只核对已缓存视图的 Host 摘要与文件版本，无路径的 runtime Skill 使用内容散列；这项工作发生在首次 Host 读取和事件核对时。回归测试记录 `registry.list` 的 cwd，确保 Memory 失效后的 RPC 只重算该 Bot 的 Project 部分，DSH 通知核对与 Host 变更都不重算 Project，重复读取复用缓存；这不是浏览器或原生帧率验收。
+
 ## 7 · 关键边界
 
 - 正常运行只认 explicit Session ownership；`cwd` 只可作为迁移/修复提示，不能决定 PersonaBot 身份。

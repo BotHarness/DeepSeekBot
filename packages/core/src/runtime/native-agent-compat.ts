@@ -4,6 +4,12 @@ import type { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools';
 import { installedDshVersion } from '../telemetry/service.js';
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    'skills/change'(): void;
+  }
+}
+
 export const HOST_INCOMPATIBLE = 'HOST_INCOMPATIBLE';
 
 export class HostIncompatibleError extends Error {
@@ -85,6 +91,44 @@ export function degradeHostCapability(
     `botharness.host_capability.degraded capability=${capability} dsh=${version ?? 'unknown'}${error === undefined ? ' reason=missing' : ` error=${JSON.stringify(errorText(error))}`}`,
   );
   return () => undefined;
+}
+
+export function installHostSkillInvalidation(
+  ctx: Context,
+  attached: (invalidate: () => void) => () => void,
+): () => void {
+  const registry = hostSkillRegistry<{
+    registerProvider?: (
+      create: (control: { invalidate(): void }) => {
+        name: string;
+        list(): Promise<readonly never[]>;
+        get(): Promise<undefined>;
+      },
+    ) => () => void;
+  }>(ctx);
+  if (typeof registry?.registerProvider !== 'function')
+    return requireHostCapability('skills.registerProvider');
+  let detach = (): void => {};
+  const dispose = registry.registerProvider((control) => {
+    detach = attached(() => control.invalidate());
+    return {
+      name: 'botharness-memory-skill-changes',
+      async list() {
+        return [];
+      },
+      async get() {
+        return undefined;
+      },
+    };
+  });
+  return () => {
+    detach();
+    dispose();
+  };
+}
+
+export function onHostSkillsChange(ctx: Context, changed: () => void): () => void {
+  return ctx.on('skills/change', changed, { global: true });
 }
 
 export function hostSkillRegistry<Registry>(ctx: Context): Registry | undefined {

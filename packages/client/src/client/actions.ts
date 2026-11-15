@@ -1,3 +1,4 @@
+import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { gitImportSource } from '../../../../apps/mobile/src/host/bot-creation.js';
 import { approveWorkspaceGrantRequest } from './bridge.js';
@@ -1036,6 +1037,7 @@ export interface BridgeActions {
     skillInvocations?: ChannelSkillInvocationToken[],
   ): Promise<boolean>;
   skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
+  subscribeSkillCatalog?(channelId: string, listener: () => void): () => void;
   submissions: {
     subscribe(listener: () => void): () => void;
     snapshot(channelId: string): SubmissionSnapshot | undefined;
@@ -3317,6 +3319,7 @@ export function createActions(
       await loadSessionsFor(slug, selection);
     },
     allBotPreview: (channelId) => loadAllBotPreview(call, channelId),
+    subscribeSkillCatalog,
     skillCatalog: (channelId) => loadChannelSkillCatalog(call, channelId),
     validateComposerDraft: (channelId, attachments, replyTo) =>
       validateComposerDraft(call, channelId, attachments, replyTo),

@@ -1,4 +1,5 @@
-import { realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import type { SkillCatalogEntry, SkillOwner } from './entries.js';
@@ -77,10 +78,55 @@ function inside(root: string, path: string | undefined): boolean {
   return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
+async function hostVersion(
+  entries: SkillCatalogEntry[],
+  load: (name: string) => Promise<SkillRegistryDefinition | undefined>,
+): Promise<string> {
+  return JSON.stringify(
+    await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.path === undefined) {
+          const skill = await load(entry.name);
+          return [
+            entry,
+            skill === undefined ? null : createHash('sha256').update(skill.content).digest('hex'),
+          ];
+        }
+        try {
+          const stat = statSync(entry.path, { bigint: true });
+          return [entry, stat.mtimeNs.toString(), stat.size.toString()];
+        } catch {
+          return [entry];
+        }
+      }),
+    ),
+  );
+}
+
+function hostEntriesFrom(skills: readonly SkillRegistrySummary[]): SkillCatalogEntry[] {
+  return skills
+    .filter((skill) => skill.invocation.userInvocable && !PROJECT_SOURCES.has(skill.source))
+    .map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      owner: { kind: 'host' },
+      ...(skill.path === undefined ? {} : { path: skill.path }),
+    }));
+}
+
+interface CachedCatalog {
+  root: string;
+  project?: SkillCatalogEntry[];
+  host?: SkillCatalogEntry[];
+  hostVersion?: string;
+  loading?: Promise<void>;
+}
+
 export class SkillCatalog {
   #registry: SkillRegistryPort | undefined;
   readonly #memoryDirFor: (botSlug: string) => string | undefined;
   readonly #viewFor: SkillViewPort | undefined;
+  readonly #cache = new Map<string, CachedCatalog>();
 
   constructor(options: {
     memoryDirFor(botSlug: string): string | undefined;
@@ -96,8 +142,12 @@ export class SkillCatalog {
 
   attach(registry: SkillRegistryPort): () => void {
     this.#registry = registry;
+    this.#cache.clear();
     return () => {
-      if (this.#registry === registry) this.#registry = undefined;
+      if (this.#registry === registry) {
+        this.#registry = undefined;
+        this.#cache.clear();
+      }
     };
   }
 
@@ -111,41 +161,99 @@ export class SkillCatalog {
     return await read(view.registry, view.scope === undefined ? {} : { scope: view.scope });
   }
 
+  invalidateBot(botSlug: string): void {
+    this.#cache.delete(botSlug);
+  }
+
+  invalidateMemory(botSlug: string): void {
+    const cached = this.#cache.get(botSlug);
+    if (cached !== undefined)
+      this.#cache.set(botSlug, {
+        root: cached.root,
+        ...(cached.host === undefined
+          ? {}
+          : {
+              host: cached.host,
+              ...(cached.hostVersion === undefined ? {} : { hostVersion: cached.hostVersion }),
+            }),
+      });
+  }
+
+  invalidateHost(): void {
+    for (const [slug, cached] of this.#cache)
+      this.#cache.set(slug, {
+        root: cached.root,
+        ...(cached.project === undefined ? {} : { project: cached.project }),
+      });
+  }
+
+  async refreshHost(): Promise<boolean> {
+    const registry = this.#registry;
+    if (registry === undefined) return false;
+    const observed = [...this.#cache].filter(([, entry]) => entry.host !== undefined);
+    if (observed.length === 0) return true;
+    for (const [slug, entry] of observed) {
+      const version = await this.#withView(slug, registry, async (view, options) =>
+        hostVersion(hostEntriesFrom(await view.list(options)), (name) => view.get(name, options)),
+      );
+      if (this.#registry !== registry) return false;
+      if (version !== entry.hostVersion) {
+        this.invalidateHost();
+        return true;
+      }
+    }
+    return false;
+  }
+
   async list(botSlugs: readonly string[]): Promise<SkillCatalogEntry[]> {
     const registry = this.#registry;
     if (registry === undefined) return [];
     const entries: SkillCatalogEntry[] = [];
-    const hostEntries: SkillCatalogEntry[] = [];
-    let hostListed = false;
+    const observed = new Map<string, CachedCatalog>();
+    let hostEntries: SkillCatalogEntry[] | undefined;
     for (const botSlug of new Set(botSlugs)) {
       const root = this.#memoryDirFor(botSlug);
       if (root === undefined) continue;
-      await this.#withView(botSlug, registry, async (registry, options) => {
-        for (const skill of await registry.list({ ...options, cwd: root }))
-          if (
-            skill.invocation.userInvocable &&
-            PROJECT_SOURCES.has(skill.source) &&
-            inside(root, skill.path)
-          )
-            entries.push({
-              name: skill.name,
-              description: skill.description,
-              owner: { kind: 'bot', botSlug },
-              ...(skill.path === undefined ? {} : { path: skill.path }),
-            });
-        if (hostListed) return;
-        for (const skill of await registry.list(options))
-          if (skill.invocation.userInvocable && !PROJECT_SOURCES.has(skill.source))
-            hostEntries.push({
-              name: skill.name,
-              description: skill.description,
-              owner: { kind: 'host' },
-              ...(skill.path === undefined ? {} : { path: skill.path }),
-            });
-        hostListed = true;
-      });
+      let cached = this.#cache.get(botSlug);
+      if (cached?.root !== root) {
+        cached = { root };
+        this.#cache.set(botSlug, cached);
+      }
+      const entry = cached;
+      observed.set(botSlug, entry);
+      while (entry.project === undefined || (hostEntries === undefined && entry.host === undefined))
+        await (entry.loading ??= this.#withView(botSlug, registry, async (registry, options) => {
+          if (entry.project === undefined)
+            entry.project = (await registry.list({ ...options, cwd: root }))
+              .filter(
+                (skill) =>
+                  skill.invocation.userInvocable &&
+                  PROJECT_SOURCES.has(skill.source) &&
+                  inside(root, skill.path),
+              )
+              .map((skill) => ({
+                name: skill.name,
+                description: skill.description,
+                owner: { kind: 'bot', botSlug },
+                ...(skill.path === undefined ? {} : { path: skill.path }),
+              }));
+          if (hostEntries === undefined && entry.host === undefined) {
+            const host = hostEntriesFrom(await registry.list(options));
+            const version = await hostVersion(host, (name) => registry.get(name, options));
+            entry.host = host;
+            entry.hostVersion = version;
+          }
+        }).finally(() => {
+          delete entry.loading;
+        }));
+      if (this.#cache.get(botSlug) !== entry || this.#registry !== registry)
+        return this.list(botSlugs);
+      entries.push(...(entry.project ?? []));
+      hostEntries ??= entry.host;
     }
-    return [...entries, ...hostEntries];
+    if ([...observed].some(([slug, entry]) => this.#cache.get(slug) !== entry))
+      return this.list(botSlugs);
+    return [...entries, ...(hostEntries ?? [])];
   }
 
   async resolve(

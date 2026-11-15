@@ -5,6 +5,7 @@ A Human types `/` in a PersonaBot DM or Group Channel, picks a Skill, and sends 
 ## Sub-features
 
 - `menu` lists composer commands first, then Skills: Host Skills and the Project Skills under each conversation member Bot's Memory Repository `.agents/skills` or `.dsh/skills`. Each row shows its owner (Bot avatar or Skill icon), `/name` and a one-line description.
+- `live-refresh` invalidates only the changed Bot's Project Skill catalog, or every Bot's Host portion when an unfiltered DSH `skills/change` reveals a changed Host catalog, and pushes `skills/catalog-changed` through the existing roster stream. `skills-list` reads the same fresh catalog as the menu.
 - `rank` orders Skills by name prefix, then name subsequence, then owning Bot display name or slug substring, then description substring; order within each tier stays stable. Typing `alice` lists all of Alice's Skills.
 - `chip` inserts the picked Skill as one token; Backspace removes it whole; the draft keeps it across reloads.
 - `snapshot` stores `{name, owner, path, content}` with the message; editing or deleting the `SKILL.md` later does not change the sent message.
@@ -40,9 +41,17 @@ Preconditions: `launch` reported a model credential and `doctor` passes.
 6. For a same-named command/Skill, inspect commands-first ordering, exercise the bare command, then explicitly select the Skill row and inspect the snapshot.
 7. Through the designated Discord/Lark test destination and the IM browser QA procedure, inspect a mirrored Human message: it shows plain `/qa-echo`, with no brackets, XML or snapshot content. Correlate it with Source Event/Outbox facts. The automated provider-carrier tests alone do not verify browser rendering; do not infer that a Group bridge automatically forwards Human messages.
 
+### Live refresh path
+
+1. Keep Alice's DM composer and `/` menu open. Add, edit the description of, and delete `<memory>/.agents/skills/qa-live/SKILL.md`; repeat under `.dsh/skills`. Each change updates the menu without navigation or a page reload. Bob's unrelated DM does not refetch its Project Skill catalog.
+2. Inspect the existing roster stream: `skills/catalog-changed` has `{botSlugs: ["alice"], channelIds: [<Alice DM>, <Groups containing Alice>]}`. Read `channelSkillCatalog` and run `deepseekbot skills-list --bot alice` after each event: both show the new description or absence. A Group containing Alice updates too. A subsequent unfiltered DSH Project notification must not broadcast to unrelated Channels when the Host catalog is unchanged.
+3. Add/remove or edit a Host Skill: `skills/change` invalidates every Bot's Host catalog portion; Project Skill reads remain cached. An interrupted/reconnected Client roster stream refetches the selected channel on its replacement baseline.
+4. Run `deepseekbot memory-move` for Alice, then edit her Skill at the new path. The event and menu still update. Remove Alice through the confirmed Bot deletion flow: her watchers stop. Disposing the isolated Host releases all Skill watchers and pending notifications.
+5. Automated coverage: `packages/core/test/skill-catalog-refresh.test.ts` observes per-cwd registry calls, real filesystem add/modify/delete, Memory moves/removal/disposal, CLI/RPC equality, access-filtered SSE/typed push, and real DSH Registry invalidation through its registration control while preserving Agent Scope visibility. `packages/client/test/skill-catalog-live.test.ts` checks event parsing, subscription scope, reconnect baselines and shared-carrier cleanup.
+
 ## Gotchas
 
-- The `/` menu reads the catalog when the conversation opens. A Skill written while the conversation is open appears after reopening it until S3 (live refresh) lands.
+- The non-UI S3 slice exposes `actions.subscribeSkillCatalog(channelId, invalidate)` alongside `actions.skillCatalog(channelId)`. The UI owner must wire the mounted composer to refetch on invalidation, prefetch on open, ignore stale async completions, and unsubscribe on channel change/unmount. Until that wiring lands, live menu behavior in steps 1–4 remains unverified.
 - DSH discovers `<memory>/.agents/skills` because the Orchestrator's cwd is the Memory Repository; a Skill placed in `.botharness/` is not found.
 - Recalling an older message with ArrowUp, or restoring a failed send, keeps `/name` as plain text without the chip.
 
