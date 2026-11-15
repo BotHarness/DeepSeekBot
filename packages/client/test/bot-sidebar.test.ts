@@ -1639,6 +1639,15 @@ describe('bot sidebar rows', () => {
     expect(markup).toContain('placeholder="搜索 Bot 或频道"');
   });
 
+  it('keeps computer enrollment out of the Channels create menu', () => {
+    captured.dock = true;
+    environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'all' };
+    renderSidebar();
+    const ids = menuWithItem('bot').items.map((item) => item['id']);
+    expect(ids).not.toContain('remote');
+    expect(ids).toContain('channel');
+  });
+
   it('blocks Bot creation and explains why while Host Git is unusable', () => {
     store.setGit({
       available: false,

@@ -54,7 +54,7 @@ const overrideInputs = (left: OverrideInputs, right: OverrideInputs): boolean =>
 const inboxInputs = (left: InboxInputs, right: InboxInputs): boolean =>
   left.activityList === right.activityList && overrideInputs(left, right);
 
-const itemKey = (item: HumanAttentionItem): string =>
+const baseItemKey = (item: HumanAttentionItem): string =>
   item.id + '\u0000' + (item.sourceEventId ?? '');
 
 const acknowledgeable = (item: HumanAttentionItem): boolean =>
@@ -83,6 +83,8 @@ export type ActivityListCommands = Pick<
 >;
 
 export interface ActivityListSource {
+  hostId?: string;
+  origin?: ReactNode;
   commands: ActivityListCommands;
   detail(item: HumanAttentionItem, onClose: () => void): ReactElement;
   botName(slug: string): string;
@@ -101,7 +103,15 @@ export function ActivityListView({
   sectionHeading,
   collapsed = false,
   hostSource,
+  itemSource,
+  origin,
+  refreshSources,
+  loadMoreSources,
 }: {
+  itemSource?: (item: HumanAttentionItem) => ActivityListSource | undefined;
+  origin?: ReactNode;
+  refreshSources?: () => Promise<void>;
+  loadMoreSources?: () => Promise<void>;
   inboxOverride?: import('./store.js').ActivityListState;
   sectionHeading?: ReactNode;
   emptyMessage?: string | undefined;
@@ -111,6 +121,12 @@ export function ActivityListView({
   | { actions: BridgeActions; hostSource?: never }
   | { actions?: never; hostSource: ActivityListSource }
 )): ReactElement {
+  const sourceFor = (item: HumanAttentionItem): ActivityListSource | undefined =>
+    itemSource?.(item) ?? hostSource;
+  const itemKey = (item: HumanAttentionItem): string =>
+    (sourceFor(item)?.hostId ?? 'local') + '\u0000' + baseItemKey(item);
+  const refresh = (): Promise<void> =>
+    refreshSources?.() ?? hostSource?.refresh() ?? actions!.refreshActivityList();
   const inboxState = useClientStore(
     selectInboxInputs,
     inboxOverride === undefined ? inboxInputs : overrideInputs,
@@ -135,6 +151,7 @@ export function ActivityListView({
     replyRows,
     JSON.stringify([inbox.category, inbox.botSlug, inbox.channelId, inbox.sort, inbox.snoozed]),
     !selectionMode,
+    itemKey,
   );
 
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
@@ -144,10 +161,12 @@ export function ActivityListView({
   const root = useRef<HTMLDivElement | null>(null);
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => undefined);
   const selectable = selectionMode;
-  const commands = hostSource?.commands ?? actions!;
+  const commandsFor = (item: HumanAttentionItem): ActivityListCommands =>
+    sourceFor(item)?.commands ?? actions!;
   const selectedItems = inbox.items.filter((item) => selected.has(itemKey(item)));
 
   const openAction = (item: HumanAttentionItem): void => {
+    const hostSource = sourceFor(item);
     if (
       hostSource !== undefined &&
       item.kind !== 'tool-approval' &&
@@ -157,7 +176,7 @@ export function ActivityListView({
       return;
     }
     if (item.kind === 'private-input' || item.kind === 'takeover-request') {
-      void commands
+      void commandsFor(item)
         .openChannelAtMessage(item.channelId!, item.messageId!)
         .catch(() => setActionError(t('activityList.failed')));
       return;
@@ -165,26 +184,28 @@ export function ActivityListView({
     setReplySource(item);
   };
 
-  const botName = (slug: string): string =>
-    hostSource === undefined
-      ? (state.bots.find((bot) => bot.slug === slug)?.displayName ?? slug)
-      : hostSource.botName(slug);
+  const botName = (slug: string, item?: HumanAttentionItem): string => {
+    const source = item === undefined ? hostSource : sourceFor(item);
+    return (
+      source?.botName(slug) ?? state.bots.find((bot) => bot.slug === slug)?.displayName ?? slug
+    );
+  };
   const bots = [...state.bots].sort((left, right) =>
     left.displayName.localeCompare(right.displayName),
   );
   const openRepairBotInbox = (item: HumanAttentionItem): Promise<void> =>
-    hostSource === undefined ? openRepairBotInboxFor(actions, item) : hostSource.open(item);
+    sourceFor(item)?.open(item) ?? openRepairBotInboxFor(actions!, item);
   const openSource = (item: HumanAttentionItem): Promise<void> =>
-    hostSource === undefined ? openHumanAttentionSource(actions, item) : hostSource.open(item);
+    sourceFor(item)?.open(item) ?? openHumanAttentionSource(actions!, item);
 
   const decide = async (item: HumanAttentionItem, accept: boolean): Promise<void> => {
     if (item.requestId === undefined || item.channelId === undefined) return;
-    setBusyId(item.id);
+    setBusyId(itemKey(item));
     setActionError(undefined);
     try {
-      if (!(await commands.decideGroupJoin(item.channelId, item.requestId, accept)))
+      if (!(await commandsFor(item).decideGroupJoin(item.channelId, item.requestId, accept)))
         throw new Error(t('activityList.failed'));
-      await commands.refreshActivityList();
+      await commandsFor(item).refreshActivityList();
     } catch {
       setActionError(t('activityList.failed'));
     } finally {
@@ -198,14 +219,14 @@ export function ActivityListView({
     } else if (item.messageId === undefined || item.channelId === undefined) {
       return;
     }
-    setBusyId(item.id);
+    setBusyId(itemKey(item));
     setActionError(undefined);
     try {
       if (item.kind === 'assignment-report') {
-        await commands.ignoreHumanReport(item.sourceEventId!);
-        await commands.refreshActivityList();
+        await commandsFor(item).ignoreHumanReport(item.sourceEventId!);
+        await commandsFor(item).refreshActivityList();
       } else {
-        await commands.markRead(item.channelId!, item.messageId!);
+        await commandsFor(item).markRead(item.channelId!, item.messageId!);
       }
     } catch {
       setActionError(t('activityList.failed'));
@@ -215,23 +236,23 @@ export function ActivityListView({
   };
 
   const settle = async (item: HumanAttentionItem): Promise<void> => {
-    if (!acknowledgeable(item)) await commands.dismissActivityList(item);
+    if (!acknowledgeable(item)) await commandsFor(item).dismissActivityList(item);
     else if (item.kind === 'assignment-report') {
       if (item.sourceEventId === undefined) throw new Error(t('activityList.failed'));
-      await commands.ignoreHumanReport(item.sourceEventId);
-      await commands.refreshActivityList();
+      await commandsFor(item).ignoreHumanReport(item.sourceEventId);
+      await commandsFor(item).refreshActivityList();
     } else {
       if (item.channelId === undefined || item.messageId === undefined)
         throw new Error(t('activityList.failed'));
-      await commands.markRead(item.channelId, item.messageId);
+      await commandsFor(item).markRead(item.channelId, item.messageId);
     }
   };
 
   const settleOne = async (item: HumanAttentionItem, clear = false): Promise<void> => {
-    setBusyId(item.id);
+    setBusyId(itemKey(item));
     setActionError(undefined);
     try {
-      if (clear) await commands.dismissActivityList(item);
+      if (clear) await commandsFor(item).dismissActivityList(item);
       else await settle(item);
       if (replySource !== undefined && itemKey(replySource) === itemKey(item))
         setReplySource(undefined);
@@ -243,10 +264,10 @@ export function ActivityListView({
   };
 
   const snooze = async (item: HumanAttentionItem, until: string | null): Promise<void> => {
-    setBusyId(item.id);
+    setBusyId(itemKey(item));
     setActionError(undefined);
     try {
-      await commands.snoozeActivityList(item, until);
+      await commandsFor(item).snoozeActivityList(item, until);
       if (replySource !== undefined && itemKey(replySource) === itemKey(item))
         setReplySource(undefined);
     } catch {
@@ -271,7 +292,7 @@ export function ActivityListView({
     setSelected(new Set());
     setBatchBusy(false);
     if (failed > 0) setActionError(t('activityList.batch.failed', { count: String(failed) }));
-    await commands.refreshActivityList().catch(() => undefined);
+    await refresh().catch(() => undefined);
   };
 
   const toggleSelected = (item: HumanAttentionItem): void =>
@@ -296,9 +317,7 @@ export function ActivityListView({
 
   const toggleDetail = (item: HumanAttentionItem): void => {
     setReplySource(
-      replySource?.id === item.id && replySource.sourceEventId === item.sourceEventId
-        ? undefined
-        : item,
+      replySource !== undefined && itemKey(replySource) === itemKey(item) ? undefined : item,
     );
   };
 
@@ -363,61 +382,62 @@ export function ActivityListView({
   const itemTitle = (item: HumanAttentionItem): string =>
     item.kind === 'channel-unread'
       ? (
-          hostSource === undefined
+          sourceFor(item) === undefined
             ? state.channels.find((channel) => channel.id === item.channelId)?.type === 'dm'
-            : hostSource.isDirect(item.channelId)
+            : sourceFor(item)!.isDirect(item.channelId)
         )
-        ? botName(item.botSlug)
-        : (item.channelName ?? botName(item.botSlug))
+        ? botName(item.botSlug, item)
+        : (item.channelName ?? botName(item.botSlug, item))
       : item.kind === 'group-join-request'
         ? t('activityList.groupJoin', {
-            bot: botName(item.botSlug),
+            bot: botName(item.botSlug, item),
             channel: item.channelName ?? '',
           })
         : item.kind === 'private-input'
-          ? t('activityList.privateInput', { bot: botName(item.botSlug) })
+          ? t('activityList.privateInput', { bot: botName(item.botSlug, item) })
           : item.kind === 'takeover-request'
-            ? t('activityList.takeover', { bot: botName(item.botSlug) })
+            ? t('activityList.takeover', { bot: botName(item.botSlug, item) })
             : item.kind === 'user-question'
-              ? t('activityList.question', { bot: botName(item.botSlug) })
+              ? t('activityList.question', { bot: botName(item.botSlug, item) })
               : item.kind === 'tool-approval'
-                ? t('activityList.approval', { bot: botName(item.botSlug) })
+                ? t('activityList.approval', { bot: botName(item.botSlug, item) })
                 : item.kind === 'auto-rejection'
-                  ? t('activityList.autoRejection', { bot: botName(item.botSlug) })
+                  ? t('activityList.autoRejection', { bot: botName(item.botSlug, item) })
                   : item.kind === 'pairing-request'
                     ? t(
                         item.summary.startsWith('conversation')
                           ? 'activityList.pairingConversation'
                           : 'activityList.pairingManagement',
                         {
-                          bot: botName(item.botSlug),
+                          bot: botName(item.botSlug, item),
                           name: item.summary.split(' · ')[1] || t('pairing.unknownName'),
                         },
                       )
                     : item.kind === 'workspace-grant-request'
-                      ? t('activityList.grant', { bot: botName(item.botSlug) })
+                      ? t('activityList.grant', { bot: botName(item.botSlug, item) })
                       : item.kind === 'assignment-waiting-human'
-                        ? t('activityList.assignmentWaiting', { bot: botName(item.botSlug) })
+                        ? t('activityList.assignmentWaiting', { bot: botName(item.botSlug, item) })
                         : item.kind === 'assignment-blocked'
                           ? t('activityList.assignmentBlocked', {
-                              bot: botName(item.botSlug),
+                              bot: botName(item.botSlug, item),
                             })
                           : item.kind === 'assignment-report'
                             ? t('activityList.assignmentReport', {
-                                bot: botName(item.botSlug),
+                                bot: botName(item.botSlug, item),
                               })
                             : item.kind === 'bot-message-needs-repair'
-                              ? t('activityList.repair', { bot: botName(item.botSlug) })
-                              : botName(item.botSlug);
+                              ? t('activityList.repair', { bot: botName(item.botSlug, item) })
+                              : botName(item.botSlug, item);
 
-  const renderSource = (source: HumanAttentionItem, onClose: () => void): ReactElement =>
-    hostSource !== undefined ? (
+  const renderSource = (source: HumanAttentionItem, onClose: () => void): ReactElement => {
+    const hostSource = sourceFor(source);
+    return hostSource !== undefined ? (
       hostSource.detail(source, onClose)
     ) : source.kind === 'auto-rejection' ? (
       <ActivityListAutoRejection
         key={source.id}
         source={source}
-        actions={actions}
+        actions={actions!}
         t={t}
         title={itemTitle(source)}
         onClose={onClose}
@@ -426,7 +446,7 @@ export function ActivityListView({
       <ActivityListAssignment
         key={source.assignmentSessionId + ':' + source.sourceEventId}
         source={source}
-        actions={actions}
+        actions={actions!}
         t={t}
         botName={botName}
         bots={state.bots}
@@ -437,7 +457,7 @@ export function ActivityListView({
         <ActivityListReply
           key={source.channelId + ':' + source.messageId}
           source={source}
-          actions={actions}
+          actions={actions!}
           t={t}
           botName={botName}
           bots={state.bots}
@@ -467,7 +487,7 @@ export function ActivityListView({
       <section className="bh-activity-list-reply" aria-label={itemTitle(source)}>
         <div className="bh-activity-list-reply-header">
           <h2>{itemTitle(source)}</h2>
-          <ActivityListDismiss source={source} actions={actions} t={t} onClose={onClose} />
+          <ActivityListDismiss source={source} actions={actions!} t={t} onClose={onClose} />
         </div>
         <p>{source.summary}</p>
         <ActivityListSourceButton
@@ -481,6 +501,7 @@ export function ActivityListView({
         />
       </section>
     );
+  };
 
   return (
     <div className="bh-activity-list" ref={rootRef}>
@@ -514,10 +535,7 @@ export function ActivityListView({
           {inbox.error === undefined ? null : (
             <div role="alert">
               <p>{inbox.error}</p>
-              <Button
-                size="sm"
-                onClick={() => void (hostSource?.refresh() ?? commands.refreshActivityList())}
-              >
+              <Button size="sm" onClick={() => void refresh()}>
                 {t('activityInbox.retry')}
               </Button>
             </div>
@@ -582,7 +600,7 @@ export function ActivityListView({
                         disabled={batchBusy}
                         onClick={() =>
                           void runBatch((item) =>
-                            commands.decideToolApproval(
+                            commandsFor(item).decideToolApproval(
                               item.channelId!,
                               item.messageId!,
                               'allowed-once',
@@ -599,7 +617,7 @@ export function ActivityListView({
                         disabled={batchBusy}
                         onClick={() =>
                           void runBatch((item) =>
-                            commands.decideToolApproval(
+                            commandsFor(item).decideToolApproval(
                               item.channelId!,
                               item.messageId!,
                               'rejected',
@@ -638,17 +656,19 @@ export function ActivityListView({
               {(!selectionMode
                 ? retained.rows
                 : inbox.items.map((item) => ({ item, leaving: false }))
-              ).map(({ item, leaving }) =>
-                hostSource === undefined &&
-                item.kind === 'tool-approval' &&
-                item.category === 'action' &&
-                item.channelId &&
-                item.messageId &&
-                !selectionMode ? (
+              ).map(({ item, leaving }) => {
+                const hostSource = sourceFor(item);
+                return hostSource === undefined &&
+                  item.kind === 'tool-approval' &&
+                  item.category === 'action' &&
+                  item.channelId &&
+                  item.messageId &&
+                  !selectionMode ? (
                   <ActivityApproval
-                    key={item.id}
+                    key={itemKey(item)}
                     source={item}
-                    actions={actions}
+                    origin={origin}
+                    actions={actions!}
                     bots={state.bots}
                     t={t}
                     leaving={leaving}
@@ -656,7 +676,7 @@ export function ActivityListView({
                   />
                 ) : (
                   <article
-                    key={item.id}
+                    key={itemKey(item)}
                     role="listitem"
                     data-attention-id={item.id}
                     className={
@@ -665,7 +685,11 @@ export function ActivityListView({
                         ? ' bh-activity-list-personal-row'
                         : '')
                     }
-                    data-selected={replySource?.id === item.id ? 'true' : undefined}
+                    data-selected={
+                      replySource !== undefined && itemKey(replySource) === itemKey(item)
+                        ? 'true'
+                        : undefined
+                    }
                     data-checked={selected.has(itemKey(item)) || undefined}
                     data-cursor={cursor === itemKey(item) || undefined}
                   >
@@ -673,8 +697,14 @@ export function ActivityListView({
                       type="button"
                       className="bh-activity-list-row-open"
                       aria-label={t('activityList.details', { title: itemTitle(item) })}
-                      aria-expanded={replySource?.id === item.id}
-                      aria-controls={replySource?.id === item.id ? detailId : undefined}
+                      aria-expanded={
+                        replySource !== undefined && itemKey(replySource) === itemKey(item)
+                      }
+                      aria-controls={
+                        replySource !== undefined && itemKey(replySource) === itemKey(item)
+                          ? detailId
+                          : undefined
+                      }
                       onFocus={() => setCursor(itemKey(item))}
                       onClick={() => toggleDetail(item)}
                     />
@@ -690,7 +720,8 @@ export function ActivityListView({
                           onChange={() => toggleSelected(item)}
                         />
                       ) : null}
-                      {itemTitle(item)}
+                      <span className="bh-activity-list-item-title">{itemTitle(item)}</span>
+                      {hostSource?.origin ?? origin}
                     </div>
                     <div className="bh-activity-list-row-main">
                       {item.kind === 'channel-reply' || item.kind === 'channel-mention' ? (
@@ -787,7 +818,7 @@ export function ActivityListView({
                       <>
                         {item.kind === 'pairing-request' && item.category !== 'handled' ? (
                           hostSource === undefined ? (
-                            <ActivityListPairing source={item} actions={actions} t={t} />
+                            <ActivityListPairing source={item} actions={actions!} t={t} />
                           ) : (
                             <Button
                               variant="primary"
@@ -811,7 +842,7 @@ export function ActivityListView({
                           hostSource === undefined &&
                           item.kind === 'workspace-grant-request' &&
                           item.category !== 'handled' ? (
-                            <ActivityListWorkspaceAction source={item} actions={actions} t={t} />
+                            <ActivityListWorkspaceAction source={item} actions={actions!} t={t} />
                           ) : (
                             <Button
                               variant="primary"
@@ -850,7 +881,7 @@ export function ActivityListView({
                             size="sm"
                             type="button"
                             onClick={() =>
-                              void commands
+                              void commandsFor(item)
                                 .openChannelAtMessage(item.channelId!, item.responseMessageId!)
                                 .catch(() => setActionError(t('activityList.failed')))
                             }
@@ -861,7 +892,7 @@ export function ActivityListView({
                         {item.kind === 'auto-rejection' ? (
                           <AllowAutoRejectionButton
                             item={item}
-                            actions={commands}
+                            actions={commandsFor(item)}
                             t={t}
                             onDone={() => {
                               if (
@@ -879,7 +910,7 @@ export function ActivityListView({
                               variant="primary"
                               size="sm"
                               type="button"
-                              disabled={busyId === item.id}
+                              disabled={busyId === itemKey(item)}
                               onClick={() => void decide(item, true)}
                             >
                               {t('activityList.accept')}
@@ -888,7 +919,7 @@ export function ActivityListView({
                               variant="primary"
                               size="sm"
                               type="button"
-                              disabled={busyId === item.id}
+                              disabled={busyId === itemKey(item)}
                               onClick={() => void decide(item, false)}
                             >
                               {t('activityList.decline')}
@@ -903,7 +934,7 @@ export function ActivityListView({
                             variant="primary"
                             size="sm"
                             type="button"
-                            disabled={busyId === item.id}
+                            disabled={busyId === itemKey(item)}
                             onClick={() => void acknowledge(item)}
                           >
                             {t(
@@ -923,7 +954,7 @@ export function ActivityListView({
                             item={item}
                             t={t}
                             open={snoozeMenu === itemKey(item)}
-                            disabled={busyId === item.id || batchBusy}
+                            disabled={busyId === itemKey(item) || batchBusy}
                             onOpenChange={(open) => setSnoozeMenu(open ? itemKey(item) : undefined)}
                             onSnooze={(until) => void snooze(item, until)}
                           />
@@ -953,7 +984,7 @@ export function ActivityListView({
                           <Button
                             variant="ghost"
                             size="sm"
-                            disabled={busyId === item.id}
+                            disabled={busyId === itemKey(item)}
                             onClick={() => void settleOne(item, true)}
                           >
                             {t('activityList.dismiss')}
@@ -961,14 +992,14 @@ export function ActivityListView({
                         ) : null}
                       </>
                     </div>
-                    {replySource?.id === item.id ? (
+                    {replySource !== undefined && itemKey(replySource) === itemKey(item) ? (
                       <div id={detailId} className="bh-activity-list-detail">
                         {renderSource(item, () => setReplySource(undefined))}
                       </div>
                     ) : null}
                   </article>
-                ),
-              )}
+                );
+              })}
             </div>
           </div>
           {inbox.nextCursor === undefined ? null : (
@@ -976,9 +1007,11 @@ export function ActivityListView({
               type="button"
               className="bh-activity-list-more"
               onClick={() =>
-                void (hostSource === undefined
-                  ? actions.loadMoreActivityList()
-                  : hostSource.loadMore())
+                void (
+                  loadMoreSources?.() ??
+                  hostSource?.loadMore() ??
+                  actions!.loadMoreActivityList()
+                )
               }
             >
               {t('activityList.more')}

@@ -227,8 +227,9 @@ describe('Human Inbox snooze', () => {
   });
 });
 
-import { RemoteActivityGroup, remoteActivityPage } from '../src/client/remote-activity.js';
+import { remoteActivityPage } from '../src/client/remote-activity.js';
 import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
+import { ActivityCenterView } from '../src/client/activity-center-view.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, zhTranslate } from '../src/client/locale.js';
@@ -259,6 +260,7 @@ async function remoteFixture(host: FakeHost) {
   });
   const release = sources.subscribe(() => {});
   await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  sources.select(host.hostId);
   const element = document.createElement('div');
   document.body.append(element);
   const root = createRoot(element);
@@ -267,23 +269,22 @@ async function remoteFixture(host: FakeHost) {
     sources,
     element,
     registry,
-    async render() {
+    async render(
+      actions = createActions(
+        async () => ({
+          ok: true,
+          value: { queryVersion: 1, items: [], unreadCount: 0, hasAction: false },
+        }),
+        store,
+      ),
+    ) {
       await act(async () =>
         root.render(
-          createElement(RemoteActivityGroup, {
-            host: sources.getSnapshot().hosts[0]!,
+          createElement(ActivityCenterView, {
             sources,
-            avatars: new Map(),
             registry,
             t: zhTranslate,
-            query: {
-              category: 'all',
-              sort: 'default',
-              search: '',
-              snoozed: false,
-              botSlug: undefined,
-              channelId: undefined,
-            },
+            actions,
           }),
         ),
       );
@@ -503,6 +504,7 @@ it('renders the remote identity and opens its Host even when a local Tob has the
   });
   const release = sources.subscribe(() => {});
   await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  sources.select(host.hostId);
   await vi.waitFor(() => expect(sources.getSnapshot().avatars.size).toBe(1));
   const bot = {
     slug: 'tob',
@@ -529,25 +531,22 @@ it('renders the remote identity and opens its Host even when a local Tob has the
   try {
     await act(async () =>
       root.render(
-        createElement(RemoteActivityGroup, {
-          host: sources.getSnapshot().hosts[0]!,
+        createElement(ActivityCenterView, {
           sources,
-          avatars: sources.getSnapshot().avatars,
           registry,
           t: zhTranslate,
-          query: {
-            category: 'all',
-            sort: 'default',
-            botSlug: undefined,
-            channelId: undefined,
-            snoozed: false,
-            search: '',
-          },
+          actions: createActions(
+            async () => ({
+              ok: true,
+              value: { queryVersion: 1, items: [], unreadCount: 0, hasAction: false },
+            }),
+            store,
+          ),
         }),
       ),
     );
     expect(element.textContent).toContain('Remote Studio');
-    expect(element.textContent).toContain('远程');
+    expect(element.querySelector('[data-activity-host]')?.textContent).toContain('Remote Studio');
     expect(element.textContent).toContain('Remote Tob');
     expect(element.textContent).not.toContain('Local Tob');
     expect(element.querySelector('img')?.getAttribute('src')).toBe('blob:remote-tob');
@@ -741,6 +740,7 @@ it.each([
   });
   const release = sources.subscribe(() => {});
   await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  sources.select(host.hostId);
   const localSelection = store.getSnapshot().selection;
   store.select({ kind: 'bot', slug: 'unrelated-local-bot' });
   const element = document.createElement('div');
@@ -749,19 +749,16 @@ it.each([
   try {
     await act(async () =>
       root.render(
-        createElement(RemoteActivityGroup, {
-          host: sources.getSnapshot().hosts[0]!,
+        createElement(ActivityCenterView, {
           sources,
-          avatars: new Map(),
           t: zhTranslate,
-          query: {
-            category: 'all',
-            sort: 'default',
-            search: '',
-            snoozed: false,
-            botSlug: undefined,
-            channelId: undefined,
-          },
+          actions: createActions(
+            async () => ({
+              ok: true,
+              value: { queryVersion: 1, items: [], unreadCount: 0, hasAction: false },
+            }),
+            store,
+          ),
         }),
       ),
     );
@@ -853,5 +850,76 @@ it.each([
     element.remove();
     release();
     store.select(localSelection);
+  }
+});
+
+it('merges equal local and remote attention identities into one category with independent selection and writes', async () => {
+  const host = new FakeHost();
+  const remoteItem: HumanAttentionItem = {
+    ...approval('tob'),
+    id: 'same-id',
+    kind: 'channel-unread',
+    category: 'unread',
+    unreadCount: 1,
+  };
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items: args.category === 'unread' ? [remoteItem] : [],
+  }));
+  host.methods.set('channelMarkRead', () => ({}));
+  const fixture = await remoteFixture(host);
+  fixture.sources.select('all');
+  const localItem = { ...remoteItem, summary: 'Local message' };
+  const localRead = vi.fn();
+  const actions = createActions(async (endpoint, payload) => {
+    if (endpoint === 'channelMarkRead') {
+      localRead(payload);
+      return { ok: true, value: {} };
+    }
+    return {
+      ok: true,
+      value: {
+        queryVersion: 1,
+        items: endpoint === 'humanAttention' && payload.category === 'unread' ? [localItem] : [],
+        unreadCount: 1,
+        hasAction: false,
+      },
+    };
+  }, store);
+  try {
+    await fixture.render(actions);
+    expect(fixture.element.querySelectorAll('.bh-activity-section-toggle')).toHaveLength(3);
+    expect(fixture.element.querySelectorAll('[data-attention-id="same-id"]')).toHaveLength(2);
+    expect(fixture.element.querySelectorAll('[data-activity-host="host-1"]')).toHaveLength(1);
+    expect(fixture.element.querySelectorAll('[data-activity-host="local"]')).toHaveLength(1);
+    expect(fixture.element.querySelector('.bh-activity-sections select')).toBeNull();
+    const unread = [
+      ...fixture.element.querySelectorAll<HTMLElement>('.bh-activity-sections > .bh-activity-list'),
+    ].find((section) => section.textContent?.includes('Local message'))!;
+    const button = (label: string) =>
+      [...unread.querySelectorAll('button')].find((button) => button.textContent === label)!;
+    await act(async () => button(zhTranslate('activityInbox.select')).click());
+    const checks = unread.querySelectorAll<HTMLInputElement>('.bh-activity-list-row-check');
+    await act(async () => checks[1]!.click());
+    await act(async () => checks[2]!.click());
+    expect(unread.querySelector('[role="toolbar"]')?.textContent).toContain('已选 2 项');
+    await act(async () => button(zhTranslate('activityList.batch.handle')).click());
+    expect(localRead).toHaveBeenCalledExactlyOnceWith({
+      channelId: remoteItem.channelId,
+      messageId: remoteItem.messageId,
+    });
+    expect(host.calls.filter((call) => call.method === 'channelMarkRead')).toEqual([
+      {
+        method: 'channelMarkRead',
+        args: { channelId: remoteItem.channelId, messageId: remoteItem.messageId },
+      },
+    ]);
+    await act(async () => fixture.sources.select(host.hostId));
+    expect(fixture.element.querySelectorAll('.bh-activity-section-toggle')).toHaveLength(3);
+    expect(fixture.element.querySelectorAll('[data-attention-id="same-id"]')).toHaveLength(1);
+    expect(fixture.element.querySelector('[data-activity-host="host-1"]')).not.toBeNull();
+    expect(fixture.element.textContent).not.toContain('Local message');
+  } finally {
+    await fixture.close();
   }
 });

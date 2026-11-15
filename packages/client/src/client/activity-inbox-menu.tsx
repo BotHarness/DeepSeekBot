@@ -20,6 +20,7 @@ import {
   type ActivitySection,
 } from './activity-feed.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
+import { EnvironmentFilter } from './environment-panel.js';
 import type { HumanAttentionItem } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -288,6 +289,7 @@ export function ActivityInboxHeader({
   };
   return (
     <div ref={mount} className="bh-header bh-activity-header-actions">
+      {!searchOpen ? <EnvironmentFilter t={t} /> : null}
       <div
         ref={searchOpenMark}
         className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}

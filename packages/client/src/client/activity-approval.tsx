@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -15,6 +15,7 @@ export function ActivityApproval({
   t,
   leaving,
   onFocus,
+  origin,
 }: {
   source: HumanAttentionItem;
   actions: BridgeActions;
@@ -22,6 +23,7 @@ export function ActivityApproval({
   t: BotHarnessTranslate;
   leaving: boolean;
   onFocus: () => void;
+  origin?: ReactNode;
 }): ReactElement {
   const [message, setMessage] = useState<ChannelMessage>();
   const [failed, setFailed] = useState(false);
@@ -99,6 +101,7 @@ export function ActivityApproval({
                 {source.channelId?.startsWith('dm-') ? t('identity.kind.dm') : source.channelName}
               </span>
             </div>
+            {origin}
             <time dateTime={source.createdAt}>
               {new Date(source.createdAt).toLocaleTimeString(undefined, {
                 hour: '2-digit',
@@ -168,6 +171,7 @@ export function useActivityRows(
   items: readonly HumanAttentionItem[],
   scope: string,
   enabled: boolean,
+  identify: (item: HumanAttentionItem) => string = (item) => item.id,
 ) {
   const [state, setState] = useState(() => ({
     items,
@@ -176,11 +180,11 @@ export function useActivityRows(
   }));
   let rows = state.rows;
   if (state.items !== items || state.scope !== scope) {
-    const currentIds = new Set(items.map((item) => item.id));
+    const currentIds = new Set(items.map(identify));
     rows = items.map((item) => ({ item, leaving: false }));
     if (enabled && state.scope === scope) {
       state.rows.forEach((row, index) => {
-        if (!currentIds.has(row.item.id) && row.item.kind === 'tool-approval')
+        if (!currentIds.has(identify(row.item)) && row.item.kind === 'tool-approval')
           rows.splice(Math.min(index, rows.length), 0, { ...row, leaving: true });
       });
     }

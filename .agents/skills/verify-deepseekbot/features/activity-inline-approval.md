@@ -10,10 +10,12 @@
 - Dock decides the card's own Channel request while another Channel remains selected.
 - Batch controls appear only in explicit Select mode. Needs you, For you and Other unread are independently collapsible sections; initial state is expanded, with browser/Host-origin collapse preferences. History stays in the header menu.
 - Search expands inside the header like the Channel list, uses the Host query across all eligible results (not just loaded rows), and retains section order. Each section paginates independently; failed reads retain existing rows and offer retry.
+- The Environment selector lives in the header on both surfaces. All merges each category across Hosts once, without Host sections. Every item carries its source icon and name at the upper right, including in a single Environment. Equal attention/Channel/message IDs on different Hosts remain independently selectable and route actions to their own Host.
 
 ## How to get to it (user POV)
 
 Enter Bot mode and open Activity Center from the workspace control rail on desktop.
+Use the header Environment selector to switch between All and one Host. With unread messages on both Hosts, verify one Needs you / For you / Other unread heading each, per-item source badges, source navigation and a mixed selection's read acknowledgement against both canonical Host timelines. Stop only a task-owned Host and retain its named unavailable status and cached rows; restore it before testing pagination and query changes.
 This opens Dock even without a selected Channel. The narrow Web shell exposes Activity
 Center in its Bot mode navigation and opens the full page. Wait for responsive navigation
 to finish mounting after resizing. Toggle the other panels off from the rail for a wide
