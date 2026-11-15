@@ -2602,7 +2602,7 @@
       "behaviors": ["settings.first-tob-loading"],
       "reason": "Fresh-Profile concurrent onboarding and settings requests with a 500ms response budget.",
       "task": 4226,
-      "sha256": "30d78289d5f1ddc347e5a12b55d0dac184ec85f01641d97a56a231cd9f2b6b3a"
+      "sha256": "a60b02ee56b57a840535969cefcdf28d1cdfa0bfe5d07047483289aeacbc89a8"
     }
   ],
   "native": [

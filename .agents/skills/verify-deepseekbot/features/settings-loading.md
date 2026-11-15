@@ -18,6 +18,7 @@ Then run `verify-app shot` in Bot mode, open `Bot settings` and visit `Auto appr
 ## Gotchas
 
 - A Profile whose Tob already exists hides the initialization regression. The empty-registry precondition is mandatory.
+- The script records request intervals and refuses a sample without preparation overlap; the 50ms scheduling delay alone is not proof of overlap. Immediate onboarding rejection is handled and rethrown after the concurrent reads settle.
 - This is a local HTTP responsiveness budget, not a foreground paint or Desktop benchmark. Record machine load and do not mix a first-run sample with initialized browser openings.
 - Markdown/JSON library storage remains unchanged. SQLite migration is tracked separately in #4227.
 - Member deactivation must drain that member's in-flight preparation before deleting its account workspace. The first-sign-in/offboarding case in `packages/core/test/team-member-lifecycle.test.ts` proves that no late Tob grant is recreated; do not weaken its identity refusal to a generic Memory failure.
