@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
+import { parseImCommand } from '../src/messaging/im-commands.js';
 import { skillInvocationTokens } from '../src/bots/cli-skills.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
@@ -303,6 +305,52 @@ describe('SkillCatalog', () => {
     expect((await catalog.list(['ada'])).map((entry) => entry.owner)).toEqual([
       { kind: 'bot', botSlug: 'ada' },
     ]);
+  });
+
+  it('ranks owner display names and slugs below name matches and above descriptions stably', () => {
+    const entries = [
+      { name: 'desc-first', description: 'Alice workflow', owners: [] },
+      { name: 'review', description: '', owners: ['ALICE', 'reviewer'] },
+      { name: 'alice-two', description: '', owners: [] },
+      { name: 'a-l-i-c-e', description: '', owners: [] },
+      { name: 'pdf', description: '', owners: ['Alice', 'reviewer'] },
+      { name: 'alice-one', description: '', owners: [] },
+      { name: 'desc-second', description: 'alice notes', owners: [] },
+      { name: 'other', description: '', owners: ['Bob'] },
+    ];
+    expect(
+      rankSkillEntries(entries, ' ALiCe ', (entry) => entry.owners).map((entry) => entry.name),
+    ).toEqual([
+      'alice-two',
+      'alice-one',
+      'a-l-i-c-e',
+      'review',
+      'pdf',
+      'desc-first',
+      'desc-second',
+    ]);
+    expect(
+      rankSkillEntries(entries, 'VIEWER', (entry) => entry.owners).map((entry) => entry.name),
+    ).toEqual(['review', 'pdf']);
+    expect(
+      rankSkillEntries(entries, 'lice', (entry) => entry.owners).map((entry) => entry.name),
+    ).toContain('pdf');
+    expect(rankSkillEntries(entries, '', (entry) => entry.owners)).toEqual(entries);
+    expect(rankSkillEntries(entries, 'missing', (entry) => entry.owners)).toEqual([]);
+    expect(entries[0]?.name).toBe('desc-first');
+  });
+
+  it('bounds owner lookups to one per unmatched Skill and skips them for an empty query', () => {
+    const entries = Array.from({ length: 1000 }, (_, index) => ({
+      name: `skill-${index}`,
+      description: '',
+    }));
+    const owners = vi.fn(() => ['Alice', 'reviewer']);
+    expect(rankSkillEntries(entries, 'alice', owners)).toEqual(entries);
+    expect(owners).toHaveBeenCalledTimes(entries.length);
+    owners.mockClear();
+    expect(rankSkillEntries(entries, '  ', owners)).toEqual(entries);
+    expect(owners).not.toHaveBeenCalled();
   });
 
   it('ranks name prefix, then name subsequence, then description', () => {
@@ -610,6 +658,233 @@ describe('Skill Invocation in a Human DM', () => {
         value: { message: { skillInvocations: [{ name: 'pdf', content: 'Body of pdf' }] } },
       });
     } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+});
+
+describe('Skill Invocation in a Group Channel', () => {
+  it.each(['mention-b', 'ordinary-b', 'mentions-only', 'pending-context'] as const)(
+    'keeps the Skill owner independent from routing: %s',
+    async (routing) => {
+      const runs: OrchestratorAgentRun[] = [];
+      const core = createCore({
+        dshHome: createTempRoot('botharness-group-skill-'),
+        agents: adapter(async (run) => {
+          runs.push(run);
+        }),
+      });
+      try {
+        core.registry.create({ slug: 'a', displayName: 'Alice' });
+        core.registry.create({ slug: 'b', displayName: 'Bob' });
+        const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'Team',
+          members: ['a', 'b'],
+        });
+        for (const slug of group.members)
+          core.channels.setGroupWakePolicy(
+            group.id,
+            slug,
+            {
+              mode: routing === 'ordinary-b' && slug === 'b' ? 'all' : 'mentions',
+              count: 5,
+              intervalSeconds: 30,
+            },
+            { kind: 'human' },
+          );
+        const memory = core.registry.memoryDirFor('a')!;
+        const path = join(memory, '.agents/skills/review/SKILL.md');
+        const content = 'Use this exact snapshot from Alice.'.repeat(40);
+        const definitions = [skill('review', 'project-agents', path, content)];
+        const catalog = new SkillCatalog({
+          memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+          viewFor: liveView,
+        });
+        catalog.attach(
+          registry(
+            [skill('pdf', 'user-agents', '/host/pdf/SKILL.md')],
+            new Map([
+              [memory, definitions],
+              [
+                core.registry.memoryDirFor('b')!,
+                [
+                  skill(
+                    'notes',
+                    'project-agents',
+                    join(core.registry.memoryDirFor('b')!, '.agents/skills/notes/SKILL.md'),
+                  ),
+                ],
+              ],
+            ]),
+          ),
+        );
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+        const listed = await methods.channelSkillCatalog({ channelId: group.id });
+        expect(listed).toMatchObject({
+          ok: true,
+          value: {
+            skills: [
+              { name: 'review', owner: { kind: 'bot', botSlug: 'a' } },
+              { name: 'notes', owner: { kind: 'bot', botSlug: 'b' } },
+              { name: 'pdf', owner: { kind: 'host' } },
+            ],
+          },
+        });
+        const body = routing === 'mention-b' ? '/review @Bob' : '/review';
+        const sent = await methods.channelSend({
+          channelId: group.id,
+          body,
+          ...(routing === 'mention-b'
+            ? { mentions: [{ botSlug: 'b', label: 'Bob', start: 8, end: 12 }] }
+            : {}),
+          skillInvocations: [
+            { name: 'review', owner: { kind: 'bot', botSlug: 'a' }, start: 0, end: 7 },
+          ],
+        });
+        expect(sent.ok).toBe(true);
+        if (!sent.ok) throw new Error(sent.error.message);
+        definitions.splice(0);
+        await core.runtime.whenIdle();
+        if (routing === 'pending-context') {
+          expect(runs).toEqual([]);
+          expect(
+            await methods.channelSend({
+              channelId: group.id,
+              body: '@Bob check pending context',
+              mentions: [{ botSlug: 'b', label: 'Bob', start: 0, end: 4 }],
+            }),
+          ).toMatchObject({ ok: true });
+          await core.runtime.whenIdle();
+        }
+        expect(runs.map((run) => run.bot.slug)).toEqual(routing === 'mentions-only' ? [] : ['b']);
+        const stored = core.channels.message(group.id, sent.value.message.id)!;
+        expect(stored.skillInvocations).toEqual([
+          { name: 'review', owner: { kind: 'bot', botSlug: 'a' }, start: 0, end: 7, path, content },
+        ]);
+        if (routing !== 'mentions-only') {
+          expect(runs[0]?.message).toContain('[/review]');
+          expect(runs[0]?.message).toContain(
+            `<skill_invocation name="review" owner="bot:a" path="${path}">\n${content}\n</skill_invocation>`,
+          );
+        }
+      } finally {
+        core.externalMessaging.close();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
+  it.each(['discord', 'feishu'] as const)(
+    'mirrors the persisted Human body through %s as plain /name without snapshot metadata',
+    async (platform) => {
+      const core = createCore({ dshHome: createTempRoot('botharness-skill-im-') });
+      try {
+        core.registry.create({ slug: 'a', displayName: 'Alice' });
+        const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'Team',
+          members: ['a'],
+        });
+        const catalog = new SkillCatalog({
+          memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+          viewFor: liveView,
+        });
+        catalog.attach(
+          registry(
+            [skill('pdf', 'user-agents', '/host/pdf/SKILL.md', 'PRIVATE_SNAPSHOT_CONTENT')],
+            new Map(),
+          ),
+        );
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+        const sent = await methods.channelSend({
+          channelId: group.id,
+          body: 'please /pdf now',
+          skillInvocations: [{ name: 'pdf', owner: { kind: 'host' }, start: 7, end: 11 }],
+        });
+        if (!sent.ok) throw new Error(sent.error.message);
+        const message = core.channels.message(group.id, sent.value.message.id)!;
+        expect(message.skillInvocations?.[0]?.content).toBe('PRIVATE_SNAPSHOT_CONTENT');
+        const sendChecked = vi.fn<DshImOutboundService['sendChecked']>(async () => ({
+          sent: true,
+        }));
+        const fingerprint = 'a'.repeat(64);
+        const service: DshImOutboundService = {
+          contractVersion: 1,
+          listBots: async () => [{ botId: 'app', channel: platform }],
+          listTargets: async () => [{ targetId: 'team', kind: 'group', route: { chatId: 'team' } }],
+          describeBot: async () => ({
+            version: 1,
+            botId: 'app',
+            channel: platform,
+            connected: true,
+            account: { fingerprint },
+            capabilities: ['proactive-text-checked'],
+          }),
+          sendChecked,
+        };
+        const provider = createDshImProvider(service, platform)!;
+        core.externalMessaging.register(provider);
+        const target = (await core.externalMessaging.targets(provider.id, 'app'))[0]!;
+        const grant = await core.externalMessaging.authorize({
+          botSlug: 'a',
+          providerId: provider.id,
+          accountRef: 'app',
+          targetRef: target.ref,
+          fingerprint,
+          targetDigest: target.digest,
+        });
+        const mirrored = await core.externalMessaging.send('a', grant.id, message.id, message.body);
+        expect(mirrored.state).toBe('provider-accepted');
+        expect(sendChecked).toHaveBeenCalledTimes(1);
+        const text = sendChecked.mock.calls[0]?.[2];
+        expect(text).toBe('please /pdf now');
+        expect(text).not.toMatch(/\[\/pdf\]|<|>|PRIVATE_SNAPSHOT_CONTENT/u);
+        expect(sendChecked.mock.calls[0]?.[3].format).toBe('plain');
+      } finally {
+        core.externalMessaging.close();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
+  it('keeps a same-named bare IM command reserved without turning bare Channel text into a Skill', async () => {
+    expect(parseImCommand('/status')).toMatchObject({ name: 'status' });
+    expect(skillInvocationTokens('/status', undefined)).toEqual([]);
+    const core = createCore({ dshHome: createTempRoot('botharness-skill-command-') });
+    try {
+      core.registry.create({ slug: 'a', displayName: 'Alice' });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['a'],
+      });
+      const catalog = new SkillCatalog({
+        memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+        viewFor: liveView,
+      });
+      catalog.attach(
+        registry([skill('status', 'user-agents', '/host/status/SKILL.md')], new Map()),
+      );
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+      expect(await methods.channelSkillCatalog({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { skills: [{ name: 'status' }] },
+      });
+      expect(await methods.channelSend({ channelId: group.id, body: '/status' })).toMatchObject({
+        ok: true,
+        value: { message: { body: '/status' } },
+      });
+      expect(core.channels.readMessages(group.id)[0]?.skillInvocations).toBeUndefined();
+      expect(
+        await methods.channelSend({
+          channelId: group.id,
+          body: '/status',
+          skillInvocations: [{ name: 'status', owner: { kind: 'host' }, start: 0, end: 7 }],
+        }),
+      ).toMatchObject({ ok: true, value: { message: { skillInvocations: [{ name: 'status' }] } } });
+    } finally {
+      core.externalMessaging.close();
       await core.runtime.close();
       core.operationalDatabase.close();
     }

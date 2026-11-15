@@ -1115,6 +1115,8 @@ interface DigestRow {
   external_platform?: string | null;
   external_message_id?: string | null;
   external_mentions?: string | null;
+  skill_invocations?: string | null;
+  human_mentions?: string | null;
   reply_session_id?: string | null;
   reply_source_event_id?: string | null;
 }
@@ -1139,7 +1141,20 @@ function mentionedLabel(mentions: MessagingInboundEvent['mentions']): string {
     : `, mentioned ${mentions.map((mention) => `${mention.name ?? mention.id} (${mention.id})`).join(', ')}`;
 }
 
+function rowSkillInvocations(row: DigestRow): ChannelSkillInvocation[] | undefined {
+  return row.author_kind === 'human' && row.skill_invocations
+    ? (JSON.parse(row.skill_invocations) as ChannelSkillInvocation[])
+    : undefined;
+}
+
 function groupMessageBody(row: DigestRow): string {
+  const invocations = rowSkillInvocations(row);
+  if (invocations?.length)
+    return sessionSkillText(
+      row.body,
+      row.human_mentions ? (JSON.parse(row.human_mentions) as ChannelMention[]) : [],
+      invocations,
+    );
   return withMentionNames(row.body, rowMentions(row));
 }
 
@@ -3842,6 +3857,8 @@ class BotRuntimeImplementation implements BotRuntime {
             .prepare(
               `
           SELECT a.source_event_id, a.bot_slug, e.message_id, e.body, e.created_at,
+                 json_extract(e.payload_json, '$.skillInvocations') AS skill_invocations,
+                 json_extract(e.payload_json, '$.mentions') AS human_mentions,
                  json_extract(e.payload_json, '$.author.kind') AS author_kind,
                  json_extract(e.payload_json, '$.author.slug') AS author_slug,
                  json_extract(e.payload_json, '$.external.event.actor.name') AS external_sender,
@@ -3954,6 +3971,8 @@ class BotRuntimeImplementation implements BotRuntime {
     };
     if (total.count === 0) return undefined;
     const columns = `SELECT a.source_event_id, a.bot_slug, e.message_id, e.body, e.created_at,
+      json_extract(e.payload_json, '$.skillInvocations') AS skill_invocations,
+      json_extract(e.payload_json, '$.mentions') AS human_mentions,
       json_extract(e.payload_json, '$.author.kind') AS author_kind,
       json_extract(e.payload_json, '$.author.slug') AS author_slug,
                  json_extract(e.payload_json, '$.external.event.actor.name') AS external_sender,
@@ -4026,7 +4045,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${skillInvocationPrompt(rowSkillInvocations(row))}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -4051,7 +4070,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `${rows.length} ordinary messages are due. ${this.#promptText(botSlug)('digest-hint')}`,
       ...rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${skillInvocationPrompt(rowSkillInvocations(row))}`,
       ),
       ...(omittedCount > 0
         ? [
