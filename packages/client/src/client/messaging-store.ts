@@ -12,6 +12,7 @@ interface MessagingStore {
   pending: Map<string, Promise<void>>;
   invalidating: Set<string>;
   discovery: Set<string>;
+  mounts: Map<string, number>;
   listeners: Map<string, Set<() => void>>;
 }
 const stores = new WeakMap<MessagingActions, MessagingStore>();
@@ -24,6 +25,7 @@ function storeFor(actions: MessagingActions): MessagingStore {
       pending: new Map(),
       invalidating: new Set(),
       discovery: new Set(),
+      mounts: new Map(),
       listeners: new Map(),
     };
     stores.set(actions, store);
@@ -85,14 +87,7 @@ export function useMessagingSnapshot(
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
-        if (!listeners.size) {
-          store.listeners.delete(slug);
-          store.discovery.delete(slug);
-          store.pending.delete(`${slug}:settings`);
-          store.pending.delete(`${slug}:discovery`);
-          store.requests.set(slug, (store.requests.get(slug) ?? 0) + 1);
-          store.snapshots.delete(slug);
-        }
+        if (!listeners.size) store.listeners.delete(slug);
       };
     },
     [store, slug],
@@ -122,6 +117,7 @@ export function useMessagingSnapshot(
     return track(() => true, false, true);
   };
   const mount = useMountedResource<HTMLElement>(() => {
+    store.mounts.set(slug, (store.mounts.get(slug) ?? 0) + 1);
     let active = true;
     const load = (invalidate = false): void =>
       void track(() => active, true, invalidate).catch(() => undefined);
@@ -130,6 +126,16 @@ export function useMessagingSnapshot(
     return () => {
       active = false;
       unsubscribe();
+      const remaining = (store.mounts.get(slug) ?? 1) - 1;
+      if (remaining) store.mounts.set(slug, remaining);
+      else {
+        store.mounts.delete(slug);
+        store.discovery.delete(slug);
+        store.pending.delete(`${slug}:settings`);
+        store.pending.delete(`${slug}:discovery`);
+        store.requests.set(slug, (store.requests.get(slug) ?? 0) + 1);
+        store.snapshots.delete(slug);
+      }
     };
   }, [actions, slug]);
   return { snapshot, failed, refresh, discover, mount };

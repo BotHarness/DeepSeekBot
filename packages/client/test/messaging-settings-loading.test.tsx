@@ -120,9 +120,8 @@ it('rereads saved settings on reopen and rejects responses from the closed view'
   try {
     await act(async () => root.render(createElement(Probe, { actions })));
     expect(container.textContent).toContain('Old configuration');
-    await act(async () => root.render(null));
     reopened = true;
-    await act(async () => root.render(createElement(Probe, { actions })));
+    await act(async () => root.render(createElement(Probe, { actions, key: 'replacement' })));
     expect(container.textContent).toContain('New configuration:pending');
     await act(async () => old.resolve(value('STALE', 'complete')));
     expect(container.textContent).not.toContain('STALE');
