@@ -201,15 +201,17 @@ function VisibilityDialog({
         title={t('botAccess.shrinkTitle')}
         description={
           [
-            preview.dmsBecomingReadOnly > 0
-              ? t('botAccess.shrinkDms', { count: String(preview.dmsBecomingReadOnly) })
-              : undefined,
-            preview.channelsLeaving > 0
-              ? t('botAccess.shrinkChannels', { count: String(preview.channelsLeaving) })
-              : undefined,
-            preview.memoryFrom !== undefined && preview.memoryTo !== undefined
-              ? t('botAccess.memoryMove', { from: preview.memoryFrom, to: preview.memoryTo })
-              : undefined,
+            preview.dmsBecomingReadOnly === 1
+              ? t('botAccess.shrinkDmsOne')
+              : preview.dmsBecomingReadOnly > 1
+                ? t('botAccess.shrinkDms', { count: String(preview.dmsBecomingReadOnly) })
+                : undefined,
+            preview.channelsLeaving === 1
+              ? t('botAccess.shrinkChannelsOne')
+              : preview.channelsLeaving > 1
+                ? t('botAccess.shrinkChannels', { count: String(preview.channelsLeaving) })
+                : undefined,
+            memoryLine(t, preview),
           ]
             .filter((line): line is string => line !== undefined)
             .join(' ')
@@ -325,4 +327,10 @@ function ProactiveOptOutRow({
       {error === undefined ? null : <Note tone="danger">{error}</Note>}
     </SettingsSection>
   );
+}
+
+function memoryLine(t: BotHarnessTranslate, preview: VisibilityPreview): string | undefined {
+  const { memoryFrom: from, memoryTo: to } = preview;
+  if (from === undefined || to === undefined || from === to) return undefined;
+  return t(to.startsWith('shared/') ? 'botAccess.memoryToShared' : 'botAccess.memoryToAccount');
 }
