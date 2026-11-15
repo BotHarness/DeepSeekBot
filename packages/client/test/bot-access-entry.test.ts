@@ -90,6 +90,20 @@ describe('Bot access entry', () => {
       await act(async () => pending[0]!({ ok: true, value: { switches: switches(true, true) } }));
       expect(box('proactiveDms').checked).toBe(true);
       expect(box('speakerContext').checked).toBe(false);
+
+      await act(async () => box('proactiveDms').click());
+      await act(async () => box('speakerContext').click());
+      expect(pending).toHaveLength(4);
+      await act(async () => pending[2]!({ ok: true, value: { switches: switches(false, false) } }));
+      await act(async () =>
+        pending[3]!({
+          ok: false,
+          error: { code: 'permission-required', message: 'permission-required' },
+        }),
+      );
+      expect(box('proactiveDms').checked).toBe(false);
+      expect(box('speakerContext').checked).toBe(false);
+      expect(container.textContent).toContain(zhTranslate('team.error.permissionRequired'));
     } finally {
       await act(async () => root.unmount());
       container.remove();

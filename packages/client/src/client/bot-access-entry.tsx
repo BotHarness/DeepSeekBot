@@ -75,6 +75,7 @@ export function BotAccessEntry({
   const [editing, setEditing] = useState(false);
   const [switchError, setSwitchError] = useState<string>();
   const switchRequest = useRef(0);
+  const latestSwitch = useRef<Partial<Record<keyof BotSwitches, number>>>({});
   const updateReady = (patch: Partial<BotAccess>): void =>
     setAccess((current) =>
       current === undefined || typeof current === 'string' ? current : { ...current, ...patch },
@@ -126,13 +127,22 @@ export function BotAccessEntry({
                   onChange={(checked) => {
                     setSwitchError(undefined);
                     const request = ++switchRequest.current;
+                    latestSwitch.current[key] = request;
+                    const latest = (): boolean => latestSwitch.current[key] === request;
                     void setBotSwitches(call, botSlug, { [key]: checked }).then(
                       (switches) => {
-                        if (request === switchRequest.current) updateReady({ switches });
+                        if (!latest()) return;
+                        setAccess((current) =>
+                          current === undefined || typeof current === 'string'
+                            ? current
+                            : {
+                                ...current,
+                                switches: { ...current.switches, [key]: switches[key] },
+                              },
+                        );
                       },
                       (failure: unknown) => {
-                        if (request === switchRequest.current)
-                          setSwitchError(teamErrorText(t, failure));
+                        if (latest()) setSwitchError(teamErrorText(t, failure));
                       },
                     );
                   }}
