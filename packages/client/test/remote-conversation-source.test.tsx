@@ -75,7 +75,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   };
 });
 
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createActions } from '../src/client/actions.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { BotMain } from '../src/client/bot-main.js';

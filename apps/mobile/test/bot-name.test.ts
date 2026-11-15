@@ -1,8 +1,8 @@
 import { afterEach, expect, it } from 'vitest';
 
 import { renameBot } from '../src/host/bot-name';
-import { createHostClient, type HostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 let client: HostClient | undefined;
 afterEach(() => client?.stop());

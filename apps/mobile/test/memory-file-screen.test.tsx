@@ -95,9 +95,9 @@ vi.mock('../src/ui/shell/icons', async () => ({
 
 import { Platform } from 'react-native';
 
-import { MethodRefused } from '../src/host/client';
+import { MethodRefused } from '@botharness/host-client/client';
 import { copyMessage } from '../src/ui/chat/message-menu';
-import type { MemoryFile } from '../src/host/wire';
+import type { MemoryFile } from '@botharness/host-protocol/wire';
 import { MemoryFileScreen, memoryEditable } from '../src/ui/chat/memory-file-screen';
 import { t } from '../src/ui/strings';
 

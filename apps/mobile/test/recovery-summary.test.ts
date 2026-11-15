@@ -1,6 +1,6 @@
 import { it, expect } from 'vitest';
 import { createAlertBanners } from '../src/host/alert-banners';
-import { parsePushData, pushHref } from '../src/host/push';
+import { parsePushData, pushHref } from '@botharness/host-client/push';
 import type { LocalApprovalAlert } from '../src/host/device-alerts';
 
 const summary: LocalApprovalAlert = {

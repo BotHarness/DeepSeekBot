@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRemoteKeyboardInput } from '../src/host/remote-keyboard-input';
+import { createRemoteKeyboardInput } from '@botharness/host-client/remote-keyboard-input';
 import type { DesktopInput } from '../../../packages/computer/src/desktop-view';
 
 const key: DesktopInput = { kind: 'key', key: 'backspace', modifiers: [] };

@@ -1,9 +1,10 @@
-import type { TeamResult } from './team-invitation';
-import { identitySwitchRequired } from './member-identity';
+import { installedAppVersion } from './app-version';
+import type { TeamResult } from '@botharness/host-protocol/team-invitation';
+import { identitySwitchRequired } from '@botharness/host-client/member-identity';
 import { hostStore, hostStoreAvailable } from './host-store';
-import type { AccountOwner } from './account-owner';
+import type { AccountOwner } from '@botharness/host-client/account-owner';
 import { removeAccountConnections } from './account-connections';
-import type { ConnectHost } from './connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
@@ -11,13 +12,27 @@ import { HostScope } from './host-scope';
 import { useFocusEffect } from 'expo-router';
 import { AppState, Platform } from 'react-native';
 
-import { createHostClient, type HostClient, type HostSnapshot } from './client';
-import { createInbox, type Inbox, type InboxSnapshot } from './inbox';
-import { createConversation, type Conversation, type ConversationSnapshot } from './conversation';
+import {
+  createHostClient,
+  type HostClient,
+  type HostSnapshot,
+} from '@botharness/host-client/client';
+import { createInbox, type Inbox, type InboxSnapshot } from '@botharness/host-client/inbox';
+import {
+  createConversation,
+  type Conversation,
+  type ConversationSnapshot,
+} from '@botharness/host-client/conversation';
 import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
-import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
+import {
+  currentHost,
+  selectHost,
+  withHost,
+  withoutHost,
+  type SavedHosts,
+} from '@botharness/host-client/hosts';
 import {
   catchUpHostConversations,
   conversationCache,
@@ -35,8 +50,8 @@ import { nativeCarrier } from './native-carrier';
 import { nativeNotifications } from './native-notifications';
 import { notificationAvatars } from './native-notification-avatars';
 import { avatarInputs } from './notification-avatars';
-import { revokePairing } from './pairing';
-import { createHostPush, type PushDelivery } from './push';
+import { revokePairing } from '@botharness/host-client/pairing';
+import { createHostPush, type PushDelivery } from '@botharness/host-client/push';
 import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
 import { connectionMode } from './native-connection-mode';
@@ -48,8 +63,8 @@ import { connectionSummary } from './connection-summary';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
-import { createConnectionTelemetry } from '../telemetry/connection';
-import type { ConnectionTrigger } from '../telemetry/schema';
+import { createConnectionTelemetry } from '@botharness/host-client/telemetry/connection';
+import type { ConnectionTrigger } from '@botharness/host-client/telemetry/schema';
 import { forgetRecentChats } from '../ui/shell/recent-chats';
 import { locale, t } from '../ui/strings';
 
@@ -278,7 +293,9 @@ connectionMode.onApproval(({ hostId, itemId }) => {
 
 function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   deviceAlerts.paired(saved.hostId);
+  const appVersion = installedAppVersion();
   const client = createHostClient({
+    ...(appVersion === undefined ? {} : { appVersion }),
     ...saved,
     onRoutePreferenceChanged: (routePreference) =>
       serialize(async () => {
@@ -320,7 +337,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   });
   clientHosts.set(client, saved.hostId);
   warmHostConversations(saved.hostId);
-  const inbox = createInbox(client, { notifications: localAlerts });
+  const inbox = createInbox(client, {
+    notifications: localAlerts,
+    activityUpdateHost: () => t.activityUpdateHost,
+  });
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
     publishFeeds();

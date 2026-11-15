@@ -30,7 +30,7 @@ vi.mock('../src/ui/shell/icons', async () => ({
 }));
 
 import type { Routines } from '../src/host/routines';
-import type { BotScheduleFiring, BotScheduleSummary } from '../src/host/wire';
+import type { BotScheduleFiring, BotScheduleSummary } from '@botharness/host-protocol/wire';
 import { RoutineSheet } from '../src/ui/chat/routine-sheet';
 import { t } from '../src/ui/strings';
 

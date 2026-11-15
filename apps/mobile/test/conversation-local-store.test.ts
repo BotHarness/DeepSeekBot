@@ -5,20 +5,20 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createCatchUp } from '../src/host/catch-up';
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
   createConversation,
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
-} from '../src/host/conversation';
+} from '@botharness/host-client/conversation';
 import {
   createLocalConversationCache,
   pruneLocalConversations,
   redactLocalConversations,
 } from '../src/host/local-conversation-cache';
-import { openLocalStore, type LocalStore } from '../src/host/local-store';
-import { FakeHost } from './fake-host';
+import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { nodeSqlConnection } from './node-sql-connection';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';

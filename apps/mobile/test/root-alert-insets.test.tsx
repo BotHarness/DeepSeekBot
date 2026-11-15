@@ -86,7 +86,7 @@ vi.mock('../src/ui/chat/call-session-host', () => ({ CallSessionHost: () => null
 vi.mock('../src/host/native-media-store', () => ({ nativeMediaStore: undefined }));
 vi.mock('../src/host/native-local-store', () => ({ nativeHostStoreOpener: undefined }));
 vi.mock('../src/host/native-purge-targets', () => ({ nativePurgeTargets: undefined }));
-vi.mock('../src/host/media-cache', () => ({
+vi.mock('@botharness/host-client/media-cache', () => ({
   installMediaStore: () => undefined,
   runAutoCleanup: () => undefined,
 }));

@@ -18,6 +18,8 @@
     "generate:genui-runtime": "node scripts/generate-genui-runtime.mjs"
   },
   "dependencies": {
+    "@botharness/host-client": "workspace:*",
+    "@botharness/host-protocol": "workspace:*",
     "@botharness/pixel-banner": "0.1.0",
     "@expo/metro-runtime": "~58.0.17",
     "@expo/ui": "~58.0.28",

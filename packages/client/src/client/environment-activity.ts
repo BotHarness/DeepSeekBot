@@ -1,6 +1,6 @@
 import { ALL_HOSTS, THIS_HOST, type RemoteHostsSnapshot } from './remote-hosts.js';
 import type { ActivityListState } from './store.js';
-import type { InboxSnapshot } from '../../../../apps/mobile/src/host/inbox.js';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 
 export function environmentUnread(inbox: InboxSnapshot): number | undefined {
   if (inbox.status !== 'ready' || inbox.stale || Object.values(inbox.cursors ?? {}).some(Boolean))

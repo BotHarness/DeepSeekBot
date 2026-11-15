@@ -20,7 +20,7 @@ import { createActivityDelivery, type ActivityDelivery } from '../live-activity/
 import type { ChannelSendStatus } from '../channels/store.js';
 import { createNoiseIdentity } from './noise-identity.js';
 import { createEncryptedGateway, type CallChannelDiagnostic } from './encrypted-gateway.js';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { createDeviceLan } from './lan.js';

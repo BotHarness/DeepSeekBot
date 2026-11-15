@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { HOST_SYMBOLS, type HostIcon } from '../design/host-look';
+import { HOST_SYMBOLS, type HostIcon } from '@botharness/host-client/ui/design/host-look';
 import { radius } from '../design/tokens';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';

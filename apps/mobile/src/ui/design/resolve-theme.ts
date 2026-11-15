@@ -1,13 +1,16 @@
-import {
-  humanBubbleColors,
-  readable,
-} from '../../../../../packages/client/src/client/bot-name-color';
+import { humanBubbleColors, readable } from '@botharness/host-client/shared/bot-name-color';
 import { layers, tint, type Layer, type LayerName } from './layers';
-import { palette } from './palette.generated';
+import { palette } from '@botharness/host-client/ui/design/palette.generated';
 import { mono, touch, typeScale, weight, type PlatformOS } from './tokens';
 
-export type ColorRole = keyof typeof palette.light;
-export type ColorScheme = 'light' | 'dark';
+import {
+  contrast,
+  mix,
+  type ColorRole,
+  type ColorScheme,
+} from '@botharness/host-client/ui/design/color-math';
+export { contrast, mix } from '@botharness/host-client/ui/design/color-math';
+export type { ColorRole, ColorScheme } from '@botharness/host-client/ui/design/color-math';
 
 export type Appearance = {
   scheme?: 'system' | ColorScheme;
@@ -30,45 +33,9 @@ export type DesignTheme = {
 
 const HEX = /^#([0-9a-f]{6})$/i;
 
-function rgb(hex: string): number {
-  const digits = hex.slice(1);
-  return Number.parseInt(
-    digits.length === 3 ? [...digits].map((digit) => digit + digit).join('') : digits,
-    16,
-  );
-}
-
-function luminance(hex: string): number {
-  const value = rgb(hex);
-  const channel = (shift: number) => {
-    const c = ((value >> shift) & 0xff) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
-}
-
-export function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
-  return (hi + 0.05) / (lo + 0.05);
-}
-
 const INK_LIGHT = '#ffffff';
 const SCRIM: Record<ColorScheme, string> = { light: '#0f111566', dark: '#00000099' };
 const BODY_CONTRAST = 4.5;
-
-export function mix(from: string, to: string, amount: number): string {
-  const a = rgb(from);
-  const b = rgb(to);
-  return `#${[16, 8, 0]
-    .map((shift) => {
-      const start = (a >> shift) & 0xff;
-      const end = (b >> shift) & 0xff;
-      return Math.round(start + (end - start) * amount)
-        .toString(16)
-        .padStart(2, '0');
-    })
-    .join('')}`;
-}
 
 export function withAccent(
   color: Record<ColorRole, string>,

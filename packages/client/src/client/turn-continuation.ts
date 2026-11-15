@@ -6,7 +6,7 @@ import {
   subscribeSeconds,
   turnContinuationFor,
   type TurnContinuationNotice,
-} from '../shared/turn-continuation.js';
+} from '@botharness/host-client/shared/turn-continuation';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store } from './store.js';

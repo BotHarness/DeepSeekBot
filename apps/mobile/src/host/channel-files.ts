@@ -1,12 +1,12 @@
-import type { HostClient } from './client';
-import { attachmentsOf, type MessageAttachment } from './conversation';
+import type { HostClient } from '@botharness/host-client/client';
+import { attachmentsOf, type MessageAttachment } from '@botharness/host-client/conversation';
 import type {
   ChannelLiveFrame,
   JournalEntry,
   JournalPage,
   RosterLiveFrame,
   WireAuthor,
-} from './wire';
+} from '@botharness/host-protocol/wire';
 
 export interface ChannelFile {
   key: string;

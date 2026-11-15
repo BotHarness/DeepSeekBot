@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import type { ApprovalFileChange } from '../../../../../packages/client/src/client/approval-diff';
+import type { ApprovalFileChange } from '@botharness/host-client/shared/approval-diff';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';

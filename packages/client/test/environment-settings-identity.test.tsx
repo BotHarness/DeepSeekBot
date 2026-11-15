@@ -2,8 +2,8 @@
 import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ModelSettingsClient } from '../../../apps/mobile/src/host/bot-settings.js';
-import { DEFAULT_HOST_LOOK, type HostLook } from '../../../apps/mobile/src/ui/design/host-look.js';
+import type { ModelSettingsClient } from '@botharness/host-client/bot-settings';
+import { DEFAULT_HOST_LOOK, type HostLook } from '@botharness/host-client/ui/design/host-look';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { mountLocalEnvironmentSettings } from '../src/client/environment-settings-source.js';
 

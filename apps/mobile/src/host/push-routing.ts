@@ -5,19 +5,19 @@ import { Alert, type ViewInstance } from 'react-native';
 
 import { useMounted } from '../ui/mounted';
 import { channelDestination, navigateChannel } from '../ui/shell/channel-navigation';
-import { createHostClient, type HostClient, type RosterView } from './client';
+import { createHostClient, type HostClient, type RosterView } from '@botharness/host-client/client';
 import { hostSession } from './host-session';
 import { conversationFilter } from './native-conversation-filter';
 import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
 import { alertBanners } from './alert-banners';
-import { parsePushData, pushHref, type PushTarget } from './push';
+import { parsePushData, pushHref, type PushTarget } from '@botharness/host-client/push';
 import { ANSWERED, decideFromPush, removeFromPush } from './push-actions';
 import { decideOverRoute } from './native-push-decide';
-import { removeDevice } from './pairing';
+import { removeDevice } from '@botharness/host-client/pairing';
 import { t } from '../ui/strings';
-import { recordFeature } from '../telemetry/features';
+import { recordFeature } from '@botharness/host-client/telemetry/features';
 
 class RoutingFailure extends Error {}
 

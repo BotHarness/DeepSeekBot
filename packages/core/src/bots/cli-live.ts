@@ -1,4 +1,4 @@
-import { isLanAddress } from '../devices/lan-address.js';
+import { isLanAddress } from '@botharness/host-protocol/lan-address';
 import { TEAM_COMMANDS, TEAM_OPTIONS, runTeamCommand } from './cli-team.js';
 import { runDeviceActivity } from './cli-live-activity.js';
 import { GENUI_COMMANDS, GENUI_OPTIONS, runGenuiCommand } from './cli-genui.js';

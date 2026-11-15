@@ -9,7 +9,7 @@ import {
   type ChannelEventSource,
 } from './messaging-defaults-live.js';
 import { parseContentRedactions } from './content-redactions.js';
-import { purgeGenuiPrivateViews } from './genui-view.js';
+import { purgeGenuiPrivateViews } from '@botharness/host-client/shared/genui-view';
 import { purgeGenuiDocumentViews } from './genui-document-view.js';
 import {
   parseChannelMessage,

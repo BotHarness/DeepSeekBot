@@ -4,9 +4,9 @@ import {
   relationshipReplySchema,
 } from '../../../core/src/devices/relationship-contract.js';
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
-import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
-import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
+import { keyBytes } from '@botharness/host-client/encrypted-carrier';
+import { parsePairingLink } from '@botharness/host-client/pairing';
 import type { BotHarnessTranslate } from './locale.js';
 import {
   relationshipRequest,

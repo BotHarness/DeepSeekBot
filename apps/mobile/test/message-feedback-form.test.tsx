@@ -14,8 +14,8 @@ vi.mock('react-native-keyboard-controller', async () => ({
 vi.mock('../src/host/share-feedback', () => ({ shareFeedbackArchive: vi.fn() }));
 import { shareFeedbackArchive } from '../src/host/share-feedback';
 import { MessageFeedbackForm } from '../src/ui/chat/message-feedback';
-import { createHostClient } from '../src/host/client';
-import type { HostCarrier } from '../src/host/carrier';
+import { createHostClient } from '@botharness/host-client/client';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 
 it('prevents a stale scope submission and retains the frozen report on retry', async () => {

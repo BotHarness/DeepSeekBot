@@ -1,8 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import { accountHostAdded, pairAccountSelection } from '../src/host/account-pairing';
-import type { ConnectHost } from '../src/host/connect-account';
-import type { SavedHost } from '../src/host/hosts';
-import type { PairingFailure } from '../src/host/pairing';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { PairingFailure } from '@botharness/host-client/pairing';
 const a: ConnectHost = {
   id: 'ha',
   name: 'Same name',

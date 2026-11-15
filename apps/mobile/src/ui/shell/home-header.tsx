@@ -1,4 +1,4 @@
-import type { ConnectionState } from '../../host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -6,7 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
-import { hostColorInk } from '../design/host-look';
+import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { materialSearchHeight, searchAppBarHeight } from '../design/material-search';
 import { useDesignTheme } from '../design/theme';
 import { chatList, space } from '../design/tokens';

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { hostId } from './bot-network-wire.js';
 import type { LanBotCandidate } from './bot-lan-membership.js';
 import type { LanBotPeer } from './bot-lan-bridge.js';
-import { isLanAddress } from './lan-address.js';
+import { isLanAddress } from '@botharness/host-protocol/lan-address';
 
 const GROUP = '239.255.42.87';
 const PORT = 43288;

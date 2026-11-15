@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBotInbox, inboxOrder } from '../src/host/bot-inbox';
-import type { BotInboxItem } from '../src/host/wire';
+import type { BotInboxItem } from '@botharness/host-protocol/wire';
 
 const item = (id: string, sourceMessageId?: string): BotInboxItem => ({
   id,

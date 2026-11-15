@@ -35,7 +35,7 @@ import {
   type BotModeMotionPreference,
   type BotModeSendKey,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import {
   resolveEffectiveMotion,
   type EffectiveMotion,

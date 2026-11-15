@@ -3,7 +3,7 @@ import {
   connectionDiagnostic,
   connectionDiagnosticReport,
   networkDiagnosticReason,
-} from '../src/host/connection-diagnostic';
+} from '@botharness/host-client/connection-diagnostic';
 import { createAccountActionFixture } from '../src/host/account-action-fixture';
 
 const app = { platform: 'ios', osVersion: '27.0', version: '1.7.0', build: '18' };

@@ -6,7 +6,7 @@ import { useStrings } from '../strings';
 import { SHEET_GROUP, Sheet, SheetNote } from './sheet';
 import { useRef, useState } from 'react';
 import { useMounted } from '../mounted';
-import { errorText } from '../../host/bot-settings';
+import { errorText } from '@botharness/host-client/bot-settings';
 import { radius } from '../design/tokens';
 
 export function InviteSheet({ candidates, onInvite, onClose }: InviteSheetProps) {

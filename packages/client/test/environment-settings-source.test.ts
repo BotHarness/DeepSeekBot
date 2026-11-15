@@ -4,10 +4,7 @@ import {
   localEnvironmentSettings,
   mountLocalEnvironmentSettings,
 } from '../src/client/environment-settings-source.js';
-import {
-  modelSettingsResource,
-  setModelRoute,
-} from '../../../apps/mobile/src/host/model-settings.js';
+import { modelSettingsResource, setModelRoute } from '@botharness/host-client/model-settings';
 
 const releases: (() => void)[] = [];
 afterEach(() => {

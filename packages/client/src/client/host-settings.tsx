@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import { HostGlyph } from './host-glyph.js';
 import { HostLookSettings } from './host-look-settings.js';
 import { useHostLook } from './host-looks.js';
-import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { RemoteNotificationSettings } from './remote-notification-settings.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { space } from './ds/tokens.stylex.js';
@@ -29,7 +29,7 @@ import { remoteHostSettingsSource } from './remote-host-settings-source.js';
 import { StorageSettings } from './storage-settings.js';
 import { useThisHost } from './this-host.js';
 import { localEnvironmentSettings } from './environment-settings-source.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import type { HostClient } from '@botharness/host-client/client';
 
 const styles = stylex.create({
   appearance: { borderWidth: 0, margin: 0, padding: 0, minWidth: 0 },

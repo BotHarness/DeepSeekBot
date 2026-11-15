@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
-import { FakeHost } from './fake-host';
-import wire from './fixtures/host-wire.json';
+import {
+  createHostClient,
+  type HostClient,
+  type HostSnapshot,
+} from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import wire from '../../../packages/host-client/test/fixtures/host-wire.json';
 
 const [baseline] = wire.mux.activity;
 const slug = baseline!.snapshot.bots[0]!.slug;

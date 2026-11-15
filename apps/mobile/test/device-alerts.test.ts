@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDeviceAlerts, type AlertSnapshot } from '../src/host/device-alerts';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 
 const approval: HumanAttentionItem = {
   id: 'approval-1',

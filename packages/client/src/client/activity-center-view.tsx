@@ -8,7 +8,7 @@ import {
 import { observeActivityEnvironments, combineActivityPages } from './activity-environments.js';
 import { useThisHost } from './this-host.js';
 import { hostLooks } from './host-looks.js';
-import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import type { HumanAttentionItem } from './store.js';
 import { createRemoteActivitySource, remoteActivityPage } from './remote-activity.js';
 import type { DockPanelRegistry } from './dock-panels.js';

@@ -14,7 +14,7 @@ import {
   type Loadable,
   type WorkspaceGrant,
   type WorkspaceOption,
-} from '../../host/bot-settings';
+} from '@botharness/host-client/bot-settings';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';

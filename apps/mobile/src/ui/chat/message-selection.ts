@@ -1,4 +1,4 @@
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 export const SELECTION_LIMIT = 50;
 export function toggleMessageSelection(
   ids: readonly string[],

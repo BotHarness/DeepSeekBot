@@ -24,7 +24,7 @@ import {
   type BotModeSendKey,
   type BotModeSortMode,
   type BotModeSettings,
-} from './bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 
 export const name = 'botharness-client';
 stampReleaseComponent(apply, import.meta.url);

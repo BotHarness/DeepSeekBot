@@ -8,11 +8,8 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { DEEPSEEKBOT_RECIPE } from '../src/onboarding/service.js';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
-import {
-  modelSettingsResource,
-  setModelRoute,
-} from '../../../apps/mobile/src/host/model-settings.js';
+import { createHostClient } from '@botharness/host-client/client';
+import { modelSettingsResource, setModelRoute } from '@botharness/host-client/model-settings';
 
 function adapter(
   run: (input: OrchestratorAgentRun) => Promise<void> = async () => {},

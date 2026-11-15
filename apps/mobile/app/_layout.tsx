@@ -35,7 +35,7 @@ import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
 import { CallSessionHost } from '../src/ui/chat/call-session-host';
 import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
-import { installMediaStore, runAutoCleanup } from '../src/host/media-cache';
+import { installMediaStore, runAutoCleanup } from '@botharness/host-client/media-cache';
 import { nativeMediaStore } from '../src/host/native-media-store';
 import { installPurgeTargets } from '../src/host/purge-caches';
 import { installHostStoreOpener, retryHostStoreDeletes } from '../src/host/host-store';

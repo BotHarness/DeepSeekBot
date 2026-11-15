@@ -7,8 +7,8 @@ import { randomBytes } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
 import { BROWSER_ADMISSION_PROTOCOL } from '../../../../deploy/private-relay/admission.mjs';
-import { ConnectChannel, CONNECT_CHANNEL_PATH } from './noise/channel.js';
-import { noisePublicKey } from './noise/xk.js';
+import { ConnectChannel, CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import type { DevicePairing } from './pairing.js';
 import {
   LOCAL_VIDEO_LIMITS,

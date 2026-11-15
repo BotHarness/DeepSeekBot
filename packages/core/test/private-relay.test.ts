@@ -9,13 +9,13 @@ import { createPrivateRelay } from '../../../deploy/private-relay/server.mjs';
 import { createPrivateConnection } from '../src/devices/private-relay.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
-import { redeemPairing } from '../../../apps/mobile/src/host/pairing.js';
-import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import { redeemPairing } from '@botharness/host-client/pairing';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 const mapping = vi.hoisted(() => ({ relay: '' }));
 it('keeps a damaged private configuration in error rather than exposing default pairing routes', async () => {

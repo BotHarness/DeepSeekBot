@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { chatRows, messageGroups, separatorLabel } from '../src/ui/chat/message-groups';
 
 const message = (

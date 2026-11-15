@@ -8,7 +8,11 @@ import {
   encodeBotPayload,
   decodeBotPayload,
 } from './bot-network-noise.js';
-import { noisePublicKey, type NoiseXk, type NoiseTransport } from './noise/xk.js';
+import {
+  noisePublicKey,
+  type NoiseXk,
+  type NoiseTransport,
+} from '@botharness/host-protocol/noise/xk';
 export interface BotPeerIdentity {
   hostId: string;
   publicKey: string;

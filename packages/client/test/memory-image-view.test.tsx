@@ -9,8 +9,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }));
 import { MemoryImageView, MemoryImageDiff } from '../src/client/memory-image-view.js';
 import { MessageHostContext } from '../src/client/message-host.js';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import type { MemoryImage } from '../src/client/bridge.js';
 import type { BotHarnessTranslate } from '../src/client/locale.js';
 const t: BotHarnessTranslate = (key) => key;

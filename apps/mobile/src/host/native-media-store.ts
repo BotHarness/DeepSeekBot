@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-import type { MediaStore } from './media-cache';
+import type { MediaStore } from '@botharness/host-client/media-cache';
 
 const mediaRoot = (): Directory => new Directory(Paths.cache, 'deepseekbot-media');
 

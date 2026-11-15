@@ -34,8 +34,8 @@ vi.mock('../src/ui/design/theme', async () => {
   return { useDesignTheme: () => theme };
 });
 
-import type { QuestionItem } from '../src/host/wire';
-import { emptyDraft } from '../src/host/requests';
+import type { QuestionItem } from '@botharness/host-protocol/wire';
+import { emptyDraft } from '@botharness/host-client/requests';
 import {
   ActionCard,
   CardButtons,

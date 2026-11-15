@@ -45,10 +45,10 @@ vi.mock('expo-file-system', () => {
 });
 
 const { cachedMediaUri, cacheMedia, forgetMedia, installMediaStore, mediaUsage } =
-  await import('../src/host/media-cache');
+  await import('@botharness/host-client/media-cache');
 const { nativeMediaStore } = await import('../src/host/native-media-store');
 installMediaStore(nativeMediaStore);
-const { attachmentsOf } = await import('../src/host/conversation');
+const { attachmentsOf } = await import('@botharness/host-client/conversation');
 
 const source = (
   cacheKey: string,

@@ -9,8 +9,8 @@ import {
   type ApprovalHistoryEntry,
   type ApprovalRule,
 } from '../../host/approval-records';
-import { errorText, type Loadable } from '../../host/bot-settings';
-import type { HostClient } from '../../host/client';
+import { errorText, type Loadable } from '@botharness/host-client/bot-settings';
+import type { HostClient } from '@botharness/host-client/client';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { confirmDestructive } from '../primitives/app-dialog';

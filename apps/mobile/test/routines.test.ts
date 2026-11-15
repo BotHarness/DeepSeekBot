@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import {
   botRoutines,
   newRoutineForm,
@@ -10,9 +10,9 @@ import {
   routineTriggerOf,
   type RoutineForm,
 } from '../src/host/routines';
-import type { BotScheduleSummary } from '../src/host/wire';
+import type { BotScheduleSummary } from '@botharness/host-protocol/wire';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import profileWire from './fixtures/profile-wire.json';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';

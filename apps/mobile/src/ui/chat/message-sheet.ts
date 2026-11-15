@@ -2,7 +2,7 @@ import {
   reactable,
   type ConversationMessage,
   type MessageAttachment,
-} from '../../host/conversation';
+} from '@botharness/host-client/conversation';
 import { t } from '../strings';
 import type { BubbleGroup } from './bubble-shape';
 import type { Rect } from './menu-placement';

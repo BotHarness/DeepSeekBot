@@ -1,5 +1,5 @@
 import type { createLanBotMembership, LanBotCandidate } from './bot-lan-membership.js';
-import { noiseFingerprint } from './noise/xk.js';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 
 export function createLanBotControl(options: {
   membership: ReturnType<typeof createLanBotMembership>;

@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 
-import { toggleOption, typeCustom, type QuestionDraft } from '../../host/requests';
-import type { QuestionItem } from '../../host/wire';
+import { toggleOption, typeCustom, type QuestionDraft } from '@botharness/host-client/requests';
+import type { QuestionItem } from '@botharness/host-protocol/wire';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';

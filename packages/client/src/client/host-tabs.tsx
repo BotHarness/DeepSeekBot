@@ -28,7 +28,7 @@ import {
   DEFAULT_HOST_LOOK,
   shownHostName,
   type HostLook,
-} from '../../../../apps/mobile/src/ui/design/host-look.js';
+} from '@botharness/host-client/ui/design/host-look';
 import { hostLooks, unusedHostLook, useHostLook, useHostName } from './host-looks.js';
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };

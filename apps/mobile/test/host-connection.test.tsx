@@ -2,8 +2,8 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, expect, it, vi } from 'vitest';
-import type { HostSnapshot } from '../src/host/client';
-import type { SavedHost } from '../src/host/hosts';
+import type { HostSnapshot } from '@botharness/host-client/client';
+import type { SavedHost } from '@botharness/host-client/hosts';
 
 const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async () => true) }));
 const testRoute = vi.hoisted(() => vi.fn(async () => true));
@@ -33,7 +33,7 @@ vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => <i data-rn-symbol /> }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
-vi.mock('../src/host/client', () => ({ createHostClient: () => undefined }));
+vi.mock('@botharness/host-client/client', () => ({ createHostClient: () => undefined }));
 vi.mock('../src/host/host-session', () => {
   const client = { testRoute };
   return {

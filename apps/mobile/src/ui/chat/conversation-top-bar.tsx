@@ -1,4 +1,4 @@
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 
 export type HeaderSelection = {
   count: number;

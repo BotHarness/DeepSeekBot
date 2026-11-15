@@ -1,5 +1,5 @@
-import { ActivityRequestFailed, type HostActivity } from './live-activity';
-import type { SavedHost } from './hosts';
+import { ActivityRequestFailed, type HostActivity } from '@botharness/host-client/live-activity';
+import type { SavedHost } from '@botharness/host-client/hosts';
 
 export interface ActivityTarget {
   hostId: string;

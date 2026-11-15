@@ -1,4 +1,4 @@
-import { CONNECT_HOSTNAME } from './connect-zones.js';
+import { CONNECT_HOSTNAME } from '@botharness/host-protocol/connect-zones';
 import { createTrustFetch, systemTrustedCertificates } from './private-tunnel.js';
 import { createTunnelLookup } from './tunnel-dns.js';
 

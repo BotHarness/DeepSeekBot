@@ -7,7 +7,7 @@ import {
   type ApprovalChoice,
   type ApprovalRequest,
   type DecisionResult,
-} from '../host/requests';
+} from '@botharness/host-client/requests';
 import { alwaysNote, executionNote, expiryLabel, riskNote } from './approval-note';
 import {
   ActionButton,

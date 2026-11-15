@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
-import { parseNotificationPreferences } from '../../../../apps/mobile/src/host/device-notification-preferences.js';
-import { createHostPush, PushRequestFailed } from '../../../../apps/mobile/src/host/push.js';
+import { parseSavedHost } from '@botharness/host-client/hosts';
+import { parseNotificationPreferences } from '@botharness/host-client/device-notification-preferences';
+import { createHostPush, PushRequestFailed } from '@botharness/host-client/push';
 import { CliLiveError } from './cli-live-error.js';
 
 export const DEVICE_NOTIFICATION_COMMANDS = [

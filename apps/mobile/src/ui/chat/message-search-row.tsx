@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 
 import type { MessageSearchHit } from '../../host/message-search';
-import type { HostLook } from '../design/host-look';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
 import { chatList, space } from '../design/tokens';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';

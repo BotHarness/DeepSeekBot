@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { readingBots, receiptGroups, receiptRecipients } from '../src/host/delivery-receipt';
 
 const message: ConversationMessage = {

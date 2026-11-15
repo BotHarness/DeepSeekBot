@@ -1,6 +1,6 @@
 import { execFileText } from '../process/exec-off-thread.js';
-import { CONNECT_HOSTNAME } from './connect-zones.js';
-import { isLanAddress } from './lan-address.js';
+import { CONNECT_HOSTNAME } from '@botharness/host-protocol/connect-zones';
+import { isLanAddress } from '@botharness/host-protocol/lan-address';
 import { stalePhoneRoutes, type StalePhoneRoute } from './route-targets.js';
 
 export interface PhoneRoute {
@@ -137,7 +137,11 @@ function serveArgs(port: number, published: number): string[] {
   ];
 }
 
-export { CONNECT_HOSTNAME, CONNECT_ZONES, isConnectZoneHost } from './connect-zones.js';
+export {
+  CONNECT_HOSTNAME,
+  CONNECT_ZONES,
+  isConnectZoneHost,
+} from '@botharness/host-protocol/connect-zones';
 
 export const TAILNET_IPV4 = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u;
 

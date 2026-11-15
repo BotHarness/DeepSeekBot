@@ -2,9 +2,9 @@ import { measureMessageView } from '../primitives/measure-message-view';
 import { useRef } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 
-import type { ChannelActivity } from '../../host/channel-activity';
-import type { RosterView } from '../../host/client';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ChannelActivity } from '@botharness/host-client/channel-activity';
+import type { RosterView } from '@botharness/host-client/client';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { motion, radius, space } from '../design/tokens';

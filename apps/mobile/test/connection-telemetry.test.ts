@@ -1,6 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createConnectionTelemetry } from '../src/telemetry/connection';
-import { createMobileTelemetry, type TelemetryEvent } from '../src/telemetry/mobile-telemetry';
+import { createConnectionTelemetry } from '@botharness/host-client/telemetry/connection';
+import {
+  createMobileTelemetry,
+  type TelemetryEvent,
+} from '@botharness/host-client/telemetry/mobile-telemetry';
 afterEach(() => vi.useRealTimers());
 it('times out observation without stopping the Host and records later recovery once', async () => {
   vi.useFakeTimers();

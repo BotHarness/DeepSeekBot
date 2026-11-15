@@ -9,7 +9,7 @@ import type {
 } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import {
   CHECK_BUDGET,
   MOMENTUM_WAIT_MS,

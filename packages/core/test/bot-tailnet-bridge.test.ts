@@ -4,7 +4,7 @@ import {
   finishBotHandshake,
   encodeBotPayload,
 } from '../src/devices/bot-network-noise.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createTailnetBotBridge } from '../src/devices/bot-tailnet-bridge.js';

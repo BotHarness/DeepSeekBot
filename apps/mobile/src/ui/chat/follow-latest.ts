@@ -6,7 +6,7 @@ import type {
   NativeSyntheticEvent,
 } from 'react-native';
 
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 export const LATEST_SLOP = 40;
 export const SETTLE_FRAMES = 45;

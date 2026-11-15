@@ -349,6 +349,12 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@botharness/host-client':
+        specifier: workspace:*
+        version: link:../../packages/host-client
+      '@botharness/host-protocol':
+        specifier: workspace:*
+        version: link:../../packages/host-protocol
       '@botharness/pixel-banner':
         specifier: 0.1.0
         version: 0.1.0
@@ -689,6 +695,12 @@ importers:
         specifier: 4.0.1
         version: 4.0.1(supports-color@10.2.2)
     devDependencies:
+      '@botharness/host-client':
+        specifier: workspace:*
+        version: link:../host-client
+      '@botharness/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
       '@deepseek-ai/cordis':
         specifier: 4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-include@1.1.0)(@deepseek-ai/cordis-plugin-loader@1.1.0)
@@ -801,6 +813,12 @@ importers:
         specifier: 0.35.4
         version: 0.35.4(@types/node@22.20.3)
     devDependencies:
+      '@botharness/host-client':
+        specifier: workspace:*
+        version: link:../host-client
+      '@botharness/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
       '@deepseek-ai/cordis':
         specifier: 4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-include@1.1.0)(@deepseek-ai/cordis-plugin-loader@1.1.0)
@@ -928,6 +946,12 @@ importers:
         specifier: 8.21.3
         version: 8.21.3
     devDependencies:
+      '@botharness/host-client':
+        specifier: workspace:*
+        version: link:../host-client
+      '@botharness/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
       '@deepseek-ai/cordis':
         specifier: 4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-include@1.1.0)(@deepseek-ai/cordis-plugin-loader@1.1.0)
@@ -1073,6 +1097,27 @@ importers:
       '@deepseek-ai/dsh':
         specifier: 0.2.2-rc.1
         version: 0.2.2-rc.1(de3ca408c713a130ae14636ca9841982)
+
+  packages/host-client:
+    dependencies:
+      '@botharness/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+      '@tanstack/query-core':
+        specifier: 5.104.3
+        version: 5.104.3
+
+  packages/host-protocol:
+    dependencies:
+      '@noble/ciphers':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@noble/curves':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@noble/hashes':
+        specifier: 2.4.0
+        version: 2.4.0
 
   packages/ingest:
     dependencies:

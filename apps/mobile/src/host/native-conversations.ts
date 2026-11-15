@@ -1,4 +1,4 @@
-import type { ConversationCache } from './conversation';
+import type { ConversationCache } from '@botharness/host-client/conversation';
 import { deleteHostStore, hostStore, hostStoreAvailable } from './host-store';
 import { createCatchUp, type CatchUpHost } from './catch-up';
 import { BACKGROUND_PAGES } from './background-catch-up';

@@ -10,7 +10,7 @@ import {
   runAutoCleanup,
   setAutoCleanup,
   type MediaStore,
-} from '../src/host/media-cache';
+} from '@botharness/host-client/media-cache';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 5);

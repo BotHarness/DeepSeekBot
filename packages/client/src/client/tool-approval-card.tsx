@@ -17,7 +17,7 @@ import { subscribeWorkspaceGrantChanges } from './workspace-grant-events.js';
 import type { CompanionRequestTarget } from './companion-requests.js';
 import { approvalCountdown } from './approval-countdown.js';
 import { ApprovalInput } from './approval-input.js';
-import { approvalSummary } from './approval-diff.js';
+import { approvalSummary } from '@botharness/host-client/shared/approval-diff';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
 
 export function ToolApprovalCard({

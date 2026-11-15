@@ -1,7 +1,12 @@
 import { File, Paths } from 'expo-file-system';
 import { defaultDatabaseDirectory, deleteDatabaseAsync, openDatabaseAsync } from 'expo-sqlite';
 
-import { localStoreName, openLocalStore, type LocalStore, type SqlValue } from './local-store';
+import {
+  localStoreName,
+  openLocalStore,
+  type LocalStore,
+  type SqlValue,
+} from '@botharness/host-client/local-store';
 
 const bind = (params: readonly SqlValue[] | undefined): SqlValue[] => (params ? [...params] : []);
 

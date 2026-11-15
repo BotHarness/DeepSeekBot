@@ -5,14 +5,14 @@ import {
   clearAttentionItem,
   decideJoinRequest,
   snoozeAttentionItem,
-} from '../../../../apps/mobile/src/host/attention-actions.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+} from '@botharness/host-client/attention-actions';
+import type { HostClient } from '@botharness/host-client/client';
 import {
   loadApproval,
   loadQuestion,
   type DecisionResult,
   type RequestRef,
-} from '../../../../apps/mobile/src/host/requests.js';
+} from '@botharness/host-client/requests';
 import type { BridgeActions } from './actions.js';
 import {
   ignoreHumanAssignmentReport,

@@ -1,9 +1,13 @@
 import { useState, type ComponentProps } from 'react';
 import { Image } from 'expo-image';
 import { useMounted } from '../mounted';
-import type { RemoteSource } from '../../host/client';
-import { encodeBase64 } from '../../host/encrypted-carrier';
-import { cachedMediaUri, cacheMedia, mediaCacheAvailable } from '../../host/media-cache';
+import type { RemoteSource } from '@botharness/host-client/client';
+import { encodeBase64 } from '@botharness/host-client/encrypted-carrier';
+import {
+  cachedMediaUri,
+  cacheMedia,
+  mediaCacheAvailable,
+} from '@botharness/host-client/media-cache';
 
 type Resolved = { uri: string; headers: Record<string, string> };
 

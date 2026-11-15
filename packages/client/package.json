@@ -38,6 +38,8 @@
     "remark-gfm": "4.0.1"
   },
   "devDependencies": {
+    "@botharness/host-client": "workspace:*",
+    "@botharness/host-protocol": "workspace:*",
     "@deepseek-ai/cordis": "4.1.0",
     "@deepseek-ai/dsh-api-gateway": "0.2.2-rc.1",
     "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.1",

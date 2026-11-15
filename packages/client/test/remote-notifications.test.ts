@@ -5,7 +5,7 @@ import {
 } from '../src/client/remote-notifications.js';
 import type { RemoteHost } from '../src/client/remote-hosts.js';
 import type { DesktopNotificationHandle } from '../src/client/desktop-notifications.js';
-import type { HumanAttentionItem } from '../../../apps/mobile/src/host/wire.js';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 
 const item = (id: string, kind = 'user-question', at = id): HumanAttentionItem => ({
   id,

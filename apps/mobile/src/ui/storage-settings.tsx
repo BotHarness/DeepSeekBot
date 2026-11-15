@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
-import { MethodRefused } from '../host/client';
+import { MethodRefused } from '@botharness/host-client/client';
 import {
   STORAGE_AGES,
   STORAGE_MEDIA_KINDS,
@@ -16,7 +16,7 @@ import {
   type StorageMessagesResult,
   type StoragePartKind,
   type StorageUsage,
-} from '../host/storage';
+} from '@botharness/host-client/storage';
 import { chart } from './design/chart';
 import { radius, space } from './design/tokens';
 import { useDesignTheme } from './design/theme';

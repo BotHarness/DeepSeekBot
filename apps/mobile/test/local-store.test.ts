@@ -10,7 +10,7 @@ import {
   localStoreName,
   openLocalStore,
   type LocalStore,
-} from '../src/host/local-store';
+} from '@botharness/host-client/local-store';
 import { nodeSqlConnection } from './node-sql-connection';
 
 const opened: LocalStore[] = [];

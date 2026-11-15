@@ -1,13 +1,13 @@
 import { badgeCount } from './primitives/badge-count';
 import { productName } from './product-name';
 import { tapVerb } from './platform-copy';
-import type { DeviceRefusal } from '../host/client';
+import type { DeviceRefusal } from '@botharness/host-client/client';
 import { useSyncExternalStore } from 'react';
 import { interfacePreferences } from './interface-preferences';
-import type { PairingFailure } from '../host/pairing';
-import type { PushKind, PushRefusal } from '../host/push';
-import type { AggregatedState } from '../host/wire';
-import type { EmailCodeRefusal } from '../host/connect-account';
+import type { PairingFailure } from '@botharness/host-client/pairing';
+import type { PushKind, PushRefusal } from '@botharness/host-client/push';
+import type { AggregatedState } from '@botharness/host-protocol/wire';
+import type { EmailCodeRefusal } from '@botharness/host-client/connect-account';
 
 type ToolGroup = 'shell' | 'browser' | 'files' | 'other';
 

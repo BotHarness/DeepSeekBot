@@ -1,4 +1,4 @@
-import type { BotAvatarChoice } from '../../host/bot-creation';
+import type { BotAvatarChoice } from '@botharness/host-client/bot-creation';
 
 export interface CreationHeaderProps {
   title: string;

@@ -1,13 +1,13 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, FileMode, Paths } from 'expo-file-system';
 import { randomUUID } from 'expo-crypto';
-import { BotCreationFailure } from './bot-creation';
+import { BotCreationFailure } from '@botharness/host-client/bot-creation';
 import {
   hashZipFile,
   ZIP_MAX_BYTES,
   type ZipFilePort,
   type ZipFileReader,
-} from './zip-import-file';
+} from '@botharness/host-client/zip-import-file';
 
 const directory = () => new Directory(Paths.document, 'bot-imports');
 const retainedFile = (id: string) => new File(directory(), `${id}.zip`);

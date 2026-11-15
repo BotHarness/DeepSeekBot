@@ -1,9 +1,9 @@
 import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
-import type { HumanAttentionItem as HostAttentionItem } from '../../../apps/mobile/src/host/wire.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
-import { serializeSavedHost, type SavedHost } from '../../../apps/mobile/src/host/hosts.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import type { HumanAttentionItem as HostAttentionItem } from '@botharness/host-protocol/wire';
+import { FakeHost } from '../../host-client/test/fake-host.js';
+import { serializeSavedHost, type SavedHost } from '@botharness/host-client/hosts';
 import { connectionOperationIndexSchema } from '../../core/src/devices/connection-operation.js';
 import { manageConnections } from '../src/client/connection-management.js';
 import { createHostActivityActions } from '../src/client/host-activity-actions.js';

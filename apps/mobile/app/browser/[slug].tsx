@@ -6,7 +6,10 @@ import { Keyboard, Pressable, View, type ViewInstance, type TextInputInstance } 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { createBrowserViewer, type BrowserViewerState } from '../../src/host/browser-viewer';
+import {
+  createBrowserViewer,
+  type BrowserViewerState,
+} from '@botharness/host-client/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../src/host/host-session';
 import { BrowserStage, type BrowserTouchMode } from '../../src/ui/chat/browser-stage';
 import { edge, radius, space } from '../../src/ui/design/tokens';
@@ -16,7 +19,7 @@ import { Text } from '../../src/ui/primitives/text';
 import { KeyboardIcon } from '../../src/ui/shell/icons';
 import { viewerHeaderOptions } from '../../src/ui/shell/viewer-header';
 import { useMounted } from '../../src/ui/mounted';
-import { recordFeature } from '../../src/telemetry/features';
+import { recordFeature } from '@botharness/host-client/telemetry/features';
 import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 

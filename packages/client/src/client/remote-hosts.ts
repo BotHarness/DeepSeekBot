@@ -5,9 +5,9 @@ import {
 } from '../../../core/src/devices/connection-operation.js';
 import { hostLooks } from './host-looks.js';
 import { memberPage } from './member-page.js';
-import { secureRandom, keyHex } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
+import { secureRandom, keyHex } from '@botharness/host-client/encrypted-carrier';
 import { browserAdmissionProtocols } from '../../../../deploy/private-relay/admission.mjs';
-import { isPrivateRoute } from '../../../../apps/mobile/src/host/route.js';
+import { isPrivateRoute } from '@botharness/host-protocol/route';
 import {
   enrollRelationshipClient,
   commitRelationshipEnrollment,
@@ -22,23 +22,23 @@ import {
   withRemoteHostCredentialWrite,
 } from './remote-host-storage-lock.js';
 import { relationshipRequest, type ClientRelationship } from './relationships.js';
-import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
-import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import {
   createHostClient,
   type HostClient,
   type HostSnapshot,
-} from '../../../../apps/mobile/src/host/client.js';
+} from '@botharness/host-client/client';
 import {
   createConversation,
   type Conversation,
-} from '../../../../apps/mobile/src/host/conversation.js';
+} from '@botharness/host-client/conversation';
 import {
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
   type PrivateAdmission,
-} from '../../../../apps/mobile/src/host/hosts.js';
+} from '@botharness/host-client/hosts';
 import {
   createInbox,
   prepareNotificationBaseline,
@@ -46,14 +46,14 @@ import {
   type InboxSnapshot,
   observeInbox,
   type InboxQuery,
-} from '../../../../apps/mobile/src/host/inbox.js';
+} from '@botharness/host-client/inbox';
 import {
   DEVICE_PREFIX,
   parsePairingLink,
   redeemPairing,
   revokePairing,
   type PairingRefusal,
-} from '../../../../apps/mobile/src/host/pairing.js';
+} from '@botharness/host-client/pairing';
 import { store } from './store.js';
 import { createRemoteActivityProjection, type RemoteBotActivity } from './remote-host-activity.js';
 import { releaseRemoteHostViewers } from './remote-host-viewer.js';

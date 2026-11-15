@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTempRoot } from './helpers.js';
 import { pairingLink } from '../src/devices/http.js';
-import { noiseFingerprint, NOISE_PROTOCOL } from '../src/devices/noise/xk.js';
+import { noiseFingerprint, NOISE_PROTOCOL } from '@botharness/host-protocol/noise/xk';
 import { enrollRelationshipClient } from '../src/devices/relationship-enrollment.js';
 import { tmpdir } from 'node:os';
 

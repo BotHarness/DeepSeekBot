@@ -5,7 +5,7 @@ import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { createConnectBotNetwork } from '../src/devices/connect-bot-network.js';
 import { createBotConnectChannel } from '../src/devices/bot-connect-channel.js';
 import { createGatewayOrigin } from '../src/devices/connect.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 
 it.each(['success', 'lost-ack', 'withdrawn', 'sender-signed-out', 'refused', 'forged-refusal'])(
   'handles %s over authenticated Noise without replay or Human device access',

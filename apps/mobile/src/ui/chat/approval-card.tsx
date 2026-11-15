@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
-import type { CardResolution } from '../../host/conversation';
+import type { CardResolution } from '@botharness/host-client/conversation';
 import {
   approvalCommand,
   previewInput,
@@ -9,9 +9,9 @@ import {
   type ApprovalChoice,
   type ApprovalRequest,
   type DecisionResult,
-} from '../../host/requests';
-import type { ToolApprovalOutcome } from '../../host/wire';
-import { approvalFileChange } from '../../../../../packages/client/src/client/approval-diff';
+} from '@botharness/host-client/requests';
+import type { ToolApprovalOutcome } from '@botharness/host-protocol/wire';
+import { approvalFileChange } from '@botharness/host-client/shared/approval-diff';
 import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';

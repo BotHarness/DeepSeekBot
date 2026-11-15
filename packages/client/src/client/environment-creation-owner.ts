@@ -1,5 +1,5 @@
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
-import { gitImportSource } from '../../../../apps/mobile/src/host/bot-creation.js';
+import type { HostClient } from '@botharness/host-client/client';
+import { gitImportSource } from '@botharness/host-client/bot-creation';
 import {
   assignRosterChannel,
   createGroupChannel,

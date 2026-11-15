@@ -4,9 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createConversation, type ConversationMessage } from '../src/host/conversation';
-import { createHostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createConversation, type ConversationMessage } from '@botharness/host-client/conversation';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { syntheticGenuiDocument } from '../../../packages/core/test/fixtures/genui-document';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -216,7 +216,7 @@ const { t } = await import('../src/ui/strings');
 const { openMessageMenu, shareText } = await import('../src/ui/chat/message-menu');
 const { MessageActions, dismissQueue, menuTime, messageMenuActions } =
   await import('../src/ui/chat/message-actions');
-const { MENU_REACTIONS, QUICK_REACTIONS } = await import('../src/host/conversation');
+const { MENU_REACTIONS, QUICK_REACTIONS } = await import('@botharness/host-client/conversation');
 
 beforeEach(() => {
   native.os = 'ios';

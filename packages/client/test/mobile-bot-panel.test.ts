@@ -65,7 +65,7 @@ import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.
 import { store } from '../src/client/store.js';
 import { ComposerDraftStore } from '../src/client/composer-draft-store.js';
 import { BotModePrefs, type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
-import type { BotModeIcon } from '../src/bot-mode-settings.js';
+import type { BotModeIcon } from '@botharness/host-client/shared/bot-mode-settings';
 import type { BridgeActions } from '../src/client/actions.js';
 
 let container: HTMLDivElement;

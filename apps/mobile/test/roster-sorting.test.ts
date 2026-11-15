@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rosterSortingOf } from '../src/host/roster-sorting';
+import { rosterSortingOf } from '@botharness/host-client/roster-sorting';
 
 describe('Host sorting settings projection', () => {
   it('reads only the canonical Web namespace and treats missing overrides as inherit', () => {

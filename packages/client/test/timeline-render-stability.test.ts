@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { botNameColor } from '../src/client/bot-name-color.js';
+import { botNameColor } from '@botharness/host-client/shared/bot-name-color';
 import { visibleDmMessages } from '../src/client/dm-actions.js';
 import type { ChannelMessage } from '../src/client/store.js';
 

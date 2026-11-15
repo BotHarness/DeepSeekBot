@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
 import { space } from '../design/tokens';
 

@@ -1,5 +1,10 @@
 import type { DesktopInput } from '../../../../packages/computer/src/desktop-view';
-import { fittedFrame, stagePoint, type StageLayout, type StageZoom } from './browser-viewer';
+import {
+  fittedFrame,
+  stagePoint,
+  type StageLayout,
+  type StageZoom,
+} from '@botharness/host-client/browser-viewer';
 
 export function videoPointerScroll({
   point,

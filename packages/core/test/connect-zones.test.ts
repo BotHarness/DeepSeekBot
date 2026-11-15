@@ -4,7 +4,7 @@ import {
   CONNECT_HOSTNAME,
   CONNECT_ZONES,
   isConnectZoneHost,
-} from '../src/devices/connect-zones.js';
+} from '@botharness/host-protocol/connect-zones';
 
 describe('Connect zones', () => {
   it('accepts any name in the dedicated zone and only Connect Host names in shared zones', () => {

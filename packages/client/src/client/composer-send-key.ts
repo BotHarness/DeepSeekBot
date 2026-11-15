@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 
-import type { BotModeSendKey } from '../bot-mode-settings.js';
+import type { BotModeSendKey } from '@botharness/host-client/shared/bot-mode-settings';
 
 export type ComposerSendKey = BotModeSendKey;
 

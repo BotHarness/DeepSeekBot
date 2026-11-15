@@ -1,7 +1,7 @@
 import { createContext } from 'react';
 
-import type { GenuiDocumentReply } from '../../genui/document';
-import type { GenuiViewClient } from '../../genui/view';
+import type { GenuiDocumentReply } from '@botharness/host-client/genui/document';
+import type { GenuiViewClient } from '@botharness/host-client/genui/view';
 import type { GenuiInputViewport } from './genui-input-viewport';
 
 export const GenuiViewHost = createContext<GenuiViewClient | undefined>(undefined);

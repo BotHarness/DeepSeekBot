@@ -3,10 +3,10 @@ import { useProfileFocusEffect } from './profile-visibility';
 import { useMemo, useCallback, useRef, useState, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 
-import { botSettings, errorText } from '../../host/bot-settings';
+import { botSettings, errorText } from '@botharness/host-client/bot-settings';
 import { dmChannel } from '../../host/bot-profile';
 import { renameBot } from '../../host/bot-name';
-import type { HostClient, RosterBot } from '../../host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';

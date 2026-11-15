@@ -9,7 +9,7 @@ import {
 import { Tooltip } from './ds/tooltip.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
 
-import type { BotModeSortMode } from '../bot-mode-settings.js';
+import type { BotModeSortMode } from '@botharness/host-client/shared/bot-mode-settings';
 import type { BridgeActions } from './actions.js';
 import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';

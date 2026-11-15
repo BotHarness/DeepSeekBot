@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { LoadingIndicator } from './loading-indicator';
 import { Text } from './text';
 import { space } from '../design/tokens';
-import type { ConnectionState } from '../../host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 import {
   connectionPresence,
   connectionDisrupted,

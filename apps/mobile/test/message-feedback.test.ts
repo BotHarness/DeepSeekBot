@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import { createMessageFeedback } from '../src/host/message-feedback';
-import type { HostCarrier } from '../src/host/carrier';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 describe('phone feedback through the authenticated Host client', () => {
   it('previews selected evidence and retries the same frozen submission', async () => {

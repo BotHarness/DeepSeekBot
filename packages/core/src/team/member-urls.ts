@@ -1,5 +1,5 @@
 import { isIPv4 } from 'node:net';
-import { isLanAddress } from '../devices/lan-address.js';
+import { isLanAddress } from '@botharness/host-protocol/lan-address';
 
 export function memberUrls(addresses: string[], insecureHttpAllowed: boolean): string[] {
   return addresses.filter((address) => {

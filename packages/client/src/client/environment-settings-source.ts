@@ -1,4 +1,4 @@
-import type { ModelSettingsClient } from '../../../../apps/mobile/src/host/bot-settings.js';
+import type { ModelSettingsClient } from '@botharness/host-client/bot-settings';
 import { unwrap, type BridgeCall } from './bridge.js';
 
 interface LocalModelBinding {

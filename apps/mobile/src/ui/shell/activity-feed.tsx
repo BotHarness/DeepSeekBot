@@ -2,7 +2,7 @@ import { ActivityInspector } from './activity-inspector';
 import { HostGlyph } from './host-tile';
 import { useIsFocused } from 'expo-router';
 import { ActivitySheetRegistration } from './activity-sheet-root';
-import { DEFAULT_HOST_LOOK, hostColorInk } from '../design/host-look';
+import { DEFAULT_HOST_LOOK, hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
@@ -20,14 +20,14 @@ import {
 import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import type { HostClient, RosterBot } from '../../host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import {
   INBOX_SECTIONS,
   observeInbox,
   type Inbox,
   type InboxSection,
   type InboxSnapshot,
-} from '../../host/inbox';
+} from '@botharness/host-client/inbox';
 import {
   answerQuestion,
   approvalSummaryTool,
@@ -37,7 +37,7 @@ import {
   requestRef,
   type DecisionResult,
   type RequestRef,
-} from '../../host/requests';
+} from '@botharness/host-client/requests';
 import {
   activityKey,
   activityBotKey,
@@ -57,7 +57,7 @@ import {
   snoozeAttentionItem,
   snoozeUntil,
   type SnoozeChoice,
-} from '../../host/attention-actions';
+} from '@botharness/host-client/attention-actions';
 import { useFocusedSnapshot } from '../../host/use-focused-snapshot';
 import { BotAvatar } from '../bot-avatar';
 import { GroupMark } from '../chat/group-mark';

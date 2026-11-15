@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
-import { SavedHostsWriteError } from '../src/host/hosts';
-import { pairHost } from '../src/host/pairing';
-import { FakeHost } from './fake-host';
+import { SavedHostsWriteError } from '@botharness/host-client/hosts';
+import { pairHost } from '@botharness/host-client/pairing';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 it('counts a submitted invalid link once and requires saved-Host persistence for success', async () => {
   const finish = vi.fn();

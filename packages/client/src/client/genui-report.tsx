@@ -16,7 +16,7 @@ import {
   type GenuiViewState,
 } from '../../../core/src/channels/genui.js';
 import type { BridgeActions } from './actions.js';
-import { getGenuiPrivateView } from './genui-view.js';
+import { getGenuiPrivateView } from '@botharness/host-client/shared/genui-view';
 import type { BotHarnessTranslate } from './locale.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';

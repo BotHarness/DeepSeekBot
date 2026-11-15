@@ -31,7 +31,7 @@ vi.mock('react-native-svg', () => ({
   Stop: () => null,
 }));
 
-import { createHostLooks, parseHostLook } from '../src/host/host-look';
+import { createHostLooks, parseHostLook } from '@botharness/host-client/host-look';
 import { accountHostLookId, accountHostLookTarget } from '../src/host/account-host-look';
 import {
   DEFAULT_HOST_LOOK,
@@ -40,7 +40,7 @@ import {
   nearestHostColor,
   shownHostName,
   type HostLook,
-} from '../src/ui/design/host-look';
+} from '@botharness/host-client/ui/design/host-look';
 import { contrast, resolveTheme } from '../src/ui/design/resolve-theme';
 import { HostLookEditor, type HostLookActions } from '../src/ui/shell/host-look-editor';
 import { t } from '../src/ui/strings';

@@ -4,13 +4,13 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 
-import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
-import type { HostRequest } from '../../../apps/mobile/src/host/carrier.js';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
+import type { HostRequest } from '@botharness/host-protocol/carrier';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import type { VoiceCallResult } from '../src/voice/call-contract.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';

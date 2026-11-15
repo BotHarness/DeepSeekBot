@@ -1,5 +1,5 @@
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
-import { gitImportSource } from '../../../../apps/mobile/src/host/bot-creation.js';
+import { gitImportSource } from '@botharness/host-client/bot-creation';
 import { approveWorkspaceGrantRequest } from './bridge.js';
 import {
   loadGenuiView,

@@ -1,4 +1,4 @@
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 import { isDay, shiftDay, trailingDays, weekStart } from './usage-days';
 import type {
   ProfileActivity,
@@ -6,7 +6,7 @@ import type {
   ProfileActivityReasonDay,
   ProfileActivityTokensDay,
   ProfileModelUsageRow,
-} from './wire';
+} from '@botharness/host-protocol/wire';
 
 export const ACTIVITY_WINDOWS = [1, 4, 26] as const;
 export type ActivityWindow = (typeof ACTIVITY_WINDOWS)[number];

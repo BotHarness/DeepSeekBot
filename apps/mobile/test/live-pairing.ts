@@ -1,5 +1,5 @@
-import type { SavedHost } from '../src/host/hosts';
-import { parsePairingLink, redeemPairing } from '../src/host/pairing';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import { parsePairingLink, redeemPairing } from '@botharness/host-client/pairing';
 import { nodeCarrier } from './node-carrier';
 
 export async function pairWithLiveHost(

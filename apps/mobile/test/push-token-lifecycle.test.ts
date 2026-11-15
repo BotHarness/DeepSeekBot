@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { createPushSession, type NotificationsPort } from '../src/host/push-session';
-import type { HostPush, PushSettings } from '../src/host/push';
-import type { SavedHost } from '../src/host/hosts';
+import type { HostPush, PushSettings } from '@botharness/host-client/push';
+import type { SavedHost } from '@botharness/host-client/hosts';
 
 const host: SavedHost = {
   hostId: 'host',

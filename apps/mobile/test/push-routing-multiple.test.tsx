@@ -5,7 +5,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { secure, remotes, notificationTaps } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { View } from 'react-native';
 vi.mock('react-native', () => import('./react-native-shim'));
 const push = vi.fn();

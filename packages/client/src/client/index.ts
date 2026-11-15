@@ -40,7 +40,10 @@ import type {} from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 
-import { BOT_MODE_NAMESPACE, type BotModeSettings } from '../bot-mode-settings.js';
+import {
+  BOT_MODE_NAMESPACE,
+  type BotModeSettings,
+} from '@botharness/host-client/shared/bot-mode-settings';
 import {
   fullClientLocator,
   privateInputLocator,

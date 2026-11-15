@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { VOICE_CALL_PATH } from '../../../packages/core/src/voice/call-contract';
 import { readCallReadiness } from '../../../packages/core/src/voice/call-client';
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 
 it('refuses Bot calls over Connect before any request leaves the phone', async () => {
   const raw = { request: vi.fn(), openSocket: vi.fn() };

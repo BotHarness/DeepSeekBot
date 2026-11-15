@@ -12,10 +12,10 @@ import {
   createRelationshipAdmissions,
   type RelationshipCredentialProvider,
 } from './relationship-admission.js';
-import type { PrivateAdmission } from '../../../../apps/mobile/src/host/hosts.js';
-import { openNoiseSocket } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { checkRoute, isPrivateRoute } from '../../../../apps/mobile/src/host/route.js';
-import { parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
+import type { PrivateAdmission } from '@botharness/host-client/hosts';
+import { openNoiseSocket } from '@botharness/host-client/encrypted-carrier';
+import { checkRoute, isPrivateRoute } from '@botharness/host-protocol/route';
+import { parsePairingLink } from '@botharness/host-client/pairing';
 import { nodeDeviceCarrier } from './node-carrier.js';
 import type { DevicePairing } from './pairing.js';
 import type { EncryptionIdentity } from './noise-identity.js';

@@ -1,9 +1,9 @@
 import { useContext, useMemo, type ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { botNameColor } from '../../../../../packages/client/src/client/bot-name-color';
-import type { ConversationMessage } from '../../host/conversation';
-import type { WireMention } from '../../host/wire';
+import { botNameColor } from '@botharness/host-client/shared/bot-name-color';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
+import type { WireMention } from '@botharness/host-protocol/wire';
 import { BotAvatar } from '../bot-avatar';
 import { botColor } from '../bot-color';
 import { useDesignTheme } from '../design/theme';

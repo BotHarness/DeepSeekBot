@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { openBotCreationResult } from '../src/host/bot-creation-navigation';
-import type { CreationSnapshot } from '../src/host/bot-creation';
+import type { CreationSnapshot } from '@botharness/host-client/bot-creation';
 import { createCreationVisibility } from '../src/host/bot-creation-visibility';
 
 function setup() {

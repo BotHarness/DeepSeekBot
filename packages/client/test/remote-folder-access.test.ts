@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createActions } from '../src/client/actions.js';
 import { hostBridgeCall } from '../src/client/host-bridge-call.js';
 import { remoteFolderAccess } from '../src/client/remote-folder-access.js';

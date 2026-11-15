@@ -4,9 +4,9 @@ const channelHistory = channelNavigationHarness();
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 
 const push = vi.hoisted(() => vi.fn());

@@ -1,6 +1,6 @@
 import { closeSync, fstatSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { noiseFingerprint, NOISE_PROTOCOL } from '../devices/noise/xk.js';
+import { noiseFingerprint, NOISE_PROTOCOL } from '@botharness/host-protocol/noise/xk';
 import { pairingLink, type PairingPayload } from '../devices/http.js';
 import { openSshTunnel, SshTunnelError } from '../devices/ssh-tunnel.js';
 import { CliLiveError } from './cli-live-error.js';

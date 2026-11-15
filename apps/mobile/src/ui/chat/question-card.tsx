@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
-import type { CardResolution } from '../../host/conversation';
+import type { CardResolution } from '@botharness/host-client/conversation';
 import {
   buildAnswer,
   emptyDraft,
@@ -9,8 +9,8 @@ import {
   type DecisionResult,
   type QuestionDraft,
   type QuestionRequest,
-} from '../../host/requests';
-import type { QuestionAnswer } from '../../host/wire';
+} from '@botharness/host-client/requests';
+import type { QuestionAnswer } from '@botharness/host-protocol/wire';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { errorText } from '../request-parts';

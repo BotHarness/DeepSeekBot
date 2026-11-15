@@ -16,11 +16,11 @@ import {
   revokeWorkspaceGrant,
   setApprovalTemplate,
   setAssignmentAccess,
-} from '../src/host/bot-settings';
-import { createHostClient } from '../src/host/client';
+} from '@botharness/host-client/bot-settings';
+import { createHostClient } from '@botharness/host-client/client';
 import { modelLabel, workspaceLabel } from '../src/ui/chat/composer-labels';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const slug = 'ada';

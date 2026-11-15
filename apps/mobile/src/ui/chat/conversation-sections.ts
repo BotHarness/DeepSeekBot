@@ -1,4 +1,4 @@
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 
 type Section = { id: string | null; name: string };
 export type SectionState = {

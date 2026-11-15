@@ -1,5 +1,5 @@
-import type { ConversationMessage } from './conversation';
-import type { WireDeliveryState } from './wire';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
+import type { WireDeliveryState } from '@botharness/host-protocol/wire';
 
 export type ReceiptState = WireDeliveryState | 'missing';
 

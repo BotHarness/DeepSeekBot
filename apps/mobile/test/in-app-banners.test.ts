@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createDeviceAlerts, type AlertSnapshot } from '../src/host/device-alerts';
 import { createInAppBanners } from '../src/host/in-app-banners';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 
 const PREFERENCES = { approval: true, question: true, 'private-input': true, reply: true };
 

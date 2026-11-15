@@ -1,4 +1,4 @@
-import type { RosterBot, RosterChannel } from '../../host/client';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
 import { useMinuteClock } from '../minute-clock';
 import { useStrings } from '../strings';
 import { headerStatus } from './header-status';

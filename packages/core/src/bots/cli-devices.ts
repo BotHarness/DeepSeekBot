@@ -1,7 +1,7 @@
 import { existsSync, writeFileSync } from 'node:fs';
 
 import { CliLiveError } from './cli-live-error.js';
-import { noiseFingerprint } from '../devices/noise/xk.js';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 
 export const DEVICES_COMMANDS = [
   {

@@ -12,7 +12,7 @@ import type { RosterSection, TopOrderEntry } from './roster.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { createContentRedactions, sameItems } from './content-redactions.js';
-import { ActivitySmoother } from './activity-smoothing.js';
+import { ActivitySmoother } from '@botharness/host-client/shared/activity-smoothing';
 
 export type ClientMode = 'dsh' | 'bot';
 
@@ -200,8 +200,8 @@ export interface SessionFailureCard {
   status?: number;
   detail: string;
   context?: string;
-  progress?: import('../shared/turn-continuation.js').SessionFailureProgress;
-  autoContinue?: import('../shared/turn-continuation.js').SessionFailureAutoContinue;
+  progress?: import('@botharness/host-client/shared/turn-continuation').SessionFailureProgress;
+  autoContinue?: import('@botharness/host-client/shared/turn-continuation').SessionFailureAutoContinue;
 }
 
 export interface ChannelReaction {

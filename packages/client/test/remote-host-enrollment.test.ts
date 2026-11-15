@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import * as enrollment from '../../core/src/devices/relationship-enrollment.js';
-import * as pairing from '../../../apps/mobile/src/host/pairing.js';
+import * as pairing from '@botharness/host-client/pairing';
 import {
   createRemoteHosts,
   REMOTE_HOSTS_STORAGE_KEY,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SavedHost } from '../src/host/hosts';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { answerInPlace, type AnswerPort } from '../src/host/push-answer';
 import type { PushDecision } from '../src/host/push-actions';
 

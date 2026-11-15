@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Pressable, SectionList, View, type ViewInstance } from 'react-native';
 
-import type { RosterBot } from '../host/client';
-import { MethodRefused } from '../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
+import { MethodRefused } from '@botharness/host-client/client';
 import {
   USAGE_SPLIT,
   usageIsPartial,
@@ -12,8 +12,8 @@ import {
   type OverviewMemory,
   type OverviewUsage,
   type UsagePeriod,
-} from '../host/usage';
-import type { MemoryActivityBot, UsageBot } from '../host/wire';
+} from '@botharness/host-client/usage';
+import type { MemoryActivityBot, UsageBot } from '@botharness/host-protocol/wire';
 import { BotAvatar } from './bot-avatar';
 import { useDesignTheme } from './design/theme';
 import { chart } from './design/chart';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { RosterView } from '../src/host/client';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { RosterView } from '@botharness/host-client/client';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { locale, t } from '../src/ui/strings';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import {

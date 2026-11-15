@@ -54,9 +54,9 @@ import {
   backgroundImageUri,
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
-import type { HostClient, RosterBot } from '../../host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { visibleDmActivity } from '../../host/dm-activity';
-import { latestTurnMessageId } from '../../host/session-failure';
+import { latestTurnMessageId } from '@botharness/host-client/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
@@ -68,9 +68,9 @@ import {
   type ConversationMessage,
   type MessageAttachment,
   type MessageCard,
-} from '../../host/conversation';
-import type { Inbox } from '../../host/inbox';
-import type { WireAllBotPreview } from '../../host/wire';
+} from '@botharness/host-client/conversation';
+import type { Inbox } from '@botharness/host-client/inbox';
+import type { WireAllBotPreview } from '@botharness/host-protocol/wire';
 import { shareAttachment } from '../../host/share-attachment';
 import {
   MAX_PICKED,
@@ -97,7 +97,7 @@ import {
   loadApproval,
   loadQuestion,
   type RequestRef,
-} from '../../host/requests';
+} from '@botharness/host-client/requests';
 import { useDictation } from '../../host/speech';
 import { showDictationProblem } from './dictation-problem';
 import { botColor } from '../bot-color';
@@ -164,7 +164,7 @@ import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
 import { GenuiInteraction, GenuiViewHost } from './genui-view-client';
-import type { GenuiDocumentReply } from '../../genui/document';
+import type { GenuiDocumentReply } from '@botharness/host-client/genui/document';
 import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import { MessageSourcePage } from './message-source-page';

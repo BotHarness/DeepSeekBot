@@ -11,7 +11,7 @@ import {
   weekGlance,
 } from '../src/host/bot-activity';
 import { compactTokenCount, trailingDays } from '../src/host/usage-days';
-import type { ProfileActivity, ProfileModelUsageRow } from '../src/host/wire';
+import type { ProfileActivity, ProfileModelUsageRow } from '@botharness/host-protocol/wire';
 
 const row = (day: string, total: number | null, model = 'deepseek-v4'): ProfileModelUsageRow => ({
   day,

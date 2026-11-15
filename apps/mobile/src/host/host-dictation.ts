@@ -1,5 +1,5 @@
 import { createVoiceDictationPort } from '../../../../packages/core/src/voice/dictation-client';
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 
 const READINESS_TIMEOUT_MS = 2_500;
 const READINESS_TTL_MS = 60_000;

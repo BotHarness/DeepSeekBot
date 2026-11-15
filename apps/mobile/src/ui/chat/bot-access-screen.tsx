@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { botAccess, setBotAccess, type BotAccess, type BotAccessKind } from '../../host/bot-access';
-import { errorText, HostAnswerInvalid } from '../../host/bot-settings';
-import type { HostClient, RosterBot } from '../../host/client';
+import { errorText, HostAnswerInvalid } from '@botharness/host-client/bot-settings';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';

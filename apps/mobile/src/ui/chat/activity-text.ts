@@ -1,6 +1,6 @@
-import type { ChannelActivity } from '../../host/channel-activity';
-import type { RosterView } from '../../host/client';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ChannelActivity } from '@botharness/host-client/channel-activity';
+import type { RosterView } from '@botharness/host-client/client';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { t } from '../strings';
 import { callRecordLines } from './call-record-text';
 

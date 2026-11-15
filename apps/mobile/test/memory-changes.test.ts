@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { loadMemoryCommit, splitUnifiedDiff, wordMarks } from '../src/host/memory-changes';
-import type { HostClient } from '../src/host/client';
+import type { HostClient } from '@botharness/host-client/client';
 
 const DIFF = [
   'diff --git a/MEMORY.md b/MEMORY.md',

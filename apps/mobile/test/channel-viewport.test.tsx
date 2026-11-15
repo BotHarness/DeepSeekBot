@@ -47,7 +47,7 @@ vi.mock('react-native-keyboard-controller', () => ({
 }));
 
 import { useChannelViewport } from '../src/ui/chat/channel-viewport';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;

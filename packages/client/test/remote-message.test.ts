@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
+import { createHostClient } from '@botharness/host-client/client';
 import { fetchMessageResource } from '../src/client/message-host.js';
 afterEach(() => vi.restoreAllMocks());
 it.each([false, true])(
