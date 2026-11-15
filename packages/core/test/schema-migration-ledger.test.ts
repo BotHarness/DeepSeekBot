@@ -70,7 +70,9 @@ describe('named schema migration ledger', () => {
 
   it('appends member-devices to a ledger-backed main database without replacing existing browser grants', () => {
     const home = createTempRoot('bh-ledger-member-devices-');
-    const previous = defineSchemaPlan(plan.migrations.slice(0, -1));
+    const previous = defineSchemaPlan(
+      plan.migrations.slice(0, plan.generationOf('member-devices') - 2),
+    );
     expect(previous.migrations.at(-1)?.id).toBe('migration-ledger');
     const old = trackTestOwner(mountOperationalDatabase({ dshHome: home, schemaPlan: previous }));
     expect(old.mode).toBe('ready');
@@ -180,7 +182,9 @@ describe('named schema migration ledger', () => {
 
   it('rolls back backfill, body and generation together on a failed staged migration', () => {
     const home = createTempRoot('bh-ledger-rollback-');
-    const prefix = defineSchemaPlan(plan.migrations.slice(0, -1));
+    const prefix = defineSchemaPlan(
+      plan.migrations.slice(0, plan.generationOf('migration-ledger') - 2),
+    );
     const old = trackTestOwner(mountOperationalDatabase({ dshHome: home, schemaPlan: prefix }));
     old.close();
     edit(home, (db) => db.exec('DROP TABLE schema_migrations'));
