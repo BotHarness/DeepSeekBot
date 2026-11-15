@@ -24,7 +24,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { ActivityListView } from '../src/client/activity-list-view.js';
+import { ActivityListView, type ActivityListSource } from '../src/client/activity-list-view.js';
 import { activityListSnoozeUntil } from '../src/client/activity-list-snooze.js';
 import { store, type HumanAttentionItem } from '../src/client/store.js';
 
@@ -93,6 +93,135 @@ async function mount(items: HumanAttentionItem[]) {
 }
 
 const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>('[role="listitem"]')];
+
+function deferred() {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+async function pendingSources(kind: 'channel-unread' | 'channel-reply') {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const items: HumanAttentionItem[] = [
+    {
+      ...approval('tob'),
+      id: 'same-id',
+      kind,
+      category: kind === 'channel-unread' ? 'unread' : 'replies',
+      isUnread: true,
+    },
+    {
+      ...approval('tob'),
+      id: 'same-id',
+      kind,
+      category: kind === 'channel-unread' ? 'unread' : 'replies',
+      isUnread: true,
+      summary: 'Other Host',
+    },
+  ];
+  const pending = [deferred(), deferred()];
+  const actions = createActions(async () => ({ ok: true, value: { items: [] } }), store);
+  const sources = items.map((_, index): ActivityListSource => ({
+    hostId: 'host-' + index,
+    commands: {
+      ...actions,
+      markRead: () => pending[index]!.promise,
+      dismissActivityList: () => pending[index]!.promise,
+      snoozeActivityList: () => pending[index]!.promise,
+    },
+    detail: () =>
+      createElement('p', { 'data-source-detail': String(index) }, 'Host ' + index + ' detail'),
+    botName: () => 'Host ' + index,
+    isDirect: () => true,
+    open: async () => {},
+    sourceButton: () => null,
+    refresh: async () => {},
+    loadMore: async () => {},
+  }));
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  await act(async () =>
+    root.render(
+      createElement(ActivityListView, {
+        actions,
+        inboxOverride: {
+          ...previous.activityList,
+          category: kind === 'channel-unread' ? 'unread' : 'replies',
+          items,
+          status: 'ready',
+        },
+        itemSource: (item) => sources[items.indexOf(item)],
+      }),
+    ),
+  );
+  const button = (index: number, label: string) =>
+    [...rows(element)[index]!.querySelectorAll('button')].find(
+      (button) => button.textContent === label,
+    )!;
+  return {
+    element,
+    pending,
+    button,
+    close: () =>
+      act(async () => {
+        pending.forEach((value) => value.resolve());
+        root.unmount();
+        element.remove();
+      }),
+  };
+}
+
+it('keeps concurrent equal-ID reads on separate Hosts independently busy', async () => {
+  const view = await pendingSources('channel-unread');
+  try {
+    await act(async () => view.button(0, '标为已读').click());
+    await act(async () => view.button(1, '标为已读').click());
+    expect(view.button(0, '标为已读').disabled).toBe(true);
+    expect(view.button(1, '标为已读').disabled).toBe(true);
+    await act(async () => view.pending[0]!.resolve());
+    expect(view.button(0, '标为已读').disabled).toBe(false);
+    expect(view.button(1, '标为已读').disabled).toBe(true);
+    await act(async () => view.pending[1]!.resolve());
+    expect(view.button(1, '标为已读').disabled).toBe(false);
+  } finally {
+    await view.close();
+  }
+});
+
+it.each(['dismiss', 'snooze'])(
+  'keeps a newly opened Host detail when an old %s finishes',
+  async (operation) => {
+    const view = await pendingSources('channel-reply');
+    try {
+      await act(async () =>
+        rows(view.element)[0]!
+          .querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!
+          .click(),
+      );
+      expect(view.element.querySelector('[data-source-detail="0"]')).not.toBeNull();
+      if (operation === 'dismiss') await act(async () => view.button(0, '移除').click());
+      else {
+        await act(async () => view.button(0, '稍后提醒').click());
+        await act(async () =>
+          view.element.querySelector<HTMLButtonElement>('[role="menu"] button')!.click(),
+        );
+      }
+      await act(async () =>
+        rows(view.element)[1]!
+          .querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!
+          .click(),
+      );
+      await act(async () => view.pending[0]!.resolve());
+      expect(view.element.querySelector('[data-source-detail="1"]')).not.toBeNull();
+      expect(view.element.querySelector('[data-source-detail="0"]')).toBeNull();
+    } finally {
+      await view.close();
+    }
+  },
+);
 
 describe('Human Inbox keyboard', () => {
   it('moves with J and K, does not handle with E and opens the source with Enter', async () => {

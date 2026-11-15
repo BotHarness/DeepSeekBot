@@ -1,6 +1,6 @@
 import { Menu } from './appearance-primitives.js';
 import { useSearchOpenMark } from './search-open-mark.js';
-import { useState, useRef, type ReactElement } from 'react';
+import { useState, useRef, useSyncExternalStore, type ReactElement } from 'react';
 import {
   IconEllipsisOutlineRegular,
   IconSearchOutlineRegular,
@@ -21,6 +21,7 @@ import {
 } from './activity-feed.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
 import { EnvironmentFilter } from './environment-panel.js';
+import { ALL_HOSTS, THIS_HOST, remoteHosts } from './remote-hosts.js';
 import type { HumanAttentionItem } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -47,6 +48,21 @@ export function ActivityInboxMenu({
   actions: BridgeActions;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const sources = remoteHosts();
+  const readScope = () => sources.getSnapshot().tab;
+  const scope = useSyncExternalStore(sources.subscribe, readScope, readScope);
+  return <ScopedActivityInboxMenu key={scope} scope={scope} actions={actions} t={t} />;
+}
+
+function ScopedActivityInboxMenu({
+  actions,
+  t,
+  scope,
+}: {
+  actions: BridgeActions;
+  t: BotHarnessTranslate;
+  scope: string;
+}): ReactElement {
   const { bots, channels } = useClientStore(selectMenuInputs, menuInputs);
   const { feed, query: inbox, pages } = useActivityFeed(actions);
   const [open, setOpen] = useState(false);
@@ -55,7 +71,7 @@ export function ActivityInboxMenu({
   const [clearBusy, setClearBusy] = useState(false);
   const [clearError, setClearError] = useState<string>();
   const clearSections: readonly ActivitySection[] =
-    inbox.category === 'handled' || inbox.snoozed
+    (scope !== THIS_HOST && scope !== ALL_HOSTS) || inbox.category === 'handled' || inbox.snoozed
       ? []
       : inbox.category === 'all'
         ? ACTIVITY_SECTIONS
@@ -159,11 +175,19 @@ export function ActivityInboxMenu({
     else if (id.startsWith('bot:')) operation = filter({ botSlug: id.slice(4) || undefined });
     else if (id.startsWith('channel:')) operation = filter({ channelId: id.slice(8) || undefined });
     else if (id === 'snoozed') operation = filter({ snoozed: !inbox.snoozed });
-    else if (id === 'mark-read')
+    else if (
+      id === 'mark-read' &&
+      scope === remoteHosts().getSnapshot().tab &&
+      (scope === THIS_HOST || scope === ALL_HOSTS)
+    )
       operation = actions
         .markAllRead({ channelId: inbox.channelId, botSlug: inbox.botSlug })
         .then(() => feed.refresh());
-    else if (id.startsWith('dismiss:')) {
+    else if (
+      id.startsWith('dismiss:') &&
+      scope === remoteHosts().getSnapshot().tab &&
+      (scope === THIS_HOST || scope === ALL_HOSTS)
+    ) {
       setClearError(undefined);
       setClearing({
         kind: clearKinds.find((kind) => kind === id.slice(8)),
@@ -182,7 +206,12 @@ export function ActivityInboxMenu({
     });
   };
   const confirmClear = async (): Promise<void> => {
-    if (clearing === undefined) return;
+    if (
+      clearing === undefined ||
+      scope !== remoteHosts().getSnapshot().tab ||
+      (scope !== THIS_HOST && scope !== ALL_HOSTS)
+    )
+      return;
     setClearBusy(true);
     setClearError(undefined);
     try {

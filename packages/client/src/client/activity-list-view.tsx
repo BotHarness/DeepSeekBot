@@ -135,9 +135,22 @@ export function ActivityListView({
   const inbox = inboxOverride ?? inboxState.activityList;
   const [selectionMode, setSelectionMode] = useState(false);
   const detailId = useId();
-  const [busyId, setBusyId] = useState<string>();
+  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const setItemBusy = (item: HumanAttentionItem, busy: boolean): void => {
+    const key = itemKey(item);
+    setBusyIds((current) => {
+      const next = new Set(current);
+      if (busy) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
   const [actionError, setActionError] = useState<string>();
   const [replySource, setReplySource] = useState<HumanAttentionItem>();
+  const closeDetail = (item: HumanAttentionItem): void =>
+    setReplySource((current) =>
+      current !== undefined && itemKey(current) === itemKey(item) ? undefined : current,
+    );
   const replyRows = useMemo(
     () =>
       replySource &&
@@ -200,7 +213,7 @@ export function ActivityListView({
 
   const decide = async (item: HumanAttentionItem, accept: boolean): Promise<void> => {
     if (item.requestId === undefined || item.channelId === undefined) return;
-    setBusyId(itemKey(item));
+    setItemBusy(item, true);
     setActionError(undefined);
     try {
       if (!(await commandsFor(item).decideGroupJoin(item.channelId, item.requestId, accept)))
@@ -209,7 +222,7 @@ export function ActivityListView({
     } catch {
       setActionError(t('activityList.failed'));
     } finally {
-      setBusyId(undefined);
+      setItemBusy(item, false);
     }
   };
 
@@ -219,7 +232,7 @@ export function ActivityListView({
     } else if (item.messageId === undefined || item.channelId === undefined) {
       return;
     }
-    setBusyId(itemKey(item));
+    setItemBusy(item, true);
     setActionError(undefined);
     try {
       if (item.kind === 'assignment-report') {
@@ -231,7 +244,7 @@ export function ActivityListView({
     } catch {
       setActionError(t('activityList.failed'));
     } finally {
-      setBusyId(undefined);
+      setItemBusy(item, false);
     }
   };
 
@@ -249,31 +262,29 @@ export function ActivityListView({
   };
 
   const settleOne = async (item: HumanAttentionItem, clear = false): Promise<void> => {
-    setBusyId(itemKey(item));
+    setItemBusy(item, true);
     setActionError(undefined);
     try {
       if (clear) await commandsFor(item).dismissActivityList(item);
       else await settle(item);
-      if (replySource !== undefined && itemKey(replySource) === itemKey(item))
-        setReplySource(undefined);
+      closeDetail(item);
     } catch {
       setActionError(t('activityList.failed'));
     } finally {
-      setBusyId(undefined);
+      setItemBusy(item, false);
     }
   };
 
   const snooze = async (item: HumanAttentionItem, until: string | null): Promise<void> => {
-    setBusyId(itemKey(item));
+    setItemBusy(item, true);
     setActionError(undefined);
     try {
       await commandsFor(item).snoozeActivityList(item, until);
-      if (replySource !== undefined && itemKey(replySource) === itemKey(item))
-        setReplySource(undefined);
+      closeDetail(item);
     } catch {
       setActionError(t('activityList.failed'));
     } finally {
-      setBusyId(undefined);
+      setItemBusy(item, false);
     }
   };
 
@@ -894,13 +905,7 @@ export function ActivityListView({
                             item={item}
                             actions={commandsFor(item)}
                             t={t}
-                            onDone={() => {
-                              if (
-                                replySource !== undefined &&
-                                itemKey(replySource) === itemKey(item)
-                              )
-                                setReplySource(undefined);
-                            }}
+                            onDone={() => closeDetail(item)}
                             onError={() => setActionError(t('activityList.failed'))}
                           />
                         ) : null}
@@ -910,7 +915,7 @@ export function ActivityListView({
                               variant="primary"
                               size="sm"
                               type="button"
-                              disabled={busyId === itemKey(item)}
+                              disabled={busyIds.has(itemKey(item))}
                               onClick={() => void decide(item, true)}
                             >
                               {t('activityList.accept')}
@@ -919,7 +924,7 @@ export function ActivityListView({
                               variant="primary"
                               size="sm"
                               type="button"
-                              disabled={busyId === itemKey(item)}
+                              disabled={busyIds.has(itemKey(item))}
                               onClick={() => void decide(item, false)}
                             >
                               {t('activityList.decline')}
@@ -934,7 +939,7 @@ export function ActivityListView({
                             variant="primary"
                             size="sm"
                             type="button"
-                            disabled={busyId === itemKey(item)}
+                            disabled={busyIds.has(itemKey(item))}
                             onClick={() => void acknowledge(item)}
                           >
                             {t(
@@ -954,7 +959,7 @@ export function ActivityListView({
                             item={item}
                             t={t}
                             open={snoozeMenu === itemKey(item)}
-                            disabled={busyId === itemKey(item) || batchBusy}
+                            disabled={busyIds.has(itemKey(item)) || batchBusy}
                             onOpenChange={(open) => setSnoozeMenu(open ? itemKey(item) : undefined)}
                             onSnooze={(until) => void snooze(item, until)}
                           />
@@ -984,7 +989,7 @@ export function ActivityListView({
                           <Button
                             variant="ghost"
                             size="sm"
-                            disabled={busyId === itemKey(item)}
+                            disabled={busyIds.has(itemKey(item))}
                             onClick={() => void settleOne(item, true)}
                           >
                             {t('activityList.dismiss')}
@@ -994,7 +999,7 @@ export function ActivityListView({
                     </div>
                     {replySource !== undefined && itemKey(replySource) === itemKey(item) ? (
                       <div id={detailId} className="bh-activity-list-detail">
-                        {renderSource(item, () => setReplySource(undefined))}
+                        {renderSource(item, () => closeDetail(item))}
                       </div>
                     ) : null}
                   </article>
