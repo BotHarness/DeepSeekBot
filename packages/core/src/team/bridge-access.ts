@@ -108,6 +108,57 @@ export function guardHumanBridge(
           ].includes(property)
         )
           return Reflect.apply(operation, target, [payload, ...args]);
+        if (
+          deps.team &&
+          property === 'botAttention' &&
+          human.caller !== 'bot' &&
+          typeof input['slug'] === 'string' &&
+          !ownsBot(human, deps.registry.get(input['slug'])) &&
+          deps.team.bots.canReach(human, input['slug'])
+        ) {
+          const sharedSlug = input['slug'];
+          const dm = deps.channels
+            .list()
+            .find(
+              (channel) =>
+                channel.type === 'dm' &&
+                channel.botSlug === sharedSlug &&
+                (channel.dmHumanId ?? deps.registry.get(sharedSlug)?.ownerHumanId) ===
+                  human.humanId,
+            );
+          if (!dm) return { ok: true, value: { items: [] } };
+          admin ??= administration();
+          return admin.botAttention({ ...input, channelId: dm.id });
+        }
+        if (
+          deps.team &&
+          [
+            'pinsSet',
+            'hiddenSet',
+            'topReorder',
+            'channelAssign',
+            'rosterBatch',
+            'channelMuteSet',
+          ].includes(property)
+        ) {
+          const ids: unknown[] = [];
+          for (const key of ['pins', 'hidden', 'channelIds'])
+            if (Array.isArray(input[key])) ids.push(...input[key]);
+          if (Array.isArray(input['order']))
+            for (const entry of input['order'])
+              if (object(entry)['kind'] === 'channel') ids.push(object(entry)['id']);
+          if (typeof input['channelId'] === 'string') ids.push(input['channelId']);
+          if (
+            ids.some(
+              (id) =>
+                typeof id === 'string' &&
+                !deps.team?.bots.canReach(human, id) &&
+                !ownsBot(human, deps.registry.getHistorical(id)) &&
+                !deps.team?.channelAccess.canRead(human, id),
+            )
+          )
+            return refuse('channel-not-found');
+        }
         if (deps.team && property === 'channelDm' && typeof input['slug'] === 'string') {
           try {
             const channel = deps.team.bots.dm(human, input['slug']);
@@ -148,6 +199,7 @@ export function guardHumanBridge(
             return refuse('permission-required');
           const own = target.list(payload);
           if (!own.ok) return own;
+          const listed = new Set(own.value.bots.map((bot) => bot.slug));
           const query =
             typeof input['query'] === 'string' ? input['query'].trim().toLowerCase() : '';
           return {
@@ -160,6 +212,7 @@ export function guardHumanBridge(
                   .filter(
                     (bot) =>
                       !ownsBot(human, bot) &&
+                      !listed.has(bot.slug) &&
                       (!query ||
                         bot.displayName.toLowerCase().includes(query) ||
                         bot.slug.includes(query)),

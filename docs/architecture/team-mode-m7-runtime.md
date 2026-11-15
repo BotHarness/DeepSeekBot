@@ -207,6 +207,51 @@ when that Human's Bot changes ownership. Private, never-published Human–Bot DM
 history-transfer semantics. Bot–Bot DMs retain their recorded initiating Human across transfer;
 member purge removes that participant's DM independently of either Bot's later owner.
 
+## Shared discovery and participant arrangement
+
+Ordinary `list` keeps the principal's full entries unchanged. Other reachable public Bots are
+an explicit metadata-only projection, including for the Owner and all-Bots managers:
+
+```ts
+{
+  slug: string;
+  displayName: string;
+  avatar?: string;
+  appearance?: AvatarAppearance | RetainedAvatarAppearance;
+  primaryColor?: BotPrimaryColor;
+  paused: boolean;
+  deleted: false;
+  sharedBy: { humanId: string; displayName: string };
+  metadataOnly: true;
+}
+```
+
+No prompt, role tag, description, Model Plan, Workspace, Memory path, activity or Session field
+is included. Image avatars use the existing asset URL. Shared search matches only public names
+and slugs. Discovery reuses the current audience/principal query, decodes only reachable rows,
+and adds one read independent of Bot count; query-count and malformed-private-record tests guard
+this boundary. Deleted Bots are unreachable and disappear; principal deactivation, role revoke,
+and audience shrink are effective on the next list. Existing participant DMs remain in Channels
+as read-only history after audience loss. Explicit administrative discovery retains M11/M2's
+existing metadata rules and deduplicates shared entries.
+
+The named migration `human-roster-arrangements` adds one operational row per Human who customizes
+an arrangement. It reuses the RosterStore operations and schema for pins, hidden entries, sections
+and order. The legacy local-Human row/import is unchanged. Arrangement reads and writes use the
+trusted caller, including after Host ownership transfer; no actor id comes from a payload. Shared
+slugs and accessible Channels may be arranged without granting Bot management. Arrangement writes
+serialize per Human, survive reopening, and inherit Human deletion cleanup through their foreign key.
+Roster invalidation carries no arrangement contents across Humans.
+
+The existing `openBot` path can use `channelDm`, Channel projection, messages, timeline, send and
+`botAttention`. For a reachable non-principal, attention derives their DM from trusted participation
+and restricts the SQL page to that Channel before pagination. A payload cannot select someone else's
+DM; absent participant DM returns an empty page. This participant projection is Human-only; Bot
+callers retain their existing inspection refusals. Bot settings, Memory, models, Workspaces, schedules
+and Sessions retain their existing refusals. `openBot`'s separate Session load therefore remains a
+refusal and does not acquire a shared transcript. Existing all-Bots administrative capabilities
+remain explicit and do not grant content access. No Client or mobile code changes are included.
+
 ## UI integration needs
 
 1. Bot settings visibility and audience controls, using `audienceDirectory`; publication permission and principal/all-Bots management gating.

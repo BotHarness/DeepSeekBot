@@ -1,3 +1,6 @@
+import { isAvatarAppearance, isRetainedAvatarAppearance } from '../bots/avatar-appearance.js';
+import { currentBotPrimaryColor, isBotPrimaryColor } from '../bots/primary-color.js';
+import { botAvatarUrl } from '../bots/avatar-http.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
 import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
@@ -191,25 +194,30 @@ export class TeamBots {
     }));
     return { visibility: bot.visibility, switches: bot.switches, audienceDirectory };
   }
-  reachable(human: HumanContext) {
-    const bots = z.array(botRow.extend({ principalDisplayName: z.string() })).parse(
-      this.db.read((db) =>
-        db
-          .prepare(`
+  private reachableRows(human: HumanContext) {
+    return this.db.read((db) =>
+      db
+        .prepare(`
       SELECT b.slug, b.owner_human_id AS owner, b.body, b.visibility_json AS visibility, b.switches_json AS switches,
         h.display_name AS principalDisplayName
       FROM persona_bots b JOIN humans h ON h.human_id=b.owner_human_id CROSS JOIN team_settings s
       JOIN humans viewer ON viewer.human_id=? AND viewer.status='active'
       WHERE h.status='active' AND (s.enabled=1 OR h.human_id=s.owner_human_id)
+      AND (s.enabled=1 OR viewer.human_id=s.owner_human_id)
       AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug=b.slug)
+      AND json_extract(b.body,'$.deletedAt') IS NULL
       AND (b.owner_human_id=viewer.human_id OR (json_extract(b.visibility_json,'$.kind')='public' AND (
         json_extract(b.visibility_json,'$.audience.kind')='everyone'
         OR EXISTS (SELECT 1 FROM json_each(b.visibility_json,'$.audience.humanIds') a WHERE a.value=viewer.human_id)
         OR EXISTS (SELECT 1 FROM human_roles r JOIN json_each(b.visibility_json,'$.audience.roleIds') a ON a.value=r.role_id WHERE r.human_id=viewer.human_id))))
       ORDER BY b.slug`)
-          .all(human.humanId),
-      ),
+        .all(human.humanId),
     );
+  }
+  reachable(human: HumanContext) {
+    const bots = z
+      .array(botRow.extend({ principalDisplayName: z.string() }))
+      .parse(this.reachableRows(human));
     return bots.map((bot) => ({
       slug: bot.slug,
       displayName: bot.body.displayName,
@@ -217,6 +225,56 @@ export class TeamBots {
       visibility: bot.visibility.kind,
       principalDisplayName: bot.principalDisplayName,
     }));
+  }
+  sharedRoster(human: HumanContext) {
+    const rows = z
+      .array(
+        z.object({
+          slug: z.string(),
+          owner: z.string(),
+          body: z.string(),
+          principalDisplayName: z.string(),
+        }),
+      )
+      .parse(this.reachableRows(human));
+    return rows
+      .filter((row) => row.owner !== human.humanId)
+      .map((row) => {
+        const bot = z
+          .object({
+            displayName: z.string(),
+            avatar: z.string().optional(),
+            paused: z.boolean().optional(),
+            appearance: z
+              .custom<
+                | import('../bots/avatar-appearance.js').AvatarAppearance
+                | import('../bots/avatar-appearance.js').RetainedAvatarAppearance
+              >((value) => isAvatarAppearance(value) || isRetainedAvatarAppearance(value))
+              .optional(),
+            primaryColor: z
+              .custom<import('../bots/primary-color.js').BotPrimaryColor>(isBotPrimaryColor)
+              .optional(),
+          })
+          .parse(JSON.parse(row.body));
+        const color = currentBotPrimaryColor(bot.primaryColor);
+        return {
+          slug: row.slug,
+          displayName: bot.displayName,
+          ...(bot.avatar === undefined
+            ? {}
+            : {
+                avatar: bot.avatar.startsWith('data:image/')
+                  ? botAvatarUrl(row.slug, bot.avatar)
+                  : bot.avatar,
+              }),
+          ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
+          ...(color === undefined ? {} : { primaryColor: color }),
+          paused: bot.paused === true,
+          deleted: false,
+          sharedBy: { humanId: row.owner, displayName: row.principalDisplayName },
+          metadataOnly: true as const,
+        };
+      });
   }
   setVisibility(human: HumanContext, slug: string, visibility: BotVisibility, confirm?: boolean) {
     const bot = this.bot(slug);

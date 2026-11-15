@@ -140,6 +140,7 @@ function nextGlobalState(
 export interface RosterStoreOptions {
   database: OperationalDatabaseOwner;
   warn?: ((message: string) => void) | undefined;
+  humanId?: string;
   onCommitted?: (() => void) | undefined;
 }
 
@@ -179,6 +180,7 @@ function validateArrangement(value: unknown): ArrangementRecord {
 export class RosterStore {
   private readonly database: OperationalDatabaseModulePort;
   private imported = false;
+  private readonly humans = new Map<string, RosterStore>();
   private draft: ArrangementDraft | undefined;
   private opening: Promise<void> | undefined;
   private closing = false;
@@ -187,7 +189,8 @@ export class RosterStore {
 
   constructor(private readonly options: RosterStoreOptions) {
     this.database = attachOperationalModule(options.database, 'roster');
-    if (options.database.mode === 'ready') {
+    if (options.humanId && options.database.mode === 'ready') this.imported = true;
+    else if (options.database.mode === 'ready') {
       this.imported = this.database.read(
         (database) =>
           database
@@ -198,12 +201,23 @@ export class RosterStore {
     }
   }
 
+  forHuman(humanId: string): RosterStore {
+    if (humanId === 'local-human' || humanId === this.options.humanId) return this;
+    let store = this.humans.get(humanId);
+    if (!store) {
+      store = new RosterStore({ ...this.options, humanId });
+      this.humans.set(humanId, store);
+    }
+    return store;
+  }
+
   get available(): boolean {
     return this.imported && !this.closing && this.options.database.mode === 'ready';
   }
 
   async attach(facility: RosterDomainFacility): Promise<void> {
     this.closing = false;
+    for (const store of this.humans.values()) await store.attach(facility);
     if (this.imported) return;
     if (this.opening !== undefined) return this.opening;
     if (this.options.database.mode !== 'ready') throw new RosterUnavailableError();
@@ -263,6 +277,7 @@ export class RosterStore {
     this.closing = true;
     if (this.opening !== undefined) await this.opening.catch(() => {});
     await this.tail;
+    await Promise.all([...this.humans.values()].map((store) => store.detach()));
   }
 
   snapshot(): RosterSnapshot {
@@ -650,8 +665,12 @@ export class RosterStore {
               });
               if (before !== after)
                 database
-                  .prepare('UPDATE roster_arrangement SET body = ? WHERE singleton = 1')
-                  .run(after);
+                  .prepare(
+                    this.options.humanId
+                      ? 'INSERT INTO human_roster_arrangements(human_id,body) VALUES (?,?) ON CONFLICT(human_id) DO UPDATE SET body=excluded.body'
+                      : 'UPDATE roster_arrangement SET body = ? WHERE singleton = 1',
+                  )
+                  .run(...(this.options.humanId ? [this.options.humanId, after] : [after]));
               return outcome;
             } finally {
               this.draft = undefined;
@@ -708,8 +727,17 @@ export class RosterStore {
     try {
       return this.database.read((database) => {
         const row = database
-          .prepare('SELECT body FROM roster_arrangement WHERE singleton = 1')
-          .get();
+          .prepare(
+            this.options.humanId
+              ? 'SELECT body FROM human_roster_arrangements WHERE human_id=?'
+              : 'SELECT body FROM roster_arrangement WHERE singleton = 1',
+          )
+          .get(...(this.options.humanId ? [this.options.humanId] : []));
+        if (!row && this.options.humanId)
+          return {
+            state: { pins: [], hidden: [], muted: [], sectionOrder: [] },
+            sections: new Map(),
+          };
         if (typeof row?.body !== 'string') throw new RosterUnavailableError();
         const record = validateArrangement(JSON.parse(row.body));
         return { state: record.state, sections: new Map(record.sections) };

@@ -163,6 +163,7 @@ import type {
   PersonaBotDetail,
   ApprovalTemplateEntry,
   PersonaBotSummary,
+  SharedBotSummary,
   OwnedSessionSummary,
   OwnedSessionBot,
   ProfileActivity,
@@ -1339,7 +1340,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  list(query?: string, administration?: boolean): { bots: Array<PersonaBotSummary | BotMetadata> } {
+  list(
+    query?: string,
+    administration?: boolean,
+  ): { bots: Array<PersonaBotSummary | SharedBotSummary | BotMetadata> } {
     return unwrap(
       this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
     );

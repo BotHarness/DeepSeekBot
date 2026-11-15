@@ -750,7 +750,7 @@ describe('M7 Bot principal and participant authority', () => {
       db.read((db) =>
         db
           .prepare('SELECT id FROM schema_migrations WHERE generation=?')
-          .get(BOT_HARNESS_SCHEMA_PLAN.targetGeneration),
+          .get(BOT_HARNESS_SCHEMA_PLAN.generationOf('bot-visibility')),
       ),
     ).toEqual({ id: 'bot-visibility' });
   });

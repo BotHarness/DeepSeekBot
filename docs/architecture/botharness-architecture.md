@@ -1704,3 +1704,8 @@ Bot DMs explicitly use participant authority; this does not give the principal p
 content or delegate M11 audited viewing to Bots. M6 remains the shared Memory placement authority: public Bots use audience-matched, hidden
 `shared/.bot-<slug>/bots/<slug>/memory` repositories, with journaled relocation on publication or
 return to private and atomic audience retargeting. These spaces are never grantable folders.
+
+M7 shared discovery projects reachable non-owned public Bots as metadata-only roster entries;
+full Bot records remain principal-scoped. Per-Human arrangements persist independently in the
+operational database, and shared Bot attention is restricted to the participating Human DM.
+See [M7 runtime](team-mode-m7-runtime.md#shared-discovery-and-participant-arrangement).

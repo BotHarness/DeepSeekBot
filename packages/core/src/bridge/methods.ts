@@ -512,6 +512,10 @@ export interface ActivityOverview {
   }>;
 }
 
+export type SharedBotSummary = ReturnType<
+  import('../team/bots.js').TeamBots['sharedRoster']
+>[number];
+
 export interface PersonaBotSummary {
   modelAllowed?: boolean;
   ownerHumanId?: string;
@@ -794,7 +798,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   ): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   modelPlanAssignmentsSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   modelPlanSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  list(payload: unknown): BridgeResult<{ bots: PersonaBotSummary[] }>;
+  list(payload: unknown): BridgeResult<{ bots: Array<PersonaBotSummary | SharedBotSummary> }>;
   activitySnapshot(payload: unknown): BridgeResult<PersonaBotActivitySnapshot>;
   get(payload: unknown): BridgeResult<{ bot: PersonaBotDetail; profileFingerprint: string }>;
   create(payload: unknown): BridgeResult<{
@@ -2129,6 +2133,10 @@ export function createBridgeMethods(human: HumanContext, deps: BridgeMethodsDeps
   const scoped: BridgeMethodsDeps = {
     ...deps,
     registry,
+    roster:
+      human.humanId === OWNER_HUMAN_CONTEXT.humanId
+        ? deps.roster
+        : deps.roster.forHuman(human.humanId),
   };
   delete scoped.creations;
   delete scoped.imports;
@@ -4150,7 +4158,16 @@ function buildBridgeMethods(
               }
             : {}),
         }));
-      return { ok: true, value: { bots } };
+      const shared =
+        deps.team?.bots
+          .sharedRoster(human)
+          .filter(
+            (bot) =>
+              !query ||
+              bot.displayName.toLowerCase().includes(query) ||
+              bot.slug.toLowerCase().includes(query),
+          ) ?? [];
+      return { ok: true, value: { bots: [...bots, ...shared] } };
     },
     channelActivityToday() {
       if (deps.channels.humanMessageCounts === undefined)
@@ -7364,7 +7381,7 @@ function buildBridgeMethods(
       if (mentions.length > 0 && channel.type === 'dm' && channel.botSlug === undefined)
         return invalidInput('Bot-to-Bot DMs are read-only for Human');
       for (const mention of mentions) {
-        const target = deps.registry.get(mention.botSlug);
+        const target = globalRegistry.get(mention.botSlug);
         if (
           (channel.type === 'group'
             ? !channel.members.includes(mention.botSlug)
@@ -7386,9 +7403,9 @@ function buildBridgeMethods(
       if (
         channel.type === 'dm' &&
         channel.botSlug !== undefined &&
-        ((deps.registry.getHistorical(channel.botSlug) !== undefined &&
-          deps.registry.get(channel.botSlug) === undefined) ||
-          deps.registry.get(channel.botSlug)?.paused === true)
+        ((globalRegistry.getHistorical(channel.botSlug) !== undefined &&
+          globalRegistry.get(channel.botSlug) === undefined) ||
+          globalRegistry.get(channel.botSlug)?.paused === true)
       ) {
         return dmAdmissionFailure(channelId, channel.botSlug, 'archived-bot');
       }
@@ -7521,6 +7538,7 @@ function buildBridgeMethods(
           ok: true,
           value: deps.attention?.list({
             botSlug: slug,
+            ...(typeof source['channelId'] === 'string' ? { channelId: source['channelId'] } : {}),
             ...(limit === undefined ? {} : { limit: limit as number }),
             ...(cursor === undefined ? {} : { cursor: cursor as string }),
             ...(state === undefined ? {} : { state: state as BotAttentionState }),
@@ -9968,18 +9986,6 @@ function buildBridgeMethods(
       };
     },
     rosterGet() {
-      if (human.humanId !== OWNER_HUMAN_CONTEXT.humanId)
-        return {
-          ok: true,
-          value: {
-            pins: [],
-            hidden: [],
-            muted: [],
-            sectionOrder: [],
-            sections: [],
-            topOrder: undefined,
-          },
-        };
       try {
         return { ok: true, value: deps.roster.snapshot() };
       } catch (error) {
@@ -10068,8 +10074,14 @@ function buildBridgeMethods(
       if (action !== 'move' && sectionId !== undefined) {
         return invalidInput('sectionId is only valid for a rosterBatch move');
       }
-      const channels = deps.channels.list();
-      const known = new Set(channels.map((channel) => channel.id));
+      const channels = deps.channels
+        .list()
+        .filter((channel) => !deps.team || deps.team.channelAccess.canRead(human, channel.id));
+      const known = new Set([
+        ...channels.map((channel) => channel.id),
+        ...deps.registry.list().map((bot) => bot.slug),
+        ...(deps.team?.bots.reachable(human).map((bot) => bot.slug) ?? []),
+      ]);
       if (channelIds.some((id) => !known.has(id))) {
         return invalidInput('rosterBatch contains an unknown Channel');
       }

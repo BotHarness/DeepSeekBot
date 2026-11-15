@@ -3715,6 +3715,18 @@ export const BOT_VISIBILITY_MIGRATION: SchemaMigration = {
   },
 };
 
+const HUMAN_ROSTER_ARRANGEMENTS_MIGRATION: SchemaMigration = {
+  id: 'human-roster-arrangements',
+  module: 'roster',
+  description: 'Keep each Human sidebar arrangement independent from the legacy local Human roster',
+  migrate(database) {
+    database.exec(`CREATE TABLE human_roster_arrangements (
+      human_id TEXT PRIMARY KEY REFERENCES humans(human_id) ON DELETE CASCADE,
+      body TEXT NOT NULL
+    )`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3870,4 +3882,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MINIMAL_MEMBER_MIGRATION,
   MIGRATION_LEDGER_MIGRATION,
   BOT_VISIBILITY_MIGRATION,
+  HUMAN_ROSTER_ARRANGEMENTS_MIGRATION,
 ]);

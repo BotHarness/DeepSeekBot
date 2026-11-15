@@ -35,6 +35,7 @@ export type {
   BridgeResult,
   PersonaBotDetail,
   PersonaBotSummary,
+  SharedBotSummary,
 } from './bridge/methods.js';
 export {
   BRIDGE_NAMESPACE,

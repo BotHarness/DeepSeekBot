@@ -74,3 +74,8 @@ meaning. Audience changes retarget the space; private visibility moves Memory to
 principal's account. Relocation reuses M6's durable journal, ownership proofs, rollback before commit
 and resumable source retirement. The hidden space is omitted from folder/Workspace APIs and is not
 an independently managed folder. This implements the spec's shared-Memory requirement in M7.
+
+M7 shared discovery uses an explicit metadata projection for non-principals, including the Host
+Owner. Arranging a reachable Bot does not grant management or transcript access. Per-Human roster
+arrangements reuse the existing RosterStore domain schema in independent operational rows; the
+legacy local-Human row remains that Human’s arrangement across Host ownership changes.
