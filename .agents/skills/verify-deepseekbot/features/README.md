@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Anonymous Bot Session token telemetry | only for live reply proof | `scripts/e2e-token-telemetry.mjs` | [token-telemetry.md](token-telemetry.md) |
 | Saved IM settings before connection checks | no | `verify-app` isolated settings path and read-mode CLI | [im-settings-loading.md](im-settings-loading.md) |
 | Lightweight settings during first-Tob preparation | no | `scripts/e2e-settings-loading.mjs` | [settings-loading.md](settings-loading.md) |
 | Durable timed-question answers across Host restart | yes | `verify-app` original card + `user-question-answer` | [timed-question-recovery.md](timed-question-recovery.md) |

@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "telemetry.bot-tokens",
+      "label": "Anonymous Bot Session token snapshots",
+      "source": "packages/core/src/telemetry/token-usage.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/token-telemetry.md",
+      "task": 4255,
+      "gap": "Wire comparison uses real local Host usage and production reporter source; hourly scheduling, provider coverage, PostHog ingestion and Human QA remain distinct checks."
+    },
+    {
       "id": "settings.first-tob-loading",
       "label": "Responsive lightweight settings during first-Tob Memory preparation",
       "source": "packages/core/src/tob/service.ts",
@@ -2610,6 +2618,14 @@
       "reason": "Fresh-Profile concurrent onboarding and settings requests with a 500ms response budget.",
       "task": 4226,
       "sha256": "a60b02ee56b57a840535969cefcdf28d1cdfa0bfe5d07047483289aeacbc89a8"
+    },
+    {
+      "path": "scripts/e2e-token-telemetry.mjs",
+      "category": "mapped",
+      "behaviors": ["telemetry.bot-tokens"],
+      "reason": "Compares live Host Overview with production token snapshot reader and serializer; optional separately marked QA wire send.",
+      "task": 4255,
+      "sha256": "925304c37a3fd15e198ecdc54fe954e6f888d4b68dc3fd6e6a8760867d61e2ef"
     }
   ],
   "native": [
