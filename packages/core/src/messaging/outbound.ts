@@ -2512,7 +2512,7 @@ export function createOutboundMessaging(options: {
             ...(latest.platform === 'weixin'
               ? {
                   typing: {
-                    supported: accounts.some(
+                    supported: (mode === 'status' ? statusAccounts : accounts).some(
                       (account) =>
                         account.providerId === latest.providerId &&
                         account.ref === latest.accountRef &&

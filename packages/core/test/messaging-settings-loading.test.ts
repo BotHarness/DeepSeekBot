@@ -6,7 +6,7 @@ import type { MessagingProvider } from '../src/messaging/provider.js';
 import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 
-async function fixture() {
+async function fixture(platform = 'qq') {
   const agents: BotAgentAdapter = {
     async runOrchestrator() {},
     async runAssignment() {},
@@ -19,7 +19,8 @@ async function fixture() {
   const core = createCore({ dshHome: createTempRoot('botharness-settings-loading-'), agents });
   const account = {
     ref: 'app',
-    platform: 'qq',
+    platform,
+    typingSupported: true,
     name: 'Saved app',
     fingerprint: 'a'.repeat(64),
     connected: true,
@@ -61,25 +62,26 @@ async function fixture() {
     fingerprint: account.fingerprint,
   });
   if (!consumer) throw Error('Missing receiver');
-  await consumer.onEvent(
-    {
-      version: 1,
-      channel: 'qq',
-      botId: 'app',
-      fingerprint: account.fingerprint,
-      eventId: 'first',
-      messageId: 'first',
-      actor: { kind: 'user', id: 'member' },
-      conversation: { kind: 'group', id: 'group', name: 'Saved group' },
-      mentions: [{ id: 'app', key: '@app' }],
-      mentionedAccount: true,
-      at: new Date(Date.now() + 1000).toISOString(),
-      text: 'fixture',
-      reply: { messageId: 'first', conversationId: 'group', actorId: 'member' },
-      replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
-    },
-    consumer.signal,
-  );
+  if (platform === 'qq')
+    await consumer.onEvent(
+      {
+        version: 1,
+        channel: 'qq',
+        botId: 'app',
+        fingerprint: account.fingerprint,
+        eventId: 'first',
+        messageId: 'first',
+        actor: { kind: 'user', id: 'member' },
+        conversation: { kind: 'group', id: 'group', name: 'Saved group' },
+        mentions: [{ id: 'app', key: '@app' }],
+        mentionedAccount: true,
+        at: new Date(Date.now() + 1000).toISOString(),
+        text: 'fixture',
+        reply: { messageId: 'first', conversationId: 'group', actorId: 'member' },
+        replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
+      },
+      consumer.signal,
+    );
   for (let i = 0; i < 4; i++) await tick();
   await core.runtime.whenIdle();
   const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'qa')!;
@@ -114,6 +116,21 @@ async function fixture() {
     },
   };
 }
+
+it('projects checked Weixin typing support from the bound account in status mode', async () => {
+  const fx = await fixture('weixin');
+  try {
+    expect(
+      (await fx.core.externalMessaging.snapshot('qa', 'saved')).identities?.[0]?.typing?.supported,
+    ).toBe(false);
+    expect(
+      (await fx.core.externalMessaging.snapshot('qa', 'status')).identities?.[0]?.typing?.supported,
+    ).toBe(true);
+    expect(fx.reads).toBe(1);
+  } finally {
+    await fx.close();
+  }
+});
 
 it('returns saved identity and conversation settings before live checks complete', async () => {
   const fx = await fixture();

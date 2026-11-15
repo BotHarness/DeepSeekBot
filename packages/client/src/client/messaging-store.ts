@@ -34,8 +34,7 @@ function storeFor(actions: MessagingActions): MessagingStore {
 export async function refreshMessaging(
   slug: string,
   actions: MessagingActions,
-  progressive = false,
-  invalidate = false,
+  { progressive = false, invalidate = false }: { progressive?: boolean; invalidate?: boolean } = {},
 ): Promise<void> {
   const store = storeFor(actions);
   const settings = progressive && !store.discovery.has(slug);
@@ -89,6 +88,10 @@ export function useMessagingSnapshot(
         if (!listeners.size) {
           store.listeners.delete(slug);
           store.discovery.delete(slug);
+          store.pending.delete(`${slug}:settings`);
+          store.pending.delete(`${slug}:discovery`);
+          store.requests.set(slug, (store.requests.get(slug) ?? 0) + 1);
+          store.snapshots.delete(slug);
         }
       };
     },
@@ -106,7 +109,7 @@ export function useMessagingSnapshot(
     const sequence = ++latest.current;
     const current = () => isActive() && sequence === latest.current;
     try {
-      await refreshMessaging(slug, actions, progressive, invalidate);
+      await refreshMessaging(slug, actions, { progressive, invalidate });
       if (current()) setFailed(false);
     } catch (error) {
       if (current()) setFailed(true);

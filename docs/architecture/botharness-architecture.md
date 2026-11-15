@@ -12,7 +12,7 @@ E11 执行保护与 E6 凭据事务的顺序固定为：执行 Web Lock → 短�
 
 私有线路确认绑定所属 Host 返回的不透明配置代次，同一值贯穿所显示的计划、UI 或 CLI 确认、发送、确认响应与未知结果回读。Host 在现有生命周期串行操作内、写入停止状态或关闭运行资源之前比较该值；替换、删除后重加或 Host 重启均使旧确认失效。持久化成功后，配置与代次同时发布。运行健康和端口更新保留配置身份；Quick 公开地址变化时同时更新代次，必须重新确认，代次不从连接器令牌派生。同 ID 新配置不会被旧确认停止，其停止状态也不能解除旧操作的未知记录。没有代次的旧私有停止记录保持未知。既有本地 owner 明确的无条件控制保留原语义。新的非空执行文档使用版本 3；读取时仍保留旧版本 2 与引用记录。旧数组读取器和版本 2 读取器都拒绝整个新文档，避免管理其他 Host 的旧 writer 擦除配置代次。
 
-远程连接执行保护及其兼容性限制见 [ADR-0343](../adr/0340-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
+远程连接执行保护及其兼容性限制见 [ADR-0340](../adr/0340-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
 
 E11 在独立 Settings Target 下复用目标 Host 的设备、单条私有路由和账号 owner。计划切换先验证既有替代路由，明确保存本 Client 的手动偏好，等待实际连接切换并回读精确 Host 后才执行一次；没有替代路由则明确确认断开。Client 既有 HostStorage 所有者下的独立执行索引中的记录绑定 Host 公钥、设备、操作/路由及代次，结果未知时跨重载保留，不成为 Host 配置权威，也不自动重放，其他 SavedHost 数组写入不能擦除它。共享 Web Lock 覆盖准备、保护持久化、一次写入、确认及回读 CAS；缺少 Web Locks 时拒绝危险写入。最多保留 32 条未解决事实而不自动清除。新独立授权可明确通过同一 Host 公钥核对旧操作的结果，但不继承或重发操作；公钥变化拒绝核对，清除仍按代次 CAS。退出登录、关系断开、单设备撤销和单路由停止保持独立权限和效果，不操作外部 Tailscale 映射或无关 Host 进程。
 

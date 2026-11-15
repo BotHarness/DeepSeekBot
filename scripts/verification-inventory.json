@@ -1002,6 +1002,13 @@
       "guide": ".agents/skills/verify-deepseekbot/features/bot-call.md",
       "task": 3403,
       "gap": "The DSH desktop app's microphone permission and the Electron helper on real Mac and Windows Hosts are unverified until the device QA run."
+    },
+    {
+      "id": "im-settings-loading",
+      "label": "Saved IM settings before live checks",
+      "source": "packages/core/src/messaging/outbound.ts",
+      "task": 4247,
+      "guide": ".agents/skills/verify-deepseekbot/features/im-settings-loading.md"
     }
   ],
   "scripts": [

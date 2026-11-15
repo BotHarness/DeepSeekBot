@@ -101,6 +101,41 @@ it('discovers apps only on request and keeps discovery available until the last 
   }
 });
 
+it('rereads saved settings on reopen and rejects responses from the closed view', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const old = deferred<MessagingSnapshot>();
+  const fresh = deferred<MessagingSnapshot>();
+  let reopened = false;
+  const actions: Actions = {
+    messagingSnapshot: async (_slug, mode) =>
+      mode === 'saved'
+        ? value(reopened ? 'New configuration' : 'Old configuration', 'pending')
+        : reopened
+          ? fresh.promise
+          : old.promise,
+  };
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  document.body.append(container);
+  try {
+    await act(async () => root.render(createElement(Probe, { actions })));
+    expect(container.textContent).toContain('Old configuration');
+    await act(async () => root.render(null));
+    reopened = true;
+    await act(async () => root.render(createElement(Probe, { actions })));
+    expect(container.textContent).toContain('New configuration:pending');
+    await act(async () => old.resolve(value('STALE', 'complete')));
+    expect(container.textContent).not.toContain('STALE');
+    await act(async () => fresh.resolve(value('New checked', 'complete')));
+    expect(container.textContent).toContain('New checked:complete');
+  } finally {
+    old.resolve(value('closed', 'complete'));
+    fresh.resolve(value('closed', 'complete'));
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
 it('isolates equal Bot ids across Host/Human action scopes and ignores an invalidated response', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const oldLive = deferred<MessagingSnapshot>();
@@ -124,7 +159,7 @@ it('isolates equal Bot ids across Host/Human action scopes and ignores an invali
     revision = 1;
     let refreshing: Promise<void>;
     await act(async () => {
-      refreshing = refreshMessaging('same-bot', a, true, true);
+      refreshing = refreshMessaging('same-bot', a, { progressive: true, invalidate: true });
     });
     expect(container.textContent).toContain('A1:pending');
     await act(async () => oldLive.resolve(value('STALE', 'complete')));
