@@ -1910,7 +1910,10 @@ function ConversationView({
   const skillCatalogMount = useMountedResource<HTMLSpanElement>(() => {
     let cancelled = false;
     setSkillCatalog(undefined);
-    if (channel?.type === 'dm' && channel.botSlug !== undefined && actions.skillCatalog)
+    if (
+      ((channel?.type === 'dm' && channel.botSlug !== undefined) || channel?.type === 'group') &&
+      actions.skillCatalog
+    )
       void actions
         .skillCatalog(channel.id)
         .then((skills) => {
@@ -1920,7 +1923,7 @@ function ConversationView({
     return () => {
       cancelled = true;
     };
-  }, [scopeKey, channelId]);
+  }, [scopeKey, channelId, previewRoster]);
   const skillOptions: ComposerSkillOption[] = (skillCatalog ?? []).map((entry) => ({
     ...entry,
     bot:
