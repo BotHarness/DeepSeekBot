@@ -46,7 +46,9 @@ Host after verification.
 
 ## Startup recovery regression (#4242)
 
-Use a task-local simulated QQ Provider, never a production receiver. Bind while ready, admit
+Use `scripts/fixtures/reception-recovery.mjs` in a task-local Profile, never a production receiver.
+Its command file accepts `bind` and `mention` for a Bot named `Reception QA…`; the `offline`
+file delays receiver acquisition while the app remains connected. Bind while ready, admit
 one fresh group mention, then restart the same isolated Profile with readiness delayed beyond
 the previous three-attempt budget. Keep the real settings mounted: app connection and message
 reception must remain distinct, with retry reason and next retry time. Once ready, the view

@@ -56,3 +56,15 @@ it('shows receiving and disabled states independently from Bot activity', () => 
     renderToStaticMarkup(createElement(ReceptionStatus, { reception: 'off', t: zhTranslate })),
   ).toContain('已停用');
 });
+
+it('points unsupported connectors to their version and permissions rather than repeated reconnects', () => {
+  const html = renderToStaticMarkup(
+    createElement(ReceptionStatus, {
+      reception: 'unavailable',
+      recovery: { kind: 'action-required', reason: 'provider-incompatible' },
+      t: enTranslate,
+    }),
+  );
+  expect(html).toContain('connector version and receive permissions');
+  expect(html).not.toContain('Reconnect and try again');
+});

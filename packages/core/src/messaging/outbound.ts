@@ -2295,13 +2295,20 @@ export function createOutboundMessaging(options: {
         receptionNeedsAttention: snapshots.some(
           (snapshot, index) =>
             current.members.includes(channel.members[index]!) &&
-            snapshot.identities?.some(
-              (identity) =>
-                identity.enabled &&
-                !identity.revokedAt &&
-                (identity.recovery?.kind === 'action-required' ||
-                  identity.availability === 'rebind-required'),
-            ),
+            (snapshot.grants.some(
+              (grant) =>
+                grant.receiveScope &&
+                !grant.revokedAt &&
+                !grant.suspendedReason &&
+                grant.recovery?.kind === 'action-required',
+            ) ||
+              snapshot.identities?.some(
+                (identity) =>
+                  identity.enabled &&
+                  !identity.revokedAt &&
+                  (identity.recovery?.kind === 'action-required' ||
+                    identity.availability === 'rebind-required'),
+              )),
         ),
         bridges: grants.flatMap((g) =>
           channelBridgeRoutes(g)

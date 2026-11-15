@@ -127,8 +127,9 @@ async function fixture() {
       fingerprint = 'b'.repeat(64);
     },
     replaceProvider() {
-      registrations.forEach((dispose) => dispose());
+      const previous = registrations;
       registrations = [core.externalMessaging.register(createDshImProvider(service, 'qq')!)];
+      previous.forEach((dispose) => dispose());
     },
     settle,
     async bind(account: Account) {
@@ -358,4 +359,24 @@ it('does not resurrect revoked grants while the account is still recovering', as
   const snapshot = await fx.core.externalMessaging.snapshot('ada');
   expect(snapshot.grants[0]?.reception).toBe('off');
   expect(snapshot.grants[0]?.recovery).toBeUndefined();
+});
+
+it('surfaces grant-only permanent failure when the account is receiving and no bridge exists', async () => {
+  const fx = await fixture();
+  await fx.bind('qq-a');
+  await fx.receive('qq-a', 'before-grant-failure');
+  vi.spyOn(fx.core.externalMessaging.inbound, 'recovery').mockReturnValue({
+    kind: 'action-required',
+    reason: 'capability-unavailable',
+  });
+  try {
+    const snapshot = await fx.core.externalMessaging.snapshot('ada');
+    expect(snapshot.identities?.[0]?.reception).toBe('receiving');
+    const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada')!;
+    const projection = await fx.core.externalMessaging.channelBridges(dm.id);
+    expect(projection.bridges).toEqual([]);
+    expect(projection.receptionNeedsAttention).toBe(true);
+  } finally {
+    vi.restoreAllMocks();
+  }
 });

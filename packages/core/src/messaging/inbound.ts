@@ -2299,6 +2299,14 @@ export function createInboundMessaging(options: {
     },
     readShared,
     register(provider) {
+      const previous = providers.get(provider.id);
+      if (previous) {
+        for (const [id, control] of controls)
+          if (control.token === previous.token) stopControl(id, 'provider-replaced');
+        for (const [id, lease] of leases) if (lease.token === previous.token) stop(id);
+        retries.clearOwner(previous.token);
+        controlRetries.clearOwner(previous.token);
+      }
       const token = {};
       providers.set(provider.id, {
         provider,

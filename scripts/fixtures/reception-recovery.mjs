@@ -20,24 +20,31 @@ export function apply(ctx, config) {
     echoVersion: 1,
     listBots: async () => [{ botId: 'synthetic-4242', channel: 'qq' }],
     listTargets: async () => [],
-    describeBot: async () => ({
-      version: 1,
-      botId: 'synthetic-4242',
-      channel: 'qq',
-      connected: ready(),
-      account: { fingerprint, name: 'Reception QA app' },
-      capabilities: [
-        'exclusive-text-consumer',
-        'reply-text-checked',
-        'reply-context-checked',
-        'reply-receipt-checked',
-        'reply-fence-checked',
-      ],
-    }),
+    describeBot: async () => {
+      const delayFile = resolve(directory, 'inspect-delay-ms');
+      const delay = existsSync(delayFile) ? Number(readFileSync(delayFile, 'utf8')) : 0;
+      if (delay > 0 && delay <= 2000) await new Promise((done) => setTimeout(done, delay));
+      return {
+        version: 1,
+        botId: 'synthetic-4242',
+        channel: 'qq',
+        connected: true,
+        account: { fingerprint, name: 'Reception QA app' },
+        capabilities: [
+          'exclusive-text-consumer',
+          'reply-text-checked',
+          'reply-context-checked',
+          'reply-receipt-checked',
+          'reply-fence-checked',
+        ],
+      };
+    },
     sendChecked: async () => {
       throw new Error('QA has no proactive route');
     },
     consumeInbound: async (_account, input) => {
+      if (!ready())
+        throw Object.assign(new Error('QA receiver not ready'), { code: 'provider-unavailable' });
       consumer = input;
       return () => {
         if (consumer === input) consumer = undefined;
@@ -90,7 +97,20 @@ export function apply(ctx, config) {
       },
       { signal: consumer.signal },
     );
-    return { messageId: id };
+    const sources = core.attention
+      .list({ botSlug: bot.slug })
+      .items.filter(
+        (item) => core.externalMessaging.inbound.read(bot.slug, item.id).event.messageId === id,
+      );
+    const reply =
+      request.reply && sources[0]
+        ? await core.externalMessaging.reply(bot.slug, sources[0].id, 'Reception QA recovered')
+        : undefined;
+    return {
+      messageId: id,
+      sourceIds: sources.map((item) => item.id),
+      ...(reply ? { reply } : {}),
+    };
   };
   let busy = false;
   let lastRequest;

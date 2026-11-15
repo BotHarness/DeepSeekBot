@@ -35,7 +35,11 @@ export function ReceptionStatus({
         {t(
           recovery.reason === 'rebind-required'
             ? 'reception.checkAccount'
-            : 'reception.tryReconnect',
+            : ['provider-incompatible', 'capability-unavailable', 'consumer-unavailable'].includes(
+                  recovery.reason,
+                )
+              ? 'reception.checkProvider'
+              : 'reception.tryReconnect',
         )}
       </span>
     );
