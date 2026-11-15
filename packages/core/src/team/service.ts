@@ -1098,6 +1098,7 @@ export class TeamService {
         { ...bot, ownerHumanId: humanId },
         'memberPurgeConfirm',
       );
+    await this.settleBotPreparations?.(humanId);
     this.purge!.memberConfirm(human, humanId, token);
     await this.purge!.memberSettled(humanId);
     this.invalidate();

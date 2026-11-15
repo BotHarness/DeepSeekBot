@@ -21,6 +21,7 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { createTobService } from '../src/tob/service.js';
+import * as memoryGit from '../src/memory/git.js';
 import { openPurgeLedger } from '../src/purge/ledger.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
@@ -942,8 +943,19 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     expect(tob.slug(bob)).toBeUndefined();
   });
 
-  it('drains member-owned Memory preparation before deleting a deactivated member account', async () => {
+  it('drains member-owned Memory preparation before deactivation and concurrent purge complete', async () => {
     const f = fixture();
+    let releasePreparation = (): void => {};
+    const preparation = new Promise<void>((resolve) => {
+      releasePreparation = resolve;
+    });
+    const initialize = memoryGit.initializeMemoryRepositoryAsync;
+    const held = vi
+      .spyOn(memoryGit, 'initializeMemoryRepositoryAsync')
+      .mockImplementationOnce(async (memoryDir) => {
+        await preparation;
+        return initialize(memoryDir);
+      });
     const preparing = f.core.registry.createAsync(
       { slug: 'preparing-bob', displayName: 'Preparing', ownerHumanId: 'bob' },
       () => {
@@ -951,13 +963,42 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       },
     );
     const rejected = expect(preparing).rejects.toThrow('member-unavailable');
-    await f.core.team.deactivate(owner, 'bob');
+    let deactivated = false;
+    const deactivating = f.core.team.deactivate(owner, 'bob').then(() => {
+      deactivated = true;
+    });
+    let purgeSettled = false;
+    let purgeRejection: Promise<void> | undefined;
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(deactivated).toBe(false);
+      expect(f.core.team.member('bob')?.status).toBe('deactivated');
+      const preview = f.core.team.purgePreview(owner, 'bob');
+      const purging = f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob').finally(() => {
+        purgeSettled = true;
+      });
+      purgeRejection = expect(purging).rejects.toMatchObject({ code: 'purge-token-invalid' });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(purgeSettled).toBe(false);
+      expect(f.core.team.member('bob')).toBeDefined();
+      expect(existsSync(join(f.dshHome, 'spaces', bob.humanId))).toBe(true);
+    } finally {
+      releasePreparation();
+      await Promise.allSettled([rejected, deactivating, purgeRejection]);
+      held.mockRestore();
+    }
     await rejected;
+    await deactivating;
+    await purgeRejection;
+    expect(deactivated).toBe(true);
+    expect(purgeSettled).toBe(true);
+    expect(f.core.team.member('bob')).toBeDefined();
     const preview = f.core.team.purgePreview(owner, 'bob');
     await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
     expect(f.core.tob.slug(bob)).toBeUndefined();
     expect(f.core.team.member('bob')).toBeUndefined();
     expect(f.core.registry.get('preparing-bob')).toBeUndefined();
+    expect(existsSync(join(f.dshHome, 'spaces', bob.humanId))).toBe(false);
   });
 
   it('does not publish a Tob when Host ownership changes during Memory preparation', async () => {
