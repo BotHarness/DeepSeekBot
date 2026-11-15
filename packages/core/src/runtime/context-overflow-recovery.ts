@@ -1,6 +1,8 @@
 import type { Agent, RequestErrorAction } from '@deepseek-ai/dsh-agent';
 import type {} from '@deepseek-ai/dsh-agent-preset-registry';
 import type { LlmFailure } from '@deepseek-ai/dsh-llm';
+import type {} from '@deepseek-ai/dsh-session-persistence';
+import { isDeepStrictEqual } from 'node:util';
 
 export interface ContextOverflowRequest {
   agent: Pick<Agent, 'session' | 'ctx' | 'options'>;
@@ -68,9 +70,30 @@ export function createContextOverflowRecovery(options: ContextOverflowRecoveryOp
     if (progress && !signal.aborted) {
       try {
         const sessions = agent.ctx.get('sessions');
-        if (sessions && 'flush' in sessions && typeof sessions.flush === 'function')
-          persisted = (await sessions.flush(agent.session)) === true;
+        const storage = agent.ctx.get('sessionPersistence');
+        const replacement = agent.session
+          .snapshotEvents()
+          .findLast(
+            (entry) => typeof entry.surfaceOp === 'object' && entry.surfaceOp.op === 'replace',
+          );
+        if (
+          storage &&
+          replacement &&
+          sessions &&
+          'flush' in sessions &&
+          typeof sessions.flush === 'function' &&
+          (await sessions.flush(agent.session)) === true
+        ) {
+          const reader = await storage.open(agent.session.id, 'read', { signal });
+          try {
+            const stored = await reader.read(replacement.seq, 1, { signal });
+            persisted = isDeepStrictEqual(stored.events[0], replacement);
+          } finally {
+            await reader.close();
+          }
+        }
       } catch {
+        persisted = false;
         flushFailed = true;
       }
     }

@@ -1,7 +1,7 @@
-import { Context } from '@deepseek-ai/cordis';
+import { Context, Service } from '@deepseek-ai/cordis';
 import CompactionEngine from '@deepseek-ai/dsh-compaction';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
+import { SessionId, SessionStore, type SessionEvent } from '@deepseek-ai/dsh-session';
 import { expect, it, onTestFinished } from 'vitest';
 import {
   createContextOverflowRecovery,
@@ -10,6 +10,26 @@ import {
 
 const OVERFLOW =
   '400: {"type":"invalid_request_error","message":"Input too long: model limit 1048576 tokens, requested 1123530 tokens"}';
+
+class TestPersistence extends Service {
+  events: readonly SessionEvent[] = [];
+  readFailure = false;
+  closed = 0;
+  constructor(ctx: Context) {
+    super(ctx, 'sessionPersistence');
+  }
+  async open() {
+    return {
+      read: async (offset: number, length: number) => {
+        if (this.readFailure) throw new Error('private read failure');
+        return { events: this.events.slice(offset, offset + length) };
+      },
+      close: async () => {
+        this.closed++;
+      },
+    };
+  }
+}
 
 class TestCompaction extends CompactionEngine {
   calls = 0;
@@ -33,8 +53,13 @@ function fixture(owned = true, available = true) {
   const engine = available ? new TestCompaction(ctx) : undefined;
   const sessions = new SessionStore(ctx);
   const session = sessions.create(SessionId('overflow-test'));
+  const persistence = new TestPersistence(ctx);
+  let writer = true;
   let flush = async () => {};
-  const disposeFlush = ctx.on('session/flush', () => flush());
+  const disposeFlush = ctx.on('session/flush', async () => {
+    await flush();
+    if (writer) persistence.events = session.snapshotEvents();
+  });
   const old = session.append(
     'user/message',
     createUserMessage({
@@ -94,11 +119,30 @@ function fixture(owned = true, available = true) {
     progress,
     delegated: () => delegated,
     disposeFlush,
+    persistence,
+    removeWriter: () => {
+      writer = false;
+    },
     setFlush: (action: () => Promise<void>) => {
       flush = action;
     },
   };
 }
+
+it('refuses a participating flush listener without a writer for this Session', async () => {
+  const f = fixture();
+  f.removeWriter();
+  expect(await f.handle(f.request, f.next)).toBeUndefined();
+  expect(f.request.agent.session.surface.replaceGeneration).toBe(1);
+});
+
+it('refuses a failed stored replacement read and closes the read handle', async () => {
+  const f = fixture();
+  f.persistence.readFailure = true;
+  expect(await f.handle(f.request, f.next)).toBeUndefined();
+  expect(f.persistence.closed).toBe(1);
+  expect(JSON.stringify(f.logs)).not.toContain('private read failure');
+});
 
 it('waits for the persistence checkpoint before returning a retry', async () => {
   const f = fixture();
