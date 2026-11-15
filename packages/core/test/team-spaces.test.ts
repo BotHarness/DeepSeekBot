@@ -45,6 +45,7 @@ import {
   accountSpaceFiles,
   prepareSpaceTransfer,
   recoverSpaceTransfers,
+  relocateTobWorkspaces,
 } from '../src/workspaces/space-lifecycle.js';
 import { saveAttachmentFile } from '../src/attachments/file-operations.js';
 
@@ -100,6 +101,78 @@ function fixture(home = realpathSync(createTempRoot('m6-spaces-'))) {
 }
 
 describe('M6 spaces and current authority', () => {
+  it('relocates grant-only legacy subpaths without granting the account root or widening write access', () => {
+    const f = fixture();
+    const bot = f.createBot(alice, 'subpath-only');
+    const source = join(f.home, 'botharness/tob-workspaces', bot.slug);
+    const target = join(f.home, 'spaces/alice/files');
+    mkdirSync(join(source, 'reports'), { recursive: true });
+    mkdirSync(join(source, 'drafts'), { recursive: true });
+    writeFileSync(join(source, 'reports/kept.txt'), 'Report');
+    writeFileSync(join(source, 'drafts/private.txt'), 'Draft');
+    writeFileSync(join(target, 'unrelated.txt'), 'Private account file');
+    f.db.transaction((db) => {
+      db.prepare('DELETE FROM workspace_grants WHERE bot_slug = ?').run(bot.slug);
+      db.prepare(
+        "UPDATE persona_bots SET body = json_set(body, '$.workspaces', json('[]')) WHERE slug = ?",
+      ).run(bot.slug);
+      for (const [name, write] of [
+        ['reports', 0],
+        ['drafts', 1],
+      ] as const)
+        db.prepare(`INSERT INTO workspace_grants (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at,orchestrator_write,write_revision)
+          VALUES (?,?,?,?,?,'before',?,?)`).run(
+          'legacy-' + name,
+          bot.slug,
+          'legacy-' + name,
+          join(source, name),
+          name,
+          write,
+          write,
+        );
+    });
+    relocateTobWorkspaces(f.db, f.home);
+    expect(f.core.registry.get(bot.slug)?.workspaces).toEqual([]);
+    expect(
+      f.core.grants
+        .list(bot.slug)
+        .filter((grant) => !grant.revokedAt)
+        .toSorted((a, b) => a.workspacePath.localeCompare(b.workspacePath)),
+    ).toEqual([
+      expect.objectContaining({ workspacePath: join(target, 'drafts'), orchestratorWrite: true }),
+      expect.objectContaining({ workspacePath: join(target, 'reports'), orchestratorWrite: false }),
+    ]);
+    for (const grant of f.core.grants.list(bot.slug).filter((grant) => !grant.revokedAt)) {
+      expect(grant.workspacePath).not.toBe(target);
+      expect(() => f.core.grants.validatePath?.(bot.slug, grant.workspacePath)).not.toThrow();
+    }
+    expect(readFileSync(join(target, 'reports/kept.txt'), 'utf8')).toBe('Report');
+    expect(readFileSync(join(target, 'drafts/private.txt'), 'utf8')).toBe('Draft');
+    expect(readFileSync(join(target, 'unrelated.txt'), 'utf8')).toBe('Private account file');
+    const grants = f.core.grants.list(bot.slug);
+    relocateTobWorkspaces(f.db, f.home);
+    expect(f.core.grants.list(bot.slug)).toEqual(grants);
+  });
+
+  it('refuses a legacy grant whose remapped path escapes the account files root', () => {
+    const f = fixture();
+    const bot = f.createBot(alice, 'unsafe-legacy');
+    const source = join(f.home, 'botharness/tob-workspaces', bot.slug);
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, 'kept.txt'), 'Kept');
+    f.db.transaction((db) =>
+      db
+        .prepare(`INSERT INTO workspace_grants
+      (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at) VALUES ('unsafe',?,'unsafe',?,'unsafe','before')`)
+        .run(bot.slug, source + '/../escape'),
+    );
+    expect(() => relocateTobWorkspaces(f.db, f.home)).toThrow('grant-protected-path');
+    expect(readFileSync(join(source, 'kept.txt'), 'utf8')).toBe('Kept');
+    expect(
+      f.core.grants.list(bot.slug).find((grant) => grant.id === 'unsafe')?.revokedAt,
+    ).toBeUndefined();
+  });
+
   it.each([false, true])(
     'allows Owner-owned Bots to grant native and own account folders with Team enabled=%s',
     async (enabled) => {
@@ -291,6 +364,8 @@ describe('M6 spaces and current authority', () => {
 
   it('provisions one revocable read/write account Grant for a new member Bot, and never restores a revoked default', async () => {
     const f = fixture();
+    const creator = f.core.team.roles.create(owner, 'Private creator', ['bots.createPrivate']).role;
+    f.core.team.roles.set(owner, alice.humanId, ['member', creator.roleId]);
     const created = await f
       .bridge(alice)
       .create({ displayName: 'Personal', operationKey: 'member-bot-default-1' });
@@ -878,7 +953,7 @@ describe('M6 Memory migration and offboarding', () => {
     expect(memoryOwnership(path)).toEqual(proof);
   });
 
-  it.each([147, 149, 150])(
+  it.each([147, 149, 150, 151, 152])(
     'upgrades generation %s through the required migrations, preserving Channel access and Memory ownership',
     async (generation) => {
       const home = realpathSync(createTempRoot('m6-upgrade-'));
@@ -886,11 +961,11 @@ describe('M6 Memory migration and offboarding', () => {
         dshHome: home,
         schemaPlan: defineSchemaPlan(
           BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
-            (migration) => migration.generation <= generation,
+            (migration) => migration.generation <= Math.min(generation, 150),
           ),
         ),
       });
-      expect(prior.generation).toBe(generation);
+      expect(prior.generation).toBe(Math.min(generation, 150));
       const db = attachOperationalModule(prior, 'm6-old');
       db.transaction((connection) =>
         connection
@@ -938,7 +1013,7 @@ describe('M6 Memory migration and offboarding', () => {
             slug,
             displayName: slug,
             ownerHumanId: 'alice',
-            ...(slug === 'old-tob'
+            ...(slug === 'old-tob' && generation !== 150
               ? { workspaces: [join(home, 'botharness/tob-workspaces/old-tob')] }
               : {}),
           }).ok,
@@ -996,8 +1071,18 @@ describe('M6 Memory migration and offboarding', () => {
       const before = memoryOwnership(registry.memoryDirFor('old-private')!);
       writeFileSync(join(before.path, 'kept'), 'preserved');
       prior.close();
+      if (generation > 150) {
+        const staged = mountOperationalDatabase({
+          dshHome: home,
+          schemaPlan: defineSchemaPlan(
+            BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= generation),
+          ),
+        });
+        expect(staged.generation).toBe(generation);
+        staged.close();
+      }
       const f = fixture(home);
-      expect(f.core.operationalDatabase.generation).toBe(152);
+      expect(f.core.operationalDatabase.generation).toBe(153);
       f.workspace(ownerNative, 'old-owner-native');
       expect(f.core.grants.requireActive('old-owner', 'old-owner-native').workspacePath).toBe(
         ownerNative,
@@ -1030,7 +1115,9 @@ describe('M6 Memory migration and offboarding', () => {
       expect(f.core.registry.memoryDirFor('old-tob')).toBe(
         accountMemoryPath(home, 'alice', 'old-tob'),
       );
-      expect(f.core.tob.slug(alice)).toBe('old-tob');
+      expect(f.core.tob.slug(alice)).toBeUndefined();
+      expect(f.core.tob.isTob('old-tob')).toBe(false);
+      expect(await f.bridge(alice).tobHome({})).toEqual({ ok: true, value: { available: false } });
       expect(readFileSync(join(home, 'spaces/alice/files/notes/kept.txt'), 'utf8')).toBe(
         'Tob file',
       );
@@ -1046,9 +1133,9 @@ describe('M6 Memory migration and offboarding', () => {
         expect(() => f.core.grants.validatePath?.('old-tob', join(migrated, name!))).toThrowError(
           expect.objectContaining({ code }),
         );
-      expect(f.core.registry.get('old-tob')?.workspaces).toEqual([
-        join(home, 'spaces/alice/files'),
-      ]);
+      expect(f.core.registry.get('old-tob')?.workspaces).toEqual(
+        generation === 150 ? [] : [join(home, 'spaces/alice/files')],
+      );
       expect(f.core.grants.list('old-tob')).toContainEqual(
         expect.objectContaining({ id: 'old-tob-grant', revokedAt: expect.any(String) }),
       );
@@ -1060,6 +1147,12 @@ describe('M6 Memory migration and offboarding', () => {
         }),
       );
       expect(existsSync(legacyWorkspace)).toBe(false);
+      const reads = f.core.operationalDatabase.diagnostics().metrics.reads;
+      relocateTobWorkspaces(f.db, home);
+      expect(f.core.operationalDatabase.diagnostics().metrics.reads - reads).toBe(2);
+      expect(f.db.read((db) => db.prepare('SELECT * FROM workspace_file_transfers').all())).toEqual(
+        [],
+      );
       expect(existsSync(erasingPath)).toBe(true);
       expect(await f.core.deletions.retry('old-erasing')).toMatchObject({
         memory: 'erased',
@@ -1112,10 +1205,15 @@ describe('M6 Memory migration and offboarding', () => {
     expect(existsSync(target)).toBe(true);
   });
 
-  it('previews and transfers account files and private Bot Memory, retains Tob and shared roots, then purges the account through Content Purge', async () => {
+  it('transfers account files and former member Tob Memory, retains Owner Tob and shared roots, then purges the empty account', async () => {
     const f = fixture();
     f.createBot();
-    const tob = await f.core.tob.ensure(alice);
+    const formerTob = f.createBot(alice, 'former-tob');
+    const tob = await f.core.tob.ensure(owner);
+    const ownerMemory = f.core.registry.memoryDirFor(tob.botSlug);
+    const formerMemory = f.core.registry.memoryDirFor(formerTob.slug)!;
+    writeFileSync(join(formerMemory, 'kept'), 'former Tob Memory');
+    expect(await f.bridge(alice).tobHome({})).toEqual({ ok: true, value: { available: false } });
     const oldMemory = f.core.registry.memoryDirFor('alice-bot')!;
     writeFileSync(join(oldMemory, 'retained'), 'bot memory');
     writeFileSync(join(f.home, 'spaces/alice/report.txt'), 'member file');
@@ -1123,17 +1221,19 @@ describe('M6 Memory migration and offboarding', () => {
     writeFileSync(join(f.core.spaces.path(shared.spaceId), 'shared.txt'), 'shared file');
     const preview = f.core.team.transferPreview(owner, 'alice');
     expect(preview.space?.files.some((file) => file.path === 'report.txt')).toBe(true);
-    expect(preview.bots.map((bot) => bot.slug)).toEqual(['alice-bot']);
+    expect(preview.bots.map((bot) => bot.slug)).toEqual(['alice-bot', 'former-tob']);
     await f.core.team.transfer(owner, 'alice', 'bob');
     const moved = f.core.registry.memoryDirFor('alice-bot')!;
     expect(moved).toBe(accountMemoryPath(f.home, 'bob', 'alice-bot'));
     expect(f.core.registry.get('alice-bot')?.ownerHumanId).toBe('bob');
     expect(readFileSync(join(moved, 'retained'), 'utf8')).toBe('bot memory');
     expect(readFileSync(join(f.home, 'spaces/bob/report.txt'), 'utf8')).toBe('member file');
-    expect(f.core.registry.get(tob.botSlug)?.ownerHumanId).toBe('alice');
-    expect(f.core.registry.memoryDirFor(tob.botSlug)).toBe(
-      accountMemoryPath(f.home, 'alice', tob.botSlug),
-    );
+    expect(f.core.registry.get(tob.botSlug)?.ownerHumanId).toBe(owner.humanId);
+    expect(f.core.registry.memoryDirFor(tob.botSlug)).toBe(ownerMemory);
+    expect(f.core.registry.get(formerTob.slug)?.ownerHumanId).toBe('bob');
+    const transferredTobMemory = accountMemoryPath(f.home, 'bob', formerTob.slug);
+    expect(f.core.registry.memoryDirFor(formerTob.slug)).toBe(transferredTobMemory);
+    expect(readFileSync(join(transferredTobMemory, 'kept'), 'utf8')).toBe('former Tob Memory');
     await f.core.team.deactivate(owner, 'alice');
     const purge = f.core.team.purgePreview(owner, 'alice');
     f.db.transaction((connection) =>
@@ -1142,10 +1242,11 @@ describe('M6 Memory migration and offboarding', () => {
         .run(),
     );
     const current = f.core.team.purgePreview(owner, 'alice');
-    expect(purge.counts.bots).toBe(1);
+    expect(purge.counts.bots).toBe(0);
     await f.core.team.purgeConfirm(owner, 'alice', current.token, 'alice');
     expect(existsSync(join(f.home, 'spaces/alice'))).toBe(false);
     expect(existsSync(moved)).toBe(true);
+    expect(readFileSync(join(transferredTobMemory, 'kept'), 'utf8')).toBe('former Tob Memory');
     expect(readFileSync(join(f.core.spaces.path(shared.spaceId), 'shared.txt'), 'utf8')).toBe(
       'shared file',
     );

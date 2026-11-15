@@ -305,7 +305,7 @@ describe('M2 private Bot boundaries', () => {
   });
 
   it.each(['create', 'createLookup'] as const)(
-    'requires bots.create on every member %s invocation',
+    'requires bots.createPrivate on every member %s invocation',
     (method) => {
       const f = fixture();
       const bridge = f.methods(bob);
@@ -317,12 +317,12 @@ describe('M2 private Bot boundaries', () => {
         error: {
           code: 'permission-required',
           message: 'permission-required',
-          details: { permission: 'bots.create' },
+          details: { permission: 'bots.createPrivate' },
         },
       };
       expect(bridge[method](payload)).toEqual(denied);
       expect(f.core.registry.list('bob').map((bot) => bot.slug)).toEqual(['bob-bot']);
-      const creator = f.team.roles.create(owner, 'Creator', ['bots.create']).role;
+      const creator = f.team.roles.create(owner, 'Creator', ['bots.createPrivate']).role;
       f.team.roles.set(owner, bob.humanId, [reader.roleId, creator.roleId]);
       expect(bridge[method](payload)).toMatchObject({ ok: true });
       f.team.roles.set(owner, bob.humanId, [reader.roleId]);
@@ -341,7 +341,7 @@ describe('M2 private Bot boundaries', () => {
         bridge[method]({ displayName: 'Suspended', operationKey: 'suspended-create-0001' }),
       ).toMatchObject({
         ok: false,
-        error: { code: 'permission-required', details: { permission: 'bots.create' } },
+        error: { code: 'permission-required', details: { permission: 'bots.createPrivate' } },
       });
     expect(bridge.get({ slug: 'bob-bot' })).toMatchObject({
       ok: false,
@@ -369,6 +369,8 @@ describe('M2 private Bot boundaries', () => {
       creations: privateBotCreations(f.core.creations, bob),
       isProtectedBot: (slug) => f.core.tob.isTob(slug),
     });
+    const creator = f.team.roles.create(owner, 'Creator', ['bots.createPrivate']).role;
+    f.team.roles.set(owner, bob.humanId, [creator.roleId]);
     const args = { displayName: 'Tob managed', operationKey: 'tob-permission-0001' };
     const prepared = await ops('create', args);
     expect(prepared).toBeDefined();
@@ -377,7 +379,7 @@ describe('M2 private Bot boundaries', () => {
     await expect(Promise.resolve().then(() => prepared!.run(() => {}))).rejects.toThrow(
       'permission-required',
     );
-    f.team.roles.set(owner, bob.humanId, ['member']);
+    f.team.roles.set(owner, bob.humanId, [creator.roleId]);
     await prepared!.run(() => {});
     const recovered = await ops('create', args);
     f.team.roles.set(owner, bob.humanId, [reader.roleId]);
@@ -391,6 +393,7 @@ describe('M2 private Bot boundaries', () => {
     const f = fixture();
     await f.roster.attach(createFakeRosterDomain().facility);
     await f.roster.pinsSet(['dm-owner-bot']);
+    const formerTob = await f.core.tob.ensure(owner);
     const previous = f.methods(owner);
     const incoming = f.methods(bob);
     f.database.transaction((db) => {
@@ -398,11 +401,20 @@ describe('M2 private Bot boundaries', () => {
       db.prepare('DELETE FROM human_roles WHERE human_id = ?').run('bob');
       db.prepare("INSERT INTO human_roles VALUES ('local-human', 'member')").run();
     });
+    expect(f.core.tob.isTob(formerTob.botSlug)).toBe(false);
+    expect(f.team.transferPreview(bob, owner.humanId).bots).toEqual(
+      expect.arrayContaining([{ slug: formerTob.botSlug, displayName: 'Tob' }]),
+    );
     expect(incoming.create({ displayName: 'Owner with no roles' })).toMatchObject({ ok: true });
     expect(incoming.list({ administration: true })).toMatchObject({ ok: true });
     expect(incoming.rosterGet({})).toMatchObject({ ok: true, value: { pins: [] } });
-    const home = await incoming.onboarding({});
-    expect(home).toMatchObject({ ok: true, value: { tutorial: 'skipped' } });
+    const home = await incoming.tobHome({});
+    expect(home).toMatchObject({ ok: true, value: { botSlug: expect.any(String) } });
+    expect(await incoming.onboarding({})).toMatchObject({
+      ok: true,
+      value: { tutorial: 'skipped', defaultBotSlug: f.core.tob.slug(bob) },
+    });
+    expect(await previous.tobHome({})).toEqual({ ok: true, value: { available: false } });
     expect(JSON.stringify(home)).not.toContain('owner-bot');
     expect(previous.list({ administration: true })).toMatchObject({
       ok: false,
@@ -754,6 +766,8 @@ describe('M2 private Bot boundaries', () => {
 
   it('namespaces creation receipts, ignores supplied ownership and prepares only the member DM', () => {
     const f = fixture();
+    const creator = f.team.roles.create(owner, 'Creator', ['bots.createPrivate']).role;
+    for (const human of [alice, bob]) f.team.roles.set(owner, human.humanId, [creator.roleId]);
     const input = { operationKey: 'same-key-00001', displayName: 'Created', ownerHumanId: 'alice' };
     const a = f.methods(alice).create(input);
     const b = f.methods(bob).create(input);
@@ -796,26 +810,27 @@ describe('M2 private Bot boundaries', () => {
     expect(f.core.channels.readMessages('dm-alice-bot')).toEqual([]);
   });
 
-  it('creates one private Tob per member concurrently and scopes member onboarding', async () => {
+  it('keeps Tob Owner-only and skips member onboarding without a default Bot', async () => {
     const f = fixture();
-    const [a, b, again] = await Promise.all([
-      f.core.tob.ensure(alice),
-      f.core.tob.ensure(bob),
-      f.core.tob.ensure(bob),
-    ]);
-    expect(b).toEqual(again);
-    expect(a.botSlug).not.toBe(b.botSlug);
-    expect(f.core.tob.slug(bob)).toBe(b.botSlug);
-    expect(f.core.registry.get(b.botSlug)?.ownerHumanId).toBe('bob');
-    expect(await f.methods(bob).tobHome({})).toMatchObject({ ok: true, value: b });
-    expect(await f.methods(bob).onboarding({})).toMatchObject({
-      ok: true,
-      value: { defaultBotSlug: b.botSlug, channelId: b.channelId },
-    });
-    expect(f.methods(alice).get({ slug: b.botSlug })).toMatchObject({
-      ok: false,
-      error: { code: 'bot-not-found' },
-    });
+    const bots = f.core.registry.list('bob');
+    for (const human of [alice, bob]) {
+      await expect(f.core.tob.ensure(human)).rejects.toMatchObject({ code: 'tob-unavailable' });
+      expect(f.core.tob.slug(human)).toBeUndefined();
+      expect(await f.methods(human).tobHome({})).toEqual({ ok: true, value: { available: false } });
+      expect(await f.methods(human).onboarding({})).toEqual({
+        ok: true,
+        value: {
+          profileId: human.humanId,
+          tutorial: 'skipped',
+          completed: true,
+          preparation: 'ready',
+        },
+      });
+    }
+    expect(f.core.registry.list('bob')).toEqual(bots);
+    const [home, again] = await Promise.all([f.core.tob.ensure(owner), f.core.tob.ensure(owner)]);
+    expect(home).toEqual(again);
+    expect(await f.methods(owner).tobHome({})).toMatchObject({ ok: true, value: home });
     const ops = createMemberTobOperations({
       human: bob,
       bridge: f.methods(bob),

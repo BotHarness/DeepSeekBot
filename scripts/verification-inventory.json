@@ -2062,9 +2062,9 @@
         "phone.git-bot-import",
         "phone.zip-bot-import"
       ],
-      "reason": "Own isolated Host with shared DSH API-floor admission instead of SDK equality; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response. Restart now waits for both HTTP shutdown and actual process exit; Linux zombie state is treated as exited (#2713). #4149 integration reads foreign Bot details only through audited privateContentOpen and verifies one chained record per open across Team mode switches.",
+      "reason": "Own isolated Host with shared DSH API-floor admission instead of SDK equality; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response. Restart now waits for both HTTP shutdown and actual process exit; Linux zombie state is treated as exited (#2713). #4149 integration reads foreign Bot details only through audited privateContentOpen and verifies one chained record per open across Team mode switches. #4187 integration keeps the Owner Tob and ordinary former member Tob Memory fixtures, refuses member Tob allocation, and verifies no-Tob through --as after Team mode switches. PR #4221 round 1 proves --as member ZIP upload refusal, granted private import and receipt retry, then immediate permission revocation.",
       "task": 2713,
-      "sha256": "99f74eb621eb6c95b6d928cc165d51d1b2bb73ff626168ca265f64a2e381dbee"
+      "sha256": "40a7b23b0abdd656d75afe476ccc3ab4cb02d5c31acf0397479bc71487649be3"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",

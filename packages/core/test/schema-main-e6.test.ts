@@ -102,7 +102,7 @@ it('appends account150 after published Team models148 and usage149 while preserv
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
   );
   expect(owner.mode).toBe('ready');
-  expect(owner.generation).toBe(152);
+  expect(owner.generation).toBe(153);
   const current = attachOperationalModule(owner, 'migration-fixture');
   expect(
     current.read((db) =>

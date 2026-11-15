@@ -91,13 +91,27 @@ describe('Team switches preserve Memory across upgrades and restarts', () => {
         { slug: 'owner-tob', humanId: owner.humanId },
         { slug: 'owner-custom', humanId: owner.humanId, memoryLocation: custom },
         { slug: 'member-private', humanId: 'alice' },
-        { slug: 'member-tob', humanId: 'alice' },
+        {
+          slug: 'member-tob',
+          humanId: 'alice',
+          memoryLocation: join(
+            home,
+            'botharness',
+            'tob-workspaces',
+            'member-tob',
+            'private-memory',
+          ),
+        },
       ].map((entry) => {
+        if ('memoryLocation' in entry) mkdirSync(entry.memoryLocation, { recursive: true });
         expect(
           registry.create({
             slug: entry.slug,
             displayName: entry.slug,
             ownerHumanId: entry.humanId,
+            ...(entry.slug === 'member-tob'
+              ? { workspaces: [join(home, 'botharness', 'tob-workspaces', entry.slug)] }
+              : {}),
             ...('memoryLocation' in entry ? { memoryLocation: entry.memoryLocation } : {}),
           }).ok,
         ).toBe(true);
@@ -142,9 +156,13 @@ describe('Team switches preserve Memory across upgrades and restarts', () => {
           .run(owner.humanId, 'owner-tob');
         connection.prepare("INSERT INTO tob_identity VALUES ('alice', 'member-tob')").run();
       });
+      writeFileSync(
+        join(home, 'botharness', 'tob-workspaces', 'member-tob', 'report.txt'),
+        'former Tob file',
+      );
       prior.close();
       let core = boot(home);
-      expect(core.operationalDatabase.generation).toBe(152);
+      expect(core.operationalDatabase.generation).toBe(153);
       await core.team.setOwnerPassword(owner, 'Memory-stability-2026!');
       for (const [step, enabled] of [false, true, false, true].entries()) {
         await core.team.setMode(owner, enabled);
@@ -159,7 +177,11 @@ describe('Team switches preserve Memory across upgrades and restarts', () => {
             ).ok,
           ).toBe(true);
         expect(core.tob.slug(owner)).toBe('owner-tob');
-        expect(core.tob.slug(humanContext('alice'))).toBe('member-tob');
+        expect(core.tob.slug(humanContext('alice'))).toBeUndefined();
+        expect(core.tob.isTob('member-tob')).toBe(false);
+        expect(readFileSync(join(home, 'spaces', 'alice', 'files', 'report.txt'), 'utf8')).toBe(
+          'former Tob file',
+        );
         for (const entry of entries) {
           const target =
             entry.humanId === owner.humanId
@@ -221,6 +243,13 @@ describe('Team switches preserve Memory across upgrades and restarts', () => {
       expect(
         readFileSync(join(accountMemoryPath(home, 'bob', 'member-private'), 'kept.txt'), 'utf8'),
       ).toBe('member-private');
+      expect(core.registry.get('member-tob')?.ownerHumanId).toBe('bob');
+      const transferredTob = accountMemoryPath(home, 'bob', 'member-tob');
+      expect(core.registry.memoryDirFor('member-tob')).toBe(transferredTob);
+      expect(readFileSync(join(transferredTob, 'kept.txt'), 'utf8')).toBe('member-tob');
+      expect(git(transferredTob, 'rev-list', 'HEAD')).toBe(
+        entries.find((entry) => entry.slug === 'member-tob')?.history,
+      );
       await core.team.deactivate(owner, 'alice');
       const credentials = attachOperationalModule(core.operationalDatabase, 'purge-credential');
       credentials.transaction((connection) =>
@@ -229,10 +258,11 @@ describe('Team switches preserve Memory across upgrades and restarts', () => {
           .run(),
       );
       const purge = core.team.purgePreview(owner, 'alice');
-      expect(purge.counts.bots).toBe(1);
+      expect(purge.counts.bots).toBe(0);
       await core.team.purgeConfirm(owner, 'alice', purge.token, 'alice');
       expect(existsSync(join(home, 'spaces/alice'))).toBe(false);
       expect(existsSync(accountMemoryPath(home, 'bob', 'member-private'))).toBe(true);
+      expect(readFileSync(join(transferredTob, 'kept.txt'), 'utf8')).toBe('member-tob');
       for (const entry of entries.filter((entry) => entry.humanId === owner.humanId))
         expect(readFileSync(join(entry.source, 'kept.txt'), 'utf8')).toBe(entry.slug);
       await close(core);

@@ -32,6 +32,7 @@ import type { Wallpaper } from './wallpaper.js';
 import { CommunityIcon } from './community-icons.js';
 import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './community-links.js';
 import { requestTobMessage } from './tob-requests.js';
+import { useTeamMember } from './team-state.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -359,6 +360,7 @@ export function BotIntro({
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const controller = onboardingFor(actions);
+  const member = useTeamMember();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const media = useSyncExternalStore(wallpaper?.subscribe ?? noSubscribe, () =>
     wallpaper?.getSnapshot(),
@@ -561,7 +563,7 @@ export function BotIntro({
             }
             pick={(outcome, body) =>
               void close(outcome).then(() => {
-                if (body !== undefined) requestTobMessage(body);
+                if (body !== undefined && !member) requestTobMessage(body);
               })
             }
           />

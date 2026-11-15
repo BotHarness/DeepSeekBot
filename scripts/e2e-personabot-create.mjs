@@ -138,7 +138,7 @@ function creationCli(instance, command, input) {
   }
 }
 
-function audienceDirectoryCli(instance, as) {
+function verificationCli(instance, as, command = ['spaces', 'audience-directory']) {
   const login = new URL(instance.url);
   const token = login.searchParams.get('token');
   const result = spawnSync(
@@ -148,8 +148,7 @@ function audienceDirectoryCli(instance, as) {
       '--host',
       login.origin,
       ...(as ? ['--as', as] : []),
-      'spaces',
-      'audience-directory',
+      ...command,
     ],
     {
       cwd: root,
@@ -160,7 +159,7 @@ function audienceDirectoryCli(instance, as) {
       maxBuffer: 1024 * 1024,
     },
   );
-  if (result.error) throw new Error('Audience directory CLI did not settle');
+  if (result.error) throw new Error('Verification CLI did not settle');
   return { status: result.status, value: JSON.parse(result.stdout) };
 }
 function minimalAudienceDirectory(value) {
@@ -336,7 +335,13 @@ try {
       'workspaces.manageShared',
     ]).role;
     seed.team.roles.set(owner, memberHuman.humanId, [manager.roleId]);
-    const memberTob = await seed.tob.ensure(memberHuman);
+    if (seed.tob.slug(memberHuman) !== undefined) throw new Error('Member unexpectedly has a Tob');
+    const formerTob = seed.registry.create({
+      slug: 'former-member-tob-memory',
+      displayName: 'Former member Tob',
+      ownerHumanId: memberHuman.humanId,
+    });
+    if (!formerTob.ok) throw new Error('Former member Tob fixture could not be created');
     const custom = seed.registry.get(customCli.bot.id);
     const privateMember = seed.registry.create({
       slug: 'member-private-memory',
@@ -350,7 +355,7 @@ try {
       ownerTob.botSlug,
       custom.slug,
       privateMember.record.slug,
-      memberTob.botSlug,
+      formerTob.record.slug,
     ].map((botSlug) => {
       const path = seed.registry.memoryDirFor(botSlug);
       writeFileSync(join(path, 'switch-kept.txt'), botSlug);
@@ -403,8 +408,15 @@ try {
   }
   current = launch(port, false);
   pid = current.pid;
-  const ownerDirectory = audienceDirectoryCli(current);
-  const memberDirectory = audienceDirectoryCli(current, 'memory-member');
+  const noTob = verificationCli(current, 'memory-member', ['tob-home']);
+  if (
+    noTob.status !== 0 ||
+    noTob.value?.available !== false ||
+    Object.keys(noTob.value).join(',') !== 'available'
+  )
+    throw new Error('Member Tob home did not report no Tob');
+  const ownerDirectory = verificationCli(current);
+  const memberDirectory = verificationCli(current, 'memory-member');
   if (
     ownerDirectory.status !== 0 ||
     memberDirectory.status !== 0 ||
@@ -416,13 +428,80 @@ try {
     humanId: member.member.humanId,
     roleIds: ['member'],
   });
-  const refusedDirectory = audienceDirectoryCli(current, 'memory-member');
+  const refusedDirectory = verificationCli(current, 'memory-member');
   if (
     refusedDirectory.status === 0 ||
     refusedDirectory.value?.error?.code !== 'permission-required' ||
     refusedDirectory.value.error.details?.permission !== 'workspaces.manageShared'
   )
     throw new Error('Audience directory CLI bypassed member permission checks');
+  const archiveResponse = await fetch(
+    `http://127.0.0.1:${port}/api/botharness/bot-zip?slug=${encodeURIComponent(slug)}`,
+    { headers: { cookie: cookie() }, signal: AbortSignal.timeout(30_000) },
+  );
+  if (!archiveResponse.ok) throw new Error('Member import fixture export failed');
+  const memberArchive = join(fixtureRoot, 'member-import.zip');
+  writeFileSync(memberArchive, Buffer.from(await archiveResponse.arrayBuffer()));
+  const memberUploadArgs = [
+    'bot-zip-upload',
+    '--upload-key',
+    'member-smoke-upload',
+    '--from-zip',
+    memberArchive,
+  ];
+  const deniedImport = verificationCli(current, 'memory-member', memberUploadArgs);
+  if (
+    deniedImport.status === 0 ||
+    deniedImport.value?.error?.code !== 'permission-required' ||
+    deniedImport.value.error.details?.permission !== 'bots.createPrivate'
+  )
+    throw new Error(
+      `Member import CLI refusal mismatch: exit=${deniedImport.status} code=${deniedImport.value?.error?.code} permission=${deniedImport.value?.error?.details?.permission}`,
+    );
+  const importer = await rpc(port, 'botharness', 'roleCreate', {
+    name: 'Private importer',
+    permissions: ['bots.createPrivate'],
+  });
+  await rpc(port, 'botharness', 'memberRolesSet', {
+    humanId: member.member.humanId,
+    roleIds: [importer.role.roleId],
+  });
+  const upload = verificationCli(current, 'memory-member', memberUploadArgs);
+  if (upload.status !== 0 || upload.value.offset !== upload.value.sizeBytes)
+    throw new Error('Granted member import CLI upload failed');
+  const memberImportArgs = [
+    'bot-zip-import',
+    '--upload-key',
+    'member-smoke-upload',
+    '--archive-sha256',
+    upload.value.sha256,
+    '--archive-size',
+    String(upload.value.sizeBytes),
+    '--operation-key',
+    'member-smoke-import',
+    '--name',
+    'Private imported Bot',
+  ];
+  const imported = verificationCli(current, 'memory-member', memberImportArgs);
+  const retriedImport = verificationCli(current, 'memory-member', memberImportArgs);
+  if (
+    imported.status !== 0 ||
+    imported.value?.bot?.ownerHumanId !== member.member.humanId ||
+    imported.value?.receipt?.status !== 'created' ||
+    retriedImport.status !== 0 ||
+    retriedImport.value?.receipt?.botSlug !== imported.value.receipt.botSlug
+  )
+    throw new Error('Granted member import CLI did not preserve its private Bot and receipt');
+  await rpc(port, 'botharness', 'memberRolesSet', {
+    humanId: member.member.humanId,
+    roleIds: ['member'],
+  });
+  const revokedImport = verificationCli(current, 'memory-member', memberImportArgs);
+  if (
+    revokedImport.status === 0 ||
+    revokedImport.value?.error?.details?.permission !== 'bots.createPrivate'
+  )
+    throw new Error('Member import CLI ignored permission revocation');
   for (const [step, enabled] of [false, true, false, true].entries()) {
     await rpc(port, 'botharness', 'teamModeSet', { enabled });
     stop(pid);
@@ -430,6 +509,11 @@ try {
     pid = undefined;
     current = launch(port, false);
     pid = current.pid;
+    if (enabled) {
+      const noTob = verificationCli(current, 'memory-member', ['tob-home']);
+      if (noTob.status !== 0 || noTob.value?.available !== false)
+        throw new Error('Team switch allocated a member Tob');
+    }
     const currentOptions = await rpc(port, 'botharness', 'workspaceOptions');
     if (!currentOptions.workspaces.some((entry) => entry.id === workspaceId))
       throw new Error('Owner native Workspace option disappeared after changing Team mode');
@@ -667,6 +751,8 @@ try {
       workspaceCreated: true,
       ownerNativeGrantsInBothModes: true,
       spaceAudienceDirectoryCliParity: true,
+      memberTobAbsent: true,
+      memberPrivateImportCli: true,
       memoryStableAcrossTeamSwitchesAndRestarts: true,
       personaBotCreated: true,
       persistedAfterRestart: true,

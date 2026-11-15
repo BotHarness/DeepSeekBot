@@ -325,17 +325,24 @@ export function prepareSpaceTransfer(
 }
 
 export function relocateTobWorkspaces(db: OperationalDatabaseModulePort, home: string): void {
-  const bots = z
-    .array(z.object({ slug: z.string(), humanId: z.string(), name: z.string(), body: z.string() }))
-    .parse(
-      db.read((connection) =>
-        connection
-          .prepare(
-            `SELECT t.bot_slug AS slug, t.human_id AS humanId, h.display_name AS name, b.body FROM tob_identity t JOIN persona_bots b ON b.slug = t.bot_slug JOIN humans h ON h.human_id = t.human_id`,
-          )
-          .all(),
-      ),
-    );
+  const legacyRoot = join(home, 'botharness', 'tob-workspaces') + sep;
+  const bots = z.array(z.object({ slug: z.string(), humanId: z.string(), body: z.string() })).parse(
+    db.read((connection) =>
+      connection
+        .prepare(
+          `WITH legacy AS (
+              SELECT slug, owner_human_id, body, ? || slug AS workspace_path FROM persona_bots
+            )
+            SELECT b.slug, b.owner_human_id AS humanId, b.body
+            FROM legacy b JOIN humans h ON h.human_id = b.owner_human_id
+            WHERE EXISTS (SELECT 1 FROM json_each(b.body, '$.workspaces') w WHERE w.value = b.workspace_path)
+              OR EXISTS (SELECT 1 FROM workspace_grants g WHERE g.bot_slug = b.slug AND g.revoked_at IS NULL
+                AND (g.workspace_path = b.workspace_path
+                  OR substr(g.workspace_path, 1, length(b.workspace_path) + 1) = b.workspace_path || ?))`,
+        )
+        .all(legacyRoot, sep),
+    ),
+  );
   const memoryPaths = z
     .array(z.object({ memory: z.string() }))
     .parse(
@@ -361,12 +368,20 @@ export function relocateTobWorkspaces(db: OperationalDatabaseModulePort, home: s
     const target = join(accountSpacePath(home, bot.humanId), 'files');
     const record = z.object({ workspaces: z.array(z.string()) }).parse(JSON.parse(bot.body));
     const oldGrants = z
-      .array(z.object({ id: z.string(), workspace_id: z.string(), orchestrator_write: z.number() }))
+      .array(
+        z.object({
+          id: z.string(),
+          workspace_id: z.string(),
+          workspace_path: z.string(),
+          workspace_title: z.string(),
+          orchestrator_write: z.number(),
+        }),
+      )
       .parse(
         db.read((connection) =>
           connection
             .prepare(
-              `SELECT id, workspace_id, orchestrator_write FROM workspace_grants WHERE bot_slug = ? AND revoked_at IS NULL AND (workspace_path = ? OR substr(workspace_path,1,length(?)) = ?)`,
+              `SELECT id, workspace_id, workspace_path, workspace_title, orchestrator_write FROM workspace_grants WHERE bot_slug = ? AND revoked_at IS NULL AND (workspace_path = ? OR substr(workspace_path,1,length(?)) = ?)`,
             )
             .all(bot.slug, source, source + sep, source + sep),
         ),
@@ -374,6 +389,17 @@ export function relocateTobWorkspaces(db: OperationalDatabaseModulePort, home: s
     if (!record.workspaces.includes(source) && !oldGrants.length) continue;
     if (canonicalPath(source) !== source || canonicalPath(target) !== target)
       throw new TeamError('grant-protected-path');
+    const replacements = oldGrants.map((grant) => {
+      const path = join(target, relative(source, grant.workspace_path));
+      if (
+        !within(source, grant.workspace_path) ||
+        !within(source, canonicalPath(grant.workspace_path)) ||
+        !within(target, path) ||
+        !within(target, canonicalPath(path))
+      )
+        throw new TeamError('grant-protected-path');
+      return { ...grant, path, workspaceId: path === target ? 'spaces/' + bot.humanId : path };
+    });
     mkdirSync(target, { recursive: true });
     const moves: Move[] = [];
     const files = (from: string, to: string) => {
@@ -394,10 +420,13 @@ export function relocateTobWorkspaces(db: OperationalDatabaseModulePort, home: s
     );
     try {
       applyMoves(moves);
-      const replaced = new Set([source, ...oldGrants.map((grant) => grant.workspace_id)]);
       const workspaces = [
-        ...new Set([...record.workspaces.filter((workspace) => !replaced.has(workspace)), target]),
+        ...new Set(
+          record.workspaces.map((workspace) => (workspace === source ? target : workspace)),
+        ),
       ];
+      for (const grant of replacements)
+        if (!within(target, canonicalPath(grant.path))) throw new TeamError('grant-protected-path');
       db.transaction(
         (connection) => {
           connection
@@ -409,22 +438,22 @@ export function relocateTobWorkspaces(db: OperationalDatabaseModulePort, home: s
             connection
               .prepare('UPDATE workspace_grants SET revoked_at = ? WHERE id = ?')
               .run(new Date().toISOString(), grant.id);
-          if (oldGrants.length) {
-            const write = oldGrants.some((grant) => grant.orchestrator_write === 1);
+          for (const grant of replacements) {
             connection
               .prepare(`INSERT INTO workspace_grants (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at,orchestrator_write,write_revision)
-            SELECT ?,?,?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM workspace_grants WHERE bot_slug = ? AND workspace_id = ?)`)
+            SELECT ?,?,?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM workspace_grants WHERE bot_slug = ? AND (workspace_id = ? OR workspace_path = ?))`)
               .run(
                 randomUUID(),
                 bot.slug,
-                'spaces/' + bot.humanId,
-                target,
-                bot.name,
+                grant.workspaceId,
+                grant.path,
+                grant.workspace_title,
                 new Date().toISOString(),
-                Number(write),
-                Number(write),
+                grant.orchestrator_write,
+                grant.orchestrator_write,
                 bot.slug,
-                'spaces/' + bot.humanId,
+                grant.workspaceId,
+                grant.path,
               );
           }
           connection.prepare('DELETE FROM workspace_file_transfers WHERE human_id = ?').run(key);

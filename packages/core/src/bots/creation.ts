@@ -23,6 +23,7 @@ export interface BotCreationResult {
   httpsFallback?: HttpsFallback;
 }
 export interface BotImportInput {
+  ownerHumanId?: string;
   displayName: string;
   description?: string;
   roles?: string[];
@@ -37,6 +38,7 @@ function importFingerprint(input: BotImportReference): string {
   const source = input.source;
   return fingerprint({
     kind: 'bot-import-v1',
+    ...(input.ownerHumanId === undefined ? {} : { ownerHumanId: input.ownerHumanId }),
     displayName: input.displayName,
     ...(input.description === undefined ? {} : { description: input.description }),
     ...(input.roles === undefined ? {} : { roles: input.roles }),
@@ -123,10 +125,11 @@ export function createBotCreation(options: {
         'This operation key belongs to a different creation request.',
       );
   };
-  const receipt = (row: CreationRow): BotCreationReceipt => {
+  const receipt = (row: CreationRow, ownerHumanId: string): BotCreationReceipt => {
     const bot = registry.get(row.bot_slug);
     if (
       bot?.paused === true ||
+      (bot !== undefined && (bot.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId) !== ownerHumanId) ||
       (!bot && registry.getHistorical(row.bot_slug)) ||
       (!bot && row.status === 'created')
     )
@@ -149,7 +152,7 @@ export function createBotCreation(options: {
     const row = read(operationKey);
     if (!row) return undefined;
     matchImport(row, input);
-    return receipt(row);
+    return receipt(row, input.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId);
   };
   const importBot = async (
     input: BotImportInput,
@@ -177,7 +180,7 @@ export function createBotCreation(options: {
       );
       const row = read(operationKey)!;
       matchImport(row, input);
-      receipt(row);
+      receipt(row, input.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId);
       let record = registry.get(row.bot_slug);
       let httpsFallback: HttpsFallback | undefined;
       if (!record) {
@@ -188,6 +191,7 @@ export function createBotCreation(options: {
           );
         const metadata = {
           slug: row.bot_slug,
+          ...(input.ownerHumanId === undefined ? {} : { ownerHumanId: input.ownerHumanId }),
           displayName: input.displayName,
           ...(input.description === undefined ? {} : { description: input.description }),
           ...(input.roles === undefined ? {} : { roles: input.roles }),
@@ -212,7 +216,11 @@ export function createBotCreation(options: {
         httpsFallback = result.httpsFallback;
       }
       authorize?.();
-      const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, record.slug, record.displayName);
+      const channel = channels.getOrCreateDm(
+        humanContext(record.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId),
+        record.slug,
+        record.displayName,
+      );
       if (!channel)
         throw new BotCreationError(
           'creation-dm-unavailable',
@@ -291,7 +299,7 @@ export function createBotCreation(options: {
       const row = read(operationKey);
       if (!row) return undefined;
       match(row, input);
-      return receipt(row);
+      return receipt(row, input.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId);
     },
     create(input, operationKey) {
       let row: CreationRow | undefined;
@@ -310,7 +318,7 @@ export function createBotCreation(options: {
         });
         row = read(operationKey)!;
         match(row, input);
-        receipt(row);
+        receipt(row, input.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId);
       }
       const slug = row?.bot_slug ?? 'bot-' + randomUUID().replaceAll('-', '');
       let record = registry.get(slug);
@@ -365,10 +373,12 @@ export function createBotCreation(options: {
 export function privateBotCreations(
   service: BotCreationService,
   human: HumanContext,
+  isOwner = () => human.humanId === OWNER_HUMAN_CONTEXT.humanId,
+  authorize?: () => void,
 ): BotCreationService {
-  if (human.humanId === OWNER_HUMAN_CONTEXT.humanId) return service;
   const key = (value: string): string => {
     checkedKey(value);
+    if (human.humanId === OWNER_HUMAN_CONTEXT.humanId) return value;
     return (
       'member:' +
       createHash('sha256')
@@ -378,10 +388,29 @@ export function privateBotCreations(
   };
   const inputFor = (input: BotCreationInput): BotCreationInput => ({
     ...input,
-    ownerHumanId: human.humanId,
+    ...(human.humanId === OWNER_HUMAN_CONTEXT.humanId && isOwner()
+      ? {}
+      : { ownerHumanId: human.humanId }),
+  });
+  const importFor = <T extends BotImportReference>(input: T): T => ({
+    ...input,
+    ...(human.humanId === OWNER_HUMAN_CONTEXT.humanId ? {} : { ownerHumanId: human.humanId }),
   });
   return {
-    ...service,
+    lookupImport(operationKey, input) {
+      const found = service.lookupImport(key(operationKey), importFor(input));
+      return found === undefined ? undefined : { ...found, operationKey };
+    },
+    async importBot(input, operationKey, check) {
+      const created = await service.importBot(importFor(input), key(operationKey), () => {
+        authorize?.();
+        check?.();
+      });
+      return {
+        ...created,
+        ...(created.receipt ? { receipt: { ...created.receipt, operationKey } } : {}),
+      };
+    },
     lookup(operationKey, input) {
       const found = service.lookup(key(operationKey), inputFor(input));
       return found === undefined ? undefined : { ...found, operationKey };

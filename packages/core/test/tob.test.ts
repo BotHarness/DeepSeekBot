@@ -68,30 +68,34 @@ describe('Tob canonical identity and settings', () => {
       const results = await Promise.all(Array.from({ length: 8 }, () => bridge.tobHome({})));
       const result = results[0]!;
       if (!result.ok) throw new Error(result.error.message);
-      expect(results.every((r) => r.ok && r.value.botSlug === result.value.botSlug)).toBe(true);
+      const home = result.value;
+      if (!('botSlug' in home)) throw new Error('Owner Tob unavailable');
+      expect(
+        results.every((r) => r.ok && 'botSlug' in r.value && r.value.botSlug === home.botSlug),
+      ).toBe(true);
       expect(f.core.registry.list()).toHaveLength(3);
       expect(f.core.tob.isTob('spoof')).toBe(false);
       expect(f.core.registry.get('existing')?.displayName).toBe('DeepSeek Bot');
-      expect(f.core.channels.readMessages(result.value.channelId)).toHaveLength(0);
-      expect(() => f.core.deletions.preview(result.value.botSlug)).toThrow('protected-bot');
-      expect(() => f.core.registry.setPaused(result.value.botSlug, true)).toThrow('protected-bot');
-      expect(bridge.pause({ slug: result.value.botSlug })).toMatchObject({
+      expect(f.core.channels.readMessages(home.channelId)).toHaveLength(0);
+      expect(() => f.core.deletions.preview(home.botSlug)).toThrow('protected-bot');
+      expect(() => f.core.registry.setPaused(home.botSlug, true)).toThrow('protected-bot');
+      expect(bridge.pause({ slug: home.botSlug })).toMatchObject({
         ok: false,
         error: { code: 'protected-bot' },
       });
-      const dir = f.core.registry.memoryDirFor(result.value.botSlug);
+      const dir = f.core.registry.memoryDirFor(home.botSlug);
       expect(dir).toBeTruthy();
       await f.close();
       const next = f.make();
       try {
         expect(await next.tob.ensure()).toEqual(
-          result.value.attention
+          home.attention
             ? {
-                botSlug: result.value.botSlug,
-                channelId: result.value.channelId,
-                workspacePath: result.value.workspacePath,
+                botSlug: home.botSlug,
+                channelId: home.channelId,
+                workspacePath: home.workspacePath,
               }
-            : result.value,
+            : home,
         );
       } finally {
         await next.runtime.close();

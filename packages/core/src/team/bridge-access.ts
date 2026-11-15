@@ -12,7 +12,12 @@ import {
 } from '../channels/bot-mention-text.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
-import { MEMBER_METHODS, MEMBER_BOT_METHODS, MEMBER_APPROVAL_METHODS } from './member-methods.js';
+import {
+  MEMBER_METHODS,
+  MEMBER_BOT_METHODS,
+  MEMBER_BOT_IMPORT_METHODS,
+  MEMBER_APPROVAL_METHODS,
+} from './member-methods.js';
 import { ownsBot } from './bot-access.js';
 import { TeamError } from './error.js';
 
@@ -22,6 +27,7 @@ const adminSettings = new Set([
     (action) => action !== 'transfer' && action !== 'memberPurgeConfirm',
   ),
 ]);
+const botCreationMethods = new Set(['create', 'createLookup', ...MEMBER_BOT_IMPORT_METHODS]);
 const object = (input: unknown): Record<string, unknown> =>
   typeof input === 'object' && input !== null && !Array.isArray(input)
     ? Object.fromEntries(Object.entries(input))
@@ -82,12 +88,12 @@ export function guardHumanBridge(
       if (cached?.operation === operation) return cached.guarded;
       const guarded = (payload: unknown, ...args: unknown[]) => {
         const owner = deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
-        if (!owner && !deps.team && ['create', 'createLookup'].includes(property))
-          return refuse('permission-required', { permission: 'bots.create' });
+        if (!owner && !deps.team && botCreationMethods.has(property))
+          return refuse('permission-required', { permission: 'bots.createPrivate' });
         if (!owner && deps.team) {
-          if (property === 'create' || property === 'createLookup') {
+          if (botCreationMethods.has(property)) {
             try {
-              deps.team.roles.require(human, 'bots.create');
+              deps.team.roles.require(human, 'bots.createPrivate');
             } catch (error) {
               if (error instanceof TeamError) return refuse(error.code, error.details);
               throw error;
@@ -97,6 +103,22 @@ export function guardHumanBridge(
             return refuse('member-suspended');
         }
         const input = object(payload);
+        if (
+          botCreationMethods.has(property) &&
+          (input['public'] === true ||
+            input['visibility'] === 'public' ||
+            object(input['visibility'])['kind'] === 'public')
+        ) {
+          if (!owner) {
+            try {
+              deps.team?.roles.require(human, 'bots.createPublic');
+            } catch (error) {
+              if (error instanceof TeamError) return refuse(error.code, error.details);
+              throw error;
+            }
+          }
+          return refuse('invalid-input');
+        }
         if (property === 'list' && input['administration'] === true) {
           if (!owner || human.caller === 'bot') return refuse('permission-required');
           const own = target.list(payload);

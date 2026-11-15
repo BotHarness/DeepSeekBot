@@ -1,3 +1,4 @@
+import { useTeamMember } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { humanIdOf, useSelfHumanId, SelfHumanContext } from './self-human.js';
@@ -379,11 +380,18 @@ function Welcome({
   state: ConversationStateView;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const member = useTeamMember();
   return (
     <div className="bh-root bh-main">
       <div className="bh-content" {...stylex.props(messageStyles.emptyContainer)}>
         <PanelEmptyState icon="messages-circle">
-          {t(state.bots.length === 0 ? 'main.welcome.empty' : 'main.welcome.hint')}
+          {t(
+            member
+              ? 'team.firstRun.main'
+              : state.bots.length === 0
+                ? 'main.welcome.empty'
+                : 'main.welcome.hint',
+          )}
         </PanelEmptyState>
       </div>
     </div>
@@ -1182,13 +1190,14 @@ function EmptyConversation({
   bot: BotSummary | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const member = useTeamMember();
   return (
     <div className="bh-chat-empty" {...stylex.props(messageStyles.emptyContainer)}>
       <PanelEmptyState icon="messages-circle">
         {isHumanDmChannel(channel)
           ? t('main.humanChat.hint')
           : channel?.type === 'group'
-            ? `${channel.name} · ${t('main.group.note')}`
+            ? `${channel.name} · ${t(member ? 'main.group.memberNote' : 'main.group.note')}`
             : `${bot === undefined ? t('main.localChat') : t('main.localChat.with', { name: bot.displayName })} · ${t('main.localChat.hint')}`}
       </PanelEmptyState>
     </div>

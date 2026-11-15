@@ -2719,6 +2719,7 @@ export const zh = {
   'composer.submissionNotDelivered': 'Host 没有收到这条消息。可点「发送失败」放回输入框后重发。',
   'message.restoreBlocked': '输入框已有草稿，请先处理草稿再恢复失败消息。',
   'main.group.note': '邀请 Bot 加入，或在频道侧栏的「外部连接器」中接入外部会话。',
+  'main.group.memberNote': '给频道里的所有人发第一条消息。',
   'main.localChat': '本地对话',
   'main.localChat.with': '这是与 {name} 的本地对话',
   'main.localChat.hint': '直接发消息即可；Bot 会自行安排事项，并在这里回复结果。',
@@ -5606,6 +5607,12 @@ export const zh = {
   'failure.refused.modelNotAllowed': '你的角色不能使用这个 Bot 的模型',
   'failure.refused.modelNotAllowedHint':
     '在 Bot 设置的「模型」里换一个允许的模型，或请管理员调整角色。',
+  'team.firstRun.empty': '你还没有加入任何频道。',
+  'team.firstRun.browse': '浏览频道',
+  'team.permission.bots.createPrivate': '创建私有 Bot',
+  'team.permission.bots.createPublic': '创建公开 Bot',
+  'team.permission.bots.createPublic.hint': '公开 Bot 可以被其他人私聊、拉进频道。',
+  'team.firstRun.main': '在左侧打开一个频道，或者浏览频道加入一个。',
   'team.audit.title': '私密内容访问记录',
   'team.audit.integrity': '记录完整性',
   'team.audit.integrityHint': '检查是否有记录被改动或删除。',
@@ -8506,6 +8513,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     "Average output speed of the last {count} Bot replies among this chat's latest 200 messages",
   'main.group.note':
     'Invite Bots or connect an external conversation under External connectors in the Channel sidebar.',
+  'main.group.memberNote': 'Send the first message to everyone in this channel.',
   'main.localChat': 'Local chat',
   'main.localChat.with': 'This is a local conversation with {name}',
   'message.mention.openDm': 'Open DM with {bot}',
@@ -11651,6 +11659,13 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'failure.refused.modelNotAllowed': 'Your role can’t use this Bot’s model',
   'failure.refused.modelNotAllowedHint':
     'Choose an allowed model in the Bot’s Models settings, or ask an admin to change your role.',
+  'team.firstRun.empty': 'You’re not in any channels yet.',
+  'team.firstRun.browse': 'Browse channels',
+  'team.permission.bots.createPrivate': 'Create private Bots',
+  'team.permission.bots.createPublic': 'Create public Bots',
+  'team.permission.bots.createPublic.hint':
+    'Others can message public Bots and add them to channels.',
+  'team.firstRun.main': 'Open a channel on the left, or browse channels to join one.',
   'team.audit.title': 'Private content access log',
   'team.audit.integrity': 'Log integrity',
   'team.audit.integrityHint': 'Checks that no record was changed or removed.',

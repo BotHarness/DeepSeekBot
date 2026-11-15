@@ -576,7 +576,9 @@ export function apply(ctx: ClientContext): void {
         dockPanels.open(CHANNEL_BODY_PANEL);
         void actions
           .tobHome()
-          .then((tob) => actions.openChannel(tob.channelId))
+          .then((tob) =>
+            typeof tob.channelId === 'string' ? actions.openChannel(tob.channelId) : undefined,
+          )
           .catch(() => {});
       },
     ),

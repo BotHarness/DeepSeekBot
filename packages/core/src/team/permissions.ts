@@ -7,7 +7,8 @@ export const PERMISSION_CATALOG = [
   { id: 'channels.create', group: 'channels' },
   { id: 'channels.manageAll', group: 'channels' },
   { id: 'dm.humans', group: 'channels' },
-  { id: 'bots.create', group: 'bots' },
+  { id: 'bots.createPrivate', group: 'bots' },
+  { id: 'bots.createPublic', group: 'bots' },
   { id: 'bots.manageAll', group: 'bots' },
   { id: 'models.use', group: 'compute' },
   { id: 'im.bind', group: 'bots' },
@@ -20,12 +21,7 @@ export const PERMISSION_CATALOG = [
 export type HostPermission = (typeof PERMISSION_CATALOG)[number]['id'];
 export const ALL_PERMISSIONS = PERMISSION_CATALOG.map(({ id }) => id);
 export const ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter((id) => id !== 'privateContent.view');
-export const MEMBER_PERMISSIONS: HostPermission[] = [
-  'channels.create',
-  'dm.humans',
-  'bots.create',
-  'models.use',
-];
+export const MEMBER_PERMISSIONS: HostPermission[] = ['dm.humans'];
 export const roleModelsSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('all') }),
   z.object({

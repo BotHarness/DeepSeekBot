@@ -29,6 +29,7 @@ import * as passwords from '../src/team/password.js';
 import { SignInRateLimit } from '../src/team/rate-limit.js';
 import { memberPolicy } from '../src/team/policy.js';
 import {
+  MEMBER_BOT_IMPORT_METHODS,
   MEMBER_GLOBAL_METHODS,
   MEMBER_BOT_METHODS,
   MEMBER_CHANNEL_METHODS,
@@ -576,45 +577,37 @@ describe('Host members', { timeout: 60_000 }, () => {
   });
 });
 
-describe('member confidentiality', { timeout: 60_000 }, () => {
-  it('rejects a password superseded while private Tob preparation is pending', async () => {
+describe('M13 creation permission through the real member Gateway', () => {
+  it('returns the private-creation permission for blank, Git, ZIP and Marketplace entry points', async () => {
     const f = await enabledFixture();
-    let resume!: () => void;
-    let entered!: () => void;
-    const started = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    const pending = new Promise<void>((resolve) => {
-      resume = resolve;
-    });
-    const team = new TeamService(f.database, f.channels, {
-      ensureTob: async () => {
-        entered();
-        await pending;
-      },
-    });
-    const grant = vi.fn();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const login = await f.team.signIn('bob', 'member-password-1', 'm13-gateway');
+    for (const method of ['create', 'createLookup', ...MEMBER_BOT_IMPORT_METHODS]) {
+      await expect(
+        f.gateway.invoke({ namespace: 'botharness', method, args: {}, peer: login.peer }),
+      ).rejects.toMatchObject({
+        code: 'permission-required',
+        details: { permission: 'bots.createPrivate' },
+      });
+    }
+    expect(f.registry.list(f.human.humanId)).toEqual([]);
+  });
+});
+
+describe('member confidentiality', { timeout: 60_000 }, () => {
+  it('never prepares a Tob during member sign-in', async () => {
+    const f = await enabledFixture();
+    const ensureTob = vi.fn();
+    const team = new TeamService(f.database, f.channels, { ensureTob });
     const off = team.bindRuntime({
-      createPeer: (principal) => {
-        grant();
-        return new Peer(f.ctx, { principal });
-      },
+      createPeer: (principal) => new Peer(f.ctx, { principal }),
       invalidate: () => {},
       urls: () => [],
     });
     try {
-      const signingIn = team.signIn('bob', f.initialPassword, 'tob-race');
-      const result = signingIn.then(
-        () => 'grant-issued',
-        (error: unknown) => (error instanceof TeamError ? error.code : String(error)),
-      );
-      await started;
-      await f.team.resetPassword(owner, f.human.humanId);
-      resume();
-      expect(await result).toBe('credentials-invalid');
-      expect(grant).not.toHaveBeenCalled();
+      await team.signIn('bob', f.initialPassword, 'no-tob');
+      expect(ensureTob).not.toHaveBeenCalled();
     } finally {
-      resume();
       await off();
     }
   });
@@ -1084,6 +1077,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           expect([
             'unavailable',
             'creation-unavailable',
+            'permission-required',
             'storage-unavailable',
             'invalid-input',
           ]).toContain(code);
@@ -1770,7 +1764,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     const catalog = z
       .array(z.object({ id: z.string(), group: z.string() }).strict())
       .parse(await f.invoke('permissionCatalog'));
-    expect(catalog).toHaveLength(15);
+    expect(catalog).toHaveLength(16);
     expect(f.team.mode(owner).viewer).toMatchObject({
       owner: true,
       roleIds: [],
@@ -1779,10 +1773,10 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     expect(f.team.mode(f.human).viewer).toMatchObject({
       owner: false,
       roleIds: ['member'],
-      permissions: ['channels.create', 'dm.humans', 'bots.create', 'models.use'],
+      permissions: ['dm.humans'],
     });
     const builtins = f.team.roles.list(owner);
-    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(14);
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(15);
     expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
       'privateContent.view',
     );
@@ -1790,10 +1784,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     const { role } = f.team.roles.create(owner, 'Operators', ['usage.view', 'audit.view']);
     f.team.roles.set(owner, f.human.humanId, ['member', role.roleId, role.roleId]);
     expect(f.team.mode(f.human).viewer.permissions).toEqual([
-      'channels.create',
       'dm.humans',
-      'bots.create',
-      'models.use',
       'usage.view',
       'audit.view',
     ]);
@@ -2734,7 +2725,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       }
     });
     let before = f.db.diagnostics().metrics.reads;
-    expect(f.team.roles.permissions(f.human)).toContain('channels.create');
+    expect(f.team.roles.permissions(f.human)).toEqual(['dm.humans']);
     expect(f.db.diagnostics().metrics.reads - before).toBe(1);
     before = f.db.diagnostics().metrics.reads;
     expect(f.team.members(owner)).toHaveLength(1003);
@@ -3536,10 +3527,12 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
     return { pairing, result, closed };
   }
 
-  it.each(['reset', 'deactivate', 'off'] as const)(
-    '%s revokes every browser and paired device and closes existing streams',
+  it.each(['reset', 'deactivate', 'off', 'bot-permission'] as const)(
+    '%s closes every browser Peer and paired stream and refuses stale calls',
     async (operation) => {
       const f = await enabledFixture();
+      if (operation === 'bot-permission')
+        f.team.roles.update(owner, 'member', { permissions: ['dm.humans', 'bots.createPrivate'] });
       await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
       const first = await f.team.signIn('bob', 'member-password-1', 'first');
       const second = await f.team.signIn('bob', 'member-password-1', 'second');
@@ -3552,22 +3545,58 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
       });
       const reader = stream[Symbol.asyncIterator]();
       await reader.next();
-      const pending = expect(reader.next()).rejects.toThrow('aborted');
+      const pending =
+        operation === 'bot-permission'
+          ? expect(reader.next()).resolves.toEqual({ done: true, value: undefined })
+          : expect(reader.next()).rejects.toThrow('aborted');
       if (operation === 'reset') await f.team.resetPassword(owner, f.human.humanId);
       if (operation === 'deactivate') await f.team.deactivate(owner, f.human.humanId);
       if (operation === 'off') await f.team.setMode(owner, false);
+      if (operation === 'bot-permission') {
+        f.team.roles.update(owner, 'member', { permissions: ['dm.humans'] });
+        await f.team.accessSettled();
+        expect(f.methods(f.human).create({ displayName: 'Refused' })).toMatchObject({
+          ok: false,
+          error: { code: 'permission-required', details: { permission: 'bots.createPrivate' } },
+        });
+      }
       expect(first.peer.signal.aborted && second.peer.signal.aborted).toBe(true);
       await pending;
-      expect(f.team.admit(first.token)).toBeUndefined();
-      expect(f.team.admit(second.token)).toBeUndefined();
       expect(device.closed).toHaveBeenCalledOnce();
-      expect(device.pairing.admit(`Device ${device.result.credential}`)).toMatchObject({
-        ok: false,
-        code: 'device-revoked',
-      });
+      if (operation === 'bot-permission') {
+        for (const previous of [first, second]) {
+          const current = f.team.admit(previous.token);
+          if (!current)
+            throw new Error('Role revocation must permit reconnect with current permissions');
+          expect(current === previous.peer).toBe(false);
+          await expect(
+            f.gateway.invoke({
+              namespace: 'botharness',
+              method: 'create',
+              args: {},
+              peer: current,
+            }),
+          ).rejects.toMatchObject({
+            code: 'permission-required',
+            details: { permission: 'bots.createPrivate' },
+          });
+        }
+      } else {
+        expect(f.team.admit(first.token)).toBeUndefined();
+        expect(f.team.admit(second.token)).toBeUndefined();
+        expect(device.pairing.admit(`Device ${device.result.credential}`)).toMatchObject({
+          ok: false,
+          code: 'device-revoked',
+        });
+      }
       for (const peer of [first.peer, second.peer])
         await expect(
-          f.gateway.invoke({ namespace: 'botharness', method: 'teamMode', args: {}, peer }),
+          f.gateway.invoke({
+            namespace: 'botharness',
+            method: operation === 'bot-permission' ? 'create' : 'teamMode',
+            args: {},
+            peer,
+          }),
         ).rejects.toThrow();
     },
   );

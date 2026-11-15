@@ -129,6 +129,47 @@ async function run(url: string, args: string[], stdin = '') {
   };
 }
 describe('Team CLI', () => {
+  it.each([
+    { command: 'bot-zip-upload', method: 'zipUploadBegin' },
+    { command: 'bot-zip-preview', method: 'zipUploadPreview' },
+    { command: 'bot-zip-import', method: 'zipImport' },
+    { command: 'bot-zip-import-status', method: 'zipImportLookup' },
+  ])(
+    'routes --as $command through member authority and preserves import permission refusals',
+    async ({ command, method }) => {
+      const error = {
+        code: 'permission-required',
+        message: 'permission-required',
+        details: { permission: 'bots.createPrivate' },
+      };
+      const f = await host(error);
+      const file = join(createTempRoot('member-zip-cli-'), 'fixture.zip');
+      writeFileSync(file, Buffer.alloc(22));
+      const result = await run(f.url, [
+        '--as',
+        'bob',
+        command,
+        '--upload-key',
+        'member-zip-upload',
+        '--operation-key',
+        'member-zip-import',
+        '--name',
+        'Private',
+        ...(command === 'bot-zip-upload'
+          ? ['--from-zip', file]
+          : ['--archive-sha256', 'a'.repeat(64), '--archive-size', '22']),
+      ]);
+      expect(result.status).not.toBe(0);
+      expect(result.output).toEqual({ error });
+      expect(f.calls).toEqual([
+        {
+          path: '/api/botharness/team-as',
+          input: expect.objectContaining({ username: 'bob', namespace: 'botharness', method }),
+        },
+      ]);
+    },
+  );
+
   it('preserves coded path details for member CLI refusals without an Owner fallback', async () => {
     const error = {
       code: 'grant-foreign-space',
@@ -793,11 +834,19 @@ describe('M9 lifecycle CLI', () => {
 });
 
 describe('M2 CLI member Bot and Activity dispatch', () => {
+  it('reports no Tob as an available:false success under --as without Owner fallback', async () => {
+    const f = await host(undefined, undefined, undefined, { available: false });
+    const result = await run(f.url, ['--as', 'bob', 'tob-home']);
+    expect(result.status).toBe(0);
+    expect(result.output).toEqual({ available: false });
+    expect(f.calls.filter((call) => call.path === '/api/botharness/team-as')).toHaveLength(1);
+    expect(f.calls.at(-1)?.input).toMatchObject({ method: 'tobHome', args: {} });
+  });
   it.each([
     {
       code: 'permission-required',
       message: 'permission-required',
-      details: { permission: 'bots.create' },
+      details: { permission: 'bots.createPrivate' },
     },
     { code: 'member-suspended', message: 'member-suspended' },
   ])('preserves $code from bots create --as without Owner fallback', async (failure) => {

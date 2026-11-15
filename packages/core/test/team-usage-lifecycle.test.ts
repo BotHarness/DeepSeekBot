@@ -162,11 +162,13 @@ function fixture(seed = true, dshHome = createTempRoot('m10-members-lifecycle-')
 }
 
 describe('M10 with M2 private ownership, M4 Channels and M9 lifecycle', () => {
-  it('attributes private Bot, own Tob and shared-Channel mention turns and reconciles Owner and legacy usage', async () => {
+  it('attributes private Bot, former member Tob and shared-Channel mention turns and reconciles Owner and legacy usage', async () => {
     const f = fixture();
     const privateBot = f.createBot(member, 'private-bot');
     const ownerBot = f.createBot(owner, 'owner-bot');
-    const tob = await f.core.tob.ensure(member);
+    const legacy = f.createBot(member, 'legacy-tob');
+    const tob = { botSlug: legacy.slug };
+    expect(f.core.tob.slug(member)).toBeUndefined();
     await f.send(member, privateBot.slug);
     await f.send(member, tob.botSlug);
     await f.send(owner, ownerBot.slug);
@@ -258,7 +260,7 @@ describe('M10 with M2 private ownership, M4 Channels and M9 lifecycle', () => {
     });
   });
 
-  it('marks a Tob created by sign-in with a disallowed Host default and refuses its next turn', async () => {
+  it('creates no Tob at sign-in and refuses an existing private Bot on a disallowed Host default', async () => {
     const f = fixture(false);
     const ctx = new Context();
     const off = f.core.team.bindRuntime({
@@ -280,8 +282,9 @@ describe('M10 with M2 private ownership, M4 Channels and M9 lifecycle', () => {
     });
     f.setDefault(denied);
     await f.core.team.signIn('restricted', 'member-password-1', 'test-device');
-    const slug = f.core.tob.slug(human);
-    if (!slug) throw new Error('missing-sign-in-tob');
+    expect(f.core.tob.slug(human)).toBeUndefined();
+    expect(f.core.registry.list(human.humanId)).toEqual([]);
+    const { slug } = f.createBot(human, 'existing-private');
     expect(f.core.registry.get(slug)?.ownerHumanId).toBe(human.humanId);
     expect(f.core.registry.get(slug)?.modelPlan).toBeUndefined();
     expect(f.methods(human).get({ slug })).toMatchObject({
@@ -308,7 +311,9 @@ describe('M10 with M2 private ownership, M4 Channels and M9 lifecycle', () => {
   it('keeps usage under the deleted Human after M9 purges the private Bot and Tob', async () => {
     const f = fixture();
     const bot = f.createBot(member, 'purged-bot');
-    const tob = await f.core.tob.ensure(member);
+    const legacy = f.createBot(member, 'legacy-tob');
+    const tob = { botSlug: legacy.slug };
+    expect(f.core.tob.slug(member)).toBeUndefined();
     await f.send(member, bot.slug);
     await f.send(member, tob.botSlug);
     const before = f.core.usage!.overview('today').totals;

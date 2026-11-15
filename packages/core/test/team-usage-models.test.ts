@@ -768,6 +768,11 @@ describe('M10 member usage and role models', () => {
       }),
     ).toMatchObject({ ok: true });
     f.restrict();
+    const selector = f.team.roles.create(owner, 'Model selector', ['models.use'], {
+      kind: 'only',
+      routes: ['provider/allowed'],
+    }).role;
+    f.team.roles.set(owner, f.member.humanId, ['member', selector.roleId]);
     expect(f.methods.get({ slug: 'ada' })).toMatchObject({
       ok: true,
       value: { bot: { modelAllowed: false } },

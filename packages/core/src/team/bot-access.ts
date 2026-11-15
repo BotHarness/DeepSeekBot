@@ -12,6 +12,7 @@ export function ownsBot(human: HumanContext, bot: PersonaBotRecord | undefined):
 export function privateBotRegistry(
   registry: PersonaBotRegistry,
   human: HumanContext,
+  authorizeImport?: () => void,
 ): PersonaBotRegistry {
   const own = (bot: PersonaBotRecord | undefined) => (ownsBot(human, bot) ? bot : undefined);
   const scoped = {
@@ -25,9 +26,15 @@ export function privateBotRegistry(
       registry.createAsync({ ...input, ownerHumanId: human.humanId }, authorize),
     settled: () => registry.settled(human.humanId),
     createFromGit: (input, authorize) =>
-      registry.createFromGit({ ...input, ownerHumanId: human.humanId }, authorize),
+      registry.createFromGit({ ...input, ownerHumanId: human.humanId }, () => {
+        authorizeImport?.();
+        authorize?.();
+      }),
     createFromFiles: (input, authorize) =>
-      registry.createFromFiles({ ...input, ownerHumanId: human.humanId }, authorize),
+      registry.createFromFiles({ ...input, ownerHumanId: human.humanId }, () => {
+        authorizeImport?.();
+        authorize?.();
+      }),
     remove: (slug, options) =>
       ownsBot(human, registry.getHistorical(slug)) && registry.remove(slug, options),
     memoryDirFor: (slug) =>

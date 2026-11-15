@@ -2628,6 +2628,7 @@ export async function runBotCreateCli(
         (!teamChannels &&
           command !== 'channel-messages' &&
           !ONLINE_MANAGEMENT_COMMANDS.some((entry) => entry === command) &&
+          !ZIP_UPLOAD_COMMANDS.some((entry) => entry === command) &&
           !LIFECYCLE_COMMANDS.some((entry) => entry.command === command) &&
           !DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) &&
           !LOCAL_MEMORY_COMMANDS.has(command) &&
