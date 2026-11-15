@@ -23,6 +23,10 @@ export const ACTIVITY_INBOX_CSS = `
 .bh-activity-triage .bh-activity-list { flex: none; overflow: visible; }
 .bh-activity-triage .bh-activity-list-row { border-radius: ${radius.sm}; background: transparent; }
 .bh-activity-triage .bh-activity-list-row:hover { background: ${color.hover}; }
+.bh-activity-triage .bh-activity-list-row-title { display: flex; align-items: flex-start; gap: ${space.x3}; }
+.bh-activity-list-item-title { flex: 1; min-width: 0; }
+.bh-activity-environment { display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; max-width: 45%; color: ${color.muted}; font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-weight: ${text.regular}; }
+.bh-activity-environment > span { min-width: 0; }
 .bh-activity-toolbar { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: ${space.x2}; padding: ${space.x1} ${space.x3}; background: ${color.base}; }
 .bh-activity-toolbar h2 { flex: 1; margin: 0; font-size: ${text.titleSize}; line-height: ${text.titleLine}; font-weight: ${text.strong}; }
 .bh-activity-approval { display: grid; grid-template-rows: 1fr; margin-bottom: ${space.x4}; min-width: 0; }

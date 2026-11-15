@@ -9,6 +9,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Input: () => null,
   Textarea: () => null,
   Tooltip: ({ children }: { children?: import('react').ReactNode }) => children,
+  IconEllipsisOutlineRegular: () => null,
+  Menu: ({ anchor }: { anchor: import('react').ReactNode }) => anchor,
 }));
 
 const fixture = vi.hoisted(() => ({
@@ -24,7 +26,12 @@ vi.mock('../src/client/remote-hosts.js', async (original) => ({
 }));
 
 import { RemoteHostRows } from '../src/client/host-tabs.js';
-import { EnvironmentFilter, EnvironmentPanel } from '../src/client/environment-panel.js';
+import {
+  EnvironmentFilter,
+  EnvironmentPanel,
+  EnvironmentAddAction,
+  createEnvironmentPanel,
+} from '../src/client/environment-panel.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
 import * as hostLooks from '../src/client/host-looks.js';
@@ -42,6 +49,7 @@ it.each(['member', 'admin'])('hides Owner environment surfaces from the %s page'
   try {
     expect(renderToStaticMarkup(createElement(EnvironmentPanel, { t: zhTranslate }))).toBe('');
     expect(renderToStaticMarkup(createElement(EnvironmentFilter, { t: zhTranslate }))).toBe('');
+    expect(renderToStaticMarkup(createElement(EnvironmentAddAction, { t: zhTranslate }))).toBe('');
     expect(read).not.toHaveBeenCalled();
     expect(look).not.toHaveBeenCalled();
     expect(name).not.toHaveBeenCalled();
@@ -49,6 +57,16 @@ it.each(['member', 'admin'])('hides Owner environment surfaces from the %s page'
     look.mockRestore();
     name.mockRestore();
   }
+});
+
+it('keeps Add remote as an accessible icon action in the Environment header, without a footer entry', () => {
+  fixture.hosts = [];
+  const header = renderToStaticMarkup(createElement(EnvironmentAddAction, { t: zhTranslate }));
+  const body = renderToStaticMarkup(createElement(EnvironmentPanel, { t: zhTranslate }));
+  expect(createEnvironmentPanel(zhTranslate).headerAction).toBeDefined();
+  expect(header).toContain('aria-label="添加远程"');
+  expect(header).toContain('<svg');
+  expect(body).not.toContain('添加远程');
 });
 
 const remote: RemoteHost = {

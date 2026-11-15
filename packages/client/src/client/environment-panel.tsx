@@ -20,6 +20,7 @@ import { ConnectionsDialog } from './connections-dialog.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { Select } from './ds/select.js';
 import { IconButton } from './ds/icon-button.js';
+import { Tooltip } from './ds/tooltip.js';
 import { PointerMenu, type MenuPoint } from './ds/pointer-menu.js';
 import { Menu } from './appearance-primitives.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
@@ -122,7 +123,6 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
   },
   pickerName: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  footer: { flexShrink: 0, padding: 0 },
   status: { paddingBlock: space.x2, paddingInline: space.x3 },
 });
 
@@ -291,7 +291,7 @@ function OwnerEnvironmentFilter({ t }: { t: BotHarnessTranslate }): ReactElement
   );
 }
 
-function EnvironmentName({ hostId, name }: { hostId: string; name: string }): ReactElement {
+export function EnvironmentName({ hostId, name }: { hostId: string; name: string }): ReactElement {
   const label = useHostName(hostId, name);
   const look = useHostLook(hostId);
   return (
@@ -306,6 +306,21 @@ export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElemen
   return memberPage() ? null : <OwnerEnvironmentPanel t={t} />;
 }
 
+export function EnvironmentAddAction({ t }: { t: BotHarnessTranslate }): ReactElement | null {
+  const [adding, setAdding] = useState(false);
+  if (memberPage()) return null;
+  return (
+    <>
+      <Tooltip label={t('remoteHosts.add')} side="bottom">
+        <IconButton aria-label={t('remoteHosts.add')} onClick={() => setAdding(true)}>
+          <ChannelSidebarIcon name="plus" />
+        </IconButton>
+      </Tooltip>
+      {adding ? <ConnectionsDialog joinComputer t={t} onClose={() => setAdding(false)} /> : null}
+    </>
+  );
+}
+
 function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement {
   const snapshot = useRemoteHosts();
   const local = useThisHost();
@@ -316,7 +331,6 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
   );
   const localStatus = useClientStore((state) => state.activityList.attentionStatus);
   const [settings, setSettings] = useState<{ hostId: string; name: string; local: boolean }>();
-  const [adding, setAdding] = useState(false);
   return (
     <div {...stylex.props(styles.root)} data-environment-panel="">
       <div {...stylex.props(styles.list)}>
@@ -386,15 +400,6 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
           />
         ))}
       </div>
-      <div {...stylex.props(styles.footer)}>
-        <div {...stylex.props(styles.row)}>
-          <button type="button" {...stylex.props(styles.choose)} onClick={() => setAdding(true)}>
-            <ChannelSidebarIcon name="plus" />
-            {t('remoteHosts.add')}
-          </button>
-        </div>
-      </div>
-      {adding ? <ConnectionsDialog joinComputer t={t} onClose={() => setAdding(false)} /> : null}
       {settings ? (
         <HostSettings
           key={settings.hostId}
@@ -415,6 +420,7 @@ export function createEnvironmentPanel(t: BotHarnessTranslate): DockPanel {
     scope: 'global',
     order: -110,
     defaultPosition: { zone: 'left', relativeTo: WORKSPACE_CHANNELS },
+    headerAction: () => <EnvironmentAddAction t={t} />,
     component: () => <EnvironmentPanel t={t} />,
   };
 }

@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "settings.first-tob-loading",
+      "label": "Responsive lightweight settings during first-Tob Memory preparation",
+      "source": "packages/core/src/tob/service.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/settings-loading.md",
+      "task": 4226,
+      "gap": "Local HTTP budget and Web rendering; native Desktop and model replies are separate checks."
+    },
+    {
       "id": "environment.remote-bot-settings",
       "label": "Native remote Bot Profile, model, Workspace and approval controls on the original Host",
       "source": "packages/client/src/client/remote-native-conversation.ts",
@@ -2587,6 +2595,14 @@
       "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task, camera and screen scenarios, cough discarded, reply heard, the caller's microphone level behind the call bar ripple (raised while talking, 0 when muted), second window refused, fake camera keyframes reach a sentence grid, a fake screen recording gives one keyframe per window, a system-stopped share falls back to voice, and the Host's sampled media performance (packets/s, kbps, CPU) in the call view.",
       "task": 3496,
       "sha256": "c22005c2dbfab41b82d8a8990e4ccfbcb84ad59773fa4ef5570dfbdd58d32d19"
+    },
+    {
+      "path": "scripts/e2e-settings-loading.mjs",
+      "category": "mapped",
+      "behaviors": ["settings.first-tob-loading"],
+      "reason": "Fresh-Profile concurrent onboarding and settings requests with a 500ms response budget.",
+      "task": 4226,
+      "sha256": "a60b02ee56b57a840535969cefcdf28d1cdfa0bfe5d07047483289aeacbc89a8"
     }
   ],
   "native": [

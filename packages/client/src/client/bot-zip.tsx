@@ -1,3 +1,4 @@
+import { BotCreateSteps } from './bot-create-source.js';
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -157,6 +158,7 @@ export function ImportBotZipModal({
   t,
   onCancel,
   onImported,
+  onBack,
 }: {
   target?: ReactNode;
   actions: BridgeActions;
@@ -165,6 +167,7 @@ export function ImportBotZipModal({
   t: BotHarnessTranslate;
   onCancel: () => void;
   onImported: () => void;
+  onBack?: (() => void) | undefined;
 }): ReactElement {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File>();
@@ -209,6 +212,7 @@ export function ImportBotZipModal({
       }}
       onSubmit={submit}
     >
+      {onBack ? <BotCreateSteps t={t} onBack={onBack} disabled={importing} /> : null}
       {target}
       <div {...stylex.props(styles.file)}>
         <span {...stylex.props(styles.fileName, file === undefined && styles.fileEmpty)}>

@@ -225,11 +225,11 @@ Web Human 或当前获授权的外部审核人显式保存且可撤销的规则�
 _避免使用_：Workspace Grant、Provider Service Grant、sandbox preset、推断的命令相似性
 
 **Approval Template**：
-Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具审批可以允许、拒绝或交给 Human。每个 PersonaBot 选用一份或不选；选用、取消或修改正在使用的模板，需要 Human 决定，或在独立管理范围中显式保存的 Tool Approval Rule（ADR-0249）。
+由 Human 编写、供 Approval Reviewer 使用的共享自然语言审批策略，包含 Always ask、Always allow 与 free text。PersonaBot 通过继承全局或选择特定模板，至多使用一份有效模板，也可关闭 Reviewer（[ADR-0342](docs/adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)）。
 _避免使用_：approval mode、auto mode、Tool Approval Rule
 
 **Approval Reviewer**：
-在 Approval Review Session 里按 PersonaBot 的 Approval Template 判断一条待审批请求的模型；上下文不含工具结果；结论是允许、拒绝并附理由，或交给 Human。它出错时一律退回 Human 审批卡。
+在 Approval Review Session 中按 PersonaBot 的有效 Approval Template 判断一条待审批请求的模型，上下文不含工具结果，结果为仅放行本次或交给 Human。它的理解可能出错；发生故障时退回 Human 审批卡。
 _避免使用_：classifier、guardian、auto-approver
 
 **Approval Review Session**：
@@ -271,6 +271,22 @@ _避免使用_：auto-compact、后台摘要、cache warming
 **Developer Mode**：
 Human 拥有的 Bot-mode 偏好，用于揭示默认隐藏的诊断表面（operational log 视图、verbose 状态）。它只控制 Human 的可见性——绝不是 agent 能力的门：有 shell 通道的 agent 总能触及同一份底层数据，因此绝不能把 Developer Mode 描述或依赖为读取边界。
 _避免使用_：debug flag、admin mode、agent permission、read boundary
+
+### Skills（技能）
+
+**Host Skill**：
+安装在 Host 用户级的 Skill，所有 Session、所有 PersonaBot 都可见。
+_避免使用_：全局 skill、system skill、built-in skill
+
+**Project Skill**：
+属于某个目录的 Skill。这个目录可以是 PersonaBot 的 Memory Repository，也可以是 Workspace Grant 覆盖的文件夹，对该目录的访问权限决定哪些 PersonaBot 能发现这个 Skill、读取它的文件；但它不限制谁能通过 Skill Invocation 收到它的文本。PersonaBot 的 Skill 就是其 Memory Repository 下的 Project Skill，并不是另一种 Skill。
+_避免使用_：Bot Skill、workspace skill、私有 skill
+
+**Skill Invocation**：
+Human 在消息中对某个 Skill 的显式引用。它携带该 Skill 在消息发送时的文本，但不指向任何对象：由哪个 PersonaBot 阅读并执行，取决于消息里的 mention 和正常路由，与 Skill 归属于谁无关。
+_避免使用_：skill command、slash command、skill call
+
+### Computer
 
 **Computer**：
 一个 profile 级共享的 Linux 桌面，由该 profile 的所有 PersonaBot 共用；它拥有一个持久卷，保存其文件、浏览器 profile（Cookie 与登录态）与 CLI 凭据。它的隔离边界是 profile，绝不是某个 PersonaBot。

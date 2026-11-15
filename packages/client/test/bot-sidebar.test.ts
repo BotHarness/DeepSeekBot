@@ -815,9 +815,9 @@ describe('bot sidebar rows', () => {
             menu.items.some((item) => item['id'] === 'channel') &&
             !menu.items.some((item) => item['id'] === 'section'),
         );
-        expect(sectionMenu?.items.find((item) => item['id'] === 'bot')?.['submenu']).toEqual([
-          expect.objectContaining({ id: 'bot:empty' }),
-        ]);
+        expect(
+          sectionMenu?.items.find((item) => item['id'] === 'bot')?.['submenu'],
+        ).toBeUndefined();
         captured.menus.length = 0;
         await act(async () =>
           host
@@ -1622,21 +1622,21 @@ describe('bot sidebar rows', () => {
       '创建频道分组',
       'Bot 市场',
     ]);
-    expect(menu.items[0]?.['disabled']).toBeUndefined();
-    expect(
-      (menu.items[0]?.['submenu'] as Array<Record<string, unknown>>).map((item) => [
-        item['id'],
-        item['label'],
-      ]),
-    ).toEqual([
-      ['bot:empty', '从零创建'],
-      ['bot:git', '从 GitHub 导入'],
-      ['bot:zip', '从 zip 导入'],
-    ]);
+    expect(menu.items[0]?.['disabled']).toBe(false);
+    expect(menu.items[0]?.['submenu']).toBeUndefined();
     expect(markup).toContain('还没有 Bot');
     expect(markup).toContain('创建第一个 Bot');
     expect(markup).toContain('散装渠道');
     expect(markup).toContain('placeholder="搜索 Bot 或频道"');
+  });
+
+  it('keeps computer enrollment out of the Channels create menu', () => {
+    captured.dock = true;
+    environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'all' };
+    renderSidebar();
+    const ids = menuWithItem('bot').items.map((item) => item['id']);
+    expect(ids).not.toContain('remote');
+    expect(ids).toContain('channel');
   });
 
   it('blocks Bot creation and explains why while Host Git is unusable', () => {
@@ -1647,18 +1647,14 @@ describe('bot sidebar rows', () => {
       ...NO_INSTALL,
     });
     const markup = renderSidebar();
-    const submenu = menuWithItem('bot').items[0]?.['submenu'] as Array<Record<string, unknown>>;
+    const createBot = menuWithItem('bot').items[0];
 
     expect(markup).toContain('data-git-unavailable="too-old"');
     expect(markup).toContain('需要 Git 才能创建 Bot');
     expect(markup).toContain('Git 2.20.1 版本太旧，需要 2.28 或更新版本。');
     expect(markup).toContain('href="https://botharness.ai/zh/docs/installation/#git"');
     expect(markup).toMatch(/<button disabled="">创建第一个 Bot<\/button>/);
-    expect(submenu.map((item) => [item['id'], item['disabled']])).toEqual([
-      ['bot:empty', true],
-      ['bot:git', true],
-      ['bot:zip', true],
-    ]);
+    expect(createBot?.['disabled']).toBe(true);
   });
 
   it('names a missing Git and a Git that cannot run differently', () => {
@@ -1717,10 +1713,10 @@ describe('bot sidebar rows', () => {
 
   it('shows no Git notice once Host Git is usable', () => {
     const markup = renderSidebar();
-    const submenu = menuWithItem('bot').items[0]?.['submenu'] as Array<Record<string, unknown>>;
+    const createBot = menuWithItem('bot').items[0];
 
     expect(markup).not.toContain('data-git-unavailable');
-    expect(submenu.every((item) => item['disabled'] === false)).toBe(true);
+    expect(createBot?.['disabled']).toBe(false);
   });
 
   it('sorts the pinned grid independently and offers a pinned sort menu', () => {
