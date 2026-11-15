@@ -600,7 +600,14 @@ it.each([
     const run = await cli(f);
     const denied = await run(['--as', 'owner', ...argv]);
     expect(denied.status).not.toBe(0);
-    expect(denied.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(denied.output).toMatchObject({
+      error: {
+        code:
+          method === 'memoryFile' || method === 'memorySnapshot'
+            ? 'bot-not-found'
+            : 'remote-access/denied',
+      },
+    });
     expect(JSON.stringify(denied.output)).not.toContain(SECRET);
     expect(f.records()).toHaveLength(0);
   },

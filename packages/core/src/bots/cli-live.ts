@@ -40,7 +40,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
@@ -1578,20 +1578,13 @@ export async function runLiveCli(
     );
   }
   if (command === 'send') {
-    const channelId = dmChannelId(target);
+    const channelId = await resolveBotDm(rpc, target);
     const receipt = {
       channelId,
       messageId: messageId ?? `human-${randomUUID()}`,
     };
     let sent: unknown;
     try {
-      const bot = await rpc<{ bot: { displayName?: string } }>('get', {
-        slug: target,
-      });
-      await rpc('channelDm', {
-        slug: target,
-        displayName: bot.bot.displayName,
-      });
       sent = await rpc('channelSend', {
         channelId,
         body,
@@ -1634,7 +1627,7 @@ export async function runLiveCli(
   }
   if (command === 'send-status')
     return rpc('channelSendStatus', {
-      channelId: dmChannelId(target),
+      channelId: await resolveBotDm(rpc, target),
       messageId,
     });
   if (command === 'channel-messages') {
@@ -2180,7 +2173,6 @@ async function runMemoryCommand(
 ): Promise<unknown> {
   if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one bot id.`);
   const slug = rest[0].trim();
-  const channelId = dmChannelId(slug);
   const required = (name: keyof LiveValues, flag: string): string => {
     const value = values[name];
     if (typeof value !== 'string' || !value.trim()) usage(`${command} requires --${flag}.`);
@@ -2200,7 +2192,7 @@ async function runMemoryCommand(
   let args: Record<string, unknown>;
   switch (command) {
     case 'memory-snapshot':
-      [method, args] = ['memorySnapshot', { channelId }];
+      [method, args] = ['memorySnapshot', {}];
       break;
     case 'memory-image': {
       const path = required('path', 'path <file>');
@@ -2243,13 +2235,13 @@ async function runMemoryCommand(
       };
     }
     case 'memory-file':
-      [method, args] = ['memoryFile', { channelId, path: required('path', 'path <file>') }];
+      [method, args] = ['memoryFile', { path: required('path', 'path <file>') }];
       break;
     case 'memory-history':
-      [method, args] = ['memoryHistory', { channelId }];
+      [method, args] = ['memoryHistory', {}];
       break;
     case 'memory-diff':
-      [method, args] = ['memoryDiff', { channelId, sha: sha() }];
+      [method, args] = ['memoryDiff', { sha: sha() }];
       break;
     case 'memory-file-target':
       [method, args] = ['memoryFileTarget', { slug, path: required('path', 'path <file>') }];
@@ -2261,7 +2253,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memoryGitGraph',
         {
-          channelId,
           offset,
           ...(values.path === undefined ? {} : { path: required('path', 'path <file>') }),
         },
@@ -2269,29 +2260,25 @@ async function runMemoryCommand(
       break;
     }
     case 'memory-commit-diff':
-      [method, args] = ['memoryGitCommitDiff', { channelId, sha: sha() }];
+      [method, args] = ['memoryGitCommitDiff', { sha: sha() }];
       break;
     case 'memory-changes':
-      [method, args] = ['memoryWorkingChanges', { channelId }];
+      [method, args] = ['memoryWorkingChanges', {}];
       break;
     case 'memory-working-diff': {
       const kind = required('kind', 'kind staged|unstaged|untracked|current');
       if (!['staged', 'unstaged', 'untracked', 'current'].includes(kind))
         usage('--kind must be staged, unstaged, untracked or current.');
-      [method, args] = [
-        'memoryWorkingDiff',
-        { channelId, path: required('path', 'path <file>'), kind },
-      ];
+      [method, args] = ['memoryWorkingDiff', { path: required('path', 'path <file>'), kind }];
       break;
     }
     case 'memory-checkpoints':
-      [method, args] = ['memoryRecoveryHistory', { channelId }];
+      [method, args] = ['memoryRecoveryHistory', {}];
       break;
     case 'memory-restore':
       [method, args] = [
         'memoryRestore',
         {
-          channelId,
           checkpointId: required('checkpoint', 'checkpoint <id>'),
           expectedCurrentId: required('expected-current', 'expected-current <id>'),
         },
@@ -2301,7 +2288,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memoryRestoreCommit',
         {
-          channelId,
           sha: sha(),
           expectedHead: expectedHead(),
           restoreId: values['restore-id']?.trim() || randomUUID(),
@@ -2310,19 +2296,16 @@ async function runMemoryCommand(
       ];
       break;
     case 'memory-versions':
-      [method, args] = ['memoryVersions', { channelId }];
+      [method, args] = ['memoryVersions', {}];
       break;
     case 'memory-version-name':
       [method, args] = [
         'memoryNameVersion',
-        { channelId, sha: sha(), name: required('name', 'name <version>') },
+        { sha: sha(), name: required('name', 'name <version>') },
       ];
       break;
     case 'memory-version-unname':
-      [method, args] = [
-        'memoryRemoveVersionName',
-        { channelId, tag: required('tag', 'tag <version>') },
-      ];
+      [method, args] = ['memoryRemoveVersionName', { tag: required('tag', 'tag <version>') }];
       break;
     case 'memory-move': {
       const location = values['memory-location']?.trim();
@@ -2345,7 +2328,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memoryRepair',
         {
-          channelId,
           expectedHead: expectedHead(),
           repairId: values['repair-id']?.trim() || randomUUID(),
         },
@@ -2360,7 +2342,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memorySave',
         {
-          channelId,
           path,
           body,
           expectedHead: head,
@@ -2370,7 +2351,13 @@ async function runMemoryCommand(
     }
   }
   const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-  return (await connectLiveHost(values, io, signal)).rpc(method, args);
+  const rpc = (await connectLiveHost(values, io, signal)).rpc;
+  return rpc(
+    method,
+    method === 'memoryMove' || method === 'memoryFileTarget'
+      ? args
+      : { ...args, channelId: await resolveBotDm(rpc, slug) },
+  );
 }
 
 export interface ReviewedSettings {

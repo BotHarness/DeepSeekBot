@@ -56,7 +56,10 @@ async function host(
       body: rpc ? parsed.payload.args : parsed,
     };
     calls.push(call);
-    const answer = route(call);
+    const answer =
+      call.path === 'channelDm'
+        ? { json: { ok: true, value: { channel: { id: 'dm-ada' } } } }
+        : route(call);
     if (rpc) {
       res.setHeader('content-type', 'application/json');
       res.end(
@@ -124,20 +127,24 @@ describe('Agent memory commands against a live Host', () => {
       ['memory-versions', 'ada'],
     ])
       expect((await invoke(argv, live.url)).json).toEqual({ read: true });
-    expect(live.calls.map((call) => [call.path, call.body])).toEqual([
-      ['memorySnapshot', { channelId: DM }],
-      ['memoryFile', { channelId: DM, path: 'PERSONA.md' }],
-      ['memoryHistory', { channelId: DM }],
-      ['memoryDiff', { channelId: DM, sha: 'a'.repeat(40) }],
-      ['memoryFileTarget', { slug: 'ada', path: 'notes/x.md' }],
-      ['memoryGitGraph', { channelId: DM, offset: 20 }],
-      ['memoryGitGraph', { channelId: DM, offset: 0, path: 'notes/x.md' }],
-      ['memoryGitCommitDiff', { channelId: DM, sha: 'b'.repeat(40) }],
-      ['memoryWorkingChanges', { channelId: DM }],
-      ['memoryWorkingDiff', { channelId: DM, path: 'notes/x.md', kind: 'unstaged' }],
-      ['memoryRecoveryHistory', { channelId: DM }],
-      ['memoryVersions', { channelId: DM }],
-    ]);
+    expect(live.calls.map((call) => [call.path, call.body])).toEqual(
+      [
+        ['memorySnapshot', { channelId: DM }],
+        ['memoryFile', { channelId: DM, path: 'PERSONA.md' }],
+        ['memoryHistory', { channelId: DM }],
+        ['memoryDiff', { channelId: DM, sha: 'a'.repeat(40) }],
+        ['memoryFileTarget', { slug: 'ada', path: 'notes/x.md' }],
+        ['memoryGitGraph', { channelId: DM, offset: 20 }],
+        ['memoryGitGraph', { channelId: DM, offset: 0, path: 'notes/x.md' }],
+        ['memoryGitCommitDiff', { channelId: DM, sha: 'b'.repeat(40) }],
+        ['memoryWorkingChanges', { channelId: DM }],
+        ['memoryWorkingDiff', { channelId: DM, path: 'notes/x.md', kind: 'unstaged' }],
+        ['memoryRecoveryHistory', { channelId: DM }],
+        ['memoryVersions', { channelId: DM }],
+      ].flatMap((entry) =>
+        entry[0] === 'memoryFileTarget' ? [entry] : [['channelDm', { slug: 'ada' }], entry],
+      ),
+    );
   });
 
   it('writes memory only against an expected head, with an idempotency id', async () => {
@@ -175,9 +182,10 @@ describe('Agent memory commands against a live Host', () => {
     await invoke(['memory-version-name', 'ada', '--sha', 'd'.repeat(40), '--name', 'v1'], live.url);
     await invoke(['memory-version-unname', 'ada', '--tag', 'v1'], live.url);
     await invoke(['memory-repair', 'ada', '--expected-head', 'c'.repeat(40)], live.url);
-    const [save, restore, restoreCommit, name, unname, repair] = live.calls.map(
-      (call) => [call.path, call.body as Record<string, unknown>] as const,
-    );
+    expect(live.calls.filter((call) => call.path === 'channelDm')).toHaveLength(6);
+    const [save, restore, restoreCommit, name, unname, repair] = live.calls
+      .filter((call) => call.path !== 'channelDm')
+      .map((call) => [call.path, call.body as Record<string, unknown>] as const);
     expect(save![0]).toBe('memorySave');
     expect(save![1]).toMatchObject({
       channelId: DM,

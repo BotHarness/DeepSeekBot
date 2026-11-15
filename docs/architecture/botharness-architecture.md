@@ -1709,3 +1709,7 @@ M7 shared discovery projects reachable non-owned public Bots as metadata-only ro
 full Bot records remain principal-scoped. Per-Human arrangements persist independently in the
 operational database, and shared Bot attention is restricted to the participating Human DM.
 See [M7 runtime](team-mode-m7-runtime.md#shared-discovery-and-participant-arrangement).
+
+M7 participant DM history keeps metadata-only, read-only Bot entries after audience loss; these
+entries grant no reach or management. Online CLI Bot-DM commands resolve the caller’s actual
+Channel through the Host and preserve that ID in send receipts and lookups.

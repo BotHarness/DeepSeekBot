@@ -1,5 +1,6 @@
 import { isAvatarAppearance, isRetainedAvatarAppearance } from '../bots/avatar-appearance.js';
 import { currentBotPrimaryColor, isBotPrimaryColor } from '../bots/primary-color.js';
+import { dmChannelId } from '../channels/channel.js';
 import { botAvatarUrl } from '../bots/avatar-http.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
 import { z } from 'zod';
@@ -194,24 +195,32 @@ export class TeamBots {
     }));
     return { visibility: bot.visibility, switches: bot.switches, audienceDirectory };
   }
-  private reachableRows(human: HumanContext) {
-    return this.db.read((db) =>
-      db
-        .prepare(`
-      SELECT b.slug, b.owner_human_id AS owner, b.body, b.visibility_json AS visibility, b.switches_json AS switches,
-        h.display_name AS principalDisplayName
-      FROM persona_bots b JOIN humans h ON h.human_id=b.owner_human_id CROSS JOIN team_settings s
-      JOIN humans viewer ON viewer.human_id=? AND viewer.status='active'
-      WHERE h.status='active' AND (s.enabled=1 OR h.human_id=s.owner_human_id)
-      AND (s.enabled=1 OR viewer.human_id=s.owner_human_id)
+  private reachableRows(human: HumanContext, history = false) {
+    const reachable = `h.status='active' AND (s.enabled=1 OR h.human_id=s.owner_human_id)
       AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug=b.slug)
       AND json_extract(b.body,'$.deletedAt') IS NULL
       AND (b.owner_human_id=viewer.human_id OR (json_extract(b.visibility_json,'$.kind')='public' AND (
         json_extract(b.visibility_json,'$.audience.kind')='everyone'
         OR EXISTS (SELECT 1 FROM json_each(b.visibility_json,'$.audience.humanIds') a WHERE a.value=viewer.human_id)
-        OR EXISTS (SELECT 1 FROM human_roles r JOIN json_each(b.visibility_json,'$.audience.roleIds') a ON a.value=r.role_id WHERE r.human_id=viewer.human_id))))
+        OR EXISTS (SELECT 1 FROM human_roles r JOIN json_each(b.visibility_json,'$.audience.roleIds') a ON a.value=r.role_id WHERE r.human_id=viewer.human_id))))`;
+    return this.db.read((db) =>
+      db
+        .prepare(`
+      SELECT b.slug, b.owner_human_id AS owner, b.body, b.visibility_json AS visibility, b.switches_json AS switches,
+        coalesce(h.display_name,b.owner_human_id) AS principalDisplayName,
+        CASE WHEN ${reachable} THEN 1 ELSE 0 END AS reachable,
+        CASE WHEN EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug=b.slug)
+          OR json_extract(b.body,'$.deletedAt') IS NOT NULL THEN 1 ELSE 0 END AS deleted
+      FROM persona_bots b LEFT JOIN humans h ON h.human_id=b.owner_human_id CROSS JOIN team_settings s
+      JOIN humans viewer ON viewer.human_id=? AND viewer.status='active'
+      WHERE (s.enabled=1 OR viewer.human_id=s.owner_human_id)
+      AND ((${reachable}) OR (? AND EXISTS (
+        SELECT 1 FROM channel_records c WHERE json_extract(c.record_json,'$.type')='dm'
+        AND json_extract(c.record_json,'$.botSlug')=b.slug
+        AND json_extract(c.record_json,'$.dmHumanId')=viewer.human_id
+        AND json_extract(c.record_json,'$.deletedAt') IS NULL)))
       ORDER BY b.slug`)
-        .all(human.humanId),
+        .all(human.humanId, history ? 1 : 0),
     );
   }
   reachable(human: HumanContext) {
@@ -234,9 +243,11 @@ export class TeamBots {
           owner: z.string(),
           body: z.string(),
           principalDisplayName: z.string(),
+          reachable: z.union([z.literal(0), z.literal(1)]),
+          deleted: z.union([z.literal(0), z.literal(1)]),
         }),
       )
-      .parse(this.reachableRows(human));
+      .parse(this.reachableRows(human, human.caller !== 'bot'));
     return rows
       .filter((row) => row.owner !== human.humanId)
       .map((row) => {
@@ -270,7 +281,8 @@ export class TeamBots {
           ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
           ...(color === undefined ? {} : { primaryColor: color }),
           paused: bot.paused === true,
-          deleted: false,
+          deleted: row.deleted === 1,
+          ...(row.reachable === 0 ? { readOnly: true as const } : {}),
           sharedBy: { humanId: row.owner, displayName: row.principalDisplayName },
           metadataOnly: true as const,
         };
@@ -417,6 +429,20 @@ export class TeamBots {
       throw new TeamError('bot-proactive-denied', undefined, { slug, humanId });
   }
   dm(human: HumanContext, slug: string) {
+    if (human.caller !== 'bot') {
+      const row = this.db.read((db) =>
+        db
+          .prepare(`SELECT channel_id FROM channel_records
+        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=?
+        AND json_extract(record_json,'$.dmHumanId')=? LIMIT 1`)
+          .get(slug, human.humanId),
+      );
+      const channel = this.channels.get(
+        typeof row?.channel_id === 'string' ? row.channel_id : dmChannelId(slug),
+      );
+      if (channel?.botSlug === slug && this.channelAccess.canRead(human, channel.id))
+        return { ...channel, ...(!this.canReach(human, slug) ? { readOnly: true as const } : {}) };
+    }
     this.requireReach(human, slug);
     return this.channels.getOrCreateDm(human, slug, this.bot(slug).body.displayName);
   }

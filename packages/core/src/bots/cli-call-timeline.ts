@@ -1,4 +1,4 @@
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
 import { CliLiveError } from './cli-live-error.js';
 
@@ -65,12 +65,13 @@ function milliseconds(value: string | undefined, flag: string): number | undefin
 async function channelRead(
   rpc: LiveRpc,
   slug: string,
+  channelId: string,
   args: Record<string, unknown>,
 ): Promise<ToolPage & Record<string, unknown>> {
   const run = await rpc<{ result?: unknown }>('botToolRun', {
     slug,
     tool: 'channel_read',
-    args: { channel_id: dmChannelId(slug), ...args },
+    args: { channel_id: channelId, ...args },
   });
   if (typeof run.result !== 'object' || run.result === null)
     throw new CliLiveError('host-protocol-error', 'channel_read returned no JSON page.');
@@ -115,10 +116,11 @@ export async function runCallTimelineCommand(
       usage('call-list takes no --from-ms or --to-ms; read a call with call-read.');
     const slug = rest[0]!.trim();
     const { rpc } = await connect();
+    const channelId = await resolveBotDm(rpc, slug);
     const records: ChannelVoiceCallRecord[] = [];
     let cursor: string | undefined;
     for (let page = 0; page < MAX_LIST_PAGES; page += 1) {
-      const read = await channelRead(rpc, slug, {
+      const read = await channelRead(rpc, slug, channelId, {
         text: 'voice call',
         author_kind: 'system',
         limit: 200,
@@ -132,7 +134,7 @@ export async function runCallTimelineCommand(
     }
     return {
       botId: slug,
-      channelId: dmChannelId(slug),
+      channelId,
       calls: callListEntries(records),
       ...(cursor === undefined ? {} : { truncated: true }),
     };
@@ -145,7 +147,8 @@ export async function runCallTimelineCommand(
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200))
     usage('--limit must be an integer from 1 to 200.');
   const slug = rest[0]!.trim();
-  return channelRead((await connect()).rpc, slug, {
+  const { rpc } = await connect();
+  return channelRead(rpc, slug, await resolveBotDm(rpc, slug), {
     call: rest[1]!.trim(),
     ...(fromMs === undefined ? {} : { from_ms: fromMs }),
     ...(toMs === undefined ? {} : { to_ms: toMs }),

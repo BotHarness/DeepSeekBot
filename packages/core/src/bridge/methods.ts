@@ -852,7 +852,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
-  channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
+  channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord & { readOnly?: boolean } }>;
   channelGet(
     payload: unknown,
   ): BridgeResult<

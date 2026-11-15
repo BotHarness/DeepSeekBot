@@ -120,7 +120,7 @@ it('lists reachable non-owned Bots with only public metadata for members, Owner 
   });
 });
 
-it('drops audience-revoked Bots from discovery while retaining the participant read-only DM', async () => {
+it('retains audience-revoked Bots as read-only metadata only for their DM participant', async () => {
   const f = await fixture(),
     methods = f.bridge(bob);
   const dm = await methods.channelDm({ slug: 'public' });
@@ -133,7 +133,17 @@ it('drops audience-revoked Bots from discovery while retaining the participant r
   );
   const list = methods.list({});
   if (!list.ok) throw new Error('list refused');
-  expect(list.value.bots.map((bot) => bot.slug)).toEqual(['mine']);
+  expect(list.value.bots.find((bot) => bot.slug === 'public')).toEqual(
+    expect.objectContaining({
+      metadataOnly: true,
+      readOnly: true,
+      sharedBy: { humanId: 'alice', displayName: 'alice' },
+    }),
+  );
+  expect(f.core.team.bots.reachable(bob).some((bot) => bot.slug === 'public')).toBe(false);
+  const bystander = f.bridge(manager).list({});
+  if (!bystander.ok) throw new Error('list refused');
+  expect(bystander.value.bots.some((bot) => bot.slug === 'public')).toBe(false);
   expect(await methods.channels({})).toMatchObject({
     ok: true,
     value: {
@@ -149,8 +159,107 @@ it('drops audience-revoked Bots from discovery while retaining the participant r
     await methods.channelSend({ channelId: dm.value.channel.id, body: 'refused' }),
   ).toMatchObject({ ok: false });
   expect(await methods.channelDm({ slug: 'public' })).toMatchObject({
+    ok: true,
+    value: { channel: { id: dm.value.channel.id, readOnly: true } },
+  });
+  expect(await f.bridge(manager).channelDm({ slug: 'public' })).toMatchObject({
     ok: false,
     error: { code: 'bot-not-found' },
+  });
+});
+
+it('retains only participant metadata after returning private and drops it when that DM is removed', async () => {
+  const f = await fixture(),
+    methods = f.bridge(bob);
+  const dm = await methods.channelDm({ slug: 'public' });
+  if (!dm.ok) throw new Error('DM refused');
+  f.core.team.bots.setVisibility(alice, 'public', { kind: 'private' }, true);
+  const list = methods.list({});
+  if (!list.ok) throw new Error('list refused');
+  const entry = list.value.bots.find((bot) => bot.slug === 'public');
+  expect(entry).toEqual({
+    slug: 'public',
+    displayName: 'public',
+    avatar: botAvatarUrl('public', PNG),
+    primaryColor: { mode: 'custom', color: '#abcdef' },
+    paused: false,
+    deleted: false,
+    metadataOnly: true,
+    sharedBy: { humanId: 'alice', displayName: 'alice' },
+    readOnly: true,
+  });
+  expect(f.core.team.bots.reachable(bob).some((bot) => bot.slug === 'public')).toBe(false);
+  const botCaller = f.bridge({ ...bob, caller: 'bot' }).list({});
+  if (!botCaller.ok) throw new Error('list refused');
+  expect(botCaller.value.bots.some((bot) => bot.slug === 'public')).toBe(false);
+  expect(await methods.channelDm({ slug: 'public' })).toMatchObject({
+    ok: true,
+    value: { channel: { id: dm.value.channel.id, readOnly: true } },
+  });
+  for (const method of ['get', 'update', 'modelPlan', 'grants', 'sessions'] as const)
+    expect(
+      await Reflect.apply(methods[method], methods, [
+        { slug: 'public', patch: { displayName: 'stolen' } },
+      ]),
+    ).toMatchObject({ ok: false });
+  expect(await methods.channelCreate({ name: 'refused', members: ['public'] })).toMatchObject({
+    ok: false,
+  });
+  f.db.transaction((sql) =>
+    sql.prepare('DELETE FROM channel_records WHERE channel_id=?').run(dm.value.channel.id),
+  );
+  const removed = methods.list({});
+  if (!removed.ok) throw new Error('list refused');
+  expect(removed.value.bots.some((bot) => bot.slug === 'public')).toBe(false);
+  expect(await methods.channelDm({ slug: 'public' })).toMatchObject({
+    ok: false,
+    error: { code: 'bot-not-found' },
+  });
+});
+
+it('keeps participant history metadata when the principal is deactivated or the Bot is deleted', async () => {
+  const f = await fixture(),
+    methods = f.bridge(bob);
+  const dm = await methods.channelDm({ slug: 'public' });
+  if (!dm.ok) throw new Error('DM refused');
+  f.db.transaction((sql) =>
+    sql.prepare("UPDATE humans SET status='deactivated' WHERE human_id='alice'").run(),
+  );
+  expect(methods.list({})).toMatchObject({
+    ok: true,
+    value: {
+      bots: expect.arrayContaining([
+        expect.objectContaining({ slug: 'public', readOnly: true, metadataOnly: true }),
+      ]),
+    },
+  });
+  expect(await methods.channelDm({ slug: 'public' })).toMatchObject({
+    ok: true,
+    value: { channel: { id: dm.value.channel.id, readOnly: true } },
+  });
+  expect(
+    await methods.channelSend({ channelId: dm.value.channel.id, body: 'refused' }),
+  ).toMatchObject({ ok: false });
+  f.db.transaction((sql) =>
+    sql.prepare("UPDATE humans SET status='active' WHERE human_id='alice'").run(),
+  );
+  const preview = f.core.deletions.preview('public');
+  await f.core.deletions.confirm('public', preview.token, false);
+  expect(methods.list({})).toMatchObject({
+    ok: true,
+    value: {
+      bots: expect.arrayContaining([
+        expect.objectContaining({
+          slug: 'public',
+          readOnly: true,
+          deleted: true,
+          metadataOnly: true,
+        }),
+      ]),
+    },
+  });
+  expect(await methods.channelMessages({ channelId: dm.value.channel.id })).toMatchObject({
+    ok: true,
   });
 });
 

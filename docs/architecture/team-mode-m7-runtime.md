@@ -220,7 +220,8 @@ an explicit metadata-only projection, including for the Owner and all-Bots manag
   appearance?: AvatarAppearance | RetainedAvatarAppearance;
   primaryColor?: BotPrimaryColor;
   paused: boolean;
-  deleted: false;
+  deleted: boolean;
+  readOnly?: true;
   sharedBy: { humanId: string; displayName: string };
   metadataOnly: true;
 }
@@ -228,12 +229,17 @@ an explicit metadata-only projection, including for the Owner and all-Bots manag
 
 No prompt, role tag, description, Model Plan, Workspace, Memory path, activity or Session field
 is included. Image avatars use the existing asset URL. Shared search matches only public names
-and slugs. Discovery reuses the current audience/principal query, decodes only reachable rows,
-and adds one read independent of Bot count; query-count and malformed-private-record tests guard
-this boundary. Deleted Bots are unreachable and disappear; principal deactivation, role revoke,
-and audience shrink are effective on the next list. Existing participant DMs remain in Channels
-as read-only history after audience loss. Explicit administrative discovery retains M11/M2's
-existing metadata rules and deduplicates shared entries.
+and slugs. Discovery reuses the current audience/principal query, decodes only reachable or
+participant-history rows, and adds one read independent of Bot count; query-count and malformed-private-record tests guard
+this boundary. Principal deactivation, role revoke and audience shrink are effective on the next
+list. A non-principal with an existing Human–Bot participant DM retains the metadata entry after
+losing reach, with `readOnly:true`; callers without that DM do not retain it. This also preserves
+history after a return to private, principal deactivation or accepted Bot deletion (`deleted:true`).
+The entry disappears if the participant DM is removed. `reachableBots` remains audience-only:
+history entries never grant DM initiation, Channel addition, sending, Bot tools or management.
+Principal attribution falls back to the retained Human ID if that Human record no longer exists.
+Bot callers do not inherit Human history metadata. Explicit administrative discovery retains
+M11/M2's existing metadata rules and deduplicates shared entries.
 
 The named migration `human-roster-arrangements` adds one operational row per Human who customizes
 an arrangement. It reuses the RosterStore operations and schema for pins, hidden entries, sections
@@ -252,12 +258,37 @@ and Sessions retain their existing refusals. `openBot`'s separate Session load t
 refusal and does not acquire a shared transcript. Existing all-Bots administrative capabilities
 remain explicit and do not grant content access. No Client or mobile code changes are included.
 
+## Participant DM resolution in the CLI
+
+Online `send` resolves `channelDm {slug}` before sending and uses the returned Channel ID in the
+receipt, send and every status poll. It never calls owner-only `get` to resolve a public Bot.
+`send-status` resolves the same participant DM and can inspect an existing receipt after audience
+loss. Refusals after resolution retain that real Channel ID; a failed resolution does not fabricate
+a legacy receipt. No retry sends another message without the caller's explicit retry/message ID.
+
+The same Host resolver supplies generated DM IDs for online Memory, profile/appearance, usage,
+call-history and creation-result paths. Existing management gates still refuse non-principals;
+resolving a participant DM is not management authority. Explicit Channel IDs from a command are
+never rewritten. Offline private creation receipts and protected Tob-local operations retain their
+canonical initial DM identity; these paths do not impersonate a member through `--as`.
+
+`channelDm` reopens an existing, readable Human participant DM without requiring current audience
+reach, returning `channel.readOnly:true` when reach is lost. It performs no write in that case.
+Without an existing DM, current reach is required before creating one. Bot callers do not receive
+this Human history exception. The ordinary Channel write fence remains authoritative for `send`.
+
+The shared/history projection is still one discovery read, using the existing participant-pair
+lookup index. Each CLI command resolves its DM with one authenticated RPC; `send` drops the
+preceding owner-only `get`, so resolution uses one fewer RPC than before. Status polling and
+call-history pagination reuse the resolved ID. Current authorization is rechecked by the Host.
+No schema migration, dependency, worker or additional Memory store is introduced.
+
 ## UI integration needs
 
 1. Bot settings visibility and audience controls, using `audienceDirectory`; publication permission and principal/all-Bots management gating.
 2. Shrink impact preview and explicit confirmation, then refresh DMs and Channel membership.
 3. Principal switches for proactive DMs, principal Channels and speaker context; per-Human proactive opt-out.
-4. Reachable-Bot discovery and DM/add pickers using metadata only; existing participant DM navigation and read-only state.
+4. Reachable-Bot discovery and DM/add pickers using metadata only; retain existing participant DM navigation for `list` entries with `readOnly:true`, and exclude those history-only entries from new-DM/add pickers using `reachableBots`.
 5. Channel add eligibility and present-Bot mention pickers using `memberBots`, including private Bots already in the Channel.
 6. Admin Role Policy editor with topic tags and Allow/Deny items; assignment conflict indicators using `roleConflicts` and policy revisions.
 7. Principal status/access-loss feedback and current-audience refusal handling through coded errors and `details`.

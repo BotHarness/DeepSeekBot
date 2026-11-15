@@ -1908,7 +1908,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(await this.methods.channelListChanges({ sinceSeq, epoch }));
   }
 
-  channelDm(slug: string, displayName?: string): { channel: ChannelRecord } {
+  channelDm(
+    slug: string,
+    displayName?: string,
+  ): { channel: ChannelRecord & { readOnly?: boolean } } {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 

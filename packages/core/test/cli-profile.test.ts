@@ -37,7 +37,10 @@ async function host(handler: (method: string, args: Record<string, unknown>) => 
       JSON.stringify({
         type: 'server-response',
         rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
+        result:
+          method === 'channelDm'
+            ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+            : handler(method, body.payload.args),
       }),
     );
   });
@@ -87,19 +90,27 @@ describe('Bot profile and appearance commands', () => {
     await invoke(['bot-primary-color-set', 'ada', '--automatic'], live.url);
     const dataUrl = `data:image/png;base64,${PNG.toString('base64')}`;
     expect(live.calls).toEqual([
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botAvatarSet', args: { channelId: 'dm-ada', avatar: dataUrl } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botAvatarSet', args: { channelId: 'dm-ada', avatar: null } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botBannerSet', args: { channelId: 'dm-ada', banner: { image: dataUrl } } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'botBannerSet',
         args: { channelId: 'dm-ada', banner: { recipe: { scene: 'meadow', seed: 7 } } },
       },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botBannerSet', args: { channelId: 'dm-ada', banner: null } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botAppearanceSet', args: { channelId: 'dm-ada', recipe: { hair: 'bob' } } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'botPrimaryColorSet',
         args: { channelId: 'dm-ada', primaryColor: { mode: 'custom', color: '#aabbcc' } },
       },
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'botPrimaryColorSet',
         args: { channelId: 'dm-ada', primaryColor: { mode: 'automatic' } },

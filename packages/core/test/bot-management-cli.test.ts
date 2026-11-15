@@ -55,7 +55,10 @@ async function host(handler: (method: string, args: Record<string, unknown>) => 
     const method = input.method.replace('botharness/', '');
     expect(req.url).toBe(`/api/${input.method}`);
     calls.push({ method, args: input.payload.args });
-    const result = handler(method, input.payload.args);
+    const result =
+      method === 'channelDm'
+        ? { ok: true, value: { channel: { id: 'dm-' + String(input.payload.args.slug) } } }
+        : handler(method, input.payload.args);
     if (result === 'lost-response') {
       res.destroy();
       return;
