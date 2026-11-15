@@ -274,6 +274,7 @@ Usage:
   tobs im-app-remove <platform> --app <app-id>
   tobs im-bind <id> --app <app-id>
   tobs im-unbind <id> --app <app-id>
+  tobs im-reconnect <id> --app <app-id>
   tobs im-status <id>
   tobs channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
   tobs channel-ingests <channel>

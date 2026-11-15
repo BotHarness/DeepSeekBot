@@ -22,6 +22,7 @@ async function stop(core: BotHarnessCore) {
 
 afterEach(async () => {
   for (const core of cores) await stop(core);
+  vi.useRealTimers();
 });
 
 async function fixture() {
@@ -40,6 +41,9 @@ async function fixture() {
   const consumers = new Map<string, Consumer>();
   const replies: { account: string; route: MessagingReplyRoute; text: string }[] = [];
   let connected = true;
+  let fingerprint = accounts['qq-a'].fingerprint;
+  let inspections = 0;
+  let registrations: (() => void)[] = [];
   const unavailableConsumers = new Set<string>();
   const service: DshImOutboundService = {
     contractVersion: 1,
@@ -49,20 +53,23 @@ async function fixture() {
     echoVersion: 1,
     listBots: async () => Object.keys(accounts).map((botId) => ({ botId, channel: 'qq' })),
     listTargets: async () => [],
-    describeBot: async (botId) => ({
-      version: 1,
-      channel: 'qq',
-      botId,
-      account: { fingerprint: accounts[botId as Account].fingerprint, name: botId },
-      connected,
-      capabilities: [
-        'exclusive-text-consumer',
-        'reply-text-checked',
-        'reply-context-checked',
-        'reply-receipt-checked',
-        'reply-fence-checked',
-      ],
-    }),
+    describeBot: async (botId) => {
+      inspections++;
+      return {
+        version: 1,
+        channel: 'qq',
+        botId,
+        account: { fingerprint, name: botId },
+        connected,
+        capabilities: [
+          'exclusive-text-consumer',
+          'reply-text-checked',
+          'reply-context-checked',
+          'reply-receipt-checked',
+          'reply-fence-checked',
+        ],
+      };
+    },
     sendChecked: async () => {
       throw new Error('QQ proactive sending is not qualified by this fixture');
     },
@@ -96,7 +103,7 @@ async function fixture() {
   const boot = () => {
     const value = createCore({ dshHome: home, agents });
     cores.add(value);
-    value.externalMessaging.register(createDshImProvider(service, 'qq')!);
+    registrations = [value.externalMessaging.register(createDshImProvider(service, 'qq')!)];
     return value;
   };
   let core = boot();
@@ -112,6 +119,18 @@ async function fixture() {
       return core;
     },
     replies,
+    consumers,
+    get inspections() {
+      return inspections;
+    },
+    changeFingerprint() {
+      fingerprint = 'b'.repeat(64);
+    },
+    replaceProvider() {
+      registrations.forEach((dispose) => dispose());
+      registrations = [core.externalMessaging.register(createDshImProvider(service, 'qq')!)];
+    },
+    settle,
     async bind(account: Account) {
       const value = accounts[account];
       const binding = await core.externalMessaging.identity(value.owner, {
@@ -171,6 +190,15 @@ async function fixture() {
         collectionInheritance: 'inherit',
       });
     },
+    setConnected(value: boolean) {
+      connected = value;
+    },
+    async restartDisconnected() {
+      await stop(core);
+      connected = false;
+      core = boot();
+      await settle();
+    },
     async restart(failure?: 'disconnected' | 'consumer-unavailable') {
       await stop(core);
       connected = failure !== 'disconnected';
@@ -219,3 +247,115 @@ it.each(['disconnected', 'consumer-unavailable'] as const)(
     expect(fx.replies).toHaveLength(1);
   },
 );
+
+it('recovers both persisted QQ receivers after cold-start readiness exceeds the old retry budget', async () => {
+  const fx = await fixture();
+  await fx.bind('qq-a');
+  await fx.receive('qq-a', 'before-cold-start');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await fx.restartDisconnected();
+  await vi.advanceTimersByTimeAsync(120_000);
+  const disconnected = await fx.core.externalMessaging.snapshot('ada');
+  expect(disconnected.identities?.[0]?.recovery).toMatchObject({ kind: 'retrying' });
+  expect(disconnected.grants[0]?.recovery).toMatchObject({ kind: 'retrying' });
+  fx.setConnected(true);
+  await vi.advanceTimersByTimeAsync(30_000);
+  const restored = await fx.core.externalMessaging.snapshot('ada');
+  expect(restored.identities?.[0]?.reception).toBe('receiving');
+  expect(restored.grants[0]?.reception).toBe('receiving');
+  expect(restored.identities?.[0]?.recovery).toBeUndefined();
+  expect(restored.grants[0]?.recovery).toBeUndefined();
+  const source = await fx.receive('qq-a', 'first-fresh-mention');
+  expect(await fx.core.externalMessaging.reply('ada', source, 'recovered')).toMatchObject({
+    state: 'provider-accepted',
+  });
+  expect(fx.replies).toHaveLength(1);
+});
+
+it('cancels cold-start retries on identity disable and starts a fresh chain on resume', async () => {
+  const fx = await fixture();
+  const identity = await fx.bind('qq-a');
+  await fx.receive('qq-a', 'before-disable');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await fx.restartDisconnected();
+  await vi.advanceTimersByTimeAsync(2_000);
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'update',
+    id: identity.id,
+    expectedRevision: identity.revision,
+    name: identity.name,
+    enabled: false,
+  });
+  fx.setConnected(true);
+  await vi.advanceTimersByTimeAsync(120_000);
+  const disabled = await fx.core.externalMessaging.snapshot('ada');
+  expect(disabled.identities?.[0]?.reception).toBe('off');
+  expect(disabled.identities?.[0]?.recovery).toBeUndefined();
+  expect(disabled.grants[0]?.recovery).toBeUndefined();
+  expect(fx.consumers.size).toBe(0);
+  const paused = disabled.identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'update',
+    id: paused.id,
+    expectedRevision: paused.revision,
+    name: paused.name,
+    enabled: true,
+  });
+  expect((await fx.core.externalMessaging.snapshot('ada')).grants[0]?.reception).toBe('receiving');
+  expect(fx.consumers.size).toBe(1);
+});
+
+it('stops retrying fingerprint changes and exposes an actionable refusal', async () => {
+  const fx = await fixture();
+  await fx.bind('qq-a');
+  await fx.receive('qq-a', 'before-fingerprint-change');
+  fx.changeFingerprint();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await fx.restartDisconnected();
+  const snapshot = await fx.core.externalMessaging.snapshot('ada');
+  expect(snapshot.identities?.[0]?.recovery).toEqual({
+    kind: 'action-required',
+    reason: 'rebind-required',
+  });
+  expect(snapshot.grants[0]?.recovery).toMatchObject({ kind: 'action-required' });
+  const before = fx.inspections;
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(fx.inspections).toBe(before);
+  expect(fx.consumers.size).toBe(0);
+});
+
+it('cancels stale retries on provider replacement and Host close', async () => {
+  const fx = await fixture();
+  await fx.bind('qq-a');
+  await fx.receive('qq-a', 'before-replacement');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await fx.restartDisconnected();
+  await vi.advanceTimersByTimeAsync(120_000);
+  fx.setConnected(true);
+  fx.replaceProvider();
+  await fx.settle();
+  expect((await fx.core.externalMessaging.snapshot('ada')).grants[0]?.reception).toBe('receiving');
+  const before = fx.inspections;
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(fx.inspections).toBe(before);
+  expect(fx.consumers.size).toBe(1);
+  fx.core.externalMessaging.close();
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(fx.consumers.size).toBe(0);
+  expect(fx.inspections).toBe(before);
+});
+
+it('does not resurrect revoked grants while the account is still recovering', async () => {
+  const fx = await fixture();
+  await fx.bind('qq-a');
+  await fx.receive('qq-a', 'before-revoke');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await fx.restartDisconnected();
+  const grant = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
+  fx.core.externalMessaging.revoke('ada', grant.id);
+  fx.setConnected(true);
+  await vi.advanceTimersByTimeAsync(120_000);
+  const snapshot = await fx.core.externalMessaging.snapshot('ada');
+  expect(snapshot.grants[0]?.reception).toBe('off');
+  expect(snapshot.grants[0]?.recovery).toBeUndefined();
+});

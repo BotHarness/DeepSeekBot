@@ -146,9 +146,9 @@ it('edits WeChat typing in the current identity modal and keeps native request a
         }),
       ),
     );
-    expect(container.querySelector('[role="status"]')?.textContent).toBe(
-      zhTranslate('identity.typing.accepted'),
-    );
+    expect(
+      Array.from(container.querySelectorAll('[role="status"]'), (node) => node.textContent),
+    ).toContain(zhTranslate('identity.typing.accepted'));
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[title="编辑身份：QA WeChat"]')!.click(),
     );
@@ -390,14 +390,16 @@ it.each(['feishu', 'qq', 'discord'] as const)(
         accountRef: 'lark-app',
         fingerprint: 'a'.repeat(64),
       });
-      expect(container.querySelector('[role="status"]')?.textContent).toBe('正在连接 Support app…');
+      expect(
+        Array.from(container.querySelectorAll('[role="status"]'), (node) => node.textContent),
+      ).toContain('正在连接 Support app…');
       snapshot = {
         ...snapshot,
         identities: [{ ...identity, reception: 'receiving' }],
         grants: [entry],
       };
       await act(async () => render());
-      expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      expect(container.textContent).toContain(
         platform === 'qq'
           ? '已就绪：群里 @ Support app 的消息'
           : platform === 'discord'
@@ -936,6 +938,86 @@ it('returns from the create-app form to the bind dialog and dismisses with the c
     await act(async () => buttonNamed('稍后', dialog()).click());
     expect(onClose).toHaveBeenCalledOnce();
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
+it('reconnects once, shows pending and errors, and accepts live reception updates', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const identity: NonNullable<MessagingSnapshot['identities']>[number] = {
+    id: 'qq',
+    botSlug: 'ada',
+    providerId: 'dsh-im/qq',
+    platform: 'qq',
+    accountRef: 'qq-app',
+    fingerprint: 'a'.repeat(64),
+    name: 'QQ QA',
+    enabled: true,
+    revision: 7,
+    createdAt: '2026-11-15T00:00:00Z',
+    availability: 'available',
+    newConversations: 'auto',
+    grantCount: 0,
+    scopes: [],
+    reception: 'unavailable',
+    recovery: {
+      kind: 'retrying',
+      reason: 'provider-unavailable',
+      attempt: 5,
+      nextRetryAt: '2026-11-15T01:00:00Z',
+    },
+  };
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  let reject: (error: Error) => void = () => {};
+  const mutate = vi.fn(
+    () =>
+      new Promise<void>((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  const render = () =>
+    root.render(
+      createElement(ExternalIdentityList, {
+        snapshot: { accounts: [], identities: [identity], grants: [], intents: [] },
+        t: zhTranslate,
+        refresh: vi.fn(),
+        mutate,
+        conversation: vi.fn(),
+        rules: vi.fn(),
+      }),
+    );
+  try {
+    await act(async () => render());
+    expect(container.textContent).toContain('正在重连');
+    const reconnect = buttonNamed(
+      zhTranslate('identity.reconnectFor', { name: identity.name }),
+      container,
+    );
+    await act(async () => reconnect.click());
+    expect(reconnect.disabled).toBe(true);
+    reconnect.click();
+    expect(mutate).toHaveBeenCalledExactlyOnceWith({
+      kind: 'reconnect',
+      id: 'qq',
+      expectedRevision: 7,
+    });
+    await act(async () => reject(new Error('offline')));
+    expect(container.textContent).toContain(zhTranslate('identity.failed'));
+    expect(reconnect.disabled).toBe(false);
+    identity.reception = 'receiving';
+    delete identity.recovery;
+    await act(async () => render());
+    expect(container.textContent).toContain('消息接收: 接收中');
+    expect(container.textContent).not.toContain('正在重连');
+    expect(
+      container.querySelector(
+        `[aria-label="${zhTranslate('identity.reconnectFor', { name: identity.name })}"]`,
+      ),
+    ).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();

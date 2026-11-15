@@ -1,3 +1,4 @@
+import { ReceptionStatus } from './reception-status.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
@@ -19,6 +20,7 @@ const LIMITS = { 'hourly-limit': 20, 'active-limit': 500 } as const;
 
 export function ExternalConversations({
   identity,
+  reconnect,
   snapshot,
   busy,
   t,
@@ -29,6 +31,7 @@ export function ExternalConversations({
   syncChannels = [],
 }: {
   identity: MessagingIdentityView;
+  reconnect?(): void;
   snapshot: MessagingSnapshot | undefined;
   busy: boolean;
   t: BotHarnessTranslate;
@@ -200,9 +203,17 @@ export function ExternalConversations({
             : []),
         ].join(' · ')}
         muted={grant.muted}
+        chips={<ReceptionStatus reception={grant.reception} recovery={grant.recovery} t={t} />}
         detail={actions(
           name,
           <>
+            {identity.enabled && grant.reception !== 'receiving' && reconnect
+              ? small(
+                  t('reception.reconnectNow'),
+                  t('identity.reconnectFor', { name: identity.name }),
+                  reconnect,
+                )
+              : null}
             {sync && scope.kind === 'group'
               ? small(
                   t('conversation.sync'),

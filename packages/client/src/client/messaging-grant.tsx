@@ -1,3 +1,4 @@
+import { ReceptionStatus } from './reception-status.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import * as stylex from '@stylexjs/stylex';
 import { DangerTextButton } from './ds/form-dialog.js';
@@ -284,13 +285,19 @@ export function MessagingGrantRow({
                         />
                       </div>
                       <p className="bh-im-status" role="status">
-                        {grant.platform === 'weixin'
-                          ? t(
-                              grant.reception === 'receiving'
-                                ? 'im.receptionDM'
-                                : 'im.receptionDMOff',
-                            )
-                          : t(`im.reception.${grant.reception ?? 'off'}`)}
+                        {grant.platform === 'weixin' ? (
+                          t(
+                            grant.reception === 'receiving'
+                              ? 'im.receptionDM'
+                              : 'im.receptionDMOff',
+                          )
+                        ) : (
+                          <ReceptionStatus
+                            reception={grant.reception}
+                            recovery={grant.recovery}
+                            t={t}
+                          />
+                        )}
                       </p>
                       {grant.receiveScope && grant.groupPolicy ? (
                         <GroupReceptionSettings

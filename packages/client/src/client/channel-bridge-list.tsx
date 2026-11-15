@@ -1,3 +1,4 @@
+import { ReceptionStatus } from './reception-status.js';
 import { MessagingHelp } from './messaging-help.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
@@ -43,20 +44,13 @@ const styles = stylex.create({
   text: { margin: 0 },
 });
 
-function stateKey(row: ChannelBridgeRow) {
-  return !row.enabled
-    ? 'bridge.state.off'
-    : row.availability !== 'available'
-      ? 'bridge.state.unavailable'
-      : row.reception === 'receiving'
-        ? 'bridge.state.receiving'
-        : row.reception === 'connecting'
-          ? 'bridge.state.connecting'
-          : 'bridge.state.unavailable';
-}
-
 export function bridgeNeedsAttention(row: ChannelBridgeRow): boolean {
-  return row.enabled && stateKey(row) === 'bridge.state.unavailable';
+  if (!row.enabled || row.recovery?.kind === 'retrying') return false;
+  return (
+    row.recovery?.kind === 'action-required' ||
+    row.availability !== 'available' ||
+    (row.reception !== 'receiving' && row.reception !== 'connecting')
+  );
 }
 
 export function ChannelBridgeAttention({
@@ -79,7 +73,10 @@ export function ChannelBridgeAttention({
         .then(() => actions.channelBridges(channelId))
         .then((snapshot) => {
           if (current && sequence === request)
-            reportRef.current(snapshot.bridges.some(bridgeNeedsAttention));
+            reportRef.current(
+              snapshot.receptionNeedsAttention === true ||
+                snapshot.bridges.some(bridgeNeedsAttention),
+            );
         })
         .catch(() => undefined);
     };
@@ -298,7 +295,9 @@ export function ChannelBridgeList({
             title={row.name}
             chips={
               <>
-                <Tag tone="neutral">{t(stateKey(row))}</Tag>
+                <Tag tone="neutral">
+                  <ReceptionStatus reception={row.reception} recovery={row.recovery} t={t} />
+                </Tag>
                 {row.delivery === 'inbox' ? (
                   <Tag tone="neutral">{t('bridge.inboxOnly')}</Tag>
                 ) : null}

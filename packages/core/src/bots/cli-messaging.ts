@@ -372,6 +372,7 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
           revision: grant['revision'],
           availability: grant['availability'],
           reception: grant['reception'],
+          ...(grant['recovery'] === undefined ? {} : { recovery: grant['recovery'] }),
           canReceive: grant['canReceive'],
           canPost: grant['canPost'],
           muted: grant['muted'] === true,

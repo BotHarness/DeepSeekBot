@@ -1,3 +1,4 @@
+import type { ReceptionRecovery } from './receiver-recovery.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { readIngest } from './conversation-ingest.js';
 import { isChannelNotice } from '../channels/channel-notice.js';
@@ -275,6 +276,7 @@ export interface MessagingSnapshot {
   grants: (MessagingGrant & {
     availability: 'available' | 'unavailable' | 'rebind-required';
     reception: ReturnType<InboundMessaging['status']>;
+    recovery?: ReceptionRecovery;
     canReceive?: boolean;
     canPost?: boolean;
     postConversationId?: string;
@@ -2290,6 +2292,17 @@ export function createOutboundMessaging(options: {
       return {
         channelId,
         canTargetInbox: current.type === 'dm',
+        receptionNeedsAttention: snapshots.some(
+          (snapshot, index) =>
+            current.members.includes(channel.members[index]!) &&
+            snapshot.identities?.some(
+              (identity) =>
+                identity.enabled &&
+                !identity.revokedAt &&
+                (identity.recovery?.kind === 'action-required' ||
+                  identity.availability === 'rebind-required'),
+            ),
+        ),
         bridges: grants.flatMap((g) =>
           channelBridgeRoutes(g)
             .filter(
@@ -2309,6 +2322,7 @@ export function createOutboundMessaging(options: {
               defaultRevision: service.defaults(g.platform).revision,
               availability: g.availability,
               reception: route.enabled ? g.reception : ('off' as const),
+              ...(route.enabled && g.recovery ? { recovery: g.recovery } : {}),
             })),
         ),
         sources: grants
@@ -2422,6 +2436,7 @@ export function createOutboundMessaging(options: {
           const latest = binding(id);
           if (latest.revision !== value.revision)
             availability = latest.enabled ? 'unavailable' : 'paused';
+          const recovery = inbound.pairingRecovery(id);
           const scopes = rows
             .map((r) => JSON.parse(r.body) as MessagingGrant)
             .filter((g) => g.bindingId === id && !g.revokedAt);
@@ -2434,6 +2449,7 @@ export function createOutboundMessaging(options: {
                 : availability === 'paused'
                   ? ('off' as const)
                   : ('unavailable' as const),
+            ...(recovery ? { recovery } : {}),
             grantCount: scopes.length,
             scopes: scopes.map((g) => g.targetName),
             ...(latest.platform === 'weixin'
@@ -2486,6 +2502,7 @@ export function createOutboundMessaging(options: {
             }
           }
           const current = grant(botSlug, value.id);
+          const recovery = inbound.recovery(value.id);
           const lastMessageAt =
             current.origin === 'implicit'
               ? (
@@ -2503,6 +2520,7 @@ export function createOutboundMessaging(options: {
             ...(lastMessageAt ? { lastMessageAt } : {}),
             availability,
             reception: inbound.status(value.id),
+            ...(recovery ? { recovery } : {}),
             canReceive,
             canPost,
             ...(postConversationId ? { postConversationId } : {}),

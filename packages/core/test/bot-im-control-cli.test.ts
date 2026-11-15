@@ -276,3 +276,42 @@ describe('Agent IM commands', () => {
     ).toBe('usage');
   });
 });
+
+it('reconnects an IM identity through the live owner without unbinding or changing access', async () => {
+  const live = await host((method, args) => ({
+    ok: true,
+    value: method === 'messagingSnapshot' ? SNAPSHOT : { identity: args.input },
+  }));
+  const result = await invoke(['im-reconnect', 'ada', '--app', 'discord_1'], live.url);
+  expect(result.code).toBe(0);
+  expect(live.calls.at(-1)).toEqual({
+    method: 'messagingIdentity',
+    args: {
+      slug: 'ada',
+      input: { kind: 'reconnect', id: '11111111-1111-4111-8111-111111111111', expectedRevision: 2 },
+    },
+  });
+});
+
+it('preserves canonical retry metadata in IM status and never replays a failed reconnect', async () => {
+  const recovery = {
+    kind: 'retrying',
+    reason: 'provider-unavailable',
+    attempt: 6,
+    nextRetryAt: '2026-11-15T10:00:30Z',
+  };
+  const snapshot = {
+    ...SNAPSHOT,
+    identities: SNAPSHOT.identities.map((identity) => ({ ...identity, recovery })),
+  };
+  const live = await host((method) =>
+    method === 'messagingSnapshot'
+      ? { ok: true, value: snapshot }
+      : { ok: false, error: { code: 'identity-stale', message: 'refresh' } },
+  );
+  expect((await invoke(['im-status', 'ada'], live.url)).json.bindings[0].recovery).toEqual(
+    recovery,
+  );
+  expect((await invoke(['im-reconnect', 'ada', '--app', 'discord_1'], live.url)).code).not.toBe(0);
+  expect(live.calls.filter((call) => call.method === 'messagingIdentity')).toHaveLength(1);
+});

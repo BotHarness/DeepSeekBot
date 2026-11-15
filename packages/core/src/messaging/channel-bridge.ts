@@ -76,8 +76,10 @@ export interface ChannelBridgeRow extends ChannelBridgeSource, ChannelBridgeConf
   delivery?: 'channel' | 'inbox';
   availability: MessagingSnapshot['grants'][number]['availability'];
   reception: MessagingSnapshot['grants'][number]['reception'];
+  recovery?: MessagingSnapshot['grants'][number]['recovery'];
 }
 export interface ChannelBridgeSnapshot {
+  receptionNeedsAttention?: boolean;
   channelId: string;
   bridges: ChannelBridgeRow[];
   canTargetInbox?: boolean;

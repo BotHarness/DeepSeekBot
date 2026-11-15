@@ -1,3 +1,4 @@
+import { ReceptionStatus } from './reception-status.js';
 import { CreateAppForm } from './create-app-form.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
@@ -303,6 +304,7 @@ export function ExternalIdentityList({
                 chips={
                   <>
                     <Tag tone="neutral">{t(AVAILABILITY[row.availability])}</Tag>
+                    <ReceptionStatus reception={row.reception} recovery={row.recovery} t={t} />
                     {row.platform === 'weixin' ? (
                       <span className="bh-bridge-secondary" role="status">
                         {t(
@@ -330,22 +332,45 @@ export function ExternalIdentityList({
                 disabled={busy}
                 onClick={() => open('edit', row)}
                 trailing={
-                  <Switch
-                    label={t('identity.enableFor', { name: row.name })}
-                    checked={row.enabled}
-                    disabled={busy}
-                    onChange={(enabled) =>
-                      void operate(() =>
-                        mutate({
-                          kind: 'update',
-                          id: row.id,
-                          expectedRevision: row.revision,
-                          name: row.name,
-                          enabled,
-                        }),
-                      )
-                    }
-                  />
+                  <>
+                    {row.enabled && row.reception !== 'receiving' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t('identity.reconnectFor', { name: row.name })}
+                        aria-busy={busy}
+                        disabled={busy}
+                        onClick={() =>
+                          void operate(() =>
+                            mutate({
+                              kind: 'reconnect',
+                              id: row.id,
+                              expectedRevision: row.revision,
+                            }),
+                          )
+                        }
+                      >
+                        {t('reception.reconnectNow')}
+                      </Button>
+                    ) : null}
+                    <Switch
+                      label={t('identity.enableFor', { name: row.name })}
+                      checked={row.enabled}
+                      disabled={busy}
+                      onChange={(enabled) =>
+                        void operate(() =>
+                          mutate({
+                            kind: 'update',
+                            id: row.id,
+                            expectedRevision: row.revision,
+                            name: row.name,
+                            enabled,
+                          }),
+                        )
+                      }
+                    />
+                  </>
                 }
               />
             ))}
@@ -613,6 +638,11 @@ export function ExternalIdentityList({
           <p {...stylex.props(styles.subject)}>
             {platform(selected.platform)} · {selected.name}
           </p>
+          <ReceptionStatus
+            reception={identities.find((row) => row.id === selected.id)?.reception}
+            recovery={identities.find((row) => row.id === selected.id)?.recovery}
+            t={t}
+          />
           {selected.platform === 'feishu' ? (
             <div role="status" {...stylex.props(styles.block)}>
               <span {...stylex.props(styles.strong)}>{t('identity.feedback.title')}</span>
@@ -762,6 +792,16 @@ export function ExternalIdentityList({
             {() => (
               <ExternalConversations
                 identity={selected}
+                reconnect={() => {
+                  const current = identities.find((row) => row.id === selected.id) ?? selected;
+                  void operate(() =>
+                    mutate({
+                      kind: 'reconnect',
+                      id: current.id,
+                      expectedRevision: current.revision,
+                    }),
+                  );
+                }}
                 snapshot={snapshot}
                 busy={busy}
                 t={t}
