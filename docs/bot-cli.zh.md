@@ -2056,6 +2056,6 @@ Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。
 
 工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
 
-`members invite <username>` 由 Owner 将用户名解析为 Human ID，返回 `{ link, qr: { size, path }, expiresAt }`。邀请内容含 Host 身份指纹、可达的 HTTPS / 加密网关路由和用户名，不含初始密码；初始密码须通过另一路径提供。`--as <username> members pairing-offer` 只为该成员自己创建十分钟内有效、只能使用一次的配对码，并额外返回 `receipt`；首次改密完成前拒绝。兑换后创建同一 Human 的 `paired-device` 成员授权，不会创建 Owner 设备或获取 Owner cookie。
+`members invite <username>` 需要 `members.manage` 并遵循目标角色权限上限，将用户名解析为 Human ID，返回 `{ link, qr: { size, path }, expiresAt }`。邀请内容含 Host 身份指纹、可达的 HTTPS / 加密网关路由和用户名，不含初始密码；初始密码须通过另一路径提供。`--as <username> members pairing-offer` 只为该成员自己创建十分钟内有效、只能使用一次的配对码，并额外返回 `receipt`；首次改密完成前拒绝。兑换后创建同一 Human 的 `paired-device` 成员授权，不会创建 Owner 设备或获取 Owner cookie。
 
 手机以 Host ID 保存一个安全存储身份，切换同一 Host 的成员须确认并清除旧身份的本地内容。手机登录前验证邀请指纹；Host 也拒绝 `fingerprint-mismatch`。首次改密前，其他设备 API 和 mux 均拒绝 `password-change-required`。密码接口保留 `credentials-invalid`、`password-weak`、`password-reused` 和带 `retryAfterSeconds` 的 `rate-limited`；设备密码不能使用浏览器的明文 HTTP 例外。iOS 和 Android 原生验收分别记录。

@@ -298,7 +298,7 @@ export class TeamService {
   }
 
   invitation(human: HumanContext, humanId: string) {
-    this.owner(human);
+    this.roles.requireManagementTarget(human, humanId);
     this.active(this.member(humanId));
     if (!this.devices) throw new TeamError('unavailable');
     return this.devices.invitation(humanId);
@@ -1281,7 +1281,9 @@ export class TeamService {
         this.db.read((db) =>
           db
             .prepare(`
-      SELECT grant_id AS grantId, '' AS label, 'browser' AS kind, created_at AS createdAt,
+      SELECT grant_id AS grantId, COALESCE(device_name, '') AS label,
+        CASE kind WHEN 'paired-device' THEN 'paired-device' ELSE 'browser' END AS kind,
+        created_at AS createdAt,
         last_seen_at AS lastSeenAt, grant_id = ? AS current FROM member_grants
         WHERE human_id = ? AND revoked_at IS NULL
       UNION ALL
@@ -1298,7 +1300,14 @@ export class TeamService {
     if (human.humanId !== humanId) this.roles.require(human, 'members.manage');
     const device = this.memberDevices(human, humanId).find((entry) => entry.grantId === grantId);
     if (!device) throw new TeamError('device-not-found');
-    if (device.kind === 'browser') await this.revoke(grantId);
+    if (
+      this.db.read((db) =>
+        db
+          .prepare('SELECT 1 FROM member_grants WHERE grant_id = ? AND human_id = ?')
+          .get(grantId, humanId),
+      )
+    )
+      await this.revoke(grantId);
     else {
       if (!this.pairing) throw new TeamError('unavailable');
       this.pairing.revoke(grantId);
@@ -1337,7 +1346,8 @@ export class TeamService {
     );
     this.pairing?.clearOffers();
     this.invalidate();
-    for (const device of oldDevices) this.pairing?.revoke(device.grantId);
+    for (const device of oldDevices)
+      await this.memberDeviceRevoke(human, human.humanId, device.grantId);
     this.log('owner-transferred', { initiator: 'owner', humanId });
     return null;
   }

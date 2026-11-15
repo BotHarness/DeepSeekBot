@@ -126,6 +126,7 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   const pairing = createDevicePairing({
     database,
     hostName: 'Team Host',
+    ownerHumanId: () => team.ownerContext().humanId,
     ...(options.now ? { now: options.now } : {}),
     members: {
       redeem: (id, name, key) => team.createDeviceGrant(id, name, key),
@@ -1896,7 +1897,7 @@ async function memberDeviceHost(
 }
 
 describe('member devices', { timeout: 60_000 }, () => {
-  it('issues a secret-free invitation only to the Owner and self-pairing only for the caller', async () => {
+  it('issues a secret-free invitation with member-management authority and self-pairing only for the caller', async () => {
     const f = await enabledFixture();
     const invitation = await f.team.invitation(owner, f.human.humanId);
     const payload = JSON.parse(
@@ -1911,7 +1912,7 @@ describe('member devices', { timeout: 60_000 }, () => {
     });
     expect(invitation.qr.size).toBeGreaterThan(0);
     expect(invitation.link).not.toContain(f.initialPassword);
-    expect(() => f.team.invitation(f.human, f.human.humanId)).toThrow('forbidden');
+    expect(() => f.team.invitation(f.human, f.human.humanId)).toThrow('permission-required');
     expect(() => f.team.pairingOffer(f.human)).toThrow('password-change-required');
     expect(() => f.team.pairingOffer(owner)).toThrow('credentials-invalid');
     await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
@@ -1928,6 +1929,81 @@ describe('member devices', { timeout: 60_000 }, () => {
     expect(f.pairing.redeem({ offer: link.offer })).toEqual({ ok: false, code: 'offer-invalid' });
     expect(f.pairing.offerStatus(offer.receipt)).toMatchObject({ state: 'redeemed' });
     expect(f.pairing.list()).toEqual([]);
+  });
+
+  it('lets a manager invite a covered member while preserving the Admin target ceiling', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const manager = f.team.roles.create(owner, 'Manager', ['members.manage', 'dm.humans']);
+    f.team.roles.set(owner, f.human.humanId, [manager.role.roleId]);
+    const alice = await f.team.createMember(owner, 'alice', 'Alice');
+    const signed = await f.team.signIn('bob', 'member-password-1', 'manager-ip');
+    const result = await f.gateway.invoke({
+      namespace: 'botharness',
+      method: 'memberInvitation',
+      args: { humanId: alice.member.humanId },
+      peer: signed.peer,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { link: expect.stringContaining('deepseekbot://team?i=') },
+    });
+    f.team.roles.set(owner, alice.member.humanId, ['admin']);
+    expect(() => f.team.invitation(f.human, alice.member.humanId)).toThrow('permission-required');
+  });
+
+  it('lists and revokes member phone grants through the same management commands as browser sessions', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const browser = await f.team.signIn('bob', 'member-password-1', 'browser-ip');
+    const phone = f.team.createDeviceGrant(f.human.humanId, 'Bob phone');
+    const close = vi.fn();
+    f.team.attachDeviceStream(phone.deviceId, close);
+    expect(f.team.memberDevices(f.human, f.human.humanId, phone.deviceId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          grantId: phone.deviceId,
+          kind: 'paired-device',
+          label: 'Bob phone',
+          current: true,
+        }),
+        expect.objectContaining({ kind: 'browser', current: false }),
+      ]),
+    );
+    await f.team.memberDeviceRevoke(owner, f.human.humanId, phone.deviceId);
+    expect(close).toHaveBeenCalledOnce();
+    expect(f.team.admitDevice(`Device ${phone.credential}`)).toBeUndefined();
+    expect(f.team.admit(browser.token)).toBeDefined();
+    expect(f.team.memberDevices(f.human, f.human.humanId)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ grantId: phone.deviceId })]),
+    );
+    expect(f.pairing.list()).toEqual([]);
+  });
+
+  it('keeps ordinary Owner offers pending and refuses to turn member offers into Host relationships', async () => {
+    const f = await enabledFixture();
+    const key = 'ab'.repeat(32);
+    const ownerOffer = f.pairing.createOffer();
+    f.pairing.requestKey({ offer: ownerOffer.offer, publicKey: key });
+    expect(f.pairing.redeem({ offer: ownerOffer.offer, publicKey: key })).toEqual({
+      ok: false,
+      code: 'device-approval-required',
+    });
+    expect(f.pairing.approveKey(ownerOffer.receipt, key)).toBe(true);
+    const ownerDevice = f.pairing.redeem({ offer: ownerOffer.offer, publicKey: key });
+    expect(ownerDevice).toMatchObject({
+      ok: true,
+      credential: expect.not.stringContaining('member.'),
+    });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const memberOffer = f.pairing.createOffer({ humanId: f.human.humanId });
+    expect(f.pairing.claimRelationshipOffer(memberOffer.offer)).toBe(false);
+    f.pairing.requestKey({ offer: memberOffer.offer, publicKey: key });
+    expect(f.pairing.redeem({ offer: memberOffer.offer, publicKey: key })).toMatchObject({
+      ok: true,
+      humanId: f.human.humanId,
+      credential: expect.stringContaining('member.'),
+    });
   });
 
   it('expires self-pairing offers and rechecks suspension and forced reset at redemption', async () => {
