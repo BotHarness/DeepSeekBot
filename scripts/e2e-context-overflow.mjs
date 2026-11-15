@@ -52,7 +52,6 @@ function replacementCheckpoint() {
     if (!file.endsWith('session.v4.jsonl.zstd')) continue;
     const bytes = readFileSync(resolve(root, file));
     let text = '';
-    // Session logs concatenate frames; Node decodes one frame per call.
     for (let offset = 0; offset < bytes.length;) {
       const frame = zstdDecompressSync(bytes.subarray(offset), { info: true });
       assert(frame.engine.bytesWritten > 0);
