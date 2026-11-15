@@ -1909,19 +1909,30 @@ function ConversationView({
   }, [scopeKey, channelId, previewRoster]);
   const skillCatalogMount = useMountedResource<HTMLSpanElement>(() => {
     let cancelled = false;
+    let generation = 0;
     setSkillCatalog(undefined);
+    const loadSkills = actions.skillCatalog;
     if (
-      ((channel?.type === 'dm' && channel.botSlug !== undefined) || channel?.type === 'group') &&
-      actions.skillCatalog
+      !((channel?.type === 'dm' && channel.botSlug !== undefined) || channel?.type === 'group') ||
+      loadSkills === undefined
     )
-      void actions
-        .skillCatalog(channel.id)
+      return () => {
+        cancelled = true;
+      };
+    const targetId = channel.id;
+    const load = (): void => {
+      const current = ++generation;
+      void loadSkills(targetId)
         .then((skills) => {
-          if (!cancelled) setSkillCatalog(skills);
+          if (!cancelled && current === generation) setSkillCatalog(skills);
         })
         .catch(() => undefined);
+    };
+    const unsubscribe = actions.subscribeSkillCatalog?.(targetId, load);
+    load();
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, [scopeKey, channelId, previewRoster]);
   const skillOptions: ComposerSkillOption[] = (skillCatalog ?? []).map((entry) => ({
