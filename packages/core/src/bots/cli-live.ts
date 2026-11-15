@@ -82,6 +82,7 @@ import {
   MESSAGING_COMMANDS,
   MESSAGING_OPTIONS,
   prepareMessaging,
+  messagingReadMode,
   runMessaging,
   type MessagingCommand,
   type MessagingValues,
@@ -293,6 +294,7 @@ const IM_CONTROL_COMMANDS = [
   'im-app-remove',
   'im-bind',
   'im-unbind',
+  'im-reconnect',
   'im-status',
   'channel-connect',
   'channel-ingests',
@@ -476,6 +478,10 @@ export const LIVE_COMMANDS = [
   },
   { command: 'im-bind', description: 'bind a connected IM app to a Bot' },
   { command: 'im-unbind', description: 'unbind an IM app from a Bot' },
+  {
+    command: 'im-reconnect',
+    description: 'reconnect a Bot IM receiver without changing its access',
+  },
   {
     command: 'im-status',
     description: "read a Bot's IM apps and bindings with reception state",
@@ -1782,6 +1788,7 @@ async function runImControlCommand(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  const mode = messagingReadMode(command, values['read-mode']);
   if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one target.`);
   const target = rest[0].trim();
   const app = values.app?.trim() ?? '';
@@ -1803,7 +1810,13 @@ async function runImControlCommand(
       usage('--credentials-stdin must be a JSON object, for example {"token":"…"}.');
     }
   }
-  if ((command === 'im-app-remove' || command === 'im-bind' || command === 'im-unbind') && !app)
+  if (
+    (command === 'im-app-remove' ||
+      command === 'im-bind' ||
+      command === 'im-unbind' ||
+      command === 'im-reconnect') &&
+    !app
+  )
     usage(`${command} requires --app <app-id>.`);
   if (command === 'channel-connect' && (!values.bot?.trim() || !values.conversation?.trim()))
     usage('channel-connect requires --bot <bot-id> and --conversation <external-id>.');
@@ -1836,12 +1849,13 @@ async function runImControlCommand(
     });
   }
   const slug = command === 'channel-connect' ? values.bot!.trim() : target;
-  const snapshot = record(await rpc('messagingSnapshot', { slug }));
+  const snapshot = record(await rpc('messagingSnapshot', { slug, ...(mode ? { mode } : {}) }));
   const identities = (Array.isArray(snapshot['identities']) ? snapshot['identities'] : []).map(
     record,
   );
   if (command === 'im-status')
     return {
+      ...(snapshot['checks'] === undefined ? {} : { checks: snapshot['checks'] }),
       apps: (Array.isArray(snapshot['accounts']) ? snapshot['accounts'] : [])
         .map(record)
         .map((entry) => ({
@@ -1859,6 +1873,7 @@ async function runImControlCommand(
         availability: entry['availability'],
         reception: entry['reception'],
         conversations: entry['grantCount'],
+        ...(entry['recovery'] === undefined ? {} : { recovery: entry['recovery'] }),
       })),
     };
   const binding = identities.find((entry) =>
@@ -1873,11 +1888,11 @@ async function runImControlCommand(
         ? `Bot ${slug} has no IM app binding to connect through.`
         : `Bot ${slug} is not bound to IM app ${app}.`,
     );
-  if (command === 'im-unbind')
+  if (command === 'im-unbind' || command === 'im-reconnect')
     return rpc('messagingIdentity', {
       slug,
       input: {
-        kind: 'unbind',
+        kind: command === 'im-reconnect' ? 'reconnect' : 'unbind',
         id: binding['id'],
         expectedRevision: binding['revision'],
       },

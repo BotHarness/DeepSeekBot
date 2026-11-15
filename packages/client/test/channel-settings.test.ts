@@ -363,7 +363,7 @@ describe('Channel settings', () => {
         }),
       ),
     );
-    expect(actions.channelBridges).toHaveBeenLastCalledWith('group-1');
+    expect(actions.channelBridges).toHaveBeenLastCalledWith('group-1', 'saved');
     expect(reported).toEqual([false, true]);
   });
 });

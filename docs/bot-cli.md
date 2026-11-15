@@ -475,13 +475,21 @@ printf '{"token":"…"}' | deepseekbot im-app-add discord --credentials-stdin
 deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
+deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot messaging-grants <bot-id> --read-mode status
+deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
 deepseekbot channel-connect <channel> --bot <bot-id> --conversation <external-id>
+deepseekbot im-reconnect <bot-id> --app <app-id>
 deepseekbot im-unbind <bot-id> --app <app-id>
 deepseekbot im-app-remove discord --app <app-id>
 ```
 
 `im-app-add` covers token-based platforms (Discord, Slack, QQ, DingTalk, WeCom, Matrix); Feishu and WeChat keep `im-authorize`. Credentials arrive only on stdin and are never printed; output lists each app's id, name, connection state and error code. `im-bind` binds a connected app (the `id` from `im-app-status`, also the `ref` in `im-status`) to a Bot, and `im-status` shows each binding's `reception`. `channel-connect` attaches an external group conversation to a Channel as context through that Bot's binding; the conversation must already be known to the binding, so mention the app there once and pick the id from the `candidates` in `channel-ingests`. Otherwise the Host refuses with `conversation-unavailable`.
+
+`im-status` and `messaging-grants` include process-local `recovery` metadata: `retrying` with `reason`, `attempt`, `nextRetryAt`, or `action-required` with `reason`. Temporary provider readiness failures retry exponentially from 250 ms to a 30 s cap until recovery. Host restart reconstructs receivers from enabled bindings and grants. `im-reconnect` uses the existing Owner and current revision without changing conversation access. Failed mutations are reported, never automatically replayed.
+
+`im-status`, `messaging-grants` and `channel-bridges` support `--read-mode saved|status`. `saved` returns local configuration promptly with `checks: pending`; capability/availability fields are not verified permissions. `status` checks only bound accounts and grants with `checks: complete`, sharing account inspections only within the current request. Omitting the flag retains full app/setup discovery. Mutations reject this flag and keep their fresh Owner checks. See [ADR-0343](adr/0343-im-settings-project-saved-configuration-before-live-checks.md).
 
 ### IM messaging, approvals and failure alerts from the CLI
 
@@ -2102,3 +2110,5 @@ deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
 deepseekbot models allowed [--as <username>]
 ```
+
+Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.

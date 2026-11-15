@@ -23,6 +23,7 @@ import {
   type PricedSurface,
 } from './runtime/context-window.js';
 import { createBotRequestRetry } from './runtime/bot-request-retry.js';
+import { createContextOverflowRecovery } from './runtime/context-overflow-recovery.js';
 import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
@@ -218,6 +219,7 @@ import {
   type TelemetryCapture,
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
+import { startTokenUsage } from './telemetry/token-usage.js';
 import {
   createActiveDay,
   readHumanMessageCounts,
@@ -2168,6 +2170,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     );
     ctx.effect(
       () =>
+        startTokenUsage({
+          telemetry,
+          snapshot: () => core.usage?.telemetrySnapshot(),
+          log: (message) => ctx.logger.info(message),
+        }),
+      'botharness: telemetry token usage',
+    );
+    ctx.effect(
+      () =>
         startActiveDayWatch({
           activeDay,
           counts: (since) => readHumanMessageCounts(usageDatabase, since),
@@ -2457,6 +2468,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }),
     { global: true },
   );
+  const contextOverflowRecovery = createContextOverflowRecovery({
+    isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+    log: (event) =>
+      ctx.logger[event['outcome'] === 'declined' ? 'warn' : 'info'](
+        `context-overflow-recovery ${JSON.stringify(event)}`,
+      ),
+  });
+  ctx.on('agent/request-error', contextOverflowRecovery, { global: true, prepend: true });
   const approvalTemplates = createApprovalTemplateLibrary(
     join(dshHome, 'botharness', 'approval-templates'),
   );

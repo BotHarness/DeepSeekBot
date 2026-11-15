@@ -328,6 +328,8 @@ application-defined Memory Service 使用 `Consumer → Service Definition → P
 
 Idle Compaction（#2310）：当前 Orchestrator Session 没有进行中的轮次、也没有待处理的 Bot Inbox Admission 时，Host 按最后一次模型回答的时间，在该线路提示缓存寿命的一半（最少 15 分钟）经 DSH 命令注册表为该 Agent 执行 `/compact`（`compactNow`；compaction 服务隔离在每个 Agent 的 preset 组内，Host 无法直接取得），只压缩超过该线路 DSH 默认自动压缩阈值一半的会话；摘要格式与 `compaction/end` 刷新 Soul／Core Memory 的行为不变，期间到达的 Human 消息由 DSH 排队到压缩结束。缓存寿命依次取 Host 设置中的每线路值、模型目录、观测（请求前空闲间隔与该请求缓存命中率）与 DeepSeek 的 2 小时默认值，不足 15 分钟或未知则跳过。Assignment 与审批复核会话不参与，聊天中不显示；每次执行写入 `usage_idle_compactions` 并在 Bot 活动中返回。开关与每线路寿命是 Profile 级 Host 设置，Web 设置页与 `deepseekbot idle-compaction*` 共用同一 bridge 方法。
 
+Tobs also handles the explicit gateway wording `Input too long: model limit N tokens, requested M tokens` when DSH reports it as `INVALID_REQUEST` (#4253). Its application-defined `agent/request-error` listener applies only to Tobs-owned Sessions, delegates existing recovery first, and resolves the native compaction Provider through `agentPresets.serviceFor(agent, 'compaction')` on isolated Presets. It calls `compactIfNeeded(..., 'context-overflow', signal)` without modifying the Provider or DSH failure. A retry requires Session surface replacement and a successful native Session Store flush checkpoint plus an exact readback of that Session replacement through a read-only persistence handle and is limited to one recovery attempt per Agent turn/step. Cancellation, unavailable services and failures without replacement retain the original request failure; bounded developer records contain identifiers, phase, duration and outcome, never the provider error text.
+
 Message action presentation is owned by the Web `ds/action-button` and native `primitives/button` adapters; standalone failed reads use their platform ReadFailure module. The shared application-defined `session-maintenance` controller scopes in-flight state and outcomes to the Host client and Bot DM, so error cards and usage panels cannot submit competing maintenance operations. These modules do not own approvals, read retries or durable Session state.
 
 Orchestrator context recovery reuses the application-defined Bot Runtime queue and canonical Channel failure reference. Web and mobile failure cards maintain the current Bot DM Orchestrator Session by compacting or replacing it, without retrying any message. The CLI recovery-and-retry path can still re-admit only the original safely retryable Human DM. The owner refuses busy Bots, stale Session references and requests that already began external effects; arrivals during maintenance queue normally. Explicit replacement archives the old Session and preserves Channel history, Memory and independent Assignments (ADR-0024). The Web `/new` command performs replacement without retry. Model-declared context capacity comes from DSH Model Info; native automatic compaction remains enabled by default. Unknown capacity uses an explicitly estimated 200,000-token fallback with output reservation and safety headroom, compacting balanced native Session regions before the next model step. The read-only `botContext` query and `bot-context` CLI expose current Session token estimates and capacity; the existing Web composer chip displays them while retaining cumulative usage in the details popover. That popover exposes explicit compact/new maintenance only in the Bot Human DM. Failed-turn feedback freezes a redacted, bounded projection of the canonical failed turn input and tool call/result records in the existing feedback preview token, then passes it to the existing uploader only on explicit submit. Missing turn correlation refuses; full diagnostic ZIPs remain download-only.
@@ -421,6 +423,10 @@ Messaging 在 Source Event 与 Inbox Admission 提交后异步尝试原消息的
 Slack 的 #1161 候选复用这条 application-defined Messaging 反馈链：checked Provider 把 `received`／`answered` 映射为原始 Human 消息上的 `eyes`／`white_check_mark`，回答后移除自身的 `eyes`。Slack 静音会话不产生反馈；Lark 既有 silent Admission 语义不变。Provider 仅串行同一来源的反应写入，不占用 Bot transition queue 执行网络写入；每次写入重查来源、账号、Consumer 和授权 fence，部分写入／清理不确定保留 unknown，不自动重试。本候选不提升现有 Provider pin；真实 Slack 频道与 DM 证据仍是独立交付门槛。
 
 ### 绑定的应用接收默认流量（ADR-0142）
+
+外部身份和连接设置通过既有查询 owner 分阶段读取：`saved` 只投影本地配置和接收事实，返回 `checks: pending`；`status` 只检查该 Bot 的绑定账号及会话，返回 `checks: complete`。界面先展示保存内容，再更新检查结果；新应用绑定才显式请求完整发现。账号检查按本次请求和当前 Provider registration 合并，Client 缓存按 Host/Human 的 actions owner 隔离，生命周期通知使旧请求失效。所有修改和发送继续使用新鲜的权限、指纹与修订检查；此读取优化不增加持久缓存或轮询（[ADR-0343](../adr/0343-im-settings-project-saved-configuration-before-live-checks.md)，#4247）。
+
+Binding 的账号接收器和 Grant 的会话接收器分别持有进程内恢复状态。暂时的 `provider-unavailable` 从 250 ms 开始指数退避，上限 30 s，不耗尽重试次数；账号就绪会唤起仍等待它的会话。停用、解绑、撤销、Provider 替换和 Host 关闭取消所属计时器与 lease。永久拒绝进入需处理状态，显式重连沿用既有 Owner 与修订检查。Host 重启只从当前启用的 Binding/Grant 重建，不持久化计时器、不回放消息。状态通过现有 messaging snapshot 与变更通知投影到 Client 和 CLI，界面分别呈现应用连接、消息接收与 Bot 活动（#4242）。
 
 Application-defined IM DM commands (`/commands`, `/help`, `/status`, `/model`, `/effort`, `/stop`, `/new`, `/compact`) reuse this intake's Binding, sender admission, Source Event and deduplication. Only a whole text-only DM is a command; groups, attachments and unrecognized text retain their existing path. Claimed command Admissions are handled without model input or wake; `last_error` retains pending/unconfirmed command work for inspection rather than automatic replay. The Messaging owner serializes commands per PersonaBot across Bindings, rechecks current source authority and management pairing capabilities at execution, and passes a current-authority fence through asynchronous model validation and Session replacement. Model changes use the existing Orchestrator-only customization owner and preserve Assignment inheritance. Replies use the source-bound Outbox's intent, attempt, final-send fences and accepted/failed/unknown outcomes (ADR-0106/0129); a duplicate never executes or sends again. Weixin changes require an admitted paired-owner DM; other platforms require an approved management pairing with current approval capability, or refuse with Web guidance. `/new` and `deepseekbot bot-new-session` share the idle Orchestrator replacement runtime. `/compact`, the Bot DM composer's `/compact` and `deepseekbot bot-compact` share Idle Compaction's DSH `/compact` path: they refuse while the Bot has a running turn or pending Inbox Admission, and load a persisted Orchestrator Session without a model turn before compacting when necessary.
 
@@ -1329,6 +1335,10 @@ The Expo client keeps profile read caching and reply presentation separate from 
 
 The Expo app owns a device-local default and optional saved-Host-ID/Channel-ID overrides, separate from Host appearance and PersonaBot Profile Banner. Its transactional editor commits versioned local metadata before publishing a new effective choice. Normalized owned JPEG basenames rebase under the current document container; image reclamation protects committed references, live drafts and in-flight imports. Unreadable metadata falls back safely without collecting images. One stable canvas/image/theme-veil layer sits outside scrolling and keyboard-responsive content. This introduces no Host API, model action, Memory or message authority; see [ADR-0228](../adr/0228-mobile-chat-backgrounds-are-transactional-device-local-presentation.md).
 
+### Anonymous Host token snapshots (#4255)
+
+The application-defined Usage Projection remains the sole token-accounting owner. Its internal telemetry snapshot reads the latest seven Host-local days from `usage_daily` across Bot-owned Orchestrator, Assignment and derived Sessions, preserving receipt deduplication and unknown-bucket semantics. The Host Telemetry lifecycle checks hourly, emits changed anonymous `app:token_usage_report` snapshots, and cancels on Fiber disposal. It adds no persistence, Host API or Session identifier to analytics. PostHog selects the whole latest snapshot per Install ID and day before aggregation; provider uncertainty and incomplete history reconciliation remain explicit. See [ADR-0344](../adr/0344-token-telemetry-is-a-bounded-snapshot-of-the-usage-projection.md) and [the query contract](../token-telemetry.md).
+
 ### Optional mobile statistics (#1935, #2682)
 
 The application-defined Mobile Telemetry owner observes the existing Expo saved-Host, Host client and Conversation boundaries. Pairing success follows redemption and saved-Host commit; connection readiness follows authenticated live Roster loading; first-chat acceptance follows Host acceptance or reconciliation of the same outgoing message. Bot-message observation requires a subsequent new committed entry in the foreground conversation. The existing Bot creation controller also reports bounded preview/submit/recovery observations for blank, Git, Zip and Marketplace sources through the same owner. A checked Host receipt distinguishes a newly observed creation from recovery; uncertain transport remains unknown. Anonymous attempt IDs are independent of product operation keys and are not persisted as a second operation store. PushSession retains notification authority and gains no telemetry in this slice.
@@ -1713,3 +1723,30 @@ See [M7 runtime](team-mode-m7-runtime.md#shared-discovery-and-participant-arrang
 M7 participant DM history keeps metadata-only, read-only Bot entries after audience loss; these
 entries grant no reach or management. Online CLI Bot-DM commands resolve the caller’s actual
 Channel through the Host and preserve that ID in send receipts and lookups.
+
+## Tool effect declarations (E1)
+
+The public application-defined `ToolEffects` model describes `changes` (`none`, `reversible`,
+`irreversible`), `reach` (`local`, `memory`, `workspace`, `external`), `personalData`, and optional
+`authority: management` / `secrets`. Device authorization stays in the decision context. The first-party inventory
+lives in `packages/core/src/workspaces/tool-effects.ts`; lint checks tool factories and Browser /
+Computer catalogs for missing declarations. Mixed-purpose calls resolve effects from their input
+(original attachment read/edit, cloud inspection and draft inspection/drop, Browser tab listing).
+Undeclared Shell and third-party calls return `undefined`, preserving ADR-0205 rather than
+inventing an irreversible external declaration. Device actions declare their possible effects;
+this is not a claim to infer arbitrary programs or a same-OS security boundary.
+
+E1 preserves the existing admission policy. `requiresHumanToolApproval` delegates its covered
+name cases to a pure decision over declarations, while Channel Tool Approval uses `decideToolApproval(effects, context)`
+for explainable paths, rememberability and explicit rule scopes. Full Access, saved authorization,
+Reviewer and Human decisions retain their existing order. Grants,
+ownership, native file roots, device target fences and Secret execution checks remain in their
+existing owners. Legacy command-text recognition and unconverted tool-name entry points stay
+available. External-effect admission despite Full Access belongs to E2; Reviewer/template changes
+belong to E3 and are not enabled by these declarations.
+
+Performance: no dependency, I/O or model call is added to the decision helper. Declaration lookup
+is constant-time; input-sensitive resolution and legacy text checks remain local. Owner regressions
+assert zero Reviewer calls for deterministic Full Access hits and retained management prompting;
+existing saved-rule/device/Grant tests protect the execution fences. This is not an end-to-end
+latency measurement. Runtime and screenshot qualification are recorded separately in the PR.

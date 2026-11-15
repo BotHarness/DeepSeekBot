@@ -261,3 +261,15 @@ export type { ToolDetail, ToolDetailRead, ToolDetailRefusal } from './state/tool
 export { PERSONABOT_OUTPUT_COMMITTED, personaBotOutputCommitted } from './channels/output.js';
 export type { PersonaBotOutputCommitted } from './channels/output.js';
 export type { ChannelMessageOrigin } from './channels/store.js';
+
+export {
+  FIRST_PARTY_TOOL_EFFECTS,
+  toolEffects,
+  toolApprovalRequired,
+  decideToolApproval,
+} from './workspaces/tool-effects.js';
+export type {
+  ToolEffects,
+  ToolApprovalContext,
+  ToolApprovalPath,
+} from './workspaces/tool-effects.js';
