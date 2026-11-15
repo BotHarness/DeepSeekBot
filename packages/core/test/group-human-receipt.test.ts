@@ -14,8 +14,8 @@ describe('local Human Group receipts', () => {
   it('migrates an existing shared position to the local Human without changing its revision', () => {
     const home = createTempRoot('botharness-human-receipt-upgrade-');
 
-    const beforeHumanReceipts = BOT_HARNESS_SCHEMA_PLAN.migrations.indexOf(
-      LOCAL_HUMAN_RECEIPTS_MIGRATION,
+    const beforeHumanReceipts = BOT_HARNESS_SCHEMA_PLAN.migrations.findIndex(
+      (migration) => migration.id === LOCAL_HUMAN_RECEIPTS_MIGRATION.id,
     );
     const prior = mountOperationalDatabase({
       dshHome: home,
@@ -79,7 +79,9 @@ describe('local Human Group receipts', () => {
         dshHome: home,
         schemaPlan: defineSchemaPlan(
           BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
-            (migration) => migration.generation <= LOCAL_HUMAN_RECEIPTS_MIGRATION.generation,
+            (migration) =>
+              migration.generation <=
+              BOT_HARNESS_SCHEMA_PLAN.generationOf(LOCAL_HUMAN_RECEIPTS_MIGRATION.id),
           ),
         ),
       }),
@@ -113,10 +115,15 @@ describe('local Human Group receipts', () => {
       positions: db.prepare('SELECT * FROM channel_read_positions').all(),
     }));
     prior.close();
-    const migrate = vi.spyOn(LOCAL_HUMAN_RECEIPTS_MIGRATION, 'migrate');
+    const migrate = vi.fn(LOCAL_HUMAN_RECEIPTS_MIGRATION.migrate);
+    const watchedPlan = defineSchemaPlan(
+      BOT_HARNESS_SCHEMA_PLAN.migrations.map((entry) =>
+        entry.id === LOCAL_HUMAN_RECEIPTS_MIGRATION.id ? { ...entry, migrate } : entry,
+      ),
+    );
     try {
       const upgraded = trackTestOwner(
-        mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+        mountOperationalDatabase({ dshHome: home, schemaPlan: watchedPlan }),
       );
       expect(upgraded.mode).toBe('ready');
       const after = attachOperationalModule(upgraded, 'receipt-already-migrated-check').read(

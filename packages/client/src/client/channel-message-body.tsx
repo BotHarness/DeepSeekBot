@@ -1,3 +1,4 @@
+import { ApprovalDecider, MaskedApprovalCard, OpaqueToolWarning } from './approval-mask.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import {
@@ -51,7 +52,8 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
 import { messagePerfView } from './message-perf.js';
-import { store, type BotSummary, type ChannelMessage } from './store.js';
+import { type BotSummary, type ChannelMessage } from './store.js';
+import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { GenuiReportCard } from './genui-report.js';
 import { GenuiDocumentCard } from './genui-document.js';
@@ -78,6 +80,7 @@ const REFUSAL_TEXT: Record<string, readonly [BotHarnessKey, BotHarnessKey?]> = {
     'failure.refused.permissionServicesHint',
   ],
   BOT_UNAVAILABLE: ['failure.refused.bot'],
+  'model-not-allowed': ['failure.refused.modelNotAllowed', 'failure.refused.modelNotAllowedHint'],
   SESSION_OWNER_MISSING: ['failure.refused.owner', 'failure.refused.ownerHint'],
   SESSION_REFUSED: ['failure.refused.generic'],
   HOST_INCOMPATIBLE: ['failure.hostIncompatible', 'failure.hostIncompatibleHint'],
@@ -500,6 +503,7 @@ export function ChannelMessageBody({
     | undefined;
   userQuestionResolution?: 'answered' | 'cancelled' | undefined;
 }): ReactElement {
+  const store = useConversationStore();
   const labels = useMemo<MarkdownLabels>(
     () => ({
       code: {
@@ -520,7 +524,14 @@ export function ChannelMessageBody({
   const format =
     message.format ?? (message.author.kind === 'human' && !humanMarkdown ? 'text' : 'markdown');
   if (message.contentPurged) return <div className="bh-bubble-body">{t('purge.purged')}</div>;
-  if (requestCard !== undefined) return <>{requestCard}</>;
+  if (requestCard !== undefined)
+    return (
+      <>
+        <OpaqueToolWarning approval={message.approval} t={t} />
+        {requestCard}
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
+    );
   if (message.onboardingWelcome?.kind === 'tob')
     return (
       <div className="bh-bubble-body">
@@ -539,31 +550,45 @@ export function ChannelMessageBody({
         nativeChatT={nativeChatT}
       />
     );
+  if (message.approval?.masked === true)
+    return <MaskedApprovalCard approval={message.approval} t={t} />;
   if (message.toolApprovalRequest !== undefined && actions !== undefined) {
     return (
-      <ToolApprovalCard
-        message={message}
-        actions={actions}
-        decision={toolApprovalDecision}
-        channelId={channelId}
-        t={t}
-      />
+      <>
+        <OpaqueToolWarning approval={message.approval} t={t} />
+        <ToolApprovalCard
+          message={message}
+          actions={actions}
+          decision={toolApprovalDecision}
+          channelId={channelId}
+          t={t}
+        />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
     );
   }
   if (message.privateInputRequest !== undefined && actions !== undefined) {
-    return <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />;
+    return (
+      <>
+        <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
+    );
   }
   if (message.takeoverRequest !== undefined && actions !== undefined)
     return <TakeoverCard message={message} channelId={channelId} actions={actions} t={t} />;
   if (message.userQuestionRequest !== undefined && actions !== undefined) {
     return (
-      <UserQuestionCard
-        message={message}
-        actions={actions}
-        resolution={userQuestionResolution}
-        channelId={channelId}
-        t={t}
-      />
+      <>
+        <UserQuestionCard
+          message={message}
+          actions={actions}
+          resolution={userQuestionResolution}
+          channelId={channelId}
+          t={t}
+        />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
     );
   }
   if (message.grantRequest === true && actions !== undefined) {

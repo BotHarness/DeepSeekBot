@@ -359,6 +359,7 @@ export interface DshAgentPresetHost {
 
 export interface DshBotAgentAdapterOptions {
   onGenuiDiagnostic?: (event: GenuiPreviewDiagnostic) => void;
+  genuiPreviewBrowserPath?: string;
   genuiAttachmentContext?: Pick<Context, 'get'>;
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
@@ -389,7 +390,7 @@ export interface DshBotAgentAdapterOptions {
 
   observeTurnFailure?: (provider: string, code: string) => void;
 
-  turnRefusal?: (sessionId: string) => string | undefined;
+  turnRefusal?: (sessionId: string) => string | Error | undefined;
 
   promptText?: (sessionId: string) => PromptText;
 
@@ -464,7 +465,7 @@ function requireCompletedTurn(
   cancelledTurn?: AssignmentAgentRun['cancelledTurn'],
   failedTurn?: AssignmentAgentRun['failedTurn'],
   observeFailure?: (code: string) => void,
-  refusal?: string,
+  refusal?: string | Error,
 ): { turn: number; endSeq: number } {
   const turnEnd = handle.agent.session
     .snapshotEvents(fromSeq)
@@ -500,7 +501,8 @@ function requireCompletedTurn(
     throw new Error(
       'OUTPUT_TOKEN_LIMIT: The model reached its output limit before completing this reply',
     );
-  if (reason.kind === 'blocked' && refusal !== undefined) throw new Error(refusal);
+  if (reason.kind === 'blocked' && refusal !== undefined)
+    throw refusal instanceof Error ? refusal : new Error(refusal);
   throw new Error(`Agent turn ended without completion: ${reason.kind}`);
 }
 
@@ -572,6 +574,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #promptText: (sessionId: string) => PromptText;
   readonly #hasSession: DshBotAgentAdapterOptions['hasSession'];
   readonly #onGenuiDiagnostic: DshBotAgentAdapterOptions['onGenuiDiagnostic'];
+  readonly #genuiPreviewBrowserPath: DshBotAgentAdapterOptions['genuiPreviewBrowserPath'];
   readonly #genuiAttachmentContext: DshBotAgentAdapterOptions['genuiAttachmentContext'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #defaultAgentPreset: string | undefined;
@@ -610,6 +613,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
   constructor(options: DshBotAgentAdapterOptions) {
     this.#onGenuiDiagnostic = options.onGenuiDiagnostic;
+    this.#genuiPreviewBrowserPath = options.genuiPreviewBrowserPath;
     this.#genuiAttachmentContext = options.genuiAttachmentContext;
     this.#agents = options.agents;
     this.#defaultModel = options.defaultModel;
@@ -995,6 +999,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (run.acceptNativeInput !== undefined) {
         if (!run.acceptNativeInput()) return;
       } else {
+        run.beginTurn?.();
         try {
           handle.agent.followup(assignmentMessage(run.text));
         } catch (error) {
@@ -1251,6 +1256,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     );
     registerTool(
       createGenuiPreviewTool({
+        browserPath: this.#genuiPreviewBrowserPath,
         onDiagnostic: this.#onGenuiDiagnostic,
         saveImage: async (data) => {
           const attachments =

@@ -535,6 +535,7 @@ export function createChannelManagement(options: {
       return complete(finish(row))!;
     },
     invite(human: HumanContext, input, operationKey) {
+      channels.requireHumanPolicy?.(human, input.channelId, 'addBots');
       inviteInput(input);
       let row = operationKey === undefined ? undefined : checked(operationKey, 'invite', input);
       if (row) {

@@ -1,4 +1,3 @@
-import { memberPage } from './member-page.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import { parseContentRedactions } from './content-redactions.js';
 
@@ -89,7 +88,7 @@ function syncTyped(): void {
     redactions.clear();
   }
   const wanted = [...consumers].some((consumer) => consumer.channelUrl === undefined);
-  if (wanted && stopActivity === undefined && !memberPage())
+  if (wanted && stopActivity === undefined)
     stopActivity = typed.activity({
       snapshot(data) {
         activityBaseline = data;

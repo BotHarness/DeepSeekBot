@@ -48,7 +48,7 @@ it('waits for each full pairing before starting the next and deduplicates select
   expect(pair.mock.calls.map(([host]) => host.id)).toEqual(['ha', 'hb']);
   expect(result.mock.calls.map(([, value]) => value)).toEqual(['added', 'added']);
 });
-it('preserves success and continues a refused connection without attempting offline hosts', async () => {
+it('attempts every selected Host even when the server reports it offline', async () => {
   const pair = vi.fn(async (host: ConnectHost): Promise<PairingFailure | undefined> =>
     host.id === a.id ? 'unreachable' : undefined,
   );
@@ -59,12 +59,8 @@ it('preserves success and continues a refused connection without attempting offl
     pair,
     result,
   });
-  expect(pair).toHaveBeenCalledTimes(2);
-  expect(result.mock.calls.map(([, value]) => value)).toEqual([
-    'unreachable',
-    'host-offline',
-    'added',
-  ]);
+  expect(pair).toHaveBeenCalledTimes(3);
+  expect(result.mock.calls.map(([, value]) => value)).toEqual(['unreachable', 'added', 'added']);
 });
 it.each(['cancelled', 'host-key-confirmation-required'] as const)(
   'stops the queue after %s',

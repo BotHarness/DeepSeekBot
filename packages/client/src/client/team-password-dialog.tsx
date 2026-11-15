@@ -1,5 +1,7 @@
 import { useState, type ReactElement } from 'react';
 
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeCall } from './bridge.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
@@ -36,6 +38,7 @@ export function MemberPasswordDialog({
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [signOutOthers, setSignOutOthers] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const short = next.length > 0 && next.length < TEAM_PASSWORD_MIN_LENGTH;
@@ -59,7 +62,7 @@ export function MemberPasswordDialog({
       onSubmit={() => {
         setBusy(true);
         setError(undefined);
-        changeOwnPassword(call, current, next)
+        changeOwnPassword(call, current, next, forced ? undefined : signOutOthers)
           .then(onChanged)
           .catch((failure: unknown) => {
             setError(errorText(t, failure));
@@ -95,6 +98,14 @@ export function MemberPasswordDialog({
           onChange={setConfirm}
           error={mismatch ? t('team.password.mismatch') : undefined}
         />
+        {forced ? null : (
+          <Checkbox
+            label={t('team.password.signOutOthers')}
+            checked={signOutOthers}
+            disabled={busy}
+            onChange={setSignOutOthers}
+          />
+        )}
       </FieldStack>
     </FormDialog>
   );

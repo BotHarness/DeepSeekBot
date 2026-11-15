@@ -42,7 +42,8 @@ export const connectAccount = createConnectAccount({
         }),
       ),
     now: () => Date.now(),
-    request: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(15000) }),
+    request: (url, init) =>
+      fetch(url, { ...init, signal: init?.signal ?? AbortSignal.timeout(15000) }),
     authorize: (url, callback) => {
       let ended: string | undefined;
       return authorizeWithLateRedirect(

@@ -25,6 +25,7 @@ import { createElement } from 'react';
 import { bindTobPresentation } from './tob-presentation.js';
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store';
 import { registerWorkspaceShortcuts, migrateWorkShortcut } from './workspace-shortcuts.js';
+import { startAccountEnvironments } from './account-environments.js';
 import type {} from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
@@ -128,6 +129,8 @@ import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
+import { createEnvironmentPanel } from './environment-panel.js';
+import { mountLocalEnvironmentSettings } from './environment-settings-source.js';
 import { createMarketPanel } from './market-panel.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
@@ -259,7 +262,17 @@ export function apply(ctx: ClientContext): void {
       ? undefined
       : takeHmrView(window as unknown as Record<string, unknown>);
   const t = ctx.locale.bind(LOCALE_NS);
-  remoteHosts(t);
+  if (!member) {
+    remoteHosts(t);
+    ctx.effect(
+      () =>
+        startAccountEnvironments({
+          sources: remoteHosts(t),
+          clientName: t('relationships.clientDefault'),
+        }),
+      'botharness: same-account environments',
+    );
+  }
   const zoom = mountWindowZoom({
     document: typeof document === 'undefined' ? undefined : document,
     window: typeof window === 'undefined' ? undefined : window,
@@ -290,7 +303,7 @@ export function apply(ctx: ClientContext): void {
     return { profileId: value.profileId };
   };
   const actions: BridgeActions = createActions(call, store, {
-    nativeFiles: createNativeHostFiles(ctx.remote.session),
+    ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
     fileOpenPreferences: createFileOpenPreferences({ storage, context: profileContext }),
     pickDirectory: () => {
       const picker = ctx.get('uiWorkspace');
@@ -369,6 +382,13 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   const botSettings = new BotSettings();
+  ctx.effect(() =>
+    mountLocalEnvironmentSettings(
+      call,
+      () => botSettings.openClientPreferences(),
+      () => botSettings.open(),
+    ),
+  );
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);
   ctx.slots.inject('shell.overlay', () =>
@@ -556,7 +576,9 @@ export function apply(ctx: ClientContext): void {
         dockPanels.open(CHANNEL_BODY_PANEL);
         void actions
           .tobHome()
-          .then((tob) => actions.openChannel(tob.channelId))
+          .then((tob) =>
+            typeof tob.channelId === 'string' ? actions.openChannel(tob.channelId) : undefined,
+          )
           .catch(() => {});
       },
     ),
@@ -580,6 +602,7 @@ export function apply(ctx: ClientContext): void {
           channelSidebar.register(entry),
         ),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
+        ...(member ? [] : [dockPanels.register(createEnvironmentPanel(t))]),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };

@@ -12,9 +12,11 @@ vi.mock('../src/runtime/genui-runtime-source.js', () => ({
 const runtime = vi.hoisted(() => ({
   binary: '/synthetic/chrome' as string | undefined,
   directory: '',
+  browserPath: '',
   ensure: vi.fn<() => Promise<void>>(),
   stop: vi.fn<() => Promise<void>>(),
   send: vi.fn(),
+  event: vi.fn<(detail: string) => void>(),
   rmFailure: undefined as Error | undefined,
 }));
 
@@ -34,11 +36,16 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
   connectCdp: async () => ({ send: runtime.send }),
   createBotBrowserRuntime: (options: {
     userDataDir: string;
+    browserPath: string;
+    onEvent?: (detail: string) => void;
     connect: (endpoint: string) => Promise<unknown>;
   }) => {
     runtime.directory = options.userDataDir;
+    runtime.browserPath = options.browserPath;
+    runtime.event.mockImplementation(options.onEvent ?? (() => {}));
     return {
       ensure: async () => {
+        options.onEvent?.('launch /private/browser mode=headless');
         await runtime.ensure();
         await options.connect('ws://synthetic');
       },
@@ -47,7 +54,12 @@ vi.mock('../../browser/src/runtime/browser.js', () => ({
   },
 }));
 
-import { previewGenuiDocument } from '../src/runtime/genui-preview.js';
+import {
+  previewGenuiDocument,
+  recordGenuiPreviewDiagnostic,
+} from '../src/runtime/genui-preview.js';
+import { diagnosticEventRecorder } from '../src/diagnostics/diagnostic-log.js';
+import type { LogEntryInput } from '../src/logs/log-db.js';
 
 beforeEach(async () => {
   runtime.rmFailure = undefined;
@@ -79,6 +91,66 @@ beforeEach(async () => {
 afterEach(() => vi.clearAllMocks());
 
 describe('isolated GenUI preview lifecycle', () => {
+  it('keeps Browser owner ready and stop events in their actual phases', async () => {
+    runtime.ensure.mockImplementation(async () => {
+      runtime.event('ready');
+    });
+    runtime.stop.mockImplementation(async () => {
+      runtime.event('stopped');
+    });
+    const onDiagnostic = vi.fn();
+    await previewGenuiDocument(syntheticGenuiDocument, { onDiagnostic });
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'ready', detail: 'ready' }),
+    );
+    expect(onDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'stopped', detail: 'stopped' }),
+    );
+    expect(
+      onDiagnostic.mock.calls.some(
+        ([event]) => event.phase === 'starting' && ['ready', 'stopped'].includes(event.detail),
+      ),
+    ).toBe(false);
+  });
+  it('preserves safe startup metadata through the bounded DiagnosticEvents owner', () => {
+    const rows: LogEntryInput[] = [];
+    const log = diagnosticEventRecorder((entries) => rows.push(...entries));
+    recordGenuiPreviewDiagnostic(log, {
+      phase: 'refused',
+      durationMs: 8000,
+      reason: 'genui-preview-browser-startup-timeout',
+      detail: JSON.stringify({
+        pid: 1234,
+        stderr:
+          'failure '.repeat(250) +
+          'final-cause token=keep-private https://example.com/?token=hidden',
+      }),
+    });
+    expect(rows[0]).toMatchObject({ plugin: 'genui-preview', kind: 'refused' });
+    const detail = rows
+      .slice(1)
+      .map((row) => JSON.parse(row.detail).text)
+      .join('');
+    expect(detail).toContain('1234');
+    expect(detail).toContain('final-cause');
+    expect(detail).not.toMatch(/keep-private|hidden/);
+    expect(rows.length).toBeLessThanOrEqual(17);
+    for (const row of rows) expect(row.detail.length).toBeLessThanOrEqual(4000);
+  });
+  it('uses an explicitly configured executable in the same Browser runtime', async () => {
+    await previewGenuiDocument(syntheticGenuiDocument, { browserPath: process.execPath });
+    expect(runtime.browserPath).toBe(process.execPath);
+  });
+
+  it.each(['relative/chrome', '/missing-preview-browser', import.meta.dirname])(
+    'refuses invalid explicit executable %s without system fallback',
+    async (browserPath) => {
+      await expect(
+        previewGenuiDocument(syntheticGenuiDocument, { browserPath }),
+      ).rejects.toMatchObject({ code: 'genui-preview-browser-invalid-path' });
+      expect(runtime.ensure).not.toHaveBeenCalled();
+    },
+  );
   it('refuses missing or changed runtime assets before starting a browser and releases the owner', async () => {
     packagedRuntime.load.mockRejectedValueOnce(new Error('Missing asset'));
     await expect(previewGenuiDocument(syntheticGenuiDocument)).rejects.toMatchObject({

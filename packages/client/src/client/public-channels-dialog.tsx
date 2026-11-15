@@ -9,7 +9,11 @@ import { Note } from './ds/note.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { joinPublicChannel, loadPublicChannels, type PublicChannel } from './team-bridge.js';
+import {
+  joinChannel,
+  loadBrowsableChannels,
+  type BrowsableChannel,
+} from './team-channels-bridge.js';
 import { teamErrorText } from './team-settings.js';
 
 const styles = stylex.create({
@@ -55,7 +59,7 @@ const styles = stylex.create({
 type Load =
   | { state: 'loading' }
   | { state: 'failed' }
-  | { state: 'ready'; channels: readonly PublicChannel[] };
+  | { state: 'ready'; channels: readonly BrowsableChannel[] };
 
 export function PublicChannelsDialog({
   call,
@@ -74,7 +78,7 @@ export function PublicChannelsDialog({
 
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
-    loadPublicChannels(call, controller.signal)
+    loadBrowsableChannels(call, controller.signal)
       .then((channels) => {
         if (!controller.signal.aborted) setLoad({ state: 'ready', channels });
       })
@@ -84,10 +88,10 @@ export function PublicChannelsDialog({
     return () => controller.abort();
   }, [call]);
 
-  const join = (channel: PublicChannel): void => {
+  const join = (channel: BrowsableChannel): void => {
     setJoining(channel.channelId);
     setError(undefined);
-    joinPublicChannel(call, channel.channelId)
+    joinChannel(call, channel.channelId)
       .then(() => onJoined(channel.channelId))
       .catch((failure: unknown) => {
         setError(teamErrorText(t, failure));
@@ -126,6 +130,9 @@ export function PublicChannelsDialog({
                   <span {...stylex.props(styles.name)}>{channel.name}</span>
                   <span {...stylex.props(styles.meta)}>
                     {[
+                      channel.visibility === 'roles'
+                        ? t('team.channels.roleRestricted')
+                        : undefined,
                       channel.memberCount === 1
                         ? t('team.channels.oneMember')
                         : t('team.channels.members', { count: String(channel.memberCount) }),

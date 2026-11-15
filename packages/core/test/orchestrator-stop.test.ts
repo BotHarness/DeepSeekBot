@@ -9,7 +9,11 @@ import type {
   OrchestratorAssignmentAccess,
 } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
-import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
+import {
+  createTestNativeWorkspace,
+  createTestWorkspaceGrants,
+  TEST_GRANT_ID,
+} from './workspace-grant-fixture.js';
 
 function agents() {
   const orchestratorRuns: string[] = [];
@@ -72,21 +76,16 @@ function agents() {
 
 async function fixture(home = createTempRoot('bh-orchestrator-stop-')) {
   const live = agents();
+  const workspace = createTestNativeWorkspace(home);
   const core = createCore({
     dshHome: home,
     agents: live.adapter,
-    workspaces: () => ({
-      get: (id) =>
-        id === 'test-workspace'
-          ? { id, path: home, title: 'Test Workspace', status: async () => 'ok' }
-          : undefined,
-      list: () => [],
-    }),
+    workspaces: () => workspace.lookup,
   });
   const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   if (core.registry.get('ada') === undefined) {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    createTestWorkspaceGrants(core.operationalDatabase, home);
+    createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
   }
   const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   let sent = 0;

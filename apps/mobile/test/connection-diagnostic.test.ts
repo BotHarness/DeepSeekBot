@@ -71,3 +71,26 @@ describe('account connection diagnostic boundary', () => {
     expect(networkDiagnosticReason(new Error(text))).toBe(expected);
   });
 });
+
+it.each([
+  ['ENOTFOUND', 'socket-dns'],
+  ['EAI_AGAIN', 'socket-dns'],
+  ['ECONNREFUSED', 'socket-refused'],
+  ['ETIMEDOUT', 'socket-timeout'],
+  ['ECONNRESET', 'socket-reset'],
+  ['UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'socket-tls'],
+])(
+  'keeps coded %s causes from opaque request failures without leaking the cause message',
+  (code, expected) => {
+    const cause = Object.assign(new Error('private-host.example/?token=secret'), { code });
+    expect(networkDiagnosticReason(new Error('request failed', { cause }))).toBe(expected);
+    expect(networkDiagnosticReason(cause)).toBe(expected);
+  },
+);
+
+it('does not let an opaque wrapper code hide a specific DNS cause', () => {
+  const error = Object.assign(new Error('request failed', { cause: { code: 'ENOTFOUND' } }), {
+    code: 'ERR_NETWORK',
+  });
+  expect(networkDiagnosticReason(error)).toBe('socket-dns');
+});

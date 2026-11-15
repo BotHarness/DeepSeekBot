@@ -164,7 +164,7 @@ it('upgrades generation 72 with an empty Part Library', () => {
       BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation <= 72),
     ),
   });
-  expect(prior.generation).toBe(72);
+  expect(prior.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.generationOf('profile-recovery'));
   prior.close();
   const upgraded = mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   try {

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 export const PRESENCE_PATH = '/api/botharness/presence';
 export const PRESENCE_LEASE_MS = 90_000;
 const MAX_CLIENTS = 64;
@@ -7,57 +8,65 @@ const refusal = (code: string, status = 400) =>
   Response.json({ error: { code, message: code } }, { status });
 
 export interface Presence {
-  active(): boolean;
-  report(clientId: string, active: boolean): boolean;
-  status(): { active: boolean; clients: number; leaseMs: number };
+  active(human?: HumanContext): boolean;
+  report(clientId: string, active: boolean, human?: HumanContext): boolean;
+  status(human?: HumanContext): { active: boolean; clients: number; leaseMs: number };
   subscribe(listener: () => void): () => void;
-  fetch(request: Request): Promise<Response>;
+  fetch(request: Request, human?: HumanContext): Promise<Response>;
   dispose(): void;
 }
 
 export function createPresence(now: () => number = Date.now): Presence {
-  const clients = new Map<string, number>();
+  const clients = new Map<string, { humanId: string; expiresAt: number }>();
   const listeners = new Set<() => void>();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let last = false;
+  let last = '[]';
   const prune = () => {
     const at = now();
-    for (const [id, expiresAt] of clients) if (expiresAt <= at) clients.delete(id);
+    for (const [id, client] of clients) if (client.expiresAt <= at) clients.delete(id);
   };
   const settle = () => {
     prune();
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
     if (clients.size > 0) {
-      const next = Math.min(...clients.values());
+      const next = Math.min(...[...clients.values()].map((client) => client.expiresAt));
       timer = setTimeout(settle, Math.max(0, next - now()) + 1);
       timer.unref?.();
     }
-    const active = clients.size > 0;
+    const active = JSON.stringify(
+      [...new Set([...clients.values()].map((client) => client.humanId))].sort(),
+    );
     if (active === last) return;
     last = active;
     for (const listener of listeners) listener();
   };
-  const status = () => {
+  const status = (human: HumanContext = OWNER_HUMAN_CONTEXT) => {
     prune();
+    const count = [...clients.values()].filter((client) => client.humanId === human.humanId).length;
     return {
-      active: clients.size > 0,
-      clients: clients.size,
+      active: count > 0,
+      clients: count,
       leaseMs: PRESENCE_LEASE_MS,
     };
   };
-  const report = (clientId: string, active: boolean): boolean => {
+  const report = (
+    clientId: string,
+    active: boolean,
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
+  ): boolean => {
     if (!CLIENT_ID.test(clientId)) return false;
     prune();
+    const key = JSON.stringify([human.humanId, clientId]);
     if (active) {
-      if (!clients.has(clientId) && clients.size >= MAX_CLIENTS) return false;
-      clients.set(clientId, now() + PRESENCE_LEASE_MS);
-    } else clients.delete(clientId);
+      if (!clients.has(key) && clients.size >= MAX_CLIENTS) return false;
+      clients.set(key, { humanId: human.humanId, expiresAt: now() + PRESENCE_LEASE_MS });
+    } else clients.delete(key);
     settle();
     return true;
   };
   return {
-    active: () => status().active,
+    active: (human) => status(human).active,
     report,
     status,
     subscribe(listener) {
@@ -66,8 +75,8 @@ export function createPresence(now: () => number = Date.now): Presence {
         listeners.delete(listener);
       };
     },
-    async fetch(request) {
-      if (request.method === 'GET') return Response.json(status());
+    async fetch(request, human = OWNER_HUMAN_CONTEXT) {
+      if (request.method === 'GET') return Response.json(status(human));
       if (request.method !== 'POST') return refusal('presence-method-not-allowed', 405);
       let input: unknown;
       try {
@@ -81,12 +90,12 @@ export function createPresence(now: () => number = Date.now): Presence {
         typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
       if (typeof body['clientId'] !== 'string' || typeof body['active'] !== 'boolean')
         return refusal('presence-invalid-input');
-      if (!report(body['clientId'], body['active']))
+      if (!report(body['clientId'], body['active'], human))
         return refusal(
           CLIENT_ID.test(body['clientId']) ? 'presence-client-limit' : 'presence-invalid-input',
           CLIENT_ID.test(body['clientId']) ? 409 : 400,
         );
-      return Response.json(status());
+      return Response.json(status(human));
     },
     dispose() {
       if (timer !== undefined) clearTimeout(timer);

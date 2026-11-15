@@ -1,3 +1,14 @@
+import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
+import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
+import { WorkspaceSpaces } from './workspaces/spaces.js';
+import { defaultSpaceMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
+import { questionAnswerReceipts } from './channels/question-answer-receipts.js';
+import { TeamError } from './team/error.js';
+import { requireBotModel } from './team/models.js';
+import { createMemberTobOperations } from './tob/member-operations.js';
+import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
+import { privateBotCreations } from './bots/creation.js';
+import { humanContext } from './humans/context.js';
 import { TeamService } from './team/service.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
@@ -11,6 +22,7 @@ import {
   type PricedSurface,
 } from './runtime/context-window.js';
 import { createBotRequestRetry } from './runtime/bot-request-retry.js';
+import { createContextOverflowRecovery } from './runtime/context-overflow-recovery.js';
 import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
@@ -52,6 +64,8 @@ import {
 } from './tob/cli-diagnostic-operations.js';
 import {
   createTobHostCliOperations,
+  authorizeTobHostCli,
+  authorizeTobBotTargets,
   spawnHostCli,
   TOB_HOST_CLI_CAPABILITY,
 } from './tob/cli-host-commands.js';
@@ -124,14 +138,14 @@ import { feedbackLinks } from './diagnostics/feedback-links.js';
 import { mountContentPurge } from './purge/owner.js';
 import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
-import type { SessionSeq } from '@deepseek-ai/dsh-session';
+import type { Session, SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -170,6 +184,7 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
 import { createCoreStartup } from './diagnostics/core-startup.js';
 import type { DiagnosticEvents } from './diagnostics/diagnostic-log.js';
+import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { recordDatabaseStartup } from './diagnostics/database-startup.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
@@ -203,6 +218,7 @@ import {
   type TelemetryCapture,
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
+import { startTokenUsage } from './telemetry/token-usage.js';
 import {
   createActiveDay,
   readHumanMessageCounts,
@@ -216,6 +232,7 @@ import {
   backfillBotBanners,
   backfillBotDescriptors,
   syncBotDescriptor,
+  syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
 import { createModelCatalog } from './models/catalog.js';
@@ -250,6 +267,7 @@ import { applyPendingDataReset, createDataReset } from './data-reset/reset.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import { ensureMemoryRepository } from './memory/repository.js';
+import { initializeMemoryRepositoryAsync } from './memory/git.js';
 import { cloneMemoryRepository } from './memory/clone.js';
 import { migrateLegacySouls } from './memory/soul.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
@@ -457,6 +475,7 @@ export interface BotHarnessConfig {
   enabled: boolean;
   privateInputExecution?: boolean;
   privateInputWebUrl?: string;
+  genuiPreviewBrowserPath?: string;
 
   agentPreset?: string;
   subagent?: BotSubagentPresetConfig;
@@ -475,6 +494,9 @@ export const DEFAULT_CONFIG: BotHarnessConfig = {
 };
 
 export const Config: Schema<BotHarnessConfig> = Schema.object({
+  genuiPreviewBrowserPath: Schema.string().description(
+    'Absolute executable for isolated GenUI previews; omitted or empty discovers the system browser. Invalid explicit paths are refused.',
+  ),
   privateInputWebUrl: Schema.string().description(
     'Explicit credential-free Web origin for IM private input links; never use a login token URL.',
   ),
@@ -515,6 +537,9 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  team: TeamService;
+  spaces: WorkspaceSpaces;
+  currentRoots(session: Session, kind: 'read' | 'write'): string[];
   prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
@@ -718,9 +743,36 @@ function initializeCore(
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
+    startup.enter('workspace-spaces', 'relocate-memory');
+    if (operationalDatabase.mode === 'ready')
+      recoverSpaceTransfers(attachOperationalModule(operationalDatabase, 'workspace-spaces'));
+    if (operationalDatabase.mode === 'ready')
+      relocateSpaceMemories(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
+    if (operationalDatabase.mode === 'ready')
+      relocateTobWorkspaces(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
     startup.enter('bot-registry', 'initialize');
     registry = createPersonaBotRegistry({
       rootDir,
+      defaultMemoryPath: (slug, humanId) =>
+        defaultSpaceMemoryPath(
+          attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+          realpathSync(dshHome),
+          humanId,
+          slug,
+        ),
+      validateMemoryPath: (slug, humanId, path) => spaces.assertMemoryPath(humanId, slug, path),
+      creationTopics: ['workspace-grants'],
+      onCreated: (bot, connection) => {
+        const humanId = bot.ownerHumanId ?? team.ownerContext().humanId;
+        if (!team.isOwner(humanContext(humanId)))
+          grants.initializeAccount(bot.slug, 'spaces/' + humanId, connection);
+      },
       database: operationalDatabase,
       onImport: (event) =>
         options.warn?.(
@@ -768,6 +820,29 @@ function initializeCore(
               ...(repository.code === 'git-not-found' ? { code: 'git-not-found' as const } : {}),
               message: `${repository.code}: ${repository.message}`,
             };
+      },
+      async initializeMemoryAsync(memoryDir) {
+        try {
+          await initializeMemoryRepositoryAsync(memoryDir);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            ...(error instanceof Error && 'code' in error && error.code === 'ENOENT'
+              ? { code: 'git-not-found' as const }
+              : {}),
+            message: error instanceof Error ? error.message : 'memory-initialization-failed',
+          };
+        }
+      },
+      async syncDescriptorAsync(memoryDir, record) {
+        try {
+          await syncBotDescriptorAsync(memoryDir, record);
+        } catch (error) {
+          options.warn?.(
+            `bot-descriptor-sync-failed slug=${record.slug} reason=${error instanceof Error ? error.name : 'unknown'}`,
+          );
+        }
       },
     });
     startup.enter('roster', 'initialize');
@@ -962,6 +1037,18 @@ function initializeCore(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
   );
+  const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
+    purge: contentPurge,
+    spaces: () => spaces,
+    settleBotPreparations: (humanId) => registry.settled(humanId),
+    stopBots: async (slugs) => {
+      if (!slugs.length) return;
+      if (!runtime?.stopBot) throw new Error('member-bot-stop-unavailable');
+      for (const slug of slugs) await runtime.stopBot(slug);
+    },
+    ensureTob: (human) => tob.ensure(human),
+    log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
+  });
   startup.enter('human-attention', 'initialize');
   const humanAttentionDatabase = attachOperationalModule(operationalDatabase, 'human-attention');
   const humanAttention = createHumanAttentionQuery(
@@ -976,6 +1063,8 @@ function initializeCore(
         return [];
       }
     },
+    () => new Date(),
+    (human, value) => team.approvals.project(human, value),
   );
   startup.enter('human-attention', 'decisions');
   const humanAttentionDecisions = createHumanAttentionDecisions(humanAttentionDatabase);
@@ -998,12 +1087,20 @@ function initializeCore(
       durableAttention.cancel();
     });
     operationalDatabase.subscribe(({ topics }) => {
-      if (topics.includes('content-purge')) live?.publishContentPurged();
+      if (topics.some((topic) => ['content-purge', 'member-purged'].includes(topic)))
+        live?.publishContentPurged();
+      if (topics.includes('member-purged')) live?.publishHumanIdentityChanged();
       if (
         topics.some((topic) =>
-          ['bindings', 'grants', 'bot-schedules', 'content-purge', 'assignment-report'].includes(
-            topic,
-          ),
+          [
+            'bindings',
+            'grants',
+            'bot-schedules',
+            'content-purge',
+            'member-purged',
+            'assignment-report',
+            'bot-ownership',
+          ].includes(topic),
         )
       )
         live?.publishRosterCommitted();
@@ -1017,13 +1114,20 @@ function initializeCore(
         durableAttention.schedule();
     });
   }
+  const spaces = new WorkspaceSpaces(
+    attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+    dshHome,
+    team.roles,
+    undefined,
+    operationalDatabase.mode === 'ready',
+  );
   startup.enter('channel-live', 'initialize');
   live = createChannelLiveHub(
     channels,
     {
-      snapshot: () =>
+      snapshot: (human) =>
         personaBotActivitySnapshot(
-          registry.list().map((bot) => bot.slug),
+          registry.list(human.humanId).map((bot) => bot.slug),
           states,
         ),
       onChange: (changed) => states.onActivity((event) => changed(event)),
@@ -1038,7 +1142,13 @@ function initializeCore(
           }),
         changed,
       ),
+    (human) => team.isOwner(human),
+    (human, slug) => ownsBot(human, registry.getHistorical(slug)),
+    (human, id) => team.channelAccess.canRead(human, id, true),
+    (human, id) => team.channelAccess.canKnow(human, id),
+    (human, value, channelId) => team.approvals.project(human, value, channelId),
   );
+  team.onAccessChanged(() => live?.refreshAccess());
   startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
     for (const bot of registry.list())
@@ -1091,19 +1201,25 @@ function initializeCore(
     database: operationalDatabase,
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  team.privateAccess.bind({ registry, memory });
   startup.enter('usage', 'initialize');
   usage =
     operationalDatabase.mode === 'ready'
       ? createUsageProjection({
           ownership,
           database: operationalDatabase,
+          ownerHumanId: () => team.ownerContext().humanId,
+          botOwner: (slug) =>
+            registry.getHistorical(slug)?.ownerHumanId ?? team.ownerContext().humanId,
           botCreatedAt: (slug) => registry.getHistorical(slug)?.createdAt,
         })
       : undefined;
   startup.enter('workspace-grants', 'initialize');
   const grants = createWorkspaceGrantStore({
     database: attachOperationalModule(operationalDatabase, 'workspace-grants'),
-    workspaces: options.workspaces ?? (() => undefined),
+    workspaces: () => spaces.workspaceLookup(options.workspaces?.()),
+    validateTree: (slug, path) => spaces.assertTree(slug, path),
+    validatePath: (slug, path, grant) => spaces.assertPath(slug, path, grant),
   });
   startup.enter('tool-rules', 'initialize');
   const toolRules = createToolApprovalRuleStore(
@@ -1125,6 +1241,7 @@ function initializeCore(
     channels,
     grants,
     workspaceRoot: join(dshHome, 'botharness', 'tob-workspaces'),
+    workspaceFor: (human) => spaces.ensureAccount(human.humanId),
     ...(options.ensureTobWorkspace ? { ensureWorkspace: options.ensureTobWorkspace } : {}),
     ...(options.tobSettings ? { settings: options.tobSettings } : {}),
   });
@@ -1245,6 +1362,7 @@ function initializeCore(
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
     messagePerf,
+    requireModelRoute: (slug, route) => requireBotModel(team, registry.get(slug), route),
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
     assignmentConcurrencyLimit: () =>
@@ -1338,6 +1456,7 @@ function initializeCore(
     changed: () => live?.publishRosterCommitted(),
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
+  contentPurge.bindMemberBots(deletions);
   if (operationalDatabase.mode === 'ready') {
     startup.enter('messaging', 'reconcile-group-members');
     const activeBots = new Set(registry.list().map((bot) => bot.slug));
@@ -1434,6 +1553,10 @@ function initializeCore(
     attachments,
     mediaVersions,
     live,
+    team,
+    spaces,
+    currentRoots: (session, kind) =>
+      currentRoots({ ownership, runtime, registry, grants }, session, kind),
     companions,
     roster,
     runtime,
@@ -1544,7 +1667,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     events.on(event, forgetCredentialFailures);
   const modelCatalog = createModelCatalog(ctx.llm, {
     credentials: providerCredentials,
-    credentialFailure: createCredentialReadiness({
+    credentialReadiness: createCredentialReadiness({
       providers: () => ctx.llm.listConfigurableProviders(),
       settings: () =>
         (
@@ -1580,15 +1703,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         core.registry.migrateLegacyModel(slug, expectedModel, route),
     },
     modelCatalog,
+    (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
   );
   const privateExecution = new ProtectedExecution(
     privateInputLog((format, value) => ctx.logger.info(format, value), diagnosticEvents),
   );
-  const turnRefusals = new Map<string, string>();
+  const turnRefusals = new Map<string, string | TeamError>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
-    onGenuiDiagnostic: (event) =>
-      ctx.logger.info('genui-%s %j', event.component ?? 'preview', event),
+    ...(config.genuiPreviewBrowserPath === undefined
+      ? {}
+      : { genuiPreviewBrowserPath: config.genuiPreviewBrowserPath }),
+    onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
     genuiAttachmentContext: ctx,
     agents: ctx.agents,
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
@@ -1597,7 +1723,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     subagentTools: (slug) =>
-      createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
+      createBotSubagentModelTools(
+        ctx,
+        () => core.registry.get(slug)?.modelPlan,
+        config.subagent,
+        (route) => requireBotModel(core.team, core.registry.get(slug), route),
+      ),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
         | { stat(id: string): Promise<unknown> }
@@ -1640,6 +1771,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               )
                 return undefined;
 
+              const steward = core.registry.get(core.ownership.resolve(actor.session.id)!.botSlug);
+              if (!steward) return undefined;
+              const human = humanContext(botOwner(steward));
+              const memberTob = !core.team.isOwner(human);
+              const memberOperations = memberTob
+                ? createMemberTobOperations({
+                    human,
+                    bridge: invocationBridgeMethods(human),
+                    registry: privateBotRegistry(core.registry, human),
+                    creations: privateBotCreations(core.creations, human),
+                    isProtectedBot: (slug) => core.tob.isTob(slug),
+                  })
+                : undefined;
+              const requireOwner = () => {
+                if (!core.team.isOwner(human)) throw new TobError('permission-required');
+              };
               let source: (() => void) & { markSideEffect?: () => void };
               try {
                 source =
@@ -1655,6 +1802,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               const authorize = () => {
                 if (execution.signal.aborted) throw new TobError('agent-context-expired');
                 source();
+                if (
+                  memberTob &&
+                  (!team.mode(human).enabled || team.member(human.humanId)?.status !== 'active')
+                )
+                  throw new TobError('permission-required');
                 const denial = grantExecutionDenial(
                   core,
                   actor.session,
@@ -1668,6 +1820,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                 signal: execution.signal,
                 authorize,
                 prepareOperation: async (command, args, signal) => {
+                  const checkTargets = () =>
+                    authorizeTobBotTargets(args, {
+                      registry: core.registry,
+                      channels: core.channels,
+                      human,
+                    });
+                  checkTargets();
+                  if (memberOperations) return memberOperations(command, args, signal);
                   const prepared =
                     (await tobModelOperations(command, args)) ??
                     (await tobMaintenanceOperations(command, args)) ??
@@ -1678,7 +1838,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobChannelOperations(command, args)) ??
                     (await tobVoiceOperations(command, args)) ??
                     (await tobHostCliOperations(command, args, signal));
-                  if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
+                  if (!prepared) return prepared;
+                  const scopedGuard = (guard: () => void) => () => {
+                    guard();
+                    checkTargets();
+                  };
+                  if (!['create', 'group-create'].includes(command))
+                    return {
+                      ...prepared,
+                      run: (guard, beforeEffect) => prepared.run(scopedGuard(guard), beforeEffect),
+                    };
                   return {
                     ...prepared,
                     run: async (guard, beforeEffect) => {
@@ -1689,28 +1858,39 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                         actor.session.id,
                         started,
                       );
-                      return prepared.run(guard, beforeEffect);
+                      return prepared.run(scopedGuard(guard), beforeEffect);
                     },
                   };
                 },
-                capabilities: [
-                  ...TOB_MODEL_CAPABILITIES,
-                  ...TOB_MAINTENANCE_CAPABILITIES,
-                  ...TOB_BOT_CREATE_CAPABILITIES,
-                  ...TOB_BOT_PROFILE_CAPABILITIES,
-                  ...TOB_SHARE_DRAFT_CAPABILITIES,
-                  ...TOB_DIAGNOSTIC_CAPABILITIES,
-                  ...TOB_CHANNEL_CAPABILITIES,
-                  ...TOB_VOICE_CAPABILITIES,
-                  TOB_HOST_CLI_CAPABILITY,
-                ],
+                capabilities: memberTob
+                  ? [
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ]
+                  : [
+                      ...TOB_MODEL_CAPABILITIES,
+                      ...TOB_MAINTENANCE_CAPABILITIES,
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      ...TOB_SHARE_DRAFT_CAPABILITIES,
+                      ...TOB_DIAGNOSTIC_CAPABILITIES,
+                      ...TOB_CHANNEL_CAPABILITIES,
+                      ...TOB_VOICE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ],
                 beforeWrite: () => source.markSideEffect?.(),
-                readSetting: () => core.tob.readSetting(),
-                writeSetting: (value, revision, guard) =>
-                  core.tob.writeSetting(value, revision, () => {
+                readSetting: () => {
+                  requireOwner();
+                  return core.tob.readSetting();
+                },
+                writeSetting: (value, revision, guard) => {
+                  requireOwner();
+                  return core.tob.writeSetting(value, revision, () => {
                     guard();
                     source.markSideEffect?.();
-                  }),
+                  });
+                },
                 approve: async (operation, signal) => {
                   source();
                   return approveTobCliOperation({
@@ -1864,8 +2044,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       });
     }
   };
-  ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
-  ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
+  ctx.effect(
+    () => async () => {
+      await core.tob.close();
+      await core.registry.settled();
+      await core.contentPurge.memberSettled().catch(() => {});
+      core.contentPurge.close();
+      core.operationalDatabase.close();
+    },
+    'botharness: purge ledger and operational database',
+  );
   const storage = createStorageCleanup({
     dshHome,
     database: core.operationalDatabase,
@@ -1906,11 +2094,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let voiceCalls: VoiceCalls | undefined;
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
-  const team = new TeamService(
-    attachOperationalModule(core.operationalDatabase, 'team'),
-    core.channels,
-    { log: (phase, facts) => diagnosticEvents.record('team', phase, facts) },
-  );
+  const team = core.team;
   mountDevicePairing(ctx, {
     team,
     calls: () => voiceCalls,
@@ -1953,7 +2137,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           offPresence();
         };
       },
-      held: () => presence.active(),
+      held: (human) => presence.active(human),
     },
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
@@ -1967,6 +2151,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           log: (message) => ctx.logger.info(message),
         }),
       'botharness: telemetry daily usage',
+    );
+    ctx.effect(
+      () =>
+        startTokenUsage({
+          telemetry,
+          snapshot: () => core.usage?.telemetrySnapshot(),
+          log: (message) => ctx.logger.info(message),
+        }),
+      'botharness: telemetry token usage',
     );
     ctx.effect(
       () =>
@@ -2200,6 +2393,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       } catch {
         return { kind: 'reject' };
       }
+      const modelOwner = core.ownership.resolve(agent.session.id);
+      if (modelOwner) {
+        const selection = agentAdapter.modelSelection(agent.session.id) ?? agent.options;
+        if (selection.provider && selection.model) {
+          try {
+            requireBotModel(core.team, core.registry.get(modelOwner.botSlug), {
+              provider: selection.provider,
+              model: selection.model,
+            });
+          } catch (error) {
+            if (!(error instanceof TeamError)) throw error;
+            turnRefusals.set(agent.session.id, error);
+            return { kind: 'reject' };
+          }
+        }
+      }
       const repairs = new Set<BotSessionRepair>();
       const denial = admitBotSession(
         core,
@@ -2243,6 +2452,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }),
     { global: true },
   );
+  const contextOverflowRecovery = createContextOverflowRecovery({
+    isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+    log: (event) =>
+      ctx.logger[event['outcome'] === 'declined' ? 'warn' : 'info'](
+        `context-overflow-recovery ${JSON.stringify(event)}`,
+      ),
+  });
+  ctx.on('agent/request-error', contextOverflowRecovery, { global: true, prepend: true });
   const approvalTemplates = createApprovalTemplateLibrary(
     join(dshHome, 'botharness', 'approval-templates'),
   );
@@ -2418,6 +2635,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     (sessionId) => core.runtime.askChannel?.(sessionId),
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
+    core.team.approvals,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
@@ -2437,8 +2655,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx,
       core.runtime,
       (ctx as unknown as { sessions: DshSessionStore }).sessions,
+      questionAnswerReceipts(
+        attachOperationalModule(core.operationalDatabase, 'messaging'),
+        (sessionId) => core.ownership.resolve(sessionId)?.botSlug,
+      ),
     ),
     (sessionId) => core.runtime.askChannel?.(sessionId),
+    core.team.approvals,
   );
   ctx.effect(() => () => userQuestions.close(), 'botharness: Channel user questions');
   ctx.inject(['sessionProjections', 'sessionQuery', 'userQuestions'], () => {
@@ -2451,6 +2674,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: companion question observation',
   );
   registerChannelUserQuestions(ctx, userQuestions);
+  ctx.effect(
+    () =>
+      core.team.approvals.bindStatus((kind, botSlug, channelId, messageId) =>
+        kind === 'tool-approval'
+          ? toolApproval.status(botSlug, messageId)
+          : kind === 'user-question'
+            ? userQuestions.status(botSlug, messageId, channelId, false)
+            : (privateInputs?.status(channelId, messageId) ?? 'expired'),
+      ),
+    'botharness: approval projection status',
+  );
   if (core.operationalDatabase.mode === 'ready')
     ctx.effect(
       () => core.externalMessaging.questions.attach(userQuestions, core.channels),
@@ -2798,6 +3032,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     { global: true },
   );
 
+  installNativeSearchResultGuard(ctx, core, (session) => sessionHasFullAccess(core, session.id));
   ctx.tools.guard(({ agent, name, arguments: args, token }) => {
     const approvalGuard = approvedCalls.get(token);
     if (approvalGuard && !approvalGuard(name, args))
@@ -2992,6 +3227,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const tobModelOperations = createTobModelOperations({
     registry: core.registry,
+    human: () => core.team.ownerContext(),
     presets: core.modelPresets,
     catalog: modelCatalog,
     settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
@@ -3379,6 +3615,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const tobBotProfileOperations = createTobBotProfileOperations({
     registry: core.registry,
+    human: () => core.team.ownerContext(),
     bridge: () => bridgeMethods,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
@@ -3414,6 +3651,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }, 'botharness: Tob Host CLI target');
   });
   const tobHostCliOperations = createTobHostCliOperations({
+    authorize: (argv) =>
+      authorizeTobHostCli(argv, {
+        registry: core.registry,
+        channels: core.channels,
+        human: core.team.ownerContext(),
+      }),
     run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
   });
   const tobChannelOperations = createTobChannelOperations({
@@ -3639,7 +3882,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           path: PRESENCE_PATH,
           methods: ['GET', 'POST'],
           requestBody: 'buffered',
-          fetch: presence.fetch,
+          fetch: (request) => presence.fetch(request, team.ownerContext()),
         }),
       'botharness: desktop presence route',
     );
@@ -3972,6 +4215,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),
   );
 
+  ctx.on(
+    'subagent/start',
+    (info) => {
+      const parentSessionId = ctx.agents.get(info.id)?.session.header.parentSession;
+      if (parentSessionId) core.usage?.bindParentTurn(info.id, parentSessionId);
+    },
+    { global: true },
+  );
+
   const turnLog = createTurnLog({
     events: diagnosticEvents,
     owner: (sessionId) => core.ownership.resolve(sessionId),
@@ -4019,6 +4271,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
+          (route) => requireBotModel(core.team, core.registry.get(owner.botSlug), route),
         );
       }
     },

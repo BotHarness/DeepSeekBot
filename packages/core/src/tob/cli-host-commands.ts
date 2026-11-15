@@ -1,3 +1,8 @@
+import { parseBotCliArgs } from '../bots/cli-options.js';
+import { ownsBot } from '../team/bot-access.js';
+import type { PersonaBotRegistry } from '../bots/registry.js';
+import type { ChannelStore } from '../channels/store.js';
+import type { HumanContext } from '../humans/context.js';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
@@ -167,8 +172,8 @@ export const TOB_HOST_CLI_READS: ReadonlySet<string> = new Set([
   'workspace-options',
 ]);
 
-const REFUSED_OPTIONS = ['--host', '--token-file', '--home'];
-const REFUSED_COMMANDS = new Set(['ssh-tunnel', 'voice-local-kit']);
+const REFUSED_OPTIONS = ['--host', '--token-file', '--home', '--as', '--administration'];
+const REFUSED_COMMANDS = new Set(['ssh-tunnel', 'voice-local-kit', 'audit', 'private']);
 const MAX_ARGS = 256;
 const MAX_ARG_BYTES = 64 * 1024;
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -207,6 +212,71 @@ export interface TobHostCliRunner {
 
 function hasOption(argv: readonly string[], name: string): boolean {
   return argv.some((arg) => arg === name || arg.startsWith(`${name}=`));
+}
+
+export function authorizeTobBotTargets(
+  args: Record<string, unknown>,
+  deps: {
+    registry: Pick<PersonaBotRegistry, 'getHistorical'>;
+    channels: Pick<ChannelStore, 'get'>;
+    human: HumanContext;
+  },
+): void {
+  const targets: unknown[] = [];
+  for (const field of [
+    'slug',
+    'botSlug',
+    'botId',
+    'channelId',
+    'sourceBotSlug',
+    'targetBotSlug',
+    'sourceChannelId',
+    'targetChannelId',
+  ]) {
+    targets.push(args[field]);
+  }
+  if (Array.isArray(args['members'])) {
+    if (args['members'].length > 100) throw new TobError('invalid-request');
+    targets.push(...args['members']);
+  }
+  for (const value of targets) {
+    if (typeof value !== 'string') continue;
+    const id = value.trim();
+    const bot = deps.registry.getHistorical(id);
+    if (bot && !ownsBot(deps.human, bot)) throw new TobError('permission-required');
+    const channel = deps.channels.get(id);
+    if (
+      channel?.type === 'dm' &&
+      channel.members.some((slug) => {
+        const participant = deps.registry.getHistorical(slug);
+        return participant && !ownsBot(deps.human, participant);
+      })
+    )
+      throw new TobError('permission-required');
+  }
+}
+
+export function authorizeTobHostCli(
+  argv: readonly string[],
+  deps: {
+    registry: Pick<PersonaBotRegistry, 'getHistorical'>;
+    channels: Pick<ChannelStore, 'get'>;
+    human: HumanContext;
+  },
+): void {
+  if (argv[0] === 'members') {
+    let action: string | undefined;
+    try {
+      action = parseBotCliArgs(argv).positionals[1];
+    } catch {
+      throw new TobError('invalid-request');
+    }
+    if (action === 'transfer' || action === 'purge') throw new TobError('permission-required');
+  }
+  for (const token of argv.slice(1)) {
+    const value = token.includes('=') ? token.slice(token.indexOf('=') + 1) : token;
+    authorizeTobBotTargets({ slug: value }, deps);
+  }
 }
 
 export function classifyTobHostCli(argv: readonly string[]): { command: string; write: boolean } {
@@ -266,6 +336,7 @@ function outcome(result: TobHostCliResult, scrub: (text: string) => string): unk
 
 export function createTobHostCliOperations(deps: {
   run: TobHostCliRunner;
+  authorize?: (argv: readonly string[]) => void;
   scrub?: (text: string) => string;
 }): PrepareTobOperation {
   const scrub = deps.scrub ?? ((text: string) => text);
@@ -273,8 +344,10 @@ export function createTobHostCliOperations(deps: {
     if (command !== 'cli') return undefined;
     const request = input(args);
     const { command: name, write } = classifyTobHostCli(request.argv);
+    deps.authorize?.(request.argv);
     const execute = async (guard: () => void, beforeEffect?: () => void) => {
       guard();
+      deps.authorize?.(request.argv);
       if (write) beforeEffect?.();
       let result: TobHostCliResult;
       try {

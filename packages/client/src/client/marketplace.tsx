@@ -1357,11 +1357,13 @@ export function MarketplaceBotFlow({
 }
 
 export function MarketplaceModal({
+  target,
   actions,
   t,
   onClose,
   onInstalled,
 }: {
+  target?: ReactNode;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   onClose: () => void;
@@ -1401,6 +1403,7 @@ export function MarketplaceModal({
         </Button>
       }
     >
+      {target}
       <MarketplaceSubmitField submit={submit} t={t} />
       <MarketplaceBrowseControls browse={browse} t={t} />
       <MarketplaceListStatus browse={browse} t={t} />

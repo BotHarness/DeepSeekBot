@@ -18,12 +18,11 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true
   },
-  // Ordered on purpose: the client's session-store declaration must be
-  // processed before host packages that import `@deepseek-ai/dsh-agent`.
-  // Both augment `ctx.sessions` with different `list` types; the first
-  // declaration in program order wins, and an alphabetical `packages/*/src`
-  // put `packages/browser` first, which made `ctx.sessions.list` lose its
-  // store methods in `packages/client`.
+  // This mixed Host/Client program merges Cordis Context augmentations.
+  // Load the Client session-store declaration explicitly before Host imports:
+  // both name ctx.sessions, and the first declaration wins. include ordering
+  // alone is insufficient when an early Client file gains a Host import chain.
+  "files": ["packages/client/src/dsh-client-context.d.ts"],
   "include": [
     "packages/client/src",
     "packages/computer/src",

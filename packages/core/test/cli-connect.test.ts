@@ -3,6 +3,48 @@ import { runConnectCommand } from '../src/bots/cli-connect.js';
 const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),
 });
+it('supports conditional direct private stop while retaining the explicit unconditional owner command', async () => {
+  const http = vi.fn(async () => reply({ ok: true }));
+  const connect = vi.fn(async () => ({ http }));
+  await runConnectCommand(
+    'private-route',
+    ['stop', 'custom'],
+    { confirm: true, 'expected-route-revision': 'revision-a' },
+    {},
+    connect,
+  );
+  expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+    action: 'stop',
+    routeId: 'custom',
+    confirm: true,
+    expectedRevision: 'revision-a',
+  });
+  await runConnectCommand('private-route', ['stop', 'custom'], { confirm: true }, {}, connect);
+  expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+    action: 'stop',
+    routeId: 'custom',
+    confirm: true,
+  });
+  for (const action of ['start', 'remove', 'list'])
+    await expect(
+      runConnectCommand(
+        'private-route',
+        [action, 'custom'],
+        { confirm: true, 'expected-route-revision': 'revision-a' },
+        {},
+        connect,
+      ),
+    ).rejects.toMatchObject({ code: 'usage' });
+  await expect(
+    runConnectCommand(
+      'private-route',
+      ['stop', 'custom'],
+      { confirm: true, 'expected-route-revision': '' },
+      {},
+      connect,
+    ),
+  ).rejects.toMatchObject({ code: 'usage' });
+});
 describe('connect CLI', () => {
   it('claims private connectivity only with explicit confirmation and a stdin setup key', async () => {
     const http = vi.fn(async () => reply({ ok: true, status: { state: 'connecting' } }));
@@ -264,4 +306,18 @@ it('lists the same public route statuses exposed by the Host', async () => {
     await runConnectCommand('private-route', ['list'], {}, {}, async () => ({ http })),
   ).toEqual({ routes });
   expect(http).toHaveBeenCalledWith('/api/botharness/devices');
+});
+it('runs the same Host-owned public connectivity check without publishing credentials', async () => {
+  const health = {
+    state: 'failed',
+    stage: 'public',
+    code: 'dns',
+    checkedAt: '2026-11-14T00:00:00.000Z',
+    elapsedMs: 10,
+  };
+  const http = vi.fn(async () => reply({ health }));
+  expect(await runConnectCommand('connect-check', [], {}, {}, async () => ({ http }))).toEqual({
+    health,
+  });
+  expect(http.mock.calls[0]).toEqual(['/api/botharness/devices/connect-health', {}]);
 });

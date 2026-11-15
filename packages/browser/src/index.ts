@@ -1182,3 +1182,4 @@ export function apply(
 
   ctx.logger.info(`botharness-browser: Bot Browser ready (profile ${profileDirectory()})`);
 }
+export { discoverBrowserBinary } from './runtime/browser.js';

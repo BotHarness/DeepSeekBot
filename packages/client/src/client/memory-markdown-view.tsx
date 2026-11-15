@@ -5,6 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { MemoryMarkdown, MemoryMarkdownComparison } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { fetchMessageResource, useMessageHost } from './message-host.js';
 import { SingleImageGallery } from './message-image-gallery.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
@@ -107,6 +108,7 @@ function MarkdownImage({
   alt: string;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const remote = /^https:\/\//iu.test(reference);
   const invalid =
     !reference ||
@@ -141,10 +143,11 @@ function MarkdownImage({
             revision: document.revision ?? '',
             reference,
           });
-          const response = await fetch('./api/botharness/memory/image?' + query, {
-            signal: controller.signal,
-            credentials: 'same-origin',
-          });
+          const response = await fetchMessageResource(
+            '/api/botharness/memory/image?' + query,
+            controller.signal,
+            host,
+          );
           if (!response.ok) {
             const result: unknown = await response.json();
             const code = (result as { error?: { code?: string } }).error?.code;
@@ -177,7 +180,7 @@ function MarkdownImage({
         if (objectUrl) URL.revokeObjectURL(objectUrl);
       };
     },
-    [enabled, remote, reference, slug, path, document.source, document.revision, attempt],
+    [enabled, remote, reference, slug, path, document.source, document.revision, attempt, host],
   );
   const label = alt || reference;
   return (

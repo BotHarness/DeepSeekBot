@@ -7,6 +7,16 @@ import { BotCreationError } from './creation.js';
 export function createBotImports(
   creations: BotCreationService,
   options: { previewGit?: typeof previewMemoryRepository; log?: (message: string) => void } = {},
+): BotImportsService {
+  return {
+    ...buildBotImports(creations, options),
+    withCreations: (scoped) => createBotImports(scoped, options),
+  };
+}
+
+function buildBotImports(
+  creations: BotCreationService,
+  options: { previewGit?: typeof previewMemoryRepository; log?: (message: string) => void },
 ) {
   const previewGit = async (gitUrl: string) => {
     const result = await (options.previewGit ?? previewMemoryRepository)({
@@ -98,4 +108,6 @@ export function createBotImports(
       creations.importBot(input, key, authorize),
   };
 }
-export type BotImportsService = ReturnType<typeof createBotImports>;
+export type BotImportsService = ReturnType<typeof buildBotImports> & {
+  withCreations(creations: BotCreationService): BotImportsService;
+};

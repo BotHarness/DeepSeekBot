@@ -19,6 +19,8 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'accountProfile.email',
   ],
   general: [
+    'environment.settings.device',
+    'remoteHosts.this',
     'zoom.current',
     'zoom.default',
     'zoom.setup.enable',
@@ -26,6 +28,8 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'onboarding.settings.title',
   ],
   appearance: [
+    'environment.settings.device',
+    'remoteHosts.this',
     'recovery.title',
     'settings.theme',
     'settings.theme.system',
@@ -111,8 +115,21 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'team.account.title',
     'team.account.password',
     'team.account.signOut',
+    'team.devices.mine',
+    'team.roles.title',
+    'team.spaces.title',
+    'team.spaces.yours',
+    'team.spaces.shared',
+    'team.usage.title',
+    'team.usage.period',
+    'team.audit.title',
+    'team.audit.integrity',
+    'team.private.title',
+    'team.private.open',
   ],
   devices: [
+    'relationships.title',
+    'relationships.prepareReturn',
     'devices.pair.title',
     'devices.list.title',
     'devices.connect.title',
@@ -123,6 +140,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'devices.connect.account',
     'devices.connect.tunnel',
     'devices.connect.computersStatus',
+    'connect.health.title',
     'devices.connect.thisComputer',
     'connections.manage.switches',
     'connections.title',
@@ -147,11 +165,47 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   ],
 };
 
+export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> = {
+  appearance: [
+    'environment.settings.device',
+    'recovery.title',
+    'settings.theme',
+    'settings.theme.system',
+    'settings.theme.light',
+    'settings.theme.dark',
+    'appearance.palette',
+    'appearance.lightPreset',
+    'appearance.lightPrimary',
+    'appearance.darkPreset',
+    'appearance.darkPrimary',
+    'appearance.primary',
+    'wallpaper.title',
+    'wallpaper.interval',
+    'wallpaper.shuffle',
+    'appearance.header',
+    'appearance.materialColor',
+    'appearance.materialOpacity',
+    'appearance.materialBlur',
+    'appearance.body',
+    'appearance.panels',
+    'workspace.appearance',
+    'workspace.layoutMode',
+    'workspace.gap',
+    'dock.reset',
+  ],
+  notifications: ['desktopNotify.row.title'],
+  shortcuts: ['shortcuts.title', 'workspace.shortcutSearch', ...SHORTCUT_INDEX],
+  companions: ['companion.speechSound', 'companion.retention'],
+};
+
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'relationships.prepareReturn': 'relationships.prepareReturnHint',
   'connections.methods': 'connections.hosts.local',
   'devices.lan.title': 'devices.lan.notice',
   'connections.hosts.preference': 'connections.hosts.preferenceScope',
   'team.mode.title': 'team.mode.description',
+  'team.spaces.yours': 'team.spaces.yoursHint',
+  'team.private.open': 'team.private.listBody',
   'team.insecureHttp.title': 'team.insecureHttp.description',
   'zoom.current': 'zoom.current.description',
   'zoom.default': 'zoom.default.description',
@@ -361,6 +415,7 @@ export function searchSettings(
   rows: readonly BotSettingsSectionRow[],
   query: string,
   t: BotHarnessTranslate,
+  clientOnly = false,
 ): SettingsSearchResult[] {
   const terms = query.trim().split(/\s+/u).filter(Boolean);
   if (!terms.length) return [];
@@ -390,9 +445,9 @@ export function searchSettings(
           },
         ]
       : [];
-    for (const key of SETTINGS_INDEX[row.id] ?? []) {
+    for (const key of (clientOnly ? CLIENT_SETTINGS_INDEX : SETTINGS_INDEX)[row.id] ?? []) {
       if (
-        row.layoutAvailable === false &&
+        (clientOnly ? row.clientLayoutAvailable === false : row.layoutAvailable === false) &&
         ['workspace.appearance', 'workspace.layoutMode', 'workspace.gap', 'dock.reset'].includes(
           key,
         )

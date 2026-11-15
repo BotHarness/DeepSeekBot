@@ -7,6 +7,9 @@ export interface TeamViewer {
   readonly kind: TeamViewerKind;
   readonly displayName: string;
   readonly mustChangePassword: boolean;
+  readonly owner: boolean;
+  readonly permissions: readonly string[];
+  readonly roleIds: readonly string[];
 }
 
 export interface TeamModeView {
@@ -14,10 +17,11 @@ export interface TeamModeView {
   readonly ownerPasswordSet: boolean;
   readonly insecureHttpAllowed: boolean;
   readonly memberUrls: readonly string[];
+  readonly isolation: 'trial' | 'enforced';
   readonly viewer: TeamViewer;
 }
 
-export type TeamMemberStatus = 'active' | 'suspended';
+export type TeamMemberStatus = 'active' | 'suspended' | 'deactivated';
 
 export interface TeamMember {
   readonly humanId: string;
@@ -27,19 +31,13 @@ export interface TeamMember {
   readonly mustChangePassword: boolean;
   readonly createdAt: string;
   readonly owner: boolean;
+  readonly roleIds: readonly string[];
+  readonly deviceCount: number;
 }
 
 export interface CreatedMember {
   readonly member: TeamMember;
   readonly initialPassword: string;
-}
-
-export interface PublicChannel {
-  readonly channelId: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly memberCount: number;
-  readonly joined: boolean;
 }
 
 export const TEAM_REFUSALS = [
@@ -53,6 +51,36 @@ export const TEAM_REFUSALS = [
   'username-taken',
   'channel-not-public',
   'channel-not-found',
+  'permission-required',
+  'role-name-invalid',
+  'role-name-taken',
+  'role-builtin',
+  'owner-protected',
+  'member-not-found',
+  'device-not-found',
+  'member-suspended',
+  'permission-not-grantable',
+  'owner-transfer-target-unverified',
+  'transfer-target-invalid',
+  'transfer-required',
+  'member-active',
+  'purge-token-invalid',
+  'role-not-found',
+  'channel-post-restricted',
+  'channel-mention-restricted',
+  'stale-channel-policy',
+  'space-name-taken',
+  'space-not-empty',
+  'space-not-found',
+  'grant-foreign-space',
+  'grant-protected-path',
+  'grant-outside-audience',
+  'role-in-use',
+  'model-not-allowed',
+  'object-not-found',
+  'own-content',
+  'private-views-full',
+  'audit-integrity-failed',
 ] as const;
 export type TeamRefusal = (typeof TEAM_REFUSALS)[number];
 
@@ -65,17 +93,23 @@ export function teamRefusal(error: unknown): TeamRefusal | undefined {
     : undefined;
 }
 
-function record(value: unknown): Record<string, unknown> | undefined {
+export function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+export function strings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+    : [];
 }
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-async function unwrap(
+export async function unwrap(
   call: BridgeCall,
   endpoint: string,
   payload: Record<string, unknown>,
@@ -98,6 +132,9 @@ export function parseTeamViewer(value: unknown): TeamViewer | undefined {
     kind,
     displayName: text(row['displayName']) ?? humanId,
     mustChangePassword: row['mustChangePassword'] === true,
+    owner: row['owner'] === true || kind === 'owner',
+    permissions: strings(row['permissions']),
+    roleIds: strings(row['roleIds']),
   };
 }
 
@@ -113,6 +150,7 @@ export function parseTeamMode(value: unknown): TeamModeView {
     ownerPasswordSet: row['ownerPasswordSet'] === true,
     insecureHttpAllowed: row['insecureHttpAllowed'] === true,
     memberUrls: urls,
+    isolation: row['isolation'] === 'enforced' ? 'enforced' : 'trial',
     viewer,
   };
 }
@@ -126,30 +164,18 @@ export function parseTeamMember(value: unknown): TeamMember | undefined {
     humanId,
     username,
     displayName: text(row['displayName']) ?? username,
-    status: row['status'] === 'suspended' ? 'suspended' : 'active',
+    status:
+      row['status'] === 'suspended' || row['status'] === 'deactivated' ? row['status'] : 'active',
     mustChangePassword: row['mustChangePassword'] === true,
     createdAt: text(row['createdAt']) ?? '',
     owner: row['owner'] === true,
+    roleIds: strings(row['roleIds']),
+    deviceCount:
+      typeof row['deviceCount'] === 'number' && row['deviceCount'] >= 0 ? row['deviceCount'] : 0,
   };
 }
 
-export function parsePublicChannel(value: unknown): PublicChannel | undefined {
-  const row = record(value);
-  const channelId = text(row?.['channelId']);
-  const name = text(row?.['name']);
-  if (row === undefined || channelId === undefined || name === undefined) return undefined;
-  const description = text(row['description']);
-  const count = row['memberCount'];
-  return {
-    channelId,
-    name,
-    ...(description === undefined ? {} : { description }),
-    memberCount: typeof count === 'number' && Number.isFinite(count) && count >= 0 ? count : 0,
-    joined: row['joined'] === true,
-  };
-}
-
-function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
+export function list<T>(value: unknown, parse: (item: unknown) => T | undefined): T[] {
   const items = Array.isArray(value) ? value : (record(value)?.['items'] ?? []);
   return Array.isArray(items)
     ? items.flatMap((item: unknown) => {
@@ -204,27 +230,13 @@ export async function changeOwnPassword(
   call: BridgeCall,
   current: string,
   next: string,
+  signOutOthers?: boolean,
 ): Promise<void> {
-  await unwrap(call, 'memberPasswordChange', { current, next });
-}
-
-export async function loadPublicChannels(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<PublicChannel[]> {
-  return list(await unwrap(call, 'publicChannels', {}, signal), parsePublicChannel);
-}
-
-export async function joinPublicChannel(call: BridgeCall, channelId: string): Promise<void> {
-  await unwrap(call, 'publicChannelJoin', { channelId });
-}
-
-export async function setChannelPublic(
-  call: BridgeCall,
-  channelId: string,
-  open: boolean,
-): Promise<void> {
-  await unwrap(call, 'channelPublicSet', { channelId, public: open });
+  await unwrap(call, 'memberPasswordChange', {
+    current,
+    next,
+    ...(signOutOthers === undefined ? {} : { signOutOthers }),
+  });
 }
 
 export function validUsername(value: string): boolean {

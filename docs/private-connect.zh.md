@@ -1,6 +1,21 @@
-# 私有连接
+# 选择私有连接
 
-私有连接让手机在使用流量或外部 Wi-Fi 时也能连到这台电脑，不需要官方账号、Docker 或 VPN 应用。电脑上的 Host 运行内置的 `cloudflared`，**只公开加密的手机通道**；设置、文件和接口都不会公开。手机仍然扫码配对、核对电脑指纹，并需要你在电脑上批准这台手机的确切密钥。
+私有连接让手机通过流量或外部 Wi-Fi 连接这台电脑，不需要官方 Tobs 账号。可以选择内置隧道、自带 HTTPS 入口或自己的 Relay。内置隧道使用 `cloudflared`，其他方式使用所选代理或 Relay，**只公开加密的手机通道**；Host 管理入口留在本机。手机仍然扫码配对、核对电脑指纹，并需要你在电脑上批准这台手机的确切密钥。
+
+## 选择部署方式
+
+| 你已有的条件                | 包含手动步骤和 agent 提示词的教程                                                      |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| Cloudflare 账号及其下的域名 | [Cloudflare Named Tunnel](private-named-tunnel.zh.md)：固定地址，Tobs 运行 cloudflared |
+| HTTPS 代理、隧道或公司网关  | [自带 HTTPS 入口](private-ingress.zh.md)：nginx/Caddy、frp/ngrok 或内网 HTTPS          |
+| 用于自建中继的公网服务器    | [Docker 私有 Relay](private-relay.zh.md)：自己的服务器，最多 16 台电脑                 |
+| 暂时没有，只想体验          | 下方 Quick Tunnel：免账号，地址会变化                                                  |
+
+Named/Quick 使用 Cloudflare 网络；自建 Relay 使用自己的服务器；HTTPS 入口取决于所选服务商以及代理到 Host 的可达路径。只有反向代理不能穿透家庭 NAT。以上私有方式都不需要官方 Tobs Connect。
+
+每篇部署教程都提供完整的可复制提示词，复制本身不会执行部署。尚未安装 Tobs 时先看[安装教程](https://tobs.app/docs/installation/)。
+
+私有连接选项已在 1.7.0 提供；下文的统一连接向导及 Quick/custom 独立控制由后续源码增加。配置前核对已安装版本与实际控件，保留当前 Host Profile 和设备授权。
 
 ## 连接中的进阶方式
 
@@ -10,7 +25,7 @@ Control Rail、Bot 设置和可跳过的新手手机步骤都打开同一个连�
 
 新版手机在同一 Host 身份下保存两个明确授权的私有地址，旧版手机使用邀请里的主地址。Quick Tunnel 重启后地址可能变化，重新扫码可替换保存的地址，不会新增一个 Host。某条连接停止或失败时，另一条已验证的连接仍可配对。私有连接不会自动学习官方服务的回退地址。
 
-Docker 中继仍是独立且互斥的私有部署方式，迁移时必须保留所有者凭据和数据卷，不提供通用重置操作。升级已有 Host 前，请备份受保护的完整 Profile 和凭据；旧软件包无法读取双连接凭据格式，降级必须恢复匹配的备份。见[迁移与回滚](adr/0333-bounded-private-route-coexistence.md)和 [CLI 连接命令](bot-cli.zh.md#独立管理私有连接)。
+Docker 中继仍是独立且互斥的私有部署方式，迁移时必须保留所有者凭据和数据卷，不提供通用重置操作。升级已有 Host 前，请备份受保护的完整 Profile 和凭据；旧软件包无法读取双连接凭据格式，降级必须恢复匹配的备份。见[迁移与回滚](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0333-bounded-private-route-coexistence.md)和 [CLI 连接命令](bot-cli.zh.md#独立管理私有连接)。
 
 Tailscale 要求手机和电脑位于可互访的同一 tailnet。iOS 和 Android 通常只能同时运行一个 VPN，开启 Tailscale 可能中断其他 VPN，详见 [Tailscale 官方说明](https://tailscale.com/docs/reference/faq/other-vpns)。局域网要求网络可达；HTTPS 入口要求 DNS、双方信任的证书、WebSocket 转发及 Host 检查通过后才显示配对码。失败时提供 DNS、证书或转发的下一步操作，不关闭证书验证，也不自动切换官方服务。
 
@@ -22,63 +37,18 @@ Tailscale 要求手机和电脑位于可互访的同一 tailnet。iOS 和 Androi
 - **固定地址（自己的 Cloudflare Tunnel）**。在自己的 Cloudflare 账号中创建 Tunnel，复制连接器令牌，并在该账号的域名上添加公共主机名。保存主机名和令牌后，把该主机名的服务指向页面显示的 `http://127.0.0.1:<端口>`。重启后地址不变。2026-11-09 实测：未绑付款方式的免费账号可以创建 Tunnel；固定主机名仍需要该账号下有域名。2026-11-09 用免费套餐的域名端到端实测：配对、收到真实回复；`cloudflared` 重启后地址不变，手机无需新配对码即可继续使用。
 - **自己的代理或隧道**。适用于已经提供 HTTPS 的 nginx、Caddy、frp、ngrok 或公司网关。见[使用自己的代理或隧道](private-ingress.zh.md)。
 
-等页面显示 **公网地址已确认可以连到这台电脑**，选择 **显示手机配对码**，在手机上扫码、核对指纹并批准这台手机。关闭私有连接会停止 `cloudflared`，并删除连接器令牌和手机准入令牌；已配对的手机需要新的配对码。
+等页面显示 **公网地址已确认可以连到这台电脑**，选择 **显示手机配对码**，在手机上扫码、核对指纹并批准这台手机。**停止**结束这条连接，但保留配置和连接器令牌；**移除**忘记所选连接及其连接器令牌，不会撤销手机。旧版本的关闭操作会移除私有配置，重新启用后需要新的配对码。
 
 Host 不会改用官方中继。公网检查失败时，页面会显示原因代码（例如新 Quick 地址尚未生效时的 `dns`），并自动重试。
 
-CLI：`deepseekbot private-tunnel-enable --quick --confirm`、`deepseekbot private-tunnel-enable --hostname <主机名> --token-stdin --confirm`（通过 stdin 传入令牌）和 `deepseekbot private-tunnel-disable --confirm`。`deepseekbot devices` 会显示 `privateTunnel` 状态。
+CLI：`tobs private-tunnel-enable --quick --confirm`、`tobs private-tunnel-enable --hostname <主机名> --token-stdin --confirm`（通过 stdin 传入令牌）和 `tobs private-tunnel-disable --confirm`。`tobs devices` 会显示 `privateTunnel` 状态。
 
-# 高级：Docker 私有中继
+## 高级：Docker 私有中继
 
-本候选推荐使用 Docker 私有部署，不需要官方账号或 Cloudflare 账号。第一条路径支持一台桌面 Host 和它配对的手机；多电脑及升级另有 v2.0 验收项。
+服务器部署、多电脑独立认领、验证、恢复和 agent 提示词见 [Docker 私有 Relay](private-relay.zh.md)。第三方实现见[中继标准](private-relay-standard.zh.md)。
 
-**需要手机和电脑都能访问的公网 HTTPS 入口。** 可以使用已有公网服务器，或已正确配置公网访问的家用服务器/NAS。仅有域名、仅在家中 NAT 内运行 Docker，都不等于可以远程连接。部署不会自动购买服务器、修改 DNS 或路由器端口，也不保证所有运营商都可达。
+## 验证所选连接
 
-## 部署
+等 Tobs 确认公网可达后，在本机扫码配对、核对 Host 指纹并批准准确手机公钥。公网入口使用手机流量或外部 Wi-Fi；仅内网 HTTPS 入口则让手机留在目标公司网络，验证手机侧内网 DNS、系统信任的 TLS 和所选地址的可达性，不要求公网访问。发送一条容易辨认的 Bot 消息并核对真实回复，再验证重连；经授权后检查撤销。配对码和令牌不发送到 agent 聊天或截图分享。仅有健康检查或进程运行不能证明手机可达。
 
-服务器需安装 Docker Compose 和 Node 24。将候选的 `deploy/private-relay` 目录复制到你管理的绝对路径，配置已有域名指向服务器，确保公网 TCP 80/443 可达且未被其他服务占用。Caddy 自动申请和续期证书；证书签发与运营商连通性仍需检查。
-
-例如文件放在 `/opt/botharness-private`，在**该服务器的 Bash** 中执行；请替换为实际完整目录和域名：
-
-```bash
-node /opt/botharness-private/setup.mjs relay.example.com
-docker compose --project-name botharness-private --project-directory /opt/botharness-private --file /opt/botharness-private/compose.yaml up --build --detach
-```
-
-设置程序生成私有 `.env` 和 `bootstrap.secret`，不会打印密钥。不要提交、截图或分享这些文件。Compose 将密钥传入容器环境，服务器管理员仍可查看；这不能防范服务器管理员。中继以非特权用户运行，持久化准入凭据的哈希，转发加密数据，不保存聊天历史。
-
-## 认领与手机配对
-
-1. 在可信电脑打开**设置 → 连接 → 添加连接 → 将设备连接到这台电脑 → Docker 私有连接（推荐）**。
-2. 填写 HTTPS 地址，并私下从服务器的 `bootstrap.secret` 复制首次设置密钥。不要发送到聊天或写入命令参数。
-3. 点击**认领并连接**，等待已连接。本机设置成功、容器运行或健康检查成功，均不能证明手机外网可达。
-4. 显示配对码，用手机扫描，核对完整 Host 指纹；再在电脑端核对并批准准确手机公钥。
-5. 从手机向 Bot 发消息，检查真实回复。外网验收使用手机流量，不只是在家中 Wi-Fi 测试。
-
-首次成功认领者取得中继管理权；并发和重复认领会被拒绝。中继管理权不等于 Host 控制权，Host 身份和设备批准仍需独立核验。二维码含敏感中继准入信息，不要公开。撤销手机会拒绝 Host 访问并关闭已有加密连接；本切片不会因此替所有其他手机轮换共享中继准入密钥。
-
-## 一个中继服务多台电脑
-
-一个部署最多服务 16 台电脑。每台电脑有自己的一次性认领密钥、自己的所有者凭据和自己的手机准入，所以和一台电脑配对的手机无法经中继访问另一台，释放或撤销一台电脑也不会影响其他电脑。
-
-在服务器上为每台新增电脑生成密钥：
-
-```bash
-node /opt/botharness-private/setup.mjs add-host office-mac
-```
-
-它会写入 `host-office-mac.secret`（密钥，只留在服务器上），并只把它的哈希追加到 `hosts/keys`。中继每次认领时都会读取这个文件，不需要重启。在那台电脑上按上面的步骤认领，只是粘贴 `host-office-mac.secret` 的内容，而不是 `bootstrap.secret`。第一台电脑继续使用 `bootstrap.secret`。
-
-从单台电脑的部署升级：拉取新的 `deploy/private-relay` 文件，在同一个项目目录运行 `docker compose up -d --build`。原有认领、手机和数据卷都照常工作，之后再用 `add-host` 添加电脑。线上协议见[中继标准](private-relay-standard.zh.md)，附第三方中继可用的一致性测试脚本。
-
-## 失败恢复
-
-- **无法连接：**检查公网 DNS、端口、HTTPS 证书和容器状态。不要关闭证书校验；私有连接失败不会偷偷使用官方中继。
-- **已被认领：**回到原电脑和原 Profile，不要为了消除错误删除中继数据卷。
-- **认领时断网：**电脑会在请求前保存私有凭据。保留 Profile，重启同一 Host 后恢复连接，不自动重放认领。未知结果不会显示为成功。
-- **服务器重启：**保留 `relay-data`、Caddy 数据卷和电脑凭据。删除卷是破坏性重建，不是升级步骤。
-- **手机丢失：**在可信电脑撤销旧设备。若所有可信密钥均丢失，需要重建并重新配对；服务器账号无法恢复旧 Host 身份。
-
-停止部署时使用相同的绝对 Compose 路径和项目名执行 `down`，**不要加 `--volumes`**，不要改动其他服务。当前不含离线云队列、远程唤醒、新媒体能力或免费托管保证。中国大陆普通网络仍需单独通过发布验收。
-
-CLI 见[私有连接命令](bot-cli.zh.md#docker-私有连接)。真机验收记录在 [#3746](https://github.com/BotHarness/DeepSeekBot/issues/3746)；本文不代表已验收通过。
+[PR #3780](https://github.com/BotHarness/DeepSeekBot/pull/3780) 记录了 iOS 模拟器上 Quick/Named、nginx/Caddy 转发、多 Host Relay 的配对、真实回复与撤销。frp/ngrok 仍为参考配置；真机蜂窝网、中国大陆运营商、Android 和媒体功能的验收另行跟踪。

@@ -22,7 +22,7 @@ function BindingDialog({
   t: BotHarnessTranslate;
   onClose(): void;
 }): ReactElement {
-  const { snapshot, refresh, mount } = useMessagingSnapshot(slug, actions);
+  const { snapshot, refresh, discover, mount } = useMessagingSnapshot(slug, actions);
   const client = useClientFields(ONBOARDING_BINDING_FIELDS);
   const dm = client.channels.find((channel) => channel.type === 'dm' && channel.botSlug === slug);
   const botName = (owner: string): string =>
@@ -33,6 +33,7 @@ function BindingDialog({
         appSetup={actions.appSetup ? { client: actions.appSetup, botSlug: slug } : undefined}
         snapshot={snapshot}
         refresh={refresh}
+        discover={discover}
         t={t}
         bindDialog={{
           onClose,

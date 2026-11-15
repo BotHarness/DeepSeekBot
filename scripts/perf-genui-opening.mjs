@@ -10,6 +10,7 @@ import { syntheticGenuiDocument } from '../packages/core/test/fixtures/genui-doc
 import { rpc } from './verify-app.mjs';
 import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
 import { genuiDirtySourceHashes } from './perf-genui-provenance.mjs';
+import { writeGenuiOpeningResult } from './perf-genui-opening-output.mjs';
 import { checkBudget, readBudget } from './perf-budget.mjs';
 import {
   observeGenuiOpening,
@@ -399,10 +400,4 @@ try {
     `${JSON.stringify({ ...manifest.summary, budget: manifest.budgetResult }, null, 2)}\n`,
   );
 }
-console.log(
-  JSON.stringify({
-    status: manifest.status,
-    ...manifest.summary,
-    budget: manifest.budgetResult,
-  }),
-);
+writeGenuiOpeningResult(manifest, redact);

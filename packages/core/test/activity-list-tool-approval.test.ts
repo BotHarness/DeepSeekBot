@@ -286,7 +286,13 @@ describe('Human Inbox approval Host boundary', () => {
           channelId: pending.channelId,
           messageId: pending.message.id,
         }),
-      ).toEqual({ ok: true, value: { status: 'expired' } });
+      ).toMatchObject({
+        ok: true,
+        value: {
+          status: 'expired',
+          approval: { state: 'rejected', decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId } },
+        },
+      });
     } finally {
       f.broker.close();
       await f.core.runtime.close();

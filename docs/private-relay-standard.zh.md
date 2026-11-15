@@ -14,12 +14,12 @@
 
 生产环境一律用 HTTPS。响应为 JSON，带 `cache-control: no-store`。
 
-| 请求                                                        | 认证                                 | 结果                                                                                                             |
-| ----------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                                               | 无                                   | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2"]}`         |
-| `POST /claim`，正文 `{"ownerToken","phoneToken"}`（≤1 KiB） | `Authorization: Bearer <认领密钥>`   | `200 {"claimed":true,"host":<名称>}`；`403` 未知密钥；`409` 密钥已用过（释放后也一样）；`400` 格式错误或令牌重复 |
-| `DELETE /claim`                                             | `Authorization: Bearer <所有者令牌>` | `200 {"released":true}`：关闭这台电脑的所有连接并忘掉它的令牌；认领密钥仍视为已用                                |
-| `GET /status`                                               | `Authorization: Bearer <所有者令牌>` | `200 {"connected":bool,"host":<名称>}`；否则 `404`                                                               |
+| 请求                                                                                                  | 认证                                 | 结果                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET /health`                                                                                         | 无                                   | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2"]}`                 |
+| `POST /claim`，正文 `{"ownerToken":"<64 lowercase hex>","phoneToken":"<64 lowercase hex>"}`（≤1 KiB） | `Authorization: Bearer <认领密钥>`   | `200 {"claimed":true,"host":"example-host"}`；`403` 未知密钥；`409` 密钥已用过（释放后也一样）；`400` 格式错误或令牌重复 |
+| `DELETE /claim`                                                                                       | `Authorization: Bearer <所有者令牌>` | `200 {"released":true}`：关闭这台电脑的所有连接并忘掉它的令牌；认领密钥仍视为已用                                        |
+| `GET /status`                                                                                         | `Authorization: Bearer <所有者令牌>` | `200 {"connected":true,"host":"example-host"}`；否则 `404`                                                               |
 
 认领按电脑互斥：同一把密钥的两个并发认领恰好一个得到 `200`，之后用这把密钥的认领一律 `409`，中继重启后也一样。
 
@@ -34,10 +34,12 @@
 
 JSON 文本帧，`id` 是中继为每个手机通道生成的 32 位小写十六进制。
 
-- 中继 → 电脑：手机连上时 `{"type":"open","id"}`；手机的每一帧 `{"type":"data","id","data"}`；手机离开时 `{"type":"close","id"}`。
-- 电脑 → 中继：`{"type":"data","id","data"}` 发给那台手机；`{"type":"close","id"}` 关闭它。
+- 中继 → 电脑：手机连上时 `{"type":"open","id":"0123456789abcdef0123456789abcdef"}`；手机的每一帧 `{"type":"data","id":"0123456789abcdef0123456789abcdef","data":"<Noise ciphertext>"}`；手机离开时 `{"type":"close","id":"0123456789abcdef0123456789abcdef"}`。
+- 电脑 → 中继：`{"type":"data","id":"0123456789abcdef0123456789abcdef","data":"<Noise ciphertext>"}` 发给那台手机；`{"type":"close","id":"0123456789abcdef0123456789abcdef"}` 关闭它。
 
 控制连接关闭时，中继关闭这台电脑的全部手机通道，不影响其他电脑。任何格式错误的控制帧都会关闭控制连接。中继每 25 秒发一次 ping，不回应的连接会被断开；发送队列超过 2 MiB 的连接也会被断开。
+
+以上 ID 为示例；`<Noise ciphertext>` 代表实际加密帧，不是可直接发送的消息内容。
 
 ## 一致性测试
 

@@ -4,7 +4,22 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
+const environmentProbe = vi.hoisted((): { snapshot: RemoteHostsSnapshot } => ({
+  snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
+}));
+vi.mock('../src/client/host-tabs.js', async (original) => ({
+  ...(await original<typeof import('../src/client/host-tabs.js')>()),
+  useRemoteHosts: () => environmentProbe.snapshot,
+}));
+
+vi.mock('../src/client/channel-dock.js', async (original) => ({
+  ...(await original<typeof import('../src/client/channel-dock.js')>()),
+  useChannelDockActive: () => environmentProbe.snapshot.hosts.length > 0,
+}));
+
 const captured = vi.hoisted(() => ({
+  dock: false,
   menus: [] as Array<{
     open: boolean;
     items: readonly Record<string, unknown>[];
@@ -19,6 +34,11 @@ const captured = vi.hoisted(() => ({
     channelId: string;
     onSave(channelId: string, recipe: unknown): Promise<boolean>;
   }>,
+}));
+
+vi.mock('../src/client/bot-mode-sidebar-viewport.js', () => ({
+  botModeSidebarViewport: () => captured.dock,
+  subscribeBotModeSidebarViewport: () => () => {},
 }));
 
 vi.mock('../src/client/avatar-appearance-editor.js', () => ({
@@ -122,6 +142,8 @@ import type { RosterSection, RosterSnapshot } from '../src/client/roster.js';
 import { store } from '../src/client/store.js';
 import type { BotSummary, ChannelSummary } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
+import * as hostTabs from '../src/client/host-tabs.js';
+import * as hostLooks from '../src/client/host-looks.js';
 
 const AT = '2026-09-19T00:00:00.000Z';
 
@@ -584,6 +606,7 @@ function stubActions(): BridgeActions {
     })),
     send: vi.fn(async () => false),
     createBot: vi.fn(async () => BOT),
+    previewBotImport: vi.fn(async (gitUrl: string) => ({ gitUrl, commit: 'a'.repeat(40) })),
     openCreatedBot: vi.fn(async () => undefined),
     importBotZip: vi.fn(async () => BOT),
     botZipFiles: vi.fn(async () => ({ files: [], always: [] })),
@@ -700,6 +723,8 @@ function menuWithItem(id: string): {
 }
 
 beforeEach(() => {
+  captured.dock = false;
+  environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'local' };
   captured.menus.length = 0;
   store.setMode('dsh');
   store.setQuery('');
@@ -737,6 +762,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   captured.menus.length = 0;
   store.setActivityList({ unreadCount: 0, hasAction: false, channelUnread: {} });
   store.setMode('dsh');
@@ -748,6 +774,77 @@ afterEach(() => {
 });
 
 describe('bot sidebar rows', () => {
+  it.each(['member', 'admin'])(
+    'retains local sections, pins and create actions for docked %s pages',
+    async (role) => {
+      vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      captured.dock = true;
+      const remote = vi
+        .spyOn(hostTabs, 'useRemoteHosts')
+        .mockReturnValue({ hosts: [], avatars: new Map(), tab: 'all' });
+      const look = vi.spyOn(hostLooks, 'useHostName');
+      setRoster({ pins: ['c-flat'], sections: [section('s1', '工作流', ['c-section'])] });
+      store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
+      const actions = stubActions();
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      try {
+        await act(async () =>
+          root.render(
+            createElement(BotSidebar, {
+              wide: true,
+              actions,
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              t: zhTranslate,
+            }),
+          ),
+        );
+        expect(host.querySelector('.bh-section-name')?.textContent).toContain('工作流');
+        expect(host.querySelector('.bh-pin-zone')).not.toBeNull();
+        expect(host.querySelector('[data-channel-id="c-section"]')?.getAttribute('draggable')).toBe(
+          'true',
+        );
+        const sectionMenu = captured.menus.find(
+          (menu) =>
+            menu.items.some((item) => item['id'] === 'bot') &&
+            menu.items.some((item) => item['id'] === 'channel') &&
+            !menu.items.some((item) => item['id'] === 'section'),
+        );
+        expect(
+          sectionMenu?.items.find((item) => item['id'] === 'bot')?.['submenu'],
+        ).toBeUndefined();
+        captured.menus.length = 0;
+        await act(async () =>
+          host
+            .querySelector('[data-channel-id="c-section"]')!
+            .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+        );
+        await act(async () => menuWithItem('pin').onSelect?.('pin'));
+        expect(actions.setChannelPinned).toHaveBeenCalledWith('c-section', true);
+        await act(async () => menuWithItem('section').onSelect?.('section'));
+        expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+          '创建频道分组',
+        );
+        const input = document.querySelector<HTMLInputElement>('[role="dialog"] input')!;
+        await typeInto(input, 'Member section');
+        await act(async () =>
+          document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit(),
+        );
+        expect(actions.createSection).toHaveBeenCalledWith('Member section');
+        expect(look).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => root.unmount());
+        host.remove();
+        remote.mockRestore();
+        look.mockRestore();
+      }
+    },
+  );
   it('shows only the latest message time at the right of DM and Group titles', () => {
     const latestAt = '2026-10-10T14:25:00.000Z';
     const latestMessage = {
@@ -1525,21 +1622,21 @@ describe('bot sidebar rows', () => {
       '创建频道分组',
       'Bot 市场',
     ]);
-    expect(menu.items[0]?.['disabled']).toBeUndefined();
-    expect(
-      (menu.items[0]?.['submenu'] as Array<Record<string, unknown>>).map((item) => [
-        item['id'],
-        item['label'],
-      ]),
-    ).toEqual([
-      ['bot:empty', '从零创建'],
-      ['bot:git', '从 GitHub 导入'],
-      ['bot:zip', '从 zip 导入'],
-    ]);
+    expect(menu.items[0]?.['disabled']).toBe(false);
+    expect(menu.items[0]?.['submenu']).toBeUndefined();
     expect(markup).toContain('还没有 Bot');
     expect(markup).toContain('创建第一个 Bot');
     expect(markup).toContain('散装渠道');
     expect(markup).toContain('placeholder="搜索 Bot 或频道"');
+  });
+
+  it('keeps computer enrollment out of the Channels create menu', () => {
+    captured.dock = true;
+    environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'all' };
+    renderSidebar();
+    const ids = menuWithItem('bot').items.map((item) => item['id']);
+    expect(ids).not.toContain('remote');
+    expect(ids).toContain('channel');
   });
 
   it('blocks Bot creation and explains why while Host Git is unusable', () => {
@@ -1550,18 +1647,14 @@ describe('bot sidebar rows', () => {
       ...NO_INSTALL,
     });
     const markup = renderSidebar();
-    const submenu = menuWithItem('bot').items[0]?.['submenu'] as Array<Record<string, unknown>>;
+    const createBot = menuWithItem('bot').items[0];
 
     expect(markup).toContain('data-git-unavailable="too-old"');
     expect(markup).toContain('需要 Git 才能创建 Bot');
     expect(markup).toContain('Git 2.20.1 版本太旧，需要 2.28 或更新版本。');
     expect(markup).toContain('href="https://botharness.ai/zh/docs/installation/#git"');
     expect(markup).toMatch(/<button disabled="">创建第一个 Bot<\/button>/);
-    expect(submenu.map((item) => [item['id'], item['disabled']])).toEqual([
-      ['bot:empty', true],
-      ['bot:git', true],
-      ['bot:zip', true],
-    ]);
+    expect(createBot?.['disabled']).toBe(true);
   });
 
   it('names a missing Git and a Git that cannot run differently', () => {
@@ -1620,10 +1713,10 @@ describe('bot sidebar rows', () => {
 
   it('shows no Git notice once Host Git is usable', () => {
     const markup = renderSidebar();
-    const submenu = menuWithItem('bot').items[0]?.['submenu'] as Array<Record<string, unknown>>;
+    const createBot = menuWithItem('bot').items[0];
 
     expect(markup).not.toContain('data-git-unavailable');
-    expect(submenu.every((item) => item['disabled'] === false)).toBe(true);
+    expect(createBot?.['disabled']).toBe(false);
   });
 
   it('sorts the pinned grid independently and offers a pinned sort menu', () => {
@@ -2516,4 +2609,133 @@ it('keeps a successfully created section when the subsequent move fails, without
     await act(async () => root.unmount());
     host.remove();
   }
+});
+
+describe('All Environment local row interactions', () => {
+  async function mountMixed(pinned = true, includeRemote = true) {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    environmentProbe.snapshot = {
+      tab: 'all',
+      avatars: new Map(),
+      hosts: includeRemote
+        ? [
+            {
+              host: {
+                hostId: 'remote',
+                hostName: 'Remote',
+                routes: ['http://localhost:12345'],
+                credential: 'fixture',
+                deviceId: 'device',
+              },
+              snapshot: {
+                connection: { status: 'connected', route: 'http://localhost:12345' },
+                roster: { bots: [], channels: [] },
+              },
+              inbox: {
+                status: 'ready',
+                sections: { action: [], replies: [], unread: [], handled: [] },
+                unread: {},
+              },
+            },
+          ]
+        : [],
+    };
+    store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
+    setRoster({
+      pins: pinned ? [FLAT_CHANNEL.id] : [],
+      sections: [section('s1', 'Collapsed', [SECTION_CHANNEL.id])],
+    });
+    store.setConfig(config({ collapsed: { s1: true } }));
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    const actions = stubActions();
+    await act(() =>
+      root.render(
+        createElement(BotSidebar, {
+          wide: true,
+          actions,
+          useBotModePrefs: (selector) => selector(prefs),
+          setSortMode,
+          setSectionSortMode,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    return { node, root, actions };
+  }
+  it('keeps pinned channels visible in All after the last remote is removed', async () => {
+    const { node, root } = await mountMixed(true, false);
+    try {
+      expect(node.querySelector('[data-channel-id="c-flat"]')).not.toBeNull();
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+  it('keeps Host-owned Section membership unchanged when dragging in All', async () => {
+    const { node, root, actions } = await mountMixed(false);
+    const dispatch = (target: Element, type: string) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: 0 });
+      Object.defineProperty(event, 'dataTransfer', {
+        value: { effectAllowed: '', setData: vi.fn(), dropEffect: '' },
+      });
+      target.dispatchEvent(event);
+    };
+    try {
+      const source = node.querySelector('[data-channel-id="c-section"]')!;
+      const target = node.querySelector('[data-channel-id="c-flat"]')!;
+      expect(source.getAttribute('draggable')).toBe('false');
+      expect(target.getAttribute('draggable')).toBe('false');
+      await act(() => dispatch(source, 'dragstart'));
+      await act(() => dispatch(target, 'dragover'));
+      await act(() => dispatch(target, 'drop'));
+      expect(actions.moveToFlat).not.toHaveBeenCalled();
+      expect(actions.reorderFlat).not.toHaveBeenCalled();
+      expect(store.getSnapshot().roster.sections).toEqual([
+        section('s1', 'Collapsed', [SECTION_CHANNEL.id]),
+      ]);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+  it('offers Unpin for a pinned channel presented as a mixed row', async () => {
+    const { node, root } = await mountMixed();
+    try {
+      const row = node.querySelector('[data-channel-id="c-flat"]');
+      if (!row) throw Error('missing pinned mixed row');
+      await act(() =>
+        row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      expect(menuWithItem('unpin').items.some((item) => item['id'] === 'pin')).toBe(false);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+  it('selects a displayed channel from a collapsed section and ranges in mixed order', async () => {
+    const { node, root } = await mountMixed();
+    try {
+      const rows = [
+        ...node.querySelectorAll<HTMLButtonElement>('[data-environment-channel] [data-channel-id]'),
+      ];
+      expect(rows.map((row) => row.dataset.channelId)).toEqual(['c-flat', 'c-section']);
+      const sectionRow = rows.find((row) => row.dataset.channelId === 'c-section');
+      if (!sectionRow) throw Error('missing section mixed row');
+      await act(() =>
+        sectionRow.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true })),
+      );
+      expect(sectionRow.getAttribute('aria-pressed')).toBe('true');
+      const first = rows[0];
+      if (!first) throw Error('missing first row');
+      await act(() =>
+        first.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })),
+      );
+      expect(rows.map((row) => row.getAttribute('aria-pressed'))).toEqual(['true', 'true']);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
 });

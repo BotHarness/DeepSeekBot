@@ -14,12 +14,12 @@ This page describes `botharness-private-v2`. A v2 relay also accepts every v1 re
 
 All endpoints are HTTPS in production. Responses are JSON with `cache-control: no-store`.
 
-| Request                                                        | Auth                                  | Result                                                                                                                                 |
-| -------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                                                  | none                                  | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2"]}`                               |
-| `POST /claim` with body `{"ownerToken","phoneToken"}` (≤1 KiB) | `Authorization: Bearer <claim key>`   | `200 {"claimed":true,"host":<name>}`; `403` unknown key; `409` key already used (also after release); `400` malformed or reused tokens |
-| `DELETE /claim`                                                | `Authorization: Bearer <owner token>` | `200 {"released":true}`: closes that computer's sockets and forgets its tokens; the claim key stays used                               |
-| `GET /status`                                                  | `Authorization: Bearer <owner token>` | `200 {"connected":bool,"host":<name>}`; `404` otherwise                                                                                |
+| Request                                                                                                  | Auth                                  | Result                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                                                                            | none                                  | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2"]}`                                       |
+| `POST /claim` with body `{"ownerToken":"<64 lowercase hex>","phoneToken":"<64 lowercase hex>"}` (≤1 KiB) | `Authorization: Bearer <claim key>`   | `200 {"claimed":true,"host":"example-host"}`; `403` unknown key; `409` key already used (also after release); `400` malformed or reused tokens |
+| `DELETE /claim`                                                                                          | `Authorization: Bearer <owner token>` | `200 {"released":true}`: closes that computer's sockets and forgets its tokens; the claim key stays used                                       |
+| `GET /status`                                                                                            | `Authorization: Bearer <owner token>` | `200 {"connected":true,"host":"example-host"}`; `404` otherwise                                                                                |
 
 Claims are exclusive per computer: of two competing claims with the same key exactly one gets `200`, and every later claim with that key gets `409`, including after a relay restart.
 
@@ -34,10 +34,12 @@ A phone channel is routed only to the computer that owns its phone token. Frames
 
 JSON text frames, `id` is 32 lowercase hex characters chosen by the relay per phone channel.
 
-- relay → computer: `{"type":"open","id"}` when a phone connects; `{"type":"data","id","data"}` for each phone frame; `{"type":"close","id"}` when the phone leaves.
-- computer → relay: `{"type":"data","id","data"}` to send a frame to that phone; `{"type":"close","id"}` to close it.
+- relay → computer: `{"type":"open","id":"0123456789abcdef0123456789abcdef"}` when a phone connects; `{"type":"data","id":"0123456789abcdef0123456789abcdef","data":"<Noise ciphertext>"}` for each phone frame; `{"type":"close","id":"0123456789abcdef0123456789abcdef"}` when the phone leaves.
+- computer → relay: `{"type":"data","id":"0123456789abcdef0123456789abcdef","data":"<Noise ciphertext>"}` to send a frame to that phone; `{"type":"close","id":"0123456789abcdef0123456789abcdef"}` to close it.
 
 When the control socket closes, the relay closes all of that computer's phone channels and none of any other computer's. Any malformed control frame closes the control socket. The relay pings every 25 seconds and drops sockets that do not answer, and drops any socket whose send queue exceeds 2 MiB.
+
+The ID above is an example; `<Noise ciphertext>` stands for the actual encrypted frame, not a literal message to send.
 
 ## Conformance
 

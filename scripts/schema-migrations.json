@@ -1,0 +1,618 @@
+[
+  {
+    "id": "session-ownership",
+    "sha256": "00666af14b9053d004e1f59c5723af4f625caee25e23f97b3f662f6c7f96bf8b"
+  },
+  {
+    "id": "messaging-tracer",
+    "sha256": "2e977f70d8788d6e422769db835938321411f631fb592e67d334206a1dee9279"
+  },
+  {
+    "id": "assignment-directory",
+    "sha256": "a0c386ef39e765e39123e76f503278c5a8942720f5fc3b094aeb708be2cf3d56"
+  },
+  {
+    "id": "source-event-attempt",
+    "sha256": "d1a1bf1de98dbcec6d11eaf670cb79c6a219d1f1bb5c706ab54a77536335a268"
+  },
+  {
+    "id": "session-ownership-lineage",
+    "sha256": "31eebb1b41f4bcfdc2e3dc44122ac33d65187496dde43f0dcb7b179460559ef6"
+  },
+  {
+    "id": "source-event-side-effect",
+    "sha256": "3f8fccca01cfd7218172e14f6f0503a273ff8c6a2f949b67a9d85c0078148dcd"
+  },
+  {
+    "id": "assignment-collaboration",
+    "sha256": "e03ab4b94a27e18f58f9865779086d188972e91ff3d19eb509d3b5618fa7729a"
+  },
+  {
+    "id": "session-persona-snapshot",
+    "sha256": "86d5da8a90ced768f023473f98a8b139905604bb32455f24bd7b7ace52eabf00"
+  },
+  {
+    "id": "memory-accepted-commit",
+    "sha256": "c02b624b84c9ec5b2d380148caa2a5c6e11575c4739202bcedadcae8e1cb29e0"
+  },
+  {
+    "id": "workspace-grant",
+    "sha256": "0e248a52e496e91222f6cd0d0bf242ba2a8242f6a398ff4804d4c8c5d055f68a"
+  },
+  {
+    "id": "tool-approval-rule",
+    "sha256": "fcd7936d78a37894cb8e5ecd049044cacc707a22a46fb20534bcc22ad59cc66b"
+  },
+  {
+    "id": "assignment-access",
+    "sha256": "83f95573bf31d8bbc00869953f77f99c0fa165ce334bc53f5a8931fc38650daa"
+  },
+  {
+    "id": "memory-branch-head",
+    "sha256": "6d0d17423a6577ef30876aab3dc920f4954a9ae03d9c1ef693b767ff2718ad88"
+  },
+  {
+    "id": "channel-messaging",
+    "sha256": "05c966b53982137b34314bce952c9327ee02950fbd998e4163ccdea66d06fc3e"
+  },
+  {
+    "id": "bot-dm-admission",
+    "sha256": "d14e9798fd74e873db7de456c36557407a0c0a372188462fef02bac8b77f6c82"
+  },
+  {
+    "id": "group-invitation-admission",
+    "sha256": "aa27cc8cd3174f5fde9ec92293f6a13eca6e5a77bd9f28bcfb2406255b6d86e8"
+  },
+  {
+    "id": "group-digest-admission",
+    "sha256": "9480dd92523955e643444f8e76c592f77a0684971d9f89a5b9883266ec661949"
+  },
+  {
+    "id": "group-join-admission",
+    "sha256": "846334f810827b87a9250cf9b358b3969bbe3ab0a606a1edd646d1171a2773ea"
+  },
+  {
+    "id": "assignment-stop",
+    "sha256": "e8d26aa8ae332eb6a96a32de8c8f8ef602779635b0e919f64a9c4e88a9658ffc"
+  },
+  {
+    "id": "assignment-report-admission",
+    "sha256": "7de63bbb900abe8b3dfa03e97cebcb4299783e279de8418a9d5122dbeb0ac3ba"
+  },
+  {
+    "id": "human-attention-decision",
+    "sha256": "4deb1a68e6f7af3ab38ac7139e56b30fd67131a664584d043239060e3cb76c27"
+  },
+  {
+    "id": "bot-attention-ignore",
+    "sha256": "949bc2bc98eae3ae16fdd9aea6a48b8a6607e3f5a2e587f3cb69242e3bf3435f"
+  },
+  {
+    "id": "assignment-lifecycle-notice",
+    "sha256": "1f406ec34a0ac5ac9b3ed08e16baa8e5c8d65c8f55dc59f3a53cf21bc61c4949"
+  },
+  {
+    "id": "local-human-receipts",
+    "sha256": "b00258325313f55999fadf28d9f6ad03086b6abdf1c42fafdb5a957ba7de4a41"
+  },
+  {
+    "id": "group-wake-mode",
+    "sha256": "d4dde9157eae6ab3bba5d4b9bb1c6e80e622203634cf2b6b71f5419fbb1db770"
+  },
+  {
+    "id": "group-wake-policy-audit",
+    "sha256": "8a18682f08ce390f9d5eebdb06342aa43656720df82faa8ba16c5774898b1f9a"
+  },
+  {
+    "id": "usage-daily",
+    "sha256": "8e381a3cec3babd4a70a267f2b0cf5f94d1ca9ab94858e0c20a30055a72b08bd"
+  },
+  {
+    "id": "bot-source-policy",
+    "sha256": "736ffd1a06f1daaac3a1d20b1a35050d8e6adce40228ee56ebd4a91a2a63152a"
+  },
+  {
+    "id": "bot-source-policy-edit",
+    "sha256": "121c35b06254a1d2d2a9e9a1ef2d0fe6efe1cd90e4076ddb61be5ee7133c7f55"
+  },
+  {
+    "id": "bot-source-group-modes",
+    "sha256": "0a61ed621a13133af407e58ec8303b01358df6873924bce6f11bfe023c9a8d78"
+  },
+  {
+    "id": "memory-change-inbox",
+    "sha256": "81f4807e823a628bd76756015da3b3aef6be8386025034a04b973c4c45fd806e"
+  },
+  {
+    "id": "memory-change-checkpoint",
+    "sha256": "bf2b7147d7e8badba4e78505b28ad21ca612b812653b83289c1707370a0429b8"
+  },
+  {
+    "id": "memory-recovery-checkpoint",
+    "sha256": "21cecba16eeb6a97ca606dd88d4bcaf578892cc6127f400ae0ec9012fb2dca0b"
+  },
+  {
+    "id": "assignment-model-route",
+    "sha256": "8bdf9e05dc83cf3fe002b3eafcbe96302659db6ce19c0c3c86258d6a9e348b02"
+  },
+  {
+    "id": "bot-source-delivery",
+    "sha256": "867a277b6de2b50a2f95c04b6fcb8cd0b852cb04f14ef91f39dfc81e51602ccd"
+  },
+  {
+    "id": "usage-report-completeness",
+    "sha256": "b1f78e1148bb7e0cd6119cfdd1037dc3fa4cf602d087cf8e23492a0c42010627"
+  },
+  {
+    "id": "messaging-outbound",
+    "sha256": "b924a5382b2af1e6e89cd330476c0b2879859453ae6c9c3d060c5a61373b366e"
+  },
+  {
+    "id": "attachment-file-binding",
+    "sha256": "9165be7cdd15a7a18755ae8af3946d7278fba7e262e944119f1ffd0b3810128d"
+  },
+  {
+    "id": "usage-retention",
+    "sha256": "44f41c2391230dd0f84e11173e7b209229416a5f7dc682603a05dab529619d77"
+  },
+  {
+    "id": "local-human-name",
+    "sha256": "5b42064b26f27ef454baf653e467781e1a09421b1fa049b32a3b27d3dbe7259e"
+  },
+  {
+    "id": "orchestrator-workspace-write",
+    "sha256": "ecd86eab7aa86ef21eb5e01bf02846fa8f99c6aff86d2b68544bdefd54942291"
+  },
+  {
+    "id": "human-channel-nickname",
+    "sha256": "9fb05e730eda8521727ff401caa6061122b80248642491678573cc3a48bf87f5"
+  },
+  {
+    "id": "external-source",
+    "sha256": "6d710744015beea028d51f72661f2ea20b26abd9b5e26a57b88a88ffb87a4363"
+  },
+  {
+    "id": "human-response-index",
+    "sha256": "3e19fc8ec3aa63233871b9710b806e350145fe2489a60dabfc9e4b5b309230be"
+  },
+  {
+    "id": "external-group-policy",
+    "sha256": "c3c30a2030f304955f29427c80cfbcd2e5a04629385a380aaad177e38cbb40a3"
+  },
+  {
+    "id": "human-inbox-dismissal",
+    "sha256": "8e130a57b9c89ca20a63e58725db3b11a1c952802c96e45442eccd4b0c3bddcf"
+  },
+  {
+    "id": "external-thread-policy",
+    "sha256": "7999940c4e80b9c1e30b44071b2961e632599a198ef95e74b4a3c22131a45213"
+  },
+  {
+    "id": "external-identity",
+    "sha256": "c7dd9fd1a6d8279b3d850c524fa6455a58a9f055c8b6f72bcdb886ae1b633c63"
+  },
+  {
+    "id": "channel-bridge",
+    "sha256": "cb2c5d3109d8f2532221502c29651ab4c5618661b67351dfd3175878f6b0f5bf"
+  },
+  {
+    "id": "messaging-defaults",
+    "sha256": "7668ecc9a7df41d1c4f17758a5428f020e20b4a429b19d8fd015f2a8b1b79b8f"
+  },
+  {
+    "id": "bridge-routes",
+    "sha256": "d23838b87d8084f3d9d02aa89c6e8e03054200478bd9fe0f3208682d840774c2"
+  },
+  {
+    "id": "qualified-platform-defaults",
+    "sha256": "c672aa99bae51c3d2d140bb7c6b2602d343731f771e98f412a443ca7748ceed6"
+  },
+  {
+    "id": "model-preset-storage",
+    "sha256": "5f85b120e91ba0f715b3cb9579528682e49f7d8a85e66ef0593b07f28e96c17b"
+  },
+  {
+    "id": "persona-bot-registry",
+    "sha256": "d2330742a82efe69d41d87b2185ad5ac077ea11a41cfcd3ac939cf1c53e05089"
+  },
+  {
+    "id": "roster-arrangement",
+    "sha256": "84eee4da8eb255d6d9f87fa1924eea88699cf6f03f65154aac1b3488cbc0b7f8"
+  },
+  {
+    "id": "bot-schedule",
+    "sha256": "f8f386023c0e97272c5253fa5bd4af72bc46477952d902d3abf7ca41440ee6b8"
+  },
+  {
+    "id": "discord-platform-defaults",
+    "sha256": "f36a8c87266dd4785e850da85135ccbbd524be9a247c953432dc958d686243c6"
+  },
+  {
+    "id": "bot-pairing",
+    "sha256": "7e7fcd03bfb0ac13b5e6b11c38070faf96d2bdb6c60f48df442f8e15b77e0621"
+  },
+  {
+    "id": "approval-messaging",
+    "sha256": "548bddd7ec8a5b6f113047309c69cf3d4113368ea4735c10f1297b31b1bc5fa8"
+  },
+  {
+    "id": "bound-app-admission",
+    "sha256": "0a251c9abbce7672ab9f973cfb908e63c736dc2ae4a9821f48b09fcfc198180d"
+  },
+  {
+    "id": "conversation-list",
+    "sha256": "9706c4d7c63fc0e03e6fb16d27edbecb04897d0a7e04abdae43ddfb70fdb7cc5"
+  },
+  {
+    "id": "several-apps",
+    "sha256": "0ed81916eebef27c56f19baf6780ee3f866045c7b23ab6eccfa107a2130ea7a8"
+  },
+  {
+    "id": "conversation-ingest",
+    "sha256": "b598724fee4a1b09e6940940b2d061cb23dbf3c405386e9cba53c27f6efea75f"
+  },
+  {
+    "id": "new-conversation-default",
+    "sha256": "f15d1d7af37a7646b8544822b7d5ccb8a6308db038a32439c01701818323734d"
+  },
+  {
+    "id": "persona-bot-deletion",
+    "sha256": "db216aa2f5c1c11b7db19fa8d52ac670ce9b9f61f8e7905f56b03fce036f0844"
+  },
+  {
+    "id": "messaging-typing",
+    "sha256": "fbaf10df9c4cff52e962c1e3738e4bcc03847de4cd50ed335102c58f944ac8f8"
+  },
+  {
+    "id": "content-purge",
+    "sha256": "f6b56825ef2a1ec5c149c7dec8f8769c0a732ab1a48baaebaf37ca9828737ec5"
+  },
+  {
+    "id": "wechat-platform-defaults",
+    "sha256": "5589f7e046823b26e6834e4d9dc6cac005c30ec2c6a0014db974b122d9f29962"
+  },
+  {
+    "id": "complete-content-purge",
+    "sha256": "9d5171334b79f01f3feeced781cf8198bbf87b42d1f9cd18d41cf94490a8ffec"
+  },
+  {
+    "id": "bot-onboarding",
+    "sha256": "8474583bc561306593fe00f7f14bb37f00dc9d83fb298c9d32b0dd9dbfbc3c0f"
+  },
+  {
+    "id": "profile-recovery",
+    "sha256": "8fa49edebed59b13ca1c3d66f38cbd878ce4498b7d7bcead814f967fe695010e"
+  },
+  {
+    "id": "avatar-part-library",
+    "sha256": "5de4f7ac059d74e77c9d434fa1641b14cfb4ea84bc7fb059d4bb6d9d284d5984"
+  },
+  {
+    "id": "reception-history",
+    "sha256": "ddbb40db04f4c99e8fc2730d375ae772e3523af953080952d94ed339c7b37f10"
+  },
+  {
+    "id": "bot-self-record",
+    "sha256": "bab13ee6bb64ff8ef293cd9071e52520e170485160ed8cdd6f237feaf9c58cfc"
+  },
+  {
+    "id": "memory-commit-record",
+    "sha256": "49689b41d4bd8c269b2c935e998c610dbdd875faf23ffbf22c4268237e5fb06f"
+  },
+  {
+    "id": "inbox-history",
+    "sha256": "012be33ef6757dd19b8b2118621bef76f58c8d658307997c77364b203ef59fd7"
+  },
+  {
+    "id": "external-user-role",
+    "sha256": "35b605d9c3ae090e28348c022611c1e9ca56614d6acaa3ae102fc6dae26f7105"
+  },
+  {
+    "id": "permission-group",
+    "sha256": "d5969be0d6958ccc1b105c7547a6bb3710fbda3639ae949d9dd621c83e2c5252"
+  },
+  {
+    "id": "pairing-card",
+    "sha256": "10998aeebaf039e5158bf75e6b41e5ce4ccdfdf1482109e48d3fb5b60eaa3fcd"
+  },
+  {
+    "id": "behavior-permission",
+    "sha256": "5b54879156e3e6b2bf4933d2b98cc28d449394b9df5c6e0e2809132799cbeb86"
+  },
+  {
+    "id": "external-tool-rule-creator",
+    "sha256": "e836beea6eeceb5ef9b08103f03d01b92e2c59eda307b206e2c0ed26c309a92d"
+  },
+  {
+    "id": "failure-alert",
+    "sha256": "235277628594ca8c727ad0486dddcdf9536b62ff138cc36d128e219b5bbea2ba"
+  },
+  {
+    "id": "assignment-archive",
+    "sha256": "650961ba029118375143bbb56dacfa73a85954c8446debb0fe1fa17b27c8fa42"
+  },
+  {
+    "id": "inbox-resolution",
+    "sha256": "f2c8d0b78959e3ccf400b47ad1dec849f497823d1551e2a282c6e7c6d33cb1b7"
+  },
+  {
+    "id": "inbox-snooze",
+    "sha256": "75d991dc7b3b6b33f2156ee442aebb1c3b297e498c835459025fe648679b8b60"
+  },
+  {
+    "id": "assignment-access-scope",
+    "sha256": "b3cae78f9f236849097f097617eff16c3e7282c5a7602e6855138c01907a3921"
+  },
+  {
+    "id": "secret-mcp-server",
+    "sha256": "b4a32ab048185c9dd166e68f3690e782d4b2386d3411cc7850c6ce146de2646b"
+  },
+  {
+    "id": "proactive-post-limit",
+    "sha256": "3039ee2078267d5620a5102cdcee5516c8903b022a54a0a2b4cf6702d0c3492d"
+  },
+  {
+    "id": "secret-mcp-enablement",
+    "sha256": "d0b43080966d6e3ea05e4b132204247ee8283e4988b7fb94ba21e98d5c04be3a"
+  },
+  {
+    "id": "device-pairing",
+    "sha256": "7b4e74a978a1614e6b2f57355fe72f139feff8675d12315f3dd5a92032a7caf7"
+  },
+  {
+    "id": "push-delivery",
+    "sha256": "5a91c9eb1486ffc8757b0b7bd33e363bb6eea696a4093386d6e689ccff321da1"
+  },
+  {
+    "id": "human-inbox-snooze",
+    "sha256": "ed685469e6a667bd28dfa3f70616ce3c4bd02d0dd5f17593897a6de0bcf8bcf1"
+  },
+  {
+    "id": "channel-reaction",
+    "sha256": "90c4200e65bf9e866d8c6a618f2f19dc40fc7da0331f99d47a16c0b7ade616d2"
+  },
+  {
+    "id": "secret-cli-tool-rule",
+    "sha256": "70d5631b2a334bdfdd9198f8c71a56be23f9b175d6d062cf933525dff2108228"
+  },
+  {
+    "id": "tob-identity",
+    "sha256": "230e737ad0c545f9b4630481b131a89938cea93f888e10998795d1ce68ee5fa7"
+  },
+  {
+    "id": "bot-creation-operation",
+    "sha256": "6394e0d06d52e3c800b79835ec20833451cc2720a7bc5628b0b3eef06c1b98d7"
+  },
+  {
+    "id": "channel-management-operation",
+    "sha256": "c497116e96afd116344459441b9420552835f07ca4c4765a00baea8f2aecd1d4"
+  },
+  {
+    "id": "group-send-review",
+    "sha256": "c36c955b2d8bfd3bb4589040e6d850b6481d28fa0b06d1970fde7fbe41765ba9"
+  },
+  {
+    "id": "cloud-connection",
+    "sha256": "fe424677c28acff190489cad06e7a179d65201300b5a0e1da8fb6e04bcda843b"
+  },
+  {
+    "id": "cloud-work",
+    "sha256": "eee9ce4ba1a42ceb8f841e17c46e355ee6ab1b0edf1e1cff4207206fc3ccd51e"
+  },
+  {
+    "id": "tob-onboarding",
+    "sha256": "803772b64f2d5783c0fae27ee79b0ec3a02414554e21f8e682beb8b728858c81"
+  },
+  {
+    "id": "usage-idle-compaction",
+    "sha256": "283b9ea5d3137d15af9f038dc9464699ee4834219da5b7d3313ca974461a2a7d"
+  },
+  {
+    "id": "three-action-approval",
+    "sha256": "74d9eb21d3d79e0db29aeb142b0b644164ecaee7f876950b1e7a7aac221c4553"
+  },
+  {
+    "id": "push-app-render",
+    "sha256": "bf2ebb9c9c8f8c71384fb3ca27a92d24431aa11820abed67a75c484f199dbc85"
+  },
+  {
+    "id": "device-notification-preference",
+    "sha256": "0680edc38589ff1419e8e9e8a59131b819028e271863a43ffd3c25e78dc88110"
+  },
+  {
+    "id": "device-live-activity",
+    "sha256": "824df30693f77f283e1428b05a149ea3a153e6610fbfc41fb7bca1b80ee7f578"
+  },
+  {
+    "id": "assignment-title",
+    "sha256": "2c3f2a9d073425504869021b389424ae4f65278988d3bb0e3e4fcd2dc3c24d6f"
+  },
+  {
+    "id": "session-prompt-snapshot",
+    "sha256": "9703548208eaa91021294d2c7690d078eb88cb3859a8f878b5876f24ecc277bf"
+  },
+  {
+    "id": "tool-rule-auto-approval-count",
+    "sha256": "bfbf10116b99202a37d09f939d5c7c9c0882049fb1de034f5fc5a3b7d3952d59"
+  },
+  {
+    "id": "request-assignment-link",
+    "sha256": "2fdff960bdbc974e53d283d7dcebeb8a5c8a856d2cf931806bdac0a49204017e"
+  },
+  {
+    "id": "message-search-attachment-name",
+    "sha256": "5877425f2ad49fae6ab3db36a62a37822dcdef6a77c1a1405dc909d9f56b4612"
+  },
+  {
+    "id": "grant-reception-evidence",
+    "sha256": "3f7373837594f6fecf81cfd8ed378139f6f4dc5dcf91b86eb4402e8cb19adfb5"
+  },
+  {
+    "id": "human-attention-candidate-index",
+    "sha256": "3a031108dfeffb2cb4fbe92e6a3d1b0c3cf3f4d91fc81f9ba2ef61759c7e8dae"
+  },
+  {
+    "id": "bot-lan-admission",
+    "sha256": "87d06ad431b7dd6c893d222cb3866d499996ef90ce05ebed9b7af8fa157ce89b"
+  },
+  {
+    "id": "question-messaging",
+    "sha256": "5fae963122fd5870a1e2f84e0be550740d68236f1afce15da712360e050b678c"
+  },
+  {
+    "id": "takeover-attention-index",
+    "sha256": "58162eaa27bfd0cdc3d50a2899b173f20fc93eda092a9750ca4f77b697ab7901"
+  },
+  {
+    "id": "voice-provider",
+    "sha256": "68806a61d2c67bf872e03d0c05855da0dd75675537506ee493bea77288127b5b"
+  },
+  {
+    "id": "grant-resolution-index",
+    "sha256": "4923be46a939092d9fd1616623ae2027100878a960791e15673a06c6e52d3610"
+  },
+  {
+    "id": "output-request-index",
+    "sha256": "7deb9df293ec429a16d2611f3342d092ab4cc0dc91e7b90df3e82932991e564e"
+  },
+  {
+    "id": "session-parent-index",
+    "sha256": "e3b2b5df2106c549c03cac2333044734a2e8f25692cda266ea456d81d28f1a0a"
+  },
+  {
+    "id": "needs-repair-index",
+    "sha256": "ae5af83c392e764a8a81c8248150899d1e57c834eb235a6a57a490e8a9a79aa0"
+  },
+  {
+    "id": "placement-notice",
+    "sha256": "49f8a0d7da6dd75b98908d93dbda4cba1cc30525a5e73d346a357723a7fb3b76"
+  },
+  {
+    "id": "placement-human-reply",
+    "sha256": "9ee3e97a7592740b1a3676333a29f20992ab017396a114fe2715683fb2333ee7"
+  },
+  {
+    "id": "bounded-range-index",
+    "sha256": "f2e5d0fc8da1813b0d0840534db78019db9462a58d1555d1f046e2422e1c8f6b"
+  },
+  {
+    "id": "attention-resolution-index",
+    "sha256": "4f1b92a3b0702ac08171163d4e2c5523e1dd0a2e6ab540040c94d8fb3f74d9a7"
+  },
+  {
+    "id": "causal-purge-tombstone",
+    "sha256": "9e53845dc83f71accd68e986fc180dcb01e363d4d337724afdd7f994ed9b34a9"
+  },
+  {
+    "id": "voice-defaults",
+    "sha256": "abe250a535a929a54a24c90f02aece2c9cf80bd54fa80c4eebb5725296c66642"
+  },
+  {
+    "id": "voice-settings",
+    "sha256": "52644605de43590b453ef68eec599a1760e06685737555d4975443a8e3a43ac6"
+  },
+  {
+    "id": "channel-change-log",
+    "sha256": "d3ca411da2ab0319980bf950f97bd9eb0d5e37cdc2b0e4710cf6cbd3aa51afe5"
+  },
+  {
+    "id": "workspace-grant-path",
+    "sha256": "78b481ff868fb401d4fa7a91b6ec47fc0a8f25d52535e5a20fbcd701fea8a352"
+  },
+  {
+    "id": "genui-private-view",
+    "sha256": "9f4ca1625a0dded5a461892c22873364b66272296d4f2b4bc21b5fde525d15f5"
+  },
+  {
+    "id": "call-grid-rows",
+    "sha256": "1731f7a82fd5e869b2e021a6ff8c46efb73f98d836a76b35743456681f8408ef"
+  },
+  {
+    "id": "call-visual-unsaved",
+    "sha256": "fd47283e619b2750c356b08484b0808c3acd4135ea7373769085594b29891dfa"
+  },
+  {
+    "id": "call-visual-timeline",
+    "sha256": "efe2e3087448dec8cc61bf9758c00e9c9d3a8f148780dab94df694c94edae110"
+  },
+  {
+    "id": "client-acknowledgement",
+    "sha256": "959eeb4bb494d8ceefd2a760f8ed2c0c59f941a0053e92fd241654a25da9380f"
+  },
+  {
+    "id": "question-messaging-recovery",
+    "sha256": "484db63f81b3b398225e0ca714a590a4de8f64f05ef638155e029c9bf1701244"
+  },
+  {
+    "id": "qq-platform-defaults",
+    "sha256": "cc15676876fe22aa9f7992e34fc8f1b7bf6145458c44da5537df8ceb74af0391"
+  },
+  {
+    "id": "device-feed-read",
+    "sha256": "adb9a9a05a19f3c54d87117ea6bc6e5a33f2cd598e6bfb02e7637414ab7e7cf1"
+  },
+  {
+    "id": "source-event-human",
+    "sha256": "85f9530483522e66c4b6c670bc0d7907a7c3469d0ec28f7e14c6fd749037828e"
+  },
+  {
+    "id": "team-members",
+    "sha256": "e25c3eefe8e6e66d08f205df1304ce90377d392c812f1469b4d7fdaabb107ef5"
+  },
+  {
+    "id": "team-roles",
+    "sha256": "cf6ea1232d78dbdcd499bac137758518c35d8c900ab069fc2cc6d08b46b7c663"
+  },
+  {
+    "id": "private-bots",
+    "sha256": "3a53a741027d6a2b113109cba6cca9289d2222732cf96920a24f1ec15cd9ebec"
+  },
+  {
+    "id": "host-relationship",
+    "sha256": "b97ee2c30e5c433ed4a8da18757b1321262d9b2d3a51a2eb1fec89e858eb3881"
+  },
+  {
+    "id": "member-lifecycle",
+    "sha256": "4312514a9558bbca8d353434056bf4cac4b3a355508d592ebf238293ecee6350"
+  },
+  {
+    "id": "channel-access",
+    "sha256": "ee03d9d6f96ff6e2c8e298e3b7c5865e69371f4c672793710a02589f0ff5797d"
+  },
+  {
+    "id": "host-relationship-revocation",
+    "sha256": "b1ea62b6edf7400c5d1d62998531d57fd8dcf5281d92985bb6eb97ead7eb71c8"
+  },
+  {
+    "id": "team-models",
+    "sha256": "a733a6ffca895833635db5d9c0e66abd62277f1a2d3f9e30570dc70f39105075"
+  },
+  {
+    "id": "member-usage",
+    "sha256": "ca75d2543986f2d9ecf59b7bd73ba0b50f719091264ad13ac5e6515f037f0fe7"
+  },
+  {
+    "id": "host-relationship-account",
+    "sha256": "fb156f98b24ce9bf1998ee447dbeaacf03f1576c5dd6d675e4b986a5ef65936e"
+  },
+  {
+    "id": "workspace-spaces",
+    "sha256": "b14ef5895ac747053973286308d3a2b71549375b4ea534e0e5771482ad66477d"
+  },
+  {
+    "id": "private-content-audit",
+    "sha256": "8750d86fd8b2ee7045924c710d1fbfd897aaf9ba3a0f1cd55ef4452900ee23e5"
+  },
+  {
+    "id": "minimal-member",
+    "sha256": "94fd71aff4d5b984f3090b433e41968f42bac443e0a68c9f72e066d7b5bbcd18"
+  },
+  {
+    "id": "migration-ledger",
+    "sha256": "c8797dee7988cf70952e32ce178e2f451602fed59e6f22c59bb1e2c905e2b891"
+  },
+  {
+    "id": "member-devices",
+    "sha256": "63577e6e969b47333e63638be4a362adaa11961a520b232413c7a85685ba0301"
+  }
+]

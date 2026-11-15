@@ -1,4 +1,5 @@
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
+import { humanContext, type HumanContext } from '../humans/context.js';
+import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,14 +30,20 @@ export class TobError extends Error {
 }
 export function isTob(database: OperationalDatabaseModulePort, slug: string): boolean {
   return (
-    database.read((db) => db.prepare('SELECT 1 FROM tob_identity WHERE bot_slug = ?').get(slug)) !==
-    undefined
+    database.read((db) =>
+      db
+        .prepare(
+          'SELECT 1 FROM tob_identity t JOIN team_settings s ON s.owner_human_id = t.human_id WHERE t.bot_slug = ?',
+        )
+        .get(slug),
+    ) !== undefined
   );
 }
 export interface TobService {
-  ensure(): Promise<TobHome>;
+  ensure(human?: HumanContext): Promise<TobHome>;
+  close(): Promise<void>;
   isTob(slug: string): boolean;
-  slug(): string | undefined;
+  slug(human?: HumanContext): string | undefined;
   readSetting(): TobSetting;
   writeSetting(value: number, expectedRevision: number, authorize: () => void): Promise<TobSetting>;
 }
@@ -45,44 +52,71 @@ export function createTobService(options: {
   registry: PersonaBotRegistry;
   channels: ChannelStore;
   workspaceRoot: string;
+  workspaceFor?: (human: HumanContext) => string;
   ensureWorkspace?: (path: string) => Promise<{ id: string }>;
   grants: WorkspaceGrantStore;
   settings?: () => TobSettingsProvider | undefined;
 }): TobService {
   const { database, registry, channels } = options;
-  let pending: Promise<TobHome> | undefined;
-  const prepare = async (): Promise<TobHome> => {
+  const ownerId = () =>
+    z
+      .object({ owner_human_id: z.string() })
+      .parse(database.read((db) => db.prepare('SELECT owner_human_id FROM team_settings').get()))
+      .owner_human_id;
+  const pending = new Map<string, Promise<TobHome>>();
+  let closed = false;
+  const prepare = async (human: HumanContext): Promise<TobHome> => {
     const slug = database.transaction((db) => {
-      db.prepare('INSERT OR IGNORE INTO tob_identity (singleton, bot_slug) VALUES (1, ?)').run(
+      db.prepare('INSERT OR IGNORE INTO tob_identity (human_id, bot_slug) VALUES (?, ?)').run(
+        human.humanId,
         'bot-' + randomUUID().replaceAll('-', ''),
       );
       return (
-        db.prepare('SELECT bot_slug FROM tob_identity WHERE singleton = 1').get() as {
+        db.prepare('SELECT bot_slug FROM tob_identity WHERE human_id = ?').get(human.humanId) as {
           bot_slug: string;
         }
       ).bot_slug;
     });
-    const workspacePath = join(options.workspaceRoot, slug);
+    const workspacePath =
+      (options.workspaceFor ? join(options.workspaceFor(human), 'files') : undefined) ??
+      join(options.workspaceRoot, slug);
     mkdirSync(workspacePath, { recursive: true });
     let bot = registry.get(slug);
     if (!bot) {
       if (registry.getHistorical(slug)) throw new TobError('tob-identity-unavailable');
-      const created = registry.create({
-        slug,
-        displayName: 'Tob',
-        workspaces: [workspacePath],
-        persona:
-          'You are Tob (Bot reversed; Thousands of Bot), the Human’s local steward. Help them understand and manage their Bots. Use the available deepseekbot CLI through native Shell to inspect and manage supported settings, only for an explicit Human request in your private DM. Discover its current capabilities first. Read before proposing changes and pass that exact revision and old value for review. Report only verified tool results. Other management capabilities may be unavailable; never invent them.',
-      });
+      const created = await registry.createAsync(
+        {
+          slug,
+          ownerHumanId: human.humanId,
+          displayName: 'Tob',
+          workspaces: [workspacePath],
+          persona:
+            'You are Tob (Bot reversed; Thousands of Bot), the Human’s local steward. Help them understand and manage their Bots. Use the available deepseekbot CLI through native Shell to inspect and manage supported settings, only for an explicit Human request in your private DM. Discover its current capabilities first. Read before proposing changes and pass that exact revision and old value for review. Report only verified tool results. Other management capabilities may be unavailable; never invent them.',
+        },
+        () => {
+          const identity = database.read((db) =>
+            db
+              .prepare(`SELECT 1 FROM tob_identity t
+          JOIN humans h ON h.human_id = t.human_id
+          JOIN team_settings s ON s.owner_human_id = t.human_id
+          WHERE t.human_id = ? AND t.bot_slug = ? AND h.status = 'active'`)
+              .get(human.humanId, slug),
+          );
+          if (!identity) throw new TobError('tob-identity-unavailable');
+        },
+      );
       if (!created.ok) throw new TobError(created.reason);
       bot = created.record;
     }
     if (options.ensureWorkspace) {
       const workspace = await options.ensureWorkspace(workspacePath);
+      const current = registry.get(slug);
+      if (!current || current.ownerHumanId !== human.humanId || human.humanId !== ownerId())
+        throw new TobError('tob-identity-unavailable');
       if (!options.grants.list(slug).some((grant) => grant.workspaceId === workspace.id))
         await options.grants.create(slug, workspace.id);
     }
-    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, bot.displayName);
+    const channel = channels.getOrCreateDm(human, slug, bot.displayName);
     if (!channel) throw new TobError('tob-channel-unavailable');
     return { botSlug: slug, channelId: channel.id, workspacePath };
   };
@@ -104,18 +138,31 @@ export function createTobService(options: {
     return { scope: 'global', value: Number(value), revision: descriptor.revision };
   };
   return {
-    ensure() {
-      if (!pending)
-        pending = prepare().finally(() => {
-          pending = undefined;
+    async ensure(human = humanContext(ownerId())) {
+      if (closed) throw new TobError('tob-closed');
+      if (human.humanId !== ownerId()) throw new TobError('tob-unavailable');
+      let current = pending.get(human.humanId);
+      if (!current) {
+        current = prepare(human).finally(() => {
+          pending.delete(human.humanId);
         });
-      return pending;
+        pending.set(human.humanId, current);
+      }
+      return current;
+    },
+    async close() {
+      closed = true;
+      await Promise.allSettled(pending.values());
     },
     isTob: (slug) => isTob(database, slug),
-    slug: () =>
+    slug: (human = humanContext(ownerId())) =>
       (
         database.read((db) =>
-          db.prepare('SELECT bot_slug FROM tob_identity WHERE singleton = 1').get(),
+          db
+            .prepare(
+              'SELECT bot_slug FROM tob_identity t JOIN team_settings s ON s.owner_human_id = t.human_id WHERE t.human_id = ?',
+            )
+            .get(human.humanId),
         ) as { bot_slug: string } | undefined
       )?.bot_slug,
     readSetting,

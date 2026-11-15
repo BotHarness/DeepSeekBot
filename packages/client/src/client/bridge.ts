@@ -111,6 +111,7 @@ export type { HumanAssignmentContext } from '../../../core/src/runtime/assignmen
 import type {
   MessagingApp,
   MessagingSnapshot,
+  MessagingReadMode,
   MessagingGrant,
   OutboxIntent,
 } from '../../../core/src/messaging/outbound.js';
@@ -149,6 +150,7 @@ import type {
   OwnedSessionSummary,
   StandingLimitsView,
   UserQuestionAnswerItem,
+  ApprovalCardView,
 } from './store.js';
 import {
   parseRosterSection,
@@ -368,6 +370,8 @@ export async function setModelPlanAssignments(
 }
 
 export interface CreatePersonaBotInput {
+  operationKey?: string;
+  expectedCommit?: string;
   displayName: string;
   persona?: string;
   roles: string[];
@@ -644,7 +648,7 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
-async function unwrap(
+export async function unwrap(
   call: BridgeCall,
   endpoint: string,
   payload: Record<string, unknown>,
@@ -698,6 +702,7 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
     ...(record['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
     ...(typeof record['paused'] === 'boolean' ? { paused: record['paused'] } : {}),
     ...(record['deleted'] === true ? { deleted: true } : {}),
+    ...(record['modelAllowed'] === false ? { modelAllowed: false as const } : {}),
     ...(parseStandingLimits(record['standingLimits']) ?? {}),
   };
 }
@@ -904,6 +909,11 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
           }),
         }
       : {}),
+    ...(type === 'dm' &&
+    Array.isArray(record['humanParticipants']) &&
+    stringArray(record['humanParticipants']).length === 2
+      ? { humanParticipants: stringArray(record['humanParticipants']) }
+      : {}),
     createdAt: typeof createdAt === 'string' ? createdAt : '',
     updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
     ...(typeof botSlug === 'string' ? { botSlug } : {}),
@@ -938,13 +948,20 @@ function parseAuthor(value: unknown): ChannelAuthor | undefined {
         kind: 'human',
         ...(typeof humanId === 'string' && humanId.length > 0 ? { humanId } : {}),
         ...(typeof displayName === 'string' && displayName.length > 0 ? { displayName } : {}),
+        ...(record['deleted'] === true ? { deleted: true } : {}),
       };
     }
     case 'system':
       return { kind: 'system' };
     case 'bot':
       return typeof record['slug'] === 'string' && record['slug'].length > 0
-        ? { kind: 'bot', slug: record['slug'] }
+        ? {
+            kind: 'bot',
+            slug: record['slug'],
+            ...(typeof record['displayName'] === 'string' && record['displayName'].length > 0
+              ? { displayName: record['displayName'] }
+              : {}),
+          }
         : undefined;
     case 'remote-bot':
       return typeof record['hostId'] === 'string' &&
@@ -1050,6 +1067,47 @@ export async function uploadChannelAttachment(
   return ref;
 }
 
+function isMaskedRequest(value: unknown): boolean {
+  return asRecord(value)?.['masked'] === true;
+}
+
+export function parseApprovalCard(value: unknown): ApprovalCardView | undefined {
+  const row = asRecord(value);
+  const kind = row?.['kind'];
+  if (
+    row === undefined ||
+    (kind !== 'tool-approval' && kind !== 'user-question' && kind !== 'private-input') ||
+    typeof row['state'] !== 'string' ||
+    typeof row['botSlug'] !== 'string' ||
+    typeof row['requestedAt'] !== 'string'
+  )
+    return undefined;
+  const base = {
+    kind,
+    state: row['state'],
+    botSlug: row['botSlug'],
+    requestedAt: row['requestedAt'],
+    ...(typeof row['decidedAt'] === 'string' ? { decidedAt: row['decidedAt'] } : {}),
+  } as const;
+  if (row['masked'] === true) return { masked: true, ...base };
+  const decider = asRecord(row['decidedBy']);
+  return {
+    masked: false,
+    ...base,
+    opaque: row['opaque'] === true,
+    ...(typeof decider?.['humanId'] === 'string'
+      ? {
+          decidedBy: {
+            humanId: decider['humanId'],
+            ...(typeof decider['displayName'] === 'string'
+              ? { displayName: decider['displayName'] }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 export function parseChannelMessage(value: unknown): ChannelMessage | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -1122,8 +1180,12 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       grantId: resolution['grantId'],
     };
   }
+  const approval = author.kind === 'bot' ? parseApprovalCard(record['approval']) : undefined;
   let toolApprovalRequest: ChannelMessage['toolApprovalRequest'];
-  if (record['toolApprovalRequest'] !== undefined) {
+  if (
+    record['toolApprovalRequest'] !== undefined &&
+    !isMaskedRequest(record['toolApprovalRequest'])
+  ) {
     const request = asRecord(record['toolApprovalRequest']);
     if (
       request === undefined ||
@@ -1166,7 +1228,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   }
   let userQuestionRequest: ChannelMessage['userQuestionRequest'];
-  if (record['userQuestionRequest'] !== undefined) {
+  if (
+    record['userQuestionRequest'] !== undefined &&
+    !isMaskedRequest(record['userQuestionRequest'])
+  ) {
     const request = asRecord(record['userQuestionRequest']);
     const questions = request?.['questions'];
     if (
@@ -1831,9 +1896,11 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
+    ...(approval === undefined ? {} : { approval }),
     ...(sessionFailure === undefined ? {} : { sessionFailure }),
     ...(toolApprovalDecision === undefined ? {} : { toolApprovalDecision }),
-    ...(record['privateInputRequest'] === undefined
+    ...(record['privateInputRequest'] === undefined ||
+    isMaskedRequest(record['privateInputRequest'])
       ? {}
       : { privateInputRequest: parsePrivateInputCard(record['privateInputRequest']) }),
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
@@ -2592,8 +2659,14 @@ export async function createGroupChannel(
   call: BridgeCall,
   name: string,
   signal?: AbortSignal,
+  operationKey?: string,
 ): Promise<ChannelSummary> {
-  const value = await unwrap(call, 'channelCreate', { name, members: [] }, signal);
+  const value = await unwrap(
+    call,
+    'channelCreate',
+    { name, members: [], ...(operationKey === undefined ? {} : { operationKey }) },
+    signal,
+  );
   const channel = parseChannelRecord(asRecord(value)?.['channel']);
 
   if (channel === undefined) throw new Error('invalid channelCreate response');
@@ -6232,11 +6305,29 @@ export async function saveMessagingDefaults(
   await unwrap(call, 'messagingDefaultsSet', { input });
   return loadMessagingDefaults(call, input.platform);
 }
+function validReceptionRecovery(value: unknown): boolean {
+  if (value === undefined) return true;
+  const row = asRecord(value);
+  if (row?.['kind'] === 'action-required')
+    return typeof row['reason'] === 'string' && row['reason'].length > 0;
+  return (
+    row?.['kind'] === 'retrying' &&
+    row['reason'] === 'provider-unavailable' &&
+    Number.isSafeInteger(row['attempt']) &&
+    Number(row['attempt']) > 0 &&
+    typeof row['nextRetryAt'] === 'string' &&
+    Number.isFinite(Date.parse(row['nextRetryAt']))
+  );
+}
+
 export async function loadChannelBridges(
   call: BridgeCall,
   channelId: string,
+  mode?: MessagingReadMode,
 ): Promise<ChannelBridgeSnapshot> {
-  const value = asRecord(await unwrap(call, 'channelBridges', { channelId }));
+  const value = asRecord(
+    await unwrap(call, 'channelBridges', { channelId, ...(mode ? { mode } : {}) }),
+  );
   const source = (item: unknown) => {
     const row = asRecord(item);
     return (
@@ -6252,7 +6343,10 @@ export async function loadChannelBridges(
   if (
     !value ||
     value['channelId'] !== channelId ||
+    (value['checks'] !== undefined && !['pending', 'complete'].includes(String(value['checks']))) ||
     (value['canTargetInbox'] !== undefined && typeof value['canTargetInbox'] !== 'boolean') ||
+    (value['receptionNeedsAttention'] !== undefined &&
+      typeof value['receptionNeedsAttention'] !== 'boolean') ||
     !Array.isArray(value['sources']) ||
     !value['sources'].every(source) ||
     !Array.isArray(value['bridges']) ||
@@ -6269,7 +6363,8 @@ export async function loadChannelBridges(
         Number(row['revision']) > 0 &&
         ['mentions', 'all'].includes(String(row['collection'])) &&
         ['available', 'unavailable', 'rebind-required'].includes(String(row['availability'])) &&
-        ['off', 'connecting', 'receiving', 'unavailable'].includes(String(row['reception']))
+        ['off', 'connecting', 'receiving', 'unavailable'].includes(String(row['reception'])) &&
+        validReceptionRecovery(row['recovery'])
       );
     })
   )
@@ -6438,13 +6533,24 @@ export async function loadMessagingApps(
 export async function loadMessagingSnapshot(
   call: BridgeCall,
   slug: string,
+  mode?: MessagingReadMode,
 ): Promise<MessagingSnapshot> {
-  const value = await unwrap(call, 'messagingSnapshot', { slug });
+  const value = await unwrap(call, 'messagingSnapshot', { slug, ...(mode ? { mode } : {}) });
   const record = asRecord(value);
   if (
     !record ||
+    (record['checks'] !== undefined &&
+      !['pending', 'complete'].includes(String(record['checks']))) ||
     !Array.isArray(record['accounts']) ||
     !Array.isArray(record['grants']) ||
+    !record['grants'].every((item: unknown) =>
+      validReceptionRecovery(asRecord(item)?.['recovery']),
+    ) ||
+    (record['identities'] !== undefined &&
+      (!Array.isArray(record['identities']) ||
+        !record['identities'].every((item: unknown) =>
+          validReceptionRecovery(asRecord(item)?.['recovery']),
+        ))) ||
     !Array.isArray(record['intents']) ||
     (record['setup'] !== undefined && !validLarkSetupSnapshot(record['setup'])) ||
     (record['channelTargets'] !== undefined &&

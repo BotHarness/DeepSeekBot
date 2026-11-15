@@ -9,7 +9,6 @@ import { viewerCarrierScript } from '@deepseek-ai/dsh-experimental-liveshare-pro
 import { z } from 'zod';
 import { renderTeamSignInPage } from '../../../client/src/shared/team-sign-in-page.js';
 import { isConnectRequest } from '../devices/route-context.js';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { TeamError, type TeamService } from './service.js';
 
 export const TEAM_PATH = '/botharness-device/team';
@@ -68,7 +67,7 @@ export function passwordTransportAllowed(
     (!proxy && (ip === '::1' || (isIPv4(address ?? '') && address?.startsWith('127.')))) ||
     options.tls() ||
     isConnectRequest(request) ||
-    (allowInsecureOptIn && options.team.mode(OWNER_HUMAN_CONTEXT).insecureHttpAllowed)
+    (allowInsecureOptIn && options.team.mode(options.team.ownerContext()).insecureHttpAllowed)
   );
 }
 function token(request: IncomingMessage): string | undefined {
@@ -310,6 +309,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             `${MEMBER_COOKIE}=${result.token}; Path=${TEAM_PATH}/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`,
           );
           return teamJson(response, 200, {
+            isolation: 'trial',
             humanId: result.member.humanId,
             displayName: result.member.displayName,
             mustChangePassword: result.member.mustChangePassword,
@@ -320,13 +320,18 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           if (!passwordTransportAllowed(request, options))
             throw new TeamError('insecure-transport');
           const input = z
-            .object({ current: z.string().max(1024), next: z.string() })
+            .object({
+              current: z.string().max(1024),
+              next: z.string(),
+              signOutOthers: z.boolean().optional(),
+            })
             .parse(await readTeamBody(request));
           await options.team.changeWebPassword(
             peer.principal,
             input.current,
             input.next,
             request.socket.remoteAddress ?? 'unknown',
+            input.signOutOthers,
           );
           return teamJson(response, 200, {});
         }
@@ -359,6 +364,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             });
             response.end(
               renderTeamSignInPage({
+                ...{ isolation: options.team.mode(options.team.ownerContext()).isolation },
                 language: header(request, 'accept-language')?.startsWith('zh') ? 'zh' : 'en',
                 hostName: options.hostName(),
                 nonce,

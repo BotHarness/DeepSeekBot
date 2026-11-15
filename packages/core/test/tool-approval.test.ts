@@ -12,6 +12,7 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createToolApprovalRuleStore } from '../src/workspaces/tool-approval-rules.js';
 import { createTempRoot } from './helpers.js';
+import { toolEffects } from '../src/workspaces/tool-effects.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 
 const botSlug = 'ada';
@@ -57,6 +58,51 @@ function fixture(
 }
 
 describe('Channel tool approval', () => {
+  it.each([
+    ['channel_read', {}, 'none', false],
+    ['channel_attachment_open', { access: 'read' }, 'none', false],
+    ['channel_attachment_open', { access: 'write' }, 'reversible', false],
+    ['bot_send_message', { body: 'hello' }, 'irreversible', false],
+    ['secret_cli', { program: 'gh' }, 'irreversible', true],
+    ['protected_cli', { program: 'gh' }, 'irreversible', true],
+    ['bash', { command: 'deepseekbot grant-write-set ada --enabled' }, undefined, false],
+  ] as const)(
+    'keeps deterministic Full Access decisions for %s effects',
+    async (name, args, mutation, secrets) => {
+      const state = fixture();
+      const review = vi.fn();
+      const broker = new ChannelToolApproval(
+        state.channels,
+        state.ownership,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { template: () => ({ name: 'test', text: 'ask' }), review, log: vi.fn() },
+        () => true,
+      );
+      const effects = toolEffects(name, args);
+      expect(effects?.changes).toBe(mutation);
+      expect(effects?.secrets ?? false).toBe(secrets);
+      broker.track({ ...state.execution(), name, arguments: args });
+      try {
+        const answer = broker.ask({ agent: state.agent, toolName: name, callId: 'call-1' });
+        if (name === 'bash' || effects?.authority === 'management') {
+          await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+          await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
+          expect(await answer).toBe('rejected');
+        } else {
+          expect(await answer).toBe('allowed-once');
+          expect(state.messages).toHaveLength(0);
+        }
+        expect(review).not.toHaveBeenCalled();
+      } finally {
+        broker.close();
+      }
+    },
+  );
+
   it.each([
     ['browser_open', 'browser'],
     ['computer_click', 'computer'],
@@ -390,6 +436,7 @@ describe('Channel tool approval', () => {
     expect(await answer).toBe('allowed-once');
     expect(state.messages[1]?.toolApprovalDecision).toEqual({
       requestMessageId: request.id,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
       outcome: 'allowed-once',
     });
     expect(state.broker.status(botSlug, request.id)).toBe('expired');
@@ -412,6 +459,7 @@ describe('Channel tool approval', () => {
     expect(await answer).toBe('rejected');
     expect(state.messages[1]?.toolApprovalDecision).toEqual({
       requestMessageId: requestId,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
       outcome: 'rejected',
     });
     untrack?.();

@@ -26,6 +26,14 @@ import { assertDshVersion } from '../dsh-compatibility.mjs';
 import { qualifiedImProvider } from '../dev-im-provider.mjs';
 
 describe('development CLI admission', () => {
+  it('can leave machine-local AX model configuration out of a fixture profile', () => {
+    expect(parseArgs([]).noAxModel).toBe(false);
+    expect(parseArgs(['--no-ax-model']).noAxModel).toBe(true);
+  });
+  it('requires an explicit option for interrupted copy preparation recovery', () => {
+    expect(parseArgs([]).recoverCopyInstall).toBe(false);
+    expect(parseArgs(['--recover-copy-install']).recoverCopyInstall).toBe(true);
+  });
   it.each([
     '0.2.0-rc.1',
     '0.2.0',

@@ -1,3 +1,5 @@
+import { TeamError } from '../team/error.js';
+import type { ApprovalAuthority, ApprovalDecider } from '../team/approval-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { randomUUID } from 'node:crypto';
@@ -16,6 +18,8 @@ import type { SessionOwnership } from '../sessions/ownership.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval.js';
 
 export interface ChannelQuestionRequest {
+  opaque?: boolean;
+  decidedBy?: ApprovalDecider;
   sessionId: string;
   callId?: string;
   questions: AskUserQuestionItem[];
@@ -26,6 +30,18 @@ export type ChannelQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expi
 type NativeDelivery = (deliver: () => boolean) => Promise<boolean>;
 
 export interface TimedQuestionPort {
+  recordAnswer?(
+    sessionId: string,
+    callId: string,
+    answer: AskUserQuestionAnswer,
+    human: HumanContext,
+  ): void;
+  discardAnswer?(sessionId: string, callId: string): void;
+  answeringHuman?(
+    sessionId: string,
+    callId: string,
+    answer: AskUserQuestionAnswer,
+  ): HumanContext | undefined;
   bind?(
     sessionId: string,
     channelId: string,
@@ -58,6 +74,7 @@ export interface ChannelQuestionResolution {
   state: 'answered' | 'cancelled';
   answers?: AskUserQuestionAnswerItem[];
   actor?: ToolApprovalActor;
+  decidedBy?: ApprovalDecider;
 }
 
 export interface ChannelQuestionNotice extends ChannelQuestionRequest {
@@ -68,7 +85,7 @@ export interface ChannelQuestionNotice extends ChannelQuestionRequest {
 }
 
 type Pending = {
-  answeringHuman: HumanContext;
+  answeringHuman: HumanContext | undefined;
   agent: Agent | undefined;
   sessionId: string;
   botSlug: string;
@@ -135,6 +152,7 @@ export class ChannelUserQuestions {
     changed: (slug: string, count: number) => void = () => undefined,
     timed?: TimedQuestionPort,
     askChannel?: (sessionId: string) => string | undefined,
+    private readonly approvals?: ApprovalAuthority,
   ) {
     this.#askChannel = askChannel;
     this.#channels = channels;
@@ -199,7 +217,7 @@ export class ChannelUserQuestions {
 
     void answer.catch(() => undefined);
     const pending: Pending = {
-      answeringHuman: OWNER_HUMAN_CONTEXT,
+      answeringHuman: undefined,
       agent,
       sessionId: agent.session.id,
       botSlug: owner.botSlug,
@@ -322,9 +340,11 @@ export class ChannelUserQuestions {
     botSlug: string,
     messageId: string,
     channelId = dmChannelId(botSlug),
+    includeHistory = true,
   ): ChannelQuestionStatus {
     const pending = this.#pending.get(messageId);
     if (pending === undefined) {
+      if (!includeHistory) return 'expired';
       const message = this.#channels.message(channelId, messageId);
       if (message?.userQuestionRequest === undefined) return 'expired';
       let before: string | undefined;
@@ -375,6 +395,7 @@ export class ChannelUserQuestions {
       (external !== undefined && !pending.committed)
     )
       return false;
+    this.approvals?.requireRequest(human, pending.channelId, messageId);
     if (external && !external.authorized()) return false;
     if (!this.#holds(messageId, pending)) return false;
     if (!validAnswer(pending.questions, answer)) return false;
@@ -385,6 +406,7 @@ export class ChannelUserQuestions {
     )
       return false;
     pending.deciding = true;
+    let phase = 'channel-commit';
     try {
       if (pending.deferred && pending.callId !== undefined) {
         const timed = this.#timed;
@@ -403,7 +425,19 @@ export class ChannelUserQuestions {
               timed.read(pending.sessionId, callId)?.state !== 'continued'
             )
               return false;
-            return timed.answer(pending.sessionId, callId, answer);
+            this.approvals?.requireRequest(human, pending.channelId, messageId);
+            phase = 'native-receipt';
+            timed.recordAnswer?.(pending.sessionId, callId, answer, human);
+            try {
+              phase = 'native-submit';
+              const accepted = timed.answer(pending.sessionId, callId, answer);
+              if (!accepted) timed.discardAnswer?.(pending.sessionId, callId);
+              else pending.answeringHuman = human;
+              return accepted;
+            } catch (error) {
+              timed.discardAnswer?.(pending.sessionId, callId);
+              throw error;
+            }
           };
           const deliver =
             pending.deliverNative ??
@@ -417,12 +451,18 @@ export class ChannelUserQuestions {
                 : false
               : await deliver(submit);
           return pending.submitted;
-        } catch {
+        } catch (error) {
+          if (error instanceof TeamError) throw error;
+          this.#answerFailure(messageId, pending, phase, error);
           this.#warn(`botharness.channel_question.late_answer_refused request=${messageId}`);
           return false;
         }
       }
       if (pending.callId !== undefined) {
+        this.approvals?.requireRequest(human, pending.channelId, messageId);
+        phase = 'native-receipt';
+        this.#timed?.recordAnswer?.(pending.sessionId, pending.callId, answer, human);
+        pending.answeringHuman = human;
         pending.deferred = true;
         pending.submitted = true;
         pending.resolve(answer);
@@ -438,13 +478,17 @@ export class ChannelUserQuestions {
           requestMessageId: messageId,
           state: 'answered',
           answers: answer.answers,
+          decidedBy: this.approvals?.decider(human) ?? { humanId: human.humanId },
           ...(external ? { actor: external.actor } : {}),
         },
       };
       if (
-        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () =>
-          external ? this.#pending.get(messageId) === pending && external.authorized() : true,
-        )) === undefined
+        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () => {
+          this.approvals?.requireRequest(human, pending.channelId, messageId);
+          return external
+            ? this.#pending.get(messageId) === pending && external.authorized()
+            : true;
+        })) === undefined
       )
         return false;
       if (this.#pending.get(messageId) !== pending || pending.signal?.aborted) return false;
@@ -454,6 +498,9 @@ export class ChannelUserQuestions {
       pending.resolve(answer);
       this.#observe(messageId, pending, 'answered');
       return true;
+    } catch (error) {
+      if (!(error instanceof TeamError)) this.#answerFailure(messageId, pending, phase, error);
+      throw error;
     } finally {
       pending.deciding = false;
       if (pending.deferred && pending.submitted)
@@ -532,7 +579,7 @@ export class ChannelUserQuestions {
       )
         continue;
       this.#pending.set(card.messageId, {
-        answeringHuman: OWNER_HUMAN_CONTEXT,
+        answeringHuman: undefined,
         agent: undefined,
         sessionId: request.sessionId,
         botSlug,
@@ -570,23 +617,18 @@ export class ChannelUserQuestions {
       else if (native.state === 'answered' && validAnswer(pending.questions, native.answer)) {
         pending.deciding = true;
         try {
-          const saved = await this.#channels.appendMessage(
-            pending.answeringHuman,
+          const answeringHuman =
+            this.#timed?.answeringHuman?.(pending.sessionId, pending.callId, native.answer) ??
+            pending.answeringHuman;
+          const saved = await this.#channels.reconcileQuestionAnswer(
+            answeringHuman,
             pending.channelId,
             {
-              id: randomUUID(),
-              at: new Date().toISOString(),
-              author: { kind: 'human' },
-              body: native.answer.answers
-                .map((item) => item.custom ?? item.selected.join(', '))
-                .join('\n'),
-              replyTo: id,
-              userQuestionResolution: {
-                requestMessageId: id,
-                state: 'answered',
-                answers: native.answer.answers,
-              },
+              messageId: id,
+              sessionId: pending.sessionId,
+              callId: pending.callId,
             },
+            native.answer,
           );
           if (saved !== undefined && this.#pending.get(id) === pending) {
             this.#pending.delete(id);
@@ -601,7 +643,36 @@ export class ChannelUserQuestions {
 
   discardReply(sessionId: string, callId: string): void {
     for (const pending of this.#pending.values())
-      if (pending.sessionId === sessionId && pending.callId === callId) pending.submitted = false;
+      if (pending.sessionId === sessionId && pending.callId === callId) {
+        this.#timed?.discardAnswer?.(sessionId, callId);
+        pending.submitted = false;
+        pending.answeringHuman = undefined;
+      }
+  }
+
+  #answerFailure(messageId: string, pending: Pending, phase: string, error: unknown): void {
+    const kind =
+      error instanceof TypeError
+        ? 'type'
+        : error instanceof RangeError
+          ? 'range'
+          : error instanceof Error
+            ? 'error'
+            : 'non-error';
+    const frames =
+      error instanceof Error
+        ? (error.stack ?? '')
+            .split('\n')
+            .slice(1, 7)
+            .flatMap((line) => {
+              const name = /^\s*at\s+([\w.$<>]+)(?:\s|$)/u.exec(line)?.[1];
+              return name ? [name] : [];
+            })
+            .join(',')
+        : '';
+    this.#warn(
+      `botharness.channel_question.answer_failed method=userQuestionAnswer phase=${phase} kind=${kind} request=${messageId} session=${pending.sessionId} frames=${frames}`,
+    );
   }
 
   #publishAttention(slug: string): void {

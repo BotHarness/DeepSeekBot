@@ -2,6 +2,9 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Anonymous Bot Session token telemetry | only for live reply proof | `scripts/e2e-token-telemetry.mjs` | [token-telemetry.md](token-telemetry.md) |
+| Saved IM settings before connection checks | no | `verify-app` isolated settings path and read-mode CLI | [im-settings-loading.md](im-settings-loading.md) |
+| Lightweight settings during first-Tob preparation | no | `scripts/e2e-settings-loading.mjs` | [settings-loading.md](settings-loading.md) |
 | Durable timed-question answers across Host restart | yes | `verify-app` original card + `user-question-answer` | [timed-question-recovery.md](timed-question-recovery.md) |
 | Tobs channel group create, rename, delete and failure recovery | no | `verify-app` sidebar path | [channel-sections.md](channel-sections.md) |
 | Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
@@ -15,6 +18,7 @@
 | Connect account recovery, encrypted pairing, resources and native private input | yes for DM/tool/private request; no for account recovery | `scripts/e2e-connect-account-recovery.mjs`; `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
 | SSH tunnel to an existing Linux Host | no | `verify-app` two-Host path and system SSH | [ssh-host.md](ssh-host.md) |
 | Browser Remote Host pairing, icon strip, local appearance/notifications and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
+| Exact remote Channel owner Bot name, models, Workspace grants and approval templates | no | `verify-app` isolated two-Host path + direct CLI | [remote-bot-settings.md](remote-bot-settings.md) |
 
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |
@@ -40,7 +44,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Bot-to-Bot Group mentions and wake                                                                 | yes                        | `scripts/e2e-llm-scenarios.mjs` (nightly)                                                            | [bot-group-mention.md](bot-group-mention.md)         |
 | Group send review | yes for A/B; no for direct tools | `scripts/e2e-group-send-review.mjs`, `scripts/e2e-group-peer-review.mjs`, `scripts/e2e-group-busy-review.mjs`, `scripts/e2e-group-responsibility.mjs` | [group-send-review.md](group-send-review.md) |
 | Group invitation candidates | no | `verify-app` Group Members path | [group-invitations.md](group-invitations.md) |
-| Conversation timeline: static ordinary avatars, memory display, new-messages divider, return to latest, bidirectional pages, kept place, folding, image preview, reactions, search, member mention, iOS/Android raw-source selection, GenUI documents and reports | for replies; GenUI model optional | `scripts/e2e-timeline-navigation.mjs`, `scripts/e2e-genui-reports.mjs`, `scripts/e2e-genui-documents.mjs` | [conversation-timeline.md](conversation-timeline.md) |
+| Conversation timeline: static ordinary avatars, memory display, new-messages divider, return to latest, bidirectional pages, kept place, folding, image preview, reactions, search, member mention, iOS/Android raw-source selection, GenUI documents and reports | for replies; GenUI model optional | `scripts/e2e-context-overflow.mjs`, `scripts/e2e-timeline-navigation.mjs`, `scripts/e2e-genui-reports.mjs`, `scripts/e2e-genui-documents.mjs` | [conversation-timeline.md](conversation-timeline.md) |
 | PersonaBot creation and restart persistence                                                        | for Bot-created Bots       | `scripts/e2e-personabot-create.mjs` (CI)                                                             | [personabot-create.md](personabot-create.md)         |
 | Stop a working Bot (Web Client)                                                                    | yes                        | `scripts/e2e-web-stop.mjs`                                                                           | [bot-stop.md](bot-stop.md)                           |
 | Phone pairing, QR images, app variants and LAN/Tailscale guidance | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs`, `scripts/e2e-mobile-sim.mjs`, `scripts/e2e-mobile-pair-android.mjs`, `scripts/e2e-phone-recovery.mjs` | [phone-pairing.md](phone-pairing.md) |
@@ -70,7 +74,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Disposable Memory history, restore and stale-head refusal | no | `scripts/e2e-memory-restore.mjs` | [memory-restore.md](memory-restore.md) |
 | Version-bound Memory images, Markdown previews and CLI export | no | `scripts/e2e-memory-images.mjs`, `scripts/e2e-memory-markdown.mjs`, `scripts/e2e-memory-formats.mjs` | [memory-images.md](memory-images.md) |
 
-| Activity Center: approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
+| Activity Center: shared header Environment selector, per-item source badges, approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
 
 | Assignment Report identity, continuation, restart and refusals | no for reads; yes to produce reports | none (isolated Host CLI journey) | [assignment-report-continuation.md](assignment-report-continuation.md) |
 

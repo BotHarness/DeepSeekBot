@@ -212,6 +212,7 @@ describe('CI test plan', () => {
       'scripts/perf-genui-opening.mjs',
       'scripts/perf-genui-opening-observer.mjs',
       'scripts/perf-genui-provenance.mjs',
+      'scripts/perf-genui-browser-diagnostics.mjs',
       'scripts/perf-budgets/genui-opening.json',
     ]) {
       expect(timelinePerf('affected', [{ path }])).toBe(true);

@@ -2,6 +2,8 @@
 
 The DeepSeekBot phone app connects to DeepSeek Harness (DSH) on your own computer. Bots, chat history and approvals stay on the computer; the phone is a remote client.
 
+**Want your own fixed address or relay?** See [private connections](private-connect.md): [Named Tunnel](private-named-tunnel.md), [HTTPS ingress](private-ingress.md) and [Docker relay](private-relay.md), each with manual steps and a copyable agent prompt. This page retains the Tailscale walkthrough.
+
 Without an account, the phone **reaches the computer through Tailscale**: the phone and the computer sign in to the same Tailscale network (tailnet), the computer publishes DSH as `https://<computer>.<tailnet>.ts.net` with `tailscale serve`, and after you scan the code the phone connects back through that address. You need no public IP and no router changes, and it works over mobile data. If you would rather not set up Tailscale, use [DeepSeekBot Connect](#without-tailscale-deepseekbot-connect) instead.
 
 The whole setup takes about 10 minutes:

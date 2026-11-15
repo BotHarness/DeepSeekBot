@@ -10,6 +10,7 @@ import { GENUI_STYLE_GUIDANCE } from '../channels/genui-appearance.js';
 export function createGenuiPreviewTool(options: {
   saveImage: (data: Uint8Array) => Promise<ImageAttachmentRef>;
   onDiagnostic?: ((event: GenuiPreviewDiagnostic) => void) | undefined;
+  browserPath?: string | undefined;
 }) {
   return defineTool({
     name: 'genui_preview',
@@ -49,6 +50,7 @@ export function createGenuiPreviewTool(options: {
         ...(args.width === undefined ? {} : { width: args.width }),
         theme: args.theme === 'light' ? 'light' : 'dark',
         signal: execution.signal,
+        ...(options.browserPath === undefined ? {} : { browserPath: options.browserPath }),
         ...(options.onDiagnostic === undefined ? {} : { onDiagnostic: options.onDiagnostic }),
       });
       execution.signal.throwIfAborted();

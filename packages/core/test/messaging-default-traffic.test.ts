@@ -2117,7 +2117,10 @@ it('QQ resumes with a fresh eligibility boundary for known and unseen conversati
   const fx = await fixture('qq');
   await fx.receive(qqMention('before-pause'));
   await fx.update({ enabled: false });
-  const delayed = { ...qqMention('during-pause'), at: new Date().toISOString() };
+  vi.useFakeTimers({ toFake: ['Date'] });
+  const pausedAt = Date.now();
+  const delayed = { ...qqMention('during-pause'), at: new Date(pausedAt).toISOString() };
+  vi.setSystemTime(pausedAt + 1);
   await fx.update({ enabled: true });
   await fx.receive(delayed);
   await fx.receive({
@@ -2177,9 +2180,12 @@ it('QQ allowing a blocked conversation refuses redelivery from the blocked inter
     grantId: grant.id,
     expectedRevision: grant.revision,
   });
-  const blockedMessage = { ...qqMention('during-block'), at: new Date().toISOString() };
+  vi.useFakeTimers({ toFake: ['Date'] });
+  const blockedAt = Date.now();
+  const blockedMessage = { ...qqMention('during-block'), at: new Date(blockedAt).toISOString() };
   await fx.receive(blockedMessage);
   const blocked = (await fx.core.externalMessaging.snapshot('ada')).blockedConversations![0]!;
+  vi.setSystemTime(blockedAt + 1);
   await fx.core.externalMessaging.conversation('ada', {
     kind: 'allow',
     bindingId: blocked.bindingId!,

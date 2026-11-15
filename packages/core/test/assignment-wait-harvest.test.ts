@@ -8,7 +8,11 @@ import type {
   OrchestratorAgentRun,
 } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
-import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
+import {
+  createTestNativeWorkspace,
+  createTestWorkspaceGrants,
+  TEST_GRANT_ID,
+} from './workspace-grant-fixture.js';
 
 describe('Assignment report consumed by wait', () => {
   it('does not wake the Orchestrator again for a report it already waited on', async () => {
@@ -48,20 +52,15 @@ describe('Assignment report consumed by wait', () => {
         for (const finish of finishes.values()) finish();
       },
     };
+    const workspace = createTestNativeWorkspace(home);
     const core = createCore({
       dshHome: home,
       agents: adapter,
       triageContinuation: true,
-      workspaces: () => ({
-        get: (id) =>
-          id === 'test-workspace'
-            ? { id, path: home, title: 'Test Workspace', status: async () => 'ok' }
-            : undefined,
-        list: () => [],
-      }),
+      workspaces: () => workspace.lookup,
     });
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    createTestWorkspaceGrants(core.operationalDatabase, home);
+    createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
     const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     try {
       const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
@@ -124,19 +123,14 @@ describe('Assignment report consumed by wait', () => {
         for (const finish of finishes.values()) finish();
       },
     };
+    const workspace = createTestNativeWorkspace(home);
     const core = createCore({
       dshHome: home,
       agents: adapter,
-      workspaces: () => ({
-        get: (id) =>
-          id === 'test-workspace'
-            ? { id, path: home, title: 'Test Workspace', status: async () => 'ok' }
-            : undefined,
-        list: () => [],
-      }),
+      workspaces: () => workspace.lookup,
     });
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    createTestWorkspaceGrants(core.operationalDatabase, home);
+    createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
     const database = attachOperationalModule(core.operationalDatabase, 'wait-direct-notice-test');
     insertNotice = (sessionId) =>
       database.transaction(

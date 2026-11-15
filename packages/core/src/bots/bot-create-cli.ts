@@ -1,3 +1,6 @@
+import { botMetadata, type BotMetadataResult } from '../team/bot-administration.js';
+import { privateBotRegistry, ownsBot } from '../team/bot-access.js';
+import { TeamRoles } from '../team/roles.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -11,8 +14,8 @@ import {
   unlinkSync,
 } from 'node:fs';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { parseArgs } from 'node:util';
-import { ZIP_UPLOAD_COMMANDS, ZIP_UPLOAD_OPTIONS, runZipUploadCli } from './cli-zip-upload.js';
+import { parseBotCliArgs } from './cli-options.js';
+import { ZIP_UPLOAD_COMMANDS, runZipUploadCli } from './cli-zip-upload.js';
 import { isMap, isScalar, parseDocument } from 'yaml';
 import { parseCredentialsDocument } from '@deepseek-ai/dsh-credentials-local';
 
@@ -77,11 +80,11 @@ import { personaBotAvatarFromBytes, type PersonaBotRecord } from './persona-bot.
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js';
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
-import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
+import { CliLiveError, LIVE_COMMANDS, runLiveCli } from './cli-live.js';
 import { isActivityCommandName } from './cli-inbox.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
 import { runVoiceLocalKit, VOICE_LOCAL_KIT_HELP } from './cli-voice.js';
-import { runSshCli, SSH_COMMANDS, SSH_OPTIONS } from './cli-ssh.js';
+import { runSshCli, SSH_COMMANDS } from './cli-ssh.js';
 import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
   isScheduleCommand,
@@ -94,6 +97,14 @@ import {
   ONLINE_MANAGEMENT_COMMANDS,
   runOnlineManagement,
 } from './cli-management.js';
+
+const LOCAL_MEMORY_COMMANDS: ReadonlySet<string> = new Set([
+  'memory-snapshot',
+  'memory-file',
+  'memory-history',
+  'memory-diff',
+  'memory-save',
+]);
 
 export interface BotCreateCliIo {
   env: NodeJS.ProcessEnv;
@@ -263,7 +274,8 @@ Usage:
   tobs im-app-remove <platform> --app <app-id>
   tobs im-bind <id> --app <app-id>
   tobs im-unbind <id> --app <app-id>
-  tobs im-status <id>
+  tobs im-reconnect <id> --app <app-id>
+  tobs im-status <id> [--read-mode saved|status]
   tobs channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
   tobs channel-ingests <channel>
   tobs browser-open <id>
@@ -530,69 +542,7 @@ const SECRET_ARGV = new Set([
   'verification-code',
 ]);
 
-const CREATE_OPTIONS = {
-  name: { type: 'string' },
-  persona: { type: 'string' },
-  'persona-stdin': { type: 'boolean' },
-  'core-memory-stdin': { type: 'boolean' },
-  description: { type: 'string' },
-  role: { type: 'string', multiple: true },
-  preset: { type: 'string' },
-  'preset-revision': { type: 'string' },
-  'operation-key': { type: 'string' },
-  ...ZIP_UPLOAD_OPTIONS,
-  'expected-profile': { type: 'string' },
-  'erase-memory': { type: 'boolean' },
-  'from-zip': { type: 'string' },
-  'from-dir': { type: 'string' },
-  'from-git': { type: 'string' },
-  'expected-commit': { type: 'string' },
-  'memory-location': { type: 'string' },
-  home: { type: 'string' },
-  'orchestrator-provider': { type: 'string' },
-  'orchestrator-model': { type: 'string' },
-  'orchestrator-effort': { type: 'string' },
-  'assignment-provider': { type: 'string' },
-  'assignment-model': { type: 'string' },
-  'assignment-effort': { type: 'string' },
-  nickname: { type: 'string' },
-  clear: { type: 'boolean' },
-  path: { type: 'string' },
-  body: { type: 'string' },
-  'body-stdin': { type: 'boolean' },
-  'expected-head': { type: 'string' },
-  'edit-id': { type: 'string' },
-  limit: { type: 'string' },
-  sha: { type: 'string' },
-  before: { type: 'string' },
-  cursor: { type: 'string' },
-  state: { type: 'string' },
-  'confirmation-stdin': { type: 'boolean' },
-  grant: { type: 'string' },
-  enabled: { type: 'boolean' },
-  disabled: { type: 'boolean' },
-  locked: { type: 'boolean' },
-  unlocked: { type: 'boolean' },
-  title: { type: 'string' },
-  prompt: { type: 'string' },
-  sid: { type: 'string' },
-  every: { type: 'string' },
-  daily: { type: 'string' },
-  weekly: { type: 'string' },
-  weekdays: { type: 'string' },
-  'once-date': { type: 'string' },
-  'once-time': { type: 'string' },
-  cron: { type: 'string' },
-  timezone: { type: 'string' },
-  ...LIVE_OPTIONS,
-  ...SSH_OPTIONS,
-  compact: { type: 'boolean' },
-  help: { type: 'boolean', short: 'h' },
-} as const;
-
-export type CreateValues = ReturnType<
-  typeof parseArgs<{ options: typeof CREATE_OPTIONS; allowPositionals: true }>
->['values'];
+export type CreateValues = ReturnType<typeof parseBotCliArgs>['values'];
 
 class CliFailure extends Error {
   readonly code: string;
@@ -743,7 +693,10 @@ function resolveHome(values: CreateValues, io: BotCreateCliIo): string {
   return trimmed(values.home) ?? trimmed(io.env['DSH_HOME']) ?? resolveDshHome(io.env);
 }
 
-function openRegistry(dshHome: string): {
+function openRegistry(
+  dshHome: string,
+  administration = false,
+): {
   owner: OperationalDatabaseOwner;
   registry: PersonaBotRegistry;
 } {
@@ -785,7 +738,8 @@ function openRegistry(dshHome: string): {
       } catch {}
     },
   });
-  return { owner, registry };
+  const human = new TeamRoles(attachOperationalModule(owner, 'team'), () => {}).ownerContext();
+  return { owner, registry: administration ? registry : privateBotRegistry(registry, human) };
 }
 
 function failureOf(reason: string, detail?: string): CliFailure {
@@ -1259,7 +1213,7 @@ function runList(
   io: BotCreateCliIo,
 ): { bots: Array<{ id: string; name: string; createdAt: string }> } {
   const dshHome = resolveHome(values, io);
-  const { owner, registry } = openRegistry(dshHome);
+  const { owner, registry } = openRegistry(dshHome, true);
   try {
     return {
       bots: registry.list().map((record) => ({
@@ -1273,16 +1227,22 @@ function runList(
   }
 }
 
-function runShow(id: string, values: CreateValues, io: BotCreateCliIo): BotCreateResult {
+function runShow(
+  id: string,
+  values: CreateValues,
+  io: BotCreateCliIo,
+): BotCreateResult | BotMetadataResult {
   const slug = id.trim();
   if (slug.length === 0) throw usageError('show needs a bot id.');
   const dshHome = resolveHome(values, io);
-  const { owner, registry } = openRegistry(dshHome);
+  const { owner, registry } = openRegistry(dshHome, true);
   try {
     const record = registry.get(slug);
     if (record === undefined) {
       throw new CliFailure('unknown-bot', `Unknown bot: ${slug}`, 1);
     }
+    const human = new TeamRoles(attachOperationalModule(owner, 'team'), () => {}).ownerContext();
+    if (!ownsBot(human, record)) return { metadataOnly: true, bot: botMetadata(human, record) };
     const channelId = dmChannelId(slug);
     return {
       bot: { id: slug, name: record.displayName },
@@ -2529,6 +2489,7 @@ function runSecretUnset(
 }
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
+  { command: 'bots', description: 'bots list|create|show|delete' },
   ...ZIP_UPLOAD_COMMANDS.map((command) => ({
     command,
     description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
@@ -2625,13 +2586,21 @@ export async function runBotCreateCli(
   };
   try {
     rejectSecretArgv(argv);
-    const { values, positionals } = parseArgs({
-      args: [...argv],
-      options: CREATE_OPTIONS,
-      allowPositionals: true,
-      strict: true,
-    });
-    const [command, ...rest] = positionals;
+    const { values, positionals } = parseBotCliArgs(argv);
+    let [command, ...rest] = positionals;
+    if (command === 'bots') {
+      const [action, ...targets] = rest;
+      const aliases: Record<string, string> = {
+        list: 'list',
+        show: 'show',
+        create: 'create',
+        delete: 'bot-delete-confirm',
+      };
+      if (!action || !aliases[action]) throw usageError('invalid-input');
+      command = aliases[action];
+      rest = targets;
+    } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
+    if (values.administration && command !== 'list') throw usageError('invalid-input');
     compactOutput = values.compact === true;
     if (command === 'voice-local-kit') {
       out.stdout(
@@ -2659,6 +2628,11 @@ export async function runBotCreateCli(
       (!online ||
         (!teamChannels &&
           command !== 'channel-messages' &&
+          !ONLINE_MANAGEMENT_COMMANDS.some((entry) => entry === command) &&
+          !ZIP_UPLOAD_COMMANDS.some((entry) => entry === command) &&
+          !LIFECYCLE_COMMANDS.some((entry) => entry.command === command) &&
+          !DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) &&
+          !LOCAL_MEMORY_COMMANDS.has(command) &&
           !LIVE_COMMANDS.some((entry) => entry.command === command)))
     )
       throw usageError('as-online-required');
@@ -2751,11 +2725,7 @@ export async function runBotCreateCli(
       (([
         'channel-messages',
         'grants',
-        'memory-snapshot',
-        'memory-file',
-        'memory-history',
-        'memory-diff',
-        'memory-save',
+        ...LOCAL_MEMORY_COMMANDS,
         ...PROFILE_ONLINE_COMMANDS,
       ].includes(command) ||
         isScheduleCommand(command)) &&
@@ -2958,6 +2928,7 @@ export async function runBotCreateCli(
             error: {
               code: error.code,
               message: error.message,
+              ...(error.details === undefined ? {} : { details: error.details }),
               ...(error.operation === undefined ? {} : { operation: error.operation }),
             },
             ...(error.receipt === undefined ? {} : { receipt: error.receipt }),

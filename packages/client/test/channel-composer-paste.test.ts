@@ -82,6 +82,48 @@ function paste(target: Element, files: File[], text = '', itemsOnly = false): Ev
 }
 
 describe('Channel composer clipboard attachments', () => {
+  it('keeps a locked rich draft unchanged when text is pasted or dropped', async () => {
+    const onChange = vi.fn();
+    const onAddFiles = vi.fn();
+    await act(async () =>
+      root.render(
+        createElement(ChannelComposer, {
+          value: 'Keep this draft',
+          placeholder: 'Message',
+          sending: false,
+          disabled: true,
+          mentionCandidates: empty,
+          mentions: empty,
+          channelRefs: empty,
+          channelCandidates: [
+            {
+              id: 'group',
+              type: 'group',
+              name: 'Group',
+              members: [],
+              createdAt: '2026-11-14T00:00:00Z',
+              updatedAt: '2026-11-14T00:00:00Z',
+            },
+          ],
+          onAddFiles,
+          onChange,
+          onSubmit: vi.fn(),
+        }),
+      ),
+    );
+    const editor = container.querySelector('[contenteditable="false"]')!;
+    await act(async () => {
+      paste(editor, [], 'Unexpected paste');
+    });
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => 'Unexpected drop' } });
+    await act(async () => {
+      editor.dispatchEvent(drop);
+    });
+    expect(editor.textContent).toBe('Keep this draft');
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onAddFiles).not.toHaveBeenCalled();
+  });
   it('queues a pasted image from the plain editor without sending it', async () => {
     const onAddFiles = vi.fn();
     const onSubmit = vi.fn();

@@ -12,9 +12,9 @@ describe('approval capacity projection', () => {
   it('does not attach a later call’s wait to a historical approved card', () => {
     const assignmentApprovalWait = vi.fn(() => undefined);
     const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
-      registry: {} as PersonaBotRegistry,
+      registry: { get: () => undefined } as unknown as PersonaBotRegistry,
       channels: {
-        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada' }),
+        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada', members: ['ada'] }),
         message: () => ({
           toolApprovalRequest: { role: 'assignment', sessionId: 'original', callId: 'old-call' },
         }),
@@ -45,11 +45,11 @@ describe('approval capacity projection', () => {
     (activity, executionWait, expected) => {
       const getAssignment = vi.fn(() => ({ activity, executionWait }));
       const channels = {
-        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada' }),
+        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada', members: ['ada'] }),
         message: () => ({ toolApprovalRequest: { role: 'assignment', sessionId: 'original' } }),
       } as unknown as ChannelStore;
       const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
-        registry: {} as PersonaBotRegistry,
+        registry: { get: () => undefined } as unknown as PersonaBotRegistry,
         channels,
         states: createBotStateTracker(),
         ownership: {} as SessionOwnership,

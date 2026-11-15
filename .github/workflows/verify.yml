@@ -14,6 +14,11 @@ on:
         type: boolean
         required: false
         default: false
+      genui_browser_diagnostic:
+        description: Compare system and controlled GenUI preview browsers in one runner; both arms remain required
+        type: boolean
+        required: false
+        default: false
   workflow_call:
 
 concurrency:
@@ -403,15 +408,63 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/verify-app.mjs launch --name perf --build > /dev/null
+      - id: controlled_sandbox
+        run: |
+          node scripts/perf-genui-browser-diagnostics.mjs apparmor "$RUNNER_TEMP/genui-preview.apparmor"
+          sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
+          sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
+      - env:
+          SYSTEM_PREVIEW_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
+        run: |
+          preview_args=()
+          if [ "$SYSTEM_PREVIEW_DIAGNOSTIC" != "true" ]; then
+            preview_args=(--genui-preview-browser "$(node scripts/perf-genui-browser-diagnostics.mjs path)")
+          fi
+          node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
       - run: >-
           node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
-      - run: >-
+      - id: system_preview
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
+        run: >-
           node scripts/perf-genui-opening.mjs --headless
           --out .humanlayer/perf/genui-ci > /dev/null
+      - if: always() && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
+        run: >-
+          node scripts/perf-genui-browser-diagnostics.mjs logs
+          .humanlayer/perf/browser-diagnostics/system-log.json "$BH_E2E_INSTANCE"
+      - id: browser_environment
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
+        run: node scripts/perf-genui-browser-diagnostics.mjs environment .humanlayer/perf/browser-diagnostics/environment.json
       - if: always()
         run: node scripts/verify-app.mjs stop --name perf
+      - id: controlled_launch
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && steps.controlled_sandbox.outcome == 'success' && steps.browser_environment.outcome == 'success'
+        run: >-
+          node scripts/verify-app.mjs launch --name perf
+          --genui-preview-browser "$(node -p 'JSON.parse(require("fs").readFileSync(".humanlayer/perf/browser-diagnostics/environment.json", "utf8")).controlled.path')" > /dev/null
+      - id: controlled_preview
+        if: always() && steps.controlled_launch.outcome == 'success'
+        continue-on-error: true
+        run: >-
+          node scripts/perf-genui-opening.mjs --headless
+          --out .humanlayer/perf/genui-controlled > /dev/null
+      - if: always() && steps.controlled_launch.outcome == 'success'
+        run: >-
+          node scripts/perf-genui-browser-diagnostics.mjs logs
+          .humanlayer/perf/browser-diagnostics/controlled-log.json "$BH_E2E_INSTANCE"
+      - if: always() && steps.controlled_launch.outcome == 'success'
+        run: node scripts/verify-app.mjs stop --name perf
+      - if: always() && steps.controlled_sandbox.outcome == 'success'
+        run: |
+          sudo apparmor_parser -R /etc/apparmor.d/botharness-ci-genui-preview
+          sudo rm /etc/apparmor.d/botharness-ci-genui-preview
+      - if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic
+        env:
+          SYSTEM_PREVIEW: ${{ steps.system_preview.outcome }}
+          CONTROLLED_PREVIEW: ${{ steps.controlled_preview.outcome }}
+        run: >-
+          node -e 'if (process.env.SYSTEM_PREVIEW !== "success" || process.env.CONTROLLED_PREVIEW !== "success") throw Error("Both complete GenUI browser arms are required; retain failures for diagnosis")'
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -420,6 +473,8 @@ jobs:
             .humanlayer/perf/ci/*.json
             .humanlayer/perf/ci/*.png
             .humanlayer/perf/genui-ci/*.json
+            .humanlayer/perf/genui-controlled/*.json
+            .humanlayer/perf/browser-diagnostics/*.json
           if-no-files-found: ignore
 
   verify:

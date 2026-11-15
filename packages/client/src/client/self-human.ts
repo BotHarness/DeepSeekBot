@@ -1,8 +1,10 @@
-import { useSyncExternalStore } from 'react';
+import { createContext, useContext, useSyncExternalStore } from 'react';
 
 import type { ChannelAuthor } from './store.js';
 
 export const OWNER_HUMAN_ID = 'local-human';
+
+export const SelfHumanContext = createContext<string | undefined>(undefined);
 
 let self = OWNER_HUMAN_ID;
 const listeners = new Set<() => void>();
@@ -18,7 +20,8 @@ export function selfHumanId(): string {
 }
 
 export function useSelfHumanId(): string {
-  return useSyncExternalStore(
+  const scoped = useContext(SelfHumanContext);
+  const local = useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -26,6 +29,7 @@ export function useSelfHumanId(): string {
     () => self,
     () => OWNER_HUMAN_ID,
   );
+  return scoped ?? local;
 }
 
 export function humanIdOf(author: ChannelAuthor): string | undefined {

@@ -5,8 +5,7 @@ import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { saveAttachmentFile, importAttachmentFile } from '../src/attachments/file-operations.js';
 import { createAttachmentHttp } from '../src/attachments/http.js';
 import { authorizedPathRoot } from '../src/workspaces/grant-native-tools.js';
@@ -14,6 +13,7 @@ it.each(['qualified', 'no-generic', 'no-fence'])(
   'QQ canonical independent file processing: %s',
   async (mode) => {
     const home = createTempRoot('bh-qq-file-canonical-');
+    const project = createTempRoot('bh-qq-project-');
     const fingerprint = 'a'.repeat(64);
     const bytes = Buffer.from('name,quantity\napple,2\npear,3\n');
     let receiver: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
@@ -76,12 +76,12 @@ it.each(['qualified', 'no-generic', 'no-fence'])(
         workspaces: () => ({
           get: (id) =>
             id === 'project'
-              ? { id, path: join(home, 'project'), title: 'Project', status: async () => 'ok' }
+              ? { id, path: project, title: 'Project', status: async () => 'ok' }
               : undefined,
           list: () => [
             {
               id: 'project',
-              path: join(home, 'project'),
+              path: project,
               title: 'Project',
               status: async () => 'ok',
             },
@@ -219,8 +219,6 @@ it.each(['qualified', 'no-generic', 'no-fence'])(
       const acquired = await core.externalMessaging.acquireFile('ada', sourceId, attachment.id);
       expect(acquired.fileId).toBe(preview.ref.fileId);
       expect(download).toHaveBeenCalledTimes(1);
-      const project = join(home, 'project');
-      mkdirSync(project);
       const workspaceGrant = await core.grants.create('ada', 'project');
       core.grants.setOrchestratorWrite('ada', workspaceGrant.id, true);
       const saved = await saveAttachmentFile(

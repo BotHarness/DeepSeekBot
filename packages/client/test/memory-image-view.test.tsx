@@ -8,6 +8,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconCloseOutlineRegular: () => null,
 }));
 import { MemoryImageView, MemoryImageDiff } from '../src/client/memory-image-view.js';
+import { MessageHostContext } from '../src/client/message-host.js';
+import { createHostClient } from '../../../apps/mobile/src/host/client.js';
+import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import type { MemoryImage } from '../src/client/bridge.js';
 import type { BotHarnessTranslate } from '../src/client/locale.js';
 const t: BotHarnessTranslate = (key) => key;
@@ -25,6 +28,7 @@ let host: HTMLElement;
 afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
+  vi.unstubAllGlobals();
 });
 function mount() {
   host = document.createElement('div');
@@ -32,6 +36,67 @@ function mount() {
   root = createRoot(host);
 }
 describe('Memory PNG presentation', () => {
+  it.each(['http', 'decode'])(
+    'retries a target Host %s image failure without local HTTP',
+    async (failure) => {
+      const remote = new FakeHost();
+      const client = createHostClient({
+        routes: ['https://target.test.ts.net'],
+        credential: remote.credential,
+        carrier: remote.carrier,
+      });
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          failure === 'http' ? new Response('', { status: 503 }) : new Response('bad image'),
+        )
+        .mockResolvedValue(new Response('image', { headers: { 'content-type': 'image/png' } }));
+      vi.stubGlobal('fetch', fetcher);
+      const revoke = vi.fn();
+      vi.stubGlobal(
+        'URL',
+        class extends URL {
+          static override createObjectURL = () => 'blob:target-retry';
+          static override revokeObjectURL = revoke;
+        },
+      );
+      client.start();
+      try {
+        await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+        mount();
+        await act(async () =>
+          root.render(
+            <MessageHostContext.Provider value={{ hostId: 'target', client, current: () => true }}>
+              <MemoryImageView slug="ada" path="a.png" image={image} t={t} />
+            </MessageHostContext.Provider>,
+          ),
+        );
+        if (failure === 'decode') {
+          await act(async () => vi.waitFor(() => expect(host.querySelector('img')).not.toBeNull()));
+          await act(async () => host.querySelector('img')!.dispatchEvent(new Event('error')));
+        }
+        await act(async () =>
+          vi.waitFor(() => expect(host.textContent).toContain('memory.image.loadFailed')),
+        );
+        expect(host.textContent).not.toContain('memory.loading');
+        await act(async () => host.querySelector('button')!.click());
+        await act(async () =>
+          vi.waitFor(() =>
+            expect(host.querySelector('img')?.getAttribute('src')).toBe('blob:target-retry'),
+          ),
+        );
+        expect(fetcher).toHaveBeenCalledTimes(2);
+        if (failure === 'decode') expect(revoke).toHaveBeenCalledWith('blob:target-retry');
+        expect(
+          fetcher.mock.calls.every(([url]) =>
+            String(url).startsWith('https://target.test.ts.net/'),
+          ),
+        ).toBe(true);
+      } finally {
+        client.stop();
+      }
+    },
+  );
   it('binds a lazy image and its download/enlargement to the same owner, path and version', async () => {
     mount();
     await act(async () =>

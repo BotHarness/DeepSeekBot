@@ -290,7 +290,7 @@ it('upgrades main generation 70 without changing qualified defaults or purge fen
     ),
   });
   try {
-    expect(prior.generation).toBe(70);
+    expect(prior.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.generationOf('complete-content-purge'));
     attachOperationalModule(prior, 'messaging').transaction((db) => {
       db.prepare(
         'INSERT INTO messaging_default_revisions (platform, revision, body) VALUES (?, ?, ?)',

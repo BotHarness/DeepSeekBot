@@ -250,15 +250,19 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
       host.querySelector<HTMLButtonElement>('[data-composer-context-leading] button')!;
     expect(model().textContent).toBe(modelName);
     await act(async () =>
-      rememberModelPlan(bot.slug, {
-        revision: 2,
-        sourcePresetId: 'custom',
-        sourcePresetName: 'Custom',
-        orchestrator: alternate,
-        assignmentDefault: alternate,
-        assignmentModels: [],
-        appliedAt: '',
-      }),
+      rememberModelPlan(
+        bot.slug,
+        {
+          revision: 2,
+          sourcePresetId: 'custom',
+          sourcePresetName: 'Custom',
+          orchestrator: alternate,
+          assignmentDefault: alternate,
+          assignmentModels: [],
+          appliedAt: '',
+        },
+        actions,
+      ),
     );
     expect(model().textContent).toBe(alternateName);
     expect(model().getAttribute('aria-label')).not.toContain('继承全局');
@@ -266,15 +270,19 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
     await act(async () => model().click());
     expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     await act(async () =>
-      rememberModelPlan(bot.slug, {
-        revision: 3,
-        sourcePresetId: 'custom',
-        sourcePresetName: 'Custom',
-        orchestrator: route,
-        assignmentDefault: route,
-        assignmentModels: [],
-        appliedAt: '',
-      }),
+      rememberModelPlan(
+        bot.slug,
+        {
+          revision: 3,
+          sourcePresetId: 'custom',
+          sourcePresetName: 'Custom',
+          orchestrator: route,
+          assignmentDefault: route,
+          assignmentModels: [],
+          appliedAt: '',
+        },
+        actions,
+      ),
     );
     expect(model().textContent).toBe(modelName);
   } finally {
@@ -379,15 +387,19 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
     await render();
     expect(listWorkspaceGrants).toHaveBeenCalledTimes(1);
     await act(async () =>
-      rememberModelPlan(ada.slug, {
-        revision: 1,
-        sourcePresetId: '',
-        sourcePresetName: '',
-        orchestrator: { provider: 'qa', model: 'qa-selected' },
-        assignmentDefault: { provider: 'qa', model: 'qa-selected' },
-        assignmentModels: [],
-        appliedAt: '',
-      }),
+      rememberModelPlan(
+        ada.slug,
+        {
+          revision: 1,
+          sourcePresetId: '',
+          sourcePresetName: '',
+          orchestrator: { provider: 'qa', model: 'qa-selected' },
+          assignmentDefault: { provider: 'qa', model: 'qa-selected' },
+          assignmentModels: [],
+          appliedAt: '',
+        },
+        actions,
+      ),
     );
     expect(host.textContent).toContain('qa-selected');
     expect(modelPlanState).toHaveBeenCalledTimes(2);
@@ -410,7 +422,7 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
           resolve = done;
         }),
     );
-    await act(async () => publishWorkspaceGrantChange(grace.slug));
+    await act(async () => publishWorkspaceGrantChange(grace.slug, actions));
     bot = ada;
     await render();
     await act(async () =>

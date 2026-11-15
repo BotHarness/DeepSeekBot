@@ -38,9 +38,24 @@ A Tobs Host — an office computer or a VPS — can be used remotely by colleagu
 | Q34           | Terms Host Member, Host Owner, Team mode.                                                                                                                                                                                                   |
 | Q35           | Slices M0–M11 below.                                                                                                                                                                                                                        |
 
-## OS sandbox (future)
+## Execution isolation (amended 2026-11-14)
 
-Considered after Q30. A per-execution sandbox (Linux Landlock/bubblewrap + seccomp, macOS Seatbelt, Windows AppContainer) whose filesystem allowlist equals the Grant plus Memory fits DSH's Execution World Provider seam and also benefits single-Human Hosts. Costs: three platform implementations, tools that need paths outside the allowlist (package caches, git and SSH config), a network policy to prevent exfiltration, harder failure diagnosis, and no protection against Host-process bugs. Per-member OS users (root, ACL drift) and per-member containers (heavy, lose local apps and GPU) were rejected. Out of scope; a separate specification if pursued.
+[Research](../research/2026-11-14-team-mode-execution-isolation.md) found that DSH's sandbox (`dsh-sandbox-local` + `dsh-bash-sandbox`) restricts writes only: bwrap mounts the host root read-only and the network is unrestricted. Under ADR-0205 a member Bot's `workspace-write` Shell runs without an approval card, so it can read other Bots' Memory, the database, the credential store and other spaces. DSH ships local backends only and has no single "Execution World Provider" service. `ctx.sandbox`, `ctx.fs`, `ctx.subprocess` and `ctx.shell` are separate replaceable providers, and `dsh-sandbox-local` accepts a custom `runnerCommand`.
+
+Settled scope:
+
+- Until M12, Team mode is a light **trial**. One plain notice says that member Bots can technically read other Bots' data on this Host. There is no per-call Shell approval. Member Bots never escalate or use `danger-full-access` (M5).
+- **M12** adds Linux execution confinement. A `runnerCommand` wrapper around DSH's bwrap hides `DSH_HOME`, the space roots and `/home`, and binds back only the Session's allowed roots (mirroring `currentRoots(session, kind)`). A network namespace denies loopback, link-local, private ranges and the tailnet. It fails closed without a resolvable Session. M12 is required before Team mode leaves the trial, because secrets stay on the Host.
+- Account spaces (`spaces/<humanId>`) and audience-scoped shared spaces (for example `shared/team`, `shared/finance`). Each space keeps Bot Memory (`bots/<slug>/memory`) apart from its grantable `files/` folder.
+- Not in scope: per-account quotas, macOS and Windows confinement (macOS Team Hosts keep the trial notice), deployment check scripts, microVMs, per-member OS users or containers. Highly sensitive data is best kept on a separate Host.
+
+## M3 Owner-transfer credential rule
+
+An Owner-transfer target must be active and have completed the forced password change on a credential issued by the **current Owner**. A credential issued by a member manager is ineligible even after that manager signs in and clears the forced-change flag. Existing credentials with unknown issuance provenance are also ineligible. The current Owner can establish eligibility by resetting the target's password, delivering the new one-time secret directly to the intended Human out of band, and having that Human complete the forced change before transfer.
+
+The Host records `ownerIssuerHumanId` in the canonical credential's password JSON when the Owner creates an account or resets its password. Member-manager creation leaves it absent. A self-service password change preserves this issuance provenance; it cannot manufacture Owner issuance. Issuance by a previous Owner is insufficient after a transfer. `owner-transfer-target-unverified` refuses a missing current-Owner issuer or an outstanding forced change. Transfer still verifies the caller's current password and protects the unique Owner.
+
+This rule trusts the current Owner's out-of-band delivery to the intended Human. It does not claim to prove that a Human never shares a password. Owner reset revokes earlier grants, and the first subsequent forced change revokes other grants, so a manager's old password or session cannot survive the recovery sequence. The rule reuses the credential record and existing reset/change APIs; it introduces no second credential store or new transfer payload.
 
 ## Delivery
 
@@ -58,5 +73,6 @@ Considered after Q30. A per-execution sandbox (Linux Landlock/bubblewrap + secco
 | M9    | Password lifecycle, disabling Team mode, offboarding                                                                                      | M3         |
 | M10   | Usage per member, model allowlists                                                                                                        | M3         |
 | M11   | Private-content access audit and member notice                                                                                            | M3         |
+| M12   | Linux Bot execution confinement (hide other spaces and `DSH_HOME`, network namespace); ends the trial notice                              | M6         |
 
 Seek Human feedback after M1 before expanding.

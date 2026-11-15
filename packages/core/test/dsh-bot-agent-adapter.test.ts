@@ -3159,7 +3159,20 @@ describe('DSH Bot Agent adapter', () => {
   });
 
   it('follows up a settled Assignment instead of steering a stale run', async () => {
-    const host = new FakeAgentHost();
+    const beginTurn = vi.fn();
+    const steeringTurn = vi.fn();
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onSessionEvent: (session, event) => {
+          if (session.id === 'assignment-1' && event.type === 'turn/start') {
+            expect(adapter.requestAssignment({ ...run, beginTurn: steeringTurn }).delivery).toBe(
+              'steer',
+            );
+          }
+        },
+      },
+    );
     const adapter = createDshBotAgentAdapter({
       agents: host,
       hasSession: async () => false,
@@ -3169,6 +3182,7 @@ describe('DSH Bot Agent adapter', () => {
     });
     let reported = false;
     const run = {
+      beginTurn,
       sessionId: 'assignment-1',
       bot: BOT,
       text: '核对发布状态',
@@ -3190,10 +3204,14 @@ describe('DSH Bot Agent adapter', () => {
     await Promise.resolve();
     await first;
     expect(reported).toBe(true);
+    expect(beginTurn).toHaveBeenCalledOnce();
+    expect(steeringTurn).not.toHaveBeenCalled();
 
     const settled = adapter.requestAssignment(run);
     expect(settled.delivery).toBe('followup');
     if (settled.delivery === 'followup') await settled.done;
+    expect(beginTurn).toHaveBeenCalledTimes(2);
+    expect(steeringTurn).not.toHaveBeenCalled();
     await adapter.close();
   });
 

@@ -1,3 +1,9 @@
+import type { ChannelPolicy } from '../team/channel-contract.js';
+import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
+import {
+  acceptedQuestionAnswer,
+  type AcceptedQuestionReference,
+} from './accepted-question-answer.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isChannelNotice } from './channel-notice.js';
 import { channelCallPictureRange, type ChannelCallWindowFilter } from './call-window.js';
@@ -134,6 +140,7 @@ export interface ChannelReadOptions {
 }
 
 export interface ChannelMessageQueryOptions {
+  searchHuman?: HumanContext;
   text?: string;
   authorBotId?: string;
   authorKind?: 'human' | 'bot' | 'bridged' | 'system';
@@ -390,6 +397,15 @@ export interface CreateChannelGroupInput {
 }
 
 export interface ChannelStore {
+  requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
+  bindHumanAccess?(access: {
+    searchText?(human: HumanContext, channelId: string, messageId: string, text: string): string;
+    canRead(human: HumanContext, id: string): boolean;
+    requirePost(human: HumanContext, id: string, all: boolean, message?: ChannelMessage): void;
+    requirePolicy(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
+  }): void;
+  getOrCreateHumanDm?(human: HumanContext, id: string, participants: string[]): ChannelRecord;
+
   genuiView?(
     human: HumanContext,
     channelId: string,
@@ -567,6 +583,12 @@ export interface ChannelStore {
     origin?: ChannelMessageOrigin,
     beforeCommit?: () => boolean,
   ): Promise<ChannelMessage | undefined>;
+  reconcileQuestionAnswer(
+    human: HumanContext | undefined,
+    channelId: string,
+    request: AcceptedQuestionReference,
+    answer: AskUserQuestionAnswer,
+  ): Promise<ChannelMessage | undefined>;
   readMessages(id: string, options?: ChannelReadOptions): ChannelMessage[];
   queryMessages(id: string, options?: ChannelMessageQueryOptions): ChannelMessageQueryPage;
   searchHumanMessages?(
@@ -685,8 +707,12 @@ function projectReplyBase(
 }
 
 function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean {
+  const actor = (message: ChannelMessage) =>
+    message.author.kind === 'human'
+      ? { kind: 'human', humanId: message.author.humanId ?? OWNER_HUMAN_CONTEXT.humanId }
+      : message.author;
   return (
-    JSON.stringify(left.author) === JSON.stringify(right.author) &&
+    JSON.stringify(actor(left)) === JSON.stringify(actor(right)) &&
     JSON.stringify(left.genui) === JSON.stringify(right.genui) &&
     JSON.stringify(left.genuiReply) === JSON.stringify(right.genuiReply) &&
     left.genuiReplyContext === right.genuiReplyContext &&
@@ -1023,6 +1049,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const record: ChannelRecord = {
         id,
         type: 'group',
+        ...(input.ownerBotSlug === undefined ? { ownerHumanId: human.humanId } : {}),
         name: name.length > 0 ? name : id,
         members: [...input.members],
         ...(input.ownerBotSlug === undefined ? {} : { ownerBotSlug: input.ownerBotSlug }),
@@ -1084,7 +1111,40 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       write(renamed);
       return renamed;
     },
-    appendMessage(human: HumanContext, id, message, origin, beforeCommit) {
+    async reconcileQuestionAnswer(human, id, reference, answer) {
+      const message = acceptedQuestionAnswer(
+        this.message(id, reference.messageId),
+        reference,
+        answer,
+        human ? this.humanIdentity(human) : undefined,
+      );
+      if (!message) return undefined;
+      const result = await this.appendMessageOnce(
+        human ?? OWNER_HUMAN_CONTEXT,
+        id,
+        message,
+        undefined,
+        undefined,
+        () =>
+          acceptedQuestionAnswer(this.message(id, reference.messageId), reference, answer) !==
+          undefined,
+      );
+      return result.status === 'appended' || result.status === 'existing'
+        ? result.message
+        : undefined;
+    },
+    appendMessage(human: HumanContext, id, input, origin, beforeCommit) {
+      const message =
+        input.author.kind === 'human'
+          ? ({
+              ...input,
+              author: {
+                kind: 'human',
+                humanId: human.humanId,
+                displayName: this.humanIdentity(human).displayName,
+              },
+            } satisfies ChannelMessage)
+          : input;
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return undefined;
@@ -1135,7 +1195,18 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         (message) => message.grantRequestResolution?.requestMessageId === requestMessageId,
       );
     },
-    appendMessageOnce(human: HumanContext, id, message, preview, origin, canCommit) {
+    appendMessageOnce(human: HumanContext, id, input, preview, origin, canCommit) {
+      const message =
+        input.author.kind === 'human'
+          ? ({
+              ...input,
+              author: {
+                kind: 'human',
+                humanId: human.humanId,
+                displayName: this.humanIdentity(human).displayName,
+              },
+            } satisfies ChannelMessage)
+          : input;
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return { status: 'missing' };

@@ -4,6 +4,7 @@ export type HumanId = string;
 
 export interface HumanContext {
   readonly humanId: HumanId;
+  readonly caller?: 'bot';
 }
 
 export function humanContext(humanId: HumanId): HumanContext {

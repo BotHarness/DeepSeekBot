@@ -5,6 +5,72 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### Native Session identity across an isolated CLI and a worktree Plugin (#4144)
+
+An AX Profile can load DSH from its isolated `ax-cli` while the linked Plugin resolves its own
+SDK copy. On DSH `0.2.2-rc.1`, the live Agent's Session then has constructor name `Session` and
+working public methods but fails the Plugin's `instanceof Session`. The exported
+`appendPluginRecord` helper is also class-bound: removing the `instanceof` guard does not make
+its private-field access safe across copies. Source-tree tests with one SDK instance miss this.
+Use structural public capabilities for native reads; keep application-owned answer-submission
+receipts in the application Source Event owner. Do not resolve native modules through process
+entry paths or bypass Session internals. Regressions must use a second SDK module instance and
+the authenticated member carrier; qualify the packaged/isolated Host separately. Unexpected
+answer failures are available as `botharness.channel_question.answer_failed` in Host diagnostic
+logs, with phases and function frames but no request/answer text or exception messages.
+
+### Empty native credential writer lock after interrupted startup (#4114)
+
+On Windows with DSH 0.2.2-rc.1, an interrupted task-Host startup was followed by a zero-byte
+`.credentials.yaml.lock`; a normal restart refused in the required Connection Plugin with
+`atomic-write: timed out waiting for the writer lock`. The installed native atomic-write
+owner recovers a lock containing an exited PID followed by a newline, but deliberately waits
+on an empty or unrecognized record. A printed login URL alone did not prove Plugin health.
+The exact creator of the empty record was not established; this is a qualified recovery
+procedure, not a claim that startup cancellation always causes an empty lock.
+
+Preserve the failure and inspect the installed native lock code. Establish exclusion of other
+launchers and recovery attempts for this same Home before checking for live or unknown users;
+hold that exclusion through the lock-identity recheck and rename, and refuse recovery if it
+cannot be established. Then prove the exact task Home has no live or unknown users and that the unchanged lock is
+a canonical regular zero-byte file with one link. Record its inode and nanosecond timestamps,
+recheck them immediately before recovery. Retain the original by renaming only that lock
+to a timestamped sibling inside the same Home. Leave credentials and preparation markers
+unchanged. Unknown ownership, redirected paths, nonempty records or changed identity refuse
+this procedure. Restart through the qualified lifecycle, require authenticated Plugin health
+and normal native lock release, and retain the backup and metadata. This does not authorize
+automatic lock deletion, a generic stale-lock repair, or a longer startup deadline.
+
+### CredentialKey segments and opaque identifiers
+
+The pinned native credentials service accepts lowercase letter/digit/hyphen key segments. An opaque application ID can contain uppercase letters or underscores: hash the exact ID for its protected-record key and bind the original identity in the payload. Lowercasing the ID can merge distinct owners. Use `modifyRecord` for writes and keep route admission separate from per-device credentials. Verify protected writes and readback through the running Host, with secret-free output.
+
+### GenUI preview browser startup diagnostics (#4030)
+
+A passing plain timeline opens the Puppeteer driver, not the Host's separate GenUI
+preview browser. Record both executable versions and the runner image before
+comparing them. The preview uses system discovery by default; the core Plugin's
+`genuiPreviewBrowserPath` selects an absolute executable through the same Browser
+runtime and refuses an invalid explicit path. `dev-instance.mjs` and `verify-app.mjs`
+accept `--genui-preview-browser <absolute-executable>` and apply a Patch only to that
+isolated launch. They do not change system PATH or another Profile.
+
+Ordinary CI selects the lockfile-installed Puppeteer executable for preview too,
+so the preview no longer depends on the runner image's independently updated
+system Chrome. Its exact executable receives a temporary AppArmor profile allowing
+user namespaces; the workflow unloads it after stopping its owned Hosts. A quick
+`startup-sandbox` refusal is a separate setup error from `startup-timeout`; preserve
+Chrome sandboxing when correcting that permission. Merely setting
+`CHROME_DEVEL_SANDBOX` did not repair the controlled Ubuntu 26 runner (#4030).
+
+`genui-preview-browser-startup-timeout` means no DevTools endpoint appeared within
+the existing eight-second startup deadline, before CDP connection or document
+rendering. Inspect the retained bounded/redacted preview owner log; do not infer a
+rich-document rendering regression from an empty rich sample set. The verify
+workflow's `genui_browser_diagnostic` dispatch input runs system and controlled
+browser journeys sequentially on the same runner; both outcomes remain required.
+No budget increase, product retry or incident-root-cause fix is implied.
+
 ### DSH 0.2.2-rc.1 qualification
 
 Use [the recurring RC workflow](../../../docs/agents/dsh-upgrade.md) and
@@ -84,6 +150,38 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 
 ## Dev loop (WSL, fnm node)
 
+### Isolated dependency copies and legacy reuse (#4135)
+
+The launcher installs fresh owned CLI runtimes and Profile dependencies with per-command pnpm
+copy imports. Its completion marker records helper ownership; keep these installs helper-managed.
+Unmarked existing dependencies restart read-only when the requested runtime version and Profile
+manifest are unchanged, with the normal runtime/model/Bundle checks. Legacy reuse also compares
+requested dependency specifiers with pnpm's installed lockfile importer; missing or divergent
+installed records refuse without modifying the Home. A rebuild at the same source
+link remains usable. Changing a legacy source link, Bundle dependency or runtime version requires
+a fresh `--home`; `isolated-imports-required` preserves the old data and dependencies. Failed fresh
+installs remain preserved rather than receiving an implicit hardlink migration. The copy option
+does not retroactively detach existing files. Keep the old Home for backup or explicit migration.
+
+An interruption during copy preparation leaves `installing`, including during a normal restart.
+After checking the exact Home's current processes, use the ordinary launcher with the same
+`--home`, `--worktree` and `--port` plus `--recover-copy-install`. The launcher still acquires
+the normal Home lease and refuses live or unknown owners. It only recovers a recognized
+interrupted copy install: it checks canonical paths, refuses symlinks/junctions, retains the
+old dependency tree and preparation records under `.botharness-copy-recovery-*` inside that
+installation directory, then performs a fresh copy install. Database, credentials and Profile
+data remain in place. The launch summary lists retained quarantine paths; never remove those
+trees without the normal shared-file/ownership audit. A failure remains incomplete and may
+need the explicit flag again. Never manually change the marker to `complete` (#4172).
+
+On Windows, two isolated runtimes shared native Client artifact inodes. An experiment on a private
+copy confirmed that another hardlink changes ctime and the installed DSH metadata-based artifact
+revision without changing bytes or mtime. Removing an existing live hardlink can itself affect
+other owners, so qualify future copies instead of repairing shared files in place. The original
+`session-maybe` incident's initiator remains unproven; this is an isolation mitigation, not a claim
+that its Client lifecycle cause is fixed. The workspace-CLI fallback remains read-only and deliberate
+source Client rebuilds still publish normally. Details: [local development loop](../../../docs/client-bridge.md#7-本地开发环路).
+
 The reproducible build baseline is `@deepseek-ai/dsh@0.2.2-rc.1`. The launcher uses the installed local CLI or an isolated `--dsh-version <version>` installation, accepts DSH `>=0.2.0-0` including future prereleases, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 
 ```bash
@@ -137,6 +235,8 @@ Use application adapters for both API generations rather than raising the instal
 A saved AX model id may disappear from the pinned native catalog. Preserve the launcher's refusal; do not misdiagnose it as a missing credential or silently rewrite the shared selection. For this task's launch only, set `BOTHARNESS_AX_MODEL` to the current catalog model (normally `deepseek-v4.1-flash`), then verify an actual DM reply. The launcher retains catalog validation and the existing private key source.
 
 ## Pitfall log
+
+DSH 0.2.2-rc.1 can report the gateway wording `Input too long: model limit N tokens, requested M tokens` as `INVALID_REQUEST`, bypassing native overflow recovery. Tobs handles that precise missed case through its owned `agent/request-error` listener and the public compaction Service. In a real Preset, resolve the isolated Provider with `agentPresets.serviceFor(agent, 'compaction')`; a flat Context test with `agent.ctx.get('compaction')` does not prove this lookup. Verify the before/after Host path with `scripts/e2e-context-overflow.mjs`, await the native Session Store flush checkpoint and verify the exact replacement through a read-only Session persistence handle before retrying, retain the replaced request context and committed reply evidence, and keep DSH dependency bytes unchanged (#4253).
 
 ### Windows background command consoles (#3565)
 
@@ -628,3 +728,7 @@ or treat the metadata probe as installation/runtime qualification.
 ### Packaged member carrier checks (#4140)
 
 A bundled consumer can contain a second DSH Connection class. Its `instanceof` check then refuses the live Host's compatible service, leaving the member entry at `member-carrier-unavailable` while Owner RPC works. Check the required service capabilities at the boundary and invoke the Host's own `createPeer`, Gateway and resource APIs. Qualify the built package in an isolated Host; source tests sharing one constructor do not expose this failure. Keep the first refusal and verify the member's opening access snapshot, calls and streams before claiming shell readiness.
+
+### Revisioned Client evidence after an artifact swap (#4114)
+
+In DSH 0.2.2-rc.1 (`c59d10a`), a revisioned `/plugins/` URL identifies an advertised artifact generation. Fetching an earlier page's URL with `cache: 'no-store'` still requests that generation; it does not establish which Client the restarted Host currently advertises. A task-owned baseline check rejected this stale-URL observation before measuring. After stopping the owning Host, swapping only independent Client artifacts and restarting, read the new authenticated root document's `__DSH_BOOT__`, fetch its advertised UI batch and compare the complete expected execution segment after removing its source-map directive. Short prefixes and suffixes can match both builds. Preserve the rejected observation, resolved Profile path, artifact hashes and final restoration proof; do not clear caches, invent revisions or change Profile credentials to make the check pass.

@@ -36,10 +36,14 @@ beforeEach(() => {
 describe('GenUI preview Tool', () => {
   it('stores a native image attachment without returning raw screenshot bytes to the model', async () => {
     const saveImage = vi.fn().mockResolvedValue({ type: 'image', id: 'synthetic-image' });
-    const tool = createGenuiPreviewTool({ saveImage });
+    const tool = createGenuiPreviewTool({ saveImage, browserPath: '/controlled/browser' });
     const value = await tool.execute({ genui_json: '{}' }, execution);
     if (typeof value !== 'string') throw new Error('Expected serialized preview result.');
     expect(saveImage).toHaveBeenCalledWith(Buffer.from('synthetic-image'));
+    expect(preview).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ browserPath: '/controlled/browser' }),
+    );
     expect(JSON.parse(value)).toMatchObject({
       documentId: 'a'.repeat(64),
       image: { id: 'synthetic-image' },

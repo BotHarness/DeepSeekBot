@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
-import { nativeFileToolDenial, nativeExecutionRoot } from '../src/workspaces/grant-native-tools.js';
+import {
+  nativeFileToolDenial,
+  nativeFileSpaceDenial,
+  nativeExecutionRoot,
+} from '../src/workspaces/grant-native-tools.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 import type { ChannelAttachmentRef } from '../src/attachments/ref.js';
@@ -49,16 +53,27 @@ async function scenario(missing: boolean) {
           const native = (name: string, path = originalPath) =>
             nativeFileToolDenial(core, session as never, name, { file_path: path });
           expect(native('read')).toBeUndefined();
-          expect(() => native('write')).toThrow(/explicit edit-original/);
+          expect(
+            nativeFileSpaceDenial(core, session as never, 'read', { file_path: originalPath }),
+          ).toBeUndefined();
+          expect(native('write')).toMatch(/explicit edit-original/);
+          expect(
+            nativeFileSpaceDenial(core, session as never, 'write', { file_path: originalPath }),
+          ).toMatch(/explicit edit-original/);
           expect(native('write', core.attachments.fileTarget(independent.fileId!).path)).toMatch(
-            /outside/,
+            /grant-protected-path/,
           );
-          expect(native('write', join(dirname(originalPath), 'other.txt'))).toMatch(/outside/);
+          expect(native('write', join(dirname(originalPath), 'other.txt'))).toMatch(
+            /grant-protected-path/,
+          );
           expect(
             core.runtime.originalAttachmentRoot?.('another-session', originalPath, 'read'),
           ).toBeUndefined();
           await call(tools, 'channel_attachment_open', { ...input, access: 'edit-original' });
           expect(native('edit')).toBeUndefined();
+          expect(
+            nativeFileSpaceDenial(core, session as never, 'edit', { file_path: originalPath }),
+          ).toBeUndefined();
           expect(
             nativeExecutionRoot(core, session as never, 'edit', { file_path: originalPath }),
           ).toBe(dirname(originalPath));
@@ -72,7 +87,7 @@ async function scenario(missing: boolean) {
           const messages = core.channels.readMessages(channelId).length;
           if (missing) {
             rmSync(originalPath);
-            expect(() => native('write')).toThrow(/unavailable/);
+            expect(native('write')).toMatch(/unavailable/);
             await expect(
               call(tools, 'channel_attachment_open', { ...input, access: 'edit-original' }),
             ).rejects.toThrow(/unavailable/);
@@ -102,8 +117,8 @@ async function scenario(missing: boolean) {
               access: 'edit-original',
             });
             await call(tools, 'group_leave', { channel_id: groupId });
-            expect(() => native('read')).toThrow(/not a member/);
-            expect(() => native('write')).toThrow(/not a member/);
+            expect(native('read')).toMatch(/not a member/);
+            expect(native('write')).toMatch(/not a member/);
             await expect(
               call(tools, 'channel_attachment_open', {
                 ...input,
@@ -162,6 +177,7 @@ async function scenario(missing: boolean) {
     body: 'Explicitly edit this original',
   });
   await core.runtime.whenIdle();
+  if (errors.length > 0) throw errors[0];
   expect(errors).toEqual([]);
   expect(turns).toBe(1);
   expect(core.runtime.originalAttachmentRoot?.(sessionId, originalPath, 'write')).toBeUndefined();

@@ -1,3 +1,4 @@
+import { botOwner } from '../team/bot-access.js';
 import { createHash } from 'node:crypto';
 
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -98,6 +99,10 @@ export function discoverBotContacts(
   input: BotContactQuery = {},
   networkContacts: readonly NetworkBotContact[] = [],
 ): BotContactPage {
+  const owner = registry.get(ownerBotId);
+  const visible = (bot: PersonaBotRecord) =>
+    owner !== undefined && botOwner(bot) === botOwner(owner);
+  if (owner && botOwner(owner) !== 'local-human') networkContacts = [];
   if (input.botId !== undefined) {
     if (input.query !== undefined || input.cursor !== undefined || input.limit !== undefined)
       throw new Error('list_bot_contacts: bot_id detail cannot be combined with page arguments');
@@ -107,6 +112,11 @@ export function discoverBotContacts(
     if (remote !== undefined)
       return { outputLimit: BOT_CONTACT_OUTPUT_LIMIT, contacts: [projectNetwork(remote, 1_000)] };
     const bot = registry.get(input.botId);
+    if (
+      (bot !== undefined && !visible(bot)) ||
+      (owner && botOwner(owner) !== 'local-human' && bot === undefined)
+    )
+      throw new Error('bot-not-found');
     if (bot === undefined || bot.slug === ownerBotId || bot.paused === true)
       throw new Error('list_bot_contacts: bot_id must identify an active colleague');
     return { outputLimit: BOT_CONTACT_OUTPUT_LIMIT, contacts: [project(bot, 1_000)] };
@@ -143,6 +153,7 @@ export function discoverBotContacts(
   }
   const local = registry
     .list()
+    .filter(visible)
     .filter((bot) => bot.slug !== ownerBotId && bot.paused !== true)
     .filter(
       (bot) =>

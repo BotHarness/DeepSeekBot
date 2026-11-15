@@ -226,11 +226,11 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use needs a Human decision or an explicitly saved Tool Approval Rule in the dedicated management scope (ADR-0249).
+A shared, Human-written natural-language policy containing Always ask guidance, Always allow guidance and free text for an Approval Reviewer. A PersonaBot uses at most one effective template, through global inheritance or a specific selection, or disables the Reviewer ([ADR-0342](docs/adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:
-The model that applies a PersonaBot's Approval Template to one pending approval request inside an Approval Review Session, without tool results in its context, and answers allow, reject with a reason, or ask Human. Its failure always falls back to the Human card.
+The model that applies a PersonaBot's effective Approval Template to one pending request inside an Approval Review Session, without tool results in its context, and either allows that request once or asks the Human. Its interpretation is fallible, and its failure falls back to the Human card.
 _Avoid_: classifier, guardian, auto-approver
 
 **Approval Review Session**:
@@ -272,6 +272,20 @@ _Avoid_: auto-compact, background summary, cache warming
 **Developer Mode**:
 A Human-owned Bot-mode preference that reveals diagnostics surfaces (operational log views, verbose states) otherwise hidden by default. It gates Human visibility only — never agent capability: an agent with shell access can always reach the same underlying data, so Developer Mode must never be described or relied upon as a read boundary.
 _Avoid_: debug flag, admin mode, agent permission, read boundary
+
+### Skills
+
+**Host Skill**:
+A Skill installed at user level on the Host, visible to every Session and every PersonaBot.
+_Avoid_: global skill, system skill, built-in skill
+
+**Project Skill**:
+A Skill that belongs to one directory, either a PersonaBot's Memory Repository or a folder covered by a Workspace Grant. Access to that directory decides which PersonaBots discover the Skill and can read its files; it does not limit who may receive its text through a Skill Invocation. A PersonaBot's Skills are the Project Skills of its Memory Repository; they are not a separate kind of Skill.
+_Avoid_: Bot Skill, workspace skill, private skill
+
+**Skill Invocation**:
+A Human's explicit reference to one Skill inside a message. It carries that Skill's text as it was when the message was sent and addresses no one: which PersonaBot reads and acts on it follows the message's mentions and normal routing, never the Skill's owner.
+_Avoid_: skill command, slash command, skill call
 
 ### Computer
 
@@ -827,7 +841,7 @@ A Feishu/Lark conversation — group or p2p — that a PersonaBot takes part in,
 _Avoid_: room, channel, group (when p2p is meant too); for the mobile screen, say Conversation screen
 
 **DM**:
-A 1:1 conversation between two Actors — a Channel of type `dm`, or its bridged equivalent. A Human–PersonaBot DM is the Human's direct conversation with one Bot; a Bot-to-Bot DM has two PersonaBot participants and may be inspected read-only by a Human without making that Human a participant.
+A 1:1 conversation between two Actors — a Channel of type `dm`, or its bridged equivalent. A Human–PersonaBot DM is the Human's direct conversation with one Bot; a Human–Human DM belongs to its two Human participants on the owning Host and has no Bot participant. A Bot-to-Bot DM has two PersonaBot participants and may be inspected read-only by a Human without making that Human a participant.
 _Avoid_: private chat, PM
 
 **Bot-to-Bot DM**:

@@ -189,10 +189,10 @@ describe('mounted request ownership', () => {
     );
     expect(host.textContent).toContain('Bea project');
     expect(host.textContent).not.toContain('Ada project');
-    await act(async () => publishWorkspaceGrantChange('bea'));
+    await act(async () => publishWorkspaceGrantChange('bea', actions));
     expect(actions.listWorkspaceGrants).toHaveBeenCalledTimes(3);
     await act(async () => root.render(null));
-    await act(async () => publishWorkspaceGrantChange('bea'));
+    await act(async () => publishWorkspaceGrantChange('bea', actions));
     expect(actions.listWorkspaceGrants).toHaveBeenCalledTimes(3);
   });
 

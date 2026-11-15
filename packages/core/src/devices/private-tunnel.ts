@@ -1,10 +1,11 @@
+import { createTunnelLookup } from './tunnel-dns.js';
 import { spawn as spawnProcess } from 'node:child_process';
-import { lookup, Resolver } from 'node:dns';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, request as httpRequest, type IncomingMessage, type Server } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { connect as tcpConnect, type AddressInfo, type LookupFunction } from 'node:net';
 import type { Duplex } from 'node:stream';
+import { privateAdmissionFromHeaders } from '../../../../deploy/private-relay/admission.mjs';
 import { getCACertificates } from 'node:tls';
 
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
@@ -57,11 +58,17 @@ export type PrivateTunnelRefusal =
   | 'private-route-id-required'
   | 'private-route-not-found'
   | 'private-route-replace-required'
+  | 'private-route-changed'
   | 'private-route-limit'
   | 'private-tunnel-credential-invalid';
 
 export type PrivateTunnelResult =
-  | { ok: true; status: PrivateTunnelStatus; routeId?: 'quick' | 'custom' }
+  | {
+      ok: true;
+      status: PrivateTunnelStatus;
+      routeId?: 'quick' | 'custom';
+      expectedRevision?: string;
+    }
   | { ok: false; code: PrivateTunnelRefusal };
 
 export interface TunnelRecord {
@@ -195,15 +202,16 @@ export function createTunnelOrigin(options: {
     response.end(JSON.stringify({ code: 'not-found' }));
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-    const header = request.headers['x-botharness-admission'];
-    const presented =
-      (typeof header === 'string' ? header : undefined) ??
-      request.headers.authorization?.replace(/^Bearer /u, '') ??
-      '';
+    const admission = privateAdmissionFromHeaders(
+      request.headers.authorization,
+      request.headers['x-botharness-admission'],
+      request.headers['sec-websocket-protocol'],
+    );
     if (
       request.url !== CONNECT_CHANNEL_PATH ||
       request.headers.cookie !== undefined ||
-      !timingSafeEqual(digest(presented), digest(options.phoneToken()))
+      !admission ||
+      !timingSafeEqual(digest(admission.token), digest(options.phoneToken()))
     ) {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
@@ -213,6 +221,10 @@ export function createTunnelOrigin(options: {
       const name = request.rawHeaders[index] ?? '';
       const lower = name.toLowerCase();
       if (lower === 'authorization' || lower === 'x-botharness-admission') continue;
+      if (lower === 'sec-websocket-protocol') {
+        if (admission.protocol) raw += `${name}: ${admission.protocol}\r\n`;
+        continue;
+      }
       raw += `${name}: ${request.rawHeaders[index + 1] ?? ''}\r\n`;
     }
     const upstream = tcpConnect(options.port(), '127.0.0.1', () => {
@@ -243,44 +255,7 @@ export function systemTrustedCertificates(): string[] {
   }
 }
 
-type QueryIpv4 = (
-  hostname: string,
-  callback: (error: NodeJS.ErrnoException | null, addresses: string[]) => void,
-) => void;
-const queryQuickIpv4: QueryIpv4 = (hostname, callback) => {
-  const resolver = new Resolver({ timeout: 1500, tries: 1 });
-  resolver.resolve4(hostname, callback);
-};
-
-export function createQuickTunnelLookup(
-  systemLookup: LookupFunction = lookup,
-  query: QueryIpv4 = queryQuickIpv4,
-): LookupFunction {
-  return (hostname, options, callback) => {
-    systemLookup(hostname, options, (error, address, family) => {
-      if (
-        error?.code !== 'ENOTFOUND' ||
-        !/^[a-z0-9-]+\.trycloudflare\.com$/u.test(hostname) ||
-        options.family === 6
-      ) {
-        callback(error, address, family);
-        return;
-      }
-      query(hostname, (dnsError, addresses) => {
-        if (dnsError || !addresses.length) {
-          callback(error, address, family);
-          return;
-        }
-        callback(
-          null,
-          options.all ? addresses.map((value) => ({ address: value, family: 4 })) : addresses[0]!,
-          4,
-        );
-      });
-    });
-  };
-}
-const quickTunnelLookup = createQuickTunnelLookup();
+const quickTunnelLookup = createTunnelLookup();
 
 export const createTrustFetch = (
   certificates: () => string[],
@@ -306,7 +281,13 @@ export const createTrustFetch = (
           if (body.length > 4096) response.destroy(new Error('body-too-large'));
         });
         response.on('error', fail);
-        response.on('end', () => resolve(new Response(body, { status: response.statusCode ?? 0 })));
+        response.on('end', () => {
+          try {
+            resolve(new Response(body || null, { status: response.statusCode ?? 0 }));
+          } catch (error) {
+            fail(error);
+          }
+        });
       };
       const request =
         url.protocol === 'https:'

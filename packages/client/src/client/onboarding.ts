@@ -1,4 +1,3 @@
-import { memberPage } from './member-page.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import type { BridgeActions } from './actions.js';
@@ -82,7 +81,6 @@ export class OnboardingController {
     companion?: WindowCompanions,
     select = false,
   ): Promise<void> {
-    if (memberPage()) return;
     try {
       const receipt = await this.actions.onboarding(slug, action);
       const first = this.state.receipt === undefined;
@@ -481,7 +479,7 @@ export class OnboardingController {
     this.update({ busy: true, error: undefined });
     try {
       await this.actions.onboardingModel(target.slug, expectedRevision, route, globalDefault);
-      invalidateModelPlan(target.slug);
+      invalidateModelPlan(target.slug, this.actions);
       this.update({
         modelOpen: false,
         modelTarget: undefined,

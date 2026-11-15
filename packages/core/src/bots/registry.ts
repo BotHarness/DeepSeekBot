@@ -1,4 +1,5 @@
 import { isTob, TobError } from '../tob/service.js';
+import type { DatabaseSync } from 'node:sqlite';
 import {
   existsSync,
   mkdirSync,
@@ -11,9 +12,13 @@ import {
   statSync,
   type Dirent,
 } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
-import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
+import {
+  OperationalDatabaseError,
+  attachOperationalModule,
+  type OperationalDatabaseOwner,
+} from '../database/owner.js';
 import { deriveAvatarAppearance } from './avatar-snapshot.js';
 import {
   isPersonaBotAvatar,
@@ -43,7 +48,7 @@ import {
   readSharedPrimaryColor,
 } from './shared-presentation.js';
 import { isValidSlug } from './slug.js';
-import { recordMemoryOwnership, transferMemoryOwnership } from './deletion.js';
+import { memoryOwnership, recordMemoryOwnership, transferMemoryOwnership } from './deletion.js';
 import {
   memoryRepositoryMatchesCommit,
   type HttpsFallback,
@@ -78,6 +83,10 @@ export interface MemoryRepositoryInitialization {
 
 export interface PersonaBotRegistryOptions {
   rootDir: string;
+  defaultMemoryPath?: (slug: string, humanId: string) => string;
+  validateMemoryPath?: (slug: string, humanId: string, path: string) => void;
+  onCreated?: (record: PersonaBotRecord, database: DatabaseSync) => void;
+  creationTopics?: readonly string[];
   database: OperationalDatabaseOwner;
   onImport?: (event: { phase: 'complete' | 'failed'; count?: number; durationMs: number }) => void;
   now?: () => Date;
@@ -86,6 +95,8 @@ export interface PersonaBotRegistryOptions {
   onAppearanceImported?: (record: PersonaBotRecord) => void;
 
   initializeMemory?: (memoryDir: string) => MemoryRepositoryInitialization;
+  initializeMemoryAsync?: (memoryDir: string) => Promise<MemoryRepositoryInitialization>;
+  syncDescriptorAsync?: (memoryDir: string, record: PersonaBotRecord) => Promise<void>;
   cloneMemory?: (destination: string, url: string) => Promise<MemoryCloneResult>;
   onPurge?: (slug: string, removeFiles: () => void) => void;
   capture?: TelemetryCapture;
@@ -99,6 +110,11 @@ export interface PersonaBotRegistryOptions {
 export interface PersonaBotRegistry {
   rootDir: string;
   create(input: CreatePersonaBotInput): CreatePersonaBotResult;
+  createAsync(
+    input: CreatePersonaBotInput,
+    authorize?: () => void,
+  ): Promise<CreatePersonaBotResult>;
+  settled(humanId?: string): Promise<void>;
   createFromGit(
     input: Omit<CreatePersonaBotInput, 'memoryDir'> & { gitUrl: string; expectedCommit?: string },
     authorize?: () => void,
@@ -112,8 +128,8 @@ export interface PersonaBotRegistry {
   ): Promise<CreatePersonaBotResult>;
   get(slug: string): PersonaBotRecord | undefined;
   getHistorical(slug: string): PersonaBotRecord | undefined;
-  listHistorical(): PersonaBotRecord[];
-  list(): PersonaBotRecord[];
+  listHistorical(ownerHumanId?: string): PersonaBotRecord[];
+  list(ownerHumanId?: string): PersonaBotRecord[];
   findByWorkspace(workspace: string): PersonaBotRecord | undefined;
   remove(slug: string, options?: RemovePersonaBotOptions): boolean;
   memoryDirFor(slug: string): string | undefined;
@@ -199,11 +215,13 @@ function isDirectory(path: string): boolean {
 }
 
 export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): PersonaBotRegistry {
-  const rootDir = options.rootDir;
+  mkdirSync(options.rootDir, { recursive: true });
+  const rootDir = realpathSync(options.rootDir);
   const now = options.now ?? (() => new Date());
   const botDir = (slug: string): string => join(rootDir, slug);
   const botFile = (slug: string): string => join(botDir(slug), 'bot.json');
-  const defaultMemoryDir = (slug: string): string => join(botDir(slug), 'memory');
+  const defaultMemoryDir = (slug: string, humanId = 'local-human'): string =>
+    options.defaultMemoryPath?.(slug, humanId) ?? join(botDir(slug), 'memory');
 
   const port = attachOperationalModule(options.database, 'bot-registry');
   const capture = (event: TelemetryEventName): void => {
@@ -215,12 +233,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   };
   const recordSnapshot = (record: PersonaBotRecord): PersonaBotRecord => {
     const result: PersonaBotRecord = {
+      ownerHumanId: record.ownerHumanId ?? 'local-human',
       slug: record.slug,
       displayName: record.displayName,
       workspaces: [...record.workspaces],
       createdAt: record.createdAt,
     };
     for (const key of [
+      'ownerHumanId',
       'displayNameCustomized',
       'avatarCustomized',
       'roles',
@@ -341,18 +361,34 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       return row === undefined ? undefined : decode(String(row['body']), slug);
     });
   };
-  const write = (record: PersonaBotRecord): void => {
+  const write = (record: PersonaBotRecord, creating = false, ownershipPath?: string): void => {
     const slug = record.slug;
     if (!isPersonaBotRecord(record, slug))
       throw new Error(`Refusing to persist an invalid PersonaBot Registry record: ${slug}`);
     port.transaction(
       (database) => {
         database
-          .prepare(`INSERT INTO persona_bots (slug, body) VALUES (?, ?)
-        ON CONFLICT (slug) DO UPDATE SET body = excluded.body`)
-          .run(record.slug, JSON.stringify(recordSnapshot(record)));
+          .prepare(`INSERT INTO persona_bots (slug, body, owner_human_id) VALUES (?, ?, ?)
+        ON CONFLICT (slug) DO UPDATE SET body = excluded.body, owner_human_id = excluded.owner_human_id`)
+          .run(
+            record.slug,
+            JSON.stringify(recordSnapshot(record)),
+            record.ownerHumanId ?? 'local-human',
+          );
+        if (ownershipPath) {
+          let proof: ReturnType<typeof memoryOwnership>;
+          try {
+            proof = memoryOwnership(ownershipPath);
+          } catch {
+            proof = { path: '', device: -1, inode: -1 };
+          }
+          database
+            .prepare('INSERT OR IGNORE INTO persona_bot_memory_ownership VALUES (?, ?)')
+            .run(record.slug, JSON.stringify(proof));
+        }
+        if (creating) options.onCreated?.(record, database);
       },
-      ['bot-registry'],
+      ['bot-registry', ...(creating ? (options.creationTopics ?? []) : [])],
     );
   };
   const deleted = (slug: string): boolean =>
@@ -363,11 +399,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     );
   const active = (slug: string): PersonaBotRecord | undefined =>
     deleted(slug) ? undefined : read(slug);
-  const list = (): PersonaBotRecord[] =>
+  const list = (ownerHumanId?: string): PersonaBotRecord[] =>
     port.read((database) =>
       database
-        .prepare('SELECT slug, body FROM persona_bots')
-        .all()
+        .prepare(
+          ownerHumanId === undefined
+            ? 'SELECT slug, body FROM persona_bots'
+            : 'SELECT slug, body FROM persona_bots WHERE owner_human_id = ?',
+        )
+        .all(...(ownerHumanId === undefined ? [] : [ownerHumanId]))
         .map((row) => decode(String(row['body']), String(row['slug'])))
         .sort((left, right) => left.slug.localeCompare(right.slug)),
     );
@@ -430,7 +470,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   }
 
   const memoryDirOf = (record: PersonaBotRecord): string =>
-    record.memoryDir ?? defaultMemoryDir(record.slug);
+    record.memoryDir ?? defaultMemoryDir(record.slug, record.ownerHumanId ?? 'local-human');
 
   if (options.database.mode === 'ready') {
     for (const record of list()) {
@@ -466,7 +506,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     } catch {}
   };
 
-  const create = (input: CreatePersonaBotInput, sync: boolean): CreatePersonaBotResult => {
+  type Preparation =
+    | { kind: 'initialize'; memoryDir: string }
+    | { kind: 'descriptor'; memoryDir: string; record: PersonaBotRecord };
+  const creating = new Map<string, { humanId: string; settled: Promise<void> }>();
+  function* createSteps(
+    input: CreatePersonaBotInput,
+    sync: boolean,
+  ): Generator<Preparation, CreatePersonaBotResult, MemoryRepositoryInitialization> {
     if (!isValidSlug(input.slug)) return { ok: false, reason: 'invalid-slug' };
     if (read(input.slug) !== undefined) return { ok: false, reason: 'duplicate' };
 
@@ -479,7 +526,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       return { ok: false, reason: 'invalid-memory-dir' };
     }
     const memoryLocation = input.memoryLocation?.trim();
-    let memoryDir = explicitMemoryDir;
+    let memoryDir =
+      explicitMemoryDir ||
+      options.defaultMemoryPath?.(input.slug, input.ownerHumanId ?? 'local-human');
     if (memoryLocation !== undefined && memoryLocation.length > 0) {
       if (explicitMemoryDir || !isAbsolute(memoryLocation)) {
         return { ok: false, reason: 'invalid-memory-dir' };
@@ -490,6 +539,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (existsSync(memoryDir)) return { ok: false, reason: 'invalid-memory-dir' };
     }
     const chosenLocation = memoryLocation !== undefined && memoryLocation.length > 0;
+    const managedDefault = !explicitMemoryDir && !chosenLocation;
 
     const displayName = input.displayName.trim();
     const roles = normalizeRoles(input.roles);
@@ -501,6 +551,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     const model = input.model?.trim();
     const preset = input.preset?.trim();
     const record: PersonaBotRecord = {
+      ownerHumanId: input.ownerHumanId ?? 'local-human',
       slug: input.slug,
       displayName: displayName.length > 0 ? displayName : input.slug,
       workspaces: input.workspaces ?? [],
@@ -515,6 +566,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       ...(memoryDir ? { memoryDir } : {}),
     };
     const targetMemoryDir = memoryDirOf(record);
+    try {
+      options.validateMemoryPath?.(
+        record.slug,
+        record.ownerHumanId ?? 'local-human',
+        targetMemoryDir,
+      );
+    } catch {
+      return { ok: false, reason: 'invalid-memory-dir' };
+    }
     const newMemoryDirectory = !existsSync(targetMemoryDir);
     const newBotDirectory = !existsSync(botDir(record.slug));
     try {
@@ -531,7 +591,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       ...(input.coreMemory === undefined ? {} : { coreMemory: input.coreMemory }),
       coreMemoryTemplate: sync,
     });
-    const initialized = options.initializeMemory?.(targetMemoryDir) ?? { ok: true };
+    let initialized: MemoryRepositoryInitialization;
+    try {
+      initialized = yield { kind: 'initialize', memoryDir: targetMemoryDir };
+      if (initialized.ok && sync) yield { kind: 'descriptor', memoryDir: targetMemoryDir, record };
+    } catch (error) {
+      if (newMemoryDirectory) rmSync(targetMemoryDir, { recursive: true, force: true });
+      else for (const file of seeded) rmSync(join(targetMemoryDir, file), { force: true });
+      throw error;
+    }
     if (!initialized.ok) {
       for (const file of seeded) rmSync(join(targetMemoryDir, file), { force: true });
       if (newBotDirectory && !memoryDir) {
@@ -544,11 +612,31 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         ...(initialized.message === undefined ? {} : { detail: initialized.message }),
       };
     }
-    write(record);
-    if (newMemoryDirectory || memoryDir === undefined)
-      recordMemoryOwnership(port, record.slug, targetMemoryDir);
-    if (sync) syncDescriptor(record);
+    try {
+      write(record, true, newMemoryDirectory || managedDefault ? targetMemoryDir : undefined);
+    } catch (error) {
+      if (
+        newMemoryDirectory &&
+        !(error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted')
+      )
+        rmSync(targetMemoryDir, { recursive: true, force: true });
+      throw error;
+    }
     return { ok: true, record };
+  }
+  const create = (input: CreatePersonaBotInput, sync: boolean): CreatePersonaBotResult => {
+    if (creating.has(input.slug)) return { ok: false, reason: 'duplicate' };
+    const steps = createSteps(input, sync);
+    let step = steps.next();
+    while (!step.done) {
+      const work = step.value;
+      const result =
+        work.kind === 'initialize'
+          ? (options.initializeMemory?.(work.memoryDir) ?? { ok: true })
+          : (syncDescriptor(work.record), { ok: true });
+      step = steps.next(result);
+    }
+    return step.value;
   };
 
   const createFromStaging = async (
@@ -566,6 +654,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
 
     let staging: string | undefined;
     let ownsBotDir = false;
+    let importedMemory: string | undefined;
     let created = false;
     let authorizationError: unknown;
     const checkAuthority = () => {
@@ -588,18 +677,31 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
 
       mkdirSync(botDir(input.slug));
       ownsBotDir = true;
-      renameSync(staging, defaultMemoryDir(input.slug));
+      mkdirSync(dirname(defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human')), {
+        recursive: true,
+      });
+      const target = defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human');
+      if (existsSync(target)) return { ok: false, reason: 'invalid-memory-dir' };
+      renameSync(staging, target);
+      importedMemory = target;
       staging = undefined;
       try {
-        migrateLegacySoul(defaultMemoryDir(input.slug));
+        migrateLegacySoul(defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'));
       } catch {}
       const result = create(input, false);
       created = result.ok;
       if (!result.ok) return result;
+      recordMemoryOwnership(port, result.record.slug, memoryDirOf(result.record));
       capture('bot_library:bot_create');
-      const shared = readSharedPresentation(defaultMemoryDir(input.slug));
-      const banner = readSharedBanner(defaultMemoryDir(input.slug));
-      const primaryColor = readSharedPrimaryColor(defaultMemoryDir(input.slug));
+      const shared = readSharedPresentation(
+        defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'),
+      );
+      const banner = readSharedBanner(
+        defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'),
+      );
+      const primaryColor = readSharedPrimaryColor(
+        defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'),
+      );
       const presentation =
         shared === undefined && banner === undefined && primaryColor === undefined
           ? undefined
@@ -632,8 +734,10 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (staging !== undefined) rmSync(staging, { recursive: true, force: true });
       if (ownsBotDir && !created && options.database.mode === 'ready') {
         try {
-          if (read(input.slug) === undefined)
+          if (read(input.slug) === undefined) {
             rmSync(botDir(input.slug), { recursive: true, force: true });
+            if (importedMemory) rmSync(importedMemory, { recursive: true, force: true });
+          }
         } catch {}
       }
     }
@@ -645,6 +749,53 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const result = create(input, true);
       if (result.ok) capture('bot_library:bot_create');
       return result;
+    },
+    async createAsync(input, authorize) {
+      authorize?.();
+      if (creating.has(input.slug)) return { ok: false, reason: 'duplicate' };
+      let finish = (): void => {};
+      const settled = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      creating.set(input.slug, { humanId: input.ownerHumanId ?? 'local-human', settled });
+      try {
+        const steps = createSteps(input, true);
+        let step = steps.next();
+        try {
+          while (!step.done) {
+            const work = step.value;
+            let result: MemoryRepositoryInitialization = { ok: true };
+            if (work.kind === 'initialize')
+              result = options.initializeMemoryAsync
+                ? await options.initializeMemoryAsync(work.memoryDir)
+                : (options.initializeMemory?.(work.memoryDir) ?? result);
+            else {
+              try {
+                if (options.syncDescriptorAsync)
+                  await options.syncDescriptorAsync(work.memoryDir, work.record);
+                else syncDescriptor(work.record);
+              } catch {}
+            }
+            authorize?.();
+            step = steps.next(result);
+          }
+        } catch (error) {
+          steps.throw(error);
+          throw error;
+        }
+        if (step.value.ok) capture('bot_library:bot_create');
+        return step.value;
+      } finally {
+        creating.delete(input.slug);
+        finish();
+      }
+    },
+    async settled(humanId) {
+      await Promise.all(
+        [...creating.values()]
+          .filter((work) => humanId === undefined || work.humanId === humanId)
+          .map((work) => work.settled),
+      );
     },
     async createFromGit(input, authorize) {
       const { gitUrl, expectedCommit, ...recordInput } = input;
@@ -688,7 +839,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     get: active,
     getHistorical: read,
     listHistorical: list,
-    list: () => list().filter((record) => !deleted(record.slug)),
+    list: (ownerHumanId) => list(ownerHumanId).filter((record) => !deleted(record.slug)),
     findByWorkspace(workspace) {
       const target = normalizeWorkspacePath(workspace);
       if (target.length === 0) return undefined;
@@ -708,13 +859,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       return memoryDirOf(record);
     },
     defaultMemoryDirFor(slug) {
-      return defaultMemoryDir(slug);
+      return defaultMemoryDir(slug, read(slug)?.ownerHumanId ?? 'local-human');
     },
     setMemoryDir(slug, memoryDir) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const updated = { ...record };
-      if (memoryDir === undefined || memoryDir === defaultMemoryDir(slug)) delete updated.memoryDir;
+      options.validateMemoryPath?.(
+        slug,
+        record.ownerHumanId ?? 'local-human',
+        memoryDir ?? defaultMemoryDir(slug, record.ownerHumanId ?? 'local-human'),
+      );
+      if (
+        memoryDir === undefined ||
+        memoryDir === defaultMemoryDir(slug, record.ownerHumanId ?? 'local-human')
+      )
+        delete updated.memoryDir;
       else updated.memoryDir = memoryDir;
       write(updated);
       transferMemoryOwnership(port, slug, memoryDirOf(updated));

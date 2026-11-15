@@ -1,3 +1,5 @@
+import { ownsBot } from '../team/bot-access.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ModelCatalog } from '../models/catalog.js';
@@ -41,6 +43,7 @@ export interface TobNativeSettings {
 }
 export interface TobModelOperationDependencies {
   registry: PersonaBotRegistry;
+  human?: () => HumanContext;
   presets: ModelPresetStore;
   catalog: ModelCatalog;
   settings: () => TobNativeSettings | undefined;
@@ -125,6 +128,8 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
   const bot = (slug: string) => {
     const record = deps.registry.get(slug);
     if (!record) throw new TobError('unknown-bot');
+    if (!ownsBot(deps.human?.() ?? OWNER_HUMAN_CONTEXT, record))
+      throw new TobError('permission-required');
     return record;
   };
   const plan = (slug: string) => {
@@ -186,7 +191,10 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         run: (guard) => {
           guard();
           return {
-            bots: deps.registry.list().map(({ slug, displayName }) => ({ slug, displayName })),
+            bots: deps.registry
+              .list()
+              .filter((record) => ownsBot(deps.human?.() ?? OWNER_HUMAN_CONTEXT, record))
+              .map(({ slug, displayName }) => ({ slug, displayName })),
           };
         },
       };

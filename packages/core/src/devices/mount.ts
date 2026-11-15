@@ -1,8 +1,13 @@
 import { createMemberDevices } from '../team/devices.js';
+import { createConnectHealth } from './connect-health.js';
+import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
 import { mountTeamGateway } from '../team/mount.js';
 import type { TeamService } from '../team/service.js';
 import type { TeamHttp } from '../team/http.js';
 import { createDirectPeers } from './direct.js';
+import { createHostRelationships } from './relationships.js';
+import { createRelationshipControl } from './relationship-control.js';
+import { createRelationshipHttp, RELATIONSHIPS_PATH } from './relationship-http.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
@@ -70,7 +75,7 @@ const PUSH_SWEEP_MS = 60_000;
 export interface DevicePushOptions {
   source: PushSource;
   watch(changed: () => void): () => void;
-  held?: () => boolean;
+  held?: (human: import('../humans/context.js').HumanContext) => boolean;
   sender?: ExpoSender;
 }
 
@@ -197,6 +202,7 @@ export function mountDevicePairing(
           },
         }
       : {}),
+    ...(options.team ? { ownerHumanId: () => options.team!.ownerContext().humanId } : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
@@ -228,6 +234,10 @@ export function mountDevicePairing(
           ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
         ),
   });
+  ctx.effect(
+    () => options.team?.bindPairing(pairing) ?? (() => {}),
+    'botharness: member device revocation',
+  );
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   let memberRoutes: () => Promise<string[]> = async () => [];
@@ -347,6 +357,8 @@ export function mountDevicePairing(
     const delivery = createPushDelivery({
       database: attachOperationalModule(options.database, 'push'),
       source: watched.source,
+      deviceHuman: (deviceId) =>
+        pairedDeviceHuman(attachOperationalModule(options.database, 'push'), deviceId),
       sender: watched.sender ?? createExpoSender(),
       host: () => pairing.host(),
       deviceActive: (deviceId) =>
@@ -381,6 +393,49 @@ export function mountDevicePairing(
   ctx.inject(['connection', 'webServer'], (webCtx) => {
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
+    const relationships = createHostRelationships({
+      database: attachOperationalModule(options.database, 'host-relationships'),
+      pairing,
+      record: (event) => write('host-relationships', event.phase, JSON.stringify(event)),
+    });
+    const relationshipControl = createRelationshipControl({
+      relationships,
+      account: () => account,
+      pairing,
+      identity,
+      credentials: options.credentials ?? (() => undefined),
+      privateAdmission: () => {
+        const admissions = privateTunnel.admissions();
+        const first = admissions[0];
+        return first
+          ? {
+              origin: first.origin,
+              token: first.token,
+              ...(admissions.length > 1
+                ? { additionalOrigins: admissions.slice(1).map((route) => route.origin) }
+                : {}),
+            }
+          : privateConnection.admission();
+      },
+      record: (event) => write('host-relationships', event.phase, JSON.stringify(event)),
+      routes: async () =>
+        (await routes()).routes
+          .filter((route) => route.ready && route.kind !== 'loopback')
+          .map((route) => route.url),
+    });
+    webCtx.effect(() => {
+      relationshipControl.start();
+      void relationshipControl
+        .cleanupAcknowledgedAdmissions()
+        .catch(() =>
+          write(
+            'host-relationships',
+            'route-admission-cleanup-failed',
+            'relationship-route-secret-unavailable',
+          ),
+        );
+      return () => relationshipControl.close();
+    }, 'botharness: Host relationship control and acknowledged route cleanup');
     const lanKey = credentialKey('botharness-core', 'device-lan');
     let lanDiscovery: ReturnType<typeof createLanBotDiscovery> | undefined;
     let lanBridge: ReturnType<typeof createLanBotBridge> | undefined;
@@ -435,6 +490,7 @@ export function mountDevicePairing(
         createEncryptedGateway({
           pairing,
           ...(memberDevices ? { memberDevices } : {}),
+          relationship: relationshipControl.receive,
           key: identity.key,
           port: () => webServer.port,
           route: 'lan',
@@ -578,6 +634,7 @@ export function mountDevicePairing(
     const encrypted = createEncryptedGateway({
       pairing,
       ...(memberDevices ? { memberDevices } : {}),
+      relationship: relationshipControl.receive,
       key: identity.key,
       port: () => webServer.port,
       direct: (input) => directPeers.answer(input),
@@ -609,22 +666,44 @@ export function mountDevicePairing(
         }),
       'botharness: encrypted transport',
     );
+    let connectHealth: ReturnType<typeof createConnectHealth> | undefined;
     const connect = createDeviceConnect({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
       cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
       ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
-      record: (phase, info) =>
-        write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
+      record: (phase, info) => {
+        write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`);
+        if (phase === 'connected') void connectHealth?.check();
+        else if (phase === 'disabled' || phase === 'cloudflared-exited')
+          connectHealth?.invalidate();
+      },
     });
     const account = createConnectAccount({
       credentials: options.credentials ?? (() => undefined),
       connect,
+      onReady: () => {
+        if (connect.status().state === 'connected') void connectHealth?.check();
+      },
       record: (phase, info) => {
         write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`);
         recordConnectTelemetry(options.telemetry, phase);
+        if (phase === 'signed-out' || phase === 'session-revoked' || phase === 'session-expired')
+          connectHealth?.invalidate();
       },
     });
+    connectHealth = createConnectHealth({
+      connect,
+      account,
+      identity: async () => ({
+        hostId: pairing.host().id,
+        publicKey: (await identity.publicIdentity()).publicKey,
+      }),
+      record: (phase, detail) =>
+        write('connect-health', phase, `connect-health phase=${phase} ${detail}`),
+    });
+    const health = connectHealth;
+    webCtx.effect(() => () => health.close(), 'botharness: Connect self-check');
     let connectBots: ReturnType<typeof createConnectBotBridge> | undefined;
     if (options.botNetwork !== undefined) {
       const owners = options.botNetwork;
@@ -692,7 +771,16 @@ export function mountDevicePairing(
       activity = createActivityDelivery({
         database: attachOperationalModule(options.database, 'live-activity'),
         provider: account.activity,
-        request: options.requestStatus,
+        request: (channelId, messageId, deviceId) => {
+          const request = options.requestStatus?.(channelId, messageId);
+          if (!request || !deviceId) return undefined;
+          const allowed = deviceOwnsRequest(
+            attachOperationalModule(options.database, 'live-activity'),
+            deviceId,
+            request.sourceEventId,
+          );
+          return allowed ? request : undefined;
+        },
         deviceActive: (deviceId) =>
           pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
         record: (phase, detail) =>
@@ -838,6 +926,16 @@ export function mountDevicePairing(
         .filter((route) => route.ready && route.kind !== 'private')
         .map((route) => route.url),
     ];
+    webCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: RELATIONSHIPS_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: createRelationshipHttp(relationshipControl),
+        }),
+      'botharness: local Host relationship management',
+    );
     const http = createDevicesHttp({
       privateConnection,
       privateTunnel,
@@ -847,6 +945,7 @@ export function mountDevicePairing(
       routes,
       connect,
       account,
+      connectHealth: health,
       lan,
       ...(lanBots ? { lanBots } : {}),
       publish: async () => {
@@ -866,6 +965,7 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/approve-key`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
+      [`${DEVICES_PATH}/connect-health`, ['POST']],
       [`${DEVICES_PATH}/private`, ['POST']],
       [`${DEVICES_PATH}/private-tunnel`, ['POST']],
       [`${DEVICES_PATH}/account-hosts`, ['GET']],

@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -65,6 +65,7 @@ function fixture(options: { access?: boolean; start?: number } = {}) {
         .get(sourceMessageId),
     ) as { source_kind: string; resolution: number } | undefined;
   return {
+    database,
     sourceOf,
     channels,
     dm,
@@ -89,6 +90,28 @@ const request = {
 
 describe('Takeover Handoff', () => {
   afterEach(() => vi.useRealTimers());
+
+  it.each(['done', 'cancel'] as const)(
+    'attributes Human %s to the supplied acting Human',
+    async (action) => {
+      const f = fixture();
+      const human = humanContext('new-owner');
+      f.database.transaction((db) =>
+        db
+          .prepare("INSERT INTO humans VALUES (?, 'New Owner', 'active', ?)")
+          .run(human.humanId, new Date().toISOString()),
+      );
+      const handoff = await f.handoffs.request({ ...request, channelId: f.group.id });
+      if (action === 'done')
+        await f.handoffs.complete(f.group.id, handoff.id, 'done', 'web', human);
+      else await f.handoffs.cancel(f.group.id, handoff.id, 'human', 'web', undefined, human);
+      expect(f.channels.message(f.group.id, takeoverResolutionId(handoff.id))?.author).toEqual({
+        kind: 'human',
+        humanId: human.humanId,
+        displayName: 'New Owner',
+      });
+    },
+  );
 
   it('posts a card, and a Human Done wakes the requesting Bot in its DM', async () => {
     const f = fixture();
@@ -116,7 +139,11 @@ describe('Takeover Handoff', () => {
     const done = await f.handoffs.complete(f.dm.id, handoff.id, 'done', 'web');
     expect(done).toMatchObject({ status: 'done', resolvedBy: 'human' });
     const resolution = f.channels.message(f.dm.id, takeoverResolutionId(handoff.id))!;
-    expect(resolution.author).toEqual({ kind: 'human' });
+    expect(resolution.author).toEqual({
+      kind: 'human',
+      humanId: OWNER_HUMAN_CONTEXT.humanId,
+      displayName: 'Human',
+    });
     expect(resolution.replyTo).toBe(handoff.id);
     expect(resolution.takeoverResolution).toEqual({
       requestMessageId: handoff.id,

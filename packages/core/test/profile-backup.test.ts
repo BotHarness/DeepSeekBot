@@ -1,3 +1,4 @@
+import { defineSchemaPlan } from '../src/database/schema.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -269,12 +270,9 @@ it('delegates an older operational Schema Generation to the existing staged migr
   const core = mount();
   const older = mountOperationalDatabase({
     dshHome: root(),
-    schemaPlan: {
-      targetGeneration: 105,
-      migrations: BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
-        (migration) => migration.generation <= 105,
-      ),
-    },
+    schemaPlan: defineSchemaPlan(
+      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 105),
+    ),
   });
   try {
     expect(older.mode).toBe('ready');

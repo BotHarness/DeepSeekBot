@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import type { BotModeIcon } from '../bot-mode-settings.js';
 import type { BotSummary } from './store.js';
+import { useClientStore } from './use-client-store.js';
+import { useMessageHost } from './message-host.js';
 
 interface TobPresentationSource {
   bot(slug: string): BotSummary | undefined;
@@ -34,22 +36,36 @@ const subscribe = (listener: () => void): (() => void) => {
 };
 
 export function useTobDefaultIcon(slug: string | undefined): BotModeIcon | undefined {
+  const remote = useMessageHost() !== undefined;
+  const scoped = useClientStore((state) =>
+    remote ? state.bots.find((bot) => bot.slug === slug) : undefined,
+  );
   const read = () =>
-    slug !== undefined && source?.bot(slug)?.tob?.defaultAvatar ? source.icon() : undefined;
+    slug !== undefined && (remote ? scoped : source?.bot(slug))?.tob?.defaultAvatar
+      ? source?.icon()
+      : undefined;
   return useSyncExternalStore(subscribe, read, read);
 }
 
 export function useTobName(slug: string | undefined, fallback: string): string {
+  const remote = useMessageHost() !== undefined;
+  const scoped = useClientStore((state) =>
+    remote ? state.bots.find((bot) => bot.slug === slug) : undefined,
+  );
   const read = () => {
-    const bot = slug === undefined ? undefined : source?.bot(slug);
+    const bot = slug === undefined ? undefined : remote ? scoped : source?.bot(slug);
     return bot?.tob ? bot.displayName : fallback;
   };
   return useSyncExternalStore(subscribe, read, read);
 }
 
 export function useTobBot(slug: string | undefined): BotSummary | undefined {
+  const remote = useMessageHost() !== undefined;
+  const scoped = useClientStore((state) =>
+    remote ? state.bots.find((bot) => bot.slug === slug) : undefined,
+  );
   const read = () => {
-    const bot = slug === undefined ? undefined : source?.bot(slug);
+    const bot = slug === undefined ? undefined : remote ? scoped : source?.bot(slug);
     return bot?.tob ? bot : undefined;
   };
   return useSyncExternalStore(subscribe, read, read);

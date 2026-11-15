@@ -7,7 +7,11 @@ import type {
   OrchestratorAssignmentAccess,
 } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
-import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
+import {
+  createTestNativeWorkspace,
+  createTestWorkspaceGrants,
+  TEST_GRANT_ID,
+} from './workspace-grant-fixture.js';
 
 type Turn = (assignments: OrchestratorAssignmentAccess) => unknown;
 
@@ -22,20 +26,15 @@ async function fixture() {
     requestAssignment: () => ({ delivery: 'steer' }),
     async close() {},
   };
+  const workspace = createTestNativeWorkspace(home);
   const core = createCore({
     dshHome: home,
     agents: adapter,
     triageContinuation: false,
-    workspaces: () => ({
-      get: (id) =>
-        id === 'test-workspace'
-          ? { id, path: home, title: 'Test Workspace', status: async () => 'ok' }
-          : undefined,
-      list: () => [],
-    }),
+    workspaces: () => workspace.lookup,
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  createTestWorkspaceGrants(core.operationalDatabase, home);
+  createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
   const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
   let sequence = 0;

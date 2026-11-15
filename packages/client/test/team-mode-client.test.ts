@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { BridgeCallError } from '../src/client/bridge.js';
 import {
   createMember,
-  loadPublicChannels,
   loadTeamMode,
   parseTeamMode,
   setTeamMode,
@@ -65,21 +64,6 @@ describe('Team mode bridge', () => {
       { username: 'bob', displayName: 'Bob' },
     );
     expect(created.initialPassword).toBe('k3y-once');
-  });
-
-  it('keeps only well-formed public Channels', async () => {
-    const channels = await loadPublicChannels(async () => ({
-      ok: true,
-      value: [
-        { channelId: 'c1', name: 'General', memberCount: 3, joined: false },
-        { channelId: 'c2' },
-        { channelId: 'c3', name: 'Ops', memberCount: -1, joined: true, description: 'On call' },
-      ],
-    }));
-    expect(channels).toEqual([
-      { channelId: 'c1', name: 'General', memberCount: 3, joined: false },
-      { channelId: 'c3', name: 'Ops', memberCount: 0, joined: true, description: 'On call' },
-    ]);
   });
 
   it('reads the Team mode view through the teamMode method', async () => {
@@ -181,5 +165,39 @@ describe('member view of Bot settings', () => {
       'auto-approval',
     ])
       expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(false);
+  });
+
+  it('shows the isolation trial notice only while Team mode is in trial', () => {
+    const trial = renderTeamSignInPage({
+      language: 'zh',
+      hostName: 'Office',
+      nonce: 'x',
+      isolation: 'trial',
+    });
+    expect(trial).toContain('data-team-isolation="trial"');
+    expect(trial).toContain('试用阶段');
+    expect(
+      renderTeamSignInPage({
+        language: 'en',
+        hostName: 'Office',
+        nonce: 'x',
+        isolation: 'enforced',
+      }),
+    ).not.toContain('data-team-isolation');
+  });
+
+  it('reads isolation from teamMode and defaults to trial', () => {
+    const viewer = {
+      kind: 'owner',
+      humanId: 'h',
+      displayName: 'Owner',
+      owner: true,
+      permissions: [],
+      roleIds: [],
+    };
+    expect(parseTeamMode({ enabled: true, viewer }).isolation).toBe('trial');
+    expect(parseTeamMode({ enabled: true, isolation: 'enforced', viewer }).isolation).toBe(
+      'enforced',
+    );
   });
 });

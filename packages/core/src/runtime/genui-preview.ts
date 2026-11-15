@@ -2,6 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { accessSync, constants, realpathSync, statSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import {
   connectCdp,
   createBotBrowserRuntime,
@@ -11,6 +13,8 @@ import {
 import { buildGenuiHtmlDocument } from '../channels/genui-html.js';
 import { parseGenuiDocument } from '../channels/genui-document.js';
 import { loadGenuiRuntimeSource } from './genui-runtime-source.js';
+import { createDiagnosticRedactor } from '../diagnostics/redaction.js';
+import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import {
   BrowserProvisionError,
   isBrowserFailureKind,
@@ -21,6 +25,22 @@ export interface GenuiPreviewDiagnostic {
   phase: 'starting' | 'ready' | 'completed' | 'refused' | 'stopped';
   durationMs: number;
   reason?: string;
+  detail?: string;
+}
+
+export function recordGenuiPreviewDiagnostic(log: DiagnosticEvents, event: GenuiPreviewDiagnostic) {
+  const detail =
+    event.detail === undefined ? '' : createDiagnosticRedactor({ homes: [] }).text(event.detail);
+  const parts = (detail.match(/[\s\S]{1,240}/gu) ?? []).slice(0, 16);
+  const source = `genui-${event.component ?? 'preview'}`;
+  log.record(source, event.phase, {
+    durationMs: event.durationMs,
+    reason: event.reason,
+    detailChunks: parts.length,
+    detailTruncated: detail.length > 3840,
+  });
+  for (const [index, text] of parts.entries())
+    log.record(source, `${event.phase}-detail`, { durationMs: event.durationMs, index, text });
 }
 
 export interface GenuiPreviewResult {
@@ -65,6 +85,7 @@ export async function previewGenuiDocument(
     width?: number;
     theme?: 'light' | 'dark';
     signal?: AbortSignal;
+    browserPath?: string;
     onDiagnostic?: (event: GenuiPreviewDiagnostic) => void;
   } = {},
 ): Promise<GenuiPreviewResult> {
@@ -74,7 +95,23 @@ export async function previewGenuiDocument(
     throw new GenuiPreviewError('invalid-genui-preview', 'Preview width must be 240–1600 pixels.');
   if (previewActive)
     throw new GenuiPreviewError('genui-preview-busy', 'Another document preview is running.');
-  const binary = discoverBrowserBinary();
+  const explicit = options.browserPath?.trim();
+  let binary: string | undefined;
+  if (explicit) {
+    try {
+      if (!isAbsolute(explicit)) throw new Error('relative executable');
+      binary = realpathSync(explicit);
+      if (!statSync(binary).isFile()) throw new Error('not a regular file');
+      accessSync(binary, constants.X_OK);
+      if (process.platform === 'win32' && !/\.(?:exe|com)$/iu.test(binary))
+        throw new Error('not a Windows executable');
+    } catch {
+      throw new GenuiPreviewError(
+        'genui-preview-browser-invalid-path',
+        'The configured preview browser must be an existing absolute executable file.',
+      );
+    }
+  } else binary = discoverBrowserBinary();
   if (binary === undefined)
     throw new GenuiPreviewError(
       'genui-preview-unavailable',
@@ -83,11 +120,13 @@ export async function previewGenuiDocument(
   options.signal?.throwIfAborted();
   previewActive = true;
   const started = performance.now();
-  const record = (phase: GenuiPreviewDiagnostic['phase'], reason?: string) =>
+  const redactor = createDiagnosticRedactor({ homes: [] });
+  const record = (phase: GenuiPreviewDiagnostic['phase'], reason?: string, detail?: string) =>
     options.onDiagnostic?.({
       phase,
       durationMs: Math.round(performance.now() - started),
       ...(reason === undefined ? {} : { reason }),
+      ...(detail === undefined ? {} : { detail: redactor.text(detail).slice(0, 8192) }),
     });
   let directory: string | undefined;
   let browser: ReturnType<typeof createBotBrowserRuntime> | undefined;
@@ -111,6 +150,18 @@ export async function previewGenuiDocument(
       browserPath: binary,
       headless: true,
       launchTimeoutMs: 8000,
+      onEvent: (detail) =>
+        record(
+          detail.startsWith('stopped')
+            ? 'stopped'
+            : detail.startsWith('ready')
+              ? 'ready'
+              : detail.includes('outcome=error')
+                ? 'refused'
+                : 'starting',
+          undefined,
+          detail,
+        ),
       connect: async (endpoint) => {
         client = await connectCdp(endpoint);
         return client;
@@ -121,7 +172,15 @@ export async function previewGenuiDocument(
       await runtime.ensure();
       signal.throwIfAborted();
       if (client === undefined) throw new Error('Preview connection unavailable.');
-      record('ready');
+      const version = await client.send('Browser.getVersion');
+      record(
+        'ready',
+        undefined,
+        JSON.stringify({
+          binary,
+          ...(typeof version['product'] === 'string' ? { product: version['product'] } : {}),
+        }),
+      );
       const targetId = await initialPage(client, signal);
       const attached = await client.send('Target.attachToTarget', {
         targetId,
@@ -245,7 +304,7 @@ export async function previewGenuiDocument(
       ? `genui-preview-browser-${error.code}`
       : `genui-preview-${stage}-failed`;
     refusalCode = error instanceof GenuiPreviewError ? error.code : code;
-    record('refused', refusalCode);
+    record('refused', refusalCode, browserFailure ? error.detail : undefined);
     failure =
       error instanceof GenuiPreviewError
         ? error

@@ -14,6 +14,7 @@ import type { PromptLimitValues } from '../prompts/prompt-limits.js';
 import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface PersonaBotRecord {
+  ownerHumanId?: string;
   slug: string;
   displayName: string;
   displayNameCustomized?: true;
@@ -105,6 +106,7 @@ export function isMarketplaceListingRef(value: unknown): value is MarketplaceLis
 }
 
 export interface CreatePersonaBotInput {
+  ownerHumanId?: string;
   slug: string;
   displayName: string;
   persona?: string;
@@ -207,6 +209,11 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Record<string, unknown>;
   if (record['slug'] !== slug) return false;
+  if (
+    record['ownerHumanId'] !== undefined &&
+    (typeof record['ownerHumanId'] !== 'string' || record['ownerHumanId'].trim().length === 0)
+  )
+    return false;
   if (typeof record['displayName'] !== 'string') return false;
   if (typeof record['createdAt'] !== 'string') return false;
   for (const key of ['displayNameCustomized', 'avatarCustomized'])

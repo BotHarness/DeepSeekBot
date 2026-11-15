@@ -148,7 +148,7 @@ it('exports correlated migration causes through both report paths without exposi
         onDiagnostic: (snapshot) => recordDatabaseStartup(events, snapshot),
         schemaPlan: defineSchemaPlan([
           {
-            generation: 2,
+            id: 'test-step-1',
             module: 'fixture',
             description: 'failing migration',
             migrate() {
@@ -265,7 +265,7 @@ it('bounds long cyclic cause chains without losing the refusal code', () => {
       dshHome: createTempRoot('database-startup-diagnostics-'),
       schemaPlan: defineSchemaPlan([
         {
-          generation: 2,
+          id: 'test-step-2',
           module: 'fixture',
           description: 'cyclic causes',
           migrate() {
@@ -288,7 +288,7 @@ it('preserves recovery when nested Error fields are malformed', () => {
       dshHome: createTempRoot('database-startup-diagnostics-'),
       schemaPlan: defineSchemaPlan([
         {
-          generation: 2,
+          id: 'test-step-3',
           module: 'fixture',
           description: 'malformed cause',
           migrate() {

@@ -16,11 +16,19 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { atomicWriteFile } from '../fs/atomic-write.js';
-import { FOUNDATION_SCHEMA_GENERATION, FOUNDATION_SCHEMA_PLAN, type SchemaPlan } from './schema.js';
+import {
+  FOUNDATION_SCHEMA_GENERATION,
+  FOUNDATION_SCHEMA_ID,
+  FOUNDATION_SCHEMA_PLAN,
+  LEGACY_SCHEMA_GENERATION_LIMIT,
+  defineSchemaPlan,
+  type SchemaPlan,
+} from './schema.js';
 
 export const OPERATIONAL_DATABASE_FILENAME = 'botharness.db';
 
 const SCHEMA_TABLE = '_botharness_schema';
+const MIGRATIONS_TABLE = 'schema_migrations';
 const INTEGRITY_FINDINGS_SHOWN = 5;
 
 export type OperationalDatabaseMode = 'ready' | 'recovery' | 'closed';
@@ -554,6 +562,7 @@ function prepareDatabase(
 
   let sourceGeneration = 0;
   let sourceOrphans = new Map<string, number>();
+  let needsLedger = false;
   if (existsSync(databasePath)) {
     let source: DatabaseSync | undefined;
     try {
@@ -561,13 +570,8 @@ function prepareDatabase(
       assertPageIntegrity(source);
       sourceOrphans = foreignKeyOrphans(source);
       sourceGeneration = readSchemaGeneration(source);
-      if (sourceGeneration > plan.targetGeneration) {
-        throw new OperationalDatabaseError(
-          'upgrade-required',
-          `Database generation ${sourceGeneration} is newer than supported generation ${plan.targetGeneration}`,
-        );
-      }
-      if (sourceGeneration < plan.targetGeneration) {
+      needsLedger = !verifyMigrationLedger(source, sourceGeneration, plan);
+      if (sourceGeneration < plan.targetGeneration || needsLedger) {
         const checkpoint = source.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as
           | { busy?: number | bigint }
           | undefined;
@@ -586,7 +590,7 @@ function prepareDatabase(
     }
   }
 
-  if (sourceGeneration < plan.targetGeneration) {
+  if (sourceGeneration < plan.targetGeneration || needsLedger) {
     migrateInStaging(databasePath, sourceGeneration, sourceOrphans, plan, internal);
   }
 
@@ -597,6 +601,12 @@ function prepareDatabase(
     assertPageIntegrity(database);
     const orphans = foreignKeyOrphans(database);
     const generation = readSchemaGeneration(database);
+    try {
+      verifyMigrationLedger(database, generation, plan, false);
+    } catch (error) {
+      closeDatabase(database);
+      throw error;
+    }
     if (generation !== plan.targetGeneration) {
       closeDatabase(database);
       throw new OperationalDatabaseError(
@@ -638,6 +648,20 @@ function migrateInStaging(
         staging.exec('PRAGMA foreign_keys = OFF');
       staging.exec('PRAGMA journal_mode = DELETE; BEGIN IMMEDIATE');
       if (sourceGeneration === 0) bootstrapFoundation(staging);
+      if (!hasMigrationLedger(staging)) {
+        staging.exec(`CREATE TABLE ${MIGRATIONS_TABLE} (
+          generation INTEGER PRIMARY KEY,
+          id TEXT NOT NULL UNIQUE
+        ) STRICT`);
+        const insert = staging.prepare(
+          `INSERT INTO ${MIGRATIONS_TABLE} (generation, id) VALUES (?, ?)`,
+        );
+        insert.run(FOUNDATION_SCHEMA_GENERATION, FOUNDATION_SCHEMA_ID);
+        for (const migration of plan.migrations) {
+          if (migration.generation > sourceGeneration) break;
+          insert.run(migration.generation, migration.id);
+        }
+      }
       for (const migration of plan.migrations) {
         if (migration.generation <= sourceGeneration) continue;
         internal.startup.migrationGeneration = migration.generation;
@@ -648,6 +672,9 @@ function migrateInStaging(
             `Schema migration ${migration.generation} returned a thenable; migrations must be synchronous`,
           );
         }
+        staging
+          .prepare(`INSERT INTO ${MIGRATIONS_TABLE} (generation, id) VALUES (?, ?)`)
+          .run(migration.generation, migration.id);
         writeSchemaGeneration(staging, migration.generation);
       }
       staging.exec('COMMIT');
@@ -670,6 +697,7 @@ function migrateInStaging(
       assertPageIntegrity(validation);
       assertNoNewOrphans(foreignKeyOrphans(validation), sourceOrphans);
       const generation = readSchemaGeneration(validation);
+      verifyMigrationLedger(validation, generation, plan, false);
       if (generation !== plan.targetGeneration) {
         throw new Error(
           `Staged database generation ${generation} does not match target ${plan.targetGeneration}`,
@@ -717,6 +745,56 @@ function readSchemaGeneration(database: DatabaseSync): number {
     throw new OperationalDatabaseError('integrity-failed', 'Schema generation metadata is invalid');
   }
   return generation;
+}
+
+function hasMigrationLedger(database: DatabaseSync): boolean {
+  return (
+    database
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(MIGRATIONS_TABLE) !== undefined
+  );
+}
+
+function verifyMigrationLedger(
+  database: DatabaseSync,
+  generation: number,
+  plan: SchemaPlan,
+  allowLegacy = true,
+): boolean {
+  const mismatch = (at: number, actual: string, expected: string): never => {
+    throw new OperationalDatabaseError(
+      'upgrade-required',
+      `Schema migration mismatch at generation ${at}: database id "${actual}", plan id "${expected}"; use a compatible Host or restore a compatible Profile`,
+    );
+  };
+  if (!hasMigrationLedger(database)) {
+    if (generation > plan.targetGeneration) {
+      mismatch(plan.targetGeneration + 1, '<unknown: legacy database>', '<unsupported>');
+    }
+    if (allowLegacy && generation <= LEGACY_SCHEMA_GENERATION_LIMIT) return false;
+    mismatch(1, '<missing ledger>', FOUNDATION_SCHEMA_ID);
+  }
+  const rows = database
+    .prepare(`SELECT generation, id FROM ${MIGRATIONS_TABLE} ORDER BY generation`)
+    .all();
+  const expectedIds = [FOUNDATION_SCHEMA_ID, ...plan.migrations.map((migration) => migration.id)];
+  for (let index = 0; index < Math.max(generation, rows.length); index += 1) {
+    const at = index + 1;
+    const row = rows[index];
+    if (index >= generation && row !== undefined) {
+      const recordedGeneration = Number(row.generation);
+      mismatch(
+        recordedGeneration,
+        String(row.id),
+        recordedGeneration > plan.targetGeneration ? '<unsupported>' : '<not applied>',
+      );
+    }
+    const expected = expectedIds[index] ?? '<unsupported>';
+    if (row?.generation !== at || row.id !== expected || at > plan.targetGeneration) {
+      mismatch(at, row?.generation === at ? String(row.id) : '<missing>', expected);
+    }
+  }
+  return true;
 }
 
 function writeSchemaGeneration(database: DatabaseSync, generation: number): void {
@@ -880,18 +958,12 @@ function validateSchemaPlan(plan: SchemaPlan): void {
       `Schema plan for generation ${plan.targetGeneration} is incomplete`,
     );
   }
+  const canonical = defineSchemaPlan(plan.migrations);
   for (let index = 0; index < plan.migrations.length; index += 1) {
-    const migration = plan.migrations[index];
-    const expected = FOUNDATION_SCHEMA_GENERATION + index + 1;
-    if (
-      migration === undefined ||
-      migration.generation !== expected ||
-      migration.module.trim().length === 0 ||
-      typeof migration.migrate !== 'function'
-    ) {
+    if (plan.migrations[index]?.generation !== canonical.migrations[index]?.generation) {
       throw new OperationalDatabaseError(
         'migration-failed',
-        `Schema plan must contain ordered generation ${expected}`,
+        `Schema plan must contain ordered generation ${FOUNDATION_SCHEMA_GENERATION + index + 1}`,
       );
     }
   }

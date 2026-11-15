@@ -1,9 +1,13 @@
+import type { ConnectionDiagnostic } from '../../host/connection-diagnostic';
+import { ReadFailure } from '../primitives/read-failure';
+import { watchAccountHosts } from '../../host/watch-account-hosts';
 import { closeWorkspacePage } from './workspace-paging';
 import { router, useIsFocused, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
+  AppState,
   FlatList,
   Platform,
   Pressable,
@@ -864,17 +868,27 @@ export function WorkspacePanel({
     if (active) setTab(cloudRoute ? 'cloud' : 'computers');
   }, [active, cloudRoute]);
   const [linked, setLinked] = useState<ConnectHost[]>([]);
+  const [directoryFailure, setDirectoryFailure] = useState<ConnectionDiagnostic>();
+  const [directoryBusy, setDirectoryBusy] = useState(false);
+  const accountRefresh = useRef(() => {});
   const accountMount = useMounted<ViewInstance>(() => {
     if (!active || tab !== 'computers') return;
-    let live = true;
-    setLinked([]);
-    void connectAccount.email().then(async (email) => {
-      if (email === null) return;
-      const listed = await connectAccount.hosts();
-      if (live && listed.ok) setLinked(listed.value);
+    const watcher = watchAccountHosts({
+      account: connectAccount,
+      update: setLinked,
+      failed: setDirectoryFailure,
+      busy: setDirectoryBusy,
+      onResume: (refresh) => {
+        const subscription = AppState.addEventListener('change', (state) => {
+          if (state === 'active') refresh();
+        });
+        return () => subscription.remove();
+      },
     });
+    accountRefresh.current = watcher.refresh;
     return () => {
-      live = false;
+      accountRefresh.current = () => {};
+      watcher.close();
     };
   }, [active, tab]);
   const currentId = cloudRoute ? undefined : saved?.hostId;
@@ -994,7 +1008,17 @@ export function WorkspacePanel({
           {t.workspaceEmpty}
         </Text>
       )}
-      {tab === 'computers' && rows.length === 0 && (
+      {tab === 'computers' && directoryFailure && (
+        <View style={{ padding: space.x5 }}>
+          <ReadFailure
+            title={t.pairAccount.directoryFailed}
+            detail={JSON.stringify(directoryFailure, null, 2)}
+            busy={directoryBusy}
+            onRetry={() => accountRefresh.current()}
+          />
+        </View>
+      )}
+      {tab === 'computers' && !directoryFailure && rows.length === 0 && (
         <Text style={{ padding: space.x5 }} tone="muted">
           {t.workspaceAdd.noComputers}
         </Text>

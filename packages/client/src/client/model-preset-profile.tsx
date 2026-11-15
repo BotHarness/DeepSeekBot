@@ -209,7 +209,7 @@ export function ModelPresetProfile({
     current: ModelPlanView | undefined,
     currentRevision = current?.revision ?? 0,
   ): void => {
-    rememberModelPlan(slug, current);
+    rememberModelPlan(slug, current, actions);
     setPlan((previous) => ((previous?.revision ?? 0) > currentRevision ? previous : current));
   };
 
@@ -219,7 +219,7 @@ export function ModelPresetProfile({
       void actions.modelPlanState(slug).then(
         (state) => {
           if (planRequest.current !== request) return;
-          rememberModelPlan(slug, state.plan);
+          rememberModelPlan(slug, state.plan, actions);
           setRevision(state.revision ?? state.plan?.revision ?? 0);
           setRepair(state.repair);
           setPlanLoadError(false);
@@ -237,8 +237,8 @@ export function ModelPresetProfile({
     if (onClose === undefined) read();
     else void load();
     const unsubscribe = subscribeModelPlans(() => {
-      if (modelPlanOf(slug) === undefined) read();
-    });
+      if (modelPlanOf(slug, actions) === undefined) read();
+    }, actions);
     return () => {
       ++planRequest.current;
       unsubscribe();
@@ -327,7 +327,7 @@ export function ModelPresetProfile({
 
   const finish = (applied: ModelPlanView): void => {
     planRequest.current += 1;
-    rememberModelPlan(slug, applied);
+    rememberModelPlan(slug, applied, actions);
     setPlan(applied);
     setRevision(applied.revision);
     setRepair(undefined);
@@ -684,7 +684,7 @@ export function ModelPresetProfile({
                     .then(
                       (result) => {
                         planRequest.current += 1;
-                        invalidateModelPlan(slug);
+                        invalidateModelPlan(slug, actions);
                         setPlan(undefined);
                         setRevision(result.revision);
                         setRepair(undefined);

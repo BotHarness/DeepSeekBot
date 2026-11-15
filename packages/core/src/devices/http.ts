@@ -1,3 +1,4 @@
+import type { createConnectHealth, ConnectHealthStatus } from './connect-health.js';
 import type { DirectPeers } from './direct.js';
 import type {
   PrivateConnection,
@@ -57,6 +58,7 @@ export interface DevicesSnapshot {
   routes: RouteStatus;
   connect: ConnectStatus & {
     account?: AccountStatus;
+    health?: ConnectHealthStatus;
     encryption?: EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' };
   };
 }
@@ -133,6 +135,7 @@ export function createDevicesHttp(options: {
   publish?: () => Promise<PublishRouteResult>;
   unpublish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
+  connectHealth?: Pick<ReturnType<typeof createConnectHealth>, 'status' | 'check'>;
   account?: Pick<
     ConnectAccount,
     'status' | 'signIn' | 'signOut' | 'connectedHosts' | 'revokeConnectedHost'
@@ -143,6 +146,11 @@ export function createDevicesHttp(options: {
   const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
+    if (path === `${DEVICES_PATH}/connect-health` && request.method === 'POST') {
+      if (!options.connectHealth) return json({ code: 'not-ready' }, 409);
+      return json({ health: await options.connectHealth.check() });
+    }
+
     if (path === DEVICES_PATH + '/private' && request.method === 'POST') {
       const input = await body(request);
       if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
@@ -162,11 +170,26 @@ export function createDevicesHttp(options: {
       if (routeId !== undefined && routeId !== 'quick' && routeId !== 'custom')
         return json({ code: 'private-route-not-found' }, 400);
       const action = input['action'];
+      const expectedRevision = input['expectedRevision'];
+      if (
+        expectedRevision !== undefined &&
+        (action !== 'stop' ||
+          typeof expectedRevision !== 'string' ||
+          !expectedRevision.length ||
+          expectedRevision.length > 200)
+      )
+        return json({ code: 'private-tunnel-input-invalid' }, 400);
       if (action === 'start' || action === 'stop' || action === 'remove') {
         if (routeId === undefined) return json({ code: 'private-route-id-required' }, 400);
         if (action === 'start' && (options.privateConnection?.status().state ?? 'off') !== 'off')
           return json({ code: 'private-route-in-use' }, 409);
-        const result = await options.privateTunnel[action](routeId);
+        const result =
+          action === 'stop'
+            ? await options.privateTunnel.stop(
+                routeId,
+                typeof expectedRevision === 'string' ? expectedRevision : undefined,
+              )
+            : await options.privateTunnel[action](routeId);
         return json(result, result.ok ? 200 : 409);
       }
       if (input['action'] === 'disable') {
@@ -240,6 +263,7 @@ export function createDevicesHttp(options: {
         routes: await options.routes(),
         connect: {
           ...(connect?.status() ?? { state: 'off' }),
+          ...(options.connectHealth ? { health: options.connectHealth.status() } : {}),
           ...(options.encryption === undefined ? {} : { encryption: await options.encryption() }),
           ...(account === undefined ? {} : { account: account.status() }),
         },

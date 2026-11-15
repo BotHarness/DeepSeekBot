@@ -1,3 +1,4 @@
+import { ReceiverRecovery, type ReceptionRecovery } from './receiver-recovery.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { pendingExternalReception } from './external-reception.js';
 import { effectiveDmControls } from './dm-controls.js';
@@ -212,6 +213,8 @@ export interface InboundMessaging {
     editor: BotSourcePolicyEditor,
   ): Promise<ThreadReceptionPolicy>;
   ordinaryDelivery(grantId: string): 'verified' | 'unverified';
+  recovery(grantId: string): ReceptionRecovery | undefined;
+  pairingRecovery(bindingId: string): ReceptionRecovery | undefined;
   status(grantId: string): 'off' | 'connecting' | 'receiving' | 'unavailable';
   available(botSlug: string, sourceEventId: string, context?: boolean): boolean;
   pendingExternal(
@@ -319,7 +322,7 @@ export function createInboundMessaging(options: {
       dispose: (() => void) | undefined;
     }
   >();
-  const retries = new Map<string, { timer: ReturnType<typeof setTimeout>; token: object }>();
+
   const replyStarts = new Map<string, Promise<void>>();
   const executeCommand = createImCommandExecutor();
   let closed = false;
@@ -592,9 +595,10 @@ export function createInboundMessaging(options: {
       options.warn?.('messaging-reception-publication-failed');
     }
   };
+  const retries = new ReceiverRecovery(receptionChanged);
+  const controlRetries = new ReceiverRecovery(receptionChanged);
   const stop = (id: string) => {
-    clearTimeout(retries.get(id)?.timer);
-    retries.delete(id);
+    retries.clear(id);
     const lease = leases.get(id);
     leases.delete(id);
     lease?.controller.abort();
@@ -746,13 +750,18 @@ export function createInboundMessaging(options: {
     receptionChanged();
     const startedAt = Date.now();
     try {
+      const accountRecovery = controlRetries.state(value.bindingId);
+      if (accountRecovery?.kind === 'action-required')
+        throw new MessagingError(accountRecovery.reason);
       const inspected = await inspectGrant(entry.provider, value);
       if (value.platform === 'qq' && !replyOnly) {
         await startControl(value.bindingId);
         const control = controls.get(value.bindingId);
         if (!control?.dispose || control.token !== entry.token)
           throw new MessagingError(
-            controlRetries.has(value.bindingId) ? 'provider-unavailable' : 'consumer-unavailable',
+            controlRetries.pending(value.bindingId)
+              ? 'provider-unavailable'
+              : 'consumer-unavailable',
           );
         lease.controller.signal.throwIfAborted();
       }
@@ -1242,22 +1251,15 @@ export function createInboundMessaging(options: {
         }),
       );
     } catch (error) {
+      if (leases.get(value.id) !== lease) return;
       lease.controller.abort();
       if (leases.get(value.id) === lease) {
         leases.delete(value.id);
         receptionChanged();
       }
       const reason = error instanceof MessagingError ? error.code : 'consumer-unavailable';
-      const delays = [250, 1000, 3000];
-      const delay = delays[attempt];
-      if (
-        reason === 'provider-unavailable' &&
-        delay !== undefined &&
-        !closed &&
-        providers.get(value.providerId) === entry
-      ) {
-        const timer = setTimeout(() => {
-          retries.delete(value.id);
+      if (!closed && providers.get(value.providerId) === entry) {
+        retries.fail(value.id, entry.token, reason, attempt, () => {
           if (closed || providers.get(value.providerId) !== entry) return;
           try {
             const latest = grant(value.id);
@@ -1265,9 +1267,7 @@ export function createInboundMessaging(options: {
           } catch {
             stop(value.id);
           }
-        }, delay);
-        timer.unref();
-        retries.set(value.id, { timer, token: entry.token });
+        });
       }
       options.warn?.(
         JSON.stringify({
@@ -1276,6 +1276,9 @@ export function createInboundMessaging(options: {
           grantId: value.id,
           reason,
           retryAttempt: attempt,
+          recovery: retries.state(value.id),
+          botSlug: value.botSlug,
+          bindingId: value.bindingId,
           durationMs: Date.now() - startedAt,
         }),
       );
@@ -1446,10 +1449,8 @@ export function createInboundMessaging(options: {
       dispose?: (() => void) | undefined;
     }
   >();
-  const controlRetries = new Map<string, ReturnType<typeof setTimeout>>();
   const stopControl = (id: string, reason = 'identity-reconciled') => {
-    clearTimeout(controlRetries.get(id));
-    controlRetries.delete(id);
+    controlRetries.clear(id);
     const value = controls.get(id);
     if (!value) return;
     value.controller.abort();
@@ -1757,6 +1758,7 @@ export function createInboundMessaging(options: {
     if (!identity.enabled || identity.revokedAt || !options.isBotActive(identity.botSlug)) return;
     const entry = providers.get(identity.providerId);
     if (!entry?.consume || !entry.provider.reply || !entry.provider.inspectAccount) return;
+    if (controlRetries.state(id)) return;
     const prior = controls.get(id);
     if (prior?.token === entry.token) return prior.ready;
     stopControl(id, 'provider-replaced');
@@ -1769,6 +1771,7 @@ export function createInboundMessaging(options: {
       dispose: undefined as (() => void) | undefined,
     };
     controls.set(id, lease);
+    receptionChanged();
     lease.ready = (async () => {
       try {
         const account = await bounded(entry.provider.inspectAccount!(identity.accountRef));
@@ -1796,34 +1799,31 @@ export function createInboundMessaging(options: {
           }),
         );
         if (controller.signal.aborted || controls.get(id) !== lease) lease.dispose();
-        else
+        else {
+          receptionChanged();
+          retryBoundGrants(id);
           options.warn?.(
             JSON.stringify({
               event: 'bot-pairing',
               phase: 'receiver-ready',
               initiator: 'account-lifecycle',
               externalResource: 'checked-account-consumer',
+              botSlug: identity.botSlug,
+              bindingId: id,
               durationMs: Math.max(0, Math.round(performance.now() - lease.startedAt)),
             }),
           );
+        }
       } catch (error) {
         if (controls.get(id) !== lease) return;
         stopControl(id, 'receiver-acquisition-failed');
         const reason = error instanceof MessagingError ? error.code : 'consumer-unavailable';
-        const delay = [250, 1000, 3000][attempt];
-        if (
-          reason === 'provider-unavailable' &&
-          delay !== undefined &&
-          !closed &&
-          providers.get(identity.providerId) === entry
-        ) {
-          const timer = setTimeout(() => {
-            controlRetries.delete(id);
+        if (!closed && providers.get(identity.providerId) === entry) {
+          controlRetries.fail(id, entry.token, reason, attempt, () => {
             if (!closed && providers.get(identity.providerId) === entry)
               void startControl(id, attempt + 1);
-          }, delay);
-          timer.unref();
-          controlRetries.set(id, timer);
+          });
+          if (reason !== 'provider-unavailable') retryBoundGrants(id);
         }
         options.warn?.(
           JSON.stringify({
@@ -1834,11 +1834,23 @@ export function createInboundMessaging(options: {
             durationMs: Math.max(0, Math.round(performance.now() - lease.startedAt)),
             reason,
             retryAttempt: attempt,
+            recovery: controlRetries.state(id),
+            botSlug: identity.botSlug,
+            bindingId: id,
           }),
         );
       }
     })();
     return lease.ready;
+  };
+  const retryBoundGrants = (bindingId: string) => {
+    const rows = database.read((db) =>
+      db.prepare('SELECT id FROM messaging_grants WHERE binding_id = ?').all(bindingId),
+    );
+    for (const row of rows) {
+      const id = String(row.id);
+      if (retries.pending(id)) void start(grant(id));
+    }
   };
   const sendPairingNotice = async (
     request: PairingRequest,
@@ -2287,6 +2299,14 @@ export function createInboundMessaging(options: {
     },
     readShared,
     register(provider) {
+      const previous = providers.get(provider.id);
+      if (previous) {
+        for (const [id, control] of controls)
+          if (control.token === previous.token) stopControl(id, 'provider-replaced');
+        for (const [id, lease] of leases) if (lease.token === previous.token) stop(id);
+        retries.clearOwner(previous.token);
+        controlRetries.clearOwner(previous.token);
+      }
       const token = {};
       providers.set(provider.id, {
         provider,
@@ -2333,7 +2353,8 @@ export function createInboundMessaging(options: {
         for (const [id, control] of controls)
           if (control.token === token) stopControl(id, 'provider-disposed');
         for (const [id, lease] of leases) if (lease.token === token) stop(id);
-        for (const [id, retry] of retries) if (retry.token === token) stop(id);
+        retries.clearOwner(token);
+        controlRetries.clearOwner(token);
       };
     },
     ingests(channelId) {
@@ -3005,6 +3026,12 @@ export function createInboundMessaging(options: {
     ordinaryDelivery(id) {
       return valid(grant(id)) && leases.get(id)?.ordinaryVerified ? 'verified' : 'unverified';
     },
+    recovery(id) {
+      return retries.state(id);
+    },
+    pairingRecovery(id) {
+      return controlRetries.state(id);
+    },
     status(id) {
       const value = grant(id);
       if (
@@ -3502,9 +3529,10 @@ export function createInboundMessaging(options: {
     },
     close() {
       closed = true;
-      for (const id of new Set([...controls.keys(), ...controlRetries.keys()]))
-        stopControl(id, 'host-shutdown');
-      for (const id of new Set([...leases.keys(), ...retries.keys()])) stop(id);
+      for (const id of controls.keys()) stopControl(id, 'host-shutdown');
+      for (const id of leases.keys()) stop(id);
+      controlRetries.close();
+      retries.close();
       providers.clear();
     },
   };

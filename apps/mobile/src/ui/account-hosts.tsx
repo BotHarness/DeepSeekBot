@@ -264,7 +264,7 @@ export function AccountHosts(props: {
     accountHostAdded(host, props.saved) ||
     props.results[host.id] === 'already-paired' ||
     props.results[host.id] === 'added';
-  const eligible = (hosts ?? []).filter((host) => host.online && !added(host));
+  const eligible = (hosts ?? []).filter((host) => !added(host));
   const chosen = eligible.filter((host) => selected.includes(host.id));
   return (
     <AccountPanel
@@ -298,15 +298,20 @@ export function AccountHosts(props: {
             : result === 'cancelled'
               ? t.pairAccount.cancelled
               : result && result !== 'added'
-                ? [t.pairRefused[result], props.failures?.[host.id]?.detail]
+                ? [
+                    result === 'unreachable'
+                      ? t.pairAccount.connectionFailed
+                      : t.pairRefused[result],
+                    props.failures?.[host.id]?.detail,
+                  ]
                     .filter((part) => part !== undefined)
                     .map((part, index) => (index === 0 ? part : t.pairFailureDetail(part)))
                     .join('\n')
                 : host.online
-                  ? t.pairAccount.online
+                  ? t.pairAccount.tryConnection
                   : host.waiting
                     ? t.pairAccount.waiting
-                    : t.pairAccount.offline;
+                    : t.pairAccount.tryConnection;
         return {
           id: host.id,
           name: host.name,
@@ -320,8 +325,8 @@ export function AccountHosts(props: {
             ? { failure: props.failures[host.id] }
             : {}),
           added: isAdded,
-          disabled: isAdded || !host.online,
-          selected: !isAdded && host.online && selected.includes(host.id),
+          disabled: isAdded,
+          selected: !isAdded && selected.includes(host.id),
           pairing: props.pairing === host.id,
         };
       })}

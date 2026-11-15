@@ -84,6 +84,8 @@ apps/docs/src/content/docs/docs/bot-zip.mdx
 apps/docs/src/content/docs-zh/docs/bot-zip.mdx
 apps/docs/src/content/docs/docs/bot-cli.mdx
 apps/docs/src/content/docs-zh/docs/bot-cli.mdx
+apps/docs/src/content/docs/docs/environment-creation.mdx
+apps/docs/src/content/docs-zh/docs/environment-creation.mdx
 apps/docs/src/content/docs/docs/share-bot.mdx
 apps/docs/src/content/docs-zh/docs/share-bot.mdx
 apps/docs/src/content/docs/docs/update-deepseekbot.mdx

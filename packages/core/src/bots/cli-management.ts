@@ -226,7 +226,7 @@ export async function runOnlineManagement(
           command,
           rest,
           Object.fromEntries(
-            Object.entries(values).filter(([key]) => !['host', 'token-file'].includes(key)),
+            Object.entries(values).filter(([key]) => !['host', 'token-file', 'as'].includes(key)),
           ),
           io,
         )
@@ -248,7 +248,7 @@ export async function runOnlineManagement(
     AbortSignal.timeout(Math.ceil(seconds * 1000)),
   );
   if (command === 'bot-import-preview') return rpc('botImportPreview', { gitUrl: previewUrl });
-  if (command === 'list') return rpc('list', {});
+  if (command === 'list') return rpc('list', values.administration ? { administration: true } : {});
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});
@@ -438,7 +438,7 @@ export async function runOnlineManagement(
         bot = error.creation.bot;
         steps.push(...error.creation.steps);
       }
-      throw new CliLiveError(error.code, error.message, undefined, undefined, {
+      const failure = new CliLiveError(error.code, error.message, undefined, undefined, {
         ...(bot === undefined ? {} : { bot }),
         ...(operationKey === undefined
           ? {}
@@ -456,6 +456,8 @@ export async function runOnlineManagement(
         steps,
         outcome: bot !== undefined ? 'created' : submitted ? 'unknown' : 'not-created',
       });
+      if (error.details !== undefined) failure.details = error.details;
+      throw failure;
     }
     throw error;
   }

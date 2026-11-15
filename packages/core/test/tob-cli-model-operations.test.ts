@@ -290,3 +290,20 @@ describe('Tob scoped model and runtime operations', () => {
     ).rejects.toMatchObject({ code: 'invalid-input' });
   });
 });
+
+it('keeps Owner Tob model reads and mutations scoped to its own Bots', async () => {
+  const f = fixture();
+  f.registry.create({
+    slug: 'foreign',
+    displayName: 'Foreign',
+    ownerHumanId: 'other-human',
+    model: 'private-model',
+  });
+  await expect(f.run('model-plan', { slug: 'foreign' })).rejects.toMatchObject({
+    code: 'permission-required',
+  });
+  await expect(
+    f.prepare('model-plan-inherit', { slug: 'foreign', expectedRevision: 0 }),
+  ).rejects.toMatchObject({ code: 'permission-required' });
+  expect(JSON.stringify(await f.run('list'))).not.toContain('foreign');
+});

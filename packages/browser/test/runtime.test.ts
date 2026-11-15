@@ -1708,6 +1708,7 @@ describe('first-run provisioning UX', () => {
 
   it('bounds a browser that never reports its endpoint', async () => {
     const child = fakeChild();
+    Object.assign(child.proc, { pid: 4321, signalCode: null });
     spawnMock.mockReturnValue(child.proc as never);
     const runtime = createBotBrowserRuntime({
       userDataDir: '/tmp/browser-test',
@@ -1717,12 +1718,30 @@ describe('first-run provisioning UX', () => {
       launchTimeoutMs: 50,
       connect: async () => fakeClient(),
     });
-    const failure = (await runtime.ensure().then(
+    const ensuring = runtime.ensure();
+    child.proc.stderr.emit(
+      'data',
+      Buffer.from(
+        'waiting for sandbox\ntoken=private-startup-token\nhttps://example.com/?token=hidden\n',
+      ),
+    );
+    const failure = (await ensuring.then(
       () => undefined,
       (error: unknown) => error,
     )) as BrowserProvisionError;
     expect(failure.code).toBe('startup-timeout');
     expect(failure.message).toMatch(/took longer/);
+    expect(JSON.parse(failure.detail!)).toMatchObject({
+      timeoutMs: 50,
+      binary: '/usr/bin/google-chrome',
+      pid: 4321,
+      exitCode: null,
+      signalCode: null,
+      killed: false,
+    });
+    expect(failure.detail).toContain('waiting for sandbox');
+    expect(failure.detail).not.toContain('private-startup-token');
+    expect(failure.detail).not.toContain('hidden');
     await runtime.stop();
   });
 

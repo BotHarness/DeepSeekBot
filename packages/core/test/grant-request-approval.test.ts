@@ -110,6 +110,11 @@ describe('Host workspace request approval', () => {
       expect(published).not.toContain(false);
       const first = results[0];
       if (!first?.ok) throw new Error('Expected a committed approval');
+      expect(first.value.message.author).toEqual({
+        kind: 'human',
+        humanId: OWNER_HUMAN_CONTEXT.humanId,
+        displayName: 'Human',
+      });
       expect(await f.methods.grantRequestApprove(f.payload)).toMatchObject({
         ok: true,
         value: { grant: first.value.grant, message: { id: first.value.message.id } },

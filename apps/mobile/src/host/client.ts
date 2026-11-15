@@ -175,7 +175,11 @@ export interface StreamHandlers {
 
 export interface HostClient {
   setRoutePreference?(route: string | undefined): Promise<void>;
-  updateRoutes?(routes: string[]): void;
+  updateRoutes?(
+    routes: string[],
+    encryption?: HostEncryption,
+    saved?: { routePreference: string | undefined },
+  ): void;
   testRoute?(url: string): Promise<boolean>;
   getSnapshot(): HostSnapshot;
   subscribe(listener: () => void): () => void;
@@ -189,6 +193,7 @@ export interface HostClient {
   resource(path: string): RemoteSource;
   secretInputAllowed?(): boolean;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
+  onPurged?(listener: (placements: unknown) => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
 
@@ -275,6 +280,7 @@ export class MethodRefused extends Error {
   constructor(
     readonly code: string,
     message: string,
+    readonly details?: unknown,
   ) {
     super(message);
   }
@@ -405,6 +411,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const avatarLoading = new Set<string>();
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
+  const purgeListeners = new Set<(placements: unknown) => void>();
   let snapshot: HostSnapshot = {
     connection: { status: 'stopped', route },
     ...(routePreference === undefined ? {} : { routePreference }),
@@ -754,6 +761,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw new MethodRefused(
           typeof error['code'] === 'string' ? error['code'] : 'refused',
           typeof error['message'] === 'string' ? error['message'] : `${name} was refused.`,
+          error['details'],
         );
       }
       return result['value'] as T;
@@ -1252,8 +1260,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
           follow('botharness/followRoster', (value) => {
             const frame = value as RosterLiveFrame;
-            if (frame.type === 'baseline' || frame.type === 'purged')
+            if (frame.type === 'baseline' || frame.type === 'purged') {
               options.onPurged?.(frame.placements);
+              for (const listener of purgeListeners) listener(frame.placements);
+            }
             if (frame.type === 'baseline') {
               baselines.roster = true;
               if (baselines.activity) resolveReady();
@@ -1592,11 +1602,36 @@ export function createHostClient(options: HostClientOptions): HostClient {
         changingPreference = false;
       }
     },
-    updateRoutes(next) {
+    updateRoutes(next, encryption, saved) {
+      if (encryption) {
+        const current = options.encryption;
+        if (
+          !current ||
+          current.hostKey !== encryption.hostKey ||
+          current.deviceKey !== encryption.deviceKey
+        )
+          throw new Error('host-key-mismatch');
+        if (encryption.privateRelay) current.privateRelay = encryption.privateRelay;
+        else delete current.privateRelay;
+        if (encryption.loopback) current.loopback = encryption.loopback;
+        else delete current.loopback;
+      }
       const previous = routes;
       routes = preferredRoutes(next);
+      const preferenceChanged = saved !== undefined && saved.routePreference !== routePreference;
+      if (preferenceChanged) {
+        routePreference = saved.routePreference;
+        preferenceRevision++;
+        routeChangePending = running;
+        preferredSwitchAt = Date.now();
+      }
       publish();
-      if (
+      if (running && preferenceChanged) {
+        resumeRequested = true;
+        resumeLive();
+        clearTimeout(retryTimer);
+        wake?.();
+      } else if (
         running &&
         snapshot.connection.status !== 'connected' &&
         routes.some((candidate) => !previous.includes(candidate))
@@ -1729,6 +1764,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);
+    },
+    onPurged(listener) {
+      purgeListeners.add(listener);
+      return () => purgeListeners.delete(listener);
     },
     follow(endpoint, args, handlers) {
       const follower: Follower = { endpoint, args, handlers };

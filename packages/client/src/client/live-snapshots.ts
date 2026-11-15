@@ -14,11 +14,7 @@ import {
   type JournalEntry,
   type JournalPage,
 } from './bridge.js';
-import type {
-  ActivityLiveFrame,
-  ChannelLiveFrame,
-  RosterLiveFrame,
-} from '../../../core/src/channels/live.js';
+import type { ActivityLiveFrame, RosterLiveFrame } from '../../../core/src/channels/live.js';
 import type { CompanionLiveFrame } from '../../../core/src/companions/live.js';
 import type { ChannelFollow } from './channel-live.js';
 import type { TypedLive } from './messaging-defaults-live.js';
@@ -96,7 +92,7 @@ export interface ChannelNamespace {
     limit: number,
     drafts: 'full' | 'append',
     signal: AbortSignal,
-  ): AsyncIterable<ChannelLiveFrame>;
+  ): AsyncIterable<unknown>;
 }
 
 const CHANNEL_PAGE = 50;

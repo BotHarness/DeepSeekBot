@@ -1,4 +1,6 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import type { ChannelMessageAuthor } from '../channels/message-author.js';
 
 export const PUSH_KINDS = ['approval', 'question', 'private-input', 'reply'] as const;
 export type PushKind = (typeof PUSH_KINDS)[number];
@@ -24,6 +26,8 @@ const TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]{8,128}\]$/u;
 const MAX_QUIET_CHANNELS = 500;
 
 export interface PushCandidate {
+  author?: Extract<ChannelMessageAuthor, { kind: 'bot' }>;
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   id: string;
   kind: PushKind;
   attentionKind: string;
@@ -37,11 +41,13 @@ export interface PushCandidate {
 }
 
 export interface PushSource {
-  pending(): { items: PushCandidate[]; badge: number };
+  pending(human?: HumanContext): { items: PushCandidate[]; badge: number };
   botName(slug: string): string | undefined;
 }
 
 export interface PushData {
+  author?: PushCandidate['author'];
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   v: 1;
   hostId: string;
   itemId?: string;
@@ -156,7 +162,8 @@ export interface PushDeliveryOptions {
   sender: ExpoSender;
   host(): { id: string; name: string };
   deviceActive(deviceId: string): boolean;
-  held?: () => boolean;
+  deviceHuman?(deviceId: string): HumanContext | undefined;
+  held?: (human: HumanContext) => boolean;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   record?: (event: PushEvent) => void;
@@ -393,6 +400,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     input: ExpoMessage[],
     kinds: Array<PushKind | 'badge' | 'resolve' | 'test' | 'device-paired'>,
     createdAt: ReadonlyArray<string | undefined> = [],
+    audience?: string,
   ): Promise<boolean> => {
     const messages = device.platform === 'ios' ? input.map(keepDelivered) : input;
     for (let start = 0; start < messages.length; start += BATCH) {
@@ -401,6 +409,12 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       let handedAt = now();
       for (let attempt = 1; result === undefined; attempt += 1) {
         try {
+          if (
+            options.deviceHuman &&
+            (!options.deviceActive(device.device_id) ||
+              options.deviceHuman(device.device_id)?.humanId !== audience)
+          )
+            return false;
           handedAt = now();
           result = await sender.send(batch);
         } catch (error) {
@@ -446,11 +460,24 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       (db) => db.prepare('SELECT * FROM push_devices').all() as unknown as DeviceRow[],
     );
     if (devices.length === 0) return;
-    const { items, badge } = source.pending();
-    const present = new Set(items.map((item) => item.id));
+    const snapshots = new Map<string, ReturnType<PushSource['pending']>>();
     const hostId = options.host().id;
-    const held = options.held?.() === true;
     for (const device of devices) {
+      const human = options.deviceHuman
+        ? options.deviceHuman(device.device_id)
+        : OWNER_HUMAN_CONTEXT;
+      if (!human) {
+        dropToken(device.device_id, 'device-revoked');
+        continue;
+      }
+      const held = options.held?.(human) === true;
+      let snapshot = snapshots.get(human.humanId);
+      if (!snapshot) {
+        snapshot = source.pending(human);
+        snapshots.set(human.humanId, snapshot);
+      }
+      const { items, badge } = snapshot;
+      const present = new Set(items.map((item) => item.id));
       if (!options.deviceActive(device.device_id)) {
         dropToken(device.device_id, 'device-revoked');
         continue;
@@ -497,7 +524,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
       );
       const messages: ExpoMessage[] = notify.map((item) => {
-        const sender = source.botName(item.botSlug) ?? item.botSlug;
+        const sender = item.author?.displayName ?? source.botName(item.botSlug) ?? item.botSlug;
         const { message, ...shown } = text(item, sender, localeOf(device.locale));
         const drawn = device.platform === 'android' && device.render === 'app';
         const data: PushData = {
@@ -505,6 +532,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           hostId,
           itemId: item.id,
           kind: item.attentionKind,
+          ...(item.author ? { author: item.author } : {}),
+          ...(item.approval ? { approval: item.approval } : {}),
           botSlug: item.botSlug,
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
@@ -556,7 +585,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
         kinds.push('badge');
       }
-      if (messages.length > 0 && (await deliver(device, messages, kinds, created)))
+      if (messages.length > 0 && (await deliver(device, messages, kinds, created, human.humanId)))
         database.transaction(
           (db) =>
             db
@@ -662,7 +691,9 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       const current = row(deviceId);
       if (current === undefined) return 'not-registered';
       const host = options.host();
-      const badge = source.pending().badge;
+      const human = options.deviceHuman ? options.deviceHuman(deviceId) : OWNER_HUMAN_CONTEXT;
+      if (!human || !options.deviceActive(deviceId)) return 'failed';
+      const badge = source.pending(human).badge;
       const text = TEST[localeOf(current.locale)];
       const ok = await deliver(
         current,
@@ -678,19 +709,27 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           },
         ],
         ['test'],
+        [],
+        human.humanId,
       );
       return ok ? 'sent' : 'failed';
     },
 
     async announcePaired(device) {
       const host = options.host();
-      const badge = source.pending().badge;
+      const pairedHuman = options.deviceHuman
+        ? options.deviceHuman(device.id)
+        : OWNER_HUMAN_CONTEXT;
+      if (!pairedHuman) return;
+      const badge = source.pending(pairedHuman).badge;
       const devices = database.read(
         (db) => db.prepare('SELECT * FROM push_devices').all() as unknown as DeviceRow[],
       );
       for (const current of devices) {
         if (
           current.device_id === device.id ||
+          (options.deviceHuman &&
+            options.deviceHuman(current.device_id)?.humanId !== pairedHuman.humanId) ||
           !enabledOf(current.preferences_json) ||
           !options.deviceActive(current.device_id)
         )
@@ -712,6 +751,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             },
           ],
           ['device-paired'],
+          [],
+          pairedHuman.humanId,
         );
       }
     },

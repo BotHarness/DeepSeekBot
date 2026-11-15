@@ -18,6 +18,7 @@ import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-
 import { PRESENCE_COMMANDS, PRESENCE_OPTIONS, runPresenceCommand } from './cli-presence.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import { RELATIONSHIP_COMMANDS, runRelationshipCommand } from './cli-relationships.js';
 import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
 import {
   DEVICE_NOTIFICATION_COMMANDS,
@@ -81,6 +82,7 @@ import {
   MESSAGING_COMMANDS,
   MESSAGING_OPTIONS,
   prepareMessaging,
+  messagingReadMode,
   runMessaging,
   type MessagingCommand,
   type MessagingValues,
@@ -188,8 +190,12 @@ export const LIVE_OPTIONS = {
   'new-home': { type: 'string' },
 
   'connection-id': { type: 'string' },
+  'confirm-disconnect': { type: 'boolean' },
+  handover: { type: 'string' },
+  'connection-route-id': { type: 'string' },
   fingerprint: { type: 'string' },
   'link-file': { type: 'string' },
+  'account-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
@@ -288,6 +294,7 @@ const IM_CONTROL_COMMANDS = [
   'im-app-remove',
   'im-bind',
   'im-unbind',
+  'im-reconnect',
   'im-status',
   'channel-connect',
   'channel-ingests',
@@ -328,6 +335,7 @@ export const LIVE_COMMANDS = [
   ...PRESENCE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
+  ...RELATIONSHIP_COMMANDS,
   ...DEVICE_CLIENT_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
@@ -470,6 +478,10 @@ export const LIVE_COMMANDS = [
   },
   { command: 'im-bind', description: 'bind a connected IM app to a Bot' },
   { command: 'im-unbind', description: 'unbind an IM app from a Bot' },
+  {
+    command: 'im-reconnect',
+    description: 'reconnect a Bot IM receiver without changing its access',
+  },
   {
     command: 'im-status',
     description: "read a Bot's IM apps and bindings with reception state",
@@ -628,7 +640,12 @@ interface LiveValues
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
+  'account-file'?: string;
   'connection-id'?: string;
+  'confirm-disconnect'?: boolean;
+  handover?: string;
+  'connection-route-id'?: string;
+  'expected-route-revision'?: string;
   fingerprint?: string;
   'remote-host-id'?: string;
   'host-id'?: string;
@@ -656,6 +673,8 @@ interface LiveValues
   offline?: boolean;
   home?: string;
   workspace?: string;
+  after?: string;
+  reason?: string;
   limit?: string;
   before?: string;
   enabled?: boolean;
@@ -822,6 +841,28 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   };
   const scrub = (value: string) =>
     value.replaceAll(secret, '[redacted]').replaceAll(encodeURIComponent(secret), '[redacted]');
+  const rpcFailure = (error: Record<string, unknown>): CliLiveError => {
+    const failure = new CliLiveError(
+      typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
+      scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
+    );
+    const details = record(error['details']);
+    if (
+      ['permission-required', 'permission-not-grantable'].includes(failure.code) &&
+      typeof details['permission'] === 'string'
+    )
+      failure.details = { permission: scrub(details['permission']) };
+    if (failure.code === 'model-not-allowed' && typeof details['route'] === 'string')
+      failure.details = { route: scrub(details['route']) };
+    const { path, spaceId } = details;
+    if (typeof path === 'string' || typeof spaceId === 'string')
+      failure.details = {
+        ...failure.details,
+        ...(typeof path === 'string' ? { path: scrub(path) } : {}),
+        ...(typeof spaceId === 'string' ? { spaceId: scrub(spaceId) } : {}),
+      };
+    return failure;
+  };
   const rpc = async <T>(method: string, args: Record<string, unknown>): Promise<T> => {
     const name = method.includes('/') ? method : `botharness/${method}`;
     if (values.as !== undefined) {
@@ -836,10 +877,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       const result = await readResponse(answer);
       if (result['ok'] !== true) {
         const error = record(result['error']);
-        throw new CliLiveError(
-          typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
-          scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
-        );
+        throw rpcFailure(error);
       }
       return result['value'] as T;
     }
@@ -859,10 +897,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     const result = record(payload['result']);
     if (result['ok'] !== true) {
       const error = record(result['error']);
-      const code = typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error';
-      const message =
-        typeof error['message'] === 'string' ? error['message'] : 'The Host refused the command.';
-      throw new CliLiveError(code, scrub(message));
+      throw rpcFailure(error);
     }
     return result['value'] as T;
   };
@@ -1004,11 +1039,17 @@ export async function runLiveCli(
 ): Promise<unknown> {
   if (
     values.as !== undefined &&
-    (['device-activity', 'device-notifications', 'phone-notifications'].includes(command) ||
+    (['relationships', 'device-activity', 'device-notifications', 'phone-notifications'].includes(
+      command,
+    ) ||
       DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
   )
     throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
-  if (TEAM_COMMANDS.some((entry) => entry.command === command) || command === 'channels') {
+  if (
+    TEAM_COMMANDS.some((entry) => entry.command === command) ||
+    command === 'channels' ||
+    (command === 'devices' && values.member !== undefined)
+  ) {
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
     return runTeamCommand(command, rest, values, io, host.rpc);
   }
@@ -1028,6 +1069,16 @@ export async function runLiveCli(
         ...(values['link-file'] === undefined ? {} : { 'link-file': values['link-file'] }),
         ...(values.fingerprint === undefined ? {} : { fingerprint: values.fingerprint }),
         ...(values.confirm === undefined ? {} : { confirm: values.confirm }),
+        ...(values['confirm-disconnect'] === undefined
+          ? {}
+          : { 'confirm-disconnect': values['confirm-disconnect'] }),
+        ...(values.handover === undefined ? {} : { handover: values.handover }),
+        ...(values['connection-route-id'] === undefined
+          ? {}
+          : { 'connection-route-id': values['connection-route-id'] }),
+        ...(values['expected-route-revision'] === undefined
+          ? {}
+          : { 'expected-route-revision': values['expected-route-revision'] }),
       },
       io,
       () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
@@ -1113,6 +1164,18 @@ export async function runLiveCli(
     return runDevicesCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (command === 'relationships') {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runRelationshipCommand(
+      rest,
+      values,
+      () => connectLiveHost(values, io, signal),
+      signal,
+      expiresAt,
+    );
+  }
   if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
     return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {
@@ -1732,6 +1795,7 @@ async function runImControlCommand(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  const mode = messagingReadMode(command, values['read-mode']);
   if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one target.`);
   const target = rest[0].trim();
   const app = values.app?.trim() ?? '';
@@ -1753,7 +1817,13 @@ async function runImControlCommand(
       usage('--credentials-stdin must be a JSON object, for example {"token":"…"}.');
     }
   }
-  if ((command === 'im-app-remove' || command === 'im-bind' || command === 'im-unbind') && !app)
+  if (
+    (command === 'im-app-remove' ||
+      command === 'im-bind' ||
+      command === 'im-unbind' ||
+      command === 'im-reconnect') &&
+    !app
+  )
     usage(`${command} requires --app <app-id>.`);
   if (command === 'channel-connect' && (!values.bot?.trim() || !values.conversation?.trim()))
     usage('channel-connect requires --bot <bot-id> and --conversation <external-id>.');
@@ -1786,12 +1856,13 @@ async function runImControlCommand(
     });
   }
   const slug = command === 'channel-connect' ? values.bot!.trim() : target;
-  const snapshot = record(await rpc('messagingSnapshot', { slug }));
+  const snapshot = record(await rpc('messagingSnapshot', { slug, ...(mode ? { mode } : {}) }));
   const identities = (Array.isArray(snapshot['identities']) ? snapshot['identities'] : []).map(
     record,
   );
   if (command === 'im-status')
     return {
+      ...(snapshot['checks'] === undefined ? {} : { checks: snapshot['checks'] }),
       apps: (Array.isArray(snapshot['accounts']) ? snapshot['accounts'] : [])
         .map(record)
         .map((entry) => ({
@@ -1809,6 +1880,7 @@ async function runImControlCommand(
         availability: entry['availability'],
         reception: entry['reception'],
         conversations: entry['grantCount'],
+        ...(entry['recovery'] === undefined ? {} : { recovery: entry['recovery'] }),
       })),
     };
   const binding = identities.find((entry) =>
@@ -1823,11 +1895,11 @@ async function runImControlCommand(
         ? `Bot ${slug} has no IM app binding to connect through.`
         : `Bot ${slug} is not bound to IM app ${app}.`,
     );
-  if (command === 'im-unbind')
+  if (command === 'im-unbind' || command === 'im-reconnect')
     return rpc('messagingIdentity', {
       slug,
       input: {
-        kind: 'unbind',
+        kind: command === 'im-reconnect' ? 'reconnect' : 'unbind',
         id: binding['id'],
         expectedRevision: binding['revision'],
       },

@@ -3,7 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
-import { ChannelPublicSetting } from './channel-public-setting.js';
+import { ChannelAccessSettings } from './channel-access-settings.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows } from './ds/settings-row.js';
@@ -155,7 +155,12 @@ export function GroupManagementSettings({
         {error ? <Note tone="danger">{t('members.error')}</Note> : null}
       </SettingsRow>
       {actions.teamCall === undefined ? null : (
-        <ChannelPublicSetting call={actions.teamCall} channelId={group.id} t={t} />
+        <ChannelAccessSettings
+          call={actions.teamCall}
+          channelId={group.id}
+          humans={group.humanMembers ?? []}
+          t={t}
+        />
       )}
       {cropFile ? (
         <GroupAvatarCropModal

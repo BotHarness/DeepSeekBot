@@ -131,6 +131,31 @@ it('does not fall back when a saved manual route is no longer eligible', async (
   await until(() => connected(client, B));
 });
 
+it('drains a write before applying another tab saved route preference without persisting or replaying', async () => {
+  const host = new FakeHost();
+  let finish: (() => void) | undefined;
+  host.methods.set(
+    'pending-write',
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const save = vi.fn(async () => {});
+  const client = connect(host, { timeoutMs: 1000, onRoutePreferenceChanged: save });
+  await until(() => connected(client, A));
+  const writing = client.call('pending-write');
+  await until(() => finish !== undefined);
+  client.updateRoutes!([A, B], undefined, { routePreference: B });
+  expect(connected(client, A)).toBe(true);
+  expect(client.getSnapshot().routeChangePending).toBe(true);
+  finish!();
+  await writing;
+  await until(() => connected(client, B));
+  expect(save).not.toHaveBeenCalled();
+  expect(host.calls.filter((call) => call.method === 'pending-write')).toHaveLength(1);
+});
+
 it('round-trips a client preference without changing the saved Host identity or routes', () => {
   const saved = {
     hostId: 'host',

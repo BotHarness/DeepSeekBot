@@ -137,6 +137,7 @@ describe('Memory move', () => {
       });
       expect(f.core.registry.get('ada')?.memoryDir).toBeUndefined();
       expect(inspectMemoryRepository({ memoryDir: before }).head).toBe(head);
+      expect(f.core.deletions.preview('ada').refusal).toBeUndefined();
       expect(f.core.deletions.preview('ada').eraseAvailable).toBe(true);
     } finally {
       await f.close();
@@ -146,6 +147,7 @@ describe('Memory move', () => {
   it('refuses a folder that is missing, relative, occupied or inside the current Memory', async () => {
     const f = await fixture();
     try {
+      const before = f.core.registry.get('ada');
       const occupied = join(f.home, 'occupied');
       mkdirSync(join(occupied, 'ada'), { recursive: true });
       writeFileSync(join(occupied, 'ada', 'keep.md'), 'keep');
@@ -156,7 +158,7 @@ describe('Memory move', () => {
           error: { code: 'invalid-memory-dir' },
         });
       }
-      expect(f.core.registry.get('ada')?.memoryDir).toBeUndefined();
+      expect(f.core.registry.get('ada')).toEqual(before);
       expect(f.calls).toEqual([]);
     } finally {
       await f.close();
@@ -166,6 +168,7 @@ describe('Memory move', () => {
   it('refuses while the Bot is working and leaves Memory in place', async () => {
     const f = await fixture();
     try {
+      const before = f.core.registry.get('ada');
       const release = f.hold();
       const working = f.send();
       const location = join(f.home, 'elsewhere');
@@ -177,7 +180,7 @@ describe('Memory move', () => {
       release();
       await working;
       expect(existsSync(join(location, 'ada'))).toBe(false);
-      expect(f.core.registry.get('ada')?.memoryDir).toBeUndefined();
+      expect(f.core.registry.get('ada')).toEqual(before);
     } finally {
       await f.close();
     }

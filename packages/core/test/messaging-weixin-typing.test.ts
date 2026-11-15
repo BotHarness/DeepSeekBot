@@ -7,7 +7,11 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
-import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
+import {
+  createTestNativeWorkspace,
+  createTestWorkspaceGrants,
+  TEST_GRANT_ID,
+} from './workspace-grant-fixture.js';
 
 const eventually = (assertion: () => void) => vi.waitFor(assertion, { timeout: 10_000 });
 
@@ -45,25 +49,13 @@ async function fixture({
     requestAssignment: () => ({ delivery: 'steer' }),
     async close() {},
   };
+  const workspace = createTestNativeWorkspace(home);
   const core = createCore({
     dshHome: home,
     agents,
     ...(deferAssignment
       ? {
-          workspaces: () => ({
-            list: () => [
-              {
-                id: 'test-workspace',
-                path: home,
-                title: 'Test Workspace',
-                status: async () => 'ok' as const,
-              },
-            ],
-            get: (id: string) =>
-              id === 'test-workspace'
-                ? { id, path: home, title: 'Test Workspace', status: async () => 'ok' as const }
-                : undefined,
-          }),
+          workspaces: () => workspace.lookup,
         }
       : {}),
   });
@@ -75,7 +67,7 @@ async function fixture({
     core.operationalDatabase.close();
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  if (deferAssignment) createTestWorkspaceGrants(core.operationalDatabase, home);
+  if (deferAssignment) createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
   const fingerprint = 'c'.repeat(64);
   const typingInputs: Parameters<NonNullable<DshImOutboundService['beginTypingChecked']>>[2][] = [];
   const stops = vi.fn(async () => {});

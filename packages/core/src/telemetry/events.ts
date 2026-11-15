@@ -135,6 +135,23 @@ export const TELEMETRY_EVENTS = {
       window_hours: 'count',
     },
   },
+  'app:token_usage_report': {
+    origin: 'host',
+    description:
+      'Changed daily Bot-owned Session token snapshots from the last seven Host-local days; take the latest per install and day, never sum snapshots.',
+    properties: {
+      day_timestamp: 'count',
+      input_token_count: 'count',
+      output_token_count: 'count',
+      cache_read_token_count: 'count',
+      cache_write_token_count: 'count',
+      total_token_count: 'count',
+      reported_total_token_count: 'count',
+      unknown_total_count: 'count',
+      is_partial: 'boolean',
+      is_reconciled: 'boolean',
+    },
+  },
   'app:client_issue_report': {
     origin: 'host',
     description:

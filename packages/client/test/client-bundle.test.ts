@@ -44,6 +44,7 @@ function baselineModuleStub(id: string): Record<string, unknown> {
     return {
       RemoteJournalStream: class {},
       RemoteSnapshotStream: class {},
+      RemoteStream: class {},
       RemoteStreamCarrierError: class extends Error {},
     };
   }

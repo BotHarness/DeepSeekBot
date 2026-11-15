@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPresence, PRESENCE_LEASE_MS } from '../src/push/presence.js';
+import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 
 const post = (body: unknown) =>
   new Request('http://host/api/botharness/presence', {
@@ -12,6 +13,32 @@ afterEach(() => {
 });
 
 describe('desktop presence', () => {
+  it('binds identical Client ids and lease notifications to each authenticated Human', async () => {
+    vi.useFakeTimers();
+    const presence = createPresence();
+    const bob = humanContext('bob');
+    const changed = vi.fn();
+    presence.subscribe(changed);
+    try {
+      await presence.fetch(
+        post({ clientId: 'same-tab', active: true, humanId: owner.humanId }),
+        bob,
+      );
+      expect(presence.active(bob)).toBe(true);
+      expect(presence.active(owner)).toBe(false);
+      presence.report('same-tab', true, owner);
+      expect(changed).toHaveBeenCalledTimes(2);
+      presence.report('same-tab', false, owner);
+      expect(presence.active(bob)).toBe(true);
+      expect(presence.active(owner)).toBe(false);
+      expect(changed).toHaveBeenCalledTimes(3);
+      vi.advanceTimersByTime(PRESENCE_LEASE_MS + 1);
+      expect(presence.active(bob)).toBe(false);
+      expect(changed).toHaveBeenCalledTimes(4);
+    } finally {
+      presence.dispose();
+    }
+  });
   it('stays active while any Client renews its lease and reports the lapse once', async () => {
     vi.useFakeTimers();
     const presence = createPresence();

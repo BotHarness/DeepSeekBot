@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { channelFailure } from '../src/host/pairing';
 import { pairingFailureText } from '../src/ui/pairing-failure';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
 it('names an untrusted certificate on a private origin instead of a generic unreachable', () => {
   const route = 'https://bot.corp.internal';
@@ -17,5 +18,13 @@ it('names an untrusted certificate on a private origin instead of a generic unre
   expect(channelFailure(route, 'Connection refused', false)).toMatchObject({
     code: 'unreachable',
   });
-  expect(pairingFailureText('certificate-untrusted', 'qr')).toMatch(/certificate/u);
+  const previous = interfacePreferences.getSnapshot().language;
+  try {
+    interfacePreferences.setLanguage('en');
+    expect(pairingFailureText('certificate-untrusted', 'qr')).toMatch(/certificate/u);
+    interfacePreferences.setLanguage('zh');
+    expect(pairingFailureText('certificate-untrusted', 'qr')).toMatch(/证书/u);
+  } finally {
+    interfacePreferences.setLanguage(previous);
+  }
 });

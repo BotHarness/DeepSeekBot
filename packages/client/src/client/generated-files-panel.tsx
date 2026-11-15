@@ -12,7 +12,9 @@ import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MessageAttachment } from './message-attachment.js';
 import { useMountedResource } from './mounted-resource.js';
-import { store, type ChannelAttachmentRef } from './store.js';
+import type { ChannelAttachmentRef } from './store.js';
+import { useConversationStore } from './use-client-store.js';
+import { useMessageHost } from './message-host.js';
 import { createGeneratedFilesHistory, type GeneratedFile } from './generated-files-history.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 
@@ -37,6 +39,8 @@ export function ChannelFiles({
   actions: BridgeActions;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const store = useConversationStore();
+  const host = useMessageHost();
   const composer = useContext(GeneratedFilesContext);
   const [history, setHistory] = useState<GeneratedFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,15 +71,18 @@ export function ChannelFiles({
       setHistory(cache.files());
     };
     const unsubscribe = store.subscribe(reconcile);
-    const stopRedactions = subscribeMessagingDefaults(
-      () => undefined,
-      (placements) => {
-        cache.purge(
-          placements.filter((item) => item.channelId === channelId).map((item) => item.messageId),
-        );
-        setHistory(cache.files());
-      },
-    );
+    const purge = (
+      placements: readonly import('../../../core/src/purge/contracts.js').PurgedPlacement[],
+    ) => {
+      cache.purge(
+        placements.filter((item) => item.channelId === channelId).map((item) => item.messageId),
+      );
+      setHistory(cache.files());
+    };
+    const stopRedactions =
+      host === undefined
+        ? subscribeMessagingDefaults(() => undefined, purge)
+        : (host.subscribePurges?.(purge) ?? (() => {}));
     reconcile();
     setNextBefore(undefined);
     let busy = false;
@@ -117,7 +124,7 @@ export function ChannelFiles({
       unsubscribe();
       stopRedactions();
     };
-  }, [channelId, actions, retry]);
+  }, [channelId, actions, retry, store, host]);
   const files = new Map<string, GeneratedFile>();
   for (const file of history) {
     const id = attachmentIdentity(file.ref);

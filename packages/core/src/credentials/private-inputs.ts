@@ -1,4 +1,5 @@
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
+import type { ApprovalAuthority } from '../team/approval-contract.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
@@ -64,6 +65,7 @@ type Pending = {
   committed: boolean;
   commit?: Promise<ChannelAppendOnceResult>;
   terminal?: Terminal;
+  decidingHuman?: HumanContext;
   operation?: Promise<boolean> | undefined;
   abort(): void;
   resolve(result: PrivateInputResult): void;
@@ -110,6 +112,7 @@ export class PrivateInputs {
 
   constructor(
     readonly deps: {
+      approvals?: ApprovalAuthority;
       channels: ChannelStore;
       ownership: SessionOwnership;
       registry: PersonaBotRegistry;
@@ -597,14 +600,29 @@ export class PrivateInputs {
     const channelId = pending.channelId;
     let committed = false;
     try {
-      const result = await this.deps.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channelId, {
-        id: 'private-resolution-' + id,
-        at: new Date().toISOString(),
-        author: { kind: 'human' },
-        replyTo: id,
-        body: state === 'cancelled' ? 'Private input cancelled' : 'Private input expired',
-        privateInputResolution: { requestMessageId: id, state, references: {} },
-      });
+      const result = await this.deps.channels.appendMessageOnce(
+        pending.decidingHuman ?? OWNER_HUMAN_CONTEXT,
+        channelId,
+        {
+          id: 'private-resolution-' + id,
+          at: new Date().toISOString(),
+          author: { kind: 'human' },
+          replyTo: id,
+          body: state === 'cancelled' ? 'Private input cancelled' : 'Private input expired',
+          privateInputResolution: {
+            requestMessageId: id,
+            state,
+            references: {},
+            ...(pending.decidingHuman
+              ? {
+                  decidedBy: this.deps.approvals?.decider(pending.decidingHuman) ?? {
+                    humanId: pending.decidingHuman.humanId,
+                  },
+                }
+              : {}),
+          },
+        },
+      );
       committed =
         (result.status === 'appended' || result.status === 'existing') &&
         result.message.privateInputResolution?.state === state;
@@ -624,7 +642,12 @@ export class PrivateInputs {
     return committed;
   }
 
-  async #stop(id: string, pending: Pending, state: Terminal): Promise<boolean> {
+  async #stop(
+    id: string,
+    pending: Pending,
+    state: Terminal,
+    human?: HumanContext,
+  ): Promise<boolean> {
     if (this.#pending.get(id) !== pending) return false;
     const resolution = this.#resolution(pending.channelId, id);
     if (resolution !== undefined) {
@@ -638,6 +661,7 @@ export class PrivateInputs {
       return false;
     }
     pending.terminal ??= state;
+    if (human) pending.decidingHuman = human;
     if (!pending.committed) {
       try {
         if (pending.commit === undefined) return false;
@@ -664,7 +688,11 @@ export class PrivateInputs {
     return (await this.submission(owner, input)).accepted;
   }
 
-  async submission(owner: boolean, input: unknown): Promise<PrivateSubmissionResult> {
+  async submission(
+    owner: boolean,
+    input: unknown,
+    human = OWNER_HUMAN_CONTEXT,
+  ): Promise<PrivateSubmissionResult> {
     const refuse = (reason: PrivateSubmissionRefusal, botSlug?: string, requestId?: string) => {
       this.deps.log('submit-refused', {
         reason,
@@ -678,6 +706,7 @@ export class PrivateInputs {
     const parsed = privateSubmissionSchema.safeParse(input);
     if (!parsed.success) return refuse('invalid-fields');
     const { channelId, messageId, values } = parsed.data;
+    this.deps.approvals?.requireRequest(human, channelId, messageId);
     const pending = this.#pending.get(messageId);
     if (pending === undefined || channelId !== pending.channelId)
       return refuse('not-pending', undefined, messageId);
@@ -693,7 +722,7 @@ export class PrivateInputs {
     const credentials = this.deps.credentials();
     if (credentials === undefined) return refuse('store-unavailable', pending.botSlug, messageId);
     const operation = this.#accounts.serial(this.#scope(pending), () =>
-      this.#submit(channelId, messageId, pending, credentials, values),
+      this.#submit(channelId, messageId, pending, credentials, values, human),
     );
     pending.operation = operation.then(
       (result) => result.accepted,
@@ -712,6 +741,7 @@ export class PrivateInputs {
     pending: Pending,
     credentials: CredentialProvider,
     values: Record<string, string>,
+    human: HumanContext,
   ): Promise<PrivateSubmissionResult> {
     const grantId = randomUUID();
     let stage: PrivateSubmissionRefusal = 'expired';
@@ -762,7 +792,7 @@ export class PrivateInputs {
       stopping = this.#stopUses(this.#scope(pending), 'replacement');
       try {
         await this.deps.channels.appendMessageOnce(
-          OWNER_HUMAN_CONTEXT,
+          human,
           channelId,
           {
             id: 'private-resolution-' + id,
@@ -774,11 +804,15 @@ export class PrivateInputs {
               requestMessageId: id,
               state: 'configured',
               references,
+              decidedBy: this.deps.approvals?.decider(human) ?? { humanId: human.humanId },
             },
           },
           undefined,
           undefined,
-          () => this.#valid(pending),
+          () => {
+            this.deps.approvals?.requireRequest(human, channelId, id);
+            return this.#valid(pending);
+          },
         );
       } catch {
         const resolution = this.#resolution(channelId, id);
@@ -835,7 +869,12 @@ export class PrivateInputs {
     return configured ? { accepted: true } : { accepted: false, reason: stage };
   }
 
-  async cancel(owner: boolean, channelId: string, messageId: string): Promise<boolean> {
+  async cancel(
+    owner: boolean,
+    channelId: string,
+    messageId: string,
+    human = OWNER_HUMAN_CONTEXT,
+  ): Promise<boolean> {
     const pending = this.#pending.get(messageId);
     if (
       !owner ||
@@ -844,7 +883,8 @@ export class PrivateInputs {
       this.status(channelId, messageId) !== 'pending'
     )
       return false;
-    return this.#stop(messageId, pending, 'cancelled');
+    this.deps.approvals?.requireRequest(human, channelId, messageId);
+    return this.#stop(messageId, pending, 'cancelled', human);
   }
 
   async consume<T>(
@@ -1304,6 +1344,7 @@ export class PrivateInputs {
     owner: boolean,
     channelId: string,
     messageId: string,
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<PrivateRevocationResult> {
     const refused = { accepted: false, stopped: 0, completed: 0, uncertain: 0 };
     if (!owner) return refused;
@@ -1347,7 +1388,7 @@ export class PrivateInputs {
     if (!accepted) return refused;
     const summary = await accepted.stopping;
     await this.deps.channels
-      .appendMessageOnce(OWNER_HUMAN_CONTEXT, channelId, {
+      .appendMessageOnce(human, channelId, {
         id: 'private-revocation-' + randomUUID(),
         at: new Date().toISOString(),
         author: { kind: 'human' },

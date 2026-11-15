@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { credentialKey } from '@deepseek-ai/dsh-credentials';
 import { validTunnelToken } from './connect.js';
 import {
@@ -17,6 +17,7 @@ export type PrivateRouteId = 'quick' | 'custom';
 export interface PrivateRouteStatus extends PrivateTunnelStatus {
   id: PrivateRouteId;
   enabled: boolean;
+  revision: string;
 }
 interface OwnedRoute {
   id: PrivateRouteId;
@@ -28,6 +29,7 @@ interface OwnedRoutes {
   phoneToken: string;
   routes: OwnedRoute[];
 }
+class PrivateRouteChanged extends Error {}
 export interface PrivateRouteInput {
   mode: PrivateTunnelMode;
   hostname?: string;
@@ -38,6 +40,9 @@ export interface PrivateRouteInput {
 }
 const routeId = (mode: PrivateTunnelMode): PrivateRouteId =>
   mode === 'quick' ? 'quick' : 'custom';
+const configurationOrigin = (configuration: TunnelRecord) =>
+  configuration.origin ??
+  (configuration.hostname ? `https://${configuration.hostname}` : undefined);
 
 function sameConfiguration(a: TunnelRecord, b: TunnelRecord): boolean {
   if (a.mode !== b.mode) return false;
@@ -88,25 +93,56 @@ function decode(input: unknown): OwnedRoutes | undefined {
 export function createPrivateTunnel(options: PrivateTunnelOptions) {
   const key = credentialKey('botharness-core', 'private-tunnel');
   const runtimes = new Map<PrivateRouteId, ReturnType<typeof createPrivateTunnelRuntime>>();
+  const runtimeRevisions = new Map<PrivateRouteId, string>();
   let state: OwnedRoutes | undefined;
   let loaded = false;
   let failure: PrivateTunnelStatus['issue'];
   let closed = false;
   let lifecycle: Promise<unknown> = Promise.resolve();
   let writes: Promise<unknown> = Promise.resolve();
+  const revisions = new Map<PrivateRouteId, string>();
+  const commit = (next: OwnedRoutes, renew?: PrivateRouteId, runtimeUpdate?: PrivateRouteId) => {
+    const updateRuntime =
+      runtimeUpdate !== undefined &&
+      runtimes.has(runtimeUpdate) &&
+      runtimeRevisions.get(runtimeUpdate) === revisions.get(runtimeUpdate);
+    for (const id of revisions.keys()) {
+      if (!next.routes.some((route) => route.id === id)) revisions.delete(id);
+    }
+    for (const route of next.routes) {
+      if (!revisions.has(route.id) || route.id === renew) revisions.set(route.id, randomUUID());
+    }
+    if (updateRuntime && runtimeUpdate !== undefined)
+      runtimeRevisions.set(runtimeUpdate, revisions.get(runtimeUpdate)!);
+    state = next;
+  };
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
     const next = lifecycle.then(work, work);
     lifecycle = next.catch(() => undefined);
     return next;
   };
-  const write = (change: (current: OwnedRoutes) => OwnedRoutes): Promise<boolean> => {
+  const write = (
+    change: (current: OwnedRoutes) => OwnedRoutes,
+    renew?: PrivateRouteId,
+    runtimeUpdate?: PrivateRouteId,
+  ): Promise<boolean> => {
     const work = async () => {
       const credentials = options.credentials();
       if (!credentials || !state) return false;
       const next = change(state);
+      const previousConfiguration = state.routes.find(
+        (route) => route.id === runtimeUpdate,
+      )?.configuration;
+      const nextConfiguration = next.routes.find(
+        (route) => route.id === runtimeUpdate,
+      )?.configuration;
+      const endpointChanged =
+        runtimeUpdate !== undefined &&
+        previousConfiguration?.mode === 'quick' &&
+        nextConfiguration?.hostname !== previousConfiguration.hostname;
       try {
         await credentials.modifyRecord(key, async () => ({ kind: 'grant', payload: next }));
-        state = next;
+        commit(next, endpointChanged ? runtimeUpdate : renew, runtimeUpdate);
         return true;
       } catch {
         return false;
@@ -126,14 +162,14 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     try {
       const record = await credentials.readRecord(key);
       if (record === undefined || record === null) {
-        state = { version: 2, phoneToken: randomBytes(32).toString('hex'), routes: [] };
+        commit({ version: 2, phoneToken: randomBytes(32).toString('hex'), routes: [] });
       } else {
         const parsed = record.kind === 'grant' ? decode(record.payload) : undefined;
         if (!parsed) {
           failure = 'private-tunnel-credential-invalid';
           return false;
         }
-        state = parsed;
+        commit(parsed);
         if (!(await write((current) => current))) {
           failure = 'credential-unavailable';
           return false;
@@ -148,20 +184,26 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     }
   };
   const statuses = (): PrivateRouteStatus[] =>
-    (state?.routes ?? []).map((route) => ({
-      ...(runtimes.get(route.id)?.status() ?? {
+    (state?.routes ?? []).map((route) => {
+      const runtime =
+        runtimeRevisions.get(route.id) === revisions.get(route.id)
+          ? runtimes.get(route.id)?.status()
+          : undefined;
+      const { origin: _runtimeOrigin, ...runtimeStatus } = runtime ?? {
         state: 'off' as const,
         mode: route.configuration.mode,
         originPort: route.configuration.originPort,
-        ...(route.configuration.origin
-          ? { origin: route.configuration.origin }
-          : route.configuration.hostname
-            ? { origin: `https://${route.configuration.hostname}` }
-            : {}),
-      }),
-      id: route.id,
-      enabled: route.enabled,
-    }));
+        origin: undefined,
+      };
+      const origin = configurationOrigin(route.configuration);
+      return {
+        ...runtimeStatus,
+        ...(origin === undefined ? {} : { origin }),
+        id: route.id,
+        enabled: route.enabled,
+        revision: revisions.get(route.id)!,
+      };
+    });
   const status = (): PrivateTunnelStatus => {
     if (failure) return { state: 'error', issue: failure };
     const route = statuses().find((route) => route.state === 'connected') ?? statuses()[0];
@@ -187,20 +229,30 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
       storage: {
         read: async () => state?.routes.find((route) => route.id === id)?.configuration,
         persist: (configuration) =>
-          write((current) => ({
-            ...current,
-            routes: current.routes.map((route) =>
-              route.id === id && runtimes.get(id) === runtime ? { ...route, configuration } : route,
-            ),
-          })),
+          write(
+            (current) => ({
+              ...current,
+              routes: current.routes.map((route) =>
+                route.id === id &&
+                runtimes.get(id) === runtime &&
+                runtimeRevisions.get(id) === revisions.get(id)
+                  ? { ...route, configuration }
+                  : route,
+              ),
+            }),
+            undefined,
+            id,
+          ),
       },
     });
     runtimes.set(id, runtime);
+    runtimeRevisions.set(id, revisions.get(id)!);
     await runtime.restore();
   };
   const stopRuntime = async (id: PrivateRouteId) => {
     const runtime = runtimes.get(id);
     runtimes.delete(id);
+    runtimeRevisions.delete(id);
     await runtime?.close();
   };
   const configure = async (
@@ -253,13 +305,16 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
       if (previous.enabled && runtime) return { ok: true, status: runtime.status(), routeId: id };
     }
     if (
-      !(await write((current) => ({
-        ...current,
-        routes: [
-          ...current.routes.filter((route) => route.id !== id),
-          { id, enabled: true, configuration: next },
-        ],
-      })))
+      !(await write(
+        (current) => ({
+          ...current,
+          routes: [
+            ...current.routes.filter((route) => route.id !== id),
+            { id, enabled: true, configuration: next },
+          ],
+        }),
+        replace,
+      ))
     )
       return { ok: false, code: 'credential-unavailable' };
     await stopRuntime(id);
@@ -269,6 +324,7 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
   const change = async (
     action: 'start' | 'stop' | 'remove',
     id?: PrivateRouteId,
+    expectedRevision?: string,
   ): Promise<PrivateTunnelResult> => {
     if (closed || !(await load()) || !state) return unavailable();
     await writes;
@@ -278,18 +334,36 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     if (selected === undefined) return { ok: true, status: status() };
     if (!state.routes.some((route) => route.id === selected))
       return { ok: false, code: 'private-route-not-found' };
-    if (
-      !(await write((current) => ({
-        ...current,
-        routes:
-          action === 'remove'
-            ? current.routes.filter((route) => route.id !== selected)
-            : current.routes.map((route) =>
-                route.id === selected ? { ...route, enabled: action === 'start' } : route,
-              ),
-      })))
-    )
-      return { ok: false, code: 'credential-unavailable' };
+    const checkRevision = (current: OwnedRoutes) => {
+      if (expectedRevision === undefined) return;
+      const configuration = current.routes.find((route) => route.id === selected)?.configuration;
+      const runtimeOrigin = runtimes.get(selected)?.status().origin;
+      if (
+        !configuration ||
+        revisions.get(selected) !== expectedRevision ||
+        (runtimeOrigin !== undefined && runtimeOrigin !== configurationOrigin(configuration))
+      )
+        throw new PrivateRouteChanged();
+    };
+    try {
+      checkRevision(state);
+      const written = await write((current) => {
+        checkRevision(current);
+        return {
+          ...current,
+          routes:
+            action === 'remove'
+              ? current.routes.filter((route) => route.id !== selected)
+              : current.routes.map((route) =>
+                  route.id === selected ? { ...route, enabled: action === 'start' } : route,
+                ),
+        };
+      });
+      if (!written) return { ok: false, code: 'credential-unavailable' };
+    } catch (error) {
+      if (error instanceof PrivateRouteChanged) return { ok: false, code: 'private-route-changed' };
+      throw error;
+    }
     if (action === 'start') await startRuntime(selected);
     else await stopRuntime(selected);
     if (action === 'remove' && state.routes.length === 0) {
@@ -306,6 +380,7 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
       ok: true,
       status: runtimes.get(selected)?.status() ?? { state: 'off' },
       ...(id === undefined ? {} : { routeId: selected }),
+      ...(expectedRevision === undefined ? {} : { expectedRevision }),
     };
   };
   return {
@@ -329,7 +404,8 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     add: (input: PrivateRouteInput) => serial(() => configure(input)),
     replace: (id: PrivateRouteId, input: PrivateRouteInput) => serial(() => configure(input, id)),
     start: (id: PrivateRouteId) => serial(() => change('start', id)),
-    stop: (id: PrivateRouteId) => serial(() => change('stop', id)),
+    stop: (id: PrivateRouteId, expectedRevision?: string) =>
+      serial(() => change('stop', id, expectedRevision)),
     remove: (id: PrivateRouteId) => serial(() => change('remove', id)),
     disable: () => serial(() => change('remove')),
     acknowledgeAddress: () => {

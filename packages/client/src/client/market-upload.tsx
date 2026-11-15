@@ -321,6 +321,7 @@ export function MarketUploadDialog({
 
   const askTob = async (message: string): Promise<void> => {
     const home = await actions.tobHome();
+    if (typeof home.channelId !== 'string') throw new Error('No Tob on this Host');
     await actions.sendHome(home.channelId, message, 'human-' + crypto.randomUUID());
     registry?.open(CHANNEL_BODY_PANEL);
     onClose();

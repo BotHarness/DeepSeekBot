@@ -23,6 +23,7 @@ export interface HostEncryption {
 
 export interface SavedHost {
   member?: HostMemberIdentity;
+  relationshipId?: string;
   routePreference?: string;
   accountOwner?: AccountOwner;
   connectHost?: string;
@@ -46,6 +47,12 @@ function record(value: unknown): Record<string, unknown> {
 
 export function parseSavedHost(input: unknown): SavedHost | undefined {
   const value = record(input);
+  if (
+    value['relationshipId'] !== undefined &&
+    (typeof value['relationshipId'] !== 'string' ||
+      !/^[A-Za-z0-9_-]{32}$/u.test(value['relationshipId']))
+  )
+    return undefined;
   if (value['routePreference'] !== undefined && typeof value['routePreference'] !== 'string')
     return undefined;
   const member = parseHostMemberIdentity(value['member']);
@@ -93,6 +100,9 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
     typeof value['deviceId'] === 'string' &&
     typeof value['credential'] === 'string'
     ? {
+        ...(typeof value['relationshipId'] === 'string'
+          ? { relationshipId: value['relationshipId'] }
+          : {}),
         ...(typeof value['routePreference'] === 'string'
           ? { routePreference: value['routePreference'] }
           : {}),

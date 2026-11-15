@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
@@ -199,7 +199,13 @@ describe('IM private input origin leases', () => {
       ).toEqual({ httpStatus: 200 });
       expect(JSON.stringify(notify.mock.calls)).not.toContain(values.api_key);
       expect(JSON.stringify(f.channels.readMessages('dm-ada'))).not.toContain(values.api_secret);
-      await f.owner.revoke(true, 'dm-ada', id);
+      const acting = humanContext('acting-owner');
+      await f.owner.revoke(true, 'dm-ada', id, acting);
+      expect(
+        f.channels
+          .readMessages('dm-ada')
+          .find((message) => message.id.startsWith('private-revocation-'))?.author,
+      ).toEqual({ kind: 'human', humanId: acting.humanId, displayName: 'Human' });
       expect(delivery?.signal.aborted).toBe(true);
       expect(delivery?.current()).toBe(false);
       expect(disposeReply).not.toHaveBeenCalled();
@@ -499,6 +505,12 @@ describe('private input native authority and reference contract', () => {
       { status: 'replacing', messageId: ada.messageId, replacementMessageId: replacementId },
     ]);
     expect(await f.owner.cancel(true, 'dm-ada', replacementId!)).toBe(true);
+    expect(
+      f.channels
+        .readMessages('dm-ada')
+        .find((message) => message.privateInputResolution?.requestMessageId === replacementId)
+        ?.author,
+    ).toEqual({ kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' });
     expect((await f.owner.accounts(true, 'ada'))?.[0]?.status).toBe('configured');
 
     const grants = async () =>
@@ -1006,6 +1018,11 @@ describe('private input native authority and reference contract', () => {
       expect(card.privateInputRequest?.expiresAt).toBeDefined();
       expect((await wait).status).toBe('expired');
       expect(f.owner.status('dm-ada', card.id)).toBe('expired');
+      expect(
+        f.channels
+          .readMessages('dm-ada')
+          .find((message) => message.privateInputResolution?.requestMessageId === card.id)?.author,
+      ).toEqual({ kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' });
       expect(await f.owner.submit(true, { channelId: 'dm-ada', messageId: card.id, values })).toBe(
         false,
       );

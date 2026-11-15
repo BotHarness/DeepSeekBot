@@ -40,9 +40,9 @@ describe('Host usage', () => {
     fake.methods.set('overviewUsage', () => {
       throw new Error('Unsupported period');
     });
-    await expect(loadUsage(client(fake), 'month')).rejects.toEqual(
-      new MethodRefused('invalid-input', 'Unsupported period'),
-    );
+    const failure = await loadUsage(client(fake), 'month').catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(MethodRefused);
+    expect(failure).toMatchObject({ code: 'invalid-input', message: 'Unsupported period' });
   });
 
   it.each(['month', 'quarter'] as const)(

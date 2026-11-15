@@ -13,6 +13,14 @@ describe("generated developer reference", () => {
   it("extracts the core config from its schema and defaults", () => {
     expect(reference.config).toEqual([
       {
+        name: "genuiPreviewBrowserPath",
+        type: "string",
+        default: undefined,
+        description:
+          "Absolute executable for isolated GenUI previews; omitted or empty discovers the system browser. Invalid explicit paths are refused.",
+        source: "packages/core/src/plugin.ts",
+      },
+      {
         name: 'privateInputWebUrl',
         type: 'string',
         default: undefined,
@@ -96,13 +104,16 @@ describe("generated developer reference", () => {
       { name: "agent/inbox/discarded", direction: "consumes", operation: "on" },
       { name: "agent/pre-step", direction: "consumes", operation: "on" },
       { name: "agent/request-error", direction: "consumes", operation: "on" },
+      { name: "agent/request-error", direction: "consumes", operation: "on" },
       { name: "agent/status", direction: "consumes", operation: "on" },
       { name: "agent/status", direction: "consumes", operation: "on" },
       { name: "approval/request", direction: "consumes", operation: "on" },
       { name: "botharness/personabot/activity", direction: "emits", operation: "emit" },
       { name: "session/event", direction: "consumes", operation: "on" },
+      { name: "subagent/start", direction: "consumes", operation: "on" },
       { name: "system-prompt/assemble", direction: "consumes", operation: "on" },
       { name: "system-prompt/assemble", direction: "consumes", operation: "on" },
+      { name: "tools/execute", direction: "consumes", operation: "on" },
       { name: "tools/execute", direction: "consumes", operation: "on" },
       { name: "tools/execute", direction: "consumes", operation: "on" },
       { name: "tools/execute", direction: "consumes", operation: "on" },

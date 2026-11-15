@@ -9,6 +9,32 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 增加下游匿名 Bot Token 统计的验证路径及快照查询约定；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4255](https://github.com/BotHarness/DeepSeekBot/issues/4255)）。
+
+- 增加下游首次 Tob 准备期间的设置响应性验证路径；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4226](https://github.com/BotHarness/DeepSeekBot/issues/4226)）。
+
+- 补充下游相同登记的官方地址恢复与保护隐私的账号邀请诊断；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)）。
+
+- 下游远端 Bot CLI 验证路径与已验证的原生 Profile、模型、工作区及审批控件对齐；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4118](https://github.com/BotHarness/DeepSeekBot/issues/4118)）。
+
+- 补充下游具名 Host 用量／存储路径及全新已发布149验证边界；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4119](https://github.com/BotHarness/DeepSeekBot/issues/4119)）。
+
+- 补充下游具名环境设置的验证路径，入口与实际「更多操作 → 设置」一致；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4117](https://github.com/BotHarness/DeepSeekBot/issues/4117)）。
+
+- 补充下游任务自有 Client 产物切换后，按当前公布的资源 revision 核验证据的方法；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)）。
+
+- 补充下游启动中断后空原生凭据写锁的所有权核验、任务所有者协调的同 Home 启动与恢复排他窗口，以及保留式恢复；操作见[恢复指南](../dsh-dev/SKILL.md)。稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)）。
+
+- 补充下游已发布 Channel 权限146后的离线撤销、安全取消待批准关系与全新 generation147 验证要求；稳定 DSH/Cordis Context、Decision Tree 和上游验证来源不变（[#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)）。
+
+- 补充下游中断副本安装的显式恢复、旧依赖保留与共享文件保护要求；稳定 DSH Skill 版本及上游验证来源保持不变（[#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)）。
+
+- 记录下游隔离依赖副本、旧安装只读重启与已验证的共享文件元数据风险；稳定 DSH Skill 版本及上游验证来源保持不变（[#4135](https://github.com/BotHarness/BotHarness/issues/4135)）。
+
+- 在 [CLI 指南](../../../docs/bot-cli.md#reciprocal-computer-relationships) 中补充下游 Host 部分关系的独立方向检查、固定身份线路恢复与安全取消待批准关系；稳定 DSH/Cordis Context、Decision Tree 和上游验证来源不变（[#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)）。
+
+- 补充下游独立 GenUI 浏览器启动诊断、明确可执行文件选择与按路径配置的 CI 隔离权限；稳定 Context/Decision Tree 及已验证 DSH 来源不变（[#4030](https://github.com/BotHarness/DeepSeekBot/issues/4030)）。
+
 - 准备下游 Tobs 1.7.0 发布日志、版本亮点与候选包隐私复核指南；独立版本的 DSH Skill 及其已验证上游来源保持不变（[#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)）。
 
 - 补充下游 DSH 0.2.1 与 0.2.2 两代 API 的同产物验收要求；稳定 Skill 版本与上游验证来源不变（[#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)）。

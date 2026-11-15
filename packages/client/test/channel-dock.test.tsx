@@ -110,6 +110,60 @@ async function render(
 
 const panels = () => readChannelDock(storage)!.layout.panels;
 
+it('keeps only general Channel files in the Human-only conversation column', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  values.set(LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'simple' }));
+  const registry = createDockPanelRegistry();
+  registry.register({
+    id: CHANNEL_BODY_PANEL,
+    title: 'Messages',
+    scope: 'global',
+    component: () => null,
+  });
+  registry.registerEntry(entry('sessions', 'both'));
+  registry.registerEntry(entry('schedules'));
+  registry.registerEntry(entry('botharness-browser'));
+  let filesOpen = false;
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: { rail: () => createElement('nav') } },
+      createElement(ChannelDock, {
+        hasBots: false,
+        body: createElement('input', { 'data-human-draft': '' }),
+        files: {
+          open: filesOpen,
+          setOpen(open) {
+            filesOpen = open;
+            root.render(view());
+          },
+          content: createElement('div', { 'data-human-files': '' }, 'general files'),
+        },
+        panels: registry.panels(),
+        registry,
+        channel: { id: 'human-dm', type: 'dm', botSlug: undefined },
+        entryProps: { ...entryProps, scope: 'channel', channelId: 'human-dm', botSlug: undefined },
+        shows: () => false,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  const draft = host.querySelector<HTMLInputElement>('[data-human-draft]')!;
+  draft.value = 'unsent Human message';
+  await click('[data-subpanel-column-toggle]');
+  expect(
+    [...host.querySelectorAll('[data-subpanel-entry]')].map((node) =>
+      node.getAttribute('data-subpanel-entry'),
+    ),
+  ).toEqual(['generated-files']);
+  await click('[data-subpanel-entry="generated-files"] [data-panel-head]');
+  expect(host.querySelector('[data-human-files]')?.textContent).toBe('general files');
+  expect(host.querySelector('[data-human-draft]')).toBe(draft);
+  expect(draft.value).toBe('unsent Human message');
+});
+
 async function settle(): Promise<void> {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));

@@ -9,6 +9,60 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ## Usage
 
+### Reciprocal computer relationships
+
+`relationships cancel <id> --confirm` cancels a proposal only while the owning Host still considers it pending. If a lost sync reply hid activation, it refuses with `relationship-already-active` and leaves the approved relationship and grants intact. The browser uses this condition when cleaning up cancelled enrollment; an unavailable cleanup response never triggers an unconditional retry.
+
+Private tunnels also support the browser Client through the same existing route admission and pinned Noise channel. The browser sends admission as a WebSocket subprotocol, and the ingress consumes it before forwarding only a fixed public protocol. No token enters the URL. The Docker private relay needs the matching server upgrade for browser access; this feature does not deploy or update a running relay. Older servers refuse that browser handshake while native/CLI header access remains unchanged.
+
+With `route --device-file`, the authenticated Host verifies the new link before the CLI atomically replaces that private Client file. A manual route preference omitted by the new routes returns `relationship-route-preference-unavailable` and leaves the file intact. The command never prints the device credential, key or route admission.
+
+The Host route may already be updated when a Client preference check or file replacement fails. Read back `relationships list` and inspect the private Client file before retrying; a Client-file failure does not roll back the Host.
+
+Private relay/tunnel admissions stay in the Host's protected credential owner; `list`, initiation results and CLI enrollment output never print those tokens. Pinned control exchange and the enrolling Client's authenticated ticket carry them to the existing Noise path. Pending peer revocation retains its route reference; acknowledged disconnection removes only that relationship reference. Secret storage failure is coded `relationship-route-secret-unavailable`. Tailscale HTTPS enrollment also uses pinned Noise; its subsequent Feed follows the existing Host client route policy.
+
+`relationships` uses the authenticated local Host and the same approval owner as Connections. Each CLI enrollment creates its own device grant; no remote credential is shared through the local Host.
+
+This is a current-Owner capability: member/Admin carriers and `--as` cannot manage or enroll Host relationships. Derived device grants retain the Owner Human captured when their offer was created; Owner transfer invalidates old offers and old-Owner admission. Private Bots and Channels retain their existing per-Human access checks. E1 adds migration144 after published Team141–143; internal Environment-preview databases are not a supported upgrade source.
+
+Direction observations expire after 30 seconds and reset to unverified on Host restart; authorization and saved routes remain durable. `list` never opens network connections. `sync` checks the outgoing path and asks the authenticated peer to probe its own outgoing path separately. A missing return path preserves the approved relationship. Prepare a LAN, Tailscale or tunnel address in Connections, then run `sync` from the reachable side. To recover a lost peer address, use `route` with a fresh peer link; identity mismatch preserves the pin. Neither command issues a device grant or launches route subprocesses. Closing Connections leaves prepared routes under their existing owner.
+
+| Command                                                                                                         | Purpose                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `relationships list`                                                                                            | Read persisted peers, approval state and pending peer revocation.                                                               |
+| `relationships initiate <peer-public-key> --link-file <absolute-private-file> --confirm`                        | Compare the target fingerprint, then request reciprocal access using its existing pairing link.                                 |
+| `relationships approve <id> <peer-public-key> --confirm`                                                        | On the receiving Host, compare the initiating Host fingerprint and approve both directions.                                     |
+| `relationships sync <id>`                                                                                       | Complete approval and freshly check each direction, sharing existing prepared routes over pinned Noise.                         |
+| `relationships route <id> --link-file <absolute-private-file> [--device-file <existing-absolute-private-file>]` | Verify the pinned Host's new route; optionally update an existing CLI Client while retaining its device ID, key and credential. |
+| `relationships enroll <id> --device-name <name> --out <new-absolute-private-file>`                              | Enroll this named CLI Client and save its independent credential privately. Stdout contains only Host/device identifiers.       |
+| `relationships disconnect <id> --confirm`                                                                       | Retire derived access, keeping independent phone grants and remote data. A missing peer acknowledgement remains pending.        |
+
+Same-account discovery uses the same Host owner as Environments:
+
+| Command                                                                                    | Purpose                                                                                                    |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `relationships account-discover`                                                           | Start bounded verified discovery without waiting for every Host; inspect subsequent results independently. |
+| `relationships account-status`                                                             | Read the current account generation and active relationships eligible for automatic Client enrollment.     |
+| `relationships account-enroll <id> --device-name <name> --out <new-absolute-private-file>` | Enroll an independent CLI Client only through current, server-verified account provenance.                 |
+| `relationships enrollments`                                                                | Inspect unconfirmed, committed and pending exact-key cleanup facts, deadlines and retry counts.            |
+| `relationships enrollment-status <id> <client-public-key>`                                 | Read one exact Client intent after an uncertain response.                                                  |
+| `relationships commit-enrollment <id> <client-public-key>`                                 | Idempotently confirm private persistence of that same intent; never mint another key.                      |
+| `relationships cancel-enrollment <id> <client-public-key> --confirm`                       | Cancel the exact intent and retry its bounded pending cleanup, preserving other Clients.                   |
+
+`account-discover` does not trust a listed Host alone: both participants independently verify account registration, Host identity, Noise key and the fresh signed transcript. Existing pins and explicit-disconnect suppression remain authoritative. The same proof can qualify an existing manually approved active relationship without changing its ID, approval or grants; pending manual approval is never bypassed. Manual relationships without that verified qualification retain **Use on this client**. Sign-out stops discovery and new automatic enrollment; existing independently usable grants/routes remain, and exact-key cleanup can continue while signed out. Bot collaboration is separate.
+
+Every new relationship enrollment first creates an unconfirmed source intent. The CLI saves its independent key privately before confirming it; stdout reports `enrollment: committed` or `pending` alongside Host/device IDs. A pending private file retains its `relationshipEnrollment.publicKey` for exact readback and retry. Keep that file and retry confirmation with the same key; do not rerun enrollment with a fresh file. Confirmation is idempotent across a lost reply and Host restart. If an unconfirmed ten-minute deadline expires, commitment is refused and the source retains pending cleanup. A cancelled result removes the newly written private file. Cleanup revokes only matching relationship-derived grants, including a grant whose paired reply was lost, and rejects late offers/redemption. It retries at most eight times across restart; `enrollments` retains exhaustion for inspection and explicit retry. The 1,024-record lifecycle limit returns a coded refusal rather than evicting unresolved work or live cancellation tombstones.
+
+The supported in-harness desktop/Web Client automatically enrolls verified account relationships without changing Environment Scope, the open conversation or Settings Target. Same-origin tabs reuse one saved Client grant under a per-Host Web Lock; different browser contexts have independent private storage and grants. Automatic enrollment requires Web Locks and refuses before key creation when unavailable. Existing HTTP LAN manual enrollment and route updates use the same short native IndexedDB transaction as every other credential-array writer; it stores no credentials or lease and preserves unrelated Hosts and newer device generations. Native mobile still enrolls each Host explicitly. A phone browser running the complete owner Web Client is a Web Client; User-Agent is not an authorization signal. Native-mobile noninheritance requires its own device verification.
+
+Use the existing `--host` / `--token-file` options to select the exact local owner. Repeat `enroll` against the other local Host for its independent CLI Client; `device-probe --device-file <absolute-private-file>` reads that Client's real remote Feed. Phones cannot invoke relationship enrollment through their device gateway. Do not retry an uncertain initiation blindly: inspect `relationships list` first.
+
+Disconnect immediately refuses local relationship access and retires its derived grants. An offline peer remains `peerRevocationPending: true` across restart. Only the exact idempotent disconnect is retried, up to eight automatic attempts with delays capped at one minute; ordinary mutations are never replayed. `list` exposes `revocationAttempts`, `revocationRetryAt` and `automaticEnrollmentSuppressed`. After exhaustion the pending record remains inspectable; `relationships sync <id>` explicitly retries that disconnected generation and renews its bounded retry budget. Acknowledgement changes only its exact ID and pinned key, so a stale acknowledgement cannot retire a newer generation. Independent device grants and remote data remain intact.
+
+Explicit disconnect suppresses automatic enrollment durably. Reconnect requires a fresh link and named reciprocal approval through `initiate`/`approve`; cancelled grants never become usable again. Internal failed-initiation cleanup does not create Human disconnect suppression. At most 32 live and 256 retained relationships are admitted; `relationship-history-limit` refuses new proposals rather than deleting pending retirement or identity pins. Web Clients return the removed selection to All, close its remote views, and ask Save / Discard / Cancel before a Human removes a Host with unsaved settings; failed saving or cancellation leaves the Host selected.
+
+To verify separate Clients, enroll twice into different new private files with distinct `--device-name` values (1–60 characters; default `CLI desktop`). On the remote owner, `devices` lists their distinct identifiers and names. Run `device-revoke <device-id> --confirm` for one, then probe both files: only that grant must fail. Keep an independently paired device in this check. A new relationship generation never revives an old one; use `relationships list` and the exact active ID. Web Clients use **Connections → Computer relationships → Use on this client**, give the Client a name, then open its remote Channel. Already enrolled Clients select **Open Channels** without issuing another grant.
+
 ### Recoverable Zip transfer and import
 
 Use the same authenticated Host as the phone. `bot-zip-upload --from-zip <file> --upload-key <stable-key> --host <url>` returns `sha256`, `sizeBytes`, `offset`, `chunkBytes` and `expiresAt`. It uses `zipUploadBegin` and `zipUploadChunk`, resuming acknowledged chunks with the same key and exact file. Raw chunks are 256 KiB so their base64 envelopes fit the encrypted device transport's 4 MiB request limit.
@@ -85,7 +139,13 @@ For a blank bot, `--core-memory <text>` or `--core-memory-stdin` writes the root
 
 ### Remote Host settings
 
-The browser's Remote Host icon menu → **Host settings** uses the same Host owners as these online commands. Select the source Host with `--host <origin>` and its private `--token-file <file>` (or the existing environment variables); never point a remote-setting command at the serving Host by default. `model-catalog`, `home-model-set`, `model-presets`, `model-preset-create` and `model-preset-update` cover models; `overview-usage` and `overview-memory` cover usage and Memory activity; `storage-usage` and both storage cleanup preview/confirm pairs cover storage. Destructive confirmations still require `--confirmation-stdin --confirm`, using the preview from that same Host. An unavailable or refusing Host never falls back to a local profile. These commands do not read browser pairing secrets or change device-local Host looks. Appearance and Notifications are separate sections in the same dialog and remain available while the Remote Host is offline.
+The remote Bot conversation’s existing **Profile**, composer **Model**, **Workspace Grants** and approval controls bind settings to its owning Bot and Host; the Environment browsing filter cannot retarget them. Use the owning Host’s `--host` and `--token-file` with `show <bot>` then `update <bot> --name <name> --expected-profile <profileFingerprint>`. Models use `model-plan-customize` or `model-preset-apply` with the observed Bot and preset revisions. Folders use `workspace-options` / `workspace-create`, `grants`, `grant-create` and `grant-revoke --confirm`; approval templates use `approval-template list --bot <bot>` and `approval-template-set`. Read back `show`, `model-plan`, `grants` and the selected template on that same Host after changing them, including after an uncertain reply. These operations do not enable Bot collaboration or change network membership. A removed or replaced Client cannot replay an open settings draft through its new authorization; close and reopen the Bot’s settings. Remote folders use the target Host’s folder list, canonical Workspace creation and explicit grant confirmation. The local OS picker stays unavailable and never falls back to the serving Host.
+
+The browser's Environment panel → **More → Settings** opens one named settings target independently of the Chats/Activity browsing filter. Select the source Host with `--host <origin>` and its private `--token-file <file>` (or the existing environment variables); never point a remote-setting command at the serving Host by default. `model-catalog`, `home-model-set`, `model-presets`, `model-preset-create` and `model-preset-update` cover models; `overview-usage` and `overview-memory` cover usage and Memory activity; `storage-usage` and both storage cleanup preview/confirm pairs cover storage. Destructive confirmations still require `--confirmation-stdin --confirm`, using the preview from that same Host. An unavailable or refusing Host never falls back to a local profile. These commands do not read browser pairing secrets or change device-local Host looks. App preferences, Appearance and Notifications remain Client-local. Before switching a dirty settings target, choose Save and switch, Discard or Cancel; after an uncertain save, read `model-catalog` or `model-presets` from that same Host before retrying.
+
+App preferences lists Client appearance, notifications, shortcuts and companion choices through their existing device-local owners. Its navigation and search exclude Host-owned controls. **More settings** keeps the existing composition with explicit scope: Host-backed motion, Bot-mode icon and native language use This Host; window zoom uses This device. These Host controls remain bound to the serving Host.
+
+An unconfirmed preset creation cannot be resent from the settings draft. A successful receipt retains its preset ID, and **Check saved preset** retries only that owner's readback. Without a receipt, inspect the preset list and discard the draft before choosing another action; a matching name does not confirm the request. Discarding does not undo a possible Host write.
 
 `appearance-clients` lists the open browser Clients. `host-look --client-id <id> --host-id <id>` reads that browser's name, icon, colour and content revision. Add `--patch-stdin --expected-revision <revision>` to write a JSON patch such as `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`. An empty name restores the Host's original display name; `color: null` clears the colour. Names are trimmed and limited to 40 characters, matching the phone's shared HostLook rules. Use a paired Remote Host ID or the serving Host's ID; no remote credential is accepted or returned.
 
@@ -367,6 +427,8 @@ the selected reason. Human requests to wait or cancel must never be overridden.
 
 ### Bot profile, roster and Part Library
 
+The browser's [environment creation form](environment-creation.md) uses these same Host owners. For agent verification, select the owning Host explicitly with `--host` and its private `--token-file`; `create`, `group-create`, `roster-section-create`, `roster-section-rename`, `roster-section-reorder` and `channel-assign` perform the corresponding operations. Read `list`, `channels` and `roster` on both Hosts to confirm only the chosen Host changed. The Client's last creation target and browsing scope do not retarget CLI commands.
+
 These commands set a Bot's look and wake rules, arrange the sidebar and manage Custom Parts through the same Host calls as the Web UI ([#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)):
 
 ```bash
@@ -413,13 +475,21 @@ printf '{"token":"…"}' | deepseekbot im-app-add discord --credentials-stdin
 deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
+deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot messaging-grants <bot-id> --read-mode status
+deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
 deepseekbot channel-connect <channel> --bot <bot-id> --conversation <external-id>
+deepseekbot im-reconnect <bot-id> --app <app-id>
 deepseekbot im-unbind <bot-id> --app <app-id>
 deepseekbot im-app-remove discord --app <app-id>
 ```
 
 `im-app-add` covers token-based platforms (Discord, Slack, QQ, DingTalk, WeCom, Matrix); Feishu and WeChat keep `im-authorize`. Credentials arrive only on stdin and are never printed; output lists each app's id, name, connection state and error code. `im-bind` binds a connected app (the `id` from `im-app-status`, also the `ref` in `im-status`) to a Bot, and `im-status` shows each binding's `reception`. `channel-connect` attaches an external group conversation to a Channel as context through that Bot's binding; the conversation must already be known to the binding, so mention the app there once and pick the id from the `candidates` in `channel-ingests`. Otherwise the Host refuses with `conversation-unavailable`.
+
+`im-status` and `messaging-grants` include process-local `recovery` metadata: `retrying` with `reason`, `attempt`, `nextRetryAt`, or `action-required` with `reason`. Temporary provider readiness failures retry exponentially from 250 ms to a 30 s cap until recovery. Host restart reconstructs receivers from enabled bindings and grants. `im-reconnect` uses the existing Owner and current revision without changing conversation access. Failed mutations are reported, never automatically replayed.
+
+`im-status`, `messaging-grants` and `channel-bridges` support `--read-mode saved|status`. `saved` returns local configuration promptly with `checks: pending`; capability/availability fields are not verified permissions. `status` checks only bound accounts and grants with `checks: complete`, sharing account inspections only within the current request. Omitting the flag retains full app/setup discovery. Mutations reject this flag and keep their fresh Owner checks. See [ADR-0343](adr/0343-im-settings-project-saved-configuration-before-live-checks.md).
 
 ### IM messaging, approvals and failure alerts from the CLI
 
@@ -920,6 +990,7 @@ Each command returns one JSON document. Refusals include `confirm-required`, `ne
 ### Encrypted LAN phone access
 
 For model-free device-side qualification, `device-pair --link-file <trusted-private-link> --out <new-private-pairing.json> --confirm` runs the same encrypted enrollment as the phone. While waiting, the pairing process writes one `device-key-confirmation-required` JSON status to stderr containing only its public-key fingerprint. In another CLI process, compare all digits with `devices.pendingKeys[].fingerprint`, then approve the matching exact public key with `device-approve-key`; never approve merely by device name or list position. The final stdout contains only Host/device IDs and the output path; keys and credentials go only to the new private file. `device-probe --device-file <private-pairing.json>` then reads the real Host Feed through the mobile connection owner and reports only route kind and roster counts. `device-probe` also reports `feedRead` (`acknowledged`, `unsupported` for an older Host, or `unconfirmed` after a failed acknowledgement); only `acknowledged` confirms that the device owner recorded this read. `devices.devices[].feedReadAt` reads the first acknowledgement. It sends no DM and requires no model. Never pass a pairing link or device credential as a command argument.
+`device-account-pair --account-file <private-account-session.json> --host-id <Connect-registration-id> --out <new-private-pairing.json> --confirm` runs the same authenticated account offer, client-side HTTPS identity retrieval and encrypted enrollment as the phone, without a fingerprint prompt. The session file is a private copy of the Connect account session (`clientId`, `subject`, `refreshToken`, optional `sessionId`); refreshing updates only this file. Never share it with another live client or pass tokens as arguments. The default Relay is the official service; `DEEPSEEKBOT_CONNECT_RELAY` selects an isolated test Relay. Connector observations do not prevent the attempt. Use `device-probe` afterward to prove an actual Host Feed read.
 
 `deepseekbot device-lan enable --confirm` opens the restricted encrypted entry. `device-lan disable` closes LAN sockets and removes the opt-in; it does not revoke devices or disable Connect. Both return one JSON status (`off` or `listening`, with the port). `devices` includes `lan` status and eligible routes. Refusals include `confirm-required`, `lan-action-invalid`, `lan-listen-failed` and `lan-storage-unavailable`. LAN starts disabled; its enabled port survives ordinary Host restart.
 
@@ -990,11 +1061,28 @@ deepseekbot connection-host <host-id> test-route <origin> --client-id <id>
 deepseekbot connection-host <host-id> remove --client-id <id> --confirm
 deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
-deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-stop-route private-tunnel --connection-route-id quick --client-id <id>
+deepseekbot connection-host <host-id> stop-route private-tunnel --connection-route-id quick --expected-route-revision <revision> --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-stop-route lan --client-id <id>
+deepseekbot connection-host <host-id> stop-route lan --handover <trusted-origin> --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route lan --confirm-disconnect --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-revoke-device <device-id> --client-id <id>
+deepseekbot connection-host <host-id> plan-sign-out --client-id <id>
+deepseekbot connection-host <host-id> sign-out --client-id <id> --confirm
+deepseekbot connection-host <host-id> read-operation --client-id <id>
+deepseekbot connection-host <host-id> read-previous-operation --client-id <id>
 deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
 ```
 
 `select-route` persists the preference in the selected browser’s existing Host record before switching after active requests finish. A manual origin must already be eligible and never silently fails over. Pass `automatic` to restore the existing policy without widening route eligibility. `connection-hosts` reports saved preference, pending switch and actual current route separately. Only this Client/Host is affected; mobile connection details use the same HostClient behavior and their own canonical persistence owner.
+
+`plan-*` reads the named Host before changing anything and reports whether the operation can disconnect this Client. Choose `--handover <trusted-origin>` to verify an existing alternative, explicitly save that Client’s manual route preference, wait for its active connection and read back the exact Host before writing. Without a usable alternative, `--confirm-disconnect` acknowledges loss of access; `--confirm` remains required. Stopping a private route requires its `quick` or `custom` ID and preserves other routes. Sign-out uses that Host’s account owner; relationship disconnection and individual device revocation keep their separate effects.
+
+For a private route, first use `plan-stop-route` and pass its configuration revision unchanged with `--expected-route-revision`. Re-plan after a configuration change or Host restart; never substitute a newly inspected revision for the one confirmed. The Host atomically refuses a changed configuration before stopping it. A mismatched, absent or legacy unqualified revision cannot settle an uncertain private stop.
+
+An uncertain write is atomically recorded in a versioned execution index under the selected Client’s existing HostStorage owner before transmission and is never replayed. Reloading retains the guard. A shared Web Lock covers preparation, one write and acknowledgement; missing Web Locks refuse dangerous writes. `read-operation` fresh-reads the guard under the same lock, uses the same authenticated Host owner and clears only the matching generation after observing completion. An unchanged or unavailable result remains unknown. Recover access through an already trusted route, then read back. `read-previous-operation` explicitly lets a new independent grant read the outcome of an older grant’s operation through the same pinned Host, without inheriting or resending it; a different Host key refuses. At most 32 unresolved execution records are retained before further writes refuse. Loaded Channels and messages stay available while offline. These Client operations do not stop foreign Tailscale mappings or unrelated Host processes.
+
+New execution records remain separate from SavedHost credentials. Older open pages cannot safely manage the new index format and fail closed; reload the target browser Client before connection changes or readback. Use a current Client to resolve outstanding records before rolling code back. Never delete unknown execution records to make an older page writable. Legacy referenced operations remain readable.
 
 These commands use the existing selected-Client control channel and the same management adapter as the Connections dialog. Lists expose Host identity, name and actual route observations, never credentials or private keys. `inspect` uses that browser's paired authorization on the target Host to read devices and stoppable routes. `remove` deletes this browser connection only, preserving Host data and grants; `revoke-device` revokes the named device on the target; `stop-route` disables only that target's LAN listener or private Tunnel. Stopping the active route or revoking the current device may interrupt the reply: an unacknowledged action is not a success and needs a fresh status check. Unknown Hosts/routes/devices, stale requests and unconfirmed writes are refused. Account grouping does not rewrite sign-in/sign-out provenance or grant management permissions.
 
@@ -1116,6 +1204,8 @@ deepseekbot storage-usage
 deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
   | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
 ```
+
+For remote storage, use the selected owning Host’s explicit `--host` and private `--token-file` on **every** read, preview and confirmation. Keep a preview with that Host; changing Host requires a new preview. After a lost or timed-out confirmation response, run `storage-usage` on the same Host and inspect the affected Channel before requesting a fresh preview. Do not resend the old confirmation. The Environment settings UI follows the same rule: changing target or losing access discards the open preview, and an uncertain cleanup first reads that same Host again. A failed read blocks another preview until Reload succeeds. Disconnecting a relationship does not delete stored data. These authority-cookie CLI commands do not impersonate a browser’s enrolled Client.
 
 This is the CLI form of **Settings → Data & privacy → Storage space**. `storage-usage` returns `totalBytes`, `parts` (`media` is the attachment folder, `messages` the operational database, `memory` every Bot's Memory folder, `other` the rest of `$DSH_HOME/botharness`) and `chats`, largest media first, with each chat's `messages`, `oldestAt`, `mediaBytes` and per-kind `media` totals.
 
@@ -1601,6 +1691,33 @@ Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
 `connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
 the stored token; paired devices keep their credentials.
 
+### Check this computer's public connection
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` runs the same
+self-check as **Connections → Tobs Connect → Check again**. Signing in and starting or
+restarting the connector trigger it automatically. It checks the account, connector,
+relay-reported online state, then a fresh TLS-verified WebSocket and Noise handshake pinned
+to this Host's identity through the public device channel. It creates no device grant.
+
+The JSON `health` observation is also included in `connect-status`:
+`idle`, `checking` (with `stage`), `passed`, `failed`, or `stale`.
+Completed checks include `checkedAt` and `elapsedMs`; failures include `stage` and a bounded
+`code` such as `dns`, `tls`, `http`, `timeout`, `handshake`, `identity`, `relay-offline` or
+`connector-unavailable`. HTTP refusals add only a numeric `httpStatus`.
+The UI can copy these safe fields without account names, addresses, tokens or raw responses.
+
+Concurrent callers share one check. Each check has a 20-second overall budget and an
+8-second public handshake budget. Success expires after five minutes; opening or refreshing
+the dialog does not start a background probe. A passed check proves reachability from this
+computer at that time, not from every phone network. Use the phone's diagnostics separately
+if it still cannot connect. A stopped connector or changed account invalidates old success.
+
+The manual Web request has a 25-second transport deadline and aborts when its card closes. The public WebSocket accepts at most 1 KiB per handshake message and disables compression before authenticating the Host.
+
+The public stage retries only transient DNS/network/timeout and HTTP 429/5xx failures, at most four attempts with 1/3/6-second waits inside the same 20-second overall deadline. Certificate and identity failures do not retry. Completed checks refresh the visible account computer list once.
+
+A successful Node public check may include `dnsRecovery: "fresh-query"`: an official tunnel ENOTFOUND was recovered with a bounded configured-DNS IPv4 query before TLS and pinned Noise succeeded. This is application recovery, not an OS cache reset. `device-account-pair`, `device-pair` and `device-probe` share the same scoped transport. Native phone DNS is unchanged; no global DNS/VPN settings are modified.
+
 ### Account sign-in
 
 ```sh
@@ -1892,12 +2009,15 @@ For several IM requests in one turn, call `ask_secret` with the existing account
 
 Use `device-offer --route-id quick|custom --out <new-absolute-private-file>` for a single-route invitation, including recovery or older phones. Omit `--route-id` to admit all connected private routes.
 
+`private-route stop` optionally accepts `--expected-route-revision` from `list` for a configuration-bound stop; without it the explicit local-owner command retains its unconditional behavior. A changed revision refuses before mutation.
+
 `private-route list` reads the Host's public `privateRoutes` projection. A Host supports `quick` plus one `custom` route (Named Tunnel or private HTTPS ingress):
 
 ```bash
 deepseekbot private-route add quick --confirm
 deepseekbot private-route add custom --origin https://bot.example.com --confirm
 deepseekbot private-route stop quick --confirm
+deepseekbot private-route stop quick --expected-route-revision <revision-from-list> --confirm
 deepseekbot private-route start quick --confirm
 deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
 deepseekbot private-route remove custom --confirm
@@ -1923,6 +2043,8 @@ QQ also supports `deepseekbot messaging-defaults qq` and `messaging-defaults-set
 
 ### Team mode and Host Members
 
+`dm <username>` opens or creates the authenticated Human's canonical DM with that active person on the selected Host. Opening from either participant returns the same Channel; another Human's DM remains inaccessible. Use `channels send <channel-id> --body-stdin` and `channel-messages <channel-id>` for messages. Pure Human DMs have no Bot participant; Group messages remain readable by their eligible Bot members.
+
 The Owner CLI also accepts private LAN IPv4 HTTPS origins with normal certificate verification. Plain LAN HTTP remains refused. A private test CA can be supplied through the machine-local `NODE_EXTRA_CA_CERTS` setting.
 
 These commands use `--host <url>` and the existing private Host token input. The local Owner is the default caller.
@@ -1942,6 +2064,10 @@ deepseekbot --as bob channels browse-public
 deepseekbot --as bob channels join-public <channel-id>
 deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
 deepseekbot --as bob channel-messages <channel-id>
+
+deepseekbot dm bob
+
+deepseekbot --as bob dm owner
 deepseekbot team-mode insecure-http on --confirm
 deepseekbot team-mode insecure-http off --confirm
 deepseekbot team-mode off
@@ -1953,7 +2079,41 @@ Owner password input is a password with an optional final newline, or JSON `{ "p
 
 Non-loopback password sign-in requires Host-known TLS or the encrypted device gateway. The explicitly confirmed `insecure-http` exception permits plain HTTP until disabled. Forwarded protocol headers do not establish TLS. Turning Team mode off revokes member grants and closes their streams while retaining identities, passwords and Channel membership. Re-enabling requires fresh sign-in.
 
-`members reset-password <username> --initial-password-file <path>` is Owner-only recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+```bash
+deepseekbot roles catalog
+deepseekbot roles list
+deepseekbot roles create --name reviewers --permissions audit.view,usage.view
+deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles delete <roleId> --confirm
+deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
+deepseekbot members roles bob --set member,<roleId>
+deepseekbot --as bob devices --member bob
+deepseekbot devices --member bob --revoke <grantId>
+deepseekbot team-mode transfer-owner bob --password-stdin --confirm
+```
+
+`members reset-password <username> --initial-password-file <path>` requires `members.manage` and coverage of the target roles (Admin targets require the Owner); it provides recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
+
+```sh
+deepseekbot --as bob members change-password --password-stdin --sign-out-others=false < password-change.json
+deepseekbot members deactivate bob
+deepseekbot members reactivate bob
+deepseekbot members transfer bob --preview
+deepseekbot members transfer bob --to alice
+deepseekbot members purge bob --preview
+deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
+```
+
+Password changes default to signing out every other browser and paired device; `false` keeps them except during the forced first change. Lifecycle operations require `members.manage` with the target-role ceiling; Owner and self targets are protected, and only the Owner can manage Admin targets. Deactivation preserves data and revokes every grant. Reactivation requires fresh sign-in. Transfer moves group Channel ownership and the member's private Bots, with their Memory and DM history, to an active member or the Owner; preview lists both before anything moves. The member's Tob stays with them until purge. Purge requires deactivation and completed transfer, then a single-use, five-minute token from the preview. The username argument supplies the exact username confirmation; stdin supplies only the token. Shared messages retain `author.humanId` with `author.deleted: true` and no display name. `team-mode status` includes `activeMembers`; `team-mode off` also returns `suspendedMembers`. Previously deactivated accounts remain deactivated after off/on. Purge also removes the member's Tob and any private Bots still owned by them, with their Memory; DMs that another Human took part in are kept.
+
+```sh
+deepseekbot usage members --period week [--as <username>]
+deepseekbot roles update <roleId> --models all [--as <username>]
+deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
+deepseekbot models allowed [--as <username>]
+```
+
+Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
 
 `members invite <username>` resolves the username as Owner and returns `{ link, qr: { size, path }, expiresAt }`. The invitation contains the Host identity fingerprint, reachable HTTPS / encrypted-gateway routes and username; it contains no initial password. Deliver that password separately. `--as <username> members pairing-offer` creates a ten-minute, single-use pairing offer for that member alone, with an additional `receipt`. It refuses until the initial password has changed. Redemption creates a `paired-device` member grant for the same Human, without creating an Owner device or obtaining an Owner cookie.
 

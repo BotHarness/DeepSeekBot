@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createMemoryStore } from '../src/index.js';
-import { createMemoryGit } from '../src/memory/git.js';
+import { createMemoryGit, initializeMemoryRepositoryAsync } from '../src/memory/git.js';
 import { FIXED_NOW, createTempRoot } from './helpers.js';
 
 function createRoot(): string {
@@ -21,6 +21,23 @@ function commitCount(root: string): number {
 }
 
 describe('memory git repository', () => {
+  it('prepares the same durable Git repository asynchronously and preserves its existing HEAD', async () => {
+    const root = createRoot();
+    let ready = false;
+    const pending = initializeMemoryRepositoryAsync(root).then((result) => {
+      ready = true;
+      return result;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(ready).toBe(false);
+    expect(await pending).toEqual({ created: true });
+    const head = git(root, ['rev-parse', 'HEAD']);
+    expect(git(root, ['branch', '--show-current'])).toBe('main');
+    expect(git(root, ['config', 'user.email'])).toBe('bot@botharness.local');
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe('* text=auto eol=lf\n');
+    expect(await initializeMemoryRepositoryAsync(root)).toEqual({ created: false });
+    expect(git(root, ['rev-parse', 'HEAD'])).toBe(head);
+  });
   it('initializes one main branch, local identity and committed LF attributes', async () => {
     const root = createRoot();
     createMemoryStore({ memoryDir: root, now: FIXED_NOW });

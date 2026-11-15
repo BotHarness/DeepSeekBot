@@ -1,3 +1,4 @@
+import { createTestNativeWorkspace } from './workspace-grant-fixture.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 
@@ -37,10 +38,12 @@ interface Harness {
   host: FakeAgentHost;
   core: BotHarnessCore;
   dshHome: string;
+  workspacePath: string;
 }
 
 function startHarness(): Harness {
   const dshHome = process.env['DSH_HOME'] ?? '';
+  const workspace = createTestNativeWorkspace(dshHome);
   const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
   contexts.push(ctx);
   const stored = persistedSessions.get(dshHome) ?? new Set<string>();
@@ -80,20 +83,7 @@ function startHarness(): Harness {
   ctx.provide('approval', {
     overrideOf: (session: never) => latest(session, 'approval/policy')?.['policy'],
   } as never);
-  ctx.provide('workspaceRegistry', {
-    get: (id: string) =>
-      id === 'test-workspace'
-        ? { id, path: dshHome, title: 'Test Workspace', status: async () => 'ok' as const }
-        : undefined,
-    list: () => [
-      {
-        id: 'test-workspace',
-        path: dshHome,
-        title: 'Test Workspace',
-        status: async () => 'ok' as const,
-      },
-    ],
-  } as never);
+  ctx.provide('workspaceRegistry', workspace.lookup as never);
   ctx.provide('agentDefaultModel', {
     currentSelection: () => ({ provider: 'test', model: 'test' }),
   });
@@ -111,14 +101,14 @@ function startHarness(): Harness {
           'grant-1',
           'ada',
           'test-workspace',
-          dshHome,
+          workspace.path,
           'Test Workspace',
           '2026-09-21T00:00:00.000Z',
         );
     },
     ['workspace-grants'],
   );
-  return { ctx, host, core, dshHome };
+  return { ctx, host, core, dshHome, workspacePath: workspace.path };
 }
 
 async function admitTurn(
@@ -173,7 +163,7 @@ describe('DM turn end to end', () => {
   });
 
   it('runs a real Orchestrator and Assignment turn through the Host wiring', async () => {
-    const { ctx, host, core, dshHome } = startHarness();
+    const { ctx, host, core, dshHome, workspacePath } = startHarness();
     expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
     const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     if (dm === undefined) throw new Error('DM channel missing');
@@ -215,7 +205,7 @@ describe('DM turn end to end', () => {
     ]);
     expect(host.createOptions.map((options) => options.meta?.cwd)).toEqual([
       join(dshHome, 'botharness', 'bots', 'ada', 'memory'),
-      dshHome,
+      workspacePath,
     ]);
     for (const session of host.sessions) {
       expect(session.snapshotEvents(0, 2).map((event) => [event.type, event.data])).toEqual([
@@ -231,7 +221,7 @@ describe('DM turn end to end', () => {
         permission: {
           grantId: 'grant-1',
           workspaceId: 'test-workspace',
-          primaryCwd: dshHome,
+          primaryCwd: workspacePath,
           mode: 'workspace-write',
           approval: 'ask',
           presetRevision: 0,

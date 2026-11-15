@@ -105,7 +105,8 @@ export function createRealAttachments(root: string, maxBytes: number) {
       const realRoot = realpathSync(root);
       const real = realpathSync(path);
       const local = relative(realRoot, real);
-      if (local.startsWith('..' + sep) || local === '..' || !lstatSync(real).isFile())
+      const entry = lstatSync(real);
+      if (local.startsWith('..' + sep) || local === '..' || !entry.isFile() || entry.nlink !== 1)
         throw new Error('Attachment escaped its profile');
       return { path: real, relativePath: ref.name, kind: 'file' as const };
     } catch {

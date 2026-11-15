@@ -136,6 +136,7 @@ async function withForm(
     create: ReturnType<typeof vi.fn>,
     onCreated: ReturnType<typeof vi.fn>,
     open: ReturnType<typeof vi.fn>,
+    onCancel: ReturnType<typeof vi.fn>,
   ) => Promise<void>,
   source: 'empty' | 'git' = 'empty',
   created: Record<string, unknown> = { slug: 'bot', displayName: 'Bot' },
@@ -147,6 +148,7 @@ async function withForm(
   const create = vi.fn(async () => created);
   const onCreated = vi.fn();
   const open = vi.fn(async () => undefined);
+  const onCancel = vi.fn();
   try {
     await act(async () =>
       root.render(
@@ -157,12 +159,12 @@ async function withForm(
             pickWorkspaceFolder: vi.fn(async () => 'D:\\BotMemory'),
           } as unknown as BridgeActions,
           source,
-          onCancel: vi.fn(),
+          onCancel,
           onCreated,
         }),
       ),
     );
-    await test(host, create, onCreated, open);
+    await test(host, create, onCreated, open, onCancel);
   } finally {
     await act(async () => root.unmount());
     host.remove();
@@ -303,6 +305,64 @@ describe('editable creation starting points', () => {
 });
 
 describe('memory location under Advanced settings', () => {
+  it('can close an HTTPS fallback notice after opening its committed Bot fails', async () => {
+    await withForm(
+      async (host, _create, onCreated, open, onCancel) => {
+        await typeText(host, 'input[placeholder="例如：小研"]', 'Imported');
+        await typeText(
+          host,
+          'input[placeholder="https://github.com/owner/repo.git"]',
+          'git@github.com:owner/repo.git',
+        );
+        await submit(host);
+        open.mockRejectedValueOnce(new Error('connection-host-changed'));
+        await act(async () => buttonNamed('完成', host).click());
+        expect(onCreated).not.toHaveBeenCalled();
+        await act(async () => buttonNamed('关闭', host).click());
+        expect(onCancel).toHaveBeenCalledOnce();
+        expect(open).toHaveBeenCalledOnce();
+      },
+      'git',
+      {
+        slug: 'bot',
+        displayName: 'Imported',
+        httpsFallback: {
+          from: 'git@github.com:owner/repo.git',
+          to: 'https://github.com/owner/repo.git',
+          reason: 'auth',
+        },
+      },
+    );
+  });
+  it('ignores a local folder picker completion after switching to a remote target', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    let finish: (path: string) => void = () => {};
+    const actions = {
+      pickWorkspaceFolder: vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    } as unknown as BridgeActions;
+    const props = { actions, onCancel: vi.fn(), onCreated: vi.fn() };
+    try {
+      await act(async () => root.render(createElement(CreatePersonaBotModal, props)));
+      await act(async () => buttonNamed('选择文件夹…', host).click());
+      await act(async () =>
+        root.render(createElement(CreatePersonaBotModal, { ...props, remote: true })),
+      );
+      await act(async () => finish('D:\\LocalOnly'));
+      expect(host.querySelector<HTMLInputElement>('input[placeholder="默认位置"]')!.value).toBe('');
+      expect(buttonNamed('选择文件夹…', host).disabled).toBe(true);
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
   it('keeps the default location unless the Human chooses a folder', async () => {
     await withForm(async (host, create) => {
       const advanced = host.querySelector<HTMLDetailsElement>('[data-create-advanced]')!;

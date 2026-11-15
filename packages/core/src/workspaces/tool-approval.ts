@@ -1,3 +1,4 @@
+import type { ApprovalAuthority, ApprovalDecider } from '../team/approval-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolApprovalActor } from './tool-approval-actor.js';
@@ -26,6 +27,7 @@ import {
   type ApprovalReviewResult,
 } from './approval-reviewer.js';
 import { requiresHumanDecision } from './approval-templates.js';
+import { decideToolApproval, toolEffects, type ToolEffects } from './tool-effects.js';
 
 export interface BotCreatePreview {
   memoryFolder: string;
@@ -35,6 +37,8 @@ export interface BotCreatePreview {
 }
 
 export interface ToolApprovalRequestCard {
+  opaque?: boolean;
+  decidedBy?: ApprovalDecider;
   sessionId: string;
   callId: string;
   toolName: string;
@@ -57,6 +61,7 @@ export interface ToolApprovalNotice extends ToolApprovalRequestCard {
 export interface ToolApprovalDecision {
   requestMessageId: string;
   actor?: ToolApprovalActor;
+  decidedBy?: ApprovalDecider;
   outcome:
     | 'allowed-once'
     | 'allowed-always-tool'
@@ -95,6 +100,7 @@ type TrackedCall = ToolApprovalRequestCard & {
   rememberable?: boolean;
   remembered?: boolean;
   execution: ToolExecution;
+  effects: ToolEffects | undefined;
   authorized?: () => boolean;
   device?: 'computer' | 'browser';
 };
@@ -211,6 +217,7 @@ export class ChannelToolApproval {
     askChannel?: (sessionId: string) => string | undefined,
     autoApproval?: ToolAutoApproval,
     fullAccess?: (sessionId: string) => boolean,
+    private readonly approvals?: ApprovalAuthority,
   ) {
     this.#fullAccess = fullAccess;
     this.#autoApproval = autoApproval;
@@ -259,6 +266,7 @@ export class ChannelToolApproval {
       scopeKey,
       ...(options?.authorizationScope ? { authorizationScope: options.authorizationScope } : {}),
       execution,
+      effects: toolEffects(execution.name, execution.arguments),
       externalDecision,
       ...(options?.requireExplicitApproval ? { requireExplicitApproval: true } : {}),
       ...(rememberable && !options?.requireExplicitApproval ? { rememberable } : {}),
@@ -298,19 +306,21 @@ export class ChannelToolApproval {
       this.#currentScope(tracked, owner) !== tracked.scopeKey
     )
       return 'unavailable';
-    const policyChange = this.#changesPolicy(tracked);
-    if (
-      !policyChange &&
-      !tracked.requireExplicitApproval &&
-      tracked.externalDecision !== 'each-use' &&
-      this.#fullAccess?.(tracked.sessionId) === true
-    ) {
+    const policy = this.#decisionPolicy(tracked, {
+      fullAccess: this.#fullAccess?.(tracked.sessionId) === true,
+    });
+    if (policy.path === 'full-access') {
       tracked.authorized = () => this.#fullAccess?.(tracked.sessionId) === true;
       return 'allowed-once';
     }
     const standing =
       tracked.externalDecision === 'each-use' ? undefined : this.#matchingRule(tracked);
-    if (standing !== undefined) {
+    if (
+      standing !== undefined &&
+      this.#decisionPolicy(tracked, {
+        standingRule: this.#explicitRuleRequired(tracked) ? 'explicit' : 'ordinary',
+      }).path === 'standing-rule'
+    ) {
       tracked.automatic = true;
       this.#rules?.recordAutoApproval(standing.botSlug, standing.id);
       return 'allowed-once';
@@ -328,17 +338,16 @@ export class ChannelToolApproval {
     if (channel === undefined) return 'unavailable';
     if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
     if (
-      !policyChange &&
-      !tracked.requireExplicitApproval &&
+      this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer' &&
       this.#overrides.delete(overrideKey(tracked))
     ) {
       tracked.humanReviewed = true;
       return 'allowed-once';
     }
     const template =
-      policyChange || tracked.requireExplicitApproval
-        ? undefined
-        : this.#autoApproval?.template(tracked.botSlug);
+      this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer'
+        ? this.#autoApproval?.template(tracked.botSlug)
+        : undefined;
     if (template !== undefined && this.#breakers.get(tracked.sessionId)?.paused !== true) {
       const reviewed = await this.#review(tracked, template, channelId, request.signal);
       if (reviewed !== undefined) return reviewed;
@@ -357,7 +366,7 @@ export class ChannelToolApproval {
         cwd: tracked.cwd,
         input: tracked.input,
         externalDecision: tracked.externalDecision ?? 'operation',
-        allowAlways: tracked.externalDecision !== 'each-use' || tracked.rememberable === true,
+        allowAlways: policy.rememberable,
         ...(tracked.botCreatePreview === undefined
           ? {}
           : { botCreatePreview: tracked.botCreatePreview }),
@@ -596,6 +605,7 @@ export class ChannelToolApproval {
       Date.parse(pending.notice.expiresAt) <= Date.now()
     )
       return false;
+    this.approvals?.requireRequest(human, pending.channelId, messageId);
     const eachUse = pending.notice.externalDecision === 'each-use';
     const remember =
       eachUse &&
@@ -713,11 +723,17 @@ export class ChannelToolApproval {
         replyTo: messageId,
         toolApprovalDecision: {
           requestMessageId: messageId,
+          decidedBy: this.approvals?.decider(human) ?? { humanId: human.humanId },
           outcome,
           ...(external ? { actor: external.actor } : {}),
         },
       };
-      if ((await this.#channels.appendMessage(human, pending.channelId, decision)) === undefined) {
+      if (
+        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () => {
+          this.approvals?.requireRequest(human, pending.channelId, messageId);
+          return true;
+        })) === undefined
+      ) {
         if (rule !== undefined) this.#rules?.revoke(botSlug, rule.id);
         return false;
       }
@@ -747,6 +763,16 @@ export class ChannelToolApproval {
       if (external && outcome !== 'rejected')
         tracked.authorized = () =>
           external.authorized() && (!kind || external.rule?.authorized() === true);
+      if (!external && this.approvals && outcome !== 'rejected') {
+        tracked.authorized = () => {
+          try {
+            this.approvals?.requireRequest(human, pending.channelId, messageId);
+            return true;
+          } catch {
+            return false;
+          }
+        };
+      }
       if (remember) tracked.remembered = true;
       if (outcome !== 'rejected') tracked.humanReviewed = true;
       this.#settle(messageId, outcome === 'rejected' ? 'rejected' : 'allowed-once');
@@ -907,12 +933,29 @@ export class ChannelToolApproval {
       : scope;
   }
 
+  #decisionPolicy(
+    tracked: TrackedCall,
+    options: {
+      fullAccess?: boolean;
+      standingRule?: 'none' | 'ordinary' | 'explicit';
+      reviewer?: boolean;
+    } = {},
+  ) {
+    return decideToolApproval(tracked.effects, {
+      stage: 'request',
+      legacyProtected: this.#changesPolicy(tracked),
+      explicitApproval: tracked.requireExplicitApproval === true,
+      eachUse: tracked.externalDecision === 'each-use',
+      device: tracked.device !== undefined,
+      fullAccess: options.fullAccess === true,
+      standingRule: options.standingRule ?? 'none',
+      reviewer: options.reviewer === true,
+      rememberable: tracked.rememberable === true,
+    });
+  }
+
   #explicitRuleRequired(tracked: TrackedCall): boolean {
-    return (
-      this.#changesPolicy(tracked) ||
-      tracked.requireExplicitApproval === true ||
-      tracked.device !== undefined
-    );
+    return this.#decisionPolicy(tracked).explicitRule;
   }
 
   #matchingRule(tracked: TrackedCall): ToolApprovalRule | undefined {

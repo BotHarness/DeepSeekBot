@@ -1,3 +1,5 @@
+import { ownsBot } from '../team/bot-access.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { BridgeMethods, BridgeResult } from '../bridge/methods.js';
@@ -77,9 +79,15 @@ function text(value: unknown, limit = 512): string {
 function result<T>(value: BridgeResult<T>): T {
   if (!value.ok)
     throw new TobError(
-      ['protected-bot', 'unknown-bot', 'stale-setting', 'stale-profile', 'unavailable'].includes(
-        value.error.code,
-      )
+      [
+        'protected-bot',
+        'unknown-bot',
+        'bot-not-found',
+        'permission-required',
+        'stale-setting',
+        'stale-profile',
+        'unavailable',
+      ].includes(value.error.code)
         ? value.error.code
         : 'invalid-input',
     );
@@ -129,13 +137,16 @@ export function tobBotProfileView(record: PersonaBotRecord) {
 }
 
 export function createTobBotProfileOperations(deps: {
-  registry: Pick<PersonaBotRegistry, 'get'>;
+  registry: Pick<PersonaBotRegistry, 'get'> & Partial<Pick<PersonaBotRegistry, 'getHistorical'>>;
+  human?: () => HumanContext;
   bridge: () => ProfileBridge;
   isProtectedBot(slug: string): boolean;
 }): PrepareTobOperation {
   const current = (slug: string) => {
     const record = deps.registry.get(slug);
     if (!record) throw new TobError('unknown-bot');
+    if (!ownsBot(deps.human?.() ?? OWNER_HUMAN_CONTEXT, record))
+      throw new TobError('permission-required');
     return record;
   };
   const view = (slug: string) => {
@@ -146,6 +157,12 @@ export function createTobBotProfileOperations(deps: {
     if (!TOB_BOT_PROFILE_CAPABILITIES.some((entry) => entry.command === command)) return undefined;
     const args = structuredClone(object(raw));
     const slug = text(args.slug);
+    const authorize = () => {
+      const bot = deps.registry.getHistorical?.(slug) ?? deps.registry.get(slug);
+      if (bot && !ownsBot(deps.human?.() ?? OWNER_HUMAN_CONTEXT, bot))
+        throw new TobError('permission-required');
+    };
+    authorize();
     const bridge = deps.bridge();
     if (command.startsWith('bot-delete-')) {
       if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
@@ -154,6 +171,7 @@ export function createTobBotProfileOperations(deps: {
         return {
           run(guard) {
             guard();
+            authorize();
             if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
             return command === 'bot-delete-preview'
               ? { preview: deletionPreviewView(result(bridge.deletionPreview({ slug })).preview) }
@@ -201,6 +219,7 @@ export function createTobBotProfileOperations(deps: {
         ),
         async run(guard, beforeEffect) {
           guard();
+          authorize();
           if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
           if (!isDeepStrictEqual(result(bridge.deletionPreview({ slug })).preview, previous))
             throw new TobError('stale-setting');
@@ -212,6 +231,7 @@ export function createTobBotProfileOperations(deps: {
           const saved = result(await pending);
           try {
             guard();
+            authorize();
           } catch {
             throw new TobError('operation-outcome-uncertain');
           }
@@ -224,6 +244,7 @@ export function createTobBotProfileOperations(deps: {
       return {
         run(guard) {
           guard();
+          authorize();
           return view(slug);
         },
       };
@@ -327,6 +348,7 @@ export function createTobBotProfileOperations(deps: {
       ),
       run(guard, beforeEffect) {
         guard();
+        authorize();
         if (command === 'pause' && deps.isProtectedBot(slug)) throw new TobError('protected-bot');
         if (botProfileFingerprint(current(slug)) !== expected) throw new TobError('stale-profile');
         beforeEffect?.();

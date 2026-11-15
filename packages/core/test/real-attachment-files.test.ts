@@ -3,6 +3,7 @@ import { boundModelPage, readModelContent } from '../src/runtime/channel-model-r
 import { createHash, randomUUID } from 'node:crypto';
 import {
   appendFileSync,
+  linkSync,
   mkdirSync,
   existsSync,
   readFileSync,
@@ -26,6 +27,19 @@ import { createTempRoot, trackTestOwner } from './helpers.js';
 async function* chunks(text: string) {
   yield Buffer.from(text);
 }
+
+it('refuses hard-linked managed attachment targets before granting native original-file access', async () => {
+  const files = createAttachmentStore({ rootDir: createTempRoot() });
+  const ref = await files.upload({ data: chunks('attachment'), name: 'original.txt' });
+  const path = files.fileTarget(ref.fileId!).path;
+  const foreign = join(createTempRoot(), 'private.txt');
+  writeFileSync(foreign, 'private Memory');
+  rmSync(path);
+  linkSync(foreign, path);
+  expect(() => files.fileTarget(ref.fileId!)).toThrow(/unavailable/);
+  await expect(files.download(ref.fileId!)).rejects.toThrow(/unavailable/);
+  expect(readFileSync(foreign, 'utf8')).toBe('private Memory');
+});
 
 it('versions all current attachment bytes and refuses unavailable or oversized review evidence', async () => {
   const files = createAttachmentStore({ rootDir: createTempRoot(), maxBytes: 100_000 });

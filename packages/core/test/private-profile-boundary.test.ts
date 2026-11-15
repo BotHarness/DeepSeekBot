@@ -3,12 +3,24 @@ import { resolve } from 'node:path';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mountPrivateInputs } from '../src/credentials/mount.js';
-import type { BotHarnessCore } from '../src/plugin.js';
+import { createCore } from '../src/plugin.js';
+import { createTempRoot } from './helpers.js';
+
+const cores: ReturnType<typeof createCore>[] = [];
+const contexts: Context[] = [];
+afterEach(async () => {
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose();
+  for (const core of cores.splice(0).reverse()) {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});
 
 async function fixture(keys: string[] = []) {
   const ctx = new Context();
+  contexts.push(ctx);
   let guard!: (call: { name: string; agent?: Agent; arguments?: unknown }) => string | undefined;
   ctx.provide('tools', {
     register: vi.fn(),
@@ -19,20 +31,15 @@ async function fixture(keys: string[] = []) {
     },
   });
   ctx.provide('credentials', { listRecords: async () => keys.map((key) => ({ key })) } as never);
-  const contribute = vi.fn<BotHarnessCore['contributeBotAgentSetup']>(
-    (_callback) => () => undefined,
-  );
-  const core = {
-    ownership: {
-      resolve: (id: string) =>
-        id === 'owned'
-          ? { botSlug: 'ada', rootRole: 'orchestrator' }
-          : id === 'assignment'
-            ? { botSlug: 'ada', rootRole: 'assignment' }
-            : undefined,
-    },
-    contributeBotAgentSetup: contribute,
-  } as unknown as BotHarnessCore;
+  const core = createCore({ dshHome: createTempRoot('private-profile-boundary-') });
+  cores.push(core);
+  core.registry.create({ slug: 'ada', displayName: 'Ada' });
+  for (const [sessionId, rootRole] of [
+    ['owned', 'orchestrator'],
+    ['assignment', 'assignment'],
+  ] as const)
+    core.ownership.claim({ sessionId, botSlug: 'ada', rootRole, at: new Date().toISOString() });
+  const contribute = vi.spyOn(core, 'contributeBotAgentSetup');
   mountPrivateInputs(ctx, core, undefined, undefined, '/qa/dsh-home');
   await vi.waitFor(() => expect(guard({ name: 'read' })).toBeUndefined());
   return { ctx, guard, contribute };

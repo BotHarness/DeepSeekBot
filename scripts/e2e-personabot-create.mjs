@@ -1,7 +1,9 @@
 import { processIsRunning } from './dev-instance-lifecycle.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { DatabaseSync } from 'node:sqlite';
+import { randomUUID } from 'node:crypto';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -11,8 +13,10 @@ import { prepareZipImportProof } from './e2e-zip-import-proof.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const helper = join(root, 'scripts', 'dev-instance.mjs');
 const withDm = process.argv.includes('--with-dm');
-const home = mkdtempSync(join(tmpdir(), 'bh-e2e-web-'));
-const workspacePath = join(home, 'workspace');
+const fixtureRoot = realpathSync(mkdtempSync(join(tmpdir(), 'bh-e2e-web-')));
+const home = join(fixtureRoot, basename(fixtureRoot) + '-profile');
+mkdirSync(home);
+const workspacePath = join(fixtureRoot, 'workspace');
 const env = {
   ...process.env,
   PATH: [join(root, 'node_modules', '.bin'), process.env.PATH ?? ''].join(delimiter),
@@ -111,8 +115,8 @@ function creationCli(instance, command, input) {
       input.description,
       '--role',
       input.roles[0],
-      '--operation-key',
-      input.operationKey,
+      ...(input.operationKey ? ['--operation-key', input.operationKey] : []),
+      ...(input.memoryLocation ? ['--memory-location', input.memoryLocation] : []),
     ],
     {
       cwd: root,
@@ -132,6 +136,40 @@ function creationCli(instance, command, input) {
   } catch {
     throw new Error('Creation CLI did not return one JSON document');
   }
+}
+
+function verificationCli(instance, as, command = ['spaces', 'audience-directory']) {
+  const login = new URL(instance.url);
+  const token = login.searchParams.get('token');
+  const result = spawnSync(
+    process.execPath,
+    [
+      join(root, 'packages/deepseekbot/dist/deepseekbot.mjs'),
+      '--host',
+      login.origin,
+      ...(as ? ['--as', as] : []),
+      ...command,
+    ],
+    {
+      cwd: root,
+      env: { ...env, DEEPSEEKBOT_HOST_TOKEN: token },
+      encoding: 'utf8',
+      timeout: 30_000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+    },
+  );
+  if (result.error) throw new Error('Verification CLI did not settle');
+  return { status: result.status, value: JSON.parse(result.stdout) };
+}
+function minimalAudienceDirectory(value) {
+  return (
+    Array.isArray(value?.roles) &&
+    Array.isArray(value?.members) &&
+    Object.keys(value).sort().join(',') === 'members,roles' &&
+    value.roles.every((role) => Object.keys(role).sort().join(',') === 'builtin,name,roleId') &&
+    value.members.every((member) => Object.keys(member).sort().join(',') === 'displayName,humanId')
+  );
 }
 
 function gitPreviewCli(instance, gitUrl) {
@@ -223,7 +261,7 @@ const version = dshVersion();
 const port = await availablePort();
 try {
   mkdirSync(workspacePath);
-  const gitSource = join(home, 'git-source');
+  const gitSource = join(fixtureRoot, 'git-source');
   mkdirSync(gitSource);
   const git = (...args) =>
     execFileSync('git', ['-C', gitSource, ...args], { encoding: 'utf8', windowsHide: true }).trim();
@@ -239,8 +277,8 @@ try {
   env.GIT_CONFIG_COUNT = String(rewriteIndex + 1);
   env['GIT_CONFIG_KEY_' + rewriteIndex] = 'url.' + gitSource.replaceAll('\\', '/') + '/.insteadOf';
   env['GIT_CONFIG_VALUE_' + rewriteIndex] = gitUrl;
-  const first = launch(port, true);
-  pid = first.pid;
+  let current = launch(port, true);
+  pid = current.pid;
 
   const native = await rpc(port, 'workspace', 'create', { request: { path: workspacePath } });
   const workspaceId = native.workspace?.workspaceId;
@@ -258,6 +296,277 @@ try {
   });
   const slug = created.bot?.slug;
   if (typeof slug !== 'string') throw new Error('PersonaBot creation returned no slug');
+  await rpc(port, 'botharness', 'teamOwnerPasswordSet', { password: 'smoke-' + randomUUID() });
+  await rpc(port, 'botharness', 'teamModeSet', { enabled: true });
+  const member = await rpc(port, 'botharness', 'memberCreate', {
+    username: 'memory-member',
+    displayName: 'Memory member',
+  });
+  const customLocation = join(fixtureRoot, 'custom-memory');
+  mkdirSync(customLocation);
+  const customCli = creationCli(current, 'create', {
+    displayName: 'Custom Memory',
+    persona: 'Keep custom Memory.',
+    description: 'Memory switch fixture',
+    roles: ['qa'],
+    memoryLocation: customLocation,
+  });
+  if (typeof customCli.bot?.id !== 'string') throw new Error('Custom Memory CLI returned no Bot');
+  stop(pid);
+  await waitForStop(port, pid);
+  pid = undefined;
+  const {
+    createCore,
+    OWNER_HUMAN_CONTEXT: owner,
+    humanContext,
+  } = await import('../packages/core/dist/index.mjs');
+  const seed = createCore({ dshHome: home });
+  let memories;
+  try {
+    const ownerTob = await seed.tob.ensure(owner);
+    const memberHuman = humanContext(member.member.humanId);
+    await seed.team.changePassword(
+      memberHuman,
+      member.initialPassword,
+      'smoke-' + randomUUID(),
+      false,
+    );
+    const manager = seed.team.roles.create(owner, 'Space audience manager', [
+      'workspaces.manageShared',
+    ]).role;
+    seed.team.roles.set(owner, memberHuman.humanId, [manager.roleId]);
+    if (seed.tob.slug(memberHuman) !== undefined) throw new Error('Member unexpectedly has a Tob');
+    const formerTob = seed.registry.create({
+      slug: 'former-member-tob-memory',
+      displayName: 'Former member Tob',
+      ownerHumanId: memberHuman.humanId,
+    });
+    if (!formerTob.ok) throw new Error('Former member Tob fixture could not be created');
+    const custom = seed.registry.get(customCli.bot.id);
+    const privateMember = seed.registry.create({
+      slug: 'member-private-memory',
+      displayName: 'Member Memory',
+      ownerHumanId: memberHuman.humanId,
+    });
+    if (!custom || !privateMember.ok)
+      throw new Error('Memory switch fixtures could not be created');
+    memories = [
+      slug,
+      ownerTob.botSlug,
+      custom.slug,
+      privateMember.record.slug,
+      formerTob.record.slug,
+    ].map((botSlug) => {
+      const path = seed.registry.memoryDirFor(botSlug);
+      writeFileSync(join(path, 'switch-kept.txt'), botSlug);
+      execFileSync('git', ['-C', path, 'add', 'switch-kept.txt'], { windowsHide: true });
+      execFileSync(
+        'git',
+        [
+          '-C',
+          path,
+          '-c',
+          'user.name=QA',
+          '-c',
+          'user.email=qa@example.test',
+          'commit',
+          '-qm',
+          'Memory switch fixture',
+        ],
+        { windowsHide: true },
+      );
+      return {
+        slug: botSlug,
+        ownerHumanId: seed.registry.get(botSlug)?.ownerHumanId ?? owner.humanId,
+        path,
+        history: execFileSync('git', ['-C', path, 'rev-list', 'HEAD'], {
+          encoding: 'utf8',
+          windowsHide: true,
+        }).trim(),
+      };
+    });
+  } finally {
+    seed.schedules.close();
+    seed.externalMessaging.close();
+    await seed.runtime.close();
+    seed.operationalDatabase.close();
+  }
+  const proofDatabase = () =>
+    new DatabaseSync(join(home, 'botharness', 'botharness.db'), { readOnly: true });
+  const baseline = proofDatabase();
+  try {
+    for (const memory of memories) {
+      memory.proof = baseline
+        .prepare('SELECT body FROM persona_bot_memory_ownership WHERE slug = ?')
+        .get(memory.slug)?.body;
+      const proof = JSON.parse(memory.proof);
+      if (proof.path !== realpathSync(memory.path) || proof.device < 0 || proof.inode < 0)
+        throw new Error('Memory switch fixture lacks a valid ownership proof');
+    }
+  } finally {
+    baseline.close();
+  }
+  current = launch(port, false);
+  pid = current.pid;
+  const noTob = verificationCli(current, 'memory-member', ['tob-home']);
+  if (
+    noTob.status !== 0 ||
+    noTob.value?.available !== false ||
+    Object.keys(noTob.value).join(',') !== 'available'
+  )
+    throw new Error('Member Tob home did not report no Tob');
+  const ownerDirectory = verificationCli(current);
+  const memberDirectory = verificationCli(current, 'memory-member');
+  if (
+    ownerDirectory.status !== 0 ||
+    memberDirectory.status !== 0 ||
+    !minimalAudienceDirectory(ownerDirectory.value) ||
+    !minimalAudienceDirectory(memberDirectory.value)
+  )
+    throw new Error('Audience directory CLI returned an invalid minimal directory');
+  await rpc(port, 'botharness', 'memberRolesSet', {
+    humanId: member.member.humanId,
+    roleIds: ['member'],
+  });
+  const refusedDirectory = verificationCli(current, 'memory-member');
+  if (
+    refusedDirectory.status === 0 ||
+    refusedDirectory.value?.error?.code !== 'permission-required' ||
+    refusedDirectory.value.error.details?.permission !== 'workspaces.manageShared'
+  )
+    throw new Error('Audience directory CLI bypassed member permission checks');
+  const archiveResponse = await fetch(
+    `http://127.0.0.1:${port}/api/botharness/bot-zip?slug=${encodeURIComponent(slug)}`,
+    { headers: { cookie: cookie() }, signal: AbortSignal.timeout(30_000) },
+  );
+  if (!archiveResponse.ok) throw new Error('Member import fixture export failed');
+  const memberArchive = join(fixtureRoot, 'member-import.zip');
+  writeFileSync(memberArchive, Buffer.from(await archiveResponse.arrayBuffer()));
+  const memberUploadArgs = [
+    'bot-zip-upload',
+    '--upload-key',
+    'member-smoke-upload',
+    '--from-zip',
+    memberArchive,
+  ];
+  const deniedImport = verificationCli(current, 'memory-member', memberUploadArgs);
+  if (
+    deniedImport.status === 0 ||
+    deniedImport.value?.error?.code !== 'permission-required' ||
+    deniedImport.value.error.details?.permission !== 'bots.createPrivate'
+  )
+    throw new Error(
+      `Member import CLI refusal mismatch: exit=${deniedImport.status} code=${deniedImport.value?.error?.code} permission=${deniedImport.value?.error?.details?.permission}`,
+    );
+  const importer = await rpc(port, 'botharness', 'roleCreate', {
+    name: 'Private importer',
+    permissions: ['bots.createPrivate'],
+  });
+  await rpc(port, 'botharness', 'memberRolesSet', {
+    humanId: member.member.humanId,
+    roleIds: [importer.role.roleId],
+  });
+  const upload = verificationCli(current, 'memory-member', memberUploadArgs);
+  if (upload.status !== 0 || upload.value.offset !== upload.value.sizeBytes)
+    throw new Error('Granted member import CLI upload failed');
+  const memberImportArgs = [
+    'bot-zip-import',
+    '--upload-key',
+    'member-smoke-upload',
+    '--archive-sha256',
+    upload.value.sha256,
+    '--archive-size',
+    String(upload.value.sizeBytes),
+    '--operation-key',
+    'member-smoke-import',
+    '--name',
+    'Private imported Bot',
+  ];
+  const imported = verificationCli(current, 'memory-member', memberImportArgs);
+  const retriedImport = verificationCli(current, 'memory-member', memberImportArgs);
+  if (
+    imported.status !== 0 ||
+    imported.value?.bot?.ownerHumanId !== member.member.humanId ||
+    imported.value?.receipt?.status !== 'created' ||
+    retriedImport.status !== 0 ||
+    retriedImport.value?.receipt?.botSlug !== imported.value.receipt.botSlug
+  )
+    throw new Error('Granted member import CLI did not preserve its private Bot and receipt');
+  await rpc(port, 'botharness', 'memberRolesSet', {
+    humanId: member.member.humanId,
+    roleIds: ['member'],
+  });
+  const revokedImport = verificationCli(current, 'memory-member', memberImportArgs);
+  if (
+    revokedImport.status === 0 ||
+    revokedImport.value?.error?.details?.permission !== 'bots.createPrivate'
+  )
+    throw new Error('Member import CLI ignored permission revocation');
+  for (const [step, enabled] of [false, true, false, true].entries()) {
+    await rpc(port, 'botharness', 'teamModeSet', { enabled });
+    stop(pid);
+    await waitForStop(port, pid);
+    pid = undefined;
+    current = launch(port, false);
+    pid = current.pid;
+    if (enabled) {
+      const noTob = verificationCli(current, 'memory-member', ['tob-home']);
+      if (noTob.status !== 0 || noTob.value?.available !== false)
+        throw new Error('Team switch allocated a member Tob');
+    }
+    const currentOptions = await rpc(port, 'botharness', 'workspaceOptions');
+    if (!currentOptions.workspaces.some((entry) => entry.id === workspaceId))
+      throw new Error('Owner native Workspace option disappeared after changing Team mode');
+    const granted = await rpc(port, 'botharness', 'grantCreate', { slug, workspaceId });
+    if (granted.grant?.workspaceId !== workspaceId)
+      throw new Error('Owner native Workspace Grant was refused after changing Team mode');
+    const proofs = proofDatabase();
+    const auditBefore = await rpc(port, 'botharness', 'auditLog');
+    let privateOpens = 0;
+    try {
+      for (const memory of memories) {
+        const detail = await rpc(port, 'botharness', 'get', { slug: memory.slug });
+        if (enabled && memory.ownerHumanId !== owner.humanId && detail.metadataOnly !== true)
+          throw new Error('Member Bot administration did not return metadata only');
+        let profile = detail.bot;
+        if (detail.metadataOnly === true) {
+          if ('memoryDir' in profile || 'persona' in profile || 'sessions' in profile)
+            throw new Error('Private Bot administration returned content');
+          const view = await rpc(port, 'botharness', 'privateContentOpen', {
+            kind: 'bot',
+            objectId: memory.slug,
+          });
+          profile = view.object.profile;
+          privateOpens++;
+        }
+        const history = execFileSync('git', ['-C', memory.path, 'rev-list', 'HEAD'], {
+          encoding: 'utf8',
+          windowsHide: true,
+        }).trim();
+        if (
+          profile.memoryDir !== memory.path ||
+          history !== memory.history ||
+          readFileSync(join(memory.path, 'switch-kept.txt'), 'utf8') !== memory.slug ||
+          proofs
+            .prepare('SELECT body FROM persona_bot_memory_ownership WHERE slug = ?')
+            .get(memory.slug)?.body !== memory.proof
+        )
+          throw new Error('Team switch/restart disturbed Bot Memory');
+        for (let previous = 0; previous < step; previous++)
+          if (readFileSync(join(memory.path, 'switch-' + previous + '.txt'), 'utf8') !== 'retained')
+            throw new Error('Team switch lost a Memory write');
+        writeFileSync(join(memory.path, 'switch-' + step + '.txt'), 'retained');
+      }
+    } finally {
+      proofs.close();
+    }
+    const auditAfter = await rpc(port, 'botharness', 'auditLog');
+    if (auditAfter.records.length !== auditBefore.records.length + privateOpens)
+      throw new Error('Private Memory reads were not audited exactly once');
+    const verified = await rpc(port, 'botharness', 'auditVerify');
+    if (!verified.ok) throw new Error('Private Memory audit chain failed verification');
+  }
+  await rpc(port, 'botharness', 'teamModeSet', { enabled: false });
   const dm = await rpc(port, 'botharness', 'channelDm', { slug, displayName });
   const channelId = dm.channel?.id;
   if (typeof channelId !== 'string') throw new Error('PersonaBot DM Channel is unavailable');
@@ -293,7 +602,7 @@ try {
   };
   const creationBaseline = await creationCounts(port);
   const missing = await rpc(port, 'botharness', 'createLookup', creationInput);
-  const missingCli = creationCli(first, 'create-status', creationInput);
+  const missingCli = creationCli(current, 'create-status', creationInput);
   const afterLookup = await creationCounts(port);
   if (
     missing.receipt !== null ||
@@ -313,8 +622,8 @@ try {
     typeof receipt.channelId !== 'string'
   )
     throw new Error('The Host did not return a completed blank creation receipt');
-  sameReceipt(creationCli(first, 'create-status', creationInput).receipt, receipt);
-  const retried = creationCli(first, 'create', creationInput);
+  sameReceipt(creationCli(current, 'create-status', creationInput).receipt, receipt);
+  const retried = creationCli(current, 'create', creationInput);
   sameReceipt(retried.operation, receipt);
   if (retried.bot?.id !== receipt.botSlug || retried.dm?.channelId !== receipt.channelId)
     throw new Error('Creation CLI returned a different Bot or DM');
@@ -329,11 +638,14 @@ try {
     roles: ['qa'],
   };
   const gitBaseline = await creationCounts(port);
-  const gitPreview = gitPreviewCli(first, gitUrl);
+  const gitPreview = gitPreviewCli(current, gitUrl);
   if (gitPreview.source?.commit !== sourceCommit || gitPreview.source?.gitUrl !== gitUrl)
     throw new Error('Git preview changed selected source');
   const gitMissing = await rpc(port, 'botharness', 'botImportLookup', gitInput);
-  if (gitMissing.receipt !== null || creationCli(first, 'create-status', gitInput).receipt !== null)
+  if (
+    gitMissing.receipt !== null ||
+    creationCli(current, 'create-status', gitInput).receipt !== null
+  )
     throw new Error('Unexpected existing Git operation');
   await rpc(port, 'botharness', 'createFromGit', gitInput);
   const gitReceipt = (await rpc(port, 'botharness', 'botImportLookup', gitInput)).receipt;
@@ -344,7 +656,7 @@ try {
     'Immutable imported persona.'
   )
     throw new Error('Git import changed the selected personality');
-  sameReceipt(creationCli(first, 'create', gitInput).operation, gitReceipt);
+  sameReceipt(creationCli(current, 'create', gitInput).operation, gitReceipt);
   await verifyOneCreation(port, gitBaseline, gitReceipt, gitInput);
   writeFileSync(join(gitSource, 'SOUL.md'), 'Remote source changed after accepted import.');
   git('add', '.');
@@ -437,6 +749,11 @@ try {
       version,
       result: 'pass',
       workspaceCreated: true,
+      ownerNativeGrantsInBothModes: true,
+      spaceAudienceDirectoryCliParity: true,
+      memberTobAbsent: true,
+      memberPrivateImportCli: true,
+      memoryStableAcrossTeamSwitchesAndRestarts: true,
       personaBotCreated: true,
       persistedAfterRestart: true,
       gitMemoryReady: true,

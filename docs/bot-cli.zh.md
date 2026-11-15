@@ -9,6 +9,60 @@
 
 ## 用法
 
+### 电脑双向关系
+
+`relationships cancel <关系ID> --confirm` 仅在所属 Host 仍将关系视为待批准时取消提议。同步回复丢失但关系已激活时，返回 `relationship-already-active`，保留已批准关系及授权。浏览器取消登记时使用相同条件；清理回复不可用时不改为无条件重试。
+
+私有隧道的浏览器 Client 复用原有线路准入与固定身份的 Noise 通道。浏览器通过 WebSocket 子协议传递准入，入口消费该信息后只转发固定的公开协议标记，token 不进入 URL。Docker 私有中继需要升级到匹配的服务端版本才能支持浏览器；本功能不会部署或更新运行中的中继。旧服务端拒绝该浏览器握手，原生与 CLI 的请求头通路保持原样。
+
+使用 `route --device-file` 时，已认证的 Host 先验证新链接，CLI 再原子替换该 Client 的私密文件。新线路不含手动选定的线路时，返回 `relationship-route-preference-unavailable`，保留原文件。命令不输出设备凭据、密钥或线路准入信息。
+
+Client 线路偏好检查或文件替换失败时，Host 线路可能已经更新。重试前先运行 `relationships list` 并检查私密 Client 文件；Client 文件失败不会回滚 Host。
+
+私有 relay/隧道 admission 保存在 Host 既有受保护凭据 owner 中，`list`、发起结果及 CLI 登记输出不打印 token。固定身份的加密控制交换与当前 Client 的已认证 ticket 将其交给既有 Noise 配对路径。等待对端确认撤销时保留线路引用；确认后仅删除该关系引用。私密存储失败返回 `relationship-route-secret-unavailable`。Tailscale HTTPS 登记同样走固定 Noise，后续 Feed 沿用既有 Host client 线路策略。
+
+`relationships` 通过已认证的本机 Host，使用与连接界面相同的审批所有者。每次 CLI 登记创建独立设备授权，本机 Host 不共享远端设备凭据。
+
+关系管理属于当前 Owner：成员、Admin 的连接及 `--as` 均不能管理或登记 Host 关系。派生设备授权保留邀请创建时的 Owner Human；转移 Owner 后，旧邀请和旧 Owner 设备准入均失效。私有 Bot 和频道仍使用既有的逐 Human 访问检查。E1 在已发布 Team141–143 后追加迁移144；内部 Environment 预览数据库不属于支持的升级来源。
+
+方向观测在 30 秒后过期，Host 重启后恢复为尚未验证；授权及已保存线路仍然保留。`list` 不建立网络连接。`sync` 独立验证本机出站方向，并请求已认证的对端验证其出站方向。缺少返回线路时保留已批准关系。在现有连接设置中准备 LAN、Tailscale 或隧道地址，再从可达一方执行 `sync`。恢复失效的对端地址时，用 `route` 提交对端的新链接；身份不符时保留原有固定身份。这些命令不签发新设备授权，也不启动线路进程；关闭连接设置不停止已准备线路。
+
+| 命令                                                                                                 | 用途                                                                     |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `relationships list`                                                                                 | 读取持久化的对端、审批状态和待确认撤销。                                 |
+| `relationships initiate <对端公钥> --link-file <私密文件绝对路径> --confirm`                         | 核对目标指纹后，用其现有配对链接请求双向访问。                           |
+| `relationships approve <关系ID> <对端公钥> --confirm`                                                | 在接收方核对发起 Host 的指纹，批准双向访问。                             |
+| `relationships sync <关系ID>`                                                                        | 完成审批并独立检查两个方向，通过固定身份的加密通道交换已准备线路。       |
+| `relationships route <关系ID> --link-file <私密文件绝对路径> [--device-file <现有私密文件绝对路径>]` | 核对固定 Host 的新线路；可更新既有 CLI Client，保留设备 ID、密钥和凭据。 |
+| `relationships enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>`                      | 为具名 CLI Client 登记并私密保存独立凭据；标准输出仅含 Host 和设备标识。 |
+| `relationships disconnect <关系ID> --confirm`                                                        | 撤销派生访问，保留独立手机授权及远端数据；对方未确认时保留待撤销状态。   |
+
+同账号发现复用环境面板的 Host owner：
+
+| 命令                                                                                    | 用途                                                            |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `relationships account-discover`                                                        | 启动有界的已验证发现，不等待所有 Host，后续可分别读取成功结果。 |
+| `relationships account-status`                                                          | 读取当前账号代际及允许自动登记 Client 的有效关系。              |
+| `relationships account-enroll <关系ID> --device-name <名称> --out <新私密文件绝对路径>` | 仅通过当前服务端已验证的账号来源，为 CLI Client 签发独立授权。  |
+| `relationships enrollments`                                                             | 检查未确认、已确认及准确公钥待清理事实、截止时间与重试次数。    |
+| `relationships enrollment-status <关系ID> <Client公钥>`                                 | 不确定响应后，读取准确的 Client intent。                        |
+| `relationships commit-enrollment <关系ID> <Client公钥>`                                 | 幂等确认同一 intent 已私密保存，不生成另一个密钥。              |
+| `relationships cancel-enrollment <关系ID> <Client公钥> --confirm`                       | 取消准确 intent 并重试有限的待清理工作，保留其他 Client。       |
+
+`account-discover` 不把列表中的 Host 当成授权：双方独立核对账号注册、Host 身份、Noise 公钥和新鲜的已签名 transcript，保留原 pin 与主动断开抑制。完整证明也可为已有手动批准的 active 关系附加账号资格，保留其 ID、审批与授权；不会绕过待处理的手动审批。尚无该验证资格的手动关系仍需「在此 Client 使用」。退出账号停止发现及新自动登记，保留独立可用的授权与线路；准确公钥的减权清理仍可在退出后进行。Bot 协作独立授权。
+
+每次新关系登记先保存来源端 unconfirmed intent；CLI 私密保存独立密钥后再确认，标准输出在 Host/设备 ID 之外报告 `enrollment: committed` 或 `pending`。待确认文件保留 `relationshipEnrollment.publicKey`，以便准确读回并重试。保留该文件，用同一 key 重试确认，不另建文件生成新 key。丢确认响应及 Host 重启后，确认仍幂等。未确认的十分钟截止后拒绝 commit，来源端保留待清理；已取消结果移除本次写入的私密文件。清理只撤销该关系及公钥对应的派生授权，也覆盖配对回复丢失的设备，并拒绝迟到 offer/redemption。跨重启最多自动重试八次，耗尽后仍可通过 `enrollments` 检查并显式重试。1,024 条生命周期记录满额安全拒绝，不淘汰未解决事实或仍有效的取消 tombstone。
+
+受支持的 in-harness 桌面/Web Client 自动登记已验证账号关系，不切换环境范围、当前会话或 Settings Target。同源标签页用每 Host 的 Web Lock 复用一份 Client 授权；独立浏览器 context 使用各自的私密存储和授权。自动登记需要 Web Locks，缺失时在生成 key 前拒绝；既有 HTTP LAN 手动登记及线路更新，与所有凭据数组写入统一使用短 IndexedDB 原生事务，不另存凭据或租约，并保留其他 Host 及更新的设备代际。原生手机仍需逐 Host 明确登记；运行完整 owner Web Client 的手机浏览器属于 Web Client，UA 不是授权信号。原生手机不继承仍需单独真机验证。
+
+用现有 `--host` / `--token-file` 选定准确的本机所有者。在另一台本机 Host 上执行 `enroll`，为其 CLI Client 独立登记；`device-probe --device-file <私密文件绝对路径>` 读取该 Client 的真实远端 Feed。手机不能通过设备网关调用关系登记。发起结果不确定时先读取 `relationships list`，不要盲目重发。
+
+断开立即拒绝本机关系访问并撤销派生授权；对方离线时，`peerRevocationPending: true` 跨重启保留。仅针对准确关系的幂等撤销自动重试，最多八次、间隔上限一分钟，不重放普通变更。`list` 返回 `revocationAttempts`、`revocationRetryAt` 和 `automaticEnrollmentSuppressed`。达到上限后仍可检查待撤销记录；对已断开关系运行 `relationships sync <关系ID>` 可手动重试并重新开始有限自动重试。确认只作用于准确关系 ID 及固定公钥，迟到确认不能撤销新代关系；独立设备授权和远端数据保留。
+
+主动断开后持久停止自动登记。重新连接需要新链接及具名双向审批，已取消授权不会复活；发起失败的内部清理不会被误认为用户主动断开。最多保留 32 个有效关系和 256 条历史记录；达到历史上限返回 `relationship-history-limit`，不删除待撤销事实或固定身份。Web Client 移除当前 Host 后回到「全部」并关闭其远端视图；用户主动移除有未保存设置的 Host 前可选择保存、放弃或取消，保存失败及取消均保留当前 Host。
+
+验证独立 Client：使用不同的 `--device-name` 和两个新的私密文件分别登记。名称为 1–60 字符，默认 `CLI desktop`。在远端所属 Host 运行 `devices` 检查独立名称和设备 ID；用 `device-revoke <设备ID> --confirm` 撤销一个，再分别 probe 两份文件，只有该授权应失败。另保留一个独立配对设备一同验证。新关系不会恢复旧关系代际，登记前以 `relationships list` 选择准确的有效 ID。Web Client 通过「连接 → 电脑之间的连接 → 在此客户端使用」命名并取得独立授权；已登记的 Client 点击「打开频道」只切换目标，不重复签发。
+
 ### 可恢复的 Zip 上传与导入
 
 连接手机使用的同一个已认证 Host，运行 `bot-zip-upload --from-zip <文件> --upload-key <稳定键> --host <地址>`。结果包含 `sha256`、`sizeBytes`、`offset`、`chunkBytes` 和 `expiresAt`。命令通过 `zipUploadBegin` 和 `zipUploadChunk` 上传，使用相同键和文件可继续已确认的分块。每块原始数据为 256 KiB，base64 请求封装后仍小于加密设备通道的 4 MiB 限制。
@@ -85,6 +139,12 @@ deepseekbot search <words>
 
 ### 远程设置
 
+远端 Bot 会话复用现有 Profile、输入区「模型」「工作区授权」与审批控件，始终绑定该频道所属 Bot 与 Host，浏览环境筛选不能改变目标。对所属 Host 使用 `--host` 和 `--token-file`，先执行 `show <bot>`，再通过 `update <bot> --name <name> --expected-profile <profileFingerprint>` 改名。模型使用 `model-plan-customize` 或 `model-preset-apply`，传入已观察的 Bot 与预设修订。文件夹使用 `workspace-options`／`workspace-create`、`grants`、`grant-create` 和带 `--confirm` 的 `grant-revoke`；审批模板使用 `approval-template list --bot <bot>` 与 `approval-template-set`。修改后从同一 Host 读回 `show`、`model-plan`、`grants` 和所选模板，回执不确定时同样如此。这些操作不启用 Bot 协作或更改网络成员关系。Client 被移除或替换后，旧设置草稿不会借新授权重放，须关闭并重新打开 Bot 设置。远端文件夹使用目标 Host 的目录列表、正式 Workspace 创建和明确的授权确认。本机系统选择器保持不可用，不会回退到提供网页的 Host。
+
+本应用偏好只列出由既有设备本地所有者保存的 Client 外观、通知、快捷键和伙伴选项，导航与搜索均不包含 Host 选项。「更多设置」保留既有组合并标明范围：动效、Bot 模式图标和原生语言设置作用于本机 Host，窗口缩放作用于当前设备。这些 Host 选项始终绑定提供当前网页的 Host。
+
+创建预设的结果尚未确认时，设置草稿不会再次发送创建请求。收到成功回执后会保留预设 ID，「检查已创建的预设」只重读同一 Host。没有回执时，先检查预设列表并放弃草稿，再选择下一步；名称相同不能证明请求成功。放弃不会撤销可能已完成的 Host 写入。
+
 `appearance-clients` 列出打开的浏览器 Client。`host-look --client-id <id> --host-id <id>` 读取该浏览器内的 Host 名称、图标、颜色和内容修订。写入时加 `--patch-stdin --expected-revision <revision>`，从 stdin 传入 JSON，例如 `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`。空名称恢复 Host 原始显示名；`color: null` 清除颜色。名称去除首尾空格并限制为 40 字符，与手机共享 HostLook 规则。Host ID 可为已配对的远程 Host 或本机 Host；命令不接收或返回远程凭据。
 
 命令复用已认证的 `appearance-control` relay，直达 UI 使用的同一 Client 本地 `HostLooks`，不修改操作系统 hostname，也不同步到其他设备。浏览器须保持打开并显式选择 Client。同源标签页共同使用名为 `botharness.hostLooks.v1` 的独占 Web Lock；owner 在锁内重读持久数据、比较目标 Host 的内容 revision，再只合并该 Host。UI 字段变换也在锁内应用于当前值，不携带旧整份外观覆盖其他字段。旧 revision 返回 `host-look-revision-stale`；Web Locks 不可用时返回 `host-look-lock-unavailable`，不降级为不安全的读改写。
@@ -93,7 +153,7 @@ deepseekbot search <words>
 
 CLI 在读取 stdin 和连接前记录绝对期限；Host 将期限限制为 relay 接收后最多八秒。Client 在加载后、获得锁后和实际 `localStorage.setItem` 前复核墙上时间，即使定时回调尚未运行，越期命令也不能开始写入。Client 释放与 Host 移除也在写入前复核。这不代表远端取消已确认：期限前杀掉 CLI 或断开 HTTP，已送达命令仍可能在期限内执行。写入回执丢失或 relay 超时，在 CLI 仍能输出时报告 `host-look-outcome-unknown`；重试前须读回相同 Client/Host。期限内已完成的写入可能成功而回执丢失。Host 设置统一包含外观、通知、模型、用量和存储；离线时仍可进入外观和通知。通知继续使用 `browser-notifications`，保留权限、激活基线和取消语义。
 
-浏览器远程图标菜单中的「Host 设置」与以下在线命令使用同一个 Host 所有者。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。
+浏览器环境面板的「更多操作 → 设置」打开一个具名设置目标，独立于聊天／事项的浏览筛选。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。本应用偏好、外观和通知仍保存在 Client 本地。切换含未保存修改的设置目标前，可选择保存并切换、放弃或取消；保存结果不确定时，先从同一 Host 读取 `model-catalog` 或 `model-presets`，再决定是否重试。
 
 将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin。使用 tailnet origin（例如 loopback Host 前面的 `tailscale serve`）时，Host 必须以 `--trusted-host <machine>.<tailnet>.ts.net` 启动；否则登录能成功，但 DSH 的 `/api` Host 校验会拒绝每个请求，CLI 返回 `host-untrusted`。`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
 
@@ -351,6 +411,8 @@ Human 要求等待或取消时不得使用 override。
 
 ### Bot 资料、侧边栏与部件库
 
+浏览器的[环境创建表单](environment-creation.zh.md)使用同一 Host 能力。Agent 核对时用 `--host` 和私有 `--token-file` 明确指定目标；`create`、`group-create`、`roster-section-create`、`roster-section-rename`、`roster-section-reorder` 和 `channel-assign` 对应界面操作。分别读取两台 Host 的 `list`、`channels` 和 `roster`，确认只有选定 Host 改变。Client 的上次创建目标和浏览范围不会替 CLI 改选 Host。
+
 这些命令设置 Bot 的外观和唤醒规则、整理侧边栏、管理自定义部件，走的是 Web 界面所用的同一组 Host 调用（[#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)）：
 
 ```bash
@@ -397,13 +459,21 @@ printf '{"token":"…"}' | deepseekbot im-app-add discord --credentials-stdin
 deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
+deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot messaging-grants <bot-id> --read-mode status
+deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
 deepseekbot channel-connect <channel> --bot <bot-id> --conversation <external-id>
+deepseekbot im-reconnect <bot-id> --app <app-id>
 deepseekbot im-unbind <bot-id> --app <app-id>
 deepseekbot im-app-remove discord --app <app-id>
 ```
 
 `im-app-add` 适用于基于 token 的平台（Discord、Slack、QQ、钉钉、企业微信、Matrix）；飞书和微信仍用 `im-authorize`。凭证只从标准输入读取，绝不打印；输出列出每个应用的 id、名称、连接状态和错误码。`im-bind` 把已连接的应用（`im-app-status` 里的 `id`，即 `im-status` 里的 `ref`）绑定到 Bot，`im-status` 显示每个绑定的 `reception`。`channel-connect` 通过该 Bot 的绑定，把外部群聊作为上下文接入 Channel；这个会话必须已被该绑定知晓，所以先在那里 @ 一次应用，再从 `channel-ingests` 的 `candidates` 里选 id。否则 Host 会以 `conversation-unavailable` 拒绝。
+
+`im-status` 和 `messaging-grants` 返回进程内的 `recovery` 状态：`retrying` 包含 `reason`、`attempt`、`nextRetryAt`；`action-required` 包含 `reason`。Provider 暂未就绪时从 250 毫秒开始指数退避，上限 30 秒，持续重试直至恢复。Host 重启后从启用的绑定和授权重建接收器。`im-reconnect` 通过现有 Owner 和当前修订号重连，不改变会话权限。失败的修改会返回错误，不会自动重放。
+
+`im-status`、`messaging-grants` 和 `channel-bridges` 支持 `--read-mode saved|status`。`saved` 快速返回本地配置，标记 `checks: pending`；其中能力和可用性字段不代表已验证的权限。`status` 只检查绑定的账号和会话，返回 `checks: complete`，账号检查仅在本次请求内共享。不传此参数时仍进行完整应用和接入方式发现。修改操作拒绝此参数，并保留实时 Owner 检查。见 [ADR-0343](adr/0343-im-settings-project-saved-configuration-before-live-checks.md)。
 
 ### 用命令行管理 IM 消息、审批和失败提醒
 
@@ -889,6 +959,7 @@ DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 
 ### 加密局域网手机连接
 
 无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。等待批准时，配对进程向标准错误输出一条 `device-key-confirmation-required` JSON 状态，只包含本端公钥指纹。在另一个 CLI 进程将其与 `devices.pendingKeys[].fingerprint` 完整逐位比较，再用 `device-approve-key` 批准该条目的准确公钥；不得只按设备名或列表位置批准。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。
+`device-account-pair --account-file <私有账号会话.json> --host-id <Connect注册ID> --out <新私有配对.json> --confirm` 复用手机的账号授权、客户端 HTTPS 身份读取和加密配对，无需指纹确认。会话文件是 Connect 会话的私有副本（`clientId`、`subject`、`refreshToken`、可选 `sessionId`），刷新只更新该文件；不要与运行中的客户端共用，token 不得放在参数中。默认使用官方 Relay，`DEEPSEEKBOT_CONNECT_RELAY` 可指定隔离测试服务。服务端观察到的离线状态不会阻止尝试；随后用 `device-probe` 验证真实 Host Feed 读取。
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 
@@ -959,11 +1030,28 @@ deepseekbot connection-host <host-id> test-route <origin> --client-id <id>
 deepseekbot connection-host <host-id> remove --client-id <id> --confirm
 deepseekbot connection-host <host-id> revoke-device <device-id> --client-id <id> --confirm
 deepseekbot connection-host <host-id> stop-route lan --client-id <id> --confirm
-deepseekbot connection-host <host-id> stop-route private-tunnel --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-stop-route private-tunnel --connection-route-id quick --client-id <id>
+deepseekbot connection-host <host-id> stop-route private-tunnel --connection-route-id quick --expected-route-revision <revision> --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-stop-route lan --client-id <id>
+deepseekbot connection-host <host-id> stop-route lan --handover <trusted-origin> --client-id <id> --confirm
+deepseekbot connection-host <host-id> stop-route lan --confirm-disconnect --client-id <id> --confirm
+deepseekbot connection-host <host-id> plan-revoke-device <device-id> --client-id <id>
+deepseekbot connection-host <host-id> plan-sign-out --client-id <id>
+deepseekbot connection-host <host-id> sign-out --client-id <id> --confirm
+deepseekbot connection-host <host-id> read-operation --client-id <id>
+deepseekbot connection-host <host-id> read-previous-operation --client-id <id>
 deepseekbot connection-host <host-id> select-route <origin-or-automatic> --client-id <id> --confirm
 ```
 
+`plan-*` 先读取具名 Host，报告操作是否可能断开当前 Client。`--handover <trusted-origin>` 验证已有替代路由，明确保存此 Client 的手动路由偏好，等待实际连接切换并回读同一 Host 后才提交操作。没有可用替代路由时，用 `--confirm-disconnect` 明确接受断开，仍须保留 `--confirm`。停止私有路由须指定 `quick` 或 `custom`，其他路由保留。退出登录通过目标 Host 的账号所有者执行；关系断开和单设备撤销保持独立效果。
+
+停止私有线路前，先执行 `plan-stop-route`，将计划返回的配置代次原样传给 `--expected-route-revision`。配置变化或 Host 重启后须重新计划，不能用新读取的代次替换此前确认值。Host 在停止前原子拒绝配置不匹配；代次不匹配、缺失或没有代次的旧记录不能解除私有停止操作的未知结果。
+
+发送前，未知结果保护会原子写入所选 Client 已有 HostStorage 所有者下的带版本执行索引，重新加载后仍保留，不自动重放。共享 Web Lock 覆盖准备、一次写入和确认；缺少 Web Locks 时拒绝危险写入。`read-operation` 在同一锁内重新读取保护记录，通过同一已认证 Host 所有者回读，只在观察到完成后清除匹配代次；原值未变或无法读取仍视为未知。设备授权被撤销并重新登记后，用 `read-previous-operation` 通过同一固定 Host 的新授权明确读取旧操作结果；仅在确认完成后解除写入保护，Host 公钥变化时拒绝回读。旧设备授权的未确认事实独立保留，不继承或重发到新授权；最多保留 32 条未解决记录，达到上限后拒绝新增写入。通过已信任路由恢复连接后再回读。离线时保留已加载的频道和消息，不停止其他所有者的 Tailscale 映射或无关 Host 进程。
+
 `select-route` 先在所选浏览器的现有 Host 记录中保存选择，再等待进行中的请求结束后切换。手动地址必须已获准；失败不会自动换路。传入 `automatic` 恢复既有自动策略，不扩大通道资格。`connection-hosts` 分别报告保存的选择、切换是否待完成和实际当前线路。只影响这个 Client/Host；手机连接详情通过同一 HostClient 行为及手机自己的保存所有者执行。
+
+新执行记录与 SavedHost 凭据分开。旧页面不能安全处理新索引格式，会拒绝更改；请重新加载目标浏览器页面，再管理连接或回读结果。回退代码前，先用当前版本处理未解决记录。不能通过删除未知记录恢复旧页面的写入。旧格式引用的操作仍可读取。
 
 通过现有 Client 控制通道执行，与连接对话框复用同一管理适配器。列表只返回 Host 标识、名称及实际线路观察，不返回设备凭据或私钥。`inspect` 使用该浏览器对目标 Host 的配对授权读取设备与可停止线路。`remove` 仅删除此浏览器的本地连接，保留 Host 数据和设备授权；`revoke-device` 在目标 Host 撤销指定设备；`stop-route` 只关闭指定目标的局域网监听或私有 Tunnel。停止当前线路或撤销当前设备可能令响应中断，未收到确认不能视为成功，需重新检查。未知 Host、线路、设备、过期请求和未确认写入均拒绝。账号分组不改变连接的登录/退出来源或授予管理权限。
 
@@ -1087,6 +1175,8 @@ deepseekbot storage-usage
 deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
   | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
 ```
+
+远端存储的每次读取、预览和确认都要明确指定所属 Host 的 `--host` 和私密 `--token-file`。预览只用于该 Host；切换 Host 后重新预览。确认响应丢失或超时后，先从同一 Host 运行 `storage-usage` 并核对受影响频道，再创建新预览，不要重发旧确认。Environment 设置界面同样在切换目标或失去访问时丢弃当前预览；清理结果不确定时先重新读取原 Host，读取失败后必须重新加载成功才可再次预览。断开关系不会删除已有数据。这些使用 Host 授权 Cookie 的 CLI 命令不会冒用浏览器已登记的 Client。
 
 这是**设置 → 数据与隐私 → 存储空间**的 CLI 形式。`storage-usage` 返回 `totalBytes`、`parts`（`media` 是附件文件夹，`messages` 是运行数据库，`memory` 是全部 Bot 的 Memory 文件夹，`other` 是 `$DSH_HOME/botharness` 中其余内容），以及按媒体大小从大到小排列的 `chats`，其中包含每个聊天的 `messages`、`oldestAt`、`mediaBytes` 和按类型的 `media` 统计。
 
@@ -1557,6 +1647,8 @@ deepseekbot connect-disable --host <host> --token-file <private-file>
 `deepseekbot.dev` 下一级）、`connect-token-invalid`、`credential-unavailable`。
 `connect-disable` 停掉隧道并删除已存的 token，已配对设备的凭据不受影响。
 
+Node 公网自检成功时可能包含 `dnsRecovery: "fresh-query"`：官方隧道域名的 ENOTFOUND 经有界 DNS 查询后恢复，并通过证书和固定公钥的 Noise 握手。这表示应用请求恢复，不代表系统缓存已清空。`device-account-pair`、`device-pair`、`device-probe` 共用此传输；原生手机 DNS 不变，产品不会修改全局 DNS 或 VPN。
+
 ### 账号登录
 
 ```sh
@@ -1835,12 +1927,15 @@ Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册�
 
 使用 `device-offer --route-id quick|custom --out <新的绝对路径私有文件>` 创建单条连接的邀请，用于恢复连接或旧版手机；省略 `--route-id` 则邀请包含所有已连通的私有地址。
 
+`private-route stop` 可选传入 `list` 返回的 `--expected-route-revision`，将停止绑定到该配置；省略时，明确的本地 owner 命令保留无条件行为。代次变化时在写入前拒绝。
+
 `private-route list` 读取 Host 的公开 `privateRoutes` 状态。一台 Host 支持 `quick` 和一个 `custom` 连接（Named Tunnel 或自有 HTTPS 入口）：
 
 ```bash
 deepseekbot private-route add quick --confirm
 deepseekbot private-route add custom --origin https://bot.example.com --confirm
 deepseekbot private-route stop quick --confirm
+deepseekbot private-route stop quick --expected-route-revision <list返回的代次> --confirm
 deepseekbot private-route start quick --confirm
 deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
 deepseekbot private-route remove custom --confirm
@@ -1868,6 +1963,8 @@ QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set 
 
 ### 团队模式与 Host 成员
 
+`dm <username>` 在指定 Host 上打开或创建当前 Human 与该活跃联系人的唯一私聊。双方打开会返回同一频道，其他 Human 无权读取。使用 `channels send <channel-id> --body-stdin` 和 `channel-messages <channel-id>` 收发、读取消息。纯 Human 私聊没有 Bot 参与者；群消息仍可由有权参与的 Bot 阅读。
+
 Owner CLI 也接受私有局域网 IPv4 的 HTTPS 地址，并正常验证证书；仍拒绝局域网明文 HTTP。测试用私有 CA 可通过机器本地的 `NODE_EXTRA_CA_CERTS` 指定。
 
 这些命令使用 `--host <url>` 和现有的私密 Host 令牌输入，默认以本地 Owner 身份执行。
@@ -1887,6 +1984,10 @@ deepseekbot --as bob channels browse-public
 deepseekbot --as bob channels join-public <channel-id>
 deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
 deepseekbot --as bob channel-messages <channel-id>
+
+deepseekbot dm bob
+
+deepseekbot --as bob dm owner
 deepseekbot team-mode insecure-http on --confirm
 deepseekbot team-mode insecure-http off --confirm
 deepseekbot team-mode off
@@ -1898,7 +1999,62 @@ Owner 密码从标准输入读取，可带一个结尾换行；修改已有密�
 
 非回环地址的密码登录要求 Host 已知的 TLS 或加密设备网关。明确确认的 `insecure-http` 例外允许明文 HTTP，直到关闭；客户端转发的协议请求头不能证明 TLS。关闭团队模式会撤销成员授权并关闭其流，但保留身份、密码和频道成员关系；重新开启后需要重新登录。
 
-`members reset-password <username> --initial-password-file <path>` 仅供 Owner 恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+```bash
+deepseekbot roles catalog
+deepseekbot roles list
+deepseekbot roles create --name reviewers --permissions audit.view,usage.view
+deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles delete <roleId> --confirm
+deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
+deepseekbot members roles bob --set member,<roleId>
+deepseekbot --as bob devices --member bob
+deepseekbot devices --member bob --revoke <grantId>
+deepseekbot team-mode transfer-owner bob --password-stdin --confirm
+```
+
+`members reset-password <username> --initial-password-file <path>` 需要 `members.manage`，且调用者的权限覆盖目标角色的全部权限；Admin 目标仅限 Owner。用于恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
+
+```sh
+deepseekbot --as bob members change-password --password-stdin --sign-out-others=false < password-change.json
+deepseekbot members deactivate bob
+deepseekbot members reactivate bob
+deepseekbot members transfer bob --preview
+deepseekbot members transfer bob --to alice
+deepseekbot members purge bob --preview
+deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
+```
+
+改密默认注销其他所有浏览器和配对设备；`false` 保留其他设备，首次强制改密除外。生命周期操作需要 `members.manage` 并遵循目标角色的权限上限；不能操作 Owner 或自己，Admin 目标仅限 Owner。停用保留数据并撤销全部授权，重新激活后需要重新登录。移交会把群 Channel 所有权以及该成员的私有 Bot（连同其 Memory 和私信记录）交给活跃成员或 Owner；预览会先列出两者。成员的 Tob 在永久删除前仍归其本人。永久删除要求先停用并完成移交，再使用预览返回的五分钟内有效、一次性令牌。用户名参数提供精确的用户名确认，stdin 仅提供令牌。共享消息保留 `author.humanId`，增加 `author.deleted: true` 并移除显示名。`team-mode status` 返回 `activeMembers`，`team-mode off` 另返回 `suspendedMembers`；关闭再开启不会激活原本已停用的账户。永久删除还会移除该成员的 Tob 以及仍归其所有的私有 Bot 和对应 Memory；有其他人参与过的私信会保留。
+
+```sh
+deepseekbot usage members --period week [--as <username>]
+deepseekbot roles update <roleId> --models all [--as <username>]
+deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
+deepseekbot models allowed [--as <username>]
+```
+
+### Tobs Connect 本机公网自检
+
+`deepseekbot connect-check --host <host> --token-file <private-file>` 与连接对话框中的
+“重新检查”使用同一个 Host owner。登录完成及连接组件启动或恢复后会自动检查账号、连接组件、
+服务端报告的在线状态，然后通过公网设备通道进行正常 TLS 校验及绑定本机身份的全新 Noise 握手。
+检查不会创建配对设备或权限。
+
+返回的 `health` 也包含在 `connect-status` 中，状态为 `idle`、`checking`、`passed`、`failed` 或
+`stale`。完成后提供 `checkedAt`、`elapsedMs`；失败提供 `stage` 和有界错误码，
+例如 `dns`、`tls`、`http`、`timeout`、`handshake`、`identity`、`relay-offline` 或
+`connector-unavailable`，HTTP 拒绝只附带数字状态码。界面可复制这些字段，不含账号、地址、
+token 或原始响应。
+
+并发请求合用一次检查，整体上限 20 秒，公网握手上限 8 秒。成功结果五分钟后过期；打开或刷新
+对话框不会在后台持续探测。通过只证明这台电脑在检查时可经公网连回自己，不保证所有手机网络
+都可达；手机仍连不上时需结合手机诊断。账号或连接发生变化时，旧成功结果失效。
+
+Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。公网 WebSocket 在验证 Host 身份前将握手消息限制为 1 KiB，并禁用压缩。
+
+公网阶段仅对 DNS、网络、超时及 HTTP 429/5xx 短暂失败重试：最多四次，间隔 1/3/6 秒，仍受同一个 20 秒总时限约束。证书或身份失败不重试。每次自检完成后，界面刷新一次账号电脑列表。
+
+工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
 
 `members invite <username>` 由 Owner 将用户名解析为 Human ID，返回 `{ link, qr: { size, path }, expiresAt }`。邀请内容含 Host 身份指纹、可达的 HTTPS / 加密网关路由和用户名，不含初始密码；初始密码须通过另一路径提供。`--as <username> members pairing-offer` 只为该成员自己创建十分钟内有效、只能使用一次的配对码，并额外返回 `receipt`；首次改密完成前拒绝。兑换后创建同一 Human 的 `paired-device` 成员授权，不会创建 Owner 设备或获取 Owner cookie。
 

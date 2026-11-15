@@ -17,7 +17,7 @@ afterEach(() => {
   shared.clear();
 });
 
-it('starts connection control on demand and returns the selected Client readable Host Feed', async () => {
+it('starts reciprocal connection control on demand and refuses an unpinned invitation', async () => {
   const host = new FakeHost();
   const relay = createAppearanceControl();
   const stored = new Map<string, string>();
@@ -78,12 +78,12 @@ it('starts connection control on demand and returns the selected Client readable
     });
     await vi.waitFor(async () => {
       expect(await request({ action: 'status', attemptId: 'relay-attempt' })).toMatchObject({
-        state: 'connected',
-        saved: true,
-        hostId: 'relay-remote',
+        state: 'failed',
+        saved: false,
+        code: 'host-key-required',
       });
     });
-    expect(sources.getSnapshot().hosts[0]?.snapshot.roster).toBeDefined();
+    expect(sources.getSnapshot().hosts).toEqual([]);
   } finally {
     release();
     await sources.remove('relay-remote');

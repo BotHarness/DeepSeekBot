@@ -4,7 +4,8 @@ import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import { errorMessage } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { store, type ChannelMessage } from './store.js';
+import type { ChannelMessage } from './store.js';
+import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { CompanionRequestTarget } from './companion-requests.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
@@ -27,6 +28,7 @@ export function UserQuestionCard({
   t: BotHarnessTranslate;
   companionTarget?: CompanionRequestTarget | undefined;
 }): ReactElement {
+  const store = useConversationStore();
   const developerMode = useContext(MessageDeveloperMode);
   const request = message.userQuestionRequest!;
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;

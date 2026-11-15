@@ -570,6 +570,7 @@ describe('Group mention tracer', () => {
     const core = createCore({ dshHome: home });
     try {
       expect(core.operationalDatabase.mode).toBe('ready');
+      expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
       expect(core.channels.message('dm-ada', 'old-message')?.body).toBe('old body');
       expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, 'dm-ada')?.messageId).toBe(
         'old-message',

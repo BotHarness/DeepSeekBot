@@ -1,3 +1,4 @@
+import { isHumanDmChannel } from './channel-kind.js';
 import type { BotModeSortMode } from '../bot-mode-settings.js';
 import { reconcileOrder, sameIds } from './roster.js';
 import type { TopOrderEntry } from './roster.js';
@@ -285,7 +286,8 @@ export function resolvePinnedChannelIds(
   for (const pin of pins) {
     const channel = byId.get(pin) ?? dmByBotSlug.get(pin);
     if (channel === undefined || seen.has(channel.id)) continue;
-    if (channel.type === 'dm' && channel.botSlug === undefined) continue;
+    if (channel.type === 'dm' && channel.botSlug === undefined && !isHumanDmChannel(channel))
+      continue;
     seen.add(channel.id);
     resolved.push(channel.id);
   }
@@ -298,7 +300,7 @@ export function flatRosterChannelIds(
 ): string[] {
   return channels.flatMap((channel) => {
     if (pinnedChannelIds.has(channel.id)) return [];
-    if (channel.type === 'group') return [channel.id];
+    if (channel.type === 'group' || isHumanDmChannel(channel)) return [channel.id];
     if (channel.botSlug === undefined) return [];
     return [channel.id];
   });

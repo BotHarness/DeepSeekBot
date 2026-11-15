@@ -1,3 +1,6 @@
+import { TeamError } from '../team/error.js';
+import { botOwner } from '../team/bot-access.js';
+import { humanContext } from '../humans/context.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { BotNetworkDeliveryError } from './bot-network.js';
 import { BotHopLimitReached } from '../channels/hop-limit.js';
@@ -481,6 +484,7 @@ export interface InterruptedToolCall {
 }
 
 export interface AssignmentAgentRun {
+  beginTurn?(): void;
   acceptNativeInput?: () => boolean;
   setExecutionReady?(ready: boolean): void;
   requireContent?(): void;
@@ -849,13 +853,16 @@ export interface BotRuntime {
     shell?: boolean,
   ): string | undefined;
   reconcileMemoryChangesOnStartup?(): void;
-  retryDmMessage?(channelId: string, messageId: string): Promise<void>;
-  recoverDmMessage?(input: {
-    channelId: string;
-    failureMessageId: string;
-    action: SessionRecoveryAction;
-    compact(sessionId: string): Promise<boolean>;
-  }): Promise<void>;
+  retryDmMessage?(channelId: string, messageId: string, human?: HumanContext): Promise<void>;
+  recoverDmMessage?(
+    input: {
+      channelId: string;
+      failureMessageId: string;
+      action: SessionRecoveryAction;
+      compact(sessionId: string): Promise<boolean>;
+    },
+    human?: HumanContext,
+  ): Promise<void>;
   compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission;
 
@@ -925,6 +932,7 @@ export interface BotRuntimeOptions {
   inboxHistory?: InboxHistoryQuery;
   triageContinuation?: boolean;
   messagePerf?: MessagePerfTracker;
+  requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -1490,7 +1498,14 @@ function sessionFailureDetails(error: unknown): {
       ? (error as { status?: unknown }).status
       : undefined;
   return {
-    ...(match === null ? {} : { code: match[1] }),
+    ...(typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+      ? { code: error.code }
+      : match === null
+        ? {}
+        : { code: match[1] }),
     ...(typeof status === 'number' ? { status } : {}),
     detail,
   };
@@ -1578,6 +1593,7 @@ function continuationNote(continuation: DmContinuation): string {
 }
 
 class BotRuntimeImplementation implements BotRuntime {
+  readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
   readonly #externalMessaging: OutboundMessaging | undefined;
   readonly #database: OperationalDatabaseModulePort;
@@ -1699,6 +1715,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#registry = options.registry;
     this.#botNetwork = options.botNetwork;
     this.#requireExecution = options.requireExecution;
+    this.#requireModelRoute = options.requireModelRoute;
     this.#channels = options.channels;
     this.groupSendReview = new GroupSendReview(
       attachOperationalModule(options.database, 'channel-send-review'),
@@ -2008,9 +2025,13 @@ class BotRuntimeImplementation implements BotRuntime {
     return { channelId: channel.id, messageId: input.messageId, reactions };
   }
 
-  async retryDmMessage(channelId: string, messageId: string): Promise<void> {
+  async retryDmMessage(
+    channelId: string,
+    messageId: string,
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
+  ): Promise<void> {
     const message = this.#retryableDmMessage(channelId, messageId);
-    const admission = this.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+    const admission = this.admitDmMessage(human, {
       channelId,
       messageId,
       body: message.body,
@@ -2168,12 +2189,15 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#autoContinues.set(botSlug, { ...pending, timer });
   }
 
-  async recoverDmMessage(input: {
-    channelId: string;
-    failureMessageId: string;
-    action: SessionRecoveryAction;
-    compact(sessionId: string): Promise<boolean>;
-  }): Promise<void> {
+  async recoverDmMessage(
+    input: {
+      channelId: string;
+      failureMessageId: string;
+      action: SessionRecoveryAction;
+      compact(sessionId: string): Promise<boolean>;
+    },
+    human: HumanContext = OWNER_HUMAN_CONTEXT,
+  ): Promise<void> {
     const card = this.#channels.message(input.channelId, input.failureMessageId);
     const failure = card?.sessionFailure;
     const channel = this.#channels.get(input.channelId);
@@ -2193,7 +2217,13 @@ class BotRuntimeImplementation implements BotRuntime {
     const continuing = input.action === 'continue';
     const assertAllowed = () => {
       const bot = this.#registry.get(botSlug);
-      if (!bot || bot.paused || this.#closed)
+      if (
+        !bot ||
+        bot.paused ||
+        this.#closed ||
+        botOwner(bot) !== human.humanId ||
+        !this.#memberBotEnabled(bot)
+      )
         throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
       this.#requireExecution?.(botSlug);
       if (continuing) {
@@ -2263,7 +2293,7 @@ class BotRuntimeImplementation implements BotRuntime {
           );
         assertCurrent();
       }
-      await this.retryDmMessage(input.channelId, messageId);
+      await this.retryDmMessage(input.channelId, messageId, human);
     });
   }
 
@@ -2332,7 +2362,9 @@ class BotRuntimeImplementation implements BotRuntime {
       return { admitted: false, reason: 'not-dm' };
     }
     const bot = this.#registry.get(channel.botSlug);
-    if (bot === undefined) return { admitted: false, reason: 'unknown-bot' };
+    if (bot === undefined || botOwner(bot) !== human.humanId)
+      return { admitted: false, reason: 'unknown-bot' };
+    if (!this.#memberBotEnabled(bot)) return { admitted: false, reason: 'archived-bot' };
     if (bot.paused === true) return { admitted: false, reason: 'archived-bot' };
 
     const persistedBody = this.#channels.message(channel.id, input.messageId)?.body;
@@ -4333,9 +4365,15 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#database.read((db) => {
         for (const id of accepted) {
           const event = db
-            .prepare('SELECT source_kind, channel_id FROM source_events WHERE source_event_id = ?')
+            .prepare(
+              'SELECT source_kind, channel_id, human_id FROM source_events WHERE source_event_id = ?',
+            )
             .get(id);
-          if (event?.source_kind !== 'human-message' || event.channel_id !== dm)
+          if (
+            event?.source_kind !== 'human-message' ||
+            event.channel_id !== dm ||
+            (event.human_id ?? 'local-human') !== botOwner(this.#registry.get(owner.botSlug)!)
+          )
             throw new TobError('human-dm-required');
           requireSourceEffects(db, id, owner.botSlug);
         }
@@ -6151,6 +6189,7 @@ class BotRuntimeImplementation implements BotRuntime {
     nativeSourceIds: readonly string[] = [],
     memoryObservation: 'source-event' | 'recovered-question' = 'source-event',
   ): Promise<void> {
+    if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
     const turnSources = new Set([
@@ -6276,6 +6315,25 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#memoryTurnOperations.delete(bot.slug);
       processing = this.#externalMessaging?.beginProcessing(bot.slug, typingSources);
       if (processing) this.#typingTurns.set(bot.slug, processing);
+      this.#database.transaction(
+        (db) => {
+          const source = db
+            .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
+            .get(sourceEventId ?? null);
+          const humanId = typeof source?.['human_id'] === 'string' ? source['human_id'] : undefined;
+          if (humanId)
+            db.prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)').run(
+              orchestrator.sessionId,
+              humanId,
+              this.#now().getTime(),
+            );
+          else
+            db.prepare('DELETE FROM usage_turn_humans WHERE session_id = ? AND turn = -1').run(
+              orchestrator.sessionId,
+            );
+        },
+        ['usage'],
+      );
       await this.#agents.runOrchestrator({
         setExecutionReady: (ready) => {
           if (ready) {
@@ -6298,7 +6356,9 @@ class BotRuntimeImplementation implements BotRuntime {
           const human =
             channelId === undefined
               ? undefined
-              : this.#channels.listHumanMembers(OWNER_HUMAN_CONTEXT, channelId)[0];
+              : this.#channels
+                  .listHumanMembers(humanContext(botOwner(bot)), channelId)
+                  .find((member) => member.humanId === botOwner(bot));
           const stopped = this.#stopNotices.get(bot.slug) ?? '';
           this.#stopNotices.delete(bot.slug);
           return (
@@ -6850,7 +6910,7 @@ class BotRuntimeImplementation implements BotRuntime {
         refuseStopped();
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#requestAssignment(bot, input, trackDelivery);
+        const outcome = this.#requestAssignment(bot, input, trackDelivery, sourceEventId);
         if (outcome.delivery !== 'capacity' && outcome.delivery !== 'refused') {
           markSideEffect();
           if (sourceEventId !== undefined)
@@ -7324,6 +7384,7 @@ class BotRuntimeImplementation implements BotRuntime {
     observeReads = true,
     modelContent?: string,
   ): OrchestratorChannelAccess {
+    const actorHuman = humanContext(botOwner(this.#registry.get(botSlug)!));
     const reviewOwner = sessionId.startsWith('direct-')
       ? `direct:${botSlug}`
       : `${botSlug}:${sessionId}`;
@@ -7407,7 +7468,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const humanNames = (channel: ChannelRecord): Record<string, string> =>
       Object.fromEntries(
         this.#channels
-          .listHumanMembers(OWNER_HUMAN_CONTEXT, channel.id)
+          .listHumanMembers(actorHuman, channel.id)
           .map((member) => [member.humanId, member.displayName]),
       );
     const viewOf = (
@@ -7720,7 +7781,7 @@ class BotRuntimeImplementation implements BotRuntime {
               active: member !== undefined && member.paused !== true,
             };
           }),
-          humanMembers: this.#channels.listHumanMembers(OWNER_HUMAN_CONTEXT, channel.id),
+          humanMembers: this.#channels.listHumanMembers(actorHuman, channel.id),
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotId: channel.ownerBotSlug }),
           ...(channel.type === 'group' && channel.ownerBotSlug === botSlug
             ? {
@@ -7747,7 +7808,8 @@ class BotRuntimeImplementation implements BotRuntime {
         };
       },
       contacts: async (input) => {
-        await this.refreshBotContacts();
+        const actor = this.#registry.get(botSlug);
+        if (actor && botOwner(actor) === 'local-human') await this.refreshBotContacts();
         return discoverBotContacts(this.#registry, botSlug, input, this.#botNetwork?.contacts());
       },
       createGroup: (name) => {
@@ -7757,7 +7819,7 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('Bot Group creator is no longer active');
         const clean = requireNonBlank(name, 'Group name').slice(0, 120);
         beforeSend();
-        return this.#channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        return this.#channels.createGroup(humanContext(botOwner(sender)), {
           name: clean,
           members: [botSlug],
           ownerBotSlug: botSlug,
@@ -7767,11 +7829,16 @@ class BotRuntimeImplementation implements BotRuntime {
         requireOrdinaryGroupActor();
         const channel = this.#channels.get(input.channelId);
         const target = this.#registry.get(input.targetBotSlug);
+        if (
+          (!target && botOwner(this.#registry.get(botSlug)!) !== 'local-human') ||
+          (target && botOwner(target) !== botOwner(this.#registry.get(botSlug)!))
+        )
+          throw new TobError('bot-not-found');
         if (this.#tob?.isTob(input.targetBotSlug)) throw new TobError('protected-bot');
         if (
           channel?.type !== 'group' ||
           channel.ownerBotSlug !== botSlug ||
-          !channel.members.includes(botSlug)
+          !this.#isMember(botSlug, channel)
         )
           throw new Error('Only the Bot Group owner may invite');
         if (target === undefined || target.paused === true || target.slug === botSlug)
@@ -7827,6 +7894,13 @@ class BotRuntimeImplementation implements BotRuntime {
           !selected?.some((ref) => ref.channelId === input.channelId)
         )
           throw new Error('group_join_request requires a selected #Group in this Human DM turn');
+        if (
+          botOwner(requester) !== 'local-human' &&
+          !this.#channels
+            .listHumanMembers(actorHuman, target.id)
+            .some((member) => member.humanId === actorHuman.humanId)
+        )
+          throw new TobError('channel-not-found');
         const owner =
           target.ownerBotSlug === undefined ? undefined : this.#registry.get(target.ownerBotSlug);
         const botCausation = this.#botCausation(sourceEventId);
@@ -7852,6 +7926,8 @@ class BotRuntimeImplementation implements BotRuntime {
         const request = target?.joinRequests?.find((item) => item.id === input.requestId);
         const requester =
           request === undefined ? undefined : this.#registry.get(request.requesterBotSlug);
+        if (requester && botOwner(requester) !== botOwner(this.#registry.get(botSlug)!))
+          throw new TobError('bot-not-found');
         if (request !== undefined && this.#tob?.isTob(request.requesterBotSlug))
           throw new TobError('protected-bot');
         if (
@@ -8017,6 +8093,12 @@ class BotRuntimeImplementation implements BotRuntime {
         }
         const sender = this.#registry.get(botSlug);
         const target = this.#registry.get(input.botSlug);
+        if (
+          sender &&
+          ((!target && botOwner(sender) !== 'local-human') ||
+            (target && botOwner(sender) !== botOwner(target)))
+        )
+          throw new TobError('bot-not-found');
         if (
           sender === undefined ||
           sender.paused === true ||
@@ -8261,6 +8343,7 @@ class BotRuntimeImplementation implements BotRuntime {
               });
             const memory = this.#registry.memoryDirFor(botSlug);
             if (memory !== undefined) roots.push(memory);
+            this.#grants!.validatePath?.(botSlug, path);
             if (authorizedPathRoot(roots, path) === undefined)
               throw new Error('Selected file is outside current authorized directories');
           },
@@ -8679,11 +8762,18 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error('Bot Group mentions require at most 20 valid Bot IDs');
     const typed = resolveBotMentionText(
       input.body,
-      this.#registry.list().map((bot) => ({
-        botSlug: bot.slug,
-        displayName: bot.displayName,
-        eligible: bot.slug !== botSlug && bot.paused !== true && channel.members.includes(bot.slug),
-      })),
+      channel.members.flatMap((id) => {
+        const bot = this.#registry.get(id);
+        return bot
+          ? [
+              {
+                botSlug: bot.slug,
+                displayName: bot.displayName,
+                eligible: bot.slug !== botSlug && bot.paused !== true,
+              },
+            ]
+          : [];
+      }),
     );
     const ids = [...new Set([...explicitIds, ...typed.botSlugs])];
     if (ids.length > 20) throw new Error('Bot Group mentions require at most 20 valid Bot IDs');
@@ -8691,6 +8781,11 @@ class BotRuntimeImplementation implements BotRuntime {
     let prefix = '';
     for (const id of ids) {
       const target = this.#registry.get(id);
+      if (
+        (!target && botOwner(sender) !== 'local-human') ||
+        (target && botOwner(target) !== botOwner(sender))
+      )
+        throw new TobError('bot-not-found');
       if (
         id === botSlug ||
         target === undefined ||
@@ -8980,10 +9075,12 @@ class BotRuntimeImplementation implements BotRuntime {
       input.avatarPath === undefined
         ? undefined
         : this.#readCreatedAvatar(botSlug, input.avatarPath);
+    if (memoryLocation) this.#grants?.validatePath?.(botSlug, memoryLocation, true);
     const slug = this.#createBotId();
     beforeSend();
     const created = this.#registry.create({
       slug,
+      ownerHumanId: botOwner(creator!),
       displayName,
       ...(input.soul === undefined ? {} : { persona: input.soul }),
       ...(input.coreMemory === undefined ? {} : { coreMemory: input.coreMemory }),
@@ -9006,7 +9103,11 @@ class BotRuntimeImplementation implements BotRuntime {
             : (created.detail ?? 'The PersonaBot could not be created'),
       );
     const record = (created as Extract<typeof created, { ok: true }>).record;
-    const dm = this.#channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, record.slug, record.displayName);
+    const dm = this.#channels.getOrCreateDm(
+      humanContext(botOwner(record)),
+      record.slug,
+      record.displayName,
+    );
     try {
       this.#channels.appendBotCreateAction?.({
         botSlug,
@@ -9043,6 +9144,7 @@ class BotRuntimeImplementation implements BotRuntime {
       });
     const memory = this.#registry.memoryDirFor(botSlug);
     if (memory !== undefined) roots.push(memory);
+    this.#grants?.validatePath?.(botSlug, path);
     if (authorizedPathRoot(roots, path) === undefined)
       refuse('avatar_path is outside your Memory Repository and Workspace Grants');
     let bytes: Buffer;
@@ -9163,6 +9265,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo))
       throw new ChannelReplyTargetError();
     const sender = this.#registry.get(botSlug);
+    if (sender && botOwner(sender) !== botOwner(recipient)) throw new TobError('bot-not-found');
     if (sender === undefined || sender.paused === true)
       throw new Error('Bot DM sender is no longer active');
     if (
@@ -9205,7 +9308,43 @@ class BotRuntimeImplementation implements BotRuntime {
     return { channelId: channel.id, message: result.message };
   }
 
+  #memberBotEnabled(bot: PersonaBotRecord): boolean {
+    const current = this.#registry.get(bot.slug);
+    if (!current || botOwner(current) !== botOwner(bot)) return false;
+    return (
+      this.#database.read((db) =>
+        db
+          .prepare(`SELECT 1 FROM humans h, team_settings s
+          WHERE h.human_id = ? AND h.status = 'active' AND s.singleton = 1
+            AND (s.enabled = 1 OR s.owner_human_id = h.human_id)`)
+          .get(botOwner(current)),
+      ) !== undefined
+    );
+  }
+
   #isMember(botSlug: string, channel: ChannelRecord): boolean {
+    const bot = this.#registry.get(botSlug);
+    if (bot && botOwner(bot) !== 'local-human') {
+      if (
+        channel.type === 'dm' &&
+        channel.members.some((id) => {
+          const peer = this.#registry.get(id);
+          return !peer || botOwner(peer) !== botOwner(bot);
+        })
+      )
+        return false;
+      if (
+        channel.type === 'group' &&
+        !this.#database.read((db) =>
+          db
+            .prepare(
+              'SELECT 1 FROM channel_human_members WHERE channel_id = ? AND human_id = ? AND left_at IS NULL',
+            )
+            .get(channel.id, botOwner(bot)),
+        )
+      )
+        return false;
+    }
     return (
       channel.members.includes(botSlug) &&
       (channel.type !== 'dm' || channel.botSlug === undefined || channel.botSlug === botSlug)
@@ -9380,6 +9519,14 @@ class BotRuntimeImplementation implements BotRuntime {
       mode: 'workspace-write' as const,
       revision: 0,
     };
+    if (
+      access.mode === 'danger-full-access' &&
+      bot.ownerHumanId !== undefined &&
+      bot.ownerHumanId !==
+        (this.#database.read((db) => db.prepare('SELECT owner_human_id FROM team_settings').get())
+          ?.owner_human_id ?? OWNER_HUMAN_CONTEXT.humanId)
+    )
+      throw new TeamError('permission-required');
     const permission: AssignmentPermissionSnapshot = {
       grantId: grant.id,
       workspaceId: grant.workspaceId,
@@ -9407,6 +9554,7 @@ class BotRuntimeImplementation implements BotRuntime {
           bot,
           { sessionId: holder.session_id, mode: 'next-turn', text },
           trackDelivery,
+          sourceEventId,
         );
         if (request.delivery === 'capacity') {
           const { assignment: _assignment, delivery: _delivery, ...refusal } = request;
@@ -9425,6 +9573,7 @@ class BotRuntimeImplementation implements BotRuntime {
         };
       }
     }
+    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
     const refusal = this.#assignmentCapacityRefusal('created');
     if (refusal !== undefined) return refusal;
     const sessionId = this.#createSessionId();
@@ -9439,6 +9588,25 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(cwdReference === undefined ? {} : { cwdReference }),
           at: createdAt,
         });
+        const sourceHuman = database
+          .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
+          .get(sourceEventId);
+        const rootSessionId = this.#turnSources.get(bot.slug)?.sessionId;
+        const rootHuman = rootSessionId
+          ? database
+              .prepare(
+                'SELECT human_id FROM usage_turn_humans WHERE session_id = ? ORDER BY turn DESC LIMIT 1',
+              )
+              .get(rootSessionId)
+          : undefined;
+        const creatorHumanId =
+          typeof sourceHuman?.['human_id'] === 'string'
+            ? sourceHuman['human_id']
+            : rootHuman?.['human_id'];
+        if (typeof creatorHumanId === 'string')
+          database
+            .prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, 0, ?, ?)')
+            .run(sessionId, creatorHumanId, Date.parse(createdAt));
         database
           .prepare(
             `INSERT INTO assignments (
@@ -9506,6 +9674,7 @@ class BotRuntimeImplementation implements BotRuntime {
       model?: ModelRoute;
     },
     trackDelivery?: (sessionId: string, pending: boolean) => void,
+    sourceEventId?: string,
   ): AssignmentRequestOutcome {
     let row = this.#assignmentRow(bot.slug, input.sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
@@ -9567,6 +9736,7 @@ class BotRuntimeImplementation implements BotRuntime {
         throw new Error('Apply a Model Preset before choosing an Assignment model');
       modelRoute = selectAssignmentRoute(plan, input.model);
     }
+    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
     const waking = row.activity === 'idle' || recovering;
     if (waking) {
       const refusal = this.#assignmentCapacityRefusal('awakened');
@@ -9580,7 +9750,33 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#setActivity(input.sessionId, 'working');
     }
     const interrupted = this.#interruptedTools.get(input.sessionId);
+    const initiatingHuman = this.#database.read((db) => {
+      const source = db
+        .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
+        .get(sourceEventId ?? null);
+      if (typeof source?.['human_id'] === 'string') return source['human_id'];
+      const parentSessionId = this.#turnSources.get(bot.slug)?.sessionId;
+      const parent = db
+        .prepare(
+          'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 ORDER BY turn DESC LIMIT 1',
+        )
+        .get(parentSessionId ?? null);
+      return typeof parent?.['human_id'] === 'string' ? parent['human_id'] : undefined;
+    });
     const run: AssignmentAgentRun = {
+      beginTurn: () => {
+        if (typeof initiatingHuman !== 'string') return;
+        this.#database.transaction(
+          (db) => {
+            db.prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)').run(
+              input.sessionId,
+              initiatingHuman,
+              this.#now().getTime(),
+            );
+          },
+          ['usage'],
+        );
+      },
       setExecutionReady: (ready) => this.#setAssignmentExecutionReady(input.sessionId, ready),
       requireContent: () =>
         this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug)),

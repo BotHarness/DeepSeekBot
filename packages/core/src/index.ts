@@ -1,3 +1,10 @@
+export { isMaskedApprovalCard, maskedApprovalCardSchema } from './team/approval-contract.js';
+export type {
+  ApprovalCard,
+  ApprovalDecider,
+  MaskedApprovalCard,
+  ProjectedApprovalMessage,
+} from './team/approval-contract.js';
 export { humanContext, OWNER_HUMAN_CONTEXT } from './humans/context.js';
 export type { HumanId, HumanContext } from './humans/context.js';
 export {
@@ -18,6 +25,8 @@ export {
 export { ProfileBackupError } from './portability/files.js';
 export { runProfileRestoreCli } from './portability/cli.js';
 export type { BotHarnessConfig, BotHarnessCore } from './plugin.js';
+export { currentRoots } from './workspaces/grant-native-tools.js';
+export type { SpaceAudience, WorkspaceSpace } from './workspaces/spaces.js';
 export { createBridgeMethods } from './bridge/methods.js';
 export type {
   BridgeError,
@@ -251,3 +260,15 @@ export type { ToolDetail, ToolDetailRead, ToolDetailRefusal } from './state/tool
 export { PERSONABOT_OUTPUT_COMMITTED, personaBotOutputCommitted } from './channels/output.js';
 export type { PersonaBotOutputCommitted } from './channels/output.js';
 export type { ChannelMessageOrigin } from './channels/store.js';
+
+export {
+  FIRST_PARTY_TOOL_EFFECTS,
+  toolEffects,
+  toolApprovalRequired,
+  decideToolApproval,
+} from './workspaces/tool-effects.js';
+export type {
+  ToolEffects,
+  ToolApprovalContext,
+  ToolApprovalPath,
+} from './workspaces/tool-effects.js';

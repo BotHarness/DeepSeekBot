@@ -42,7 +42,7 @@ export default function PairAccountScreen() {
         result: (host, result) => {
           setCurrent(undefined);
           setResults((old) => ({ ...old, [host.id]: result }));
-          const detail = result === 'added' || !host.online ? undefined : pairing.lastFailure();
+          const detail = result === 'added' ? undefined : pairing.lastFailure();
           setFailures((old) => {
             const { [host.id]: _previous, ...rest } = old;
             return detail === undefined ? rest : { ...rest, [host.id]: detail };

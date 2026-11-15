@@ -1,4 +1,4 @@
-import { mountOperationalDatabase } from '../src/database/owner.js';
+import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { execFileSync } from 'node:child_process';
@@ -15,6 +15,7 @@ import { DEFAULT_ILLUSTRATED_RECIPE, avatarSvg } from '../src/bots/avatar-appear
 import { DEFAULT_LINE_RECIPE } from '../src/bots/avatar-line.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
 
+import { memoryOwnership } from '../src/bots/deletion.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
 
 function createRoot(): string {
@@ -36,6 +37,202 @@ describe('isValidSlug', () => {
 });
 
 describe('createPersonaBotRegistry', () => {
+  it('keeps creation private while asynchronous Memory preparation yields and reserves its slug', async () => {
+    let finish: ((value: { ok: boolean }) => void) | undefined;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const pending = registry.createAsync({ slug: 'preparing', displayName: 'Preparing' });
+    expect(registry.list()).toEqual([]);
+    let settled = false;
+    const drain = registry.settled('local-human').then(() => {
+      settled = true;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(settled).toBe(false);
+    expect(registry.create({ slug: 'preparing', displayName: 'Other' })).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    expect(await registry.createAsync({ slug: 'preparing', displayName: 'Other' })).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    finish?.({ ok: true });
+    expect(await pending).toMatchObject({ ok: true, record: { displayName: 'Preparing' } });
+    await drain;
+    expect(settled).toBe(true);
+    expect(registry.list()).toHaveLength(1);
+  });
+
+  it('does not publish a failed asynchronous Memory preparation and allows retry', async () => {
+    let ok = false;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: async () => ({ ok }),
+    });
+    expect(await registry.createAsync({ slug: 'retry', displayName: 'Retry' })).toMatchObject({
+      ok: false,
+      reason: 'memory-unavailable',
+    });
+    expect(registry.get('retry')).toBeUndefined();
+    ok = true;
+    expect(await registry.createAsync({ slug: 'retry', displayName: 'Retry' })).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it('rechecks authorization after preparation even when Memory initialization fails', async () => {
+    let finish: ((value: { ok: boolean }) => void) | undefined;
+    let allowed = true;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const pending = registry.createAsync({ slug: 'revoked', displayName: 'Revoked' }, () => {
+      if (!allowed) throw Error('identity-revoked');
+    });
+    allowed = false;
+    const rejected = expect(pending).rejects.toThrow('identity-revoked');
+    finish?.({ ok: false });
+    await rejected;
+    expect(registry.get('revoked')).toBeUndefined();
+  });
+  it('cleans only imported staging it owns on initializer failure and retries the same slug', async () => {
+    const home = createRoot();
+    const path = join(home, 'separate-memory');
+    let fail = true;
+    const registry = createTestRegistry({
+      rootDir: join(home, 'bots'),
+      defaultMemoryPath: () => path,
+      initializeMemory: (memoryDir) => {
+        if (fail) return { ok: false };
+        const initialized = ensureMemoryRepository({ memoryDir });
+        if (!initialized.ok) throw new Error(initialized.code);
+        return { ok: true };
+      },
+    });
+    const input = {
+      slug: 'import-retry',
+      displayName: 'Import',
+      files: [{ path: 'SOUL.md', data: Buffer.from('kept persona') }],
+    };
+    expect(await registry.createFromFiles(input)).toMatchObject({ ok: false });
+    expect(existsSync(path)).toBe(false);
+    fail = false;
+    expect(await registry.createFromFiles(input)).toMatchObject({ ok: true });
+    expect(readFileSync(join(path, 'SOUL.md'), 'utf8')).toBe('kept persona');
+  });
+  it('preserves a pre-existing import destination that it never owned', async () => {
+    const home = createRoot();
+    const path = join(home, 'separate-memory');
+    mkdirSync(path);
+    writeFileSync(join(path, 'private.txt'), 'retain');
+    const registry = createTestRegistry({
+      rootDir: join(home, 'bots'),
+      defaultMemoryPath: () => path,
+    });
+    expect(
+      await registry.createFromFiles({
+        slug: 'blocked',
+        displayName: 'Blocked',
+        files: [{ path: 'SOUL.md', data: Buffer.from('new') }],
+      }),
+    ).toMatchObject({ ok: false, reason: 'invalid-memory-dir' });
+    expect(readFileSync(join(path, 'private.txt'), 'utf8')).toBe('retain');
+    expect(registry.get('blocked')).toBeUndefined();
+  });
+
+  it('records a managed-default ownership proof after initialization succeeds on retry', () => {
+    const home = createRoot();
+    const database = registryDatabase(home);
+    let fail = true;
+    const path = join(home, 'spaces/local-human/bots/retry/memory');
+    const registry = createTestRegistry({
+      rootDir: join(home, 'bots'),
+      database,
+      defaultMemoryPath: () => path,
+      initializeMemory: (memoryDir) => {
+        if (fail) return { ok: false };
+        const result = ensureMemoryRepository({ memoryDir });
+        if (!result.ok) throw new Error(result.code);
+        return { ok: true };
+      },
+    });
+    expect(registry.create({ slug: 'retry', displayName: 'Retry' }).ok).toBe(false);
+    fail = false;
+    expect(registry.create({ slug: 'retry', displayName: 'Retry' }).ok).toBe(true);
+    expect(
+      attachOperationalModule(database, 'proof-test').read(
+        (db) =>
+          db.prepare("SELECT body FROM persona_bot_memory_ownership WHERE slug = 'retry'").get()
+            ?.body,
+      ),
+    ).toBe(JSON.stringify(memoryOwnership(path)));
+  });
+
+  it.each(['blank', 'import'] as const)(
+    'preserves committed %s Bot Memory and its proof if post-commit notification is interrupted',
+    async (kind) => {
+      const home = createRoot();
+      let armed = false;
+      const database = registryDatabase(home, {
+        faultInjector: ({ stage }) => {
+          if (armed && stage === 'after-commit-before-notify')
+            throw new Error('notification interrupted');
+        },
+      });
+      const path = join(home, 'spaces/local-human/bots/committed/memory');
+      const registry = createTestRegistry({
+        rootDir: join(home, 'bots'),
+        database,
+        defaultMemoryPath: () => path,
+        initializeMemory: (memoryDir) => {
+          const initialized = ensureMemoryRepository({ memoryDir });
+          if (!initialized.ok) throw new Error(initialized.code);
+          return { ok: true };
+        },
+      });
+      armed = true;
+      if (kind === 'blank')
+        expect(() => registry.create({ slug: 'committed', displayName: 'Committed' })).toThrow();
+      else
+        expect(
+          await registry.createFromFiles({
+            slug: 'committed',
+            displayName: 'Committed',
+            files: [{ path: 'SOUL.md', data: Buffer.from('kept persona') }],
+          }),
+        ).toMatchObject({ ok: false });
+      expect(existsSync(join(path, '.git'))).toBe(true);
+      database.close();
+      const reopened = mountOperationalDatabase({
+        dshHome: home,
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      });
+      const restored = createTestRegistry({
+        rootDir: join(home, 'bots'),
+        database: reopened,
+        defaultMemoryPath: () => path,
+      });
+      expect(restored.get('committed')).toBeDefined();
+      expect(
+        attachOperationalModule(reopened, 'proof-test').read(
+          (db) =>
+            db.prepare("SELECT body FROM persona_bot_memory_ownership WHERE slug='committed'").get()
+              ?.body,
+        ),
+      ).toBe(JSON.stringify(memoryOwnership(path)));
+    },
+  );
+
   it('publishes committed avatar changes and skips unchanged or refused edits', () => {
     const root = createRoot();
     let refuse = false;

@@ -135,14 +135,16 @@ export function Workspace({
       const openTob = async () => {
         registry.open(CHANNEL_BODY_PANEL);
         const tob = await options.actions.tobHome();
+        if (typeof tob.channelId !== 'string') return undefined;
         await options.actions.openChannel(tob.channelId);
-        return tob;
+        return { ...tob, channelId: tob.channelId };
       };
       const detachGuide = onboarding.attachTobConversation(() => void openTob().catch(() => {}));
       const stopRequests = receiveTobMessages(
         (body) =>
           void openTob()
             .then(async (tob) => {
+              if (tob === undefined) return;
               if (await onboarding.prepareSend(tob.channelId, tob.botSlug, body))
                 await options.actions.sendHome(tob.channelId, body, 'human-' + crypto.randomUUID());
             })
@@ -241,7 +243,9 @@ function WorkspaceRail({
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
   );
-  const attention = useClientStore(selectRailAttention, shallowEqual);
+  const localAttention = useClientStore(selectRailAttention, shallowEqual);
+  const environmentSources = useRemoteHosts();
+  const attention = environmentAttention(localAttention, environmentSources);
   const railBotSlug = useClientStore(selectRailBotSlug);
   const indicatorMenu = useActivityIndicatorMenu(t);
   const indicator = activityIndicator(indicatorMenu.scope, attention);
@@ -482,3 +486,5 @@ function WorkspaceRail({
     </nav>
   );
 }
+import { useRemoteHosts } from './host-tabs.js';
+import { environmentAttention } from './environment-activity.js';

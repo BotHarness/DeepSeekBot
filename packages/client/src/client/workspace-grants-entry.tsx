@@ -673,10 +673,13 @@ export function WorkspaceGrantsEntry({
 }): ReactElement {
   const slug = botSlug ?? '';
   const subscribeChanges = useCallback(
-    (listener: () => void) => subscribeWorkspaceGrantChanges(slug, listener),
-    [slug],
+    (listener: () => void) => subscribeWorkspaceGrantChanges(slug, listener, actions),
+    [slug, actions],
   );
-  const getChangeRevision = useCallback(() => workspaceGrantRevision(slug), [slug]);
+  const getChangeRevision = useCallback(
+    () => workspaceGrantRevision(slug, actions),
+    [slug, actions],
+  );
   const changeRevision = useSyncExternalStore(
     subscribeChanges,
     getChangeRevision,
@@ -783,7 +786,7 @@ export function WorkspaceGrantsEntry({
     void (async () => {
       try {
         const operation = action().then((value) => {
-          publishWorkspaceGrantChange(botSlug);
+          publishWorkspaceGrantChange(botSlug, actions);
           return value;
         });
         await withWorkspaceActionDeadline(operation, t('grant.operationTimeout'));

@@ -556,12 +556,13 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
           ...(headless ? { headless: true } : {}),
         }),
       ],
-      { stdio: ['ignore', 'ignore', 'pipe'] },
+      { stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
     );
     child = proc;
     proc.once('close', () => closedChildren.add(proc));
     const endpoint = await new Promise<string>((resolve, reject) => {
       let stderr = '';
+      let stderrTruncated = false;
       const settle = (action: () => void): void => {
         clearTimeout(timer);
         proc.stderr?.off('data', onData);
@@ -570,13 +571,33 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         action();
       };
       const timer = setTimeout(
-        () => settle(() => reject(startupTimeoutFailure(launchTimeoutMs))),
+        () =>
+          settle(() =>
+            reject(
+              startupTimeoutFailure(launchTimeoutMs, {
+                binary: binary ?? '',
+                ...(proc.pid === undefined ? {} : { pid: proc.pid }),
+                exitCode: proc.exitCode,
+                signalCode: proc.signalCode,
+                killed: proc.killed,
+                stderr: stderrTruncated
+                  ? stderr.includes('\n')
+                    ? stderr.slice(stderr.indexOf('\n') + 1)
+                    : '<truncated line>'
+                  : stderr,
+              }),
+            ),
+          ),
         launchTimeoutMs,
       );
       const onData = (chunk: Buffer): void => {
         stderr += chunk.toString('utf8');
         const url = parseDevToolsUrl(stderr);
         if (url !== undefined) settle(() => resolve(url));
+        if (stderr.length > 8192) {
+          stderr = stderr.slice(-8192);
+          stderrTruncated = true;
+        }
       };
       const onExit = (code: number | null): void =>
         settle(() => {

@@ -16,6 +16,12 @@ import {
   changeTeamDevicePassword,
 } from '../../../apps/mobile/src/host/team-client.js';
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import { roleModelsSchema } from '../src/team/permissions.js';
+import { channelPolicySchema } from '../src/team/channel-contract.js';
+import { createAttachmentStore } from '../src/attachments/store.js';
+import { DatabaseSync } from 'node:sqlite';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { RELATIONSHIP_ACTIONS } from '../src/devices/relationship-http.js';
 import { createServer, IncomingMessage, request as httpRequest } from 'node:http';
 import { Socket } from 'node:net';
 import { readFileSync } from 'node:fs';
@@ -33,14 +39,18 @@ import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { mountContentPurge } from '../src/purge/owner.js';
 import { TeamService, TeamError } from '../src/team/service.js';
 import { ARGON2_PARAMS, hashPassword, verifyPassword } from '../src/team/password.js';
 import * as passwords from '../src/team/password.js';
 import { SignInRateLimit } from '../src/team/rate-limit.js';
 import { memberPolicy } from '../src/team/policy.js';
 import {
+  MEMBER_BOT_IMPORT_METHODS,
   MEMBER_GLOBAL_METHODS,
+  MEMBER_BOT_METHODS,
   MEMBER_CHANNEL_METHODS,
+  MEMBER_APPROVAL_METHODS,
   MEMBER_METHODS,
 } from '../src/team/member-methods.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
@@ -65,12 +75,35 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   const registry = createTestRegistry({ rootDir: root });
   const db = registryDatabase(root);
   const database = attachOperationalModule(db, 'team');
-  const channels = createSqliteChannelStore({ database, rootDir: join(root, 'channels') });
+  const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
+  const channels = createSqliteChannelStore({
+    database,
+    rootDir: join(root, 'channels'),
+    attachments,
+  });
   let placements: Array<{ sourceEventId: string; channelId: string; messageId: string }> = [];
-  const live = createChannelLiveHub(channels, undefined, () => placements);
+  const purge = mountContentPurge({
+    dshHome: root,
+    database: db,
+    ...(options.now ? { now: () => new Date(options.now!()) } : {}),
+  });
+  const diagnostics = vi.fn();
   const team = new TeamService(database, channels, {
+    purge,
+    log: diagnostics,
     now: options.now ?? (() => Date.parse('2026-11-14T00:00:00Z')),
   });
+  const live = createChannelLiveHub(
+    channels,
+    undefined,
+    () => placements,
+    undefined,
+    (human) => team.isOwner(human),
+    undefined,
+    (human, id) => team.channelAccess.canRead(human, id, true),
+    (human, id) => team.channelAccess.canKnow(human, id),
+  );
+  team.onAccessChanged(() => live.refreshAccess());
   const ctx = new Context();
   const peers: Peer[] = [];
   const invalidate = vi.fn();
@@ -87,6 +120,7 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     live.close();
     await off();
     await ctx.fiber.dispose();
+    purge.close();
     db.close();
   });
   const pairing = createDevicePairing({
@@ -126,6 +160,7 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   const methods = createBridgeMethodsForHumans({
     registry,
     channels,
+    attachments,
     team,
     states: createBotStateTracker(),
     ownership: createTestOwnership(),
@@ -165,7 +200,15 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
   ctx.provide('typert');
   ctx.set('typert', {
     local: { get: () => undefined, hasSeen: () => false },
-    lookups: { definitions: () => [] },
+    lookups: {
+      definitions: () => [
+        { key: 'botharness-public-flag', parameter: 'publicValue', wire: 'public' },
+      ],
+      get: (key: string) =>
+        key === 'botharness-public-flag'
+          ? { wire: 'public', resolve: (value: unknown) => z.boolean().parse(value) }
+          : undefined,
+    },
     resources: { entries: () => [] },
   });
   const access = new RemoteAccessService(ctx);
@@ -177,7 +220,10 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     pairing,
     encryption,
     privateKey,
+    purge,
+    root,
     channels,
+    attachments,
     database,
     db,
     methods,
@@ -186,6 +232,7 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     gateway,
     access,
     invalidate,
+    diagnostics,
     registry,
     live,
     setPlacements(value: typeof placements) {
@@ -202,6 +249,22 @@ async function enabledFixture(options: Parameters<typeof teamFixture>[0] = {}) {
   return { ...fixture, ...created, human: humanContext(created.member.humanId) };
 }
 
+class NativeProviderKeys extends TypertRemoteService {
+  constructor(ctx: Context) {
+    super(ctx, 'nativeProviderKeys', { namespace: 'settings' });
+  }
+  describe() {
+    return { apiKey: 'test-secret-only' };
+  }
+}
+Object.defineProperty(
+  NativeProviderKeys.prototype,
+  '@deepseek-ai/dsh-typert-protocol/remote-methods',
+  {
+    value: { version: 1, methods: [{ method: 'describe', invocation: { kind: 'direct' } }] },
+  },
+);
+
 class NativeSession extends TypertRemoteService {
   constructor(ctx: Context) {
     super(ctx, 'nativeSession', { namespace: 'session' });
@@ -215,11 +278,58 @@ Object.defineProperty(NativeSession.prototype, '@deepseek-ai/dsh-typert-protocol
 });
 
 describe('Host members', { timeout: 60_000 }, () => {
+  it('exposes only audience names through the Gateway to manageShared without member or role management', async () => {
+    const f = await enabledFixture();
+    const role = f.team.roles.create(owner, 'Space manager', ['workspaces.manageShared']).role;
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    await f.team.changePassword(f.human, f.initialPassword, 'bob-password-2', false);
+    const login = await f.team.signIn('bob', 'bob-password-2', 'ip');
+    const call = (method: string, peer = login.peer) =>
+      f.gateway.invoke({ namespace: 'botharness', method, args: {}, peer });
+    const directory = z
+      .object({
+        roles: z.array(
+          z
+            .object({
+              roleId: z.string(),
+              name: z.string(),
+              builtin: z.enum(['admin', 'member']).nullable(),
+            })
+            .strict(),
+        ),
+        members: z.array(z.object({ humanId: z.string(), displayName: z.string() }).strict()),
+      })
+      .strict()
+      .parse(await call('spaceAudienceDirectory'));
+    expect(directory.roles).toContainEqual({
+      roleId: role.roleId,
+      name: 'Space manager',
+      builtin: null,
+    });
+    expect(directory.roles.map((item) => item.builtin)).toEqual(
+      expect.arrayContaining(['admin', 'member']),
+    );
+    expect(directory.members).toContainEqual({ humanId: f.human.humanId, displayName: 'Bob' });
+    await expect(call('members')).rejects.toMatchObject({ code: 'permission-required' });
+    await expect(call('roles')).rejects.toMatchObject({ code: 'permission-required' });
+    expect(
+      await call('spaceAudienceDirectory', new Peer(f.ctx, { principal: { kind: 'owner' } })),
+    ).toEqual(directory);
+    const deniedRole = f.team.roles.create(owner, 'No spaces', []).role;
+    f.team.roles.set(owner, f.human.humanId, [deniedRole.roleId]);
+    const next = await f.team.signIn('bob', 'bob-password-2', 'ip');
+    await expect(call('spaceAudienceDirectory', next.peer)).rejects.toMatchObject({
+      code: 'permission-required',
+      details: { permission: 'workspaces.manageShared' },
+    });
+  });
+
   it('recovers a committed member only as Owner and revokes every previous grant', async () => {
     const f = await enabledFixture();
     const login = await f.team.signIn('bob', f.initialPassword, 'ip');
     await expect(f.team.resetPassword(f.human, f.human.humanId)).rejects.toMatchObject({
-      code: 'forbidden',
+      code: 'permission-required',
+      details: { permission: 'members.manage' },
     });
     await expect(f.team.resetPassword(owner, owner.humanId)).rejects.toMatchObject({
       code: 'owner-protected',
@@ -380,7 +490,9 @@ describe('Host members', { timeout: 60_000 }, () => {
     await expect(f.team.createMember(owner, 'bob', 'Another Bob')).rejects.toMatchObject({
       code: 'username-taken',
     });
-    expect(() => f.team.members(humanContext(created.member.humanId))).toThrow('forbidden');
+    expect(() => f.team.members(humanContext(created.member.humanId))).toThrow(
+      'permission-required',
+    );
     expect(f.team.members(owner)).toHaveLength(2);
     const stored = f.database.read((db) =>
       db.prepare('SELECT password_json FROM member_credentials WHERE username = ?').get('bob'),
@@ -446,10 +558,17 @@ describe('Host members', { timeout: 60_000 }, () => {
     const group = f.channels.createGroup(owner, { name: 'Public', members: [] });
     const privateGroup = f.channels.createGroup(owner, { name: 'Private', members: [] });
     expect(() => f.team.joinPublic(f.human, 'missing')).toThrow('channel-not-found');
-    expect(() => f.team.joinPublic(f.human, group.id)).toThrow('channel-not-public');
+    expect(() => f.team.joinPublic(f.human, group.id)).toThrow('channel-not-found');
     f.team.setPublic(owner, group.id, true);
     expect(f.team.publicChannels(f.human)).toEqual([
-      { channelId: group.id, name: 'Public', memberCount: 1, joined: false },
+      {
+        channelId: group.id,
+        name: 'Public',
+        memberCount: 1,
+        joined: false,
+        visibility: 'public',
+        description: undefined,
+      },
     ]);
     f.team.joinPublic(f.human, group.id);
     f.team.joinPublic(f.human, group.id);
@@ -513,7 +632,40 @@ describe('Host members', { timeout: 60_000 }, () => {
   });
 });
 
+describe('M13 creation permission through the real member Gateway', () => {
+  it('returns the private-creation permission for blank, Git, ZIP and Marketplace entry points', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const login = await f.team.signIn('bob', 'member-password-1', 'm13-gateway');
+    for (const method of ['create', 'createLookup', ...MEMBER_BOT_IMPORT_METHODS]) {
+      await expect(
+        f.gateway.invoke({ namespace: 'botharness', method, args: {}, peer: login.peer }),
+      ).rejects.toMatchObject({
+        code: 'permission-required',
+        details: { permission: 'bots.createPrivate' },
+      });
+    }
+    expect(f.registry.list(f.human.humanId)).toEqual([]);
+  });
+});
+
 describe('member confidentiality', { timeout: 60_000 }, () => {
+  it('never prepares a Tob during member sign-in', async () => {
+    const f = await enabledFixture();
+    const ensureTob = vi.fn();
+    const team = new TeamService(f.database, f.channels, { ensureTob });
+    const off = team.bindRuntime({
+      createPeer: (principal) => new Peer(f.ctx, { principal }),
+      invalidate: () => {},
+      urls: () => [],
+    });
+    try {
+      await team.signIn('bob', f.initialPassword, 'no-tob');
+      expect(ensureTob).not.toHaveBeenCalled();
+    } finally {
+      await off();
+    }
+  });
   it('delivers deleted-group removals and purges only to retained members, resetting unknown tombstones', async () => {
     const f = await enabledFixture();
     const joined = f.channels.createGroup(owner, { name: 'Deleted joined', members: [] });
@@ -570,15 +722,20 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   it('keeps the shared member-method contract dependency-free and its denials explicit', () => {
     const source = readFileSync(new URL('../src/team/member-methods.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/\bimport\b/u);
-    expect([...MEMBER_METHODS]).toEqual([...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS]);
+    expect(MEMBER_METHODS).toEqual(
+      new Set([
+        ...MEMBER_GLOBAL_METHODS,
+        ...MEMBER_CHANNEL_METHODS,
+        ...MEMBER_APPROVAL_METHODS,
+        ...MEMBER_BOT_METHODS,
+      ]),
+    );
+    expect(MEMBER_CHANNEL_METHODS).toContain('grantRequestApprove');
+    expect(MEMBER_BOT_METHODS).toContain('grantRequestApprove');
     expect(MEMBER_METHODS.has('composerIdentity')).toBe(true);
-    for (const method of [
-      'humanAttentionStatus',
-      'channelGet',
-      'channelSendStatus',
-      'followActivity',
-    ])
-      expect(MEMBER_METHODS.has(method)).toBe(false);
+    for (const method of ['dataReset']) expect(MEMBER_METHODS.has(method)).toBe(false);
+    for (const method of ['teamModeSet', 'members', 'roles', 'create', 'createLookup'])
+      expect(MEMBER_METHODS.has(method)).toBe(true);
   });
   it('returns only opaque composer ids and the calling Human, never the Owner identity', async () => {
     const f = await enabledFixture();
@@ -611,7 +768,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     expect(JSON.stringify(memberIdentity)).not.toContain(f.channels.rootDir);
   });
 
-  it('keeps unscoped attention status denied when only the Owner has attention', async () => {
+  it('returns an empty member attention status when only the Owner has attention', async () => {
     const f = await enabledFixture();
     f.registry.create({ slug: 'private-attention', displayName: 'Private attention Bot' });
     const dm = f.channels.getOrCreateDm(owner, 'private-attention', 'Private attention DM')!;
@@ -632,7 +789,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     const ownerStatus = query.status(owner, true);
     expect(ownerStatus.unreadCount).toBeGreaterThan(0);
     expect(ownerStatus.hasAction).toBe(true);
-    expect(query.status(f.human, true)).toEqual(ownerStatus);
+    expect(query.status(f.human, true)).toEqual({
+      unreadCount: 0,
+      hasAction: false,
+      messageCounts: { replies: 0, other: 0 },
+    });
     expect(f.team.belongs(f.human, dm.id)).toBe(false);
     await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
     const member = await f.team.signIn('bob', 'member-password-1', 'ip');
@@ -643,7 +804,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         args: { messageCounts: true },
         peer: member.peer,
       }),
-    ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    ).resolves.toEqual({
+      unreadCount: 0,
+      hasAction: false,
+      messageCounts: { replies: 0, other: 0 },
+    });
     await expect(
       f.gateway.invoke({
         namespace: 'botharness',
@@ -655,6 +820,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   });
   it('scopes both roster carriers to current membership, including purges and queued frames', async () => {
     const f = await enabledFixture();
+    f.registry.create({ slug: 'secret-bot', displayName: 'Secret Bot' });
     const dm = f.channels.getOrCreateDm(owner, 'secret-bot', 'Owner secret DM')!;
     const group = f.channels.createGroup(owner, { name: 'Shared public', members: [] });
     f.team.setPublic(owner, group.id, true);
@@ -742,7 +908,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
   it('audits every member-allowed method against Owner Channels and embedded results', async () => {
     const f = await enabledFixture();
     f.registry.create({ slug: 'owner-secret-bot', displayName: 'Owner secret Bot' });
-    f.registry.create({ slug: 'shared-bot', displayName: 'Shared Bot' });
+    f.registry.create({
+      slug: 'shared-bot',
+      displayName: 'Shared Bot',
+      ownerHumanId: f.human.humanId,
+    });
     const dm = f.channels.getOrCreateDm(owner, 'owner-secret-bot', 'Owner private DM')!;
     const privateGroup = f.channels.createGroup(owner, {
       name: 'Owner private group',
@@ -802,8 +972,49 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     f.setPlacements([
       { sourceEventId: 'secret-source', channelId: dm.id, messageId: `message-${dm.id}` },
     ]);
+    await f.channels.appendMessage(f.human, memberGroup.id, {
+      id: 'audit-question',
+      at: '2026-11-14T00:01:00Z',
+      author: { kind: 'bot', slug: 'shared-bot' },
+      body: 'Member question',
+      userQuestionRequest: {
+        sessionId: 'member-question',
+        questions: [{ id: 'pick', question: 'Pick', options: [{ label: 'Yes' }] }],
+      },
+    });
     const args: Record<string, Record<string, unknown>> = {
+      usageByMember: { period: 'week' },
+      overviewUsage: { period: 'week' },
+      get: { slug: 'owner-secret-bot' },
+      modelPlan: { slug: 'owner-secret-bot' },
+      modelPlanInherit: { slug: 'owner-secret-bot', expectedRevision: 0 },
+      userQuestionStatus: { messageId: 'audit-question' },
+      userQuestionAnswer: {
+        messageId: 'audit-question',
+        answer: { answers: [{ id: 'pick', selected: ['Yes'] }] },
+      },
+      roleCreate: { name: 'Operators', permissions: [] },
+      roleUpdate: { roleId: 'member' },
+      roleDelete: { roleId: 'member' },
+      memberCreate: { username: 'carol', displayName: 'Carol' },
+      memberRolesSet: { humanId: owner.humanId, roleIds: ['member'] },
+      memberDevices: { humanId: f.human.humanId },
+      memberDeviceRevoke: { humanId: f.human.humanId, grantId: 'absent' },
+      ownerTransfer: { humanId: f.human.humanId, password: 'owner-password-1' },
+      teamModeSet: { enabled: true },
+      teamInsecureHttpSet: { allowed: false },
+      teamOwnerPasswordSet: { password: 'replacement-password' },
+      channelPublicSet: { channelId: memberGroup.id, public: true },
+      memberPasswordReset: { humanId: f.human.humanId },
+      memberDeactivate: { humanId: f.human.humanId },
+      memberReactivate: { humanId: f.human.humanId },
+      memberTransferPreview: { humanId: f.human.humanId },
+      memberTransfer: { humanId: f.human.humanId, toHumanId: owner.humanId },
+      memberPurgePreview: { humanId: f.human.humanId },
+      memberPurgeConfirm: { humanId: f.human.humanId, token: 'invalid', username: 'bob' },
       memberPasswordChange: { current: 'member-password-1', next: 'member-password-2' },
+      privateContentOpen: { kind: 'bot', objectId: 'owner-secret-bot' },
+      privateContentPage: { viewId: 'missing', before: 'missing' },
       publicChannelJoin: { channelId: memberGroup.id },
       channelListChanges: { sinceSeq: start.seq, epoch: start.epoch },
       channelSearch: { text: 'text' },
@@ -813,6 +1024,8 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       channelSendStatus: { messageId: `message-${memberGroup.id}` },
       channelJournalPage: { through: f.channels.revision(memberGroup.id) },
       channelChanges: { sinceSeq: start.seq, epoch: start.epoch },
+      create: { displayName: 'Member Bot' },
+      createLookup: { operationKey: 'audit-create-0001', displayName: 'Member Bot' },
       followChannel: { limit: 10 },
     };
     const forbidden = [
@@ -825,8 +1038,31 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       'Owner secret Bot',
       'Owner private file',
     ];
-    const streams = new Set(['followRoster', 'followChannel']);
-    const table = [...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS];
+    const streams = new Set(['followRoster', 'followChannel', 'followActivity']);
+    const m4 = new Set([
+      'channelRoleDirectory',
+      'browsableChannels',
+      'channelJoin',
+      'channelVisibilitySet',
+      'channelAdminsSet',
+      'channelPolicySet',
+      'teamDirectory',
+      'humanDm',
+      'humanDmByUsername',
+      'channelCreate',
+      'messageSearch',
+      'channelGet',
+      'channelRename',
+      'channelDescriptionSet',
+      'channelHumanAdd',
+      'channelGroupInvite',
+      'channelAllBotPreview',
+      'composerValidate',
+      'channelSendStatus',
+    ]);
+    const table = [...MEMBER_GLOBAL_METHODS, ...MEMBER_CHANNEL_METHODS].filter(
+      (method) => !m4.has(method),
+    );
     for (const method of table) {
       const abort = new AbortController();
       const request = {
@@ -849,6 +1085,58 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           abort.abort();
           await iterator.return?.();
         } else result = await f.gateway.invoke(request);
+      } catch (error) {
+        const code = error instanceof Error && 'code' in error ? error.code : undefined;
+        if (
+          [
+            'privateObjects',
+            'privateContentOpen',
+            'privateContentPage',
+            'auditLog',
+            'auditVerify',
+            'roles',
+            'roleCreate',
+            'roleUpdate',
+            'roleDelete',
+            'members',
+            'memberCreate',
+            'memberRolesSet',
+            'memberPasswordReset',
+            'memberDeactivate',
+            'memberReactivate',
+            'memberTransferPreview',
+            'memberTransfer',
+            'memberPurgePreview',
+            'memberPurgeConfirm',
+            'memberDevices',
+            'memberDeviceRevoke',
+            'ownerTransfer',
+            'teamModeSet',
+            'teamInsecureHttpSet',
+            'teamOwnerPasswordSet',
+            'channelPublicSet',
+          ].includes(method)
+        )
+          expect(['permission-required', 'device-not-found']).toContain(code);
+        else if (method === 'spaceAudienceDirectory')
+          expect(error).toMatchObject({
+            code: 'permission-required',
+            details: { permission: 'workspaces.manageShared' },
+          });
+        else if (method === 'usageByMember')
+          expect(error).toMatchObject({
+            code: 'permission-required',
+            details: { permission: 'usage.view' },
+          });
+        else
+          expect([
+            'unavailable',
+            'creation-unavailable',
+            'permission-required',
+            'storage-unavailable',
+            'invalid-input',
+          ]).toContain(code);
+        result = { code };
       } finally {
         abort.abort();
       }
@@ -881,7 +1169,23 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         streams.has(method) ? f.gateway.stream(request) : f.gateway.invoke(request),
       ).rejects.toMatchObject({ code: 'remote-access/denied' });
     }
-    for (const method of ['channelGet', 'channelSendStatus'])
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelGet',
+        args: { channelId: memberGroup.id },
+        peer: login.peer,
+      }),
+    ).resolves.toMatchObject({ role: 'owner' });
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelSendStatus',
+        args: { channelId: memberGroup.id, messageId: `message-${memberGroup.id}` },
+        peer: login.peer,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+    for (const method of ['channelGroupDelete', 'channelGroupWakeSet'])
       await expect(
         f.gateway.invoke({
           namespace: 'botharness',
@@ -895,6 +1199,14 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         namespace: 'botharness',
         method: 'channelListChanges',
         args: { sinceSeq: start.seq, epoch: start.epoch },
+        peer: new Peer(f.ctx, { principal: { kind: 'owner' } }),
+      }),
+    ).toMatchObject({ reset: true });
+    expect(
+      await f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channels',
+        args: {},
         peer: new Peer(f.ctx, { principal: { kind: 'owner' } }),
       }),
     ).toMatchObject({ channels: expect.arrayContaining([expect.objectContaining({ id: dm.id })]) });
@@ -974,10 +1286,44 @@ async function memberHttp(
         headers,
       )
     ).json();
-  return { origin, signIn, password, wire, rpc };
+  return { origin, signIn, password, wire, rpc, server };
 }
 
 describe('member HTTP carrier', { timeout: 60_000 }, () => {
+  it.each(['member', 'admin'])(
+    'never exposes Host relationships to an authenticated %s carrier',
+    async (role) => {
+      const f = await enabledFixture();
+      await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+      f.team.roles.set(owner, f.human.humanId, [role]);
+      const http = await memberHttp(f);
+      const cookie =
+        (await http.signIn('bob', 'member-password-1')).headers.get('set-cookie') ?? '';
+      expect(RELATIONSHIP_ACTIONS).toEqual(
+        expect.arrayContaining(['initiate', 'approve', 'enroll', 'disconnect']),
+      );
+      for (const action of ['list', ...RELATIONSHIP_ACTIONS]) {
+        const response = await fetch(`${http.origin}${TEAM_PATH}/api/botharness/relationships`, {
+          method: action === 'list' ? 'GET' : 'POST',
+          headers: { cookie, 'content-type': 'application/json' },
+          ...(action === 'list'
+            ? {}
+            : { body: JSON.stringify({ action, id: 'a'.repeat(32), confirm: true }) }),
+        });
+        expect(response.status).toBe(403);
+        expect(await response.json()).toEqual({ code: 'remote-access/denied' });
+        expect(await http.rpc(cookie, 'relationships', { action })).toMatchObject({
+          result: { ok: false },
+        });
+      }
+      expect(f.database.read((db) => db.prepare('SELECT * FROM host_relationships').all())).toEqual(
+        [],
+      );
+      expect(
+        f.database.read((db) => db.prepare('SELECT * FROM relationship_device_grants').all()),
+      ).toEqual([]);
+    },
+  );
   it('allows cross-site top-level entry navigation but refuses cross-site subresources and POSTs', async () => {
     const f = await enabledFixture();
     const http = await memberHttp(f);
@@ -1038,14 +1384,20 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
   });
 
   it('reserves stream keys and peer/global capacity while gateway opens are pending', async () => {
+    const started = performance.now();
+    const phases: Array<{ phase: string; elapsedMs: number }> = [];
+    const phase = (value: string) =>
+      phases.push({ phase: value, elapsedMs: performance.now() - started });
     let now = 0;
     const f = await enabledFixture({ now: () => now });
+    phase('fixture-ready');
     await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
     const cookies: string[] = [];
     for (let i = 0; i < 17; i++) {
       now += 60_000;
       const login = await f.team.signIn('bob', 'member-password-1', `ip-${i}`);
       cookies.push(`botharness-member=${login.token}`);
+      phase(`signed-in-${i + 1}`);
     }
     const releases: Array<() => void> = [];
     const opened = vi
@@ -1057,6 +1409,8 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
           ),
       );
     const http = await memberHttp(f);
+    phase('server-listening');
+    http.server.once('close', () => phase('server-closed'));
     const open = (cookie: string, id: number) =>
       http.wire(cookie, {
         op: 'stream-open',
@@ -1064,19 +1418,57 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
         endpoint: 'botharness/followRoster',
         payload: { args: {} },
       });
-    const requests: Promise<Response>[] = [];
+    const requests: Array<Promise<PromiseSettledResult<Response>>> = [];
+    const observe = async (request: Promise<Response>): Promise<PromiseSettledResult<Response>> => {
+      try {
+        return { status: 'fulfilled', value: await request };
+      } catch (reason) {
+        return { status: 'rejected', reason };
+      }
+    };
+    let primary: unknown;
     try {
-      for (const cookie of cookies.slice(0, 16))
-        for (let id = 1; id <= 16; id++) requests.push(open(cookie, id));
-      await vi.waitFor(() => expect(opened).toHaveBeenCalledTimes(256), { timeout: 10000 });
+      const deadline = performance.now() + 10000;
+      for (const [index, cookie] of cookies.slice(0, 16).entries()) {
+        for (let id = 1; id <= 16; id++) requests.push(observe(open(cookie, id)));
+        const remaining = deadline - performance.now();
+        if (remaining <= 0) throw new Error('pending-stream-capacity-deadline');
+        await vi.waitFor(
+          () => {
+            expect(performance.now()).toBeLessThanOrEqual(deadline);
+            expect(opened).toHaveBeenCalledTimes((index + 1) * 16);
+          },
+          { timeout: remaining, interval: 10 },
+        );
+        phase(`pending-${(index + 1) * 16}`);
+      }
+      phase('all-pending-open');
+      expect(opened).toHaveBeenCalledTimes(256);
       expect((await open(cookies[0]!, 1)).status).toBe(429);
       expect((await open(cookies[0]!, 17)).status).toBe(429);
       expect((await open(cookies[16]!, 1)).status).toBe(429);
       expect(opened).toHaveBeenCalledTimes(256);
+    } catch (error) {
+      primary = error;
     } finally {
       for (const release of releases) release();
-      await Promise.all(requests);
     }
+    const results = await Promise.all(requests);
+    const failures = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    phase('requests-settled');
+    if (primary !== undefined || failures.length)
+      throw new AggregateError(
+        [
+          new Error(
+            JSON.stringify({ phases, opened: opened.mock.calls.length, refused: failures.length }),
+          ),
+          ...(primary === undefined ? [] : [primary]),
+          ...failures,
+        ],
+        'pending-stream-capacity-failed',
+      );
   });
 
   it('releases a failed or cancelled pending stream reservation', async () => {
@@ -1849,3 +2241,2315 @@ it('redeems a member self-pairing QR on Host HTTPS through the existing Noise pa
   expect(f.pairing.list()).toEqual([]);
   expect(host.mintOwner).not.toHaveBeenCalled();
 }, 60_000);
+describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
+  async function actors() {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const alice = await f.team.createMember(owner, 'alice', 'Alice');
+    await f.team.changePassword(
+      humanContext(alice.member.humanId),
+      alice.initialPassword,
+      'alice-password-1',
+    );
+    const bobLogin = await f.team.signIn('bob', 'member-password-1', 'bob-ip');
+    const aliceLogin = await f.team.signIn('alice', 'alice-password-1', 'alice-ip');
+    const invoke = (
+      method: string,
+      args: Record<string, unknown> = {},
+      peer = f.team.admit(bobLogin.token) ?? bobLogin.peer,
+    ) => f.gateway.invoke({ namespace: 'botharness', method, args, peer });
+    return { ...f, alice, bobLogin, aliceLogin, invoke };
+  }
+
+  it('exposes fixed ids, built-ins and a self-only viewer; unions roles and keeps Owner implicit', async () => {
+    const f = await actors();
+    const catalog = z
+      .array(z.object({ id: z.string(), group: z.string() }).strict())
+      .parse(await f.invoke('permissionCatalog'));
+    expect(catalog).toHaveLength(16);
+    expect(f.team.mode(owner).viewer).toMatchObject({
+      owner: true,
+      roleIds: [],
+      permissions: catalog.map((p) => p.id),
+    });
+    expect(f.team.mode(f.human).viewer).toMatchObject({
+      owner: false,
+      roleIds: ['member'],
+      permissions: ['dm.humans'],
+    });
+    const builtins = f.team.roles.list(owner);
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(15);
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
+      'privateContent.view',
+    );
+    expect(builtins.find((r) => r.builtin === 'member')?.memberCount).toBe(2);
+    const { role } = f.team.roles.create(owner, 'Operators', ['usage.view', 'audit.view']);
+    f.team.roles.set(owner, f.human.humanId, ['member', role.roleId, role.roleId]);
+    expect(f.team.mode(f.human).viewer.permissions).toEqual([
+      'dm.humans',
+      'usage.view',
+      'audit.view',
+    ]);
+    expect(f.team.members(owner).find((m) => m.humanId === f.human.humanId)).toMatchObject({
+      roleIds: ['member', role.roleId].sort(),
+      deviceCount: 1,
+    });
+    const before = f.db.diagnostics().metrics.reads;
+    expect(f.team.roles.permissions(f.human)).toContain('audit.view');
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+  });
+
+  it.each(['', ' ', 'a'.repeat(129), 'a\u0000b'])(
+    'refuses invalid role names: %j',
+    async (name) => {
+      const f = await enabledFixture();
+      expect(() => f.team.roles.create(owner, name, [])).toThrow('role-name-invalid');
+    },
+  );
+
+  it('refuses every credentials and provider-key method on both existing member devices', async () => {
+    const f = await actors();
+    const second = await f.team.signIn('bob', 'member-password-1', 'second-device');
+    new NativeProviderKeys(f.ctx);
+    const ownerPeer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+    await expect(
+      f.gateway.invoke({ namespace: 'settings', method: 'describe', args: {}, peer: ownerPeer }),
+    ).resolves.toEqual({ apiKey: 'test-secret-only' });
+    const sensitive = [
+      'privateInputStatus',
+      'privateInputSubmit',
+      'privateInputCancel',
+      'privateAccountStatus',
+      'privateInputReplace',
+      'privateAccountRevoke',
+      'privateAccounts',
+      'privateMcpServerRemove',
+      'privateMcpServerEnable',
+      'voiceProviders',
+      'voiceProviderAdd',
+      'voiceProviderRemove',
+      'voiceProviderTest',
+    ];
+    for (const peer of [f.bobLogin.peer, second.peer]) {
+      for (const method of sensitive)
+        await expect(f.invoke(method, {}, peer), method).rejects.toMatchObject({
+          code: 'remote-access/denied',
+        });
+      await expect(
+        f.gateway.invoke({ namespace: 'settings', method: 'describe', args: {}, peer }),
+      ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    }
+  });
+
+  it('validates names and permissions and preserves built-ins', async () => {
+    const f = await enabledFixture();
+    const { role } = f.team.roles.create(owner, 'Finance', ['usage.view', 'usage.view']);
+    expect(role.permissions).toEqual(['usage.view']);
+    expect(() => f.team.roles.create(owner, ' finance ', [])).toThrow('role-name-taken');
+    expect(() => f.team.roles.update(owner, role.roleId, { name: 'ADMIN' })).toThrow(
+      'role-name-taken',
+    );
+    expect(() => f.team.roles.create(owner, 'Unknown', ['not-a-permission'])).toThrow(
+      'permission-unknown',
+    );
+    expect(() => f.team.roles.update(owner, role.roleId, { permissions: ['bogus'] })).toThrow(
+      'permission-unknown',
+    );
+    expect(() =>
+      f.team.roles.update(owner, 'admin', { permissions: ['privateContent.view'] }),
+    ).toThrow('permission-not-grantable');
+    expect(() => f.team.roles.update(owner, 'absent', {})).toThrow('role-not-found');
+    expect(() => f.team.roles.delete(owner, 'absent')).toThrow('role-not-found');
+    for (const id of ['admin', 'member'])
+      expect(() => f.team.roles.delete(owner, id)).toThrow('role-builtin');
+    expect(
+      f.team.roles.update(owner, 'admin', { name: 'Operators', permissions: ['roles.manage'] })
+        .role,
+    ).toMatchObject({ builtin: 'admin', name: 'Operators', permissions: ['roles.manage'] });
+  });
+
+  it('repairs the last deleted role with member and keeps other roles intact', async () => {
+    const f = await actors();
+    const { role } = f.team.roles.create(owner, 'Temporary', []);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    f.team.roles.set(owner, f.alice.member.humanId, ['admin', role.roleId]);
+    f.team.roles.delete(owner, role.roleId);
+    expect(f.team.member(f.human.humanId)?.roleIds).toEqual(['member']);
+    expect(f.team.member(f.alice.member.humanId)?.roleIds).toEqual(['admin']);
+    f.team.roles.set(owner, f.human.humanId, []);
+    expect(f.team.member(f.human.humanId)?.roleIds).toEqual(['member']);
+  });
+
+  it('admits member managers, refuses Admin grants, and reevaluates existing Peers after permission removal', async () => {
+    const f = await actors();
+    const { role } = f.team.roles.create(owner, 'Member managers', ['members.manage']);
+    f.team.roles.set(owner, f.human.humanId, ['member', role.roleId]);
+    expect(await f.invoke('roles')).toBeInstanceOf(Array);
+    const created = await f.invoke('memberCreate', { username: 'carol', displayName: 'Carol' });
+    expect(created).toMatchObject({ member: { roleIds: ['member'] } });
+    await expect(
+      f.invoke('memberRolesSet', { humanId: f.alice.member.humanId, roleIds: ['admin'] }),
+    ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+    await expect(
+      f.invoke('memberCreate', { username: 'admin2', displayName: 'Admin', roleIds: ['admin'] }),
+    ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+    await expect(
+      f.invoke('memberRolesSet', { humanId: 'absent', roleIds: ['member'] }),
+    ).rejects.toMatchObject({ code: 'member-not-found' });
+    await expect(
+      f.invoke('memberRolesSet', { humanId: owner.humanId, roleIds: ['member'] }),
+    ).rejects.toMatchObject({ code: 'owner-protected' });
+    await expect(
+      f.invoke('memberRolesSet', { humanId: f.alice.member.humanId, roleIds: ['absent'] }),
+    ).rejects.toMatchObject({ code: 'role-not-found' });
+    const before = f.invalidate.mock.calls.length;
+    f.team.roles.update(owner, role.roleId, { permissions: [] });
+    expect(f.invalidate.mock.calls.length).toBeGreaterThan(before);
+    await expect(f.invoke('members')).rejects.toMatchObject({
+      code: 'permission-required',
+      details: { permission: 'members.manage' },
+    });
+    await expect(f.invoke('roles')).rejects.toMatchObject({
+      code: 'permission-required',
+      details: { permission: 'roles.manage' },
+    });
+    expect(f.team.resolve(f.bobLogin.peer.principal)).toEqual(f.human);
+  });
+
+  it('authorizes role editors and Team settings independently', async () => {
+    const f = await actors();
+    const { role } = f.team.roles.create(owner, 'Settings', [
+      'roles.manage',
+      'team.settings',
+      'audit.view',
+      'usage.view',
+    ]);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    const result = await f.invoke('roleCreate', { name: 'Reviewers', permissions: ['audit.view'] });
+    const id = z.object({ role: z.object({ roleId: z.string() }) }).parse(result).role.roleId;
+    await f.invoke('roleUpdate', { roleId: id, permissions: ['usage.view'] });
+    await f.invoke('roleDelete', { roleId: id });
+    await f.invoke('teamInsecureHttpSet', { allowed: true });
+    expect(f.team.mode(f.human).insecureHttpAllowed).toBe(true);
+    const group = f.channels.createGroup(owner, { name: 'Publish', members: [] });
+    await expect(
+      f.invoke('channelPublicSet', { channelId: group.id, public: true }),
+    ).rejects.toMatchObject({ code: 'channel-not-found' });
+    f.team.roles.update(owner, role.roleId, {
+      permissions: [...role.permissions, 'channels.manageAll'],
+    });
+    await f.invoke('channelPublicSet', { channelId: group.id, public: true });
+    expect(f.team.publicChannels(f.human).map((c) => c.channelId)).toContain(group.id);
+    await expect(f.invoke('members')).rejects.toMatchObject({ code: 'permission-required' });
+    await expect(
+      f.invoke('teamOwnerPasswordSet', { password: 'replacement-password' }),
+    ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+    await f.invoke('teamModeSet', { enabled: false });
+    expect(f.bobLogin.peer.signal.aborted).toBe(true);
+  });
+
+  it('allows covered managers to reset members across ownership transfer', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    expect(
+      await f.invoke('memberPasswordReset', { humanId: f.alice.member.humanId }),
+    ).toMatchObject({ initialPassword: expect.any(String) });
+    const oldOwner = await f.team.signIn('owner', 'owner-password-1', 'owner-ip');
+    await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+    expect(
+      await f.invoke('memberPasswordReset', { humanId: f.alice.member.humanId }, oldOwner.peer),
+    ).toMatchObject({ initialPassword: expect.any(String) });
+    await expect(
+      f.invoke('memberPasswordReset', { humanId: f.human.humanId }),
+    ).rejects.toMatchObject({ code: 'owner-protected' });
+    expect(await f.invoke('memberPasswordReset', { humanId: owner.humanId })).toMatchObject({
+      initialPassword: expect.any(String),
+    });
+    expect(f.team.member(owner.humanId)?.mustChangePassword).toBe(true);
+    expect(oldOwner.peer.signal.aborted).toBe(true);
+  });
+
+  describe('role delegation ceiling', () => {
+    it.each([
+      'create-all',
+      'create-default',
+      'create-outside',
+      'update-all',
+      'update-outside',
+      'assign-all',
+      'assign-outside',
+      'assign-default',
+      'member-create',
+      'delete-fallback',
+    ] as const)('refuses model grants beyond a restricted manager ceiling: %s', async (path) => {
+      const f = await actors();
+      const base = f.team.roles.permissions(f.human);
+      const manager = f.team.roles.create(
+        owner,
+        'Restricted managers',
+        [...base, 'roles.manage', 'members.manage'],
+        { kind: 'only', routes: ['provider/allowed'] },
+      ).role;
+      f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+      const models = path.includes('outside')
+        ? { kind: 'only' as const, routes: ['provider/outside'] }
+        : { kind: 'all' as const };
+      const unrestricted = f.team.roles.create(owner, 'Outside', [], models).role;
+      const limited = f.team.roles.create(owner, 'Limited', [], {
+        kind: 'only',
+        routes: ['provider/allowed'],
+      }).role;
+      if (path === 'delete-fallback')
+        f.team.roles.set(owner, f.alice.member.humanId, [limited.roleId]);
+      const roles = f.team.roles.list(owner);
+      const members = f.team.members(owner);
+      const invalidations = f.invalidate.mock.calls.length;
+      const run = () => {
+        switch (path) {
+          case 'create-all':
+          case 'create-outside':
+            return f.invoke('roleCreate', { name: 'Escalated models', permissions: [], models });
+          case 'create-default':
+            return f.invoke('roleCreate', { name: 'Default models', permissions: [] });
+          case 'update-all':
+          case 'update-outside':
+            return f.invoke('roleUpdate', { roleId: limited.roleId, models });
+          case 'assign-all':
+          case 'assign-outside':
+            return f.invoke('memberRolesSet', {
+              humanId: f.alice.member.humanId,
+              roleIds: [unrestricted.roleId],
+            });
+          case 'assign-default':
+            return f.invoke('memberRolesSet', { humanId: f.alice.member.humanId, roleIds: [] });
+          case 'member-create':
+            return f.invoke('memberCreate', {
+              username: 'model-escalation',
+              displayName: 'New member',
+              roleIds: [unrestricted.roleId],
+            });
+          case 'delete-fallback':
+            return f.invoke('roleDelete', { roleId: limited.roleId });
+        }
+      };
+      await expect(run()).rejects.toMatchObject({
+        code: 'model-not-allowed',
+        details: { route: path.includes('outside') ? 'provider/outside' : 'all' },
+      });
+      expect(f.team.roles.list(owner)).toEqual(roles);
+      expect(f.team.members(owner)).toEqual(members);
+      expect(f.invalidate.mock.calls).toHaveLength(invalidations);
+    });
+
+    it.each(['owner', 'all-manager', 'restricted-manager'] as const)(
+      'permits model grants within the acting %s policy',
+      async (actorKind) => {
+        const f = await actors();
+        const manager = f.team.roles.create(
+          owner,
+          'Model managers',
+          [...f.team.roles.permissions(f.human), 'roles.manage', 'members.manage'],
+          actorKind === 'restricted-manager'
+            ? { kind: 'only', routes: ['provider/allowed'] }
+            : { kind: 'all' },
+        ).role;
+        f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+        const human = actorKind === 'owner' ? owner : f.human;
+        const models =
+          actorKind === 'restricted-manager'
+            ? { kind: 'only' as const, routes: ['provider/allowed'] }
+            : { kind: 'all' as const };
+        const peer =
+          actorKind === 'owner'
+            ? new Peer(f.ctx, { principal: { kind: 'owner' } })
+            : f.bobLogin.peer;
+        const created = z
+          .object({ role: z.object({ roleId: z.string(), models: roleModelsSchema }) })
+          .parse(
+            await f.invoke(
+              'roleCreate',
+              { name: 'Delegated models', permissions: [], models },
+              peer,
+            ),
+          ).role;
+        expect(created.models).toEqual(models);
+        expect(f.team.roles.update(human, created.roleId, { models }).role.models).toEqual(models);
+        f.team.roles.set(human, f.alice.member.humanId, [created.roleId]);
+        expect(f.team.mode(humanContext(f.alice.member.humanId)).viewer.models).toEqual(
+          models.kind === 'all' ? { all: true } : { all: false, routes: models.routes },
+        );
+        const member = await f.team.createMember(human, 'delegated-models', 'Delegated', [
+          created.roleId,
+        ]);
+        expect(member.member.roleIds).toEqual([created.roleId]);
+        const existing = f.team.roles.create(owner, 'Existing all', []).role;
+        expect(
+          f.team.roles.update(human, existing.roleId, { name: 'Existing renamed' }).role.models,
+        ).toEqual({ kind: 'all' });
+      },
+    );
+
+    it.each(['actor-policy', 'assigned-role'] as const)(
+      'rechecks model grants after member password hashing yields: %s',
+      async (changed) => {
+        const f = await actors();
+        const manager = f.team.roles.create(
+          owner,
+          'Limited managers',
+          [...f.team.roles.permissions(f.human), 'members.manage'],
+          { kind: 'only', routes: ['provider/allowed'] },
+        ).role;
+        const assigned = f.team.roles.create(owner, 'Limited grant', [], {
+          kind: 'only',
+          routes: ['provider/allowed'],
+        }).role;
+        f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+        const pending = f.team.createMember(f.human, 'late-models', 'Late models', [
+          assigned.roleId,
+        ]);
+        if (changed === 'actor-policy')
+          f.team.roles.update(owner, manager.roleId, { models: { kind: 'only', routes: [] } });
+        else f.team.roles.update(owner, assigned.roleId, { models: { kind: 'all' } });
+        await expect(pending).rejects.toMatchObject({
+          code: 'model-not-allowed',
+          details: { route: changed === 'actor-policy' ? 'provider/allowed' : 'all' },
+        });
+        expect(f.team.members(owner).some((member) => member.username === 'late-models')).toBe(
+          false,
+        );
+      },
+    );
+
+    const paths = [
+      'create',
+      'update-grant',
+      'rename-existing',
+      'strip-existing',
+      'delete-existing',
+      'assign',
+      'member-create',
+    ] as const;
+    it.each(
+      paths.flatMap((path) => [
+        { path, permission: 'privateContent.view', admin: true },
+        { path, permission: 'audit.view', admin: false },
+      ]),
+    )(
+      'refuses $path beyond the caller ceiling: $permission',
+      async ({ path, permission, admin }) => {
+        const f = await actors();
+        const manager = f.team.roles.create(owner, 'Managers', [
+          'roles.manage',
+          'members.manage',
+        ]).role;
+        f.team.roles.set(owner, f.human.humanId, admin ? ['admin'] : ['member', manager.roleId]);
+        const existing = ['update-grant', 'create'].includes(path) ? [] : [permission];
+        const protectedRole = f.team.roles.create(owner, 'Protected', existing).role;
+        const beforeRoles = f.team.roles.list(owner);
+        const beforeMembers = f.team.members(owner);
+        const beforeInvalidations = f.invalidate.mock.calls.length;
+        const run = () => {
+          switch (path) {
+            case 'create':
+              return f.invoke('roleCreate', { name: 'Escalated', permissions: [permission] });
+            case 'update-grant':
+              return f.invoke('roleUpdate', {
+                roleId: protectedRole.roleId,
+                permissions: [permission],
+              });
+            case 'rename-existing':
+              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, name: 'Changed' });
+            case 'strip-existing':
+              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, permissions: [] });
+            case 'delete-existing':
+              return f.invoke('roleDelete', { roleId: protectedRole.roleId });
+            case 'assign':
+              return f.invoke('memberRolesSet', {
+                humanId: f.alice.member.humanId,
+                roleIds: [protectedRole.roleId],
+              });
+            case 'member-create':
+              return f.invoke('memberCreate', {
+                username: 'escalated',
+                displayName: 'Escalated',
+                roleIds: [protectedRole.roleId],
+              });
+          }
+        };
+        await expect(run()).rejects.toMatchObject({
+          code: 'permission-not-grantable',
+          details: { permission },
+        });
+        expect(f.team.roles.list(owner)).toEqual(beforeRoles);
+        expect(f.team.members(owner)).toEqual(beforeMembers);
+        expect(f.invalidate.mock.calls.length).toBe(beforeInvalidations);
+      },
+    );
+
+    it.each(['member', 'admin', 'private', 'absent'])(
+      'refuses Admin self-assignment of %s',
+      async (requested) => {
+        const f = await actors();
+        const privateRole = f.team.roles.create(owner, 'Private', ['privateContent.view']).role;
+        f.team.roles.set(owner, f.human.humanId, ['admin']);
+        const before = f.team.mode(f.human).viewer;
+        await expect(
+          f.invoke('memberRolesSet', {
+            humanId: f.human.humanId,
+            roleIds: [requested === 'private' ? privateRole.roleId : requested],
+          }),
+        ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+        expect(f.team.mode(f.human).viewer).toEqual(before);
+      },
+    );
+
+    it.each(['create', 'update', 'assign', 'member-create'] as const)(
+      'reserves private grants to Owner even when the caller already holds private access: %s',
+      async (path) => {
+        const f = await actors();
+        const privateRole = f.team.roles.create(owner, 'Private', ['privateContent.view']).role;
+        const empty = f.team.roles.create(owner, 'Empty', []).role;
+        f.team.roles.set(owner, f.human.humanId, ['admin', privateRole.roleId]);
+        const run = () => {
+          switch (path) {
+            case 'create':
+              return f.invoke('roleCreate', {
+                name: 'Another private role',
+                permissions: ['privateContent.view'],
+              });
+            case 'update':
+              return f.invoke('roleUpdate', {
+                roleId: empty.roleId,
+                permissions: ['privateContent.view'],
+              });
+            case 'assign':
+              return f.invoke('memberRolesSet', {
+                humanId: f.alice.member.humanId,
+                roleIds: [privateRole.roleId],
+              });
+            case 'member-create':
+              return f.invoke('memberCreate', {
+                username: 'private2',
+                displayName: 'Private',
+                roleIds: [privateRole.roleId],
+              });
+          }
+        };
+        await expect(run()).rejects.toMatchObject({
+          code: 'permission-not-grantable',
+          details: { permission: 'privateContent.view' },
+        });
+      },
+    );
+
+    it('permits the Owner to create, edit, assign and delete private roles', async () => {
+      const f = await actors();
+      const role = f.team.roles.create(owner, 'Private', ['privateContent.view']).role;
+      f.team.roles.update(owner, role.roleId, {
+        name: 'Private access',
+        permissions: ['privateContent.view', 'audit.view'],
+      });
+      f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+      f.team.roles.set(owner, f.alice.member.humanId, [role.roleId]);
+      const created = await f.team.createMember(owner, 'private3', 'Private', [role.roleId]);
+      for (const human of [
+        f.human,
+        humanContext(f.alice.member.humanId),
+        humanContext(created.member.humanId),
+      ])
+        expect(f.team.roles.permissions(human)).toContain('privateContent.view');
+      f.team.roles.delete(owner, role.roleId);
+      expect(f.team.member(f.human.humanId)?.roleIds).toEqual(['member']);
+    });
+
+    it('permits delegation of held permissions to another member and new members', async () => {
+      const f = await actors();
+      f.team.roles.set(owner, f.human.humanId, ['admin']);
+      const reads = f.db.diagnostics().metrics.reads;
+      const role = f.team.roles.create(f.human, 'Auditors', ['audit.view']).role;
+      expect(f.db.diagnostics().metrics.reads - reads).toBe(5);
+      f.team.roles.update(f.human, role.roleId, { permissions: ['usage.view'] });
+      f.team.roles.set(f.human, f.alice.member.humanId, [role.roleId]);
+      const created = await f.team.createMember(f.human, 'auditor2', 'Auditor', [role.roleId]);
+      expect(created.member.roleIds).toEqual([role.roleId]);
+      f.team.roles.delete(f.human, role.roleId);
+      expect(f.team.member(f.alice.member.humanId)?.roleIds).toEqual(['member']);
+    });
+
+    it('refuses self-assignment even without member-management permission', async () => {
+      const f = await actors();
+      await expect(
+        f.invoke('memberRolesSet', { humanId: f.human.humanId, roleIds: ['member'] }),
+      ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+    });
+
+    it.each(['actor-ceiling', 'assigned-role'] as const)(
+      'rechecks delegation after member password hashing yields: %s',
+      async (changed) => {
+        const f = await actors();
+        const manager = f.team.roles.create(owner, 'Managers', [
+          'members.manage',
+          'audit.view',
+        ]).role;
+        const assigned = f.team.roles.create(owner, 'Auditors', ['audit.view']).role;
+        f.team.roles.set(owner, f.human.humanId, ['member', manager.roleId]);
+        const pending = f.team.createMember(f.human, 'late-auditor', 'Late', [assigned.roleId]);
+        if (changed === 'actor-ceiling')
+          f.team.roles.update(owner, manager.roleId, { permissions: ['members.manage'] });
+        else f.team.roles.update(owner, assigned.roleId, { permissions: ['privateContent.view'] });
+        await expect(pending).rejects.toMatchObject({
+          code: 'permission-not-grantable',
+          details: {
+            permission: changed === 'actor-ceiling' ? 'audit.view' : 'privateContent.view',
+          },
+        });
+        expect(f.team.members(owner).some((member) => member.username === 'late-auditor')).toBe(
+          false,
+        );
+      },
+    );
+
+    it('checks the automatic Member fallback against the deleting caller ceiling', async () => {
+      const f = await actors();
+      f.team.roles.set(owner, f.human.humanId, ['admin']);
+      const role = f.team.roles.create(owner, 'Temporary', ['usage.view']).role;
+      f.team.roles.set(owner, f.alice.member.humanId, [role.roleId]);
+      f.team.roles.update(owner, 'member', { permissions: ['privateContent.view'] });
+      const before = f.team.roles.list(owner);
+      await expect(f.invoke('roleDelete', { roleId: role.roleId })).rejects.toMatchObject({
+        code: 'permission-not-grantable',
+        details: { permission: 'privateContent.view' },
+      });
+      expect(f.team.roles.list(owner)).toEqual(before);
+      expect(f.team.member(f.alice.member.humanId)?.roleIds).toEqual([role.roleId]);
+    });
+  });
+
+  it('lists only the target grants, marks the authenticated grant, and revokes its Peer immediately', async () => {
+    const f = await actors();
+    const principal = f.bobLogin.peer.principal;
+    if (principal.kind !== 'botharness-member') throw new Error('missing grant');
+    await expect(
+      f.invoke('memberDevices', { humanId: f.human.humanId, currentGrantId: f.aliceLogin.peer.id }),
+    ).rejects.toMatchObject({ code: 'gateway/arguments-invalid' });
+    expect(await f.invoke('memberDevices', { humanId: f.human.humanId })).toEqual([
+      {
+        grantId: principal.grantId,
+        label: '',
+        kind: 'browser',
+        createdAt: '2026-11-14T00:00:00.000Z',
+        lastSeenAt: '2026-11-14T00:00:00.000Z',
+        current: true,
+      },
+    ]);
+    await expect(
+      f.invoke('memberDevices', { humanId: f.alice.member.humanId }),
+    ).rejects.toMatchObject({
+      code: 'permission-required',
+      details: { permission: 'members.manage' },
+    });
+    await expect(
+      f.invoke('memberDeviceRevoke', {
+        humanId: f.alice.member.humanId,
+        grantId: principal.grantId,
+      }),
+    ).rejects.toMatchObject({ code: 'permission-required' });
+    await expect(
+      f.invoke('memberDeviceRevoke', { humanId: f.human.humanId, grantId: 'absent' }),
+    ).rejects.toMatchObject({ code: 'device-not-found' });
+    await f.invoke('memberDeviceRevoke', { humanId: f.human.humanId, grantId: principal.grantId });
+    expect(f.bobLogin.peer.signal.aborted).toBe(true);
+    expect(f.team.admit(f.bobLogin.token)).toBeUndefined();
+    expect(f.team.memberDevices(owner, f.human.humanId)).toEqual([]);
+    expect(f.aliceLogin.peer.signal.aborted).toBe(false);
+    expect(f.team.member(f.human.humanId)?.deviceCount).toBe(0);
+  });
+
+  it('uses the pairing authority to revoke paired devices and excludes revoked rows from counts', async () => {
+    const f = await actors();
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          `INSERT INTO paired_devices(device_id, name, secret_hash, paired_at, human_id) VALUES ('paired-bob', 'Bob phone', 'hash', ?, ?)`,
+        )
+        .run('2026-11-14T00:00:00.000Z', f.human.humanId),
+    );
+    const revoke = vi.fn((deviceId: string) => {
+      f.database.transaction((db) =>
+        db
+          .prepare('UPDATE paired_devices SET revoked_at = ? WHERE device_id = ?')
+          .run('2026-11-14T00:00:01.000Z', deviceId),
+      );
+      return { revoked: true, closedStreams: 1 };
+    });
+    const off = f.team.bindPairing({ revoke, clearOffers: vi.fn() });
+    expect(f.team.member(f.human.humanId)?.deviceCount).toBe(2);
+    expect(f.team.memberDevices(f.human, f.human.humanId)).toContainEqual(
+      expect.objectContaining({ grantId: 'paired-bob', kind: 'paired-device', label: 'Bob phone' }),
+    );
+    await f.invoke('memberDeviceRevoke', { humanId: f.human.humanId, grantId: 'paired-bob' });
+    expect(revoke).toHaveBeenCalledWith('paired-bob');
+    expect(f.team.member(f.human.humanId)?.deviceCount).toBe(1);
+    off();
+  });
+
+  it('transfers unique Owner authority atomically without transferring Human data or native access', async () => {
+    const f = await actors();
+    await expect(
+      f.invoke('ownerTransfer', { humanId: f.alice.member.humanId, password: 'owner-password-1' }),
+    ).rejects.toMatchObject({ code: 'permission-required', details: { permission: 'owner' } });
+    await expect(f.team.transferOwner(owner, f.human.humanId, 'wrong')).rejects.toMatchObject({
+      code: 'credentials-invalid',
+    });
+    await expect(f.team.transferOwner(owner, 'absent', 'owner-password-1')).rejects.toMatchObject({
+      code: 'member-not-found',
+    });
+    await f.team.suspend(owner, f.alice.member.humanId);
+    await expect(
+      f.team.transferOwner(owner, f.alice.member.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'member-suspended' });
+    await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+    expect(f.team.mode(f.human).viewer).toMatchObject({ owner: true, roleIds: [] });
+    expect(f.team.mode(owner).viewer).toMatchObject({ owner: false, roleIds: ['admin'] });
+    expect(
+      f.team
+        .members(f.human)
+        .filter((m) => m.owner)
+        .map((m) => m.humanId),
+    ).toEqual([f.human.humanId]);
+    const localPeer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+    expect(resolveInvocationHuman(localPeer, undefined, f.team)).toEqual(f.human);
+    await expect(
+      f.team.transferOwner(owner, f.alice.member.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'permission-required' });
+    new NativeSession(f.ctx);
+    await expect(
+      f.gateway.invoke({ namespace: 'session', method: 'list', args: {}, peer: f.bobLogin.peer }),
+    ).rejects.toMatchObject({ code: 'remote-access/denied' });
+    await expect(f.team.signIn('owner', 'owner-password-1', 'old-owner-ip')).resolves.toMatchObject(
+      { member: { owner: false, roleIds: ['admin'] } },
+    );
+    await expect(f.team.signIn('bob', 'member-password-1', 'new-owner-ip')).resolves.toMatchObject({
+      member: { owner: true, roleIds: [] },
+    });
+    await f.invoke('memberRolesSet', { humanId: f.alice.member.humanId, roleIds: ['admin'] });
+  });
+
+  it('retains M1 identities and credentials while assigning the built-in Member role on upgrade', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(`PRAGMA foreign_keys = ON;
+        CREATE TABLE humans(human_id TEXT PRIMARY KEY);
+        CREATE TABLE team_settings(singleton INTEGER PRIMARY KEY, enabled INTEGER, insecure_http_allowed INTEGER);
+        INSERT INTO team_settings VALUES (1, 1, 0);
+        INSERT INTO humans VALUES ('local-human'), ('existing-member');`);
+      const migration = BOT_HARNESS_SCHEMA_PLAN.migrations.find(
+        (entry) => entry.generation === 142,
+      );
+      if (!migration) throw new Error('missing migration');
+      migration.migrate(db);
+      expect(db.prepare('SELECT * FROM human_roles').all()).toEqual([
+        { human_id: 'existing-member', role_id: 'member' },
+      ]);
+      expect(db.prepare('SELECT owner_human_id FROM team_settings').get()).toEqual({
+        owner_human_id: 'local-human',
+      });
+      expect(db.prepare('SELECT human_id FROM humans ORDER BY human_id').all()).toHaveLength(2);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('revokes old Owner paired-device streams and pending offers without rebinding their Human identity', async () => {
+    const f = await actors();
+    const onRevoked = vi.fn();
+    const pairing = createDevicePairing({
+      database: f.database,
+      hostName: 'Test',
+      ownerHumanId: () => f.team.ownerContext().humanId,
+      onRevoked,
+    });
+    f.team.bindPairing(pairing);
+    const oldOffer = pairing.createOffer();
+    const old = pairing.redeem({ offer: pairing.createOffer().offer });
+    if (!old.ok) throw new Error('pairing failed');
+    const close = vi.fn();
+    pairing.attachStream(old.device.id, close);
+    await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+    expect(close).toHaveBeenCalledOnce();
+    expect(onRevoked).toHaveBeenCalledWith(old.device.id);
+    expect(pairing.admit(`Device ${old.credential}`)).toMatchObject({
+      ok: false,
+      code: 'device-revoked',
+    });
+    expect(pairing.redeem({ offer: oldOffer.offer })).toMatchObject({
+      ok: false,
+      code: 'offer-invalid',
+    });
+    expect(f.team.memberDevices(f.human, owner.humanId)).toEqual([]);
+    const fresh = pairing.redeem({ offer: pairing.createOffer().offer });
+    if (!fresh.ok) throw new Error('new Owner pairing failed');
+    const before = f.db.diagnostics().metrics.reads;
+    expect(pairing.admit(`Device ${fresh.credential}`).ok).toBe(true);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(2);
+    expect(f.team.memberDevices(f.human, f.human.humanId)).toContainEqual(
+      expect.objectContaining({ grantId: fresh.device.id, kind: 'paired-device' }),
+    );
+  });
+
+  it.each([
+    'roster-baseline',
+    'roster-queued',
+    'roster-publish',
+    'roster-sse',
+    'channel-open',
+    'channel-follow-new',
+    'channel-queued',
+    'channel-publish',
+  ] as const)('removes former Owner-wide live visibility after transfer: %s', async (path) => {
+    const f = await actors();
+    const alice = humanContext(f.alice.member.humanId);
+    const secret = f.channels.getOrCreateRemoteBotDm('local-bot', {
+      hostId: 'remote-host',
+      botSlug: 'remote-bot',
+      displayName: 'Remote Bot',
+    });
+    if (!secret) throw new Error('missing private DM');
+    const placement = {
+      sourceEventId: 'alice-secret-source',
+      channelId: secret.id,
+      messageId: 'alice-secret-message',
+    };
+    f.setPlacements([placement]);
+    const controller = new AbortController();
+    const roster = f.live.followRoster(owner, controller.signal)[Symbol.asyncIterator]();
+    const channel = f.live
+      .followChannel(owner, secret.id, 10, controller.signal)
+      [Symbol.asyncIterator]();
+    const opened = f.live.open(
+      owner,
+      new Request('http://localhost/api/botharness/stream?scope=roster'),
+    );
+    const reader = opened.body?.getReader();
+    const publish = async () => {
+      f.live.publishCommitted({
+        channelId: secret.id,
+        message: {
+          id: 'alice-secret-message',
+          at: '2026-11-14T00:00:00Z',
+          author: { kind: 'bot', slug: 'remote-bot' },
+          body: 'Remote private text',
+        },
+        revision: 1,
+      });
+    };
+    try {
+      expect((await roster.next()).value).toMatchObject({
+        type: 'baseline',
+        placements: [placement],
+      });
+      expect((await channel.next()).value).toMatchObject({ type: 'opened' });
+      await reader?.read();
+      await reader?.read();
+      if (path === 'roster-queued' || path === 'channel-queued') {
+        await publish();
+        f.live.publishContentPurged();
+      }
+      await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+      if (path === 'roster-baseline') {
+        const old = f.live.followRoster(owner, controller.signal)[Symbol.asyncIterator]();
+        const current = f.live.followRoster(f.human, controller.signal)[Symbol.asyncIterator]();
+        try {
+          expect((await old.next()).value).toEqual({ type: 'baseline', placements: [] });
+          expect((await current.next()).value).toEqual({
+            type: 'baseline',
+            placements: [placement],
+          });
+        } finally {
+          await old.return?.();
+          await current.return?.();
+        }
+      } else if (path === 'channel-open') {
+        const denied = f.live.open(
+          owner,
+          new Request(`http://localhost/api/botharness/stream?channelId=${secret.id}`),
+        );
+        await denied.body?.cancel();
+        expect(denied.status).toBe(404);
+      } else if (path === 'channel-follow-new') {
+        const denied = f.live
+          .followChannel(owner, secret.id, 10, controller.signal)
+          [Symbol.asyncIterator]();
+        await expect(denied.next()).rejects.toMatchObject({ code: 'not-found' });
+        await denied.return?.();
+      } else if (path === 'channel-queued' || path === 'channel-publish') {
+        if (path === 'channel-publish') await publish();
+        expect((await channel.next()).done).toBe(true);
+      } else {
+        if (path !== 'roster-queued') {
+          await publish();
+          f.live.publishContentPurged();
+        }
+        f.live.publishRosterCommitted();
+        if (path === 'roster-sse') {
+          const frame = new TextDecoder().decode((await reader?.read())?.value);
+          expect(frame).toContain('event: roster/changed');
+          expect(frame).not.toContain('alice-secret');
+        } else expect((await roster.next()).value).toEqual({ type: 'changed' });
+      }
+    } finally {
+      controller.abort();
+      await reader?.cancel();
+      await roster.return?.();
+      await channel.return?.();
+    }
+  });
+
+  it('requires current-Owner credential provenance for transfer, beyond the forced-change flag', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    const created = await f.team.createMember(f.human, 'managed-target', 'Target');
+    const target = humanContext(created.member.humanId);
+    await expect(
+      f.team.transferOwner(owner, target.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    await f.team.changePassword(target, created.initialPassword, 'manager-known-password-1');
+    expect(f.team.member(target.humanId)?.mustChangePassword).toBe(false);
+    const retained = await f.team.signIn(
+      'managed-target',
+      'manager-known-password-1',
+      'manager-ip',
+    );
+    await expect(
+      f.team.transferOwner(owner, target.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    const reset = await f.team.resetPassword(owner, target.humanId);
+    expect(retained.peer.signal.aborted).toBe(true);
+    await expect(
+      f.team.signIn('managed-target', 'manager-known-password-1', 'manager-ip'),
+    ).rejects.toMatchObject({ code: 'credentials-invalid' });
+    await expect(
+      f.team.transferOwner(owner, target.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    await f.team.changePassword(target, reset.initialPassword, 'target-only-password-2');
+    await f.team.transferOwner(owner, target.humanId, 'owner-password-1');
+    expect(f.team.ownerContext()).toEqual(target);
+  });
+
+  it('refuses transfer with unknown legacy credential provenance', async () => {
+    const f = await actors();
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE member_credentials SET password_json = json_remove(password_json, '$.ownerIssuerHumanId') WHERE human_id = ?",
+        )
+        .run(f.human.humanId),
+    );
+    await expect(
+      f.team.transferOwner(owner, f.human.humanId, 'owner-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    expect(f.team.ownerContext()).toEqual(owner);
+  });
+
+  it('requires credential issuance by the current Owner rather than a previous Owner', async () => {
+    const f = await actors();
+    const alice = humanContext(f.alice.member.humanId);
+    await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+    await expect(
+      f.team.transferOwner(f.human, alice.humanId, 'member-password-1'),
+    ).rejects.toMatchObject({ code: 'owner-transfer-target-unverified' });
+    const reset = await f.team.resetPassword(f.human, alice.humanId);
+    await f.team.changePassword(alice, reset.initialPassword, 'alice-new-private-password-2');
+    await f.team.transferOwner(f.human, alice.humanId, 'member-password-1');
+    expect(f.team.ownerContext()).toEqual(alice);
+  });
+
+  it('invalidates outstanding pairing offers permanently across an Owner round trip', async () => {
+    const f = await actors();
+    const pairing = createDevicePairing({
+      database: f.database,
+      hostName: 'Test',
+      ownerHumanId: () => f.team.ownerContext().humanId,
+    });
+    f.team.bindPairing(pairing);
+    const offered = pairing.createOffer();
+    await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+    const reset = await f.team.resetPassword(f.human, owner.humanId);
+    await f.team.changePassword(owner, reset.initialPassword, 'returned-owner-password-2');
+    await f.team.transferOwner(f.human, owner.humanId, 'member-password-1');
+    expect(pairing.redeem({ offer: offered.offer })).toEqual({ ok: false, code: 'offer-invalid' });
+    expect(pairing.offerStatus(offered.receipt)).toMatchObject({ state: 'superseded' });
+  });
+
+  it('removes every effective permission from suspended Humans, including an in-flight member creator', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    const pending = f.team.createMember(f.human, 'late-suspended', 'Late').then(
+      (member) => ({ member }),
+      (error: unknown) => ({ error }),
+    );
+    await f.team.suspend(owner, f.human.humanId);
+    expect(f.team.roles.permissions(f.human)).toEqual([]);
+    expect(await pending).toMatchObject({
+      error: { code: 'permission-required', details: { permission: 'members.manage' } },
+    });
+    expect(f.team.members(owner).some((member) => member.username === 'late-suspended')).toBe(
+      false,
+    );
+    f.database.transaction((db) =>
+      db.prepare("UPDATE humans SET status = 'suspended' WHERE human_id = ?").run(owner.humanId),
+    );
+    expect(f.team.roles.permissions(owner)).toEqual([]);
+  });
+
+  it('rechecks member-creation authority after password hashing yields', async () => {
+    const f = await actors();
+    const { role } = f.team.roles.create(owner, 'Managers', ['members.manage']);
+    f.team.roles.set(owner, f.human.humanId, ['member', role.roleId]);
+    const pending = f.team.createMember(f.human, 'late-member', 'Late');
+    f.team.roles.update(owner, role.roleId, { permissions: [] });
+    await expect(pending).rejects.toMatchObject({
+      code: 'permission-required',
+      details: { permission: 'members.manage' },
+    });
+    expect(f.team.members(owner).some((m) => m.username === 'late-member')).toBe(false);
+  });
+
+  it('keeps directory and permission query counts constant as the team grows', async () => {
+    const f = await actors();
+    f.database.transaction((db) => {
+      for (let index = 0; index < 1000; index++) {
+        db.prepare("INSERT INTO humans VALUES (?, ?, 'active', '2026-11-14T00:00:00Z')").run(
+          `scale-${index}`,
+          `scale-${index}`,
+        );
+        db.prepare("INSERT INTO human_roles VALUES (?, 'member')").run(`scale-${index}`);
+      }
+    });
+    let before = f.db.diagnostics().metrics.reads;
+    expect(f.team.roles.permissions(f.human)).toEqual(['dm.humans']);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+    before = f.db.diagnostics().metrics.reads;
+    expect(f.team.members(owner)).toHaveLength(1003);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(2);
+    before = f.db.diagnostics().metrics.reads;
+    expect(f.team.roles.list(owner)).toHaveLength(2);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(2);
+  });
+
+  it.each([
+    ['permissionCatalog', {}, null],
+    ['roles', {}, 'roles.manage'],
+    ['roleCreate', { name: 'Not allowed', permissions: [] }, 'roles.manage'],
+    ['roleUpdate', { roleId: 'admin', permissions: [] }, 'roles.manage'],
+    ['roleDelete', { roleId: 'admin' }, 'roles.manage'],
+    ['members', {}, 'members.manage'],
+    ['memberCreate', { username: 'not-allowed', displayName: 'No' }, 'members.manage'],
+    ['memberRolesSet', { humanId: 'other-human', roleIds: [] }, 'members.manage'],
+    ['memberDevices', { humanId: 'other-human' }, 'members.manage'],
+    ['memberDeviceRevoke', { humanId: 'other-human', grantId: 'other-grant' }, 'members.manage'],
+    ['ownerTransfer', { humanId: 'other-human', password: 'password' }, 'owner'],
+    ['memberPasswordReset', { humanId: 'other-human' }, 'members.manage'],
+    ['teamModeSet', { enabled: true }, 'team.settings'],
+    ['teamInsecureHttpSet', { allowed: true }, 'team.settings'],
+    ['teamOwnerPasswordSet', { password: 'password' }, 'owner'],
+  ] as const)(
+    'scopes newly allowed %s with no other Human content or counts',
+    async (method, args, permission) => {
+      const f = await actors();
+      f.channels.createGroup(owner, { name: 'Secret owner channel', members: [] });
+      const argsCopy: Record<string, unknown> = { ...args };
+      let result: unknown;
+      if (permission) {
+        const error = await f.invoke(method, argsCopy).catch((failure: unknown) => failure);
+        expect(error).toMatchObject({ code: 'permission-required', details: { permission } });
+        result = error;
+      } else result = await f.invoke(method, argsCopy);
+      const encoded = JSON.stringify(result);
+      for (const secret of [
+        f.alice.member.humanId,
+        'Alice',
+        'Secret owner channel',
+        'local-human',
+        'other-human',
+        'other-grant',
+      ])
+        expect(encoded).not.toContain(secret);
+    },
+  );
+});
+
+describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
+  it.each(['private', 'roles-nonmember', 'roles-member'] as const)(
+    'hides %s through every read path',
+    async (kind) => {
+      const f = await enabledFixture();
+      const secret = f.channels.createGroup(owner, { name: 'm4-confidential', members: [] });
+      await f.channels.appendMessage(owner, secret.id, {
+        id: 'm4-secret',
+        at: '2026-11-14T00:00:00Z',
+        author: { kind: 'human', humanId: owner.humanId },
+        body: 'm4-confidential-content',
+      });
+      if (kind === 'roles-member')
+        f.team.channelAccess.addMember(owner, secret.id, f.human.humanId);
+      if (kind !== 'private') {
+        const { role } = f.team.roles.create(owner, 'restricted', []);
+        f.team.channelAccess.visibilitySet(owner, secret.id, {
+          kind: 'roles',
+          roleIds: [role.roleId],
+        });
+      }
+      const methods = f.methods(f.human);
+      const cursor = f.channels.changeCursor!();
+      f.setPlacements([
+        { channelId: secret.id, messageId: 'm4-secret', sourceEventId: 'm4-source' },
+      ]);
+      const results = [
+        await methods.channels({}),
+        await methods.browsableChannels({}),
+        await methods.messageSearch({ text: 'm4-confidential' }),
+        await methods.channelListChanges({ sinceSeq: 0, epoch: cursor.epoch }),
+        methods.channelUnreadCounts({}),
+      ];
+      for (const [index, result] of results.entries())
+        expect(JSON.stringify(result), `read path ${index}`).not.toContain('m4-confidential');
+      for (const method of [
+        'channelGet',
+        'channelMessages',
+        'channelTimeline',
+        'channelSearch',
+        'channelAllBotPreview',
+        'channelReadPosition',
+      ] as const) {
+        const result = await methods[method]({ channelId: secret.id, text: 'm4-confidential' });
+        expect(result, method).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+      }
+      expect(await methods.channelJoin({ channelId: secret.id })).toMatchObject({
+        ok: false,
+        error: { code: 'channel-not-found' },
+      });
+      expect(
+        f.channels.readHumanJournalPage(f.human, secret.id, { through: 10, limit: 10 }),
+      ).toBeUndefined();
+      expect(f.channels.readHumanFilesPage(f.human, secret.id, {})).toBeUndefined();
+      expect(
+        f.channels.searchHumanMessages?.(f.human, secret.id, {
+          text: 'm4-confidential',
+          limit: 10,
+        }),
+      ).toBeUndefined();
+      f.registry.create({ slug: 'm4-bot', displayName: 'M4 Bot', ownerHumanId: f.human.humanId });
+      const dm = f.channels.getOrCreateDm(f.human, 'm4-bot', 'M4 Bot');
+      if (!dm) throw new Error('missing dm');
+      expect(
+        await methods.channelSend({
+          channelId: dm.id,
+          body: '#m4-confidential',
+          channelRefs: [{ channelId: secret.id, label: 'm4-confidential', start: 0, end: 16 }],
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+      const abort = new AbortController();
+      const roster = f.live.followRoster(f.human, abort.signal)[Symbol.asyncIterator]();
+      const channel = f.live
+        .followChannel(f.human, secret.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      try {
+        expect((await roster.next()).value).toEqual({ type: 'baseline', placements: [] });
+        await expect(channel.next()).rejects.toMatchObject({ code: 'not-found' });
+        const response = f.live.open(
+          f.human,
+          new Request(`http://localhost/api/botharness/stream?channelId=${secret.id}`),
+        );
+        expect(response.status).toBe(404);
+        await response.body?.cancel();
+      } finally {
+        abort.abort();
+        await roster.return?.();
+        await channel.return?.();
+      }
+    },
+  );
+
+  it('browses, previews and explicitly joins public and eligible role Channels', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Public preview', members: [] });
+    for (const visibility of [
+      { kind: 'public' },
+      { kind: 'roles', roleIds: ['member'] },
+    ] as const) {
+      f.team.channelAccess.visibilitySet(
+        owner,
+        group.id,
+        visibility.kind === 'public'
+          ? visibility
+          : { kind: 'roles', roleIds: [...visibility.roleIds] },
+      );
+      expect(f.team.channelAccess.browse(f.human)).toContainEqual(
+        expect.objectContaining({ channelId: group.id, visibility: visibility.kind }),
+      );
+      expect(await f.methods(f.human).channelGet({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { role: 'member', visibility },
+      });
+      expect(
+        await f.methods(f.human).channelSend({ channelId: group.id, body: 'not joined' }),
+      ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+    }
+    f.team.channelAccess.join(f.human, group.id);
+    f.team.channelAccess.join(f.human, group.id);
+    expect(f.channels.listHumanMembers(f.human, group.id)).toHaveLength(2);
+    expect(
+      await f.methods(f.human).channelSend({ channelId: group.id, body: 'joined' }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('enforces each policy, owner-only admins and exact member metadata', async () => {
+    const f = await enabledFixture();
+    f.registry.create({
+      slug: 'policy-bot',
+      displayName: 'Policy Bot',
+      ownerHumanId: f.human.humanId,
+    });
+    const group = f.channels.createGroup(owner, { name: 'Policy', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+    const allAdmins = {
+      addMembers: 'admins',
+      post: 'admins',
+      mentionAll: 'admins',
+      addBots: 'admins',
+      editDetails: 'admins',
+    } as const;
+    f.team.channelAccess.policySet(owner, group.id, allAdmins);
+    const methods = f.methods(f.human);
+    expect(methods.channelGet({ channelId: group.id })).toEqual({
+      ok: true,
+      value: {
+        channel: expect.any(Object),
+        role: 'member',
+        policy: allAdmins,
+        policyRevision: expect.any(String),
+        visibility: { kind: 'private' },
+        admins: [],
+      },
+    });
+    expect(methods.channelGet({ channelId: group.id })).not.toHaveProperty(
+      'value.channelFingerprint',
+    );
+    for (const [method, payload, key] of [
+      ['channelSend', { body: 'announcement' }, 'post'],
+      ['channelHumanAdd', { humanId: 'absent' }, 'addMembers'],
+      ['channelGroupInvite', { botSlug: 'policy-bot' }, 'addBots'],
+      ['channelRename', { name: 'edited' }, 'editDetails'],
+      ['channelDescriptionSet', { description: 'edited' }, 'editDetails'],
+    ] as const) {
+      const result = await methods[method]({ channelId: group.id, ...payload });
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          code: key === 'post' ? 'channel-post-restricted' : 'permission-required',
+          details: { permission: key },
+        },
+      });
+    }
+    f.team.channelAccess.policySet(owner, group.id, { ...allAdmins, post: 'everyone' });
+    expect(
+      await methods.channelSend({
+        channelId: group.id,
+        body: '@All Bots',
+        allBotMention: {
+          start: 0,
+          end: 9,
+          label: 'All Bots',
+          preview: f.channels.previewAllBotMention(group.id),
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'channel-mention-restricted' } });
+    expect(await methods.channelAdminsSet({ channelId: group.id, humanIds: [] })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    expect(
+      await methods.channelPolicySet({ channelId: group.id, policy: allAdmins }),
+    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    expect(
+      await methods.channelVisibilitySet({ channelId: group.id, visibility: { kind: 'public' } }),
+    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    expect(await methods.channelRoleDirectory({ channelId: group.id })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+    expect(await methods.channelRoleDirectory({ channelId: group.id })).toMatchObject({
+      ok: true,
+      value: expect.arrayContaining([{ roleId: 'member', name: 'member' }]),
+    });
+    expect(methods.channelGet({ channelId: group.id })).toMatchObject({
+      ok: true,
+      value: { role: 'admin', admins: [{ humanId: f.human.humanId, displayName: 'Bob' }] },
+    });
+    f.team.channelAccess.policySet(f.human, group.id, allAdmins);
+    expect(
+      await methods.channelSend({ channelId: group.id, body: 'admin announcement' }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await methods.channelVisibilitySet({
+        channelId: group.id,
+        visibility: { kind: 'roles', roleIds: ['absent'] },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'role-not-found' } });
+    expect(
+      await methods.channelVisibilitySet({ channelId: 'absent', visibility: { kind: 'public' } }),
+    ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+  });
+
+  it('creates member-owned groups and keeps Host-wide management separate from private reading', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(f.human, { name: 'Member-owned', members: [] });
+    expect(f.team.channelAccess.view(f.human, group.id).role).toBe('owner');
+    expect(f.team.channelAccess.canRead(owner, group.id)).toBe(false);
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
+    expect(f.team.channelAccess.browse(owner)).toContainEqual(
+      expect.objectContaining({ channelId: group.id }),
+    );
+    expect(() => f.team.channelAccess.adminsSet(f.human, group.id, [owner.humanId])).toThrow(
+      'member-not-found',
+    );
+    const { role } = f.team.roles.create(owner, 'no channel creation', []);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    expect(f.methods(f.human).channelCreate({ name: 'denied', members: [] })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'channels.create' } },
+    });
+  });
+
+  it('opens one Human DM per pair, permits files and denies every other Human including Owner', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'm4alice', 'Alice');
+    const other = humanContext(alice.member.humanId);
+    const first = f.team.channelAccess.dm(f.human, other.humanId).channel;
+    expect(f.team.channelAccess.dm(other, f.human.humanId).channel.id).toBe(first.id);
+    expect(first).toMatchObject({
+      type: 'dm',
+      members: [],
+      humanParticipants: expect.arrayContaining([f.human.humanId, other.humanId]),
+    });
+    expect(
+      await f.methods(f.human).channelSend({ channelId: first.id, body: 'DM secret' }),
+    ).toMatchObject({ ok: true });
+    expect(await f.methods(other).channelMessages({ channelId: first.id })).toMatchObject({
+      ok: true,
+      value: { messages: [expect.objectContaining({ body: 'DM secret' })] },
+    });
+    expect(
+      f.channels.searchAllHumanMessages?.(other, { text: 'DM secret', limit: 10 }),
+    ).toMatchObject({ hits: [expect.objectContaining({ channelId: first.id })] });
+    expect(await f.methods(owner).channelMessages({ channelId: first.id })).toMatchObject({
+      ok: false,
+      error: { code: 'channel-not-found' },
+    });
+    expect(
+      f.channels.readHumanJournalPage(owner, first.id, { through: 10, limit: 10 }),
+    ).toBeUndefined();
+    const attachment = await f.attachments.upload({
+      name: 'human-dm.txt',
+      data: (async function* () {
+        yield Buffer.from('private file bytes');
+      })(),
+    });
+    expect(
+      await f
+        .methods(f.human)
+        .channelSend({ channelId: first.id, body: 'file', attachments: [attachment] }),
+    ).toMatchObject({ ok: true });
+    expect(JSON.stringify(f.channels.readHumanFilesPage(other, first.id, {}))).toContain(
+      'human-dm.txt',
+    );
+    expect(f.channels.readHumanFilesPage(owner, first.id, {})).toBeUndefined();
+    expect(JSON.stringify(await f.methods(owner).channels({}))).not.toContain(first.id);
+    expect(f.team.channelAccess.directory(f.human)).toContainEqual({
+      humanId: other.humanId,
+      displayName: 'Alice',
+    });
+    for (const row of f.team.channelAccess.directory(f.human))
+      expect(Object.keys(row).sort()).toEqual(['displayName', 'humanId']);
+    expect(() => f.team.channelAccess.dm(f.human, 'missing')).toThrow('member-not-found');
+    expect(() => f.team.channelAccess.dm(f.human, f.human.humanId)).toThrow('member-not-found');
+    await f.team.suspend(owner, other.humanId);
+    expect(() => f.team.channelAccess.dm(f.human, other.humanId)).toThrow('member-not-found');
+    expect(f.team.channelAccess.directory(f.human)).not.toContainEqual(
+      expect.objectContaining({ humanId: other.humanId }),
+    );
+    const { role } = f.team.roles.create(owner, 'No DMs', []);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    expect(await f.methods(f.human).humanDm({ humanId: other.humanId })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'dm.humans' } },
+    });
+    expect(await f.methods(f.human).teamDirectory({})).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'dm.humans' } },
+    });
+  });
+
+  it.each(['visibility', 'role'] as const)(
+    'immediately closes browser Peers, paired mux and queued streams on %s revocation',
+    async (cause) => {
+      const f = await enabledFixture();
+      await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+      const group = f.channels.createGroup(owner, { name: 'Revoked', members: [] });
+      f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+      f.team.channelAccess.join(f.human, group.id);
+      const first = await f.team.signIn('bob', 'member-password-1', 'one');
+      const second = await f.team.signIn('bob', 'member-password-1', 'two');
+      const pairing = createDevicePairing({
+        database: f.database,
+        hostName: 'M4',
+        ownerHumanId: () => f.human.humanId,
+      });
+      f.team.bindPairing(pairing);
+      const device = pairing.redeem({ offer: pairing.createOffer().offer });
+      if (!device.ok) throw new Error('pair failed');
+      const close = vi.fn();
+      pairing.attachStream(device.device.id, close);
+      const abort = new AbortController();
+      const channel = f.live
+        .followChannel(f.human, group.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      const roster = f.live.followRoster(f.human, abort.signal)[Symbol.asyncIterator]();
+      try {
+        await channel.next();
+        await roster.next();
+        const message = await f.channels.appendMessage(f.human, group.id, {
+          id: 'queued-secret',
+          at: '2026-11-14',
+          author: { kind: 'human', humanId: f.human.humanId },
+          body: 'queued-secret',
+        });
+        if (!message) throw new Error('missing message');
+        f.live.publishCommitted({
+          channelId: group.id,
+          message,
+          revision: f.channels.revision(group.id),
+        });
+        if (cause === 'visibility')
+          f.team.channelAccess.visibilitySet(owner, group.id, {
+            kind: 'roles',
+            roleIds: ['admin'],
+          });
+        else {
+          const { role } = f.team.roles.create(owner, 'Revoked', []);
+          f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+        }
+        await f.team.accessSettled();
+        expect(first.peer.signal.aborted).toBe(true);
+        expect(second.peer.signal.aborted).toBe(true);
+        expect(close).toHaveBeenCalledOnce();
+        expect((await channel.next()).done).toBe(true);
+        expect((await roster.next()).done).toBe(true);
+        expect(await f.methods(f.human).channelMessages({ channelId: group.id })).toMatchObject({
+          ok: false,
+          error: { code: 'channel-not-found' },
+        });
+        expect(
+          f.live.open(
+            f.human,
+            new Request(`http://localhost/api/botharness/stream?channelId=${group.id}`),
+          ).status,
+        ).toBe(404);
+      } finally {
+        abort.abort();
+        await channel.return?.();
+        await roster.return?.();
+      }
+    },
+  );
+});
+
+describe('M4 migration and query budgets', () => {
+  it('migrates public booleans and existing group owners without changing records or memberships', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(`CREATE TABLE humans(human_id TEXT PRIMARY KEY); INSERT INTO humans VALUES ('owner');
+        CREATE TABLE team_settings(owner_human_id TEXT); INSERT INTO team_settings VALUES ('owner');
+        CREATE TABLE channel_records(channel_id TEXT PRIMARY KEY,record_json TEXT,public INTEGER);
+        INSERT INTO channel_records VALUES ('public','{"type":"group"}',1),('private','{"type":"group"}',0);`);
+      const migration = BOT_HARNESS_SCHEMA_PLAN.migrations.find(
+        (m) => m.description === 'Channel visibility, Human ownership, policy and admins',
+      );
+      if (!migration) throw new Error('missing migration');
+      migration.migrate(db);
+      expect(
+        db
+          .prepare(
+            'SELECT channel_id,visibility_json,owner_human_id FROM channel_records ORDER BY channel_id',
+          )
+          .all(),
+      ).toEqual([
+        { channel_id: 'private', visibility_json: '{"kind":"private"}', owner_human_id: 'owner' },
+        { channel_id: 'public', visibility_json: '{"kind":"public"}', owner_human_id: 'owner' },
+      ]);
+      expect(db.prepare('SELECT record_json FROM channel_records').all()).toEqual([
+        { record_json: '{"type":"group"}' },
+        { record_json: '{"type":"group"}' },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+  it('bounds audience and browse queries independently of the Channel count', async () => {
+    const f = await enabledFixture();
+    f.database.transaction((db) => {
+      const insert = db.prepare(
+        'INSERT INTO channel_records(channel_id,record_json,owner_human_id,visibility_json) VALUES (?, ?, ?, ?)',
+      );
+      for (let index = 0; index < 1000; index++)
+        insert.run(
+          `scale-group-${index}`,
+          JSON.stringify({
+            id: `scale-group-${index}`,
+            type: 'group',
+            name: 'scale',
+            members: [],
+            createdAt: '2026-11-14',
+            updatedAt: '2026-11-14',
+          }),
+          owner.humanId,
+          '{"kind":"public"}',
+        );
+    });
+    let before = f.db.diagnostics().metrics.reads;
+    expect(f.team.channelAccess.visibleIds(f.human, false).size).toBe(1000);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+    before = f.db.diagnostics().metrics.reads;
+    expect(f.team.channelAccess.browse(f.human)).toHaveLength(1000);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+    before = f.db.diagnostics().metrics.reads;
+    expect(f.team.channelAccess.canRead(f.human, 'scale-group-999')).toBe(true);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
+  });
+});
+
+describe('M4 Channel admin delegation ceiling', { timeout: 60_000 }, () => {
+  it('checks removed admins against a non-Owner Channel owner ceiling', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'ceiling-alice', 'Alice');
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    f.team.roles.set(owner, alice.member.humanId, ['admin']);
+    const group = f.channels.createGroup(f.human, { name: 'Owned group', members: [] });
+    f.team.channelAccess.addMember(f.human, group.id, alice.member.humanId);
+    f.team.channelAccess.adminsSet(f.human, group.id, [alice.member.humanId]);
+    f.team.roles.set(owner, f.human.humanId, ['member']);
+    expect(() => f.team.channelAccess.adminsSet(f.human, group.id, [])).toThrow(
+      'permission-required',
+    );
+    expect(f.team.channelAccess.view(f.human, group.id).admins).toEqual([
+      { humanId: alice.member.humanId, displayName: 'Alice' },
+    ]);
+  });
+});
+
+describe('M4 review regressions', { timeout: 60_000 }, () => {
+  const restrictedPolicy = {
+    addMembers: 'admins',
+    post: 'admins',
+    mentionAll: 'admins',
+    addBots: 'admins',
+    editDetails: 'admins',
+  } as const;
+
+  it('retains joined Channel owners/admins while hiding an ordinary member after role loss', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'design-alice', 'Alice');
+    const human = humanContext(alice.member.humanId);
+    const group = f.channels.createGroup(owner, { name: 'Design Room', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, 'bob');
+    expect(() => f.team.channelAccess.adminsSet(owner, group.id, ['design-alice'])).toThrow(
+      'member-not-found',
+    );
+    f.team.channelAccess.adminsSet(owner, group.id, ['bob']);
+    f.team.channelAccess.addMember(owner, group.id, human.humanId);
+    const { role } = f.team.roles.create(owner, 'Design', ['channels.create', 'dm.humans']);
+    f.team.roles.set(owner, human.humanId, [role.roleId]);
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: [role.roleId] });
+    expect(f.team.mode(owner).viewer.roleIds).not.toContain(role.roleId);
+    expect(f.team.mode(f.human).viewer.roleIds).not.toContain(role.roleId);
+    expect(() => f.team.channelAccess.addMember(owner, group.id, 'bob')).not.toThrow();
+    expect(
+      await f.methods(owner).channelSend({ channelId: group.id, body: 'design-review-secret' }),
+    ).toMatchObject({ ok: true });
+    expect(f.team.channelAccess.canRead(human, group.id)).toBe(true);
+    f.team.roles.set(owner, human.humanId, ['member']);
+    await f.team.accessSettled();
+    for (const manager of [owner, f.human]) {
+      expect(f.team.channelAccess.canRead(manager, group.id, true)).toBe(true);
+      expect(f.team.channelAccess.browse(manager)).toContainEqual(
+        expect.objectContaining({ channelId: group.id, joined: true }),
+      );
+      expect(await f.methods(manager).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: expect.arrayContaining([expect.objectContaining({ id: group.id })]) },
+      });
+      expect(f.methods(manager).channelGet({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { role: manager === owner ? 'owner' : 'admin' },
+      });
+      expect(
+        f.channels.searchAllHumanMessages?.(manager, { text: 'design-review-secret', limit: 10 }),
+      ).toMatchObject({ hits: [expect.objectContaining({ channelId: group.id })] });
+      const abort = new AbortController();
+      const stream = f.live
+        .followChannel(manager, group.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      try {
+        expect((await stream.next()).value).toMatchObject({ type: 'opened' });
+      } finally {
+        abort.abort();
+        await stream.return?.();
+      }
+    }
+    expect(f.team.channelAccess.canRead(human, group.id)).toBe(false);
+    expect(f.team.channelAccess.browse(human)).toEqual([]);
+    expect(await f.methods(human).channels({})).toMatchObject({
+      ok: true,
+      value: { channels: [] },
+    });
+    expect(
+      f.channels.searchAllHumanMessages?.(human, { text: 'design-review-secret', limit: 10 }),
+    ).toMatchObject({ hits: [] });
+    expect(() => f.team.channelAccess.join(human, group.id)).toThrow('channel-not-found');
+    expect(f.channels.hasHumanMembership?.(human, group.id)).toBe(true);
+  });
+
+  it('transfers a role-restricted Channel owner through M9 and closes revoked access immediately', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'transfer-alice', 'Alice');
+    const target = humanContext(alice.member.humanId);
+    const group = f.channels.createGroup(f.human, { name: 'Transferred Design', members: [] });
+    f.team.channelAccess.visibilitySet(f.human, group.id, { kind: 'roles', roleIds: ['admin'] });
+    await f.team.changePassword(f.human, f.initialPassword, 'transfer-password-1');
+    const login = await f.team.signIn('bob', 'transfer-password-1', 'transfer-ip');
+    const response = f.live.open(
+      f.human,
+      new Request(`http://localhost/api/botharness/stream?channelId=${group.id}`),
+    );
+    expect(response.status).toBe(200);
+    const reader = response.body!.getReader();
+    await reader.read();
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain(
+      'channel/draft-baseline',
+    );
+    await f.team.transfer(owner, f.human.humanId, target.humanId);
+    await f.team.accessSettled();
+    expect(login.peer.signal.aborted).toBe(true);
+    expect((await reader.read()).done).toBe(true);
+    expect(f.team.channelAccess.canRead(f.human, group.id)).toBe(false);
+    expect(f.team.channelAccess.view(target, group.id).role).toBe('owner');
+    expect(f.team.transferPreview(owner, target.humanId).channels).toEqual([
+      { channelId: group.id, name: 'Transferred Design' },
+    ]);
+    expect(f.channels.get(group.id)?.ownerHumanId).toBe(target.humanId);
+    await reader.cancel();
+  });
+
+  it('uses the same active/group/management guard for policy and visibility writes', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(f.human, { name: 'Member managed', members: [] });
+    const dm = f.channels.getOrCreateDm(owner, 'review-dm', 'Review DM');
+    if (!dm) throw new Error('missing dm');
+    const { role } = f.team.roles.create(owner, 'Channel managers', ['channels.manageAll']);
+    const manager = await f.team.createMember(owner, 'policy-manager', 'Manager', [role.roleId]);
+    const actor = humanContext(manager.member.humanId);
+    for (const human of [owner, actor]) {
+      expect(f.team.channelAccess.policySet(human, group.id, restrictedPolicy)).toBeNull();
+      expect(() => f.team.channelAccess.policySet(human, dm.id, restrictedPolicy)).toThrow(
+        'channel-not-found',
+      );
+      expect(() => f.team.channelAccess.policySet(human, 'missing', restrictedPolicy)).toThrow(
+        'channel-not-found',
+      );
+    }
+    f.database.transaction((db) =>
+      db.prepare("UPDATE humans SET status = 'suspended' WHERE human_id = ?").run(actor.humanId),
+    );
+    expect(() =>
+      f.team.channelAccess.policySet(actor, group.id, { ...restrictedPolicy, post: 'everyone' }),
+    ).toThrow('permission-required');
+    expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual(restrictedPolicy);
+  });
+
+  it.each(['owner', 'admin'] as const)(
+    'treats a joined Host %s as an admin for every policy',
+    async (kind) => {
+      const f = await enabledFixture();
+      const creator = await f.team.createMember(owner, 'announcement-creator', 'Creator');
+      const human = humanContext(creator.member.humanId);
+      const group = f.channels.createGroup(human, { name: 'Member announcement', members: [] });
+      f.team.channelAccess.visibilitySet(human, group.id, { kind: 'public' });
+      const actor = kind === 'owner' ? owner : f.human;
+      if (kind === 'admin') f.team.roles.set(owner, actor.humanId, ['admin']);
+      f.team.channelAccess.join(actor, group.id);
+      f.team.channelAccess.policySet(human, group.id, restrictedPolicy);
+      expect(f.team.channelAccess.view(actor, group.id).role).toBe('member');
+      for (const key of Object.keys(restrictedPolicy)) {
+        const parsed = z
+          .enum(['addMembers', 'post', 'mentionAll', 'addBots', 'editDetails'])
+          .parse(key);
+        expect(() => f.team.channelAccess.requirePolicy(actor, group.id, parsed)).not.toThrow();
+      }
+      expect(
+        await f.methods(actor).channelSend({ channelId: group.id, body: 'admin-policy-bypass' }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await f.methods(actor).channelRename({ channelId: group.id, name: 'Managed announcement' }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await f
+          .methods(actor)
+          .channelDescriptionSet({ channelId: group.id, description: 'managed' }),
+      ).toMatchObject({ ok: true });
+      expect(() =>
+        f.team.channelAccess.requirePolicy(humanContext('missing'), group.id, 'post'),
+      ).toThrow('channel-not-found');
+    },
+  );
+
+  it('resolves usernames inside authorized Channel operations and keeps Human IDs working', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'lookup-alice', 'Alice');
+    const group = f.channels.createGroup(owner, { name: 'References', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, 'BOB');
+    f.team.channelAccess.addMember(owner, group.id, alice.member.humanId);
+    f.team.channelAccess.adminsSet(owner, group.id, ['bob', alice.member.humanId]);
+    expect(
+      f.team.channelAccess
+        .view(owner, group.id)
+        .admins.map((row) => row.humanId)
+        .sort(),
+    ).toEqual([f.human.humanId, alice.member.humanId].sort());
+    expect(() => f.team.channelAccess.adminsSet(owner, group.id, ['missing'])).toThrow(
+      'member-not-found',
+    );
+    expect(() => f.team.channelAccess.addMember(owner, group.id, 'missing')).toThrow(
+      'member-not-found',
+    );
+    expect(() => f.team.channelAccess.adminsSet(f.human, group.id, ['missing'])).toThrow(
+      'permission-required',
+    );
+    expect(f.team.channelAccess.view(owner, group.id).admins).toHaveLength(2);
+  });
+
+  it('returns the identical Gateway refusal for an invisible and nonexistent Channel id', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'review-member-password-1');
+    const group = f.channels.createGroup(owner, { name: 'Hidden Design', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['admin'] });
+    const login = await f.team.signIn('bob', 'review-member-password-1', 'review-ip');
+    for (const channelId of [group.id, 'nonexistent-design-room']) {
+      await expect(
+        f.gateway.invoke({
+          namespace: 'botharness',
+          method: 'channelGet',
+          args: { channelId },
+          peer: login.peer,
+        }),
+      ).rejects.toMatchObject({
+        code: 'remote-access/denied',
+        details: { reason: 'channel-not-found' },
+      });
+    }
+  });
+});
+
+describe('M9 member lifecycle', { timeout: 60_000 }, () => {
+  const operations = [
+    'memberPasswordReset',
+    'memberDeactivate',
+    'memberReactivate',
+    'memberTransferPreview',
+    'memberTransfer',
+    'memberPurgePreview',
+    'memberPurgeConfirm',
+  ] as const;
+  const payload = (humanId: string) => ({
+    humanId,
+    toHumanId: owner.humanId,
+    token: 'invalid',
+    username: 'bob',
+  });
+
+  it.each(operations)(
+    '%s enforces permission, Owner protection, self protection and missing targets at the service boundary',
+    async (method) => {
+      const f = await enabledFixture();
+      const { createTeamBridge } = await import('../src/team/bridge.js');
+      expect(await createTeamBridge(f.human, f.team)[method](payload('absent'))).toMatchObject({
+        ok: false,
+        error: { code: 'permission-required', details: { permission: 'members.manage' } },
+      });
+      f.team.roles.set(owner, f.human.humanId, ['admin']);
+      expect(await createTeamBridge(f.human, f.team)[method](payload(owner.humanId))).toMatchObject(
+        { ok: false, error: { code: 'owner-protected' } },
+      );
+      expect(
+        await createTeamBridge(f.human, f.team)[method](payload(f.human.humanId)),
+      ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+      expect(await createTeamBridge(owner, f.team)[method](payload('absent'))).toMatchObject({
+        ok: false,
+        error: { code: 'member-not-found' },
+      });
+      const alice = await f.team.createMember(owner, 'alice', 'Alice', ['admin']);
+      expect(
+        await createTeamBridge(f.human, f.team)[method](payload(alice.member.humanId)),
+      ).toMatchObject({
+        ok: false,
+        error: { code: 'permission-required', details: { permission: 'owner' } },
+      });
+      const manager = f.team.roles.create(owner, 'Manager', ['members.manage']).role;
+      f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+      f.team.roles.set(owner, alice.member.humanId, ['member']);
+      await f.team.deactivate(owner, alice.member.humanId);
+      expect(
+        await createTeamBridge(f.human, f.team)[method](payload(alice.member.humanId)),
+      ).toMatchObject({ ok: false, error: { code: 'permission-not-grantable' } });
+    },
+  );
+
+  function paired(f: Awaited<ReturnType<typeof enabledFixture>>) {
+    const pairing = createDevicePairing({
+      database: f.database,
+      hostName: 'M9',
+      ownerHumanId: () => f.human.humanId,
+    });
+    f.team.bindPairing(pairing);
+    const result = pairing.redeem({ offer: pairing.createOffer().offer });
+    if (!result.ok) throw new Error('pairing failed');
+    const closed = vi.fn();
+    pairing.attachStream(result.device.id, closed);
+    return { pairing, result, closed };
+  }
+
+  it.each(['reset', 'deactivate', 'off', 'bot-permission'] as const)(
+    '%s closes every browser Peer and paired stream and refuses stale calls',
+    async (operation) => {
+      const f = await enabledFixture();
+      if (operation === 'bot-permission')
+        f.team.roles.update(owner, 'member', { permissions: ['dm.humans', 'bots.createPrivate'] });
+      await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+      const first = await f.team.signIn('bob', 'member-password-1', 'first');
+      const second = await f.team.signIn('bob', 'member-password-1', 'second');
+      const device = paired(f);
+      const stream = await f.gateway.stream({
+        namespace: 'botharness',
+        method: 'followRoster',
+        args: {},
+        peer: first.peer,
+      });
+      const reader = stream[Symbol.asyncIterator]();
+      await reader.next();
+      const pending =
+        operation === 'bot-permission'
+          ? expect(reader.next()).resolves.toEqual({ done: true, value: undefined })
+          : expect(reader.next()).rejects.toThrow('aborted');
+      if (operation === 'reset') await f.team.resetPassword(owner, f.human.humanId);
+      if (operation === 'deactivate') await f.team.deactivate(owner, f.human.humanId);
+      if (operation === 'off') await f.team.setMode(owner, false);
+      if (operation === 'bot-permission') {
+        f.team.roles.update(owner, 'member', { permissions: ['dm.humans'] });
+        await f.team.accessSettled();
+        expect(f.methods(f.human).create({ displayName: 'Refused' })).toMatchObject({
+          ok: false,
+          error: { code: 'permission-required', details: { permission: 'bots.createPrivate' } },
+        });
+      }
+      expect(first.peer.signal.aborted && second.peer.signal.aborted).toBe(true);
+      await pending;
+      expect(device.closed).toHaveBeenCalledOnce();
+      if (operation === 'bot-permission') {
+        for (const previous of [first, second]) {
+          const current = f.team.admit(previous.token);
+          if (!current)
+            throw new Error('Role revocation must permit reconnect with current permissions');
+          expect(current === previous.peer).toBe(false);
+          await expect(
+            f.gateway.invoke({
+              namespace: 'botharness',
+              method: 'create',
+              args: {},
+              peer: current,
+            }),
+          ).rejects.toMatchObject({
+            code: 'permission-required',
+            details: { permission: 'bots.createPrivate' },
+          });
+        }
+      } else {
+        expect(f.team.admit(first.token)).toBeUndefined();
+        expect(f.team.admit(second.token)).toBeUndefined();
+        expect(device.pairing.admit(`Device ${device.result.credential}`)).toMatchObject({
+          ok: false,
+          code: 'device-revoked',
+        });
+      }
+      for (const peer of [first.peer, second.peer])
+        await expect(
+          f.gateway.invoke({
+            namespace: 'botharness',
+            method: operation === 'bot-permission' ? 'create' : 'teamMode',
+            args: {},
+            peer,
+          }),
+        ).rejects.toThrow();
+    },
+  );
+
+  it.each([undefined, true, false])(
+    'password change signOutOthers=%s retains the current grant and optionally the others',
+    async (signOutOthers) => {
+      const f = await enabledFixture();
+      await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+      const current = await f.team.signIn('bob', 'member-password-1', 'first');
+      const other = await f.team.signIn('bob', 'member-password-1', 'second');
+      const device = paired(f);
+      await f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'memberPasswordChange',
+        args: {
+          current: 'member-password-1',
+          next: 'member-password-2',
+          ...(signOutOthers === undefined ? {} : { signOutOthers }),
+        },
+        peer: current.peer,
+      });
+      expect(f.team.admit(current.token)).toBe(current.peer);
+      expect(other.peer.signal.aborted).toBe(signOutOthers !== false);
+      expect(device.closed.mock.calls.length).toBe(signOutOthers === false ? 0 : 1);
+      expect(device.pairing.admit(`Device ${device.result.credential}`).ok).toBe(
+        signOutOthers === false,
+      );
+    },
+  );
+
+  it('retains data across off/on, restores only previously active members and never revives a grant', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'alice', 'Alice');
+    await f.team.deactivate(owner, alice.member.humanId);
+    const ownerLogin = await f.team.signIn('owner', 'owner-password-1', 'owner');
+    const login = await f.team.signIn('bob', f.initialPassword, 'bob');
+    const channel = f.channels.createGroup(f.human, { name: 'Data kept', members: [] });
+    await f.channels.appendMessage(f.human, channel.id, {
+      id: 'retained',
+      at: '2026-11-14T00:00:00.000Z',
+      author: { kind: 'human', humanId: f.human.humanId, displayName: 'Bob' },
+      body: 'retained body',
+    });
+    const snapshot = f.database.read((db) => ({
+      channels: db.prepare('SELECT * FROM channel_records').all(),
+      messages: db.prepare('SELECT * FROM source_events').all(),
+      membership: db.prepare('SELECT * FROM channel_human_members').all(),
+      credentials: db.prepare('SELECT * FROM member_credentials').all(),
+    }));
+    expect(f.team.mode(owner).activeMembers).toBe(1);
+    expect(await f.team.setMode(owner, false)).toMatchObject({
+      suspendedMembers: 1,
+      activeMembers: 0,
+    });
+    expect(f.team.member(f.human.humanId)?.status).toBe('suspended');
+    expect(f.team.admit(ownerLogin.token)).toBe(ownerLogin.peer);
+    expect(ownerLogin.peer.signal.aborted).toBe(false);
+    await f.team.setMode(owner, false);
+    await f.team.setMode(owner, true);
+    expect(f.team.member(f.human.humanId)?.status).toBe('active');
+    expect(f.team.member(alice.member.humanId)?.status).toBe('deactivated');
+    expect(f.team.admit(login.token)).toBeUndefined();
+    expect(
+      f.database.read((db) => ({
+        channels: db.prepare('SELECT * FROM channel_records').all(),
+        messages: db.prepare('SELECT * FROM source_events').all(),
+        membership: db.prepare('SELECT * FROM channel_human_members').all(),
+        credentials: db.prepare('SELECT * FROM member_credentials').all(),
+      })),
+    ).toEqual(snapshot);
+    await f.team.reactivate(owner, alice.member.humanId);
+    expect(f.team.member(alice.member.humanId)?.status).toBe('active');
+    expect((await f.team.signIn('bob', f.initialPassword, 'fresh')).member.humanId).toBe(
+      f.human.humanId,
+    );
+  });
+
+  it('transfers owned Channels to an active member or Owner and refuses invalid targets', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'alice', 'Alice');
+    const channel = f.channels.createGroup(f.human, { name: 'Owned', members: [] });
+    expect(f.team.transferPreview(owner, f.human.humanId)).toEqual({
+      channels: [{ channelId: channel.id, name: 'Owned' }],
+      bots: [],
+    });
+    await expect(f.team.transfer(owner, f.human.humanId, 'missing')).rejects.toThrowError(
+      'member-not-found',
+    );
+    await expect(f.team.transfer(owner, f.human.humanId, f.human.humanId)).rejects.toThrowError(
+      'transfer-target-invalid',
+    );
+    await f.team.deactivate(owner, alice.member.humanId);
+    await expect(
+      f.team.transfer(owner, f.human.humanId, alice.member.humanId),
+    ).rejects.toThrowError('transfer-target-invalid');
+    await f.team.reactivate(owner, alice.member.humanId);
+    await f.team.transfer(owner, f.human.humanId, alice.member.humanId);
+    expect(f.team.transferPreview(owner, f.human.humanId).channels).toEqual([]);
+    expect(f.team.belongs(humanContext(alice.member.humanId), channel.id)).toBe(true);
+    await f.team.transfer(owner, alice.member.humanId, owner.humanId);
+    expect(f.channels.get(channel.id)?.ownerHumanId).toBe(owner.humanId);
+  });
+
+  it('purges private content through Content Purge while retaining shared messages with deleted authorship', async () => {
+    const f = await enabledFixture();
+    const channel = f.channels.createGroup(f.human, { name: 'Shared', members: [] });
+    f.team.setPublic(owner, channel.id, true);
+    f.team.joinPublic(owner, channel.id);
+    await f.channels.appendMessage(f.human, channel.id, {
+      id: 'shared-message',
+      at: '2026-11-14T00:00:00.000Z',
+      author: { kind: 'human', humanId: f.human.humanId, displayName: 'Bob' },
+      body: 'shared body',
+    });
+    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('member-active');
+    await f.team.deactivate(owner, f.human.humanId);
+    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('transfer-required');
+    await f.team.transfer(owner, f.human.humanId, owner.humanId);
+    const dm = f.channels.getOrCreateDm(f.human, 'private-bot', 'Private Bot');
+    if (!dm) throw new Error('DM unavailable');
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId', ?) WHERE channel_id = ?",
+        )
+        .run(f.human.humanId, dm.id),
+    );
+    await f.channels.appendMessage(f.human, dm.id, {
+      id: 'private-message',
+      at: '2026-11-14T00:00:00.000Z',
+      author: { kind: 'human', humanId: f.human.humanId, displayName: 'Bob' },
+      body: 'private body',
+    });
+    const preview = f.team.purgePreview(owner, f.human.humanId);
+    expect(preview.counts).toEqual({ channels: 1, bots: 0, messages: 1, files: 0 });
+    await expect(
+      f.team.purgeConfirm(owner, f.human.humanId, preview.token, 'wrong'),
+    ).rejects.toThrowError('purge-token-invalid');
+    await f.team.purgeConfirm(owner, f.human.humanId, preview.token, 'bob');
+    expect(f.team.member(f.human.humanId)).toBeUndefined();
+    expect(f.channels.readMessages(channel.id)).toMatchObject([
+      { body: 'shared body', author: { kind: 'human', humanId: f.human.humanId, deleted: true } },
+    ]);
+    expect(f.channels.readMessages(channel.id)[0]?.author).not.toHaveProperty('displayName');
+    expect(
+      f.database.read((db) =>
+        db.prepare('SELECT body FROM source_events WHERE body = ?').get('private body'),
+      ),
+    ).toBeUndefined();
+    expect(f.purge.checkpoint()).toMatchObject({
+      version: 3,
+      deletedHumans: [{ humanId: f.human.humanId }],
+    });
+    expect(JSON.stringify(f.purge.checkpoint())).not.toContain('Bob');
+    await expect(
+      f.team.purgeConfirm(owner, f.human.humanId, preview.token, 'bob'),
+    ).rejects.toThrowError('purge-token-invalid');
+  });
+
+  it('bounds purge previews and reclaims expired tokens without a timer', async () => {
+    let time = Date.parse('2026-11-14T00:00:00Z');
+    const f = await enabledFixture({ now: () => time });
+    await f.team.deactivate(owner, f.human.humanId);
+    for (let index = 0; index < 128; index++) f.team.purgePreview(owner, f.human.humanId);
+    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('rate-limited');
+    time += 5 * 60_000;
+    expect(f.team.purgePreview(owner, f.human.humanId).counts).toEqual({
+      channels: 0,
+      bots: 0,
+      messages: 0,
+      files: 0,
+    });
+    const before = f.db.diagnostics().metrics.reads;
+    expect(f.team.mode(owner).activeMembers).toBe(0);
+    expect(f.db.diagnostics().metrics.reads - before).toBe(7);
+  });
+
+  it('binds purge tokens to caller, target, unchanged scope and five-minute expiry', async () => {
+    let time = Date.parse('2026-11-14T00:00:00Z');
+    const f = await enabledFixture({ now: () => time });
+    await f.team.deactivate(owner, f.human.humanId);
+    await expect(
+      f.team.purgeConfirm(owner, f.human.humanId, 'invalid', 'bob'),
+    ).rejects.toThrowError('purge-token-invalid');
+    const preview = f.team.purgePreview(owner, f.human.humanId);
+    expect(() =>
+      f.purge.memberConfirm(humanContext('other'), f.human.humanId, preview.token),
+    ).toThrowError('purge-token-invalid');
+    const expiring = f.team.purgePreview(owner, f.human.humanId);
+    time += 5 * 60_000;
+    await expect(
+      f.team.purgeConfirm(owner, f.human.humanId, expiring.token, 'bob'),
+    ).rejects.toThrowError('purge-token-invalid');
+  });
+});
+
+describe('M4 review integrity', { timeout: 60_000 }, () => {
+  it('rejects overlapping policy edits using the observed revision without losing another field', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Concurrent settings', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+    f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+    const snapshot = z.object({
+      policy: channelPolicySchema,
+      policyRevision: z.string().regex(/^[a-f0-9]{64}$/u),
+    });
+    const observe = (actor: typeof owner) => {
+      const result = f.methods(actor).channelGet({ channelId: group.id });
+      if (!result.ok) throw new Error(result.error.code);
+      return snapshot.parse(result.value);
+    };
+    const first = observe(owner);
+    const second = observe(f.human);
+    expect(second.policyRevision).toBe(first.policyRevision);
+    expect(
+      await f.methods(owner).channelPolicySet({
+        channelId: group.id,
+        policy: { ...first.policy, addMembers: 'admins' },
+        expectedRevision: first.policyRevision,
+      }),
+    ).toEqual({ ok: true, value: null });
+    const cursor = f.channels.changeCursor!();
+    expect(
+      await f.methods(f.human).channelPolicySet({
+        channelId: group.id,
+        policy: { ...second.policy, post: 'admins' },
+        expectedRevision: second.policyRevision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'stale-channel-policy' } });
+    expect(f.channels.changeCursor!()).toEqual(cursor);
+    const current = observe(f.human);
+    expect(current.policy).toMatchObject({ addMembers: 'admins', post: 'everyone' });
+    expect(current.policyRevision).not.toBe(first.policyRevision);
+    expect(
+      await f.methods(f.human).channelPolicySet({
+        channelId: group.id,
+        policy: { ...current.policy, post: 'admins' },
+        expectedRevision: current.policyRevision,
+      }),
+    ).toEqual({ ok: true, value: null });
+    expect(observe(owner).policy).toMatchObject({ addMembers: 'admins', post: 'admins' });
+    expect(
+      await f.methods(owner).channelPolicySet({ channelId: group.id, policy: first.policy }),
+    ).toEqual({ ok: true, value: null });
+    expect(observe(owner).policy).toEqual(first.policy);
+    expect(
+      await f
+        .methods(owner)
+        .channelPolicySet({ channelId: group.id, policy: first.policy, expectedRevision: 1 }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+  });
+
+  it.each(['roles', 'visibility', 'leave'] as const)(
+    'resets cached Channel lists after %s revocation without disclosing invisible ids',
+    async (cause) => {
+      const f = await enabledFixture();
+      const group = f.channels.createGroup(owner, { name: 'Revoked cached Channel', members: [] });
+      f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+      f.team.channelAccess.join(f.human, group.id);
+      expect(await f.methods(f.human).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: [{ id: group.id }] },
+      });
+      const cursor = f.channels.changeCursor!();
+      if (cause === 'roles') {
+        const { role } = f.team.roles.create(owner, 'No audience', []);
+        f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+      } else if (cause === 'visibility')
+        f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['admin'] });
+      else
+        f.database.transaction(
+          (db) =>
+            db
+              .prepare(
+                'UPDATE channel_human_members SET left_at = ? WHERE channel_id = ? AND human_id = ?',
+              )
+              .run('after', group.id, f.human.humanId),
+          ['channels'],
+        );
+      await f.team.accessSettled();
+      const delta = await f
+        .methods(f.human)
+        .channelListChanges({ sinceSeq: cursor.seq, epoch: cursor.epoch });
+      expect(delta).toMatchObject({ ok: true, value: { reset: true } });
+      expect(JSON.stringify(delta)).not.toContain(group.id);
+      expect(f.channels.changeCursor!().seq).toBeGreaterThan(cursor.seq);
+      expect(await f.methods(f.human).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: [] },
+      });
+    },
+  );
+
+  it('keeps visible ordinary Channel changes incremental', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(f.human, { name: 'Before', members: [] });
+    const cursor = f.channels.changeCursor!();
+    f.channels.rename(f.human, group.id, 'After');
+    expect(
+      await f.methods(f.human).channelListChanges({ sinceSeq: cursor.seq, epoch: cursor.epoch }),
+    ).toMatchObject({
+      ok: true,
+      value: { channels: [{ id: group.id, name: 'After' }], removed: [] },
+    });
+  });
+
+  it('denies opening observed output after role loss despite retained membership', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Observed output', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+    f.team.channelAccess.join(f.human, group.id);
+    await f.channels.appendMessage(owner, group.id, {
+      id: 'observed-message',
+      at: '2026-11-14',
+      author: { kind: 'human' },
+      body: 'Scoped output',
+    });
+    const reads = f.db.diagnostics().metrics.reads;
+    expect(f.channels.observeOutput(f.human, group.id, 'observed-message')).toMatchObject({
+      canRead: true,
+      humanParticipant: true,
+    });
+    expect(f.db.diagnostics().metrics.reads - reads).toBeLessThanOrEqual(8);
+    const { role } = f.team.roles.create(owner, 'No output audience', []);
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    await f.team.accessSettled();
+    expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(true);
+    expect(f.channels.observeOutput(f.human, group.id, 'observed-message')).toMatchObject({
+      canRead: false,
+      humanParticipant: false,
+    });
+  });
+
+  it.each(['owner', 'admin', 'member'] as const)(
+    'admits avatar writes from a Channel %s through the member Gateway and enforces editDetails',
+    async (role) => {
+      const f = await enabledFixture();
+      const group = f.channels.createGroup(role === 'owner' ? f.human : owner, {
+        name: 'Avatar policy',
+        members: [],
+      });
+      if (role !== 'owner') f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+      if (role === 'admin') f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+      await f.team.changePassword(f.human, f.initialPassword, 'avatar-password-1');
+      const login = await f.team.signIn('bob', 'avatar-password-1', 'avatar-ip');
+      const avatar = 'data:image/png;base64,iVBORw0KGgo=';
+      const result = f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelGroupAvatarSet',
+        args: { channelId: group.id, avatar },
+        peer: login.peer,
+      });
+      if (role === 'member') {
+        await expect(result).rejects.toMatchObject({
+          code: 'permission-required',
+          details: { permission: 'editDetails' },
+        });
+        expect(f.channels.get(group.id)?.avatar).toBeUndefined();
+        f.team.channelAccess.policySet(owner, group.id, {
+          ...f.team.channelAccess.view(owner, group.id).policy,
+          editDetails: 'everyone',
+        });
+        await f.team.accessSettled();
+        const allowed = await f.team.signIn('bob', 'avatar-password-1', 'avatar-allowed');
+        await expect(
+          f.gateway.invoke({
+            namespace: 'botharness',
+            method: 'channelGroupAvatarSet',
+            args: { channelId: group.id, avatar },
+            peer: allowed.peer,
+          }),
+        ).resolves.toMatchObject({ channel: { id: group.id, avatar } });
+      } else {
+        await expect(result).resolves.toMatchObject({ channel: { id: group.id, avatar } });
+        expect(f.channels.get(group.id)?.avatar).toBe(avatar);
+      }
+    },
+  );
+
+  it('settles every peer disposal and recovers Team calls after a disposal failure', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Recover disposal', members: [] });
+    const first = await f.team.signIn('bob', f.initialPassword, 'dispose-first');
+    const second = await f.team.signIn('bob', f.initialPassword, 'dispose-second');
+    let failed: () => void = () => {};
+    const failureObserved = new Promise<void>((resolve) => {
+      failed = resolve;
+    });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = first.peer.dispose.bind(first.peer);
+    const secondOriginal = second.peer.dispose.bind(second.peer);
+    vi.spyOn(first.peer, 'dispose').mockImplementationOnce(async () => {
+      await original();
+      failed();
+      throw new Error('private-disposal-error');
+    });
+    vi.spyOn(second.peer, 'dispose').mockImplementationOnce(async () => {
+      await gate;
+      await secondOriginal();
+    });
+    const policy = f.team.channelAccess.view(owner, group.id).policy;
+    let settled = false;
+    const mutation = f
+      .methods(owner)
+      .channelPolicySet({ channelId: group.id, policy: { ...policy, post: 'admins' } });
+    void mutation.then(() => {
+      settled = true;
+    });
+    try {
+      await failureObserved;
+      await Promise.resolve();
+      expect(settled).toBe(false);
+    } finally {
+      release();
+    }
+    expect(await mutation).toEqual({ ok: true, value: null });
+    expect(first.peer.signal.aborted).toBe(true);
+    expect(second.peer.signal.aborted).toBe(true);
+    await expect(f.team.accessSettled()).resolves.toBeUndefined();
+    expect(f.diagnostics).toHaveBeenCalledWith('access-disposal-failed', {
+      initiator: 'host',
+      reason: 'peer-disposal-failed',
+    });
+    expect(await f.methods(owner).teamMode({})).toMatchObject({ ok: true });
+    expect(await f.methods(owner).channelPolicySet({ channelId: group.id, policy })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(f.team.channelAccess.view(owner, group.id).policy).toEqual(policy);
+  });
+
+  it('returns a participating Host Owner Human DM without Group management and denies outsiders', async () => {
+    const f = await enabledFixture();
+    const other = await f.team.createMember(owner, 'dm-outsider', 'Outsider');
+    const dm = f.team.channelAccess.dm(owner, f.human.humanId).channel;
+    for (const actor of [owner, f.human])
+      expect(f.methods(actor).channelGet({ channelId: dm.id })).toMatchObject({
+        ok: true,
+        value: {
+          channel: {
+            id: dm.id,
+            humanParticipants: expect.arrayContaining([owner.humanId, f.human.humanId]),
+          },
+        },
+      });
+    expect(
+      f.methods(humanContext(other.member.humanId)).channelGet({ channelId: dm.id }),
+    ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+  });
+});
