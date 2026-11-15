@@ -148,7 +148,28 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
   if (!declared) return undefined;
   const { approval: _approval, ...effects } = declared;
   const operation = typeof args === 'object' && args !== null ? args : undefined;
-  if (name === 'secret_http' && operation && 'method' in operation && operation.method === 'GET')
+  if (
+    name === 'bridge_context' &&
+    operation &&
+    'scope' in operation &&
+    (operation.scope === 'group' || operation.scope === 'nearby' || operation.scope === 'thread')
+  )
+    return { ...effects, reach: 'external' };
+  if (
+    name === 'unarchive_assignment' &&
+    operation &&
+    'message' in operation &&
+    typeof operation.message === 'string' &&
+    operation.message.trim() !== ''
+  )
+    return { ...effects, changes: 'irreversible', reach: 'external' };
+  if (
+    name === 'secret_http' &&
+    operation &&
+    'method' in operation &&
+    typeof operation.method === 'string' &&
+    operation.method.toUpperCase() === 'GET'
+  )
     return { ...effects, changes: 'none' };
   if (name === 'browser_tabs' && operation && 'action' in operation && operation.action === 'close')
     return { ...effects, reach: 'local' };

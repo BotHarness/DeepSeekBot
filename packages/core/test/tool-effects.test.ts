@@ -7,6 +7,40 @@ import {
 } from '../src/workspaces/tool-effects.js';
 
 describe('public tool effects', () => {
+  it.each(['GET', 'get', 'GeT'])('uses HTTP execution normalization for %s', (method) => {
+    expect(toolEffects('secret_http', { method })).toEqual({
+      changes: 'none',
+      reach: 'external',
+      personalData: true,
+      secrets: true,
+    });
+  });
+  it('includes request delivery when restoring an Assignment with a message', () => {
+    expect(toolEffects('unarchive_assignment', { session_id: 'assignment-1' })).toEqual({
+      changes: 'reversible',
+      reach: 'local',
+      personalData: true,
+    });
+    expect(
+      toolEffects('unarchive_assignment', {
+        session_id: 'assignment-1',
+        message: 'Continue the approved task.',
+      }),
+    ).toEqual({ changes: 'irreversible', reach: 'external', personalData: true });
+  });
+  it.each([
+    ['group', 'external'],
+    ['nearby', 'external'],
+    ['thread', 'external'],
+    ['retained', 'local'],
+    ['retained-nearby', 'local'],
+  ] as const)('declares %s context with %s reach', (scope, reach) => {
+    expect(toolEffects('bridge_context', { scope })).toEqual({
+      changes: 'none',
+      reach,
+      personalData: true,
+    });
+  });
   it.each([
     [
       'secret_http',
