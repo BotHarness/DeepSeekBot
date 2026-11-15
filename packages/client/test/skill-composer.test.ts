@@ -211,7 +211,7 @@ describe('composer / menu', () => {
                   id: 'model',
                   label: 'Model',
                   run: () => undefined,
-                  choices: () => [{ id: 'model', label: 'fast', run }],
+                  choices: () => [{ id: 'model' as const, label: 'fast', run }],
                 },
               ],
             },
