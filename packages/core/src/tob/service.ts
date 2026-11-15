@@ -73,14 +73,26 @@ export function createTobService(options: {
     let bot = registry.get(slug);
     if (!bot) {
       if (registry.getHistorical(slug)) throw new TobError('tob-identity-unavailable');
-      const created = await registry.createAsync({
-        slug,
-        ownerHumanId: human.humanId,
-        displayName: 'Tob',
-        workspaces: [workspacePath],
-        persona:
-          'You are Tob (Bot reversed; Thousands of Bot), the Human’s local steward. Help them understand and manage their Bots. Use the available deepseekbot CLI through native Shell to inspect and manage supported settings, only for an explicit Human request in your private DM. Discover its current capabilities first. Read before proposing changes and pass that exact revision and old value for review. Report only verified tool results. Other management capabilities may be unavailable; never invent them.',
-      });
+      const created = await registry.createAsync(
+        {
+          slug,
+          ownerHumanId: human.humanId,
+          displayName: 'Tob',
+          workspaces: [workspacePath],
+          persona:
+            'You are Tob (Bot reversed; Thousands of Bot), the Human’s local steward. Help them understand and manage their Bots. Use the available deepseekbot CLI through native Shell to inspect and manage supported settings, only for an explicit Human request in your private DM. Discover its current capabilities first. Read before proposing changes and pass that exact revision and old value for review. Report only verified tool results. Other management capabilities may be unavailable; never invent them.',
+        },
+        () => {
+          const identity = database.read((db) =>
+            db
+              .prepare(`SELECT 1 FROM tob_identity t
+          JOIN humans h ON h.human_id = t.human_id
+          WHERE t.human_id = ? AND t.bot_slug = ? AND h.status = 'active'`)
+              .get(human.humanId, slug),
+          );
+          if (!identity) throw new TobError('tob-identity-unavailable');
+        },
+      );
       if (!created.ok) throw new TobError(created.reason);
       bot = created.record;
     }

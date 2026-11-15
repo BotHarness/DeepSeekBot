@@ -916,6 +916,10 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
 
   it('does not recreate a Tob grant when offboarding finishes during first-sign-in workspace setup', async () => {
     const f = fixture();
+    let entered = (): void => {};
+    const workspaceEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
     let finish: ((value: { id: string }) => void) | undefined;
     const workspace = new Promise<{ id: string }>((resolve) => {
       finish = resolve;
@@ -926,11 +930,15 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       channels: f.core.channels,
       workspaceRoot: join(f.dshHome, 'pending-tob-workspaces'),
       grants: f.core.grants,
-      ensureWorkspace: async () => workspace,
+      ensureWorkspace: async () => {
+        entered();
+        return workspace;
+      },
     });
     const createGrant = vi.spyOn(f.core.grants, 'create');
     const preparing = tob.ensure(bob);
     const rejected = expect(preparing).rejects.toMatchObject({ code: 'tob-identity-unavailable' });
+    await workspaceEntered;
     await f.core.team.deactivate(owner, 'bob');
     const preview = f.core.team.purgePreview(owner, 'bob');
     await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
@@ -939,6 +947,18 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     await rejected;
     expect(createGrant).not.toHaveBeenCalled();
     expect(tob.slug(bob)).toBeUndefined();
+  });
+
+  it('drains first-Tob Memory preparation before deleting a deactivated member account', async () => {
+    const f = fixture();
+    const preparing = f.core.tob.ensure(bob);
+    const rejected = expect(preparing).rejects.toMatchObject({ code: 'tob-identity-unavailable' });
+    await f.core.team.deactivate(owner, 'bob');
+    await rejected;
+    const preview = f.core.team.purgePreview(owner, 'bob');
+    await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
+    expect(f.core.tob.slug(bob)).toBeUndefined();
+    expect(f.core.team.member('bob')).toBeUndefined();
   });
 
   it('refuses unsafe Memory before accepting member deletion, including the private Tob', async () => {

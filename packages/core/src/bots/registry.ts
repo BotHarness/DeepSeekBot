@@ -110,7 +110,11 @@ export interface PersonaBotRegistryOptions {
 export interface PersonaBotRegistry {
   rootDir: string;
   create(input: CreatePersonaBotInput): CreatePersonaBotResult;
-  createAsync(input: CreatePersonaBotInput): Promise<CreatePersonaBotResult>;
+  createAsync(
+    input: CreatePersonaBotInput,
+    authorize?: () => void,
+  ): Promise<CreatePersonaBotResult>;
+  settled(humanId?: string): Promise<void>;
   createFromGit(
     input: Omit<CreatePersonaBotInput, 'memoryDir'> & { gitUrl: string; expectedCommit?: string },
     authorize?: () => void,
@@ -505,7 +509,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   type Preparation =
     | { kind: 'initialize'; memoryDir: string }
     | { kind: 'descriptor'; memoryDir: string; record: PersonaBotRecord };
-  const creating = new Set<string>();
+  const creating = new Map<string, { humanId: string; settled: Promise<void> }>();
   function* createSteps(
     input: CreatePersonaBotInput,
     sync: boolean,
@@ -587,7 +591,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       ...(input.coreMemory === undefined ? {} : { coreMemory: input.coreMemory }),
       coreMemoryTemplate: sync,
     });
-    const initialized = yield { kind: 'initialize', memoryDir: targetMemoryDir };
+    let initialized: MemoryRepositoryInitialization;
+    try {
+      initialized = yield { kind: 'initialize', memoryDir: targetMemoryDir };
+      if (initialized.ok && sync) yield { kind: 'descriptor', memoryDir: targetMemoryDir, record };
+    } catch (error) {
+      if (newMemoryDirectory) rmSync(targetMemoryDir, { recursive: true, force: true });
+      else for (const file of seeded) rmSync(join(targetMemoryDir, file), { force: true });
+      throw error;
+    }
     if (!initialized.ok) {
       for (const file of seeded) rmSync(join(targetMemoryDir, file), { force: true });
       if (newBotDirectory && !memoryDir) {
@@ -600,7 +612,6 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         ...(initialized.message === undefined ? {} : { detail: initialized.message }),
       };
     }
-    if (sync) yield { kind: 'descriptor', memoryDir: targetMemoryDir, record };
     try {
       write(record, true, newMemoryDirectory || managedDefault ? targetMemoryDir : undefined);
     } catch (error) {
@@ -739,33 +750,52 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (result.ok) capture('bot_library:bot_create');
       return result;
     },
-    async createAsync(input) {
+    async createAsync(input, authorize) {
+      authorize?.();
       if (creating.has(input.slug)) return { ok: false, reason: 'duplicate' };
-      creating.add(input.slug);
+      let finish = (): void => {};
+      const settled = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      creating.set(input.slug, { humanId: input.ownerHumanId ?? 'local-human', settled });
       try {
         const steps = createSteps(input, true);
         let step = steps.next();
-        while (!step.done) {
-          const work = step.value;
-          let result: MemoryRepositoryInitialization = { ok: true };
-          if (work.kind === 'initialize')
-            result = options.initializeMemoryAsync
-              ? await options.initializeMemoryAsync(work.memoryDir)
-              : (options.initializeMemory?.(work.memoryDir) ?? result);
-          else {
-            try {
-              if (options.syncDescriptorAsync)
-                await options.syncDescriptorAsync(work.memoryDir, work.record);
-              else syncDescriptor(work.record);
-            } catch {}
+        try {
+          while (!step.done) {
+            const work = step.value;
+            let result: MemoryRepositoryInitialization = { ok: true };
+            if (work.kind === 'initialize')
+              result = options.initializeMemoryAsync
+                ? await options.initializeMemoryAsync(work.memoryDir)
+                : (options.initializeMemory?.(work.memoryDir) ?? result);
+            else {
+              try {
+                if (options.syncDescriptorAsync)
+                  await options.syncDescriptorAsync(work.memoryDir, work.record);
+                else syncDescriptor(work.record);
+              } catch {}
+            }
+            authorize?.();
+            step = steps.next(result);
           }
-          step = steps.next(result);
+        } catch (error) {
+          steps.throw(error);
+          throw error;
         }
         if (step.value.ok) capture('bot_library:bot_create');
         return step.value;
       } finally {
         creating.delete(input.slug);
+        finish();
       }
+    },
+    async settled(humanId) {
+      await Promise.all(
+        [...creating.values()]
+          .filter((work) => humanId === undefined || work.humanId === humanId)
+          .map((work) => work.settled),
+      );
     },
     async createFromGit(input, authorize) {
       const { gitUrl, expectedCommit, ...recordInput } = input;

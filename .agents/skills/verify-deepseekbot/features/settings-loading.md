@@ -20,3 +20,4 @@ Then run `verify-app shot` in Bot mode, open `Bot settings` and visit `Auto appr
 - A Profile whose Tob already exists hides the initialization regression. The empty-registry precondition is mandatory.
 - This is a local HTTP responsiveness budget, not a foreground paint or Desktop benchmark. Record machine load and do not mix a first-run sample with initialized browser openings.
 - Markdown/JSON library storage remains unchanged. SQLite migration is tracked separately in #4227.
+- Member deactivation must drain that member's in-flight preparation before deleting its account workspace. The first-sign-in/offboarding case in `packages/core/test/team-member-lifecycle.test.ts` proves that no late Tob grant is recreated; do not weaken its identity refusal to a generic Memory failure.

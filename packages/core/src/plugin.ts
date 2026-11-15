@@ -1038,6 +1038,7 @@ function initializeCore(
   const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
     purge: contentPurge,
     spaces: () => spaces,
+    settleBotPreparations: (humanId) => registry.settled(humanId),
     stopBots: async (slugs) => {
       if (!slugs.length) return;
       if (!runtime?.stopBot) throw new Error('member-bot-stop-unavailable');
@@ -2044,6 +2045,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(
     () => async () => {
       await core.tob.close();
+      await core.registry.settled();
       await core.contentPurge.memberSettled().catch(() => {});
       core.contentPurge.close();
       core.operationalDatabase.close();

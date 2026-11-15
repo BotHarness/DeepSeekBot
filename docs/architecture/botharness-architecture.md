@@ -1,6 +1,6 @@
 # BotHarness 架构与数据流
 
-首次 Tob 准备沿用同一 Registry、Memory 和 Channel owners。Registry 在本地预留创建中的 Bot ID，异步完成 Memory 的 Git 初始化与资料提交后，才通过原有数据库事务发布 Bot；准备期间其他设置查询继续响应。Tob owner 合并同一 Human 的并发准备请求，Plugin 关闭时先等准备结束再关闭 Operational Database。此路径不改变审批模板和提示词预设的文件权威；其 SQLite 迁移单独由 #4227 跟踪（#4226）。
+首次 Tob 准备沿用同一 Registry、Memory 和 Channel owners。Registry 在本地预留创建中的 Bot ID，异步完成 Memory 的 Git 初始化与资料提交后，才通过原有数据库事务发布 Bot；准备期间其他设置查询继续响应。每次异步准备返回后重新检查 Tob 身份与 Human 的活跃状态；成员停用先撤销身份的可用性，再等待该成员的准备退出，之后才能清理账号目录。Tob owner 合并同一 Human 的并发准备请求，Plugin 关闭时先等准备结束再关闭 Operational Database。此路径不改变审批模板和提示词预设的文件权威；其 SQLite 迁移单独由 #4227 跟踪（#4226）。
 
 Tobs Connect 本机自检由现有 Devices owner 管理临时观察：账号、连接组件、relay 在线状态及公网设备通道的 TLS 与本机身份绑定 Noise 握手。它不创建 Device grant 或持久在线权威；结果五分钟后过期，账号或连接变化时失效，登录及组件恢复自动触发，手动检查走同一个已认证 Host API 与 CLI。并发合并、整体 20 秒及公网 8 秒上限，无新增后台轮询。检查通过仅证明本机当时可经公网连回自己，不能保证手机网络可达（#4170）。
 

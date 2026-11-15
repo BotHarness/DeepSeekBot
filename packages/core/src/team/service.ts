@@ -197,6 +197,7 @@ export class TeamService {
     return spaces;
   }
   private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
+  private readonly settleBotPreparations: ((humanId: string) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
   private readonly limiter: SignInRateLimit;
   private peerFactory: ((principal: MemberPrincipal) => PeerScope) | undefined;
@@ -213,6 +214,7 @@ export class TeamService {
       purge?: ContentPurge;
       spaces?: () => WorkspaceSpaces;
       stopBots?: (slugs: readonly string[]) => Promise<void>;
+      settleBotPreparations?: (humanId: string) => Promise<void>;
       now?: () => number;
       ensureTob?: (human: HumanContext) => Promise<unknown>;
       log?: (phase: string, facts: Record<string, string | number | boolean>) => void;
@@ -221,6 +223,7 @@ export class TeamService {
     this.purge = options.purge;
     this.spaceProvider = options.spaces;
     this.stopBots = options.stopBots;
+    this.settleBotPreparations = options.settleBotPreparations;
     this.ensureTob = options.ensureTob;
     this.roles = new TeamRoles(db, (revoke) => this.accessChanged(revoke));
     this.channelAccess = new TeamChannels(db, channels, this.roles, (revoke) =>
@@ -898,6 +901,7 @@ export class TeamService {
       ['team'],
     );
     await this.revokeMember(humanId);
+    await this.settleBotPreparations?.(humanId);
     await this.stopBots?.(this.ownedBots(humanId).map((bot) => bot.slug));
     this.log('member-deactivated', { initiator: human.humanId, humanId });
     return null;
