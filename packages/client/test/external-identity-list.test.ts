@@ -1023,3 +1023,100 @@ it('reconnects once, shows pending and errors, and accepts live reception update
     container.remove();
   }
 });
+
+it.each(['disabled', 'removed', 'reconnected'] as const)(
+  'keeps conversation reconnect safe when the live identity is %s',
+  async (state) => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const identity: NonNullable<MessagingSnapshot['identities']>[number] = {
+      id: 'qq-safe',
+      botSlug: 'ada',
+      providerId: 'dsh-im/qq',
+      platform: 'qq',
+      accountRef: 'app',
+      fingerprint: 'a'.repeat(64),
+      name: 'QA reconnect',
+      enabled: true,
+      revision: 4,
+      createdAt: '2026-11-15T00:00:00Z',
+      availability: 'available',
+      newConversations: 'auto',
+      grantCount: 1,
+      scopes: ['Group'],
+      reception: 'unavailable',
+    };
+    let snapshot: MessagingSnapshot = {
+      accounts: [],
+      identities: [identity],
+      intents: [],
+      grants: [
+        {
+          id: 'grant-safe',
+          bindingId: identity.id,
+          botSlug: 'ada',
+          providerId: identity.providerId,
+          platform: 'qq',
+          accountRef: 'app',
+          accountName: identity.name,
+          fingerprint: identity.fingerprint,
+          targetRef: 'group',
+          targetName: 'Group',
+          targetDigest: 'digest',
+          revision: 1,
+          createdAt: identity.createdAt,
+          origin: 'implicit',
+          receiveScope: { kind: 'group', conversationId: 'group' },
+          availability: 'available',
+          reception: 'unavailable',
+        },
+      ],
+    };
+    const mutate = vi.fn(async () => {});
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    document.body.append(container);
+    const render = () =>
+      root.render(
+        createElement(ExternalIdentityList, {
+          snapshot,
+          t: zhTranslate,
+          mutate,
+          refresh: vi.fn(),
+          conversation: vi.fn(),
+          rules: vi.fn(),
+        }),
+      );
+    try {
+      await act(async () => render());
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('[title="编辑身份：QA reconnect"]')!.click(),
+      );
+      await act(async () =>
+        typeInto(fieldNamed(zhTranslate('identity.displayName')), 'Unsaved draft'),
+      );
+      if (state !== 'reconnected') {
+        snapshot = {
+          ...snapshot,
+          identities: state === 'removed' ? [] : [{ ...identity, enabled: false, revision: 5 }],
+        };
+        await act(async () => render());
+      }
+      await act(async () => buttonNamed(zhTranslate('reception.reconnectNow'), dialog()).click());
+      if (state === 'reconnected') {
+        expect(mutate).toHaveBeenCalledWith({
+          kind: 'reconnect',
+          id: identity.id,
+          expectedRevision: 4,
+        });
+        expect(fieldNamed(zhTranslate('identity.displayName')).value).toBe('Unsaved draft');
+        await act(async () => buttonNamed(zhTranslate('identity.save'), dialog()).click());
+        expect(mutate).toHaveBeenLastCalledWith(
+          expect.objectContaining({ kind: 'update', expectedRevision: 5, name: 'Unsaved draft' }),
+        );
+      } else expect(mutate).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  },
+);

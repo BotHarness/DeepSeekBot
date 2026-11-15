@@ -90,6 +90,7 @@ export function ExternalConversations({
   ) => (
     <Tooltip label={hint} portal side="top" maxWidth={280} delayMs={300}>
       <Button
+        type="button"
         size="sm"
         variant="outline"
         className={danger ? 'bh-im-danger-outline' : undefined}

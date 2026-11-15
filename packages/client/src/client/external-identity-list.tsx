@@ -793,14 +793,20 @@ export function ExternalIdentityList({
               <ExternalConversations
                 identity={selected}
                 reconnect={() => {
-                  const current = identities.find((row) => row.id === selected.id) ?? selected;
-                  void operate(() =>
-                    mutate({
+                  const current = identities.find((row) => row.id === selected.id);
+                  if (!current?.enabled) return;
+                  void operate(async () => {
+                    await mutate({
                       kind: 'reconnect',
                       id: current.id,
                       expectedRevision: current.revision,
-                    }),
-                  );
+                    });
+                    setSelected((previous) =>
+                      previous?.id === current.id
+                        ? { ...previous, revision: current.revision + 1 }
+                        : previous,
+                    );
+                  });
                 }}
                 snapshot={snapshot}
                 busy={busy}

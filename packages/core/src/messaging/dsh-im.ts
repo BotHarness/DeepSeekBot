@@ -884,7 +884,19 @@ export function createDshImProvider(
     ...(typeof host.consumeInbound === 'function' && typeof host.replyChecked === 'function'
       ? {
           async consume(input: Parameters<NonNullable<MessagingProvider['consume']>>[0]) {
-            const info = await host.describeBot(input.accountRef);
+            input.signal.throwIfAborted();
+            let abort = () => {};
+            const cancelled = new Promise<never>((_resolve, reject) => {
+              abort = () => reject(input.signal.reason);
+              input.signal.addEventListener('abort', abort, { once: true });
+            });
+            let info: Awaited<ReturnType<DshImOutboundService['describeBot']>>;
+            try {
+              info = await Promise.race([host.describeBot(input.accountRef), cancelled]);
+              input.signal.throwIfAborted();
+            } finally {
+              input.signal.removeEventListener('abort', abort);
+            }
             rememberRuleCapability(input.accountRef, info);
             if (
               info.account.fingerprint !== input.fingerprint ||
