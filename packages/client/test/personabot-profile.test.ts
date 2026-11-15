@@ -708,6 +708,7 @@ describe('Shared Bot profile', () => {
     };
     const viewProps = {
       bot,
+      activity: undefined,
       cards,
       channel: {
         name: 'Helper',
