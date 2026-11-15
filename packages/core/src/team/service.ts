@@ -307,6 +307,7 @@ export class TeamService {
   pairingOffer(human: HumanContext) {
     const member = this.member(human.humanId);
     this.active(member);
+    if (member.owner) throw new TeamError('credentials-invalid');
     if (member.mustChangePassword) throw new TeamError('password-change-required');
     if (!this.devices) throw new TeamError('unavailable');
     return this.devices.pairingOffer(human.humanId);
