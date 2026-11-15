@@ -66,11 +66,16 @@ export function skillInvocationTokens(
     const name = raw.slice(split + 1);
     if (owner === undefined || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(name))
       usage('--skill takes <owner>/<name>, where owner is host or bot:<slug>.');
-    const match = new RegExp(`(^|\\s)/${name}(?=\\s|$)`, 'u').exec(body);
-    if (match === null) usage(`--skill ${raw} needs /${name} in the message body.`);
-    const start = match.index + match[1]!.length;
-    if (tokens.some((token) => token.start === start))
-      usage(`/${name} is already picked by another --skill.`);
+    const matches = body.matchAll(new RegExp(`(^|\\s)/${name}(?=\\s|$)`, 'gu'));
+    let start: number | undefined;
+    for (const match of matches) {
+      const offset = match.index + match[1]!.length;
+      if (tokens.some((token) => token.start === offset)) continue;
+      start = offset;
+      break;
+    }
+    if (start === undefined)
+      usage(`--skill ${raw} needs /${name} in the message body at an unused occurrence.`);
     tokens.push({ name, owner, start, end: start + name.length + 1 });
   }
   return tokens.sort((a, b) => a.start - b.start);

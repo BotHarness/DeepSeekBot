@@ -50,6 +50,17 @@ export interface ResolvedSkill {
 
 export const MAX_SKILL_INVOCATION_CONTENT = 64_000;
 
+export class SkillContentTooLargeError extends Error {
+  readonly code = 'skill-too-large';
+
+  constructor(name: string) {
+    super(
+      `Skill /${name} exceeds the ${MAX_SKILL_INVOCATION_CONTENT}-character invocation limit. Shorten the Skill and try again.`,
+    );
+    this.name = 'SkillContentTooLargeError';
+  }
+}
+
 const PROJECT_SOURCES = new Set(['project-agents', 'project-dsh']);
 
 function real(path: string): string {
@@ -144,7 +155,7 @@ export class SkillCatalog {
   ): Promise<ResolvedSkill | undefined> {
     const registry = this.#registry;
     if (registry === undefined) return undefined;
-    return this.#withView(
+    const resolved = await this.#withView(
       owner.kind === 'bot' ? owner.botSlug : viewerBotSlug,
       registry,
       async (registry, options) => {
@@ -155,7 +166,7 @@ export class SkillCatalog {
           return {
             name,
             owner,
-            content: skill.content.slice(0, MAX_SKILL_INVOCATION_CONTENT),
+            content: skill.content,
             ...(skill.path === undefined ? {} : { path: skill.path }),
           };
         }
@@ -172,10 +183,13 @@ export class SkillCatalog {
         return {
           name,
           owner,
-          content: skill.content.slice(0, MAX_SKILL_INVOCATION_CONTENT),
+          content: skill.content,
           ...(skill.path === undefined ? {} : { path: skill.path }),
         };
       },
     );
+    if (resolved !== undefined && resolved.content.length > MAX_SKILL_INVOCATION_CONTENT)
+      throw new SkillContentTooLargeError(name);
+    return resolved;
   }
 }

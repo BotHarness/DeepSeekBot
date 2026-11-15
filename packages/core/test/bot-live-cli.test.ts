@@ -79,6 +79,48 @@ async function invoke(argv: string[], url?: string, stdin = '', token = 'private
 }
 
 describe('live CLI over the authenticated DSH carrier', () => {
+  it('sends repeated Skill names with distinct owners and spans', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'get'
+          ? { bot: { displayName: 'Ada' } }
+          : method === 'channelSend'
+            ? { message: { id: 'human-33333333-3333-4333-8333-333333333333' } }
+            : { state: 'handled', replies: [{ id: 'reply', body: 'ok' }] },
+    }));
+    const sent = await invoke(
+      ['send', 'ada', '--body', '/pdf /pdf', '--skill', 'host/pdf', '--skill', 'bot:ada/pdf'],
+      live.url,
+    );
+    expect(sent.code).toBe(0);
+    expect(live.calls.find((call) => call.method === 'channelSend')?.args).toMatchObject({
+      body: '/pdf /pdf',
+      skillInvocations: [
+        { name: 'pdf', owner: { kind: 'host' }, start: 0, end: 4 },
+        { name: 'pdf', owner: { kind: 'bot', botSlug: 'ada' }, start: 5, end: 9 },
+      ],
+    });
+  });
+
+  it('surfaces the Host oversized Skill refusal without retrying the send', async () => {
+    const error = {
+      code: 'skill-too-large',
+      message:
+        'Skill /pdf exceeds the 64000-character invocation limit. Shorten the Skill and try again.',
+    };
+    const live = await host((method) =>
+      method === 'channelSend'
+        ? { ok: false, error }
+        : { ok: true, value: { bot: { displayName: 'Ada' } } },
+    );
+    const sent = await invoke(['send', 'ada', '--body', '/pdf', '--skill', 'host/pdf'], live.url);
+    expect(sent.code).not.toBe(0);
+    expect(sent.json.error).toMatchObject(error);
+    expect(live.calls.filter((call) => call.method === 'channelSend')).toHaveLength(1);
+    expect(live.calls.some((call) => call.method === 'channelSendStatus')).toBe(false);
+  });
+
   it('uses existing commands for v2 document state and continuation without expanding CLI input limits', async () => {
     const live = await host(() => ({ ok: true, value: { version: 0, state: {} } }));
     const state = { version: 1, values: { selected: 'alpha', count: 2, expanded: true } };
