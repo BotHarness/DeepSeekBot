@@ -14,6 +14,8 @@ import { createCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
+import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 
 const closes: Array<() => void | Promise<void>> = [];
 afterEach(async () => {
@@ -59,6 +61,31 @@ function fixture() {
     roster: createTestRosterStore({ database }),
   });
   return { root, registry, database, db, channels, team, bridge, states };
+}
+function proactiveFixture(teamEnabled: boolean) {
+  const root = createTempRoot('m7-proactive-');
+  const core = createCore({
+    dshHome: root,
+    agents: createDshBotAgentAdapter({
+      agents: new FakeAgentHost({ kind: 'completed' }),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => join(root, 'memory'),
+    }),
+  });
+  closes.push(async () => {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  });
+  const db = attachOperationalModule(core.operationalDatabase, 'team');
+  db.transaction((db) => {
+    db.prepare('UPDATE team_settings SET enabled=?').run(Number(teamEnabled));
+    db.prepare("INSERT INTO humans VALUES ('bob','Bob','active','now')").run();
+    db.prepare("INSERT INTO human_roles VALUES ('bob','member')").run();
+  });
+  core.team.spaces.ensureAccount('bob');
+  expect(core.registry.create({ slug: 'helper', displayName: 'Helper' }).ok).toBe(true);
+  const dm = core.channels.getOrCreateDm(owner, 'helper')!;
+  return { core, db, dm };
 }
 const everyone = { kind: 'public', audience: { kind: 'everyone' } } as const;
 function publicBot(f: ReturnType<typeof fixture>, slug = 'alice-bot') {
@@ -336,6 +363,106 @@ describe('M7 Bot principal and participant authority', () => {
     expect(f.channels.get(channel.id)!.members).toContain('alice-bot');
     f.team.bots.setVisibility(alice, 'alice-bot', { kind: 'private' }, true);
     expect(f.channels.get(channel.id)!.members).not.toContain('alice-bot');
+  });
+  describe.each([true, false])('principal proactive DMs (Team mode %s)', (teamEnabled) => {
+    it.each(['channel_id', 'human_id'] as const)(
+      'sends through %s with the switch off despite a principal opt-out',
+      async (destination) => {
+        const { core, dm } = proactiveFixture(teamEnabled);
+        core.team.bots.optOut(owner, 'helper', true);
+        expect(core.team.bots.view(owner, 'helper').switches.proactiveDms).toBe(false);
+        const sent = await core.runtime.runDirectBotTool!(
+          'helper',
+          'bot_send_message',
+          { [destination]: destination === 'channel_id' ? dm.id : owner.humanId, body: 'Reminder' },
+          new AbortController().signal,
+        );
+        expect(sent.result).toMatchObject({ channelId: dm.id, status: 'committed' });
+        expect(core.channels.readMessages(dm.id)).toContainEqual(
+          expect.objectContaining({ body: 'Reminder', author: { kind: 'bot', slug: 'helper' } }),
+        );
+      },
+    );
+  });
+  it.each(['channel_id', 'human_id'] as const)(
+    'keeps audience, switch and member opt-out checks for proactive %s sends',
+    async (destination) => {
+      const { core } = proactiveFixture(true);
+      core.team.bots.setVisibility(owner, 'helper', everyone);
+      const dm = core.team.bots.dm(bob, 'helper')!;
+      const send = () =>
+        core.runtime.runDirectBotTool!(
+          'helper',
+          'bot_send_message',
+          { [destination]: destination === 'channel_id' ? dm.id : bob.humanId, body: 'Report' },
+          new AbortController().signal,
+        );
+      await expect(send()).rejects.toMatchObject({ code: 'bot-proactive-denied' });
+      core.team.bots.switches(owner, 'helper', { proactiveDms: true });
+      core.team.bots.optOut(bob, 'helper', true);
+      await expect(send()).rejects.toMatchObject({ code: 'bot-proactive-denied' });
+      core.team.bots.optOut(bob, 'helper', false);
+      await expect(send()).resolves.toMatchObject({ result: { status: 'committed' } });
+      core.team.bots.setVisibility(
+        owner,
+        'helper',
+        {
+          kind: 'public',
+          audience: { kind: 'members', humanIds: [owner.humanId] },
+        },
+        true,
+      );
+      expect(() => core.team.bots.requireProactive('helper', bob.humanId)).toThrow(
+        'bot-proactive-denied',
+      );
+    },
+  );
+  it('exempts the current principal immediately after transfer, while the former principal is audience', async () => {
+    const { core, db, dm: formerPrincipalDm } = proactiveFixture(true);
+    core.team.bots.setVisibility(owner, 'helper', everyone);
+    const currentPrincipalDm = core.team.bots.dm(bob, 'helper')!;
+    core.team.bots.optOut(bob, 'helper', true);
+    db.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE persona_bots SET owner_human_id='bob',body=json_set(body,'$.ownerHumanId','bob') WHERE slug='helper'",
+        )
+        .run(),
+    );
+    const send = (channelId: string) =>
+      core.runtime.runDirectBotTool!(
+        'helper',
+        'bot_send_message',
+        { channel_id: channelId, body: 'Transferred report' },
+        new AbortController().signal,
+      );
+    await expect(send(currentPrincipalDm.id)).resolves.toMatchObject({
+      result: { status: 'committed' },
+    });
+    await expect(
+      core.runtime.runDirectBotTool!(
+        'helper',
+        'bot_send_message',
+        { human_id: bob.humanId, body: 'Transferred reminder' },
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({ result: { channelId: currentPrincipalDm.id, status: 'committed' } });
+    await expect(send(formerPrincipalDm.id)).rejects.toMatchObject({
+      code: 'bot-proactive-denied',
+    });
+    core.team.bots.switches(bob, 'helper', { proactiveDms: true });
+    core.team.bots.optOut(owner, 'helper', true);
+    await expect(send(formerPrincipalDm.id)).rejects.toMatchObject({
+      code: 'bot-proactive-denied',
+    });
+    core.team.bots.optOut(owner, 'helper', false);
+    await expect(send(formerPrincipalDm.id)).resolves.toMatchObject({
+      result: { status: 'committed' },
+    });
+    expect(core.registry.setPaused('helper', true).ok).toBe(true);
+    expect(() => core.team.bots.requireProactive('helper', bob.humanId)).toThrow(
+      'bot-principal-inactive',
+    );
   });
   it('requires audience, proactive opt-in and respects each member opt-out', () => {
     const f = fixture();

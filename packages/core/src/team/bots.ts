@@ -417,6 +417,7 @@ export class TeamBots {
   requireProactive(slug: string, humanId: string): void {
     const bot = this.bot(slug);
     this.requireActive(slug);
+    if (humanId === bot.owner) return;
     if (
       !bot.switches.proactiveDms ||
       !this.audience(humanId, bot) ||
