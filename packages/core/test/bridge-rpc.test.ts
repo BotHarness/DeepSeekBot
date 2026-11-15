@@ -189,6 +189,7 @@ describe('bridge typert service', () => {
       undefined,
       {
         tob: {
+          async close() {},
           ensure: async () => {
             throw new Error('unused');
           },

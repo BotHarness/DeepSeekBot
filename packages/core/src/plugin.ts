@@ -230,6 +230,7 @@ import {
   backfillBotBanners,
   backfillBotDescriptors,
   syncBotDescriptor,
+  syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
 import { createModelCatalog } from './models/catalog.js';
@@ -264,6 +265,7 @@ import { applyPendingDataReset, createDataReset } from './data-reset/reset.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import { ensureMemoryRepository } from './memory/repository.js';
+import { initializeMemoryRepositoryAsync } from './memory/git.js';
 import { cloneMemoryRepository } from './memory/clone.js';
 import { migrateLegacySouls } from './memory/soul.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
@@ -816,6 +818,29 @@ function initializeCore(
               ...(repository.code === 'git-not-found' ? { code: 'git-not-found' as const } : {}),
               message: `${repository.code}: ${repository.message}`,
             };
+      },
+      async initializeMemoryAsync(memoryDir) {
+        try {
+          await initializeMemoryRepositoryAsync(memoryDir);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            ...(error instanceof Error && 'code' in error && error.code === 'ENOENT'
+              ? { code: 'git-not-found' as const }
+              : {}),
+            message: error instanceof Error ? error.message : 'memory-initialization-failed',
+          };
+        }
+      },
+      async syncDescriptorAsync(memoryDir, record) {
+        try {
+          await syncBotDescriptorAsync(memoryDir, record);
+        } catch (error) {
+          options.warn?.(
+            `bot-descriptor-sync-failed slug=${record.slug} reason=${error instanceof Error ? error.name : 'unknown'}`,
+          );
+        }
       },
     });
     startup.enter('roster', 'initialize');
@@ -2018,6 +2043,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   };
   ctx.effect(
     () => async () => {
+      await core.tob.close();
       await core.contentPurge.memberSettled().catch(() => {});
       core.contentPurge.close();
       core.operationalDatabase.close();

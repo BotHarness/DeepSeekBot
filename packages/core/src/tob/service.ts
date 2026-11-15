@@ -35,6 +35,7 @@ export function isTob(database: OperationalDatabaseModulePort, slug: string): bo
 }
 export interface TobService {
   ensure(human?: HumanContext): Promise<TobHome>;
+  close(): Promise<void>;
   isTob(slug: string): boolean;
   slug(human?: HumanContext): string | undefined;
   readSetting(): TobSetting;
@@ -52,6 +53,7 @@ export function createTobService(options: {
 }): TobService {
   const { database, registry, channels } = options;
   const pending = new Map<string, Promise<TobHome>>();
+  let closed = false;
   const prepare = async (human: HumanContext): Promise<TobHome> => {
     const slug = database.transaction((db) => {
       db.prepare('INSERT OR IGNORE INTO tob_identity (human_id, bot_slug) VALUES (?, ?)').run(
@@ -71,7 +73,7 @@ export function createTobService(options: {
     let bot = registry.get(slug);
     if (!bot) {
       if (registry.getHistorical(slug)) throw new TobError('tob-identity-unavailable');
-      const created = registry.create({
+      const created = await registry.createAsync({
         slug,
         ownerHumanId: human.humanId,
         displayName: 'Tob',
@@ -113,6 +115,7 @@ export function createTobService(options: {
   };
   return {
     ensure(human = OWNER_HUMAN_CONTEXT) {
+      if (closed) return Promise.reject(new TobError('tob-closed'));
       let current = pending.get(human.humanId);
       if (!current) {
         current = prepare(human).finally(() => {
@@ -121,6 +124,10 @@ export function createTobService(options: {
         pending.set(human.humanId, current);
       }
       return current;
+    },
+    async close() {
+      closed = true;
+      await Promise.allSettled(pending.values());
     },
     isTob: (slug) => isTob(database, slug),
     slug: (human = OWNER_HUMAN_CONTEXT) =>

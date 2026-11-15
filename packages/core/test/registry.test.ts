@@ -37,6 +37,46 @@ describe('isValidSlug', () => {
 });
 
 describe('createPersonaBotRegistry', () => {
+  it('keeps creation private while asynchronous Memory preparation yields and reserves its slug', async () => {
+    let finish: ((value: { ok: boolean }) => void) | undefined;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const pending = registry.createAsync({ slug: 'preparing', displayName: 'Preparing' });
+    expect(registry.list()).toEqual([]);
+    expect(registry.create({ slug: 'preparing', displayName: 'Other' })).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    expect(await registry.createAsync({ slug: 'preparing', displayName: 'Other' })).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    finish?.({ ok: true });
+    expect(await pending).toMatchObject({ ok: true, record: { displayName: 'Preparing' } });
+    expect(registry.list()).toHaveLength(1);
+  });
+
+  it('does not publish a failed asynchronous Memory preparation and allows retry', async () => {
+    let ok = false;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: async () => ({ ok }),
+    });
+    expect(await registry.createAsync({ slug: 'retry', displayName: 'Retry' })).toMatchObject({
+      ok: false,
+      reason: 'memory-unavailable',
+    });
+    expect(registry.get('retry')).toBeUndefined();
+    ok = true;
+    expect(await registry.createAsync({ slug: 'retry', displayName: 'Retry' })).toMatchObject({
+      ok: true,
+    });
+  });
   it('cleans only imported staging it owns on initializer failure and retries the same slug', async () => {
     const home = createRoot();
     const path = join(home, 'separate-memory');

@@ -12,7 +12,7 @@ import {
   parseBotDescriptor,
   type BotDescriptorAvatar,
 } from '../marketplace/descriptor.js';
-import { createMemoryGit } from '../memory/git.js';
+import { createMemoryGit, commitMemoryPathsAsync } from '../memory/git.js';
 import { canonicalRecipe, isAvatarRecipe, seededAvatarFor } from './avatar-appearance.js';
 import { BOT_BANNER_FILE, botBannerPng, seededBotBanner } from './bot-banner.js';
 import type { PersonaBotRecord } from './persona-bot.js';
@@ -96,7 +96,7 @@ export function portablePrimaryColor(
 export function syncBotDescriptor(
   memoryDir: string,
   record: PersonaBotRecord,
-  options: { onlyIfMissing?: boolean } = {},
+  options: { onlyIfMissing?: boolean; commit?: boolean } = {},
 ): BotDescriptorSyncResult {
   if (!existsSync(memoryDir)) return 'no-memory';
   const descriptorFile = join(memoryDir, BOT_DESCRIPTOR_PATH);
@@ -217,10 +217,19 @@ export function syncBotDescriptor(
     }
   }
   if (!changed) return 'unchanged';
-  if (existsSync(join(memoryDir, '.git'))) {
+  if (options.commit !== false && existsSync(join(memoryDir, '.git'))) {
     createMemoryGit(memoryDir).commitPaths([DESCRIPTOR_DIR], BOT_DESCRIPTOR_COMMIT_MESSAGE);
   }
   return 'written';
+}
+
+export async function syncBotDescriptorAsync(
+  memoryDir: string,
+  record: PersonaBotRecord,
+): Promise<void> {
+  const result = syncBotDescriptor(memoryDir, record, { commit: false });
+  if (result === 'written' && existsSync(join(memoryDir, '.git')))
+    await commitMemoryPathsAsync(memoryDir, [DESCRIPTOR_DIR], BOT_DESCRIPTOR_COMMIT_MESSAGE);
 }
 
 export function backfillBotDescriptors(
