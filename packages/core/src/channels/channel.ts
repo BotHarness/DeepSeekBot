@@ -1,4 +1,5 @@
 import type { ApprovalCard } from '../team/approval-contract.js';
+import type { SkillOwner } from '../skills/entries.js';
 import type { ChannelMessageAuthor } from './message-author.js';
 import type { ChannelReplyPreview } from './reply-preview.js';
 import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
@@ -287,6 +288,50 @@ export interface ChannelReference {
   end: number;
 }
 
+/**
+ * A Skill Invocation: the `/name` token a Human picked from the `/` menu, with
+ * the Skill's text captured when the message was sent. It addresses no one.
+ */
+export interface ChannelSkillInvocation {
+  name: string;
+  owner: SkillOwner;
+  start: number;
+  end: number;
+  path?: string;
+  content: string;
+}
+
+/** What a Client sends for a Skill Invocation; the Host adds the text snapshot. */
+export type ChannelSkillInvocationToken = Pick<
+  ChannelSkillInvocation,
+  'name' | 'owner' | 'start' | 'end'
+>;
+
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+/** Checks a Skill Invocation's name, owner and `/name` position inside `body`. */
+export function isSkillInvocationToken(
+  item: unknown,
+  body: string,
+): item is ChannelSkillInvocationToken {
+  if (typeof item !== 'object' || item === null) return false;
+  const { name, owner, start, end } = item as Record<string, unknown>;
+  if (typeof name !== 'string' || name.length > 64 || !SKILL_NAME.test(name)) return false;
+  if (typeof owner !== 'object' || owner === null) return false;
+  const { kind, botSlug } = owner as Record<string, unknown>;
+  if (kind !== 'host' && !(kind === 'bot' && typeof botSlug === 'string' && isValidSlug(botSlug)))
+    return false;
+  return (
+    typeof start === 'number' &&
+    typeof end === 'number' &&
+    Number.isSafeInteger(start) &&
+    Number.isSafeInteger(end) &&
+    start >= 0 &&
+    end > start &&
+    body.slice(start, end) === '/' + name
+  );
+}
+
 export const LOCAL_HUMAN_ID = 'local-human';
 
 export interface LocalHumanIdentity {
@@ -508,6 +553,7 @@ export interface ChannelMessage {
   mentions?: ChannelMention[];
   humanMentions?: { humanId: string; label: string; start: number; end: number }[];
   channelRefs?: ChannelReference[];
+  skillInvocations?: ChannelSkillInvocation[];
 
   channelRevision?: number;
 
@@ -1085,6 +1131,19 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
           item.start < 0 ||
           item.end <= item.start ||
           (message['body'] as string).slice(item.start, item.end) !== '#' + item.label,
+      ))
+  )
+    return false;
+  const skillInvocations = message['skillInvocations'];
+  if (
+    skillInvocations !== undefined &&
+    (!Array.isArray(skillInvocations) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'human' ||
+      skillInvocations.some(
+        (item) =>
+          !isSkillInvocationToken(item, message['body'] as string) ||
+          typeof (item as { content?: unknown }).content !== 'string' ||
+          !['string', 'undefined'].includes(typeof (item as { path?: unknown }).path),
       ))
   )
     return false;

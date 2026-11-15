@@ -244,6 +244,7 @@ import { createMediaVersions, type MediaVersions } from './attachments/media-ver
 import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
+import { SkillCatalog, type SkillRegistryPort } from './skills/catalog.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
 import type { ChannelStore } from './channels/store.js';
@@ -3217,8 +3218,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     drafts: shareDrafts,
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
+  const skillCatalog = new SkillCatalog({
+    memoryDirFor: (slug) =>
+      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+  });
   const bridgeDeps: BridgeMethodsDeps = {
     team,
+    skills: skillCatalog,
     hostVersion: () => release.version(),
     callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
@@ -3792,6 +3798,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
     });
     developerModeTarget.gate = gate;
+    skillsCtx.effect(
+      () => skillCatalog.attach((skillsCtx as unknown as { skills: SkillRegistryPort }).skills),
+      'botharness: skill catalog',
+    );
     skillsCtx.effect(
       () =>
         skills.register({

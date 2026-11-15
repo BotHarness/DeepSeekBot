@@ -87,9 +87,11 @@ import type {
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
-import { loadAllBotPreview } from './bridge.js';
+import { loadAllBotPreview, loadChannelSkillCatalog } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
+import type { ChannelSkillInvocationToken } from '../../../core/src/channels/channel.js';
+import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 
 import type {
   ChannelBridgeInput,
@@ -1030,7 +1032,9 @@ export interface BridgeActions {
     grantRequestResolution?: ChannelMessage['grantRequestResolution'],
     allBotMention?: AllBotMention,
     submissionId?: string,
+    skillInvocations?: ChannelSkillInvocationToken[],
   ): Promise<boolean>;
+  skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
   submissions: {
     subscribe(listener: () => void): () => void;
     snapshot(channelId: string): SubmissionSnapshot | undefined;
@@ -3312,6 +3316,7 @@ export function createActions(
       await loadSessionsFor(slug, selection);
     },
     allBotPreview: (channelId) => loadAllBotPreview(call, channelId),
+    skillCatalog: (channelId) => loadChannelSkillCatalog(call, channelId),
     validateComposerDraft: (channelId, attachments, replyTo) =>
       validateComposerDraft(call, channelId, attachments, replyTo),
     async send(
@@ -3324,6 +3329,7 @@ export function createActions(
       grantRequestResolution,
       allBotMention,
       submissionId,
+      skillInvocations,
     ) {
       let snapshot = clientStore.getSnapshot();
       const channel = snapshot.conversation.channel;
@@ -3341,6 +3347,7 @@ export function createActions(
         !replyTo &&
         !mentions?.length &&
         !channelRefs?.length &&
+        !skillInvocations?.length &&
         !memorySwitchTarget &&
         !grantRequestResolution
       ) {
@@ -3427,6 +3434,8 @@ export function createActions(
           grantRequestResolution,
           undefined,
           allBotMention,
+          undefined,
+          skillInvocations,
         );
         remainingFailures(channel.id, [message]);
         settleSubmission(channel.id, localId, 'sent');

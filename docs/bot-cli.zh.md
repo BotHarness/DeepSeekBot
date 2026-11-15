@@ -216,6 +216,8 @@ Prompt Preset 用于编辑 System Prompt 和每轮模板里的行为文字；围
 deepseekbot send <bot-id> --body "回复 QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "就这条" --reply-to <消息-id>
+deepseekbot skills-list --bot <bot-id> [--query <文本>]
+deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
@@ -230,6 +232,8 @@ deepseekbot workspace-options
 deepseekbot folder-browse [<文件夹路径>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
+
+`skills-list` 返回该对话 `/` 菜单提供的 Skill，并按 `--query` 以与菜单相同的规则排序（名称前缀、名称子序列、描述）：包括 Host Skill（`owner.kind` 为 `host`），以及各 PersonaBot Memory Repository 下 `.agents/skills` 或 `.dsh/skills` 中的 Project Skill（`owner.kind` 为 `bot`）。任意 Channel 可用 `--channel <channel-id>` 代替 `--bot`。`send --skill <owner>/<name>`（owner 为 `host` 或 `bot:<bot-id>`，可重复）把正文中第一个 `/name` 变成 Skill Invocation：Host 把该 Skill 当前的文本随消息保存，Bot 以 `<skill_invocation>` 块读到它。Skill 不决定由谁回复；已不存在的 Skill 会以 `skill-unavailable` 拒绝。见 [ADR-0342](adr/0342-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)。
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
 

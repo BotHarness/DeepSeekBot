@@ -737,6 +737,14 @@
       "gap": null
     },
     {
+      "id": "desktop.composer.skill-invocation",
+      "label": "Pick a Skill from / in a Bot DM and deliver its text snapshot",
+      "source": "packages/client/src/client/channel-composer.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/skill-invocation.md",
+      "task": 4232,
+      "gap": null
+    },
+    {
       "id": "native.settings.handoff",
       "label": "Open native Models from Bot mode and restore navigation after Settings closes",
       "source": "packages/client/src/client/bot-settings-open.ts",

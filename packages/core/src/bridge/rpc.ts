@@ -170,7 +170,13 @@ import type {
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
-import type { ChannelMessage, ChannelReaction, ChannelRecord } from '../channels/channel.js';
+import type {
+  ChannelMessage,
+  ChannelReaction,
+  ChannelRecord,
+  ChannelSkillInvocationToken,
+} from '../channels/channel.js';
+import type { SkillCatalogEntry } from '../skills/catalog.js';
 import type { ChannelSendStatus, HumanMessageSearchPage } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
@@ -2178,6 +2184,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.messageSearch({ text, cursor, limit }));
   }
 
+  async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
+    return unwrap(await this.methods.channelSkillCatalog({ channelId }));
+  }
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
@@ -2198,9 +2207,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentReply?: ChannelMessage['assignmentReply'],
     allBotMention?: AllBotMention,
     genuiReply?: GenuiMessageReply,
+    skillInvocations?: ChannelSkillInvocationToken[],
   ): Promise<{ message: ChannelMessage }> {
     return unwrap(
       await this.methods.channelSend({
+        ...(skillInvocations === undefined ? {} : { skillInvocations }),
         channelId,
         body,
         ...(allBotMention === undefined ? {} : { allBotMention }),
@@ -3324,6 +3335,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
+  'channelSkillCatalog',
   'channelSend',
   'channelSendStatus',
   'channelGenuiView',

@@ -116,6 +116,7 @@ import {
   type ChannelMessagePerf,
   type ChannelReaction,
   type ChannelRecord,
+  type ChannelSkillInvocation,
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
@@ -728,6 +729,43 @@ export interface DirectBotToolCall {
 }
 
 const DIRECT_TOOL_CALL_LIMIT = 50;
+
+/**
+ * Wraps each picked `/name` token as `[/name]`. DSH loads a Skill again for any
+ * bare `/name` in user input; the snapshot below is the one the Human sent.
+ */
+export function markSkillTokens(
+  text: string,
+  invocations: readonly ChannelSkillInvocation[] | undefined,
+): string {
+  let marked = text;
+  for (const name of new Set((invocations ?? []).map((skill) => skill.name)))
+    marked = marked.replace(
+      new RegExp(`(^|\\s)/${name}(?=\\s|$)`, 'gu'),
+      (_match, lead: string) => `${lead}[/${name}]`,
+    );
+  return marked;
+}
+
+function xmlAttribute(value: string): string {
+  return value.replace(/&/gu, '&amp;').replace(/"/gu, '&quot;').replace(/</gu, '&lt;');
+}
+
+/**
+ * Renders the Skills a Human picked with `/` as text the Bot reads with the
+ * message. Each block is the snapshot taken when the message was sent.
+ */
+export function skillInvocationPrompt(
+  invocations: readonly ChannelSkillInvocation[] | undefined,
+): string {
+  if (invocations === undefined || invocations.length === 0) return '';
+  const blocks = invocations.map((skill) => {
+    const owner = skill.owner.kind === 'host' ? 'host' : `bot:${skill.owner.botSlug}`;
+    const path = skill.path === undefined ? '' : ` path="${xmlAttribute(skill.path)}"`;
+    return `<skill_invocation name="${skill.name}" owner="${owner}"${path}>\n${skill.content}\n</skill_invocation>`;
+  });
+  return `\n\n[The Human invoked ${invocations.length === 1 ? 'this Skill' : 'these Skills'} with /. Each block is the Skill text as it was when the message was sent; follow it for this message. owner names whose Skill it is, not who should act.]\n${blocks.join('\n')}`;
+}
 
 export class DirectBotToolError extends Error {
   constructor(
@@ -4183,10 +4221,18 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#channels.message(channelId, target.recordMessageId)?.toolAutoApproval?.input ?? '';
       return `[Bot Inbox: Human allowed an auto-rejected call once]\nChannel: ${channelId}\nMessage ID: ${messageId}\nTool: ${target.toolName}\nSession: ${target.sessionId}\nInput:\n${input}\nThe Approval Reviewer rejected this call earlier, and the Human allowed it once anyway. You may retry it in that Session with exactly this input, every argument unchanged; that one retry runs without review. Later calls are still reviewed under your Approval Template. If the call came from an Assignment Session, relay this with send_assignment_request.`;
     }
+    const skills =
+      message?.author.kind === 'human' ? skillInvocationPrompt(message.skillInvocations) : '';
     if (channel?.type === 'group' && message?.mentions?.length)
       return (
         `Source Event ID: ${sourceEventId}\n` +
-        this.#groupMentionPrompt(botSlug, channelId, messageId, body)
+        this.#groupMentionPrompt(
+          botSlug,
+          channelId,
+          messageId,
+          markSkillTokens(body, message.skillInvocations),
+        ) +
+        skills
       );
     if (channel?.type === 'group' && message?.grantRequestResolution !== undefined)
       return `[Bot Inbox: Human answered your Workspace Grant request]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${body}\nContinue the task you requested access for; if you speak in this Group Channel, use bot_send_message with the trusted source_event_id.`;
@@ -4197,14 +4243,17 @@ class BotRuntimeImplementation implements BotRuntime {
       (message.mentions?.length ?? 0) > 0
         ? message.body
         : body;
-    const text = sessionMentionText(mentionBody, message?.mentions ?? []);
+    const text = markSkillTokens(
+      sessionMentionText(mentionBody, message?.mentions ?? []),
+      message?.author.kind === 'human' ? message.skillInvocations : undefined,
+    );
     if (channel?.type === 'group')
-      return `[Group]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`;
+      return `[Group]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}${skills}`;
     if (channel?.type !== 'dm' || channel.botSlug === undefined || message?.author.kind !== 'human')
       return text;
     const selected = [...new Set((message.mentions ?? []).map((mention) => mention.botSlug))];
     const parts = [
-      `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`,
+      `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}${skills}`,
     ];
     if (message.genuiReplyContext !== undefined) parts.push(message.genuiReplyContext);
     if (message.voiceCall !== undefined) {

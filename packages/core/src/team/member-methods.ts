@@ -109,6 +109,7 @@ export const MEMBER_CHANNEL_METHODS = [
   'channelHumanAdd',
   'channelGroupInvite',
   'channelAllBotPreview',
+  'channelSkillCatalog',
   'composerValidate',
   'channelGet',
   'channelSendStatus',

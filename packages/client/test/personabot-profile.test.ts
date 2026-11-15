@@ -476,6 +476,7 @@ describe('PersonaBot Profile surface', () => {
         root.render(
           createElement(BotMain, {
             actions: {
+              skillCatalog: async () => [],
               allBotPreview: vi.fn(async () => ({ revision: '0'.repeat(64), recipients: [] })),
               channelAssignments: vi.fn(async () => []),
               groupProfileActivity: vi.fn(() => new Promise(() => {})),

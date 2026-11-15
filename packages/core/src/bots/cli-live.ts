@@ -156,6 +156,14 @@ import {
   type VoiceValues,
 } from './cli-voice.js';
 import { CALL_COMMANDS, CALL_OPTIONS, isCallCommand, runCallCommand } from './cli-call.js';
+import {
+  SKILL_COMMANDS,
+  SKILL_OPTIONS,
+  isSkillCommand,
+  runSkillCommand,
+  skillInvocationTokens,
+  type SkillValues,
+} from './cli-skills.js';
 import { VOICE_CALL_PATH, type VoiceCallResult } from '../voice/call-contract.js';
 import {
   isStorageCommand,
@@ -222,6 +230,7 @@ export const LIVE_OPTIONS = {
   ...CALL_OPTIONS,
   ...CALL_TIMELINE_OPTIONS,
   ...STORAGE_OPTIONS,
+  ...SKILL_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
   'image-source': { type: 'string' },
@@ -365,6 +374,7 @@ export const LIVE_COMMANDS = [
   ...CALL_TIMELINE_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
   ...STORAGE_COMMANDS,
+  ...SKILL_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -624,6 +634,7 @@ interface LiveValues
     ApprovalTemplateValues,
     ApprovalReviewerValues,
     VoiceValues {
+  skill?: string[];
   as?: string;
   username?: string;
   'display-name'?: string;
@@ -1250,6 +1261,11 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isSkillCommand(command))
+    return runSkillCommand(command, rest, values as SkillValues, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
   if (isStorageCommand(command))
     return runStorageCommand(command, rest, values as StorageValues, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -1372,6 +1388,7 @@ export async function runLiveCli(
   )
     usage('--message-id is required.');
   let body: string | undefined;
+  let skillTokens: ReturnType<typeof skillInvocationTokens> = [];
   let answer: unknown;
   let confidential: Record<string, string> | undefined;
   if (command === 'ask-secret-submit') {
@@ -1411,6 +1428,7 @@ export async function runLiveCli(
       usage('--message-id must be human- followed by a UUID.');
     if (values['reply-to'] !== undefined && !values['reply-to'].trim())
       usage('--reply-to needs a message id.');
+    skillTokens = skillInvocationTokens(body, values.skill);
   }
   if (
     command === 'tool-approval-decide' &&
@@ -1597,6 +1615,7 @@ export async function runLiveCli(
         body,
         messageId: receipt.messageId,
         ...(values['reply-to'] === undefined ? {} : { replyTo: values['reply-to'].trim() }),
+        ...(skillTokens.length === 0 ? {} : { skillInvocations: skillTokens }),
       });
       while (Date.now() < deadline) {
         const status = await rpc<{ state: string; replies: unknown[] }>(

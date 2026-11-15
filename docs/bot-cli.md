@@ -214,6 +214,8 @@ From a built checkout, `node scripts/cli-smoke.mjs --preset <id> [--zip ./shared
 deepseekbot send <bot-id> --body "Reply with QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "Yes, this one" --reply-to <message-id>
+deepseekbot skills-list --bot <bot-id> [--query <text>]
+deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
 deepseekbot send-status <bot-id> --message-id <receipt-message-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <card-id>

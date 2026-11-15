@@ -964,6 +964,7 @@ describe('plugin entry', () => {
       'messageSearch',
       'channelUnreadCounts',
       'channelAllBotPreview',
+      'channelSkillCatalog',
       'channelSend',
       'channelSendStatus',
       'channelGenuiView',
