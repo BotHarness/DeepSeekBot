@@ -1,4 +1,5 @@
 import { ReceptionStatus } from './reception-status.js';
+import { readSavedThenStatus } from './progressive-settings.js';
 import { MessagingHelp } from './messaging-help.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
@@ -70,14 +71,18 @@ export function ChannelBridgeAttention({
     const read = (): void => {
       const sequence = ++request;
       void Promise.resolve()
-        .then(() => actions.channelBridges(channelId))
-        .then((snapshot) => {
-          if (current && sequence === request)
-            reportRef.current(
-              snapshot.receptionNeedsAttention === true ||
-                snapshot.bridges.some(bridgeNeedsAttention),
-            );
-        })
+        .then(() =>
+          readSavedThenStatus(
+            (mode) => actions.channelBridges(channelId, mode),
+            (snapshot) => {
+              if (current && sequence === request)
+                reportRef.current(
+                  snapshot.receptionNeedsAttention === true ||
+                    (snapshot.checks !== 'pending' && snapshot.bridges.some(bridgeNeedsAttention)),
+                );
+            },
+          ),
+        )
         .catch(() => undefined);
     };
     read();
@@ -143,9 +148,17 @@ export function ChannelBridgeList({
   const refresh = async () => {
     const sequence = ++refreshRequest.current;
     const version = generation.current;
-    const next = await actions.channelBridges(channelId);
-    if (mounted.current && version === generation.current && sequence === refreshRequest.current)
-      setSnapshot(next);
+    await readSavedThenStatus(
+      (mode) => actions.channelBridges(channelId, mode),
+      (next) => {
+        if (
+          mounted.current &&
+          version === generation.current &&
+          sequence === refreshRequest.current
+        )
+          setSnapshot(next);
+      },
+    );
   };
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
@@ -287,6 +300,7 @@ export function ChannelBridgeList({
   return (
     <div ref={mount} className="bh-channel-bridges" role="region" aria-label={t('bridge.title')}>
       {error && !mode ? <Note tone="danger">{error}</Note> : null}
+      {snapshot?.checks === 'pending' ? <Note>{t('im.checking')}</Note> : null}
       <SidebarCardList label={t('bridge.title')}>
         {snapshot?.bridges.map((row) => (
           <SidebarCardRow
@@ -296,7 +310,12 @@ export function ChannelBridgeList({
             chips={
               <>
                 <Tag tone="neutral">
-                  <ReceptionStatus reception={row.reception} recovery={row.recovery} t={t} />
+                  <ReceptionStatus
+                    reception={row.reception}
+                    recovery={row.recovery}
+                    checking={snapshot?.checks === 'pending'}
+                    t={t}
+                  />
                 </Tag>
                 {row.delivery === 'inbox' ? (
                   <Tag tone="neutral">{t('bridge.inboxOnly')}</Tag>
@@ -399,7 +418,7 @@ export function ChannelBridgeList({
               )}
             </Field>
           ) : null}
-          {mode === 'add' && !snapshot?.sources.length ? (
+          {mode === 'add' && snapshot?.checks !== 'pending' && !snapshot?.sources.length ? (
             <Note>{t('bridge.noSources')}</Note>
           ) : null}
           {subject}

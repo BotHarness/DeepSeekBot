@@ -4,6 +4,7 @@ import { CliLiveError } from './cli-live-error.js';
 
 export const MESSAGING_OPTIONS = {
   'input-stdin': { type: 'boolean' },
+  'read-mode': { type: 'string' },
   confirm: { type: 'boolean' },
   binding: { type: 'string' },
   source: { type: 'string' },
@@ -24,7 +25,7 @@ export const MESSAGING_COMMANDS = [
   },
   {
     command: 'messaging-grants',
-    description: "list a Bot's authorized IM conversations with their policies and post limits",
+    description: "list a Bot's authorized IM conversations (--read-mode saved|status)",
   },
   {
     command: 'messaging-targets',
@@ -88,7 +89,7 @@ export const MESSAGING_COMMANDS = [
   },
   {
     command: 'channel-bridges',
-    description: "list a Channel's IM bridges and bridge sources",
+    description: "list a Channel's IM bridges and sources (--read-mode saved|status)",
   },
   {
     command: 'channel-bridge',
@@ -139,6 +140,7 @@ export const MESSAGING_COMMANDS = [
 export type MessagingCommand = (typeof MESSAGING_COMMANDS)[number]['command'];
 
 export interface MessagingValues {
+  'read-mode'?: string;
   'input-stdin'?: boolean;
   confirm?: boolean;
   binding?: string;
@@ -160,6 +162,19 @@ export interface MessagingValues {
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
+
+export function messagingReadMode(
+  command: string,
+  mode: string | undefined,
+): 'saved' | 'status' | undefined {
+  if (mode === undefined) return undefined;
+  if (
+    !['im-status', 'messaging-grants', 'channel-bridges'].includes(command) ||
+    !['saved', 'status'].includes(mode)
+  )
+    throw new CliLiveError('usage', '--read-mode saved|status is only for IM settings queries.');
+  return mode === 'saved' ? 'saved' : 'status';
+}
 
 const PLATFORMS = ['feishu', 'slack', 'discord', 'weixin', 'qq'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -225,6 +240,7 @@ export async function prepareMessaging(
   values: MessagingValues,
   io: BotCreateCliIo,
 ): Promise<MessagingOperation> {
+  messagingReadMode(command, values['read-mode']);
   const what =
     command === 'messaging-defaults' || command === 'messaging-defaults-set'
       ? 'a platform'
@@ -344,7 +360,9 @@ export async function prepareMessaging(
 export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Promise<unknown> {
   const { command, target, values } = operation;
   const input = operation.input ?? {};
-  const snapshot = async () => record(await rpc('messagingSnapshot', { slug: target }));
+  const mode = messagingReadMode(command, values['read-mode']);
+  const snapshot = async () =>
+    record(await rpc('messagingSnapshot', { slug: target, ...(mode ? { mode } : {}) }));
   const app = async (ref: string) => {
     const found = list(record(await rpc('messagingApps', {}))['apps']).find(
       (entry) => entry['ref'] === ref,
@@ -362,6 +380,7 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
     case 'messaging-grants': {
       const value = await snapshot();
       return {
+        ...(value['checks'] === undefined ? {} : { checks: value['checks'] }),
         grants: list(value['grants']).map((grant) => ({
           id: grant['id'],
           bindingId: grant['bindingId'],
@@ -519,7 +538,7 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
       await rpc('senderAccess', { slug: target, input });
       return { updated: true };
     case 'channel-bridges':
-      return rpc('channelBridges', { channelId: target });
+      return rpc('channelBridges', { channelId: target, ...(mode ? { mode } : {}) });
     case 'channel-bridge':
       return rpc('channelBridge', { channelId: target, input });
     case 'approval-routes':

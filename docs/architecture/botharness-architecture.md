@@ -12,7 +12,7 @@ E11 执行保护与 E6 凭据事务的顺序固定为：执行 Web Lock → 短�
 
 私有线路确认绑定所属 Host 返回的不透明配置代次，同一值贯穿所显示的计划、UI 或 CLI 确认、发送、确认响应与未知结果回读。Host 在现有生命周期串行操作内、写入停止状态或关闭运行资源之前比较该值；替换、删除后重加或 Host 重启均使旧确认失效。持久化成功后，配置与代次同时发布。运行健康和端口更新保留配置身份；Quick 公开地址变化时同时更新代次，必须重新确认，代次不从连接器令牌派生。同 ID 新配置不会被旧确认停止，其停止状态也不能解除旧操作的未知记录。没有代次的旧私有停止记录保持未知。既有本地 owner 明确的无条件控制保留原语义。新的非空执行文档使用版本 3；读取时仍保留旧版本 2 与引用记录。旧数组读取器和版本 2 读取器都拒绝整个新文档，避免管理其他 Host 的旧 writer 擦除配置代次。
 
-远程连接执行保护及其兼容性限制见 [ADR-0340](../adr/0340-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
+远程连接执行保护及其兼容性限制见 [ADR-0343](../adr/0340-uncertain-connection-writes-stay-client-execution-state.md)。既有 Owner-only RemoteHosts provider 同时限制执行记录和本地移除；Member/Admin 页面不恢复 Owner 凭据或执行历史，权限拒绝不转成恢复存储提示。原授权回读失败时保留未知事实，不回退到 Native Owner 请求。
 
 E11 在独立 Settings Target 下复用目标 Host 的设备、单条私有路由和账号 owner。计划切换先验证既有替代路由，明确保存本 Client 的手动偏好，等待实际连接切换并回读精确 Host 后才执行一次；没有替代路由则明确确认断开。Client 既有 HostStorage 所有者下的独立执行索引中的记录绑定 Host 公钥、设备、操作/路由及代次，结果未知时跨重载保留，不成为 Host 配置权威，也不自动重放，其他 SavedHost 数组写入不能擦除它。共享 Web Lock 覆盖准备、保护持久化、一次写入、确认及回读 CAS；缺少 Web Locks 时拒绝危险写入。最多保留 32 条未解决事实而不自动清除。新独立授权可明确通过同一 Host 公钥核对旧操作的结果，但不继承或重发操作；公钥变化拒绝核对，清除仍按代次 CAS。退出登录、关系断开、单设备撤销和单路由停止保持独立权限和效果，不操作外部 Tailscale 映射或无关 Host 进程。
 
@@ -421,6 +421,8 @@ Messaging 在 Source Event 与 Inbox Admission 提交后异步尝试原消息的
 Slack 的 #1161 候选复用这条 application-defined Messaging 反馈链：checked Provider 把 `received`／`answered` 映射为原始 Human 消息上的 `eyes`／`white_check_mark`，回答后移除自身的 `eyes`。Slack 静音会话不产生反馈；Lark 既有 silent Admission 语义不变。Provider 仅串行同一来源的反应写入，不占用 Bot transition queue 执行网络写入；每次写入重查来源、账号、Consumer 和授权 fence，部分写入／清理不确定保留 unknown，不自动重试。本候选不提升现有 Provider pin；真实 Slack 频道与 DM 证据仍是独立交付门槛。
 
 ### 绑定的应用接收默认流量（ADR-0142）
+
+外部身份和连接设置通过既有查询 owner 分阶段读取：`saved` 只投影本地配置和接收事实，返回 `checks: pending`；`status` 只检查该 Bot 的绑定账号及会话，返回 `checks: complete`。界面先展示保存内容，再更新检查结果；新应用绑定才显式请求完整发现。账号检查按本次请求和当前 Provider registration 合并，Client 缓存按 Host/Human 的 actions owner 隔离，生命周期通知使旧请求失效。所有修改和发送继续使用新鲜的权限、指纹与修订检查；此读取优化不增加持久缓存或轮询（[ADR-0343](../adr/0343-im-settings-project-saved-configuration-before-live-checks.md)，#4247）。
 
 Binding 的账号接收器和 Grant 的会话接收器分别持有进程内恢复状态。暂时的 `provider-unavailable` 从 250 ms 开始指数退避，上限 30 s，不耗尽重试次数；账号就绪会唤起仍等待它的会话。停用、解绑、撤销、Provider 替换和 Host 关闭取消所属计时器与 lease。永久拒绝进入需处理状态，显式重连沿用既有 Owner 与修订检查。Host 重启只从当前启用的 Binding/Grant 重建，不持久化计时器、不回放消息。状态通过现有 messaging snapshot 与变更通知投影到 Client 和 CLI，界面分别呈现应用连接、消息接收与 Bot 活动（#4242）。
 

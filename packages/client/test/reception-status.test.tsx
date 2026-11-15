@@ -68,3 +68,11 @@ it('points unsupported connectors to their version and permissions rather than r
   expect(html).toContain('connector version and receive permissions');
   expect(html).not.toContain('Reconnect and try again');
 });
+
+it('does not present unchecked saved reception as verified receiving', () => {
+  const html = renderToStaticMarkup(
+    createElement(ReceptionStatus, { reception: 'receiving', checking: true, t: enTranslate }),
+  );
+  expect(html).toContain('Checking');
+  expect(html).not.toContain('Receiving');
+});

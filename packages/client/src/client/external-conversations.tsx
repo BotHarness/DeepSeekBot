@@ -204,7 +204,14 @@ export function ExternalConversations({
             : []),
         ].join(' · ')}
         muted={grant.muted}
-        chips={<ReceptionStatus reception={grant.reception} recovery={grant.recovery} t={t} />}
+        chips={
+          <ReceptionStatus
+            reception={grant.reception}
+            recovery={grant.recovery}
+            checking={snapshot?.checks === 'pending'}
+            t={t}
+          />
+        }
         detail={actions(
           name,
           <>

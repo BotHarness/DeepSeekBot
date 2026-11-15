@@ -79,6 +79,7 @@ export interface ChannelBridgeRow extends ChannelBridgeSource, ChannelBridgeConf
   recovery?: MessagingSnapshot['grants'][number]['recovery'];
 }
 export interface ChannelBridgeSnapshot {
+  checks?: 'pending' | 'complete';
   receptionNeedsAttention?: boolean;
   channelId: string;
   bridges: ChannelBridgeRow[];

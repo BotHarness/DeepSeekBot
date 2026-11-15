@@ -243,7 +243,15 @@ export type MessagingApp = MessagingAccount & {
   bindingId?: string;
 };
 
+export type MessagingReadMode = 'saved' | 'status';
+type ProviderRegistration = { provider: MessagingProvider; token: object };
+type AccountReader = (
+  entry: ProviderRegistration,
+  ref: string,
+) => Promise<MessagingAccount | undefined>;
+
 export interface MessagingSnapshot {
+  checks?: 'pending' | 'complete';
   questions?: QuestionDelivery[];
   permissionGroups?: ExternalPermissionGroup[];
   behaviorPermissions?: BehaviorPermission[];
@@ -349,12 +357,12 @@ export interface OutboundMessaging {
     messageKey?: string,
   ): Promise<OutboxIntent>;
   register(provider: MessagingProvider): () => void;
-  snapshot(botSlug: string): Promise<MessagingSnapshot>;
+  snapshot(botSlug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot>;
   disableBot(botSlug: string): Promise<void>;
   deletionDependencies(botSlug: string): { identities: string[]; grants: string[] };
   apps(): Promise<MessagingApp[]>;
   setups(): Promise<(import('./provider.js').MessagingSetup & { providerId: string })[]>;
-  channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
+  channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot>;
   targets(providerId: string, accountRef: string): Promise<MessagingTarget[]>;
   reachable(botSlug: string, bindingId: string, cursor?: string): Promise<MessagingReachablePage>;
   setPostLimit(
@@ -465,7 +473,7 @@ export function createOutboundMessaging(options: {
   const receptionHostId = randomUUID();
   if (options.recover !== false)
     database.transaction((db) => recordLocalReception(db, now(), options.isBotActive, 'observed'));
-  const providers = new Map<string, { provider: MessagingProvider; token: object }>();
+  const providers = new Map<string, ProviderRegistration>();
   const privateReplies = new Map<
     string,
     Set<import('../credentials/im-origin.js').PrivateReplyAuthority>
@@ -531,14 +539,17 @@ export function createOutboundMessaging(options: {
   };
   const inspectIdentity = async (
     value: Pick<MessagingIdentity, 'providerId' | 'accountRef' | 'fingerprint'>,
+    readAccount?: AccountReader,
   ) => {
     const entry = provider(value.providerId);
     const account = await bounded(
-      entry.provider.inspectAccount
-        ? entry.provider.inspectAccount(value.accountRef)
-        : entry.provider
-            .accounts()
-            .then((rows) => rows.find((r) => r.ref === value.accountRef && !r.unsupported)),
+      readAccount
+        ? readAccount(entry, value.accountRef)
+        : entry.provider.inspectAccount
+          ? entry.provider.inspectAccount(value.accountRef)
+          : entry.provider
+              .accounts()
+              .then((rows) => rows.find((r) => r.ref === value.accountRef && !r.unsupported)),
     );
     current(value.providerId, entry.token);
     if (!account || account.ref !== value.accountRef || account.fingerprint !== value.fingerprint)
@@ -1004,10 +1015,20 @@ export function createOutboundMessaging(options: {
       ['grants'],
     );
   };
-  const inspectImplicit = async (registered: MessagingProvider, value: MessagingGrant) => {
+  const inspectImplicit = async (
+    entry: ProviderRegistration,
+    value: MessagingGrant,
+    readAccount?: AccountReader,
+  ) => {
+    const registered = entry.provider;
     if (!registered.inspectAccount || !value.receiveScope)
       throw new MessagingError('capability-unavailable');
-    const account = await bounded(registered.inspectAccount(value.accountRef));
+    const account = await bounded(
+      readAccount
+        ? readAccount(entry, value.accountRef)
+        : registered.inspectAccount(value.accountRef),
+    );
+    if (!account) throw new MessagingError('rebind-required');
     return {
       account,
       target: {
@@ -1059,7 +1080,7 @@ export function createOutboundMessaging(options: {
       ),
     )?.id;
   };
-  const check = async (value: MessagingGrant) => {
+  const check = async (value: MessagingGrant, readAccount?: AccountReader) => {
     active(value.botSlug);
     if (value.revokedAt !== undefined) throw new MessagingError('grant-revoked');
     const identity = enabledBinding(value.bindingId);
@@ -1069,7 +1090,7 @@ export function createOutboundMessaging(options: {
     try {
       inspected =
         value.origin === 'implicit'
-          ? await inspectImplicit(entry.provider, value)
+          ? await inspectImplicit(entry, value, readAccount)
           : await bounded(entry.provider.inspect(value.accountRef, value.targetRef));
     } catch (error) {
       current(value.providerId, entry.token);
@@ -2258,9 +2279,11 @@ export function createOutboundMessaging(options: {
       return intent;
     },
     history,
-    async channelBridges(channelId) {
+    async channelBridges(channelId, mode) {
       const channel = database.read((db) => humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId));
-      const snapshots = await Promise.all(channel.members.map((slug) => service.snapshot(slug)));
+      const snapshots = await Promise.all(
+        channel.members.map((slug) => service.snapshot(slug, mode)),
+      );
       const current = database.read((db) => humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId));
       const grants = snapshots.flatMap((snapshot, index) =>
         current.members.includes(channel.members[index]!)
@@ -2291,6 +2314,9 @@ export function createOutboundMessaging(options: {
       });
       return {
         channelId,
+        ...(mode
+          ? { checks: mode === 'saved' ? ('pending' as const) : ('complete' as const) }
+          : {}),
         canTargetInbox: current.type === 'dm',
         receptionNeedsAttention: snapshots.some(
           (snapshot, index) =>
@@ -2410,9 +2436,33 @@ export function createOutboundMessaging(options: {
         )
       ).flatMap((result) => (result.status === 'fulfilled' && result.value ? [result.value] : []));
     },
-    async snapshot(botSlug) {
-      const accounts = await service.apps();
-      const appSetups = await service.setups();
+    async snapshot(botSlug, mode) {
+      const reads = new Map<object, Map<string, Promise<MessagingAccount | undefined>>>();
+      const statusAccounts: MessagingApp[] = [];
+      const readAccount: AccountReader = (entry, ref) => {
+        let byRef = reads.get(entry.token);
+        if (!byRef) {
+          byRef = new Map();
+          reads.set(entry.token, byRef);
+        }
+        const pending = byRef.get(ref);
+        if (pending) return pending;
+        const work = bounded(
+          entry.provider.inspectAccount
+            ? entry.provider.inspectAccount(ref)
+            : entry.provider
+                .accounts()
+                .then((rows) => rows.find((row) => row.ref === ref && !row.unsupported)),
+        ).then((account) => {
+          current(entry.provider.id, entry.token);
+          if (account) statusAccounts.push({ ...account, providerId: entry.provider.id });
+          return account;
+        });
+        byRef.set(ref, work);
+        return work;
+      };
+      const accounts: MessagingApp[] = mode ? [] : await service.apps();
+      const appSetups = mode ? [] : await service.setups();
       const rows = database.read((db) =>
         db
           .prepare('SELECT body FROM messaging_grants WHERE bot_slug = ? ORDER BY created_at DESC')
@@ -2431,9 +2481,9 @@ export function createOutboundMessaging(options: {
           let availability: MessagingIdentityView['availability'] = value.enabled
             ? 'unavailable'
             : 'paused';
-          if (value.enabled) {
+          if (value.enabled && mode !== 'saved') {
             try {
-              await inspectIdentity(value);
+              await inspectIdentity(value, readAccount);
               availability = 'available';
             } catch (error) {
               if (error instanceof MessagingError && error.code === 'rebind-required')
@@ -2451,7 +2501,7 @@ export function createOutboundMessaging(options: {
             ...latest,
             availability,
             reception:
-              availability === 'available'
+              (mode === 'saved' && latest.enabled) || availability === 'available'
                 ? inbound.pairingReception(id)
                 : availability === 'paused'
                   ? ('off' as const)
@@ -2485,9 +2535,9 @@ export function createOutboundMessaging(options: {
           let canReceive = false;
           let canPost = false;
           let postConversationId: string | undefined;
-          if (value.revokedAt === undefined) {
+          if (value.revokedAt === undefined && mode !== 'saved') {
             try {
-              const checked = await check(value);
+              const checked = await check(value, readAccount);
               canPost =
                 checked.inspected.account.postSupported !== false &&
                 (value.origin === 'implicit'
@@ -2511,7 +2561,7 @@ export function createOutboundMessaging(options: {
           const current = grant(botSlug, value.id);
           const recovery = inbound.recovery(value.id);
           const lastMessageAt =
-            current.origin === 'implicit'
+            current.origin === 'implicit' && mode !== 'saved'
               ? (
                   database.read((db) =>
                     db
@@ -2545,6 +2595,17 @@ export function createOutboundMessaging(options: {
           };
         }),
       );
+      if (mode === 'status')
+        accounts.push(
+          ...statusAccounts.map((account) => {
+            const identity = identities.find(
+              (row) => row.providerId === account.providerId && row.accountRef === account.ref,
+            );
+            return identity
+              ? { ...account, bindingId: identity.id, boundBotSlug: identity.botSlug }
+              : account;
+          }),
+        );
       const channelTargets = database.read((db) => {
         const rows = db.prepare('SELECT channel_id FROM channel_records').all() as {
           channel_id: string;
@@ -2626,13 +2687,14 @@ export function createOutboundMessaging(options: {
       }
       const qqIdentities = identities.filter((identity) => identity.platform === 'qq');
       const observedAt = now();
-      const observations = closed
-        ? []
-        : database.read((db) =>
-            qqIdentities.filter((identity) =>
-              receptionObservationDue(db, identity, receptionHostId, observedAt),
-            ),
-          );
+      const observations =
+        closed || mode === 'saved'
+          ? []
+          : database.read((db) =>
+              qqIdentities.filter((identity) =>
+                receptionObservationDue(db, identity, receptionHostId, observedAt),
+              ),
+            );
       if (observations.length)
         transaction((db) => {
           for (const identity of observations)
@@ -2640,6 +2702,9 @@ export function createOutboundMessaging(options: {
               observeReception(db, identity, receptionHostId, observedAt);
         });
       return {
+        ...(mode
+          ? { checks: mode === 'saved' ? ('pending' as const) : ('complete' as const) }
+          : {}),
         ...(qqIdentities.length
           ? { receptionHistory: database.read((db) => receptionHistory(db, botSlug)) }
           : {}),

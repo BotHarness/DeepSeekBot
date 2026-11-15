@@ -105,6 +105,7 @@ export function ExternalIdentityList({
   conversation,
   rules,
   refresh,
+  discover,
   channels,
   sync,
   syncChannels,
@@ -120,6 +121,7 @@ export function ExternalIdentityList({
   conversation(input: MessagingConversationInput): Promise<void>;
   rules(grantId: string, input: GroupReceptionInput): Promise<void>;
   refresh(): Promise<void>;
+  discover?(): Promise<void>;
   channels?: { id: string; name: string }[];
   sync?: ConversationSync;
   syncChannels?: { id: string; name: string }[];
@@ -159,7 +161,7 @@ export function ExternalIdentityList({
     setRefreshing(true);
     setError('');
     try {
-      await refresh();
+      await (discover ?? refresh)();
     } catch {
       if (current()) setError(t('identity.refreshFailed'));
     } finally {
@@ -303,9 +305,20 @@ export function ExternalIdentityList({
                 })}`}
                 chips={
                   <>
-                    <Tag tone="neutral">{t(AVAILABILITY[row.availability])}</Tag>
-                    <ReceptionStatus reception={row.reception} recovery={row.recovery} t={t} />
-                    {row.platform === 'weixin' ? (
+                    <Tag tone="neutral">
+                      {t(
+                        snapshot?.checks === 'pending' && row.enabled
+                          ? 'im.checking'
+                          : AVAILABILITY[row.availability],
+                      )}
+                    </Tag>
+                    <ReceptionStatus
+                      reception={row.reception}
+                      recovery={row.recovery}
+                      checking={snapshot?.checks === 'pending'}
+                      t={t}
+                    />
+                    {row.platform === 'weixin' && snapshot?.checks !== 'pending' ? (
                       <span className="bh-bridge-secondary" role="status">
                         {t(
                           !row.typing?.supported
@@ -639,6 +652,7 @@ export function ExternalIdentityList({
             {platform(selected.platform)} · {selected.name}
           </p>
           <ReceptionStatus
+            checking={snapshot?.checks === 'pending'}
             reception={identities.find((row) => row.id === selected.id)?.reception}
             recovery={identities.find((row) => row.id === selected.id)?.recovery}
             t={t}

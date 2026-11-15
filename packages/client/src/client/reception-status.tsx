@@ -5,12 +5,20 @@ import type { BotHarnessTranslate } from './locale.js';
 export function ReceptionStatus({
   reception,
   recovery,
+  checking = false,
   t,
 }: {
   reception: 'off' | 'connecting' | 'receiving' | 'unavailable' | undefined;
   recovery?: ReceptionRecovery | undefined;
+  checking?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
+  if (checking && reception !== 'off' && !recovery)
+    return (
+      <span role="status">
+        {t('reception.label')}: {t('im.checking')}
+      </span>
+    );
   if (reception === 'off' || reception === 'receiving')
     return (
       <span role="status">

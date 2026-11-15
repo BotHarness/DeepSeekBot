@@ -315,3 +315,40 @@ it('preserves canonical retry metadata in IM status and never replays a failed r
   expect((await invoke(['im-reconnect', 'ada', '--app', 'discord_1'], live.url)).code).not.toBe(0);
   expect(live.calls.filter((call) => call.method === 'messagingIdentity')).toHaveLength(1);
 });
+
+it.each(['im-status', 'messaging-grants', 'channel-bridges'])(
+  '%s exposes saved/status reads through the same owner',
+  async (command) => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'messagingSnapshot'
+          ? { ...SNAPSHOT, checks: 'pending' }
+          : { channelId: 'group', checks: 'pending', bridges: [], sources: [] },
+    }));
+    const target = command === 'channel-bridges' ? 'group' : 'ada';
+    for (const mode of ['saved', 'status']) {
+      const result = await invoke([command, target, '--read-mode', mode], live.url);
+      expect(result.code).toBe(0);
+      expect(result.json.checks).toBe('pending');
+      expect(live.calls.at(-1)).toEqual(
+        command === 'channel-bridges'
+          ? { method: 'channelBridges', args: { channelId: target, mode } }
+          : { method: 'messagingSnapshot', args: { slug: target, mode } },
+      );
+    }
+    expect(
+      (await invoke([command, target, '--read-mode', 'cached'], live.url)).json.error.code,
+    ).toBe('usage');
+  },
+);
+
+it('refuses settings read modes on reconnect rather than weakening mutation checks', async () => {
+  const live = await host(() => ({ ok: true, value: SNAPSHOT }));
+  const result = await invoke(
+    ['im-reconnect', 'ada', '--app', 'discord_1', '--read-mode', 'saved'],
+    live.url,
+  );
+  expect(result.json.error.code).toBe('usage');
+  expect(live.calls).toEqual([]);
+});

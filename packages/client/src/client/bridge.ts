@@ -111,6 +111,7 @@ export type { HumanAssignmentContext } from '../../../core/src/runtime/assignmen
 import type {
   MessagingApp,
   MessagingSnapshot,
+  MessagingReadMode,
   MessagingGrant,
   OutboxIntent,
 } from '../../../core/src/messaging/outbound.js';
@@ -6322,8 +6323,11 @@ function validReceptionRecovery(value: unknown): boolean {
 export async function loadChannelBridges(
   call: BridgeCall,
   channelId: string,
+  mode?: MessagingReadMode,
 ): Promise<ChannelBridgeSnapshot> {
-  const value = asRecord(await unwrap(call, 'channelBridges', { channelId }));
+  const value = asRecord(
+    await unwrap(call, 'channelBridges', { channelId, ...(mode ? { mode } : {}) }),
+  );
   const source = (item: unknown) => {
     const row = asRecord(item);
     return (
@@ -6339,6 +6343,7 @@ export async function loadChannelBridges(
   if (
     !value ||
     value['channelId'] !== channelId ||
+    (value['checks'] !== undefined && !['pending', 'complete'].includes(String(value['checks']))) ||
     (value['canTargetInbox'] !== undefined && typeof value['canTargetInbox'] !== 'boolean') ||
     (value['receptionNeedsAttention'] !== undefined &&
       typeof value['receptionNeedsAttention'] !== 'boolean') ||
@@ -6528,11 +6533,14 @@ export async function loadMessagingApps(
 export async function loadMessagingSnapshot(
   call: BridgeCall,
   slug: string,
+  mode?: MessagingReadMode,
 ): Promise<MessagingSnapshot> {
-  const value = await unwrap(call, 'messagingSnapshot', { slug });
+  const value = await unwrap(call, 'messagingSnapshot', { slug, ...(mode ? { mode } : {}) });
   const record = asRecord(value);
   if (
     !record ||
+    (record['checks'] !== undefined &&
+      !['pending', 'complete'].includes(String(record['checks']))) ||
     !Array.isArray(record['accounts']) ||
     !Array.isArray(record['grants']) ||
     !record['grants'].every((item: unknown) =>

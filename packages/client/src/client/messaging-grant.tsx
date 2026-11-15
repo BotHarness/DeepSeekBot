@@ -57,7 +57,13 @@ export function MessagingGrantRow({
   const [open, setOpen] = useState(false);
   const [report, setReport] = useState<OutboxIntent>();
   const origin = report?.reply ?? report?.report;
-  const { snapshot, failed: loadFailed, refresh, mount } = useMessagingSnapshot(slug, actions);
+  const {
+    snapshot,
+    failed: loadFailed,
+    refresh,
+    discover,
+    mount,
+  } = useMessagingSnapshot(slug, actions);
   const [accountKey, setAccountKey] = useState('');
   const [targets, setTargets] = useState<MessagingTarget[]>([]);
   const [targetRef, setTargetRef] = useState('');
@@ -172,6 +178,7 @@ export function MessagingGrantRow({
         onClick={() => {
           setReport(undefined);
           setOpen(true);
+          void discover().catch(() => undefined);
         }}
         trailing={<span ref={mount} hidden />}
       />
@@ -285,7 +292,7 @@ export function MessagingGrantRow({
                         />
                       </div>
                       <p className="bh-im-status" role="status">
-                        {grant.platform === 'weixin' ? (
+                        {grant.platform === 'weixin' && snapshot.checks !== 'pending' ? (
                           t(
                             grant.reception === 'receiving'
                               ? 'im.receptionDM'
@@ -293,6 +300,7 @@ export function MessagingGrantRow({
                           )
                         ) : (
                           <ReceptionStatus
+                            checking={snapshot.checks === 'pending'}
                             reception={grant.reception}
                             recovery={grant.recovery}
                             t={t}
