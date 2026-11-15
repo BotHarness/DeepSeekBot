@@ -11,6 +11,7 @@ import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-r
 import { markSkillTokens, skillInvocationPrompt } from '../src/runtime/bot-runtime.js';
 import {
   SkillCatalog,
+  MAX_SKILL_INVOCATION_CONTENT,
   rankSkillEntries,
   type SkillRegistryDefinition,
   type SkillRegistryPort,
@@ -76,6 +77,28 @@ const liveView: SkillViewPort = async (_slug, registry) => ({
 });
 
 describe('SkillCatalog', () => {
+  it.each(['host', 'bot'] as const)(
+    'rejects oversized %s Skills without truncating',
+    async (kind) => {
+      const memory = '/profiles/ada/memory';
+      const definition = skill(
+        'pdf',
+        kind === 'host' ? 'user-agents' : 'project-agents',
+        join(memory, '.agents/skills/pdf/SKILL.md'),
+        'x'.repeat(MAX_SKILL_INVOCATION_CONTENT),
+      );
+      const catalog = new SkillCatalog({ memoryDirFor: () => memory, viewFor: liveView });
+      const definitions = [definition];
+      catalog.attach(
+        registry(kind === 'host' ? definitions : [], new Map([[memory, definitions]])),
+      );
+      const owner = kind === 'host' ? { kind } : { kind, botSlug: 'ada' };
+      expect((await catalog.resolve('pdf', owner, 'ada'))?.content).toBe(definition.content);
+      definitions[0] = { ...definition, content: definition.content + 'x' };
+      await expect(catalog.resolve('pdf', owner, 'ada')).rejects.toThrow(/Skill \/pdf.*64000/u);
+    },
+  );
+
   it('uses the live Orchestrator scope and its isolated registry for both lookups', async () => {
     const memory = '/profiles/ada/memory';
     const scoped = registry(
@@ -299,6 +322,131 @@ describe('SkillCatalog', () => {
 });
 
 describe('Skill Invocation in a Human DM', () => {
+  it.each(['host', 'bot'] as const)(
+    'refuses an oversized %s Skill before storing or delivering a message',
+    async (kind) => {
+      const runs = vi.fn(async (_run: OrchestratorAgentRun) => {});
+      const core = createCore({
+        dshHome: createTempRoot('botharness-skill-too-large-'),
+        agents: adapter(runs),
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        const memory = core.registry.memoryDirFor('ada')!;
+        const definition = skill(
+          'pdf',
+          kind === 'host' ? 'user-agents' : 'project-agents',
+          join(memory, '.agents/skills/pdf/SKILL.md'),
+          'x'.repeat(MAX_SKILL_INVOCATION_CONTENT + 1),
+        );
+        const catalog = new SkillCatalog({ memoryDirFor: () => memory, viewFor: liveView });
+        catalog.attach(
+          registry(kind === 'host' ? [definition] : [], new Map([[memory, [definition]]])),
+        );
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+        const before = core.channels.readMessages(dm.id);
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+        expect(
+          await methods.channelSend({
+            channelId: dm.id,
+            body: '/pdf',
+            skillInvocations: [
+              {
+                name: 'pdf',
+                owner: kind === 'host' ? { kind } : { kind, botSlug: 'ada' },
+                start: 0,
+                end: 4,
+              },
+            ],
+          }),
+        ).toMatchObject({
+          ok: false,
+          error: { code: 'skill-too-large', message: expect.stringMatching(/Skill \/pdf.*64000/u) },
+        });
+        await core.runtime.whenIdle();
+        expect(core.channels.readMessages(dm.id)).toEqual(before);
+        expect(runs).not.toHaveBeenCalled();
+      } finally {
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
+  it.each(['dm', 'group'] as const)(
+    'keeps selected Skill spans and defangs mentions in a %s prompt',
+    async (type) => {
+      const runs: string[] = [];
+      const core = createCore({
+        dshHome: createTempRoot('botharness-skill-mention-spans-'),
+        agents: adapter(async (run) => {
+          runs.push(run.message);
+        }),
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        core.registry.create({ slug: 'bob', displayName: 'Bob' });
+        const catalog = new SkillCatalog({
+          memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+          viewFor: liveView,
+        });
+        catalog.attach(registry([skill('pdf', 'user-agents', '/host/pdf/SKILL.md')], new Map()));
+        const channel =
+          type === 'dm'
+            ? core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!
+            : core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+                name: 'Team',
+                members: ['ada', 'bob'],
+              });
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+        const cases: [string, string][] = [
+          ['/pdf, next @Bob and /pdf', '[/pdf], next \u2060@Bob and /pdf'],
+          ['@Bob /pdf, next /pdf', '\u2060@Bob [/pdf], next /pdf'],
+          ['/pdf @Bob /pdf, next /pdf', '[/pdf] \u2060@Bob [/pdf], next /pdf'],
+        ];
+        for (const [body, expected] of cases) {
+          const mentionStart = body.indexOf('@Bob');
+          const starts = [body.indexOf('/pdf')];
+          if (body.startsWith('/pdf @')) starts.push(body.indexOf('/pdf', 4));
+          const sent = await methods.channelSend({
+            channelId: channel.id,
+            body,
+            mentions: [
+              { botSlug: 'bob', label: 'Bob', start: mentionStart, end: mentionStart + 4 },
+            ],
+            skillInvocations: starts.map((start) => ({
+              name: 'pdf',
+              owner: { kind: 'host' },
+              start,
+              end: start + 4,
+            })),
+          });
+          expect(sent.ok).toBe(true);
+          if (!sent.ok) throw new Error(sent.error.message);
+          if (type === 'group') core.runtime.admitGroupMessage(channel.id, sent.value.message.id);
+          else
+            core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+              channelId: channel.id,
+              messageId: sent.value.message.id,
+              body,
+            });
+          await core.runtime.whenIdle();
+          const delivered = runs.filter((run) =>
+            run.includes(`Message ID: ${sent.value.message.id}`),
+          );
+          expect(delivered.length).toBeGreaterThan(0);
+          for (const prompt of delivered) {
+            expect(prompt).toContain(expected);
+            expect(prompt).toContain('<skill_invocation name="pdf"');
+          }
+        }
+      } finally {
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
   it('uses the DM Bot and first eligible Group Bot when resolving Host Skills', async () => {
     const core = createCore({
       dshHome: createTempRoot('botharness-skill-viewer-'),
@@ -483,6 +631,14 @@ describe('Skill Invocation text', () => {
     expect(markSkillTokens('/pdf and /pdf-two and x/pdf', invocations)).toBe(
       '[/pdf] and /pdf-two and x/pdf',
     );
+    expect(markSkillTokens('/pdf, next', invocations)).toBe('[/pdf], next');
+    expect(markSkillTokens('/pdf and /pdf', invocations)).toBe('[/pdf] and /pdf');
+    expect(markSkillTokens('/pdf and /pdf', [{ ...invocations[0]!, start: 9, end: 13 }])).toBe(
+      '/pdf and [/pdf]',
+    );
+    expect(
+      markSkillTokens('/pdf /pdf', [{ ...invocations[0]!, start: 5, end: 9 }, invocations[0]!]),
+    ).toBe('[/pdf] [/pdf]');
     expect(skillInvocationPrompt(invocations)).toContain(
       '<skill_invocation name="pdf" owner="host" path="/a&quot;b/SKILL.md">\nDo PDF things.\n</skill_invocation>',
     );
@@ -491,6 +647,21 @@ describe('Skill Invocation text', () => {
 });
 
 describe('deepseekbot send --skill', () => {
+  it('assigns repeated names to unused occurrences in flag order', () => {
+    expect(skillInvocationTokens('/pdf /pdf', ['host/pdf', 'bot:ada/pdf'])).toEqual([
+      { name: 'pdf', owner: { kind: 'host' }, start: 0, end: 4 },
+      { name: 'pdf', owner: { kind: 'bot', botSlug: 'ada' }, start: 5, end: 9 },
+    ]);
+    expect(skillInvocationTokens('x/pdf /pdf-two /pdf /pdf', ['bot:ada/pdf', 'host/pdf'])).toEqual([
+      { name: 'pdf', owner: { kind: 'bot', botSlug: 'ada' }, start: 15, end: 19 },
+      { name: 'pdf', owner: { kind: 'host' }, start: 20, end: 24 },
+    ]);
+    expect(() => skillInvocationTokens('/pdf', ['host/pdf', 'bot:ada/pdf'])).toThrow();
+    expect(() =>
+      skillInvocationTokens('/pdf /pdf', ['host/pdf', 'bot:ada/pdf', 'host/pdf']),
+    ).toThrow();
+  });
+
   it('maps owner/name to the first matching /name token', () => {
     expect(skillInvocationTokens('run /pdf then /review', ['bot:ada/review', 'host/pdf'])).toEqual([
       { name: 'pdf', owner: { kind: 'host' }, start: 4, end: 8 },

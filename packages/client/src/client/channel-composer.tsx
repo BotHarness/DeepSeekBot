@@ -829,7 +829,13 @@ export function ChannelComposer({
     onChange(next.value, next.mentions, next.channelRefs, next.skills);
     const caret = richSelectionOffsets(editor)?.end ?? next.value.length;
     slashTarget.current = context?.target;
-    setSlashQuery(context === undefined ? undefined : composerSlashQuery(next.value, caret));
+    const command = context === undefined ? undefined : composerSlashQuery(next.value, caret);
+    setSlashQuery(
+      command !== undefined &&
+        next.skills.some((skill) => skill.start < command.end && skill.end > command.start)
+        ? undefined
+        : command,
+    );
     setSkillQuery(
       skillOptions.length === 0 ? undefined : activeSkillQuery(next.value, caret, next.skills),
     );

@@ -338,7 +338,12 @@ import {
   type DataResetPreview,
   type DataResetResult,
 } from '../data-reset/reset.js';
-import type { SkillCatalog, SkillCatalogEntry } from '../skills/catalog.js';
+import {
+  SkillContentTooLargeError,
+  type SkillCatalog,
+  type SkillCatalogEntry,
+  type ResolvedSkill,
+} from '../skills/catalog.js';
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -7449,10 +7454,17 @@ function buildBridgeMethods(
             : channel.botSlug === token.owner.botSlug)
         )
           return invalidInput(`Skill /${token.name} belongs to a PersonaBot outside this Channel`);
-        const resolved =
-          skillViewer === undefined
-            ? undefined
-            : await deps.skills?.resolve(token.name, token.owner, skillViewer);
+        let resolved: ResolvedSkill | undefined;
+        try {
+          resolved =
+            skillViewer === undefined
+              ? undefined
+              : await deps.skills?.resolve(token.name, token.owner, skillViewer);
+        } catch (error) {
+          if (error instanceof SkillContentTooLargeError)
+            return { ok: false, error: { code: error.code, message: error.message } };
+          throw error;
+        }
         if (resolved === undefined)
           return {
             ok: false,

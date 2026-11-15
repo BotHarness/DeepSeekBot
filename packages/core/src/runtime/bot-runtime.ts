@@ -735,12 +735,27 @@ export function markSkillTokens(
   invocations: readonly ChannelSkillInvocation[] | undefined,
 ): string {
   let marked = text;
-  for (const name of new Set((invocations ?? []).map((skill) => skill.name)))
-    marked = marked.replace(
-      new RegExp(`(^|\\s)/${name}(?=\\s|$)`, 'gu'),
-      (_match, lead: string) => `${lead}[/${name}]`,
-    );
+  for (const skill of [...(invocations ?? [])].sort((a, b) => b.start - a.start)) {
+    if (text.slice(skill.start, skill.end) !== '/' + skill.name) continue;
+    marked = marked.slice(0, skill.start) + `[/${skill.name}]` + marked.slice(skill.end);
+  }
   return marked;
+}
+
+function sessionSkillText(
+  body: string,
+  mentions: readonly ChannelMention[],
+  invocations: readonly ChannelSkillInvocation[] | undefined,
+): string {
+  const text = sessionMentionText(body, mentions);
+  const mentionStarts = mentions
+    .filter((mention) => body.slice(mention.start, mention.end) === '@' + mention.label)
+    .map((mention) => mention.start);
+  const rebased = invocations?.map((skill) => {
+    const offset = mentionStarts.filter((start) => start < skill.start).length;
+    return { ...skill, start: skill.start + offset, end: skill.end + offset };
+  });
+  return markSkillTokens(text, rebased);
 }
 
 function xmlAttribute(value: string): string {
@@ -4176,7 +4191,12 @@ class BotRuntimeImplementation implements BotRuntime {
   #groupMentionPrompt(botSlug: string, channelId: string, messageId: string, body: string): string {
     const message = this.#channels.message(channelId, messageId);
     const sender = message?.author.kind === 'bot' ? `PersonaBot ${message.author.slug}` : 'Human';
-    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${sessionMentionText(body, message?.mentions ?? [])}\n${this.#promptText(botSlug)('group-mention-hint')}`;
+    const text = sessionSkillText(
+      body,
+      message?.mentions ?? [],
+      message?.author.kind === 'human' ? message.skillInvocations : undefined,
+    );
+    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${text}\n${this.#promptText(botSlug)('group-mention-hint')}`;
   }
 
   #inboundChannelMessage(
@@ -4218,12 +4238,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (channel?.type === 'group' && message?.mentions?.length)
       return (
         `Source Event ID: ${sourceEventId}\n` +
-        this.#groupMentionPrompt(
-          botSlug,
-          channelId,
-          messageId,
-          markSkillTokens(body, message.skillInvocations),
-        ) +
+        this.#groupMentionPrompt(botSlug, channelId, messageId, body) +
         skills
       );
     if (channel?.type === 'group' && message?.grantRequestResolution !== undefined)
@@ -4235,8 +4250,9 @@ class BotRuntimeImplementation implements BotRuntime {
       (message.mentions?.length ?? 0) > 0
         ? message.body
         : body;
-    const text = markSkillTokens(
-      sessionMentionText(mentionBody, message?.mentions ?? []),
+    const text = sessionSkillText(
+      mentionBody,
+      message?.mentions ?? [],
       message?.author.kind === 'human' ? message.skillInvocations : undefined,
     );
     if (channel?.type === 'group')
