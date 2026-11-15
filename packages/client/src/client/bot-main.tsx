@@ -2833,6 +2833,7 @@ function ConversationView({
               ),
         );
         setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
+        setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
         setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
       } else throw error;
     } finally {
