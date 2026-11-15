@@ -183,11 +183,11 @@ export function withHost(
   if (state.pendingAccountRemoval?.some((entry) => entry.hostId === host.hostId))
     throw new Error('account-cleanup-pending');
   const previous = state.hosts.find((entry) => entry.hostId === host.hostId);
+  if (previous?.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
+    throw new Error('host-key-mismatch');
   if (!hostIdentityMatches(previous, host)) throw new Error('fingerprint-mismatch');
   if (identitySwitchRequired(previous, host) && !confirmedIdentitySwitch)
     throw new Error('identity-switch-required');
-  if (previous?.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
-    throw new Error('host-key-mismatch');
 
   return {
     ...state,
