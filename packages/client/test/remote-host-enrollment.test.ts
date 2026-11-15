@@ -523,3 +523,120 @@ it('retries the same persisted confirmation after a Client restart before starti
   expect(source.getSnapshot().hosts[0]?.host.deviceId).toBe('device-b');
   await vi.waitFor(() => expect(openSocket).toHaveBeenCalled());
 });
+
+it.each(['same-provider', 'other-tab', 'none'] as const)(
+  'keeps replacement credentials during cancelled enrollment cleanup: %s',
+  async (replacementMode) => {
+    const storage = memoryStorage();
+    storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([grant().host]));
+    const source = createRemoteHosts({ storage, carrier });
+    const item = {
+      ...relationship(),
+      direction: 'outgoing',
+      state: 'active',
+      expiresAt: Date.now() + 60_000,
+      peerRevocationPending: false,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ relationships: [item] })),
+    );
+    vi.spyOn(enrollment, 'commitRelationshipEnrollment')
+      .mockResolvedValueOnce('cancelled')
+      .mockResolvedValue('committed');
+    let finishRevoke = () => {};
+    const revocation = new Promise<'revoked'>((resolve) => {
+      finishRevoke = () => resolve('revoked');
+    });
+    const revoke = vi
+      .spyOn(pairing, 'revokePairing')
+      .mockImplementationOnce(() => revocation)
+      .mockResolvedValue('revoked');
+    const stop = source.subscribe(() => {});
+    releases.push(stop);
+    await vi.waitFor(() => expect(revoke).toHaveBeenCalledTimes(1));
+    const target =
+      replacementMode === 'other-tab' ? createRemoteHosts({ storage, carrier }) : source;
+    let replacementClient: ReturnType<typeof target.client>;
+    if (replacementMode !== 'none') {
+      await target.forgetLocal('b');
+      const replacement = grant();
+      replacement.host.deviceId = 'replacement-b';
+      replacement.host.credential = 'replacement-b.synthetic';
+      if (!replacement.host.encryption) throw new Error('missing fixture encryption');
+      replacement.host.encryption.deviceKey = 'ac'.repeat(32);
+      vi.spyOn(enrollment, 'enrollRelationshipClient').mockResolvedValue(replacement);
+      expect((await target.enrollRelationship(relationship(), 'Replacement')).ok).toBe(true);
+      replacementClient = target.client('b');
+      expect(replacementClient).toBeDefined();
+    }
+    finishRevoke();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const persisted = JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]').filter(
+      (host: { credential?: string }) => host.credential !== undefined,
+    );
+    if (replacementMode === 'none') {
+      expect(persisted).toEqual([]);
+      expect(source.getSnapshot().hosts).toEqual([]);
+    } else {
+      expect(persisted).toHaveLength(1);
+      expect(persisted[0].credential).toBe('replacement-b.synthetic');
+      expect(target.client('b')).toBe(replacementClient);
+      expect(target.getSnapshot().hosts[0]?.host.deviceId).toBe('replacement-b');
+    }
+    expect(revoke).toHaveBeenCalledTimes(1);
+    expect(revoke.mock.calls[0]?.[0].host.credential).toBe('device-b.synthetic');
+  },
+);
+
+it('preserves a replacement persisted before cancelled cleanup obtains the credential lock', async () => {
+  const storage = memoryStorage();
+  storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([grant().host]));
+  const source = createRemoteHosts({ storage, carrier });
+  const item = {
+    ...relationship(),
+    direction: 'outgoing',
+    state: 'active',
+    expiresAt: Date.now() + 60_000,
+    peerRevocationPending: false,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ relationships: [item] })),
+  );
+  vi.spyOn(enrollment, 'commitRelationshipEnrollment').mockResolvedValue('cancelled');
+  let finishRevoke = () => {};
+  const revoke = vi.spyOn(pairing, 'revokePairing').mockImplementation(
+    () =>
+      new Promise<'revoked'>((resolve) => {
+        finishRevoke = () => resolve('revoked');
+      }),
+  );
+  releases.push(source.subscribe(() => {}));
+  await vi.waitFor(() => expect(revoke).toHaveBeenCalledOnce());
+  const { relationshipEnrollment: _pending, ...replacement } = grant().host;
+  replacement.deviceId = 'replacement-b';
+  replacement.credential = 'replacement-b.synthetic';
+  let releaseWriter = () => {};
+  const gate = new Promise<void>((resolve) => {
+    releaseWriter = resolve;
+  });
+  const writer = withRemoteHostStorageLock({
+    storage,
+    name: 'credentials',
+    run: async () => {
+      await gate;
+      storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([replacement]));
+    },
+  });
+  finishRevoke();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  releaseWriter();
+  await writer;
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  expect(JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([replacement]);
+  expect(createRemoteHosts({ storage, carrier }).getSnapshot().hosts[0]?.host.deviceId).toBe(
+    'replacement-b',
+  );
+  expect(revoke).toHaveBeenCalledOnce();
+});

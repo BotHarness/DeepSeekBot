@@ -489,7 +489,15 @@ export function createRemoteHosts(options: {
           }
           if (state === 'cancelled') {
             await revokePairing({ host: entry.host, carrier });
-            await forget(entry.host.hostId);
+            if (clients.get(entry.host.hostId) !== entry) continue;
+            try {
+              await persistCredential(entry.host.hostId, entry.host, () => undefined);
+            } catch (error) {
+              if (!(error instanceof Error) || error.message !== 'connection-host-changed')
+                throw error;
+              continue;
+            }
+            if (clients.get(entry.host.hostId) === entry) retireEntry(entry);
           }
         }
         if (relationship?.state !== 'disconnected') continue;
