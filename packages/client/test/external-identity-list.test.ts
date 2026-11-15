@@ -3,6 +3,7 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
+import type { MessagingIdentityInput } from '../../core/src/messaging/identity.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
@@ -1024,7 +1025,7 @@ it('reconnects once, shows pending and errors, and accepts live reception update
   }
 });
 
-it.each(['disabled', 'removed', 'reconnected'] as const)(
+it.each(['disabled', 'removed', 'reconnected', 'remote-change'] as const)(
   'keeps conversation reconnect safe when the live identity is %s',
   async (state) => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -1041,6 +1042,7 @@ it.each(['disabled', 'removed', 'reconnected'] as const)(
       createdAt: '2026-11-15T00:00:00Z',
       availability: 'available',
       newConversations: 'auto',
+      newConversationsInheritance: 'custom',
       grantCount: 1,
       scopes: ['Group'],
       reception: 'unavailable',
@@ -1071,7 +1073,10 @@ it.each(['disabled', 'removed', 'reconnected'] as const)(
         },
       ],
     };
-    const mutate = vi.fn(async () => {});
+    const mutate = vi.fn(async (input: MessagingIdentityInput) => {
+      if (state === 'remote-change' && input.kind === 'update')
+        throw Object.assign(new Error('Revision changed'), { code: 'identity-stale' });
+    });
     const container = document.createElement('div');
     const root = createRoot(container);
     document.body.append(container);
@@ -1094,25 +1099,40 @@ it.each(['disabled', 'removed', 'reconnected'] as const)(
       await act(async () =>
         typeInto(fieldNamed(zhTranslate('identity.displayName')), 'Unsaved draft'),
       );
-      if (state !== 'reconnected') {
+      if (state !== 'reconnected' && state !== 'remote-change') {
         snapshot = {
           ...snapshot,
           identities: state === 'removed' ? [] : [{ ...identity, enabled: false, revision: 5 }],
         };
         await act(async () => render());
       }
+      if (state === 'remote-change') {
+        snapshot = {
+          ...snapshot,
+          identities: [{ ...identity, revision: 5, newConversations: 'ask' }],
+        };
+        await act(async () => render());
+      }
       await act(async () => buttonNamed(zhTranslate('reception.reconnectNow'), dialog()).click());
-      if (state === 'reconnected') {
+      if (state === 'reconnected' || state === 'remote-change') {
         expect(mutate).toHaveBeenCalledWith({
           kind: 'reconnect',
           id: identity.id,
-          expectedRevision: 4,
+          expectedRevision: state === 'remote-change' ? 5 : 4,
         });
         expect(fieldNamed(zhTranslate('identity.displayName')).value).toBe('Unsaved draft');
         await act(async () => buttonNamed(zhTranslate('identity.save'), dialog()).click());
         expect(mutate).toHaveBeenLastCalledWith(
-          expect.objectContaining({ kind: 'update', expectedRevision: 5, name: 'Unsaved draft' }),
+          expect.objectContaining({
+            kind: 'update',
+            expectedRevision: state === 'remote-change' ? 4 : 5,
+            name: 'Unsaved draft',
+          }),
         );
+        if (state === 'remote-change') {
+          expect(dialog().textContent).toContain(zhTranslate('identity.stale'));
+          expect(fieldNamed(zhTranslate('identity.displayName')).value).toBe('Unsaved draft');
+        }
       } else expect(mutate).not.toHaveBeenCalled();
     } finally {
       await act(async () => root.unmount());

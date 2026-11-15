@@ -802,7 +802,7 @@ export function ExternalIdentityList({
                       expectedRevision: current.revision,
                     });
                     setSelected((previous) =>
-                      previous?.id === current.id
+                      previous?.id === current.id && previous.revision === current.revision
                         ? { ...previous, revision: current.revision + 1 }
                         : previous,
                     );
