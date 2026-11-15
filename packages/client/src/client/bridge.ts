@@ -685,6 +685,9 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
     ...(typeof record['lastActivityAt'] === 'number' && Number.isFinite(record['lastActivityAt'])
       ? { lastActivityAt: record['lastActivityAt'] }
       : {}),
+    ...(typeof asRecord(record['sharedBy'])?.['displayName'] === 'string'
+      ? { sharedBy: asRecord(record['sharedBy'])?.['displayName'] as string }
+      : {}),
     aggregateState: typeof aggregateState === 'string' ? aggregateState : 'idle',
     workspaces: stringArray(record['workspaces']),
     createdAt: typeof createdAt === 'string' ? createdAt : '',
