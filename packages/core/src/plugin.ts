@@ -1639,7 +1639,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     events.on(event, forgetCredentialFailures);
   const modelCatalog = createModelCatalog(ctx.llm, {
     credentials: providerCredentials,
-    credentialFailure: createCredentialReadiness({
+    credentialReadiness: createCredentialReadiness({
       providers: () => ctx.llm.listConfigurableProviders(),
       settings: () =>
         (
