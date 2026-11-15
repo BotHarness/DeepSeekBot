@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { zstdDecompressSync } from 'node:zlib';
 import { resolve, dirname } from 'node:path';
 import { cookieFor } from './verify-app.mjs';
 
@@ -37,17 +38,61 @@ async function rpc(method, args = {}) {
 }
 
 let channelId;
+let sessionId;
+let persistedReplacement;
 let summaries = 0;
 let refusals = 0;
+let retriedWithReplacedContext = false;
+let requestOrder = 0;
+let summaryOrder;
+let retryOrder;
+function replacementCheckpoint() {
+  const root = resolve(instance.home, 'sessions');
+  for (const file of readdirSync(root, { recursive: true })) {
+    if (!file.endsWith('session.v4.jsonl.zstd')) continue;
+    const bytes = readFileSync(resolve(root, file));
+    let text = '';
+    // Session logs concatenate frames; Node decodes one frame per call.
+    for (let offset = 0; offset < bytes.length;) {
+      const frame = zstdDecompressSync(bytes.subarray(offset), { info: true });
+      assert(frame.engine.bytesWritten > 0);
+      offset += frame.engine.bytesWritten;
+      text += frame.buffer.toString('utf8');
+    }
+    const [header, ...events] = text.trim().split('\n').map(JSON.parse);
+    if (header.id !== sessionId) continue;
+    const summary = events.find((event) => event.type === 'compaction/summary');
+    const replacement = events.find((event) => event.surfaceOp?.op === 'replace');
+    assert(summary && replacement, 'summary and replacement must be persisted before retry');
+    return {
+      summarySeq: summary.seq,
+      replacementSeq: replacement.seq,
+      beforeRequest: requestOrder,
+    };
+  }
+  throw new Error('No persisted Session for retry');
+}
 const server = createServer(async (request, response) => {
   try {
     let raw = '';
     for await (const chunk of request) raw += chunk;
     const input = JSON.parse(raw);
+    requestOrder++;
     const messages = JSON.stringify(input.messages ?? []);
     const summary = messages.includes('acting as a compaction engine');
     const probe = messages.includes('[OVERFLOW_PROBE]');
-    if (summary) summaries++;
+    if (summary) {
+      summaries++;
+      summaryOrder = requestOrder;
+    }
+    if (probe && !summary && summaries > 0 && retryOrder === undefined) {
+      retryOrder = requestOrder;
+      retriedWithReplacedContext =
+        !messages.includes('[SEED]') &&
+        messages.includes('Earlier seed completed. Preserve the latest recovery request.');
+      assert(retriedWithReplacedContext, 'retry must use the summary instead of the old seed');
+      persistedReplacement = await replacementCheckpoint();
+    }
     if (probe && !summary && summaries === 0) {
       refusals++;
       response.writeHead(400, { 'content-type': 'application/json' });
@@ -155,8 +200,25 @@ try {
     (result) =>
       result.bots.some((item) => item.slug === bot.slug && item.aggregateState === 'idle'),
   );
+  for (let index = 0; index < 2; index++) {
+    await rpc('botharness/channelSend', {
+      channelId,
+      body: `[RECENT_${index}] Finish a newer task.`,
+    });
+    await until(
+      messages,
+      (value) =>
+        value.messages.filter((message) => message.body === 'SEED_OK').length === index + 2,
+    );
+    await until(
+      () => rpc('botharness/list'),
+      (value) =>
+        value.bots.some((item) => item.slug === bot.slug && item.aggregateState === 'idle'),
+    );
+  }
   const beforeContext = await rpc('botharness/botContext', { slug: bot.slug });
   assert(beforeContext.sessionId);
+  sessionId = beforeContext.sessionId;
   await rpc('botharness/channelSend', {
     channelId,
     body: '[OVERFLOW_PROBE] Reply after recovery.',
@@ -170,6 +232,11 @@ try {
   );
   assert.equal(summaries, expected === 'recovered' ? 1 : 0);
   assert(refusals > 0);
+  if (expected === 'recovered') {
+    assert(retriedWithReplacedContext);
+    assert(retryOrder > summaryOrder);
+    assert(persistedReplacement);
+  }
   const afterContext = await rpc('botharness/botContext', { slug: bot.slug });
   assert.equal(afterContext.sessionId, beforeContext.sessionId);
   const record = {
@@ -179,6 +246,10 @@ try {
     summaries,
     refusals,
     sameSession: true,
+    retriedWithReplacedContext,
+    summaryOrder: summaryOrder ?? null,
+    retryOrder: retryOrder ?? null,
+    persistedReplacement: persistedReplacement ?? null,
     reply: result.messages.find((message) => message.body === 'OVERFLOW_RECOVERED')?.body ?? null,
     failureCodes: result.messages.flatMap((message) =>
       message.sessionFailure ? [message.sessionFailure.code] : [],

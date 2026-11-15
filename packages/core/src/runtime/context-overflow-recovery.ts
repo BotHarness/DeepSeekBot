@@ -63,7 +63,18 @@ export function createContextOverflowRecovery(options: ContextOverflowRecoveryOp
       failed = true;
     }
     const progress = agent.session.surface.replaceGeneration > generation;
-    const retry = progress && !signal.aborted;
+    let persisted = false;
+    let flushFailed = false;
+    if (progress && !signal.aborted) {
+      try {
+        const sessions = agent.ctx.get('sessions');
+        if (sessions && 'flush' in sessions && typeof sessions.flush === 'function')
+          persisted = (await sessions.flush(agent.session)) === true;
+      } catch {
+        flushFailed = true;
+      }
+    }
+    const retry = progress && persisted && !signal.aborted;
     options.log({
       event: 'finished',
       ...event,
@@ -72,7 +83,11 @@ export function createContextOverflowRecovery(options: ContextOverflowRecoveryOp
       reason: signal.aborted
         ? 'cancelled'
         : progress
-          ? 'context-replaced'
+          ? flushFailed
+            ? 'persistence-failed'
+            : persisted
+              ? 'context-replaced'
+              : 'persistence-unavailable'
           : failed
             ? 'compaction-failed'
             : 'no-progress',

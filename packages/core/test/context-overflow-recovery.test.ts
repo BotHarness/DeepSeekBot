@@ -1,7 +1,7 @@
 import { Context } from '@deepseek-ai/cordis';
 import CompactionEngine from '@deepseek-ai/dsh-compaction';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
 import { expect, it, onTestFinished } from 'vitest';
 import {
   createContextOverflowRecovery,
@@ -31,7 +31,10 @@ function fixture(owned = true, available = true) {
   const ctx = new Context();
   onTestFinished(() => ctx.fiber.dispose());
   const engine = available ? new TestCompaction(ctx) : undefined;
-  const session = Session.create(SessionId('overflow-test'));
+  const sessions = new SessionStore(ctx);
+  const session = sessions.create(SessionId('overflow-test'));
+  let flush = async () => {};
+  const disposeFlush = ctx.on('session/flush', () => flush());
   const old = session.append(
     'user/message',
     createUserMessage({
@@ -82,8 +85,67 @@ function fixture(owned = true, available = true) {
     delegated++;
     return undefined;
   };
-  return { handle, request, next, engine, logs, progress, delegated: () => delegated };
+  return {
+    handle,
+    request,
+    next,
+    engine,
+    logs,
+    progress,
+    delegated: () => delegated,
+    disposeFlush,
+    setFlush: (action: () => Promise<void>) => {
+      flush = action;
+    },
+  };
 }
+
+it('waits for the persistence checkpoint before returning a retry', async () => {
+  const f = fixture();
+  let release = () => {};
+  const checkpoint = new Promise<void>((done) => {
+    release = done;
+  });
+  let reached = () => {};
+  const entered = new Promise<void>((done) => {
+    reached = done;
+  });
+  f.setFlush(async () => {
+    reached();
+    await checkpoint;
+  });
+  let settled = false;
+  const recovery = f.handle(f.request, f.next).finally(() => {
+    settled = true;
+  });
+  await Promise.race([entered, recovery]);
+  expect(settled).toBe(false);
+  release();
+  expect(await recovery).toEqual({ kind: 'retry' });
+});
+
+it('refuses retry after replacement when persistence fails or has no owner', async () => {
+  for (const failed of [true, false]) {
+    const f = fixture();
+    if (failed)
+      f.setFlush(async () => {
+        throw new Error('private disk failure');
+      });
+    else f.disposeFlush();
+    expect(await f.handle(f.request, f.next)).toBeUndefined();
+    expect(f.request.agent.session.surface.replaceGeneration).toBe(1);
+    expect(JSON.stringify(f.logs)).not.toContain('private disk failure');
+  }
+});
+
+it('does not retry when cancellation arrives during the persistence checkpoint', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  f.setFlush(async () => {
+    controller.abort();
+  });
+  expect(await f.handle({ ...f.request, signal: controller.signal }, f.next)).toBeUndefined();
+});
 
 it('recovers a missed token-limit error only after native context progress', async () => {
   const f = fixture();
