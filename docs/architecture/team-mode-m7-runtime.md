@@ -165,8 +165,10 @@ native qualification or end-to-end performance claims.
 
 ## Integration additions
 
-`botVisibility` also returns `audienceDirectory: {roles:[{roleId,name}],members:[{humanId,displayName}]}`
+`botVisibility` also returns `audienceDirectory: {roles:[{roleId,name,builtin}],members:[{humanId,displayName}]}`
 for its authorized managers. This supplies audience choices without granting role/member management.
+`builtin` is `'admin'`, `'member'` or `null`, matching `spaceAudienceDirectory` so clients can localize
+built-in role names; custom roles retain their stored name.
 Human DM projections add `readOnly` and the calling participant's `proactiveOptOut`. Group projections
 retain all present Bot IDs and add `memberBots:[{slug,displayName,avatar?}]`; a private Bot being present
 does not expose its profile. Joined discovery/search retains its joined scope, while an explicitly

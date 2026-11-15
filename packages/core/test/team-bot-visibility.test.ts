@@ -76,7 +76,16 @@ function post(id: string, author: 'human' | 'bot' = 'human', slug = 'alice-bot')
 describe('M7 Bot principal and participant authority', () => {
   it('defaults private, requires createPublic for widening and returns metadata-only reachability', async () => {
     const f = fixture();
-    expect(f.team.bots.view(alice, 'alice-bot').visibility).toEqual({ kind: 'private' });
+    const customRole = f.team.roles.create(owner, 'Audience role', []).role;
+    const visibility = f.team.bots.view(alice, 'alice-bot');
+    expect(visibility.visibility).toEqual({ kind: 'private' });
+    expect(visibility.audienceDirectory.roles).toEqual(
+      expect.arrayContaining([
+        { roleId: 'admin', name: 'admin', builtin: 'admin' },
+        { roleId: 'member', name: 'member', builtin: 'member' },
+        { roleId: customRole.roleId, name: 'Audience role', builtin: null },
+      ]),
+    );
     expect(
       await createTeamBridge(alice, f.team).botVisibilitySet({
         slug: 'alice-bot',

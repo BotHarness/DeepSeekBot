@@ -167,8 +167,18 @@ export class TeamBots {
     this.requireManage(human, bot);
     const audienceDirectory = this.db.read((db) => ({
       roles: z
-        .array(z.object({ roleId: z.string(), name: z.string() }))
-        .parse(db.prepare('SELECT role_id AS roleId,name FROM host_roles ORDER BY role_id').all()),
+        .array(
+          z.object({
+            roleId: z.string(),
+            name: z.string(),
+            builtin: z.enum(['admin', 'member']).nullable(),
+          }),
+        )
+        .parse(
+          db
+            .prepare('SELECT role_id AS roleId,name,builtin FROM host_roles ORDER BY role_id')
+            .all(),
+        ),
       members: z
         .array(z.object({ humanId: z.string(), displayName: z.string() }))
         .parse(
