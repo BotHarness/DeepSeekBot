@@ -794,13 +794,16 @@ export function ChannelMessageBody({
     skill: NonNullable<ChannelMessage['skillInvocations']>[number],
     key: number,
   ) => {
+    const ownerBot =
+      skill.owner.kind === 'bot'
+        ? [...bots, ...store.getSnapshot().bots].find(
+            (bot) => skill.owner.kind === 'bot' && bot.slug === skill.owner.botSlug,
+          )
+        : undefined;
     const owner =
       skill.owner.kind === 'host'
         ? t('composer.skillHost')
-        : (store
-            .getSnapshot()
-            .bots.find((bot) => skill.owner.kind === 'bot' && bot.slug === skill.owner.botSlug)
-            ?.displayName ?? skill.owner.botSlug);
+        : (ownerBot?.displayName ?? skill.owner.botSlug);
     const preview =
       skill.content.length > 1500 ? `${skill.content.slice(0, 1500)}…` : skill.content;
     return (
@@ -810,6 +813,20 @@ export function ChannelMessageBody({
         data-skill-owner={skill.owner.kind === 'host' ? 'host' : `bot:${skill.owner.botSlug}`}
         title={`/${skill.name} · ${owner}\n\n${preview}`}
       >
+        {skill.owner.kind === 'bot' && host === undefined ? (
+          <span className="bh-inline-mention-avatar" aria-hidden="true">
+            <PersonaBotAvatar
+              personaBotId={skill.owner.botSlug}
+              name={owner}
+              src={ownerBot?.avatar}
+              appearance={ownerBot?.appearance}
+              avatarSeed={ownerBot?.avatarSeed}
+              size={16}
+              indicator={false}
+              t={t}
+            />
+          </span>
+        ) : null}
         <span>/{skill.name}</span>
       </span>
     );
