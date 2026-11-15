@@ -1,3 +1,4 @@
+import { audienceContains, type BotVisibility } from './bot-contract.js';
 import { TeamBots } from './bots.js';
 import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
@@ -200,6 +201,7 @@ export class TeamService {
     if (!spaces) throw new TeamError('unavailable');
     return spaces;
   }
+  private readonly replaceBotMemory: (<T>(slug: string, action: () => T) => Promise<T>) | undefined;
   private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
   private readonly settleBotPreparations: ((humanId: string) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
@@ -217,6 +219,7 @@ export class TeamService {
     options: {
       purge?: ContentPurge;
       spaces?: () => WorkspaceSpaces;
+      replaceBotMemory?: <T>(slug: string, action: () => T) => Promise<T>;
       stopBots?: (slugs: readonly string[]) => Promise<void>;
       settleBotPreparations?: (humanId: string) => Promise<void>;
       now?: () => number;
@@ -226,6 +229,7 @@ export class TeamService {
   ) {
     this.purge = options.purge;
     this.spaceProvider = options.spaces;
+    this.replaceBotMemory = options.replaceBotMemory;
     this.stopBots = options.stopBots;
     this.settleBotPreparations = options.settleBotPreparations;
     this.ensureTob = options.ensureTob;
@@ -240,6 +244,7 @@ export class TeamService {
       this.channelAccess,
       (revoke) => this.accessChanged(revoke),
       (human, bot) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet'),
+      this.spaceProvider,
     );
 
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
@@ -986,6 +991,24 @@ export class TeamService {
           }
         : {}),
     };
+  }
+
+  async setBotVisibility(
+    human: HumanContext,
+    slug: string,
+    visibility: BotVisibility,
+    confirm?: boolean,
+  ) {
+    const preview = this.bots.setVisibility(human, slug, visibility, false);
+    if (preview.applied || confirm === false) return preview;
+    const current = this.bots.view(human, slug).visibility;
+    const shrinking = !audienceContains(visibility, current);
+    if (shrinking && !confirm) return preview;
+    const action = () => this.bots.setVisibility(human, slug, visibility, true);
+    const memory = preview.preview.memory;
+    return this.replaceBotMemory && memory && memory.from !== memory.to
+      ? this.replaceBotMemory(slug, action)
+      : action();
   }
 
   async transfer(human: HumanContext, humanId: string, toHumanId: string): Promise<null> {

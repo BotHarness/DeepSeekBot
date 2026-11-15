@@ -49,27 +49,54 @@ existing current-Owner Bots only, absent principal group membership is materiali
 Owner-Bot group reach survives under the new intersection. An explicit historical removal is
 never restored. Existing DM content, IDs, Memory paths, roles and permissions are unchanged.
 
-M6 remains the Memory/path authority. This slice does not move repositories or add a parallel
-Memory store. Public Bots need M6 integration to place their shared Memory in an audience-matched
-shared space under `bots/`, separate from grantable `files/`; account-only Memory is not a shared
-space. The UI must disclose that one public Bot Memory spans its conversations before publication.
-M6 Grant/path enforcement must continue to evaluate current Bot audience when adding that placement
-integration. Shell confinement remains M12, independent of these application checks.
+M6 remains the Memory/path authority. Public Bots use a dedicated, hidden M6 shared space:
+`shared/.bot-<slug>/bots/<slug>/memory`. Its audience equals the Bot's current public audience.
+The ID is deterministic per Bot; visible folders with identical audiences are never reused.
+Audience changes retarget that same space atomically with Bot visibility, preserving the repository
+and its history without another filesystem move. Returning to private moves the repository to
+`spaces/<current-principal>/bots/<slug>/memory`, including after an M9 principal transfer.
+
+The existing M6 `workspace_file_transfers` journal and copy/proof/rollback/retirement functions
+own relocation. Preparation journals before moving bytes. A failed metadata transaction restores
+the original repository; startup rolls back unfinished preparation and resumes committed retirement
+before Bot admission. Only the committed `memoryDir` and ownership proof designate live Memory;
+unfinished source copies remain protected by M6's backup-path guard. Already-public round-one Bots
+are reconciled into this layout at startup. No new schema migration or second Memory store is added.
+
+The bridge uses the existing Orchestrator replacement seam before a path-changing operation.
+A running Bot returns `bot-busy` with `details.slug`; no bytes move. Hidden spaces have no `files/`,
+are omitted from folder/Workspace lists even for managers, cannot be independently updated/deleted,
+and cannot be granted at any descendant or ancestor. Another Bot cannot read this Memory through
+native file tools even when its principal belongs to the public audience. Public Memory cannot be
+moved out through the ordinary Memory-location setting. Purge removes accepted Memory and releases
+its hidden space; retained deleted Memory keeps its protection. Shell confinement remains M12.
+
+Every actual Host visibility preview/result now includes
+`preview.memory: {from,to}` using relative path labels, never absolute Host paths. An external
+custom source is labelled `custom/<slug>/memory`. Explicit `confirm:false` previews publication
+without applying it; CLI `bots visibility-set ... --preview` sends that value. Omitted confirmation
+keeps publication/widening behavior; shrinking still needs `confirm:true`. The UI can disclose that
+one public Bot Memory spans all its conversations before applying publication.
+
+This is cold settings/startup work. Same-filesystem moves rename the proven repository; cross-device
+moves reuse M6's verified copy and retirement, proportional to repository size. An already-correct
+startup placement is one metadata read with no repository or metadata writes (regression guarded).
+No worker, timer or dependency is added. Existing M6 path/query-count guards remain applicable.
 
 ## Bridge and CLI
 
 All payloads resolve the caller from invocation, including `--as`; none accepts an actor override.
 Errors use `{ ok:false, error:{ code, message:code, details? } }` at the bridge boundary.
 
-| Method               | Payload                                                       | Success                                                                                                   |
-| -------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `botVisibility`      | `{slug}`                                                      | `{visibility,switches,audienceDirectory}`; principal or `bots.manageAll`                                  |
-| `botVisibilitySet`   | `{slug,visibility,confirm?}`                                  | `{applied,visibility?,preview:{dmsBecomingReadOnly:[{channelId,humanId}],channelsLeaving:[{channelId}]}}` |
-| `botSwitches`        | `{slug,proactiveDms?,joinPrincipalChannels?,speakerContext?}` | `{switches}`; principal only; no changes reads switches                                                   |
-| `reachableBots`      | `{}`                                                          | `[{slug,displayName,avatar?,visibility,principalDisplayName}]`; metadata only                             |
-| `botProactiveOptOut` | `{slug,optOut}`                                               | `null`; calling Human's own preference                                                                    |
-| `roleConflicts`      | `{humanId}` or CLI `{username}`                               | `[{topic,allowRole:{roleId,name},denyRole:{roleId,name}}]`                                                |
-| `speakerPolicy`      | `{humanId?,topic?}`                                           | `{humanId,displayName,roles,resolved}`; own policy or member/role manager                                 |
+| Method               | Payload                                                       | Success                                                                                                                    |
+| -------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `botVisibility`      | `{slug}`                                                      | `{visibility,switches,audienceDirectory}`; principal or `bots.manageAll`                                                   |
+| `botVisibilitySet`   | `{slug,visibility,confirm?}`                                  | `{applied,visibility?,preview:{dmsBecomingReadOnly:[{channelId,humanId}],channelsLeaving:[{channelId}],memory:{from,to}}}` |
+| `botSwitches`        | `{slug,proactiveDms?,joinPrincipalChannels?,speakerContext?}` | `{switches}`; principal only; no changes reads switches                                                                    |
+| `reachableBots`      | `{}`                                                          | `[{slug,displayName,avatar?,visibility,principalDisplayName}]`; metadata only                                              |
+| `botProactiveOptOut` | `{slug,optOut}`                                               | `null`; calling Human's own preference                                                                                     |
+| `roleConflicts`      | `{humanId}` or CLI `{username}`                               | `[{topic,allowRole:{roleId,name},denyRole:{roleId,name}}]`                                                                 |
+| `speakerPolicy`      | `{humanId?,topic?}`                                           | `{humanId,displayName,roles,resolved}`; own policy or member/role manager                                                  |
 
 Visibility is `{kind:'private'}` or `{kind:'public',audience}`. Audience is M6's
 `{kind:'everyone'}`, `{kind:'roles',roleIds}` or `{kind:'members',humanIds}`. Publishing or widening
@@ -91,7 +118,7 @@ CLI forms, all online and supporting `--as`:
 
 ```text
 bots visibility <slug>
-bots visibility-set <slug> --private | --public everyone|roles:<ids>|members:<ids> [--confirm]
+bots visibility-set <slug> --private | --public everyone|roles:<ids>|members:<ids> [--confirm | --preview]
 bots switches <slug> [--proactive-dms on|off] [--join-channels on|off] [--speaker-context on|off]
 bots reachable
 bots proactive-opt-out <slug> on|off
@@ -189,5 +216,5 @@ member purge removes that participant's DM independently of either Bot's later o
 7. Principal status/access-loss feedback and current-audience refusal handling through coded errors and `details`.
 8. Public-Bot inspector privacy handling for `bot-session-private`; route authorized Humans through M11's existing audited DM view.
 9. External IM binding controls requiring principal identity and `im.bind`; all-Bots management alone is insufficient.
-10. M6 shared-Memory placement and cross-conversation disclosure for public Bots, with separate audience-matched `bots/` and grantable `files/` paths.
+10. Publication/retarget disclosure using `preview.memory`; backing M6 shared-Memory placement is implemented in core and remains separate from grantable folders.
 11. Bilingual CLI guidance and release fragments, plus Web/mobile rendering and Human acceptance for these controls. This logic task intentionally leaves public copy to the UI owner.

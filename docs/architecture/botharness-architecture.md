@@ -1701,4 +1701,6 @@ The application-defined Bot visibility/principal checks and append-only speaker 
 specified in [M7 runtime boundaries](team-mode-m7-runtime.md). Group Channels intersect current
 principal access with Bot restrictions. A Bot's own Human–Bot and established private-to-public
 Bot DMs explicitly use participant authority; this does not give the principal private DM
-content or delegate M11 audited viewing to Bots. M6 remains the shared Memory placement authority.
+content or delegate M11 audited viewing to Bots. M6 remains the shared Memory placement authority: public Bots use audience-matched, hidden
+`shared/.bot-<slug>/bots/<slug>/memory` repositories, with journaled relocation on publication or
+return to private and atomic audience retargeting. These spaces are never grantable folders.

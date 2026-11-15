@@ -66,3 +66,11 @@ and assignment conflicts identify both roles. Speaker context is append-only mes
 revisioned policy attachments on first role appearance or change and a current-policy Bot tool;
 per-speaker changes never rewrite the cached system prompt. The implementation contract and M6
 shared Memory integration boundary are in [M7 runtime notes](../architecture/team-mode-m7-runtime.md).
+
+M7 public Memory placement uses one dedicated hidden M6 shared space per public Bot, deterministically
+`shared/.bot-<slug>`, with exactly that Bot's current audience. Existing visible folders are not reused.
+This keeps `bots/<slug>/memory` outside grantable `files/` and avoids changing any Human folder's
+meaning. Audience changes retarget the space; private visibility moves Memory to the current
+principal's account. Relocation reuses M6's durable journal, ownership proofs, rollback before commit
+and resumable source retirement. The hidden space is omitted from folder/Workspace APIs and is not
+an independently managed folder. This implements the spec's shared-Memory requirement in M7.

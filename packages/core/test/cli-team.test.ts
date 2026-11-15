@@ -973,6 +973,15 @@ describe('M7 CLI parity', () => {
   );
   const cases = [
     {
+      args: ['bots', 'visibility-set', 'helper', '--public', 'everyone', '--preview'],
+      method: 'botVisibilitySet',
+      payload: {
+        slug: 'helper',
+        visibility: { kind: 'public', audience: { kind: 'everyone' } },
+        confirm: false,
+      },
+    },
+    {
       args: ['bots', 'visibility', 'helper'],
       method: 'botVisibility',
       payload: { slug: 'helper' },

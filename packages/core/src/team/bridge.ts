@@ -53,7 +53,7 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           })
           .strict()
           .parse(payload);
-        return service.bots.setVisibility(human, p.slug, p.visibility, p.confirm);
+        return service.setBotVisibility(human, p.slug, p.visibility, p.confirm);
       }),
     botSwitches: (payload: unknown) =>
       call((service) => {

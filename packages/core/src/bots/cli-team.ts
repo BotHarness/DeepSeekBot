@@ -226,7 +226,7 @@ export async function runTeamCommand(
       return rpc('botVisibilitySet', {
         slug: argument,
         visibility: visibility.data,
-        ...(values.confirm ? { confirm: true } : {}),
+        ...(values.preview ? { confirm: false } : values.confirm ? { confirm: true } : {}),
       });
     }
     if (action === 'switches' && rest.length === 2) {

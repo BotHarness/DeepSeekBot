@@ -52,3 +52,12 @@ All commands use the existing online CLI path; `--as` goes only through the exis
 ## Performance guard
 
 No dependency, worker or timer is added. Ordinary path checks read Bot/space metadata and current role assignments in a fixed number of queries. Metadata work scales with retained Bots and spaces; hard-link inode scans occur only for multiply linked files. Directory searches reuse one synchronous permission snapshot across their preflight tree rather than querying for each file. Tests hold listing and path-check query counts constant while adding 1,000 Humans and additional role-scoped spaces. Transfer/purge filesystem manifests are explicit cold-path work. These are structural guards, not an end-to-end latency or OS-isolation claim.
+
+## M7 public Bot Memory integration
+
+Public Bot publication now uses M6's existing move journal and verified copy/rollback/retirement
+protocol. A dedicated hidden `shared/.bot-<slug>` space contains only `bots/<slug>/memory`, has the
+Bot's exact audience, and is never listed or grantable as a folder. Audience changes retarget this
+space; principal transfer leaves public Memory there, and returning to private moves it into the
+current principal's account space. Startup recovers the existing journal before reconciling older
+public Bots. See [M7 runtime notes](team-mode-m7-runtime.md) for preview and lifecycle details.

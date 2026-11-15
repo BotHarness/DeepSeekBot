@@ -1,3 +1,4 @@
+import type { WorkspaceSpaces } from '../workspaces/spaces.js';
 import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -46,6 +47,7 @@ export class TeamBots {
       human: HumanContext,
       bot: { slug: string; displayName: string; ownerHumanId: string },
     ) => void = () => {},
+    private readonly memorySpaces?: () => WorkspaceSpaces,
   ) {
     try {
       this.available = !!this.db.read((db) =>
@@ -206,7 +208,7 @@ export class TeamBots {
       principalDisplayName: bot.principalDisplayName,
     }));
   }
-  setVisibility(human: HumanContext, slug: string, visibility: BotVisibility, confirm = false) {
+  setVisibility(human: HumanContext, slug: string, visibility: BotVisibility, confirm?: boolean) {
     const bot = this.bot(slug);
     this.requireManage(human, bot);
     if (!audienceContains(bot.visibility, visibility))
@@ -246,34 +248,50 @@ export class TeamBots {
           c.type === 'group' && c.members.includes(slug) && !this.groupEligible(bot, c, visibility),
       )
       .map((c) => ({ channelId: c.id }));
-    const preview = { dmsBecomingReadOnly, channelsLeaving };
+    const placement = this.memorySpaces?.().botMemory;
+    const memory = placement?.plan(slug, bot.owner, visibility);
+    const preview = {
+      dmsBecomingReadOnly,
+      channelsLeaving,
+      ...(memory ? { memory: memory.preview } : {}),
+    };
     if (
       JSON.stringify(bot.visibility) === JSON.stringify(visibility) &&
-      channelsLeaving.length === 0
+      channelsLeaving.length === 0 &&
+      (!memory || memory.source === memory.target)
     )
       return { applied: true, visibility, preview };
-    if (shrinking && !confirm) return { applied: false, preview };
+    if (confirm === false || (shrinking && !confirm)) return { applied: false, preview };
     if (human.humanId !== bot.owner)
       this.recordVisibilityChange(human, {
         slug: bot.slug,
         displayName: bot.body.displayName,
         ownerHumanId: bot.owner,
       });
-    this.db.transaction(
-      (db) => {
-        db.prepare('UPDATE persona_bots SET visibility_json=? WHERE slug=?').run(
-          JSON.stringify(visibility),
-          slug,
-        );
-        if (visibility.kind === 'public')
-          db.prepare(`UPDATE channel_records SET record_json=json_set(record_json,'$.dmHumanId',?)
-        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=? AND json_extract(record_json,'$.dmHumanId') IS NULL`).run(
-            bot.owner,
+    const move = memory ? placement?.prepare(memory) : undefined;
+    try {
+      this.db.transaction(
+        (db) => {
+          move?.commit(db);
+          db.prepare('UPDATE persona_bots SET visibility_json=? WHERE slug=?').run(
+            JSON.stringify(visibility),
             slug,
           );
-      },
-      ['team', 'bots', 'channels'],
-    );
+          if (visibility.kind === 'public')
+            db.prepare(`UPDATE channel_records SET record_json=json_set(record_json,'$.dmHumanId',?)
+        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=? AND json_extract(record_json,'$.dmHumanId') IS NULL`).run(
+              bot.owner,
+              slug,
+            );
+        },
+        ['team', 'bots', 'channels', 'bot-registry', 'workspace-spaces'],
+      );
+    } catch (error) {
+      if (!(error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted'))
+        move?.rollback();
+      throw error;
+    }
+    move?.finish();
     for (const c of channelsLeaving) this.channels.removeGroupMember(c.channelId, slug);
     this.changed(true);
     return { applied: true, visibility, preview };
