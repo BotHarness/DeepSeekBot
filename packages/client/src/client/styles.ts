@@ -2793,6 +2793,12 @@ canvas.bh-banner-art { image-rendering: pixelated; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.bh-profile-shared-by {
+  margin: 0;
+  color: ${color.muted};
+  font-size: ${text.metaSize};
+  line-height: ${text.metaLine};
+}
 .bh-profile-action {
   padding: ${space.x2} ${space.x4};
   border: ${border.hairline} solid ${color.border};

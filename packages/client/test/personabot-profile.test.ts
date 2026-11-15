@@ -690,6 +690,68 @@ describe('Profile activity windows', () => {
   });
 });
 
+describe('Shared Bot profile', () => {
+  it("shows a Bot shared with you view-only, with who shared it and none of the owner's tools", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const cards = createProfileCardRegistry();
+    for (const card of createProfileCardBuiltins(zhTranslate)) cards.register(card);
+    const bot = {
+      slug: 'helper',
+      displayName: 'Helper',
+      roles: [],
+      aggregateState: 'idle' as const,
+      createdAt: '2026-09-30T00:00:00Z',
+      workspaces: [],
+    };
+    const viewProps = {
+      bot,
+      cards,
+      channel: {
+        name: 'Helper',
+        id: 'dm-helper-alice',
+        type: 'dm' as const,
+        botSlug: 'helper',
+        members: ['helper'],
+        createdAt: '',
+        updatedAt: '',
+      },
+      actions: {
+        profileUsage: vi.fn(async () => undefined),
+        profileActivity: vi.fn(async () => undefined),
+      } as unknown as BridgeActions,
+      t: zhTranslate,
+      onClose: vi.fn(),
+    };
+    try {
+      await act(async () => root.render(createElement(ProfileView, viewProps)));
+      expect(container.querySelector('[data-avatar-editable]')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-banner-edit')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-header-actions')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-shared-by')).toBeNull();
+
+      await act(async () =>
+        root.render(createElement(ProfileView, { ...viewProps, bot: { ...bot, sharedBy: 'Bob' } })),
+      );
+      expect(container.querySelector('.bh-profile-shared-by')?.textContent).toBe(
+        zhTranslate('team.bots.sharedBy', { name: 'Bob' }),
+      );
+      expect(container.querySelector('[data-avatar-editable]')).toBeNull();
+      expect(
+        container.querySelector<HTMLButtonElement>('.bh-profile-avatar-button')?.disabled,
+      ).toBe(true);
+      expect(container.querySelector('.bh-profile-banner-edit')).toBeNull();
+      expect(container.querySelector('.bh-profile-header-actions')).toBeNull();
+      expect(container.querySelector('.bh-profile-card')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+});
+
 describe('Token chart', () => {
   it('computes cached read and output shares', async () => {
     const { tokenShares, formatTokenCount } =
