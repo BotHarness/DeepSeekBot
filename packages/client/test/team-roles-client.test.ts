@@ -80,10 +80,21 @@ describe('Team roles bridge', () => {
     expect(
       policyConflicts([
         { name: 'Finance', policy: [{ topic: 'Salaries', text: 'ok', effect: 'allow' }] },
-        { name: 'Intern', policy: [{ topic: ' salaries ', text: 'no', effect: 'deny' }] },
+        { name: 'Intern', policy: [{ topic: ' Salaries ', text: 'no', effect: 'deny' }] },
         { name: 'Ops', policy: [{ topic: 'Rota', text: 'no', effect: 'deny' }] },
+        { name: 'Audit', policy: [{ topic: 'salaries', text: 'no', effect: 'deny' }] },
+        {
+          name: 'Mixed',
+          policy: [
+            { topic: 'Bonus', text: 'ok', effect: 'allow' },
+            { topic: 'Bonus', text: 'no', effect: 'deny' },
+          ],
+        },
       ]),
-    ).toEqual([{ topic: 'Salaries', allowRole: 'Finance', denyRole: 'Intern' }]);
+    ).toEqual([
+      { topic: 'Salaries', allowRole: 'Finance', denyRole: 'Intern' },
+      { topic: 'Bonus', allowRole: 'Mixed', denyRole: 'Mixed' },
+    ]);
   });
 
   it('sends the agreed payloads', async () => {

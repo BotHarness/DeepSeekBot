@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Checkbox, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -74,6 +74,11 @@ export function BotAccessEntry({
   const [access, setAccess] = useState<BotAccess | 'denied' | 'failed'>();
   const [editing, setEditing] = useState(false);
   const [switchError, setSwitchError] = useState<string>();
+  const switchRequest = useRef(0);
+  const updateReady = (patch: Partial<BotAccess>): void =>
+    setAccess((current) =>
+      current === undefined || typeof current === 'string' ? current : { ...current, ...patch },
+    );
   const mount = useMountedResource<HTMLDivElement>(() => {
     if (!enabled) return;
     const controller = new AbortController();
@@ -120,9 +125,15 @@ export function BotAccessEntry({
                   checked={ready.switches[key]}
                   onChange={(checked) => {
                     setSwitchError(undefined);
+                    const request = ++switchRequest.current;
                     void setBotSwitches(call, botSlug, { [key]: checked }).then(
-                      (switches) => setAccess({ ...ready, switches }),
-                      (failure: unknown) => setSwitchError(teamErrorText(t, failure)),
+                      (switches) => {
+                        if (request === switchRequest.current) updateReady({ switches });
+                      },
+                      (failure: unknown) => {
+                        if (request === switchRequest.current)
+                          setSwitchError(teamErrorText(t, failure));
+                      },
                     );
                   }}
                 />
@@ -141,7 +152,7 @@ export function BotAccessEntry({
           onClose={() => setEditing(false)}
           onApplied={(visibility) => {
             setEditing(false);
-            setAccess({ ...ready, visibility });
+            updateReady({ visibility });
           }}
         />
       ) : null}

@@ -3228,6 +3228,7 @@ export function BotSidebar({
           onClose={() => setCreateRequest(undefined)}
           onOpen={(bot) => {
             setCreateRequest(undefined);
+            openLocalConversation();
             void actions.refreshRoster().then(() => actions.openBot(bot.slug));
           }}
         />
@@ -3241,6 +3242,7 @@ export function BotSidebar({
           }}
           onJoined={(channelId) => {
             setCreateRequest(undefined);
+            openLocalConversation();
             void actions.refreshRoster().then(() => actions.openChannel(channelId));
           }}
         />

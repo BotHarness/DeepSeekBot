@@ -270,17 +270,13 @@ export function policyConflicts(
   const byTopic = new Map<string, { topic: string; allow: string[]; deny: string[] }>();
   for (const role of roles)
     for (const item of role.policy) {
-      const key = item.topic.trim().toLowerCase();
-      const entry = byTopic.get(key) ?? { topic: item.topic.trim(), allow: [], deny: [] };
+      const key = item.topic.trim();
+      const entry = byTopic.get(key) ?? { topic: key, allow: [], deny: [] };
       const side = item.effect === 'allow' ? entry.allow : entry.deny;
       if (!side.includes(role.name)) side.push(role.name);
       byTopic.set(key, entry);
     }
   return [...byTopic.values()].flatMap(({ topic, allow, deny }) =>
-    allow.flatMap((allowRole) =>
-      deny
-        .filter((denyRole) => denyRole !== allowRole)
-        .map((denyRole) => ({ topic, allowRole, denyRole })),
-    ),
+    allow.flatMap((allowRole) => deny.map((denyRole) => ({ topic, allowRole, denyRole }))),
   );
 }
