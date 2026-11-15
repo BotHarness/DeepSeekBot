@@ -2102,3 +2102,5 @@ deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
 deepseekbot models allowed [--as <username>]
 ```
+
+Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
