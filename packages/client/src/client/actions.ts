@@ -1972,7 +1972,17 @@ export function createActions(
       await actions.load();
       await openChannelById(channelId);
     },
-    onboarding: (slug, action) => invoke('onboarding', { slug, action }),
+    onboarding: (slug, action) =>
+      invoke('onboarding', {
+        slug:
+          slug !== undefined &&
+          clientStore
+            .getSnapshot()
+            .bots.some((bot) => bot.slug === slug && bot.sharedBy !== undefined)
+            ? undefined
+            : slug,
+        action,
+      }),
     onboardingModel: async (slug, expectedRevision, route, globalDefault) => {
       const result = await invoke<{ revision: number }>('onboardingModel', {
         slug,

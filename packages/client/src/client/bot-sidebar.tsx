@@ -1,3 +1,4 @@
+import { MessageBotDialog } from './message-bot-dialog.js';
 import { BotCreateSourceModal } from './bot-create-source.js';
 import { MEMBER_MENU_ITEMS, menuItemAllowed } from './team-menu.js';
 import { PublicChannelsDialog } from './public-channels-dialog.js';
@@ -1057,7 +1058,8 @@ type CreateRequest =
   | { kind: 'channel'; sectionId?: string }
   | { kind: 'marketplace' }
   | { kind: 'public-channels' }
-  | { kind: 'message-person' };
+  | { kind: 'message-person' }
+  | { kind: 'message-bot' };
 
 type FlatBlockView =
   | { kind: 'section'; section: RosterSection; channels: ChannelSummary[] }
@@ -1610,6 +1612,7 @@ export function BotSidebar({
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
     if (id === 'public-channels') setCreateRequest({ kind: 'public-channels' });
     if (id === 'message-person') setCreateRequest({ kind: 'message-person' });
+    if (id === 'message-bot') setCreateRequest({ kind: 'message-bot' });
   };
 
   const selectSortMenu = (id: string): void => {
@@ -2437,6 +2440,11 @@ export function BotSidebar({
         </div>
       </div>
     );
+  const memberFirstRun =
+    state.status === 'ready' &&
+    teamMode?.enabled === true &&
+    teamMode.viewer.kind === 'member' &&
+    state.channels.length === 0;
   return (
     <div
       ref={rosterMount}
@@ -2496,10 +2504,7 @@ export function BotSidebar({
         <div className="bh-error">{t('roster.error', { error: state.error })}</div>
       ) : null}
       {state.roster.readOnly ? <div className="bh-note">{t('roster.readOnly')}</div> : null}
-      {state.status === 'ready' &&
-      teamMode?.enabled === true &&
-      teamMode.viewer.kind === 'member' &&
-      state.channels.length === 0 ? (
+      {memberFirstRun && teamMode !== undefined ? (
         <PanelEmptyState icon="hash">
           {t('team.firstRun.empty')}
           <span className="bh-empty-actions">
@@ -2519,6 +2524,13 @@ export function BotSidebar({
                 {t('team.dm.menu')}
               </Button>
             ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateRequest({ kind: 'message-bot' })}
+            >
+              {t('team.bots.menu')}
+            </Button>
           </span>
         </PanelEmptyState>
       ) : null}
@@ -2541,7 +2553,9 @@ export function BotSidebar({
           {t('roster.empty')}
         </PanelEmptyState>
       ) : null}
-      {visibleCount === 0 && (state.bots.length > 0 || state.channels.length > 0) ? (
+      {!memberFirstRun &&
+      visibleCount === 0 &&
+      (state.bots.length > 0 || state.channels.length > 0) ? (
         <PanelEmptyState icon="hash">
           {query.length === 0 && hiddenItems.length > 0 ? t('hidden.all') : t('roster.noMatch')}
         </PanelEmptyState>
@@ -3204,6 +3218,17 @@ export function BotSidebar({
               setBatchError('failed');
             }
             return true;
+          }}
+        />
+      ) : null}
+      {createRequest?.kind === 'message-bot' && actions.teamCall !== undefined ? (
+        <MessageBotDialog
+          call={actions.teamCall}
+          t={t}
+          onClose={() => setCreateRequest(undefined)}
+          onOpen={(bot) => {
+            setCreateRequest(undefined);
+            void actions.refreshRoster().then(() => actions.openBot(bot.slug));
           }}
         />
       ) : null}
@@ -4179,6 +4204,15 @@ function menuItems(
             id: 'message-person',
             label: t('team.dm.menu'),
             icon: <ChannelSidebarIcon name="user" size={16} />,
+          },
+        ]
+      : []),
+    ...(team
+      ? [
+          {
+            id: 'message-bot',
+            label: t('team.bots.menu'),
+            icon: <ChannelSidebarIcon name="bot" size={16} />,
           },
         ]
       : []),

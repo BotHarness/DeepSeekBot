@@ -2040,7 +2040,10 @@ function ConversationView({
   );
   const dmComposerContext = useDmComposerContext({
     scopeKey,
-    bot: channel?.type === 'dm' && !readOnlyDm ? profileBot : undefined,
+    bot:
+      channel?.type === 'dm' && !readOnlyDm && profileBot?.sharedBy === undefined
+        ? profileBot
+        : undefined,
     channelId,
     actions,
     companion,
