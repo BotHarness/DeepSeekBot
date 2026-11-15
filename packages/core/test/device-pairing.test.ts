@@ -287,6 +287,23 @@ describe('Device Pairing', () => {
     expect(host.pairing.revoke(paired.device.id)).toEqual({ revoked: false, closedStreams: 0 });
   });
 
+  it('tears down a known already-revoked device without a stream', () => {
+    const notified: string[] = [];
+    const host = fixture().open((id) => notified.push(id));
+    const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+    if (!paired.ok) throw new Error('pairing failed');
+    attachOperationalModule(host.owner, 'device-pairing').transaction((db) =>
+      db
+        .prepare('UPDATE paired_devices SET revoked_at = paired_at WHERE device_id = ?')
+        .run(paired.device.id),
+    );
+    expect(host.pairing.list()).toMatchObject([
+      { id: paired.device.id, revokedAt: expect.any(String) },
+    ]);
+    expect(host.pairing.revoke(paired.device.id)).toEqual({ revoked: false, closedStreams: 0 });
+    expect(notified).toEqual([paired.device.id]);
+  });
+
   it('tears down an owned stream after its canonical device row has been purged', () => {
     const notified: string[] = [];
     const host = fixture().open((id) => notified.push(id));
