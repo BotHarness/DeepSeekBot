@@ -1,3 +1,5 @@
+import { TeamBots } from './bots.js';
+import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
 import { accountSpaceFiles, prepareSpaceTransfer } from '../workspaces/space-lifecycle.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
@@ -99,6 +101,8 @@ const grantSchema = z.object({
 const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export class TeamService {
+  readonly bots: TeamBots;
+  readonly speakerPolicy: SpeakerPolicy;
   readonly privateAccess: TeamPrivateContent;
   readonly roles: TeamRoles;
   readonly approvals: TeamApprovals;
@@ -226,12 +230,28 @@ export class TeamService {
     this.channelAccess = new TeamChannels(db, channels, this.roles, (revoke) =>
       this.accessChanged(revoke),
     );
-    this.approvals = new TeamApprovals(db, channels, this.roles);
+    this.bots = new TeamBots(
+      db,
+      channels,
+      this.roles,
+      this.channelAccess,
+      (revoke) => this.accessChanged(revoke),
+      (human, bot) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet'),
+    );
+
+    this.speakerPolicy = new SpeakerPolicy(db, this.roles);
+    this.approvals = new TeamApprovals(db, channels, this.roles, this.bots);
     channels.bindHumanAccess?.({
       searchText: (human, channelId, messageId, text) =>
         this.approvals.searchText(human, channelId, messageId, text),
       canRead: (human, id) => this.channelAccess.canRead(human, id),
       requirePolicy: (human, id, key) => this.channelAccess.requirePolicy(human, id, key),
+      requireBotPost: (slug, channel) =>
+        this.bots.available && this.bots.requireChannel(slug, channel, true),
+      requireBotJoin: (slug, id) => {
+        if (this.bots.available) this.bots.requireJoin(slug, id);
+      },
+      requireDm: (human, slug) => this.bots.available && this.bots.requireReach(human, slug),
       requirePost: (human, id, all, message) => {
         const decision =
           message?.toolApprovalDecision ??
@@ -246,6 +266,7 @@ export class TeamService {
           return;
         }
         const channel = channels.get(id);
+        if (channel?.botSlug && this.bots.available) this.bots.requireDmPost(human, channel);
         if (channel?.type !== 'group' && !channel?.humanParticipants) return;
         this.channelAccess.requirePolicy(human, id, 'post');
         if (all) this.channelAccess.requirePolicy(human, id, 'mentionAll');

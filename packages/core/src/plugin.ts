@@ -1304,6 +1304,7 @@ function initializeCore(
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
+    ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
       zoom: (input) =>

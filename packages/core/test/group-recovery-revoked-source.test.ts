@@ -43,6 +43,7 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
   let core = createCore({ dshHome: home, agents, triageContinuation: true });
   try {
     core.registry.create({ slug: 'aura', displayName: 'Aura' });
+    core.team.bots.switches(OWNER_HUMAN_CONTEXT, 'aura', { proactiveDms: true });
     const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Recovery',
       members: ['aura'],

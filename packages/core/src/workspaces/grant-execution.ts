@@ -326,6 +326,7 @@ export function borrowedAgentDenial(
 }
 
 const BOT_TOOL_NAMES = new Set([
+  'speaker_policy',
   'create_assignment',
   'list_assignment_models',
   'list_bot_subagent_models',

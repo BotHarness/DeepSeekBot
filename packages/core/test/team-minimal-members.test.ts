@@ -311,7 +311,7 @@ describe('M13 upgrade', () => {
     const ownerHome = await f.core.tob.ensure(owner);
     f.db.transaction((db) => {
       db.prepare("INSERT INTO tob_identity VALUES ('member', 'legacy-tob')").run();
-      BOT_HARNESS_SCHEMA_PLAN.migrations.at(-1)!.migrate(db);
+      BOT_HARNESS_SCHEMA_PLAN.migrations.find((m) => m.id === 'minimal-member')!.migrate(db);
     });
     await closes.pop()!();
     const restarted = fixture(f.dshHome);

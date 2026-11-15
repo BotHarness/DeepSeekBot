@@ -12,6 +12,14 @@ export const MEMBER_BOT_IMPORT_METHODS = [
 ] as const;
 
 export const MEMBER_GLOBAL_METHODS = [
+  'botVisibility',
+  'botVisibilitySet',
+  'botSwitches',
+  'reachableBots',
+  'botProactiveOptOut',
+  'roleConflicts',
+  'speakerPolicy',
+  'botTools',
   'privateObjects',
   'privateContentOpen',
   'privateContentPage',
@@ -126,6 +134,9 @@ export const MEMBER_CHANNEL_METHODS = [
 ] as const;
 
 export const MEMBER_BOT_METHODS = [
+  'messagingIdentity',
+  'botToolRun',
+  'botToolTrace',
   'grantRequestApprove',
   'grants',
   'grantCreate',

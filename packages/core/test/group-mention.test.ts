@@ -611,6 +611,7 @@ describe('Group mention tracer', () => {
   it('treats a Memory branch-switch target as part of a retried Channel message identity', async () => {
     const core = createCore({ dshHome: createTempRoot('botharness-channel-retry-') });
     try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
       const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const first = {
         id: 'switch-message',

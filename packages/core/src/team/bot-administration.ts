@@ -11,6 +11,7 @@ export const BOT_ADMIN_READS: ReadonlySet<string> = new Set([
 ]);
 export const botAdminActionSchema = z.enum([
   'update',
+  'botVisibilitySet',
   'pause',
   'resume',
   'deletionConfirm',

@@ -3671,6 +3671,50 @@ const MIGRATION_LEDGER_MIGRATION: SchemaMigration = {
   migrate() {},
 };
 
+export const BOT_VISIBILITY_MIGRATION: SchemaMigration = {
+  id: 'bot-visibility',
+  module: 'team',
+  description: 'Bot visibility, participant DM authority, switches and revisioned speaker policy',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE persona_bots ADD COLUMN visibility_json TEXT NOT NULL DEFAULT '{"kind":"private"}';
+      ALTER TABLE persona_bots ADD COLUMN switches_json TEXT NOT NULL DEFAULT '{"proactiveDms":false,"joinPrincipalChannels":true,"speakerContext":true}';
+      ALTER TABLE host_roles ADD COLUMN policy_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE host_roles ADD COLUMN policy_revision INTEGER NOT NULL DEFAULT 1;
+      CREATE INDEX channel_bot_human_dms ON channel_records(json_extract(record_json,'$.botSlug'),json_extract(record_json,'$.dmHumanId'))
+        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug') IS NOT NULL;
+      CREATE TABLE bot_channel_adders (
+        bot_slug TEXT NOT NULL, channel_id TEXT NOT NULL, human_id TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, channel_id)
+      ) STRICT;
+      INSERT INTO bot_channel_adders
+        SELECT b.slug, c.channel_id, b.owner_human_id FROM persona_bots b JOIN channel_records c
+        ON EXISTS (SELECT 1 FROM json_each(c.record_json, '$.members') m WHERE m.value = b.slug)
+        WHERE json_extract(c.record_json, '$.type') = 'group';
+      INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at)
+        SELECT DISTINCT c.channel_id,h.human_id,h.display_name,1,json_extract(c.record_json,'$.createdAt')
+        FROM persona_bots b JOIN team_settings s ON b.owner_human_id=s.owner_human_id
+        JOIN humans h ON h.human_id=b.owner_human_id JOIN channel_records c
+          ON EXISTS (SELECT 1 FROM json_each(c.record_json,'$.members') m WHERE m.value=b.slug)
+        WHERE json_extract(c.record_json,'$.type')='group'
+          AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id=c.channel_id AND m.human_id=h.human_id);
+      INSERT OR IGNORE INTO channel_admins(channel_id,human_id)
+        SELECT DISTINCT c.channel_id,s.owner_human_id FROM persona_bots b JOIN team_settings s ON b.owner_human_id=s.owner_human_id
+        JOIN channel_records c ON EXISTS (SELECT 1 FROM json_each(c.record_json,'$.members') m WHERE m.value=b.slug)
+        JOIN channel_human_members hm ON hm.channel_id=c.channel_id AND hm.human_id=s.owner_human_id AND hm.left_at IS NULL
+        WHERE json_extract(c.record_json,'$.type')='group' AND json_extract(c.visibility_json,'$.kind')='roles';
+      CREATE TABLE bot_proactive_opt_outs (
+        bot_slug TEXT NOT NULL, human_id TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, human_id)
+      ) STRICT;
+      CREATE TABLE session_speaker_policies (
+        session_id TEXT NOT NULL, role_id TEXT NOT NULL, revision INTEGER NOT NULL,
+        PRIMARY KEY (session_id, role_id)
+      ) STRICT;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3825,4 +3869,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PRIVATE_CONTENT_AUDIT_MIGRATION,
   MINIMAL_MEMBER_MIGRATION,
   MIGRATION_LEDGER_MIGRATION,
+  BOT_VISIBILITY_MIGRATION,
 ]);

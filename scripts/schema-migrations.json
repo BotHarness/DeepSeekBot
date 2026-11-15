@@ -610,5 +610,9 @@
   {
     "id": "migration-ledger",
     "sha256": "c8797dee7988cf70952e32ce178e2f451602fed59e6f22c59bb1e2c905e2b891"
+  },
+  {
+    "id": "bot-visibility",
+    "sha256": "d793c25b288ffa4e06d0a7bcb9a459faa6d359badaa1b7a3e18e1f9ac52f2559"
   }
 ]

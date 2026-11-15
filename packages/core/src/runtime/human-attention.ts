@@ -153,10 +153,11 @@ interface Cursor {
 const attentionBotOwner = (slug: string): string =>
   `coalesce((SELECT b.owner_human_id FROM persona_bots b WHERE b.slug = ${slug}), 'local-human') = $humanId`;
 const attentionDmOwner = (channel: string): string =>
-  attentionBotOwner(`json_extract(${channel}.record_json, '$.botSlug')`);
+  `(coalesce(json_extract(${channel}.record_json,'$.dmHumanId'), (SELECT b.owner_human_id FROM persona_bots b WHERE b.slug=json_extract(${channel}.record_json,'$.botSlug')), 'local-human') = $humanId)`;
 
 const approvalAudience = (channel: string, humanId: string): string => `(
-  (json_extract(${channel}.record_json, '$.type') <> 'group' OR ${channelRoleEligibleSql(channel, humanId)})
+  (json_extract(${channel}.record_json,'$.dmHumanId') IS NULL OR json_extract(${channel}.record_json,'$.dmHumanId')=${humanId})
+  AND (json_extract(${channel}.record_json, '$.type') <> 'group' OR ${channelRoleEligibleSql(channel, humanId)})
   AND (json_extract(${channel}.record_json, '$.humanParticipants') IS NULL OR EXISTS (
     SELECT 1 FROM json_each(${channel}.record_json, '$.humanParticipants') participant WHERE participant.value = ${humanId})))`;
 
@@ -186,7 +187,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                  NULL AS source_event_id
             FROM channel_records c, json_each(c.record_json, '$.joinRequests') j
            WHERE json_extract(c.record_json, '$.type') = 'group'
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND json_extract(j.value, '$.status') = 'pending'
           UNION ALL
           SELECT 'question:' || e.source_event_id AS id,
@@ -201,7 +202,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
            WHERE (json_extract(c.record_json, '$.type') = 'group'
                OR (json_extract(c.record_json, '$.type') = 'dm' AND (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL
                OR (json_extract(c.record_json, '$.botSlug') IS NOT NULL AND ${attentionDmOwner('c')}))))
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.userQuestionRequest') IS NOT NULL
              AND e.message_id IN (SELECT value FROM json_each(?))
@@ -224,7 +225,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
            WHERE (json_extract(c.record_json, '$.type') = 'group'
                OR (json_extract(c.record_json, '$.type') = 'dm' AND (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL
                OR (json_extract(c.record_json, '$.botSlug') IS NOT NULL AND ${attentionDmOwner('c')}))))
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.toolApprovalRequest') IS NOT NULL
              AND e.message_id IN (SELECT value FROM json_each(?))
@@ -247,7 +248,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
                OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = json_extract(e.payload_json, '$.toolAutoApproval.botSlug')))
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND e.source_kind = 'system-message'
              AND json_extract(e.payload_json, '$.toolAutoApproval.outcome') = 'rejected'
              AND NOT EXISTS (
@@ -270,7 +271,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
                OR (json_extract(c.record_json, '$.type') = 'dm' AND (json_extract(c.record_json, '$.humanParticipants') IS NOT NULL OR json_extract(c.record_json, '$.botSlug') = e.bot_slug)))
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.privateInputRequest') IS NOT NULL
              AND e.message_id IN (SELECT value FROM json_each(?))
@@ -293,7 +294,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
                OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = e.bot_slug))
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.takeoverRequest') IS NOT NULL
              AND json_extract(e.payload_json, '$.takeoverRequest.expiresAt') > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -314,7 +315,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             JOIN channel_records c ON c.channel_id = p.channel_id
            WHERE (json_extract(c.record_json, '$.type') = 'group'
                OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = e.bot_slug))
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND e.source_kind = 'bot-message'
              AND json_extract(e.payload_json, '$.grantRequest') = 1
              AND NOT EXISTS (
@@ -364,7 +365,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
           SELECT 'repair:' || a.source_event_id || ':' || a.bot_slug AS id,
                  'action' AS category, 'bot-message-needs-repair' AS kind,
                  e.created_at, e.channel_id,
-                 CASE WHEN json_extract(c.record_json, '$.deletedAt') IS NULL
+                 CASE WHEN json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
                       THEN coalesce(json_extract(c.record_json, '$.name'), '')
                       ELSE '' END AS channel_name,
                  a.bot_slug, e.body AS summary, NULL AS request_id,
@@ -394,7 +395,12 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
              AND d.source_event_id IS NULL
         ), attention AS (
           SELECT * FROM all_attention candidate
-          WHERE (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input')
+          WHERE NOT EXISTS (SELECT 1 FROM channel_records privacy WHERE privacy.channel_id=candidate.channel_id
+            AND json_extract(privacy.record_json,'$.dmHumanId') IS NOT NULL AND json_extract(privacy.record_json,'$.dmHumanId') <> $humanId)
+          AND NOT EXISTS (SELECT 1 FROM assignments private_assignment JOIN source_events origin ON origin.source_event_id=private_assignment.source_event_id
+            JOIN channel_records privacy ON privacy.channel_id=origin.channel_id WHERE private_assignment.session_id=candidate.assignment_session_id
+            AND json_extract(privacy.record_json,'$.dmHumanId') IS NOT NULL AND json_extract(privacy.record_json,'$.dmHumanId') <> $humanId)
+          AND (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input')
             OR ${attentionBotOwner('candidate.bot_slug')}
             OR EXISTS (SELECT 1 FROM channel_records approval_channel WHERE approval_channel.channel_id = candidate.channel_id
               AND ${approvalAudience('approval_channel', '$humanId')})) AND (
@@ -477,7 +483,7 @@ const channelAttentionCte = (
       LEFT JOIN channel_human_members m
         ON m.channel_id = p.channel_id AND m.human_id = $humanId`
       }
-     WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
+     WHERE json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
        AND ((json_extract(c.record_json, '$.type') = 'dm'
              AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
              AND ${attentionDmOwner('c')})
@@ -810,7 +816,7 @@ SELECT 'handled:' || request.source_event_id AS id,
                    AND json_extract(response.payload_json, '$.toolApprovalDecision.requestMessageId') = request.message_id)
                OR (json_extract(request.payload_json, '$.grantRequest') = 1
                    AND json_extract(response.payload_json, '$.grantRequestResolution.requestMessageId') = request.message_id))
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND ((json_extract(c.record_json, '$.type') = 'group'
                    AND ($humanId = 'local-human' OR EXISTS (SELECT 1 FROM channel_human_members m
                      WHERE m.channel_id = c.channel_id AND m.human_id = $humanId AND m.left_at IS NULL)))
@@ -853,7 +859,7 @@ SELECT 'handled:' || request.source_event_id AS id,
              AND json_extract(response.payload_json, '$.author.kind') = 'human'
              AND json_extract(c.record_json, '$.type') = 'dm'
              AND json_extract(c.record_json, '$.botSlug') = a.bot_slug
-             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND a.open_ask_source_event_id IS NOT request.source_event_id
              AND request.source_kind = 'assignment-report'
              AND NOT EXISTS (SELECT 1 FROM source_events earlier INDEXED BY source_events_human_assignment_response
@@ -1317,7 +1323,7 @@ SELECT 'handled:' || request.source_event_id AS id,
               ON r.channel_id = c.channel_id AND r.human_id = $humanId
             LEFT JOIN channel_human_members m
               ON m.channel_id = c.channel_id AND m.human_id = $humanId
-           WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
+           WHERE json_extract(c.record_json, '$.deletedAt') IS NULL AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
              AND ((json_extract(c.record_json, '$.type') = 'dm'
                    AND json_extract(c.record_json, '$.botSlug') IS NOT NULL
              AND ${attentionDmOwner('c')})

@@ -45,3 +45,24 @@ First delivery is **permission isolation among colleagues, not OS isolation agai
 Deliver as tracer bullets under a dedicated spec and hub, parallel to the Environment hub. M0 threads explicit Human context through Host methods with no behavior change. M1 is the first end-to-end slice: enable Team mode, set the Owner password, create a member, sign that member in from a LAN browser over HTTPS, show only the Tobs Client, join a public Channel and exchange messages with the Owner, with matching CLI. Seek Human feedback before broadening. Every slice proves refusals as well as successes: a member cannot read another member's private Bot, Channel, DM, Workspace root or approval content through the Client, the Gateway, the CLI with `--as`, or a Bot tool call.
 
 The design narrative and question log live in [Team mode design](../architecture/team-mode.md).
+
+## Bot access amendment — 2026-11-15
+
+The Human amendment on spec #4137 supersedes the Bot audience-containment rule above. A Bot acts
+for its current principal (`owner_human_id`); group access intersects that principal's current
+membership, roles and active status with Bot restrictions. Reading does not require Bot membership;
+writing does. Private/public visibility determines who may DM or add a Bot, without requiring every
+Channel occupant to belong to its audience. Public audiences may be everyone, roles or named members.
+
+The M7 task explicitly confirms participant authority as the DM exception: each Human's DM with a
+public Bot is readable by that Human and the Bot, while its principal needs Human-only M11 audited
+viewing. The public side of a private-to-public Bot DM uses the private Bot's principal as its
+participant. Public Bots cannot initiate contact with private Bots. Current principal status and
+current participant audience qualification still gate every Bot read/write; former audience members
+retain read-only DM history. No Bot can inherit M11.
+
+Hard permissions remain unioned across roles. Advisory policy uses admin-set topic tags, Deny wins
+and assignment conflicts identify both roles. Speaker context is append-only message metadata, with
+revisioned policy attachments on first role appearance or change and a current-policy Bot tool;
+per-speaker changes never rewrite the cached system prompt. The implementation contract and M6
+shared Memory integration boundary are in [M7 runtime notes](../architecture/team-mode-m7-runtime.md).

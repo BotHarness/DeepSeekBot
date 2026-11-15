@@ -619,6 +619,9 @@ export interface ProfileSessionUsage {
 }
 
 export interface ChannelListItem extends ChannelRecord {
+  readOnly?: boolean;
+  proactiveOptOut?: boolean;
+  memberBots?: Array<{ slug: string; displayName: string; avatar?: string }>;
   remoteAvailability?: import('../runtime/bot-network.js').NetworkBotAvailability;
   remoteContact?: BotContact;
   humanMembers?: Array<{ humanId: string; displayName: string }>;
@@ -2327,8 +2330,23 @@ function buildBridgeMethods(
       } = channel;
       channel = visible;
     }
+    const memberBots =
+      channel.type === 'group'
+        ? channel.members.flatMap((slug) => {
+            const bot = globalRegistry.get(slug);
+            return bot
+              ? [
+                  {
+                    slug,
+                    displayName: bot.displayName,
+                    ...(bot.avatar ? { avatar: bot.avatar } : {}),
+                  },
+                ]
+              : [];
+          })
+        : undefined;
     if (channel.type === 'group') {
-      const members = channel.members.filter((slug) => deps.registry.get(slug) !== undefined);
+      const members = memberBots?.map((bot) => bot.slug) ?? [];
       const memberSlugs = new Set(members);
       channel = { ...channel, members };
       if (channel.ownerBotSlug !== undefined && !memberSlugs.has(channel.ownerBotSlug))
@@ -2351,6 +2369,13 @@ function buildBridgeMethods(
           }).contacts[0];
     return {
       ...channel,
+      ...(memberBots ? { memberBots } : {}),
+      ...(channel.botSlug && deps.team
+        ? {
+            readOnly: !deps.team.bots.canReach(human, channel.botSlug),
+            proactiveOptOut: deps.team.bots.proactiveOptOut(human, channel.botSlug),
+          }
+        : {}),
       humanMembers: deps.channels.listHumanMembers(human, channel.id),
       ...(channel.remoteBot === undefined
         ? {}
@@ -2528,7 +2553,9 @@ function buildBridgeMethods(
       ...detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
       ownerHumanId: botOwner(record),
       owner: botOwner(record) === human.humanId,
-      ...(botOwner(record) !== human.humanId ? { sessions: {} } : {}),
+      ...(botOwner(record) !== human.humanId || deps.team?.bots.hasForeignDms(human, record.slug)
+        ? { sessions: {} }
+        : {}),
     },
   });
 
@@ -6185,7 +6212,7 @@ function buildBridgeMethods(
             message: 'Tob cannot join group Channels',
           },
         };
-      const bot = deps.registry.get(botSlug);
+      const bot = globalRegistry.get(botSlug);
       const channel = deps.channels.get(channelId);
       if (bot === undefined || bot.paused === true) return unknownBot(botSlug);
       if (channel?.type !== 'group') return unknownChannel(channelId);
@@ -9196,6 +9223,7 @@ function buildBridgeMethods(
           ok: false,
           error: {
             code:
+              error instanceof TeamError ||
               error instanceof DirectBotToolError ||
               error instanceof ChannelCallReadError ||
               error instanceof TobError ||
@@ -9205,6 +9233,7 @@ function buildBridgeMethods(
                 ? error.code
                 : 'tool-failed',
             message: error instanceof Error ? error.message : String(error),
+            ...(error instanceof TeamError && error.details ? { details: error.details } : {}),
           },
         };
       }
@@ -9400,14 +9429,18 @@ function buildBridgeMethods(
       };
     },
     botSessionIds() {
-      const groups = deps.registry.list().map((bot) => ({
-        botSlug: bot.slug,
-        displayName: bot.displayName,
-        sessionIds: deps.ownership
-          .rootsFor(bot.slug)
-          .filter((root) => deps.ownership.contentAvailable(root.sessionId))
-          .map((root) => root.sessionId),
-      }));
+      const privateSessions = deps.team?.bots.privateSessions(human);
+      const groups = deps.registry
+        .list()
+        .filter((bot) => !privateSessions?.has(bot.slug))
+        .map((bot) => ({
+          botSlug: bot.slug,
+          displayName: bot.displayName,
+          sessionIds: deps.ownership
+            .rootsFor(bot.slug)
+            .filter((root) => deps.ownership.contentAvailable(root.sessionId))
+            .map((root) => root.sessionId),
+        }));
       return {
         ok: true,
         value: {
@@ -10079,15 +10112,32 @@ function buildBridgeMethods(
             !deps.team!.channelAccess.canRead(human, id, key === 'channelSendStatus')
           )
             throw new TeamError('channel-not-found');
-          if (key === 'channelCreate') deps.team!.roles.require(human, 'channels.create');
+          if (key === 'channelCreate') {
+            deps.team!.roles.require(human, 'channels.create');
+            if (Array.isArray(input['members']))
+              for (const slug of input['members'])
+                if (typeof slug === 'string') {
+                  deps.team!.bots.requireReach(human, slug);
+                  const bot = globalRegistry.get(slug);
+                  if (bot && botOwner(bot) !== human.humanId)
+                    throw new TeamError('bot-principal-channel-denied', undefined, { slug });
+                  if (bot && !deps.team!.bots.view(human, slug).switches.joinPrincipalChannels)
+                    throw new TeamError('bot-channel-join-disabled', undefined, { slug });
+                }
+          }
           if (
             id &&
             deps.channels.get(id)?.type === 'group' &&
             ['channelRename', 'channelGroupAvatarSet'].includes(key)
           )
             deps.team!.channelAccess.requirePolicy(human, id, 'editDetails');
-          if (id && deps.channels.get(id)?.type === 'group' && key === 'channelGroupInvite')
-            deps.team!.channelAccess.requirePolicy(human, id, 'addBots');
+          if (
+            id &&
+            deps.channels.get(id)?.type === 'group' &&
+            key === 'channelGroupInvite' &&
+            typeof input['botSlug'] === 'string'
+          )
+            deps.team!.bots.recordAdder(human, input['botSlug'], id);
           if (id && deps.channels.get(id) && key === 'channelSend') {
             deps.team!.channelAccess.requirePolicy(human, id, 'post');
             if (input['allBotMention'] !== undefined)

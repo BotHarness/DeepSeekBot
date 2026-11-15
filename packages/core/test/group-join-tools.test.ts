@@ -37,12 +37,12 @@ async function roundTrip(accept: boolean) {
             results.requested = await call('group_join_request', { channel_id: groupId });
             requestId = (results.requested as { requestId: string }).requestId;
             results.rerequested = await call('group_join_request', { channel_id: groupId });
-            await expect(call('channel_read', { channel_id: groupId })).rejects.toThrow(
-              'not a member',
-            );
+            await expect(call('channel_read', { channel_id: groupId })).resolves.toBeDefined();
             await expect(
               call('bot_send_message', { channel_id: groupId, body: 'too early' }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
             await expect(
               call('group_join_decide', { channel_id: groupId, request_id: requestId, accept }),
             ).rejects.toThrow('current Bot Group owner');
@@ -81,12 +81,12 @@ async function roundTrip(accept: boolean) {
               body: 'Joined through selected Group Tool',
             });
           else {
-            await expect(call('channel_read', { channel_id: groupId })).rejects.toThrow(
-              'not a member',
-            );
+            await expect(call('channel_read', { channel_id: groupId })).resolves.toBeDefined();
             await expect(
               call('bot_send_message', { channel_id: groupId, body: 'forbidden' }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
           }
         } catch (error) {
           failures.push(error);

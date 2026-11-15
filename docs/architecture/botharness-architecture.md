@@ -1684,3 +1684,11 @@ The Team usage and Role model policy runtime is described in [M10 Host and CLI l
 [M13 Host and CLI logic](team-mode-m13-runtime.md) supersedes M2's per-Human Tob and M3's default Member grants: only the current Host Owner has a Tob, Member grants exactly `dm.humans`, and Bot creation uses `bots.createPrivate` / `bots.createPublic`. Existing member Tobs retain their records, Memory and DMs as ordinary private Bots. Member `tobHome` succeeds with `{ available: false }`; onboarding allocates nothing and omits Bot/Channel identifiers. The migration preserves customized roles, maps legacy creation grants, and keeps no-Bot usage/offboarding paths valid. Integrated M6 startup relocation follows legacy Workspace registrations on the Bot and active Grants rather than the retired member Tob identity; canonical Memory ownership and account-space file containment survive upgrade and transfer. Grant-based Git/ZIP/Marketplace imports bind ownership, upload sessions and receipts to the caller and retain M6 account containment. Legacy Workspace Grant relocation preserves each relative subpath and write flag. Owner transfer retires the demoted Owner's Tob identity atomically, leaving the former Tob private and allowing a fresh Tob on later promotion. The separate Client/mobile surfaces retain their own acceptance checks.
 
 The [M5 approval logic](team-mode-m5-runtime.md) adds caller-scoped masking across Channel projections, Activity and push, Human decision attribution and unattended routing to the Bot owner. Member-owned Sessions refuse full access, suppressed asks and escalation. Team status and invitation responses identify the current isolation as `trial`; M12 owns enforcement qualification.
+
+### Team mode M7 runtime access
+
+The application-defined Bot visibility/principal checks and append-only speaker policy are
+specified in [M7 runtime boundaries](team-mode-m7-runtime.md). Group Channels intersect current
+principal access with Bot restrictions. A Bot's own Human–Bot and established private-to-public
+Bot DMs explicitly use participant authority; this does not give the principal private DM
+content or delegate M11 audited viewing to Bots. M6 remains the shared Memory placement authority.

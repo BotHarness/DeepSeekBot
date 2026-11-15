@@ -693,6 +693,13 @@ describe('bridge typert service', () => {
     const { service } = setup();
 
     expect(remoteMethods(service).map((marker) => marker.exportName ?? marker.method)).toEqual([
+      'botVisibility',
+      'botVisibilitySet',
+      'botSwitches',
+      'reachableBots',
+      'botProactiveOptOut',
+      'roleConflicts',
+      'speakerPolicy',
       'privateObjects',
       'privateContentOpen',
       'privateContentPage',

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { TeamError } from '../team/error.js';
 import { acceptedQuestionAnswer } from './accepted-question-answer.js';
 import { channelAudienceSql } from '../team/channel-contract.js';
@@ -478,6 +479,21 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     return channelAccessSchemaReady;
   };
 
+  const humanBotDm = (slug: string, humanId?: string): ChannelRecord | undefined => {
+    if (!hasChannelAccessSchema()) return readRecord(dmChannelId(slug));
+    const row = database.read((db) =>
+      db
+        .prepare(`SELECT c.channel_id,c.record_json FROM channel_records c JOIN persona_bots b
+      ON b.slug=json_extract(c.record_json,'$.botSlug') WHERE json_extract(c.record_json,'$.type')='dm'
+      AND json_extract(c.record_json,'$.botSlug') IS NOT NULL AND b.slug=?
+      AND coalesce(json_extract(c.record_json,'$.dmHumanId'),b.owner_human_id)=coalesce(?,b.owner_human_id)
+      ORDER BY c.channel_id LIMIT 1`)
+        .get(slug, humanId ?? null),
+    );
+    return typeof row?.['channel_id'] === 'string' && typeof row['record_json'] === 'string'
+      ? parseRecord(row['record_json'], row['channel_id'])
+      : undefined;
+  };
   const writeRecord = (human: HumanContext, record: ChannelRecord): void => {
     database.transaction(
       (db) => {
@@ -1136,6 +1152,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           throw new TeamError('channel-not-found');
     }
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
+    if (message.author.kind === 'bot') humanAccess?.requireBotPost?.(message.author.slug, channel);
     const existing = projectRows(id, placementsById(id, [message.id]))[0];
     if (existing !== undefined) {
       if (!once || !sameIntent(existing, message)) return { status: 'conflict' as const };
@@ -1247,8 +1264,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       throw new Error('Only a Bot DM participant may author this Channel');
     if (botDm && message.botCausation === undefined)
       throw new Error('Bot DM send requires trusted causation');
-    const senderDm =
-      botDm && senderSlug !== undefined ? readRecord(dmChannelId(senderSlug)) : undefined;
+    const senderDm = botDm && senderSlug !== undefined ? humanBotDm(senderSlug) : undefined;
     if (botDm && !remoteSender && (senderDm?.type !== 'dm' || senderDm.botSlug !== senderSlug))
       throw new Error('Sender Human DM is unavailable for the Bot action notice');
     const cause =
@@ -1284,8 +1300,17 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         : undefined;
     const actionRevision =
       noticeChannel === undefined ? undefined : revisionOf(noticeChannel.id) + 1;
-    const humanDm = senderSlug === undefined ? undefined : readRecord(dmChannelId(senderSlug));
+    const humanDm = senderSlug === undefined ? undefined : humanBotDm(senderSlug);
+    const senderPrincipal =
+      senderSlug === undefined || !hasChannelAccessSchema()
+        ? undefined
+        : database.read((db) =>
+            db.prepare('SELECT owner_human_id FROM persona_bots WHERE slug=?').get(senderSlug),
+          )?.['owner_human_id'];
     const traceChannel =
+      (typeof senderPrincipal !== 'string' ||
+        !humanAccess ||
+        humanAccess.canRead({ humanId: senderPrincipal }, channel.id)) &&
       senderSlug !== undefined &&
       (channel.type === 'group' || botDm) &&
       humanDm?.type === 'dm' &&
@@ -1891,7 +1916,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     listHumanMembers(human: HumanContext, id) {
       const channel = readRecord(id);
       if (channel?.type === 'dm' && !channel.humanParticipants && !isBotDmChannel(channel)) {
-        const identity = humanIdentity(human);
+        const identity = humanIdentity(channel.dmHumanId ? { humanId: channel.dmHumanId } : human);
         return [
           {
             humanId: identity.humanId,
@@ -1930,7 +1955,24 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     getOrCreateDm(human: HumanContext, botSlug, botName) {
       if (!isValidSlug(botSlug)) return undefined;
-      const id = dmChannelId(botSlug);
+      const paired = humanBotDm(botSlug, human.humanId);
+      if (paired) return paired;
+      const legacy = readRecord(dmChannelId(botSlug));
+      const bot = hasChannelAccessSchema()
+        ? database.read((db) =>
+            db.prepare('SELECT owner_human_id FROM persona_bots WHERE slug = ?').get(botSlug),
+          )
+        : undefined;
+      const participant =
+        typeof bot?.['owner_human_id'] === 'string' &&
+        (bot['owner_human_id'] !== human.humanId ||
+          (legacy?.dmHumanId !== undefined && legacy.dmHumanId !== human.humanId));
+      const id = participant
+        ? `dm-member-${createHash('sha256')
+            .update(JSON.stringify([human.humanId, botSlug]))
+            .digest('hex')
+            .slice(0, 32)}`
+        : dmChannelId(botSlug);
       const existing = readRecord(id);
       if (existing !== undefined) return existing;
       const displayName = botName ?? options.botDisplayName?.(botSlug);
@@ -1942,6 +1984,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         name: displayName.trim() || botSlug,
         members: [botSlug],
         botSlug,
+        ...(participant ? { dmHumanId: human.humanId } : {}),
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -2066,6 +2109,18 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         type: 'dm',
         name: name.trim() || members.join(' · '),
         members,
+        ...(() => {
+          const principal = hasChannelAccessSchema()
+            ? database.read((db) =>
+                db
+                  .prepare('SELECT owner_human_id FROM persona_bots WHERE slug=?')
+                  .get(firstBotSlug),
+              )
+            : undefined;
+          return typeof principal?.['owner_human_id'] === 'string'
+            ? { dmHumanId: principal['owner_human_id'] }
+            : {};
+        })(),
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -2141,6 +2196,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           channel.invitations?.some((item) => item.id === input.invitationId))
       )
         throw new Error('Group invitation identity is unavailable');
+      humanAccess?.requireBotJoin?.(input.targetBotSlug, channel.id);
       const autoAccept = options.autoAcceptGroupInvitations?.() === true;
       const timestamp = now().toISOString();
       const invitation: GroupInvitation = {
@@ -2218,6 +2274,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         invitation.targetBotCreatedAt !== input.targetBotCreatedAt
       )
         throw new Error('Group invitation is unavailable to this PersonaBot');
+      if (input.accept) humanAccess?.requireBotJoin?.(input.targetBotSlug, channel.id);
       const expectedStatus = input.accept ? 'accepted' : 'declined';
       if (invitation.status === expectedStatus) {
         if (!input.accept || channel.members.includes(input.targetBotSlug))
@@ -2835,7 +2892,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     appendMemoryCommits(input) {
       const cause = causeChannel(input.causeSourceEventId, input.botSlug, '');
-      const dm = readRecord(dmChannelId(input.botSlug));
+      const dm = humanBotDm(input.botSlug);
       const channel = (cause === 'target' ? undefined : cause) ?? dm;
       if (channel === undefined) return [];
       const committed: ChannelMessage[] = [];
@@ -2919,8 +2976,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     appendBotCreateAction(input) {
       const cause = causeChannel(input.causeSourceEventId, input.botSlug, '');
-      const channel =
-        (cause === 'target' ? undefined : cause) ?? readRecord(dmChannelId(input.botSlug));
+      const channel = (cause === 'target' ? undefined : cause) ?? humanBotDm(input.botSlug);
       if (channel === undefined) return undefined;
       const message: ChannelMessage = {
         id: `bot-create-action-${randomUUID()}`,

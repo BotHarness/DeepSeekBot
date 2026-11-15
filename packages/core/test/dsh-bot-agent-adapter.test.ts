@@ -1,3 +1,4 @@
+import { TeamError } from '../src/team/error.js';
 import { executeNativeTool, installNativeTools } from '../src/runtime/native-agent-compat.js';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent, AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
@@ -1410,6 +1411,56 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
+  it.each(['orchestrator', 'assignment'] as const)(
+    'refuses %s input if principal access changes while preparing the native Agent',
+    async (role) => {
+      let active = true;
+      const onTurn = vi.fn();
+      const host = new FakeAgentHost(
+        { kind: 'completed' },
+        {
+          onAgentCreated: () => {
+            active = false;
+          },
+          onTurn,
+        },
+      );
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      const requireContent = () => {
+        if (!active) throw new TeamError('bot-principal-inactive');
+      };
+      try {
+        const result =
+          role === 'orchestrator'
+            ? adapter.runOrchestrator({ ...reportRun, requireContent })
+            : adapter.runAssignment({
+                sessionId: 'm7-preparing-assignment',
+                bot: BOT,
+                text: 'Private input',
+                requireContent,
+                permission: {
+                  grantId: 'grant-1',
+                  workspaceId: 'workspace-1',
+                  primaryCwd: '/project',
+                  mode: 'workspace-write',
+                  approval: 'ask',
+                  presetRevision: 0,
+                },
+                report: vi.fn(),
+              });
+        await expect(result).rejects.toMatchObject({ code: 'bot-principal-inactive' });
+        expect(onTurn).not.toHaveBeenCalled();
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+
   it('rechecks source authority for native tools on the current Orchestrator turn', async () => {
     const denials: Array<string | undefined> = [];
     let invalid = false;
@@ -1439,53 +1490,55 @@ describe('DSH Bot Agent adapter', () => {
       ensureWorkspace: () => undefined,
     });
     try {
-      await adapter.runOrchestrator({
-        sessionId: 'orchestrator-ada',
-        resume: false,
-        requireContent: () => {
-          if (invalid) throw new Error('Source Event content was purged');
-        },
-        bot: BOT,
-        inboundChannelId: 'dm-test',
-        inbox: '',
-        message: 'Continue A',
-        channels: {
-          ...groupTools,
-          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
-          sendToBot: async () => {
-            throw new Error('unexpected Bot DM');
+      await expect(
+        adapter.runOrchestrator({
+          sessionId: 'orchestrator-ada',
+          resume: false,
+          requireContent: () => {
+            if (invalid) throw new Error('Source Event content was purged');
           },
-          ignore: () => ({
-            sourceEventId: 'source-1',
-            ignoredAt: BOT.createdAt,
-            alreadyIgnored: false,
-          }),
-          read: () => [],
-          requestGrant: async () => {
-            throw new Error('unexpected Grant request');
+          bot: BOT,
+          inboundChannelId: 'dm-test',
+          inbox: '',
+          message: 'Continue A',
+          channels: {
+            ...groupTools,
+            contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+            sendToBot: async () => {
+              throw new Error('unexpected Bot DM');
+            },
+            ignore: () => ({
+              sourceEventId: 'source-1',
+              ignoredAt: BOT.createdAt,
+              alreadyIgnored: false,
+            }),
+            read: () => [],
+            requestGrant: async () => {
+              throw new Error('unexpected Grant request');
+            },
+            send: async (input) => ({
+              id: 'bot-1',
+              at: BOT.createdAt,
+              author: { kind: 'bot', slug: BOT.slug },
+              body: input.body,
+            }),
           },
-          send: async (input) => ({
-            id: 'bot-1',
-            at: BOT.createdAt,
-            author: { kind: 'bot', slug: BOT.slug },
-            body: input.body,
-          }),
-        },
-        assignments: {
-          create: () => refusal,
-          request: () => ({
-            ...refusal,
-            assignment: { ...ASSIGNMENT, activity: 'idle' },
-            delivery: 'capacity',
-          }),
-          grants: () => [],
-          list: () => [],
-          inspect: () => undefined,
-          stop: async () => {
-            throw new Error('unexpected stop');
+          assignments: {
+            create: () => refusal,
+            request: () => ({
+              ...refusal,
+              assignment: { ...ASSIGNMENT, activity: 'idle' },
+              delivery: 'capacity',
+            }),
+            grants: () => [],
+            list: () => [],
+            inspect: () => undefined,
+            stop: async () => {
+              throw new Error('unexpected stop');
+            },
           },
-        },
-      });
+        }),
+      ).rejects.toThrow('Source Event content was purged');
       expect(denials).toEqual([
         undefined,
         'Source Event content was purged or its authority is unavailable',

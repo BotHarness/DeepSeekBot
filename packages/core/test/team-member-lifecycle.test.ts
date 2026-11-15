@@ -1,3 +1,4 @@
+import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
@@ -435,6 +436,11 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     async (leftAt) => {
       const f = fixture();
       const shared = createBot(f, bob, 'shared-bot');
+      const historical = createSqliteChannelStore({
+        database: f.db,
+        rootDir: join(f.dshHome, 'channels'),
+        attachments: f.core.attachments,
+      });
       const privateBot = createBot(f, bob, 'private-bot');
       f.db.transaction((db) =>
         db
@@ -456,7 +462,7 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
         [alice, shared.dm.id, sharedFile],
         [bob, privateBot.dm.id, privateFile],
       ] as const)
-        await f.core.channels.appendMessage(human, channelId, {
+        await historical.appendMessage(human, channelId, {
           id: 'message',
           at: new Date().toISOString(),
           author: { kind: 'human', humanId: human.humanId },
@@ -517,17 +523,18 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       const preview = f.core.team.purgePreview(owner, 'bob');
       expect(preview.counts).toEqual(
         operation === 'purge'
-          ? { channels: 4, bots: 3, messages: 3, files: 2 + accountFileCount(f) }
-          : { channels: 0, bots: 0, messages: 0, files: accountFileCount(f) },
+          ? { channels: 5, bots: 3, messages: 3, files: 2 + accountFileCount(f) }
+          : { channels: 2, bots: 0, messages: 0, files: accountFileCount(f) },
       );
       await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
       expect(Boolean(f.core.channels.get(tob.channelId))).toBe(operation === 'transfer-first');
       expect(f.core.attachments.has(tobFile)).toBe(operation === 'transfer-first');
-      for (const channelId of [opened.value.channel.id, second.dm.id, exclusive.id])
+      for (const channelId of [opened.value.channel.id, second.dm.id])
         expect(Boolean(f.core.channels.get(channelId))).toBe(operation === 'transfer-first');
       expect(f.core.attachments.has(botFile)).toBe(operation === 'transfer-first');
-      for (const channelId of [other.dm.id, mixed.id])
-        expect(f.core.channels.get(channelId)).toBeDefined();
+      expect(f.core.channels.get(other.dm.id)).toBeDefined();
+      for (const channelId of [exclusive.id, mixed.id])
+        expect(f.core.channels.get(channelId)).toBeUndefined();
     },
   );
 
@@ -1019,8 +1026,12 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
       expect(f.stop.mock.calls.map(([slug]) => slug)).toContain('bob-bot');
       expect(f.stop.mock.calls.map(([slug]) => slug)).toContain(tob.botSlug);
       expect(f.core.registry.get('bob-bot')?.paused).toBeUndefined();
-      expect((await send(f, 'bob-bot', 'blocked')).admitted).toBe(false);
-      expect((await send(f, tob.botSlug, 'blocked-tob')).admitted).toBe(false);
+      await expect(send(f, 'bob-bot', 'blocked')).rejects.toMatchObject({
+        code: 'bot-dm-read-only',
+      });
+      await expect(send(f, tob.botSlug, 'blocked-tob')).rejects.toMatchObject({
+        code: 'bot-dm-read-only',
+      });
       await expect(
         f.core.channels.appendMessage(bob, group.id, {
           id: 'blocked-mention',
