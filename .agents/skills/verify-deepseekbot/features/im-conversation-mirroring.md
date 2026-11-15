@@ -2,6 +2,7 @@
 
 ## Sub-features
 
+- Message reception is distinct from app connection and Bot activity. Temporary startup failure shows reconnecting, its reason and next retry time; permanent failure needs attention. Reconnect now uses the existing binding without changing conversation permissions.
 - Two independent preferences on the exact Binding and external DM: mirror the IM conversation locally; forward newly sent local DM messages to that IM. Both default off.
 - Clickable, keyboard-accessible info buttons explain each direction. Changes take effect when the connector form is saved.
 - Inbound mirror placement shares its Source Event with the Inbox. Accepted replies retain their Outbox lineage; purge removes associated content.
@@ -42,3 +43,17 @@ Send one ordinary message (no run), then a second (one digest), inspect the Inbo
 trace through the CLI, and send a mention to verify an actual model reply. This qualifies the
 Host/Provider/Runtime seam, not production IM delivery. Preserve the report and stop the owned
 Host after verification.
+
+## Startup recovery regression (#4242)
+
+Use `scripts/fixtures/reception-recovery.mjs` in a task-local Profile, never a production receiver.
+Its command file accepts `bind` and `mention` for a Bot named `Reception QA…`; the `offline`
+file delays receiver acquisition while the app remains connected. Bind while ready, admit
+one fresh group mention, then restart the same isolated Profile with readiness delayed beyond
+the previous three-attempt budget. Keep the real settings mounted: app connection and message
+reception must remain distinct, with retry reason and next retry time. Once ready, the view
+updates to Receiving without a reload. `im-status` and `messaging-grants` must show the same
+canonical recovery state and clear it on success. Exercise Reconnect now (pending and failure
+are covered by component tests), disable/resume, permanent fingerprint refusal and Provider
+replacement. Keep Source/Admission/Outbox proof for one fresh post-recovery event, with no
+history replay. This proves the local Provider seam, not real QQ delivery. Stop the owned Host.

@@ -18,6 +18,7 @@ Drive an isolated DeepSeekBot instance the way a user does and keep the evidence
 Commands:
   launch [--port <n>] [--build] [--dsh-version <version>] [--genui-preview-browser <absolute-executable>]
                                   Start an isolated DSH Host through dev-instance.mjs.
+                                  --no-ax-model skips machine-local AX model configuration for fixture providers.
   doctor                          Check that the recorded instance is ours, alive and authenticated.
   observe                         Save Host health and browser-reported Client diagnostics as JSON.
   rpc <namespace/method> [json]   Call one authenticated /api method with JSON args.
@@ -60,6 +61,7 @@ export function parseVerifyArgs(argv) {
     botMode: false,
     keepOverlays: false,
     build: false,
+    noAxModel: false,
     port: undefined,
   };
   for (let index = 0; index < rest.length; index += 1) {
@@ -84,6 +86,9 @@ export function parseVerifyArgs(argv) {
         break;
       case '--build':
         options.build = true;
+        break;
+      case '--no-ax-model':
+        options.noAxModel = true;
         break;
       case '--genui-preview-browser':
         options.genuiPreviewBrowser = value();
@@ -236,6 +241,7 @@ async function launch(options, paths) {
   const port = options.port ?? (await freePort());
   const args = ['scripts/dev-instance.mjs', '--home', paths.home, '--port', String(port), '--json'];
   if (options.build) args.push('--build');
+  if (options.noAxModel) args.push('--no-ax-model');
   if (options.dshVersion) args.push('--dsh-version', options.dshVersion);
   if (options.genuiPreviewBrowser)
     args.push('--genui-preview-browser', options.genuiPreviewBrowser);

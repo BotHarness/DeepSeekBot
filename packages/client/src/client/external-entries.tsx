@@ -24,7 +24,7 @@ function IdentitiesForBot({
   actions: ChannelSidebarEntryProps['actions'];
   t: ChannelSidebarEntryProps['t'];
 }): ReactElement {
-  const { snapshot, failed, refresh, mount } = useMessagingSnapshot(slug, actions);
+  const { snapshot, failed, refresh, discover, mount } = useMessagingSnapshot(slug, actions);
   const dm = useClientStore((state) =>
     state.channels.find((c) => c.type === 'dm' && c.botSlug === slug),
   );
@@ -96,6 +96,7 @@ function IdentitiesForBot({
         appSetup={actions.appSetup ? { client: actions.appSetup, botSlug: slug } : undefined}
         snapshot={snapshot}
         refresh={refresh}
+        discover={discover}
         t={t}
         mutate={async (input) => {
           await actions.messagingIdentity(slug, input);

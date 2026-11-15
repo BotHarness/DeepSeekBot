@@ -236,6 +236,8 @@ A saved AX model id may disappear from the pinned native catalog. Preserve the l
 
 ## Pitfall log
 
+DSH 0.2.2-rc.1 can report the gateway wording `Input too long: model limit N tokens, requested M tokens` as `INVALID_REQUEST`, bypassing native overflow recovery. Tobs handles that precise missed case through its owned `agent/request-error` listener and the public compaction Service. In a real Preset, resolve the isolated Provider with `agentPresets.serviceFor(agent, 'compaction')`; a flat Context test with `agent.ctx.get('compaction')` does not prove this lookup. Verify the before/after Host path with `scripts/e2e-context-overflow.mjs`, await the native Session Store flush checkpoint and verify the exact replacement through a read-only Session persistence handle before retrying, retain the replaced request context and committed reply evidence, and keep DSH dependency bytes unchanged (#4253).
+
 ### Windows background command consoles (#3565)
 
 On a detached Windows DSH Host, a console executable launched by `execFile` without

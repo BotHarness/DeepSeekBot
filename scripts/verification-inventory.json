@@ -4,6 +4,22 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "bot.context-overflow-recovery",
+      "label": "Native compaction and bounded retry after a gateway token-limit rejection",
+      "source": "packages/core/src/runtime/context-overflow-recovery.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/conversation-timeline.md",
+      "task": 4253,
+      "gap": "Local HTTP replay on a real Host; production provider and IM delivery require separate qualification."
+    },
+    {
+      "id": "telemetry.bot-tokens",
+      "label": "Anonymous Bot Session token snapshots",
+      "source": "packages/core/src/telemetry/token-usage.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/token-telemetry.md",
+      "task": 4255,
+      "gap": "Wire comparison uses real local Host usage and production reporter source; hourly scheduling, provider coverage, PostHog ingestion and Human QA remain distinct checks."
+    },
+    {
       "id": "settings.first-tob-loading",
       "label": "Responsive lightweight settings during first-Tob Memory preparation",
       "source": "packages/core/src/tob/service.ts",
@@ -1010,6 +1026,13 @@
       "guide": ".agents/skills/verify-deepseekbot/features/bot-call.md",
       "task": 3403,
       "gap": "The DSH desktop app's microphone permission and the Electron helper on real Mac and Windows Hosts are unverified until the device QA run."
+    },
+    {
+      "id": "im-settings-loading",
+      "label": "Saved IM settings before live checks",
+      "source": "packages/core/src/messaging/outbound.ts",
+      "task": 4247,
+      "guide": ".agents/skills/verify-deepseekbot/features/im-settings-loading.md"
     }
   ],
   "scripts": [
@@ -2611,6 +2634,22 @@
       "reason": "Fresh-Profile concurrent onboarding and settings requests with a 500ms response budget.",
       "task": 4226,
       "sha256": "a60b02ee56b57a840535969cefcdf28d1cdfa0bfe5d07047483289aeacbc89a8"
+    },
+    {
+      "path": "scripts/e2e-context-overflow.mjs",
+      "category": "mapped",
+      "behaviors": ["bot.context-overflow-recovery"],
+      "reason": "Same gateway rejection on base and fixed Tobs builds with the native isolated compaction service.",
+      "task": 4253,
+      "sha256": "72ee8205df3a84eef1c6ccfc4edfe323d22b02ff418e7b491bc8ecef072c1e62"
+    },
+    {
+      "path": "scripts/e2e-token-telemetry.mjs",
+      "category": "mapped",
+      "behaviors": ["telemetry.bot-tokens"],
+      "reason": "Compares live Host Overview with production token snapshot reader and serializer; optional separately marked QA wire send.",
+      "task": 4255,
+      "sha256": "925304c37a3fd15e198ecdc54fe954e6f888d4b68dc3fd6e6a8760867d61e2ef"
     }
   ],
   "native": [

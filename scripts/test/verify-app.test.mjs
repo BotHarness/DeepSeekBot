@@ -11,6 +11,9 @@ import {
 } from '../verify-app.mjs';
 
 describe('verify-app arguments', () => {
+  it('accepts a fixture launch without the machine-local AX model overlay', () => {
+    expect(parseVerifyArgs(['launch', '--no-ax-model']).noAxModel).toBe(true);
+  });
   it('forwards explicit runtime selection independently of the build pin', () => {
     expect(parseVerifyArgs(['launch', '--dsh-version', '0.2.1-rc.99']).dshVersion).toBe(
       '0.2.1-rc.99',

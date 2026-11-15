@@ -1,5 +1,5 @@
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import { requiresHumanDecision } from './approval-templates.js';
+import { toolApprovalRequired } from './tool-effects.js';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -408,28 +408,13 @@ export function requiresHumanToolApproval(
   args?: unknown,
   templateInUse?: (template: string) => boolean,
 ): boolean {
-  if (name === 'channel_attachment_open')
-    return (
-      typeof args !== 'object' ||
-      args === null ||
-      (args as Record<string, unknown>).access !== 'read'
-    );
-  if (name === 'secret_cli' || name === 'secret_mcp_connect' || name === 'bot_create') return true;
-  return isDshGovernedTool(name) && requiresHumanDecision(policyInput(args), templateInUse);
+  return toolApprovalRequired(name, args, isDshGovernedTool(name), templateInUse);
 }
 
 export function approvalTemplateInUse(
   registry: Pick<BotHarnessCore['registry'], 'list'>,
 ): (template: string) => boolean {
   return (template) => registry.list().some((record) => record.approvalTemplate === template);
-}
-
-function policyInput(args: unknown): string {
-  try {
-    return JSON.stringify(args) ?? '';
-  } catch {
-    return '';
-  }
 }
 
 export function isDshGovernedTool(name: string): boolean {

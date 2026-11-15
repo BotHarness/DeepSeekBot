@@ -27,6 +27,7 @@ import {
   type ApprovalReviewResult,
 } from './approval-reviewer.js';
 import { requiresHumanDecision } from './approval-templates.js';
+import { decideToolApproval, toolEffects, type ToolEffects } from './tool-effects.js';
 
 export interface BotCreatePreview {
   memoryFolder: string;
@@ -99,6 +100,7 @@ type TrackedCall = ToolApprovalRequestCard & {
   rememberable?: boolean;
   remembered?: boolean;
   execution: ToolExecution;
+  effects: ToolEffects | undefined;
   authorized?: () => boolean;
   device?: 'computer' | 'browser';
 };
@@ -264,6 +266,7 @@ export class ChannelToolApproval {
       scopeKey,
       ...(options?.authorizationScope ? { authorizationScope: options.authorizationScope } : {}),
       execution,
+      effects: toolEffects(execution.name, execution.arguments),
       externalDecision,
       ...(options?.requireExplicitApproval ? { requireExplicitApproval: true } : {}),
       ...(rememberable && !options?.requireExplicitApproval ? { rememberable } : {}),
@@ -303,19 +306,21 @@ export class ChannelToolApproval {
       this.#currentScope(tracked, owner) !== tracked.scopeKey
     )
       return 'unavailable';
-    const policyChange = this.#changesPolicy(tracked);
-    if (
-      !policyChange &&
-      !tracked.requireExplicitApproval &&
-      tracked.externalDecision !== 'each-use' &&
-      this.#fullAccess?.(tracked.sessionId) === true
-    ) {
+    const policy = this.#decisionPolicy(tracked, {
+      fullAccess: this.#fullAccess?.(tracked.sessionId) === true,
+    });
+    if (policy.path === 'full-access') {
       tracked.authorized = () => this.#fullAccess?.(tracked.sessionId) === true;
       return 'allowed-once';
     }
     const standing =
       tracked.externalDecision === 'each-use' ? undefined : this.#matchingRule(tracked);
-    if (standing !== undefined) {
+    if (
+      standing !== undefined &&
+      this.#decisionPolicy(tracked, {
+        standingRule: this.#explicitRuleRequired(tracked) ? 'explicit' : 'ordinary',
+      }).path === 'standing-rule'
+    ) {
       tracked.automatic = true;
       this.#rules?.recordAutoApproval(standing.botSlug, standing.id);
       return 'allowed-once';
@@ -333,17 +338,16 @@ export class ChannelToolApproval {
     if (channel === undefined) return 'unavailable';
     if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
     if (
-      !policyChange &&
-      !tracked.requireExplicitApproval &&
+      this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer' &&
       this.#overrides.delete(overrideKey(tracked))
     ) {
       tracked.humanReviewed = true;
       return 'allowed-once';
     }
     const template =
-      policyChange || tracked.requireExplicitApproval
-        ? undefined
-        : this.#autoApproval?.template(tracked.botSlug);
+      this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer'
+        ? this.#autoApproval?.template(tracked.botSlug)
+        : undefined;
     if (template !== undefined && this.#breakers.get(tracked.sessionId)?.paused !== true) {
       const reviewed = await this.#review(tracked, template, channelId, request.signal);
       if (reviewed !== undefined) return reviewed;
@@ -362,7 +366,7 @@ export class ChannelToolApproval {
         cwd: tracked.cwd,
         input: tracked.input,
         externalDecision: tracked.externalDecision ?? 'operation',
-        allowAlways: tracked.externalDecision !== 'each-use' || tracked.rememberable === true,
+        allowAlways: policy.rememberable,
         ...(tracked.botCreatePreview === undefined
           ? {}
           : { botCreatePreview: tracked.botCreatePreview }),
@@ -929,12 +933,29 @@ export class ChannelToolApproval {
       : scope;
   }
 
+  #decisionPolicy(
+    tracked: TrackedCall,
+    options: {
+      fullAccess?: boolean;
+      standingRule?: 'none' | 'ordinary' | 'explicit';
+      reviewer?: boolean;
+    } = {},
+  ) {
+    return decideToolApproval(tracked.effects, {
+      stage: 'request',
+      legacyProtected: this.#changesPolicy(tracked),
+      explicitApproval: tracked.requireExplicitApproval === true,
+      eachUse: tracked.externalDecision === 'each-use',
+      device: tracked.device !== undefined,
+      fullAccess: options.fullAccess === true,
+      standingRule: options.standingRule ?? 'none',
+      reviewer: options.reviewer === true,
+      rememberable: tracked.rememberable === true,
+    });
+  }
+
   #explicitRuleRequired(tracked: TrackedCall): boolean {
-    return (
-      this.#changesPolicy(tracked) ||
-      tracked.requireExplicitApproval === true ||
-      tracked.device !== undefined
-    );
+    return this.#decisionPolicy(tracked).explicitRule;
   }
 
   #matchingRule(tracked: TrackedCall): ToolApprovalRule | undefined {

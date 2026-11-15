@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 增加下游匿名 Bot Token 统计的验证路径及快照查询约定；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4255](https://github.com/BotHarness/DeepSeekBot/issues/4255)）。
+
 - 增加下游首次 Tob 准备期间的设置响应性验证路径；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4226](https://github.com/BotHarness/DeepSeekBot/issues/4226)）。
 
 - 补充下游相同登记的官方地址恢复与保护隐私的账号邀请诊断；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)）。

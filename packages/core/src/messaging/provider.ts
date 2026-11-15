@@ -276,6 +276,7 @@ export interface MessagingProvider {
   inspect(
     accountRef: string,
     targetRef: string,
+    checkedAccount?: MessagingAccount,
   ): Promise<{
     account: MessagingAccount;
     target: MessagingTarget;
