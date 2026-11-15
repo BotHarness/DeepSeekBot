@@ -21,6 +21,8 @@ import { useThisHost, getThisHost } from './this-host.js';
 import { useMountedResource } from './mounted-resource.js';
 import { createConnectionControl, type ConnectionAttempt } from './connection-control.js';
 import { ConnectionProgress } from './connection-progress.js';
+import { TeamSignInDialog } from './team-sign-in-dialog.js';
+import type { TeamSignInTarget } from '@botharness/host-client/team-sign-in';
 export { useThisHost } from './this-host.js';
 import { HostGlyph } from './host-glyph.js';
 export { HostGlyph } from './host-glyph.js';
@@ -363,6 +365,9 @@ export function AddRemoteHostDialog({
   const [error, setError] = useState<string>();
   const control = useRef<ReturnType<typeof createConnectionControl>>();
   const attemptId = useRef<string>();
+  const attemptLink = useRef('');
+  const [team, setTeam] = useState<TeamSignInTarget>();
+  const [manual, setManual] = useState<{ route: string; username: string }>();
   const mount = useMountedResource<HTMLDivElement>(() => {
     const sources = remoteHosts();
     const owner = createConnectionControl(sources, getThisHost);
@@ -370,6 +375,12 @@ export function AddRemoteHostDialog({
     const off = owner.subscribe(() => {
       if (!attemptId.current) return;
       const next = owner.getSnapshot(attemptId.current);
+      if (next?.state === 'failed' && next.code === 'team-sign-in-required') {
+        attemptId.current = undefined;
+        setAttempt(undefined);
+        setTeam({ kind: 'invitation', link: attemptLink.current });
+        return;
+      }
       setAttempt(next);
       if (next?.state === 'connected' && next.hostId) {
         const looks = hostLooks();
@@ -418,6 +429,7 @@ export function AddRemoteHostDialog({
         );
       } else {
         attemptId.current = crypto.randomUUID();
+        attemptLink.current = link.trim();
         owner.execute({ action: 'start', attemptId: attemptId.current, link }, request);
       }
     } catch {
@@ -425,6 +437,57 @@ export function AddRemoteHostDialog({
     }
   };
   const failed = attempt?.state === 'failed' || attempt?.state === 'cancelled';
+  if (team !== undefined)
+    return (
+      <div ref={mount}>
+        <TeamSignInDialog
+          target={team}
+          inline={inline}
+          footerContainer={footerContainer}
+          onClose={onClose}
+          onDone={() => onClose()}
+          t={t}
+        />
+      </div>
+    );
+  if (manual !== undefined) {
+    const route = manual.route.trim();
+    const username = manual.username.trim();
+    return (
+      <div ref={mount}>
+        <FormDialog
+          title={t('teamSignIn.titleGeneric')}
+          description={t('teamSignIn.manualHint')}
+          inline={inline}
+          footerContainer={footerContainer}
+          labels={{ close: t('common.close'), cancel: t('connections.back') }}
+          submitLabel={t('teamSignIn.continue')}
+          submitDisabled={route.length === 0 || username.length === 0}
+          onCancel={() => setManual(undefined)}
+          onClose={onClose}
+          onSubmit={() => setTeam({ kind: 'address', route, username })}
+          submitData={{ 'data-team-manual-submit': '' }}
+        >
+          <TextField
+            label={t('teamSignIn.address')}
+            hint={t('teamSignIn.addressHint')}
+            placeholder="https://"
+            inputMode="url"
+            autoComplete="url"
+            value={manual.route}
+            onChange={(value) => setManual({ ...manual, route: value })}
+            initialFocus
+          />
+          <TextField
+            label={t('teamSignIn.username')}
+            autoComplete="username"
+            value={manual.username}
+            onChange={(value) => setManual({ ...manual, username: value })}
+          />
+        </FormDialog>
+      </div>
+    );
+  }
   return (
     <FormDialog
       title={t('connections.join')}
@@ -522,6 +585,14 @@ export function AddRemoteHostDialog({
               onClick={() => imageInput.current?.click()}
             >
               {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
+            </Button>
+            <Button
+              variant="ghost"
+              data-team-manual=""
+              icon={<ChannelSidebarIcon name="user" size={16} />}
+              onClick={() => setManual({ route: '', username: '' })}
+            >
+              {t('teamSignIn.useUsername')}
             </Button>
           </>
         ) : (
