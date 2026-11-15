@@ -187,6 +187,7 @@ export function TeamSignInDialog({
         <FormDialog
           title={t('teamSignIn.switchTitle')}
           inline={inline}
+          showCancel={!inline}
           footerContainer={footerContainer}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           submitLabel={t('teamSignIn.switchConfirm')}
@@ -203,13 +204,15 @@ export function TeamSignInDialog({
       </>
     );
   const submitLabel: BotHarnessKey =
-    state.kind === 'fingerprint'
-      ? 'connect.matches'
-      : state.kind === 'sign-in'
-        ? 'teamSignIn.signIn'
-        : state.kind === 'password-change'
-          ? 'teamSignIn.changeSubmit'
-          : 'teamSignIn.finish';
+    flow === undefined
+      ? 'teamSignIn.continue'
+      : state.kind === 'fingerprint'
+        ? 'connect.matches'
+        : state.kind === 'sign-in'
+          ? 'teamSignIn.signIn'
+          : state.kind === 'password-change'
+            ? 'teamSignIn.changeSubmit'
+            : 'teamSignIn.finish';
   const ready =
     flow !== undefined &&
     (state.kind === 'fingerprint' ||
@@ -224,6 +227,7 @@ export function TeamSignInDialog({
           hostName === '' ? t('teamSignIn.titleGeneric') : t('teamSignIn.title', { host: hostName })
         }
         inline={inline}
+        showCancel={!inline}
         footerContainer={footerContainer}
         labels={{ close: t('common.close'), cancel: t('common.cancel') }}
         submitLabel={t(submitLabel)}
@@ -247,9 +251,14 @@ export function TeamSignInDialog({
             ) : null
           ) : state.kind === 'fingerprint' ? (
             <>
-              <p {...stylex.props(styles.muted)}>
-                {t('teamSignIn.as', { username: state.username })}
-              </p>
+              <div>
+                <p data-team-host="" {...stylex.props(styles.host)}>
+                  {state.host.name}
+                </p>
+                <p {...stylex.props(styles.muted)}>
+                  {t('teamSignIn.as', { username: state.username })}
+                </p>
+              </div>
               <p {...stylex.props(styles.muted)}>{t('teamSignIn.fingerprintHint')}</p>
               <code data-team-fingerprint="" {...stylex.props(styles.fingerprint)}>
                 {state.host.fingerprint}
@@ -257,9 +266,14 @@ export function TeamSignInDialog({
             </>
           ) : state.kind === 'sign-in' ? (
             <>
-              <p {...stylex.props(styles.muted)}>
-                {t('teamSignIn.as', { username: state.username })}
-              </p>
+              <div>
+                <p data-team-host="" {...stylex.props(styles.host)}>
+                  {state.host.name}
+                </p>
+                <p {...stylex.props(styles.muted)}>
+                  {t('teamSignIn.as', { username: state.username })}
+                </p>
+              </div>
               <TextField
                 label={t('teamSignIn.password')}
                 hint={t('teamSignIn.passwordHint')}

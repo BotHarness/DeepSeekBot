@@ -32,6 +32,7 @@ vi.mock('../src/client/this-host.js', () => ({
 }));
 
 import { TeamSignInDialog } from '../src/client/team-sign-in-dialog.js';
+import { teamInvitationLink } from '../src/client/host-tabs.js';
 import { zhTranslate } from '../src/client/locale.js';
 
 const host = { id: 'h-team', name: 'Acme', fingerprint: 'AAAA BBBB CCCC' };
@@ -214,5 +215,28 @@ describe('Team sign-in dialog', () => {
     expect(document.body.textContent).toContain(zhTranslate('teamSignIn.error.invitation-expired'));
     await act(async () => again.unmount());
     container.remove();
+  });
+
+  it('recognises Team invitations before the pairing path sees them', () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        v: 1,
+        host: {
+          id: 'h-team',
+          name: 'Acme',
+          fingerprint: '1c46 d94c f1d1 4ffe 7838 53c4 99a8 3f95 e570 d6cd dad3 8d54 19d3 c97f b4ed a407',
+        },
+        routes: [],
+        username: 'alice',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    ).toString('base64url');
+    expect(teamInvitationLink(`deepseekbot://team?i=${payload}`)?.ok).toBe(true);
+    expect(teamInvitationLink('deepseekbot://team?i=***')).toEqual({
+      ok: false,
+      code: 'invitation-invalid',
+    });
+    expect(teamInvitationLink('deepseekbot://pair?p=abc')).toBeUndefined();
+    expect(teamInvitationLink('not a link')).toBeUndefined();
   });
 });

@@ -21,7 +21,8 @@ import { useThisHost, getThisHost } from './this-host.js';
 import { useMountedResource } from './mounted-resource.js';
 import { createConnectionControl, type ConnectionAttempt } from './connection-control.js';
 import { ConnectionProgress } from './connection-progress.js';
-import { TeamSignInDialog } from './team-sign-in-dialog.js';
+import { TeamSignInDialog, teamSignInErrorText } from './team-sign-in-dialog.js';
+import { parseTeamInvitation } from '@botharness/host-protocol/team-invitation';
 import type { TeamSignInTarget } from '@botharness/host-client/team-sign-in';
 export { useThisHost } from './this-host.js';
 import { HostGlyph } from './host-glyph.js';
@@ -344,6 +345,18 @@ const PAIR_ERRORS: Partial<Record<string, BotHarnessKey>> = {
   'this-host': 'remoteHosts.error.this-host',
 };
 
+export function teamInvitationLink(
+  link: string,
+): ReturnType<typeof parseTeamInvitation> | undefined {
+  try {
+    const url = new URL(link.trim());
+    if (url.protocol !== 'deepseekbot:' || url.hostname !== 'team') return undefined;
+  } catch {
+    return undefined;
+  }
+  return parseTeamInvitation(link.trim());
+}
+
 export function AddRemoteHostDialog({
   onClose,
   onBack,
@@ -365,7 +378,6 @@ export function AddRemoteHostDialog({
   const [error, setError] = useState<string>();
   const control = useRef<ReturnType<typeof createConnectionControl>>();
   const attemptId = useRef<string>();
-  const attemptLink = useRef('');
   const [team, setTeam] = useState<TeamSignInTarget>();
   const [manual, setManual] = useState<{ route: string; username: string }>();
   const mount = useMountedResource<HTMLDivElement>(() => {
@@ -375,12 +387,6 @@ export function AddRemoteHostDialog({
     const off = owner.subscribe(() => {
       if (!attemptId.current) return;
       const next = owner.getSnapshot(attemptId.current);
-      if (next?.state === 'failed' && next.code === 'team-sign-in-required') {
-        attemptId.current = undefined;
-        setAttempt(undefined);
-        setTeam({ kind: 'invitation', link: attemptLink.current });
-        return;
-      }
       setAttempt(next);
       if (next?.state === 'connected' && next.hostId) {
         const looks = hostLooks();
@@ -428,8 +434,13 @@ export function AddRemoteHostDialog({
           request,
         );
       } else {
+        const invitation = teamInvitationLink(link);
+        if (invitation !== undefined) {
+          if (invitation.ok) setTeam({ kind: 'invitation', link: link.trim() });
+          else setError(teamSignInErrorText(t, invitation.code));
+          return;
+        }
         attemptId.current = crypto.randomUUID();
-        attemptLink.current = link.trim();
         owner.execute({ action: 'start', attemptId: attemptId.current, link }, request);
       }
     } catch {
@@ -459,6 +470,7 @@ export function AddRemoteHostDialog({
           title={t('teamSignIn.titleGeneric')}
           description={t('teamSignIn.manualHint')}
           inline={inline}
+          showCancel={!inline}
           footerContainer={footerContainer}
           labels={{ close: t('common.close'), cancel: t('connections.back') }}
           submitLabel={t('teamSignIn.continue')}
