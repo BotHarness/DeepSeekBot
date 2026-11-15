@@ -1,6 +1,6 @@
 # Skill Invocation in a Bot DM or Group Channel
 
-A Human types `/` in a PersonaBot DM or Group Channel, picks a Skill, and sends it. The Host stores the Skill's text with the message and the Bot reads it as a `<skill_invocation>` block ([ADR-0346](../../../../docs/adr/ 0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)).
+A Human types `/` in a PersonaBot DM or Group Channel, picks a Skill, and sends it. The Host stores the Skill's text with the message and the Bot reads it as a `<skill_invocation>` block ([ADR-0346](../../../../docs/adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)).
 
 ## Sub-features
 

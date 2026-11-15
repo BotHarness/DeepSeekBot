@@ -476,7 +476,13 @@ export function ChannelComposer({
     slashTarget.current === context?.target ? slashQuery : undefined,
   );
   const skillMatches =
-    skillQuery === undefined ? [] : rankSkillEntries(skillOptions, skillQuery.query).slice(0, 8);
+    skillQuery === undefined
+      ? []
+      : rankSkillEntries(skillOptions, skillQuery.query, (option) =>
+          option.owner.kind === 'host'
+            ? []
+            : [option.bot?.displayName ?? option.owner.botSlug, option.owner.botSlug],
+        ).slice(0, 8);
   const menuLength = shortcutOptions.length + skillMatches.length;
   const chipBots = [
     ...mentionCandidates,
