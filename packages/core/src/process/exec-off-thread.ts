@@ -75,19 +75,21 @@ function ensureWorker(): Worker | undefined {
   if (unavailable) return undefined;
   try {
     const created = new Worker(SOURCE, { eval: true });
-    created.unref();
     created.on('message', (reply: Reply) => {
       const waiter = pending.get(reply.id);
       if (waiter === undefined) return;
       pending.delete(reply.id);
+      if (pending.size === 0) created.unref();
       waiter.resolve(reply);
     });
     const lost = (error: Error) => {
       if (worker === created) worker = undefined;
       failAll(error);
+      created.unref();
     };
     created.on('error', lost);
     created.on('exit', () => lost(new Error('The process runner stopped.')));
+    created.unref();
     worker = created;
     return created;
   } catch {
@@ -176,17 +178,24 @@ async function run(
     const id = nextId++;
     const reply = await new Promise<Reply>((resolve, reject) => {
       pending.set(id, { encoding, resolve, reject });
-      runner.postMessage({
-        id,
-        file,
-        args: [...args],
-        options: {
-          ...options,
-          env: options.env ?? { ...process.env },
-          ...(options.stdio ? { stdio: [...options.stdio] } : {}),
-          encoding: encoding === 'buffer' ? 'buffer' : 'utf8',
-        },
-      });
+      runner.ref();
+      try {
+        runner.postMessage({
+          id,
+          file,
+          args: [...args],
+          options: {
+            ...options,
+            env: options.env ?? { ...process.env },
+            ...(options.stdio ? { stdio: [...options.stdio] } : {}),
+            encoding: encoding === 'buffer' ? 'buffer' : 'utf8',
+          },
+        });
+      } catch (error) {
+        pending.delete(id);
+        if (pending.size === 0) runner.unref();
+        reject(error);
+      }
     });
     const result = settle(reply, encoding);
     outcome = 'ok';

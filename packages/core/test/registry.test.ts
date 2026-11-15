@@ -37,6 +37,74 @@ describe('isValidSlug', () => {
 });
 
 describe('createPersonaBotRegistry', () => {
+  it('keeps creation private while asynchronous Memory preparation yields and reserves its slug', async () => {
+    let finish: ((value: { ok: boolean }) => void) | undefined;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const pending = registry.createAsync({ slug: 'preparing', displayName: 'Preparing' });
+    expect(registry.list()).toEqual([]);
+    let settled = false;
+    const drain = registry.settled('local-human').then(() => {
+      settled = true;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(settled).toBe(false);
+    expect(registry.create({ slug: 'preparing', displayName: 'Other' })).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    expect(await registry.createAsync({ slug: 'preparing', displayName: 'Other' })).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    finish?.({ ok: true });
+    expect(await pending).toMatchObject({ ok: true, record: { displayName: 'Preparing' } });
+    await drain;
+    expect(settled).toBe(true);
+    expect(registry.list()).toHaveLength(1);
+  });
+
+  it('does not publish a failed asynchronous Memory preparation and allows retry', async () => {
+    let ok = false;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: async () => ({ ok }),
+    });
+    expect(await registry.createAsync({ slug: 'retry', displayName: 'Retry' })).toMatchObject({
+      ok: false,
+      reason: 'memory-unavailable',
+    });
+    expect(registry.get('retry')).toBeUndefined();
+    ok = true;
+    expect(await registry.createAsync({ slug: 'retry', displayName: 'Retry' })).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it('rechecks authorization after preparation even when Memory initialization fails', async () => {
+    let finish: ((value: { ok: boolean }) => void) | undefined;
+    let allowed = true;
+    const registry = createTestRegistry({
+      rootDir: createRoot(),
+      initializeMemoryAsync: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const pending = registry.createAsync({ slug: 'revoked', displayName: 'Revoked' }, () => {
+      if (!allowed) throw Error('identity-revoked');
+    });
+    allowed = false;
+    const rejected = expect(pending).rejects.toThrow('identity-revoked');
+    finish?.({ ok: false });
+    await rejected;
+    expect(registry.get('revoked')).toBeUndefined();
+  });
   it('cleans only imported staging it owns on initializer failure and retries the same slug', async () => {
     const home = createRoot();
     const path = join(home, 'separate-memory');

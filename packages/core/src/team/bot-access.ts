@@ -22,6 +22,9 @@ export function privateBotRegistry(
     listHistorical: () => registry.listHistorical(human.humanId),
     findByWorkspace: (path) => own(registry.findByWorkspace(path)),
     create: (input) => registry.create({ ...input, ownerHumanId: human.humanId }),
+    createAsync: (input, authorize) =>
+      registry.createAsync({ ...input, ownerHumanId: human.humanId }, authorize),
+    settled: () => registry.settled(human.humanId),
     createFromGit: (input, authorize) =>
       registry.createFromGit({ ...input, ownerHumanId: human.humanId }, () => {
         authorizeImport?.();
@@ -46,6 +49,8 @@ export function privateBotRegistry(
     | 'listHistorical'
     | 'findByWorkspace'
     | 'create'
+    | 'createAsync'
+    | 'settled'
     | 'createFromGit'
     | 'createFromFiles'
     | 'remove'

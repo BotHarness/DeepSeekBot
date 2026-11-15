@@ -6,6 +6,8 @@ Issues: [#1821](https://github.com/BotHarness/DeepSeekBot/issues/1821), [#1823](
 
 # An Approval Template lets a reviewer Session answer a Bot's tool approvals
 
+> Design amendment (2026-11-15): [ADR-0342](0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md) changes template selection/composition and Reviewer outcomes as an accepted, unimplemented target. The historical decision below is not proof that the new target has shipped. [ADR-0249](0249-every-approval-card-can-save-explicit-tool-authorization.md) already amends the mandatory per-use management policy.
+
 A PersonaBot that hits a Tool approval card stops until a Human answers it. Nobody answers when the Human is away or the work runs for hours, and the Bot stalls. The @-wake end-to-end runs saw this whenever a model called `todo_write` or `send_message` and nobody clicked: the run timed out with no fault in the wake path. Saved Tool Approval Rules help only for calls the Human has already seen, and full access removes every check at once. The owner asked for a middle ground in their own terms: a written rulebook per Bot that a separate, clean model Session applies on the Human's behalf. Claude Code's auto mode and OpenAI Codex's auto-review are the same shape: a second model answers the approval, and the human keeps the final word through rules and fallbacks.
 
 ## Decision

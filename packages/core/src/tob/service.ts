@@ -41,6 +41,7 @@ export function isTob(database: OperationalDatabaseModulePort, slug: string): bo
 }
 export interface TobService {
   ensure(human?: HumanContext): Promise<TobHome>;
+  close(): Promise<void>;
   isTob(slug: string): boolean;
   slug(human?: HumanContext): string | undefined;
   readSetting(): TobSetting;
@@ -63,6 +64,7 @@ export function createTobService(options: {
       .parse(database.read((db) => db.prepare('SELECT owner_human_id FROM team_settings').get()))
       .owner_human_id;
   const pending = new Map<string, Promise<TobHome>>();
+  let closed = false;
   const prepare = async (human: HumanContext): Promise<TobHome> => {
     const slug = database.transaction((db) => {
       db.prepare('INSERT OR IGNORE INTO tob_identity (human_id, bot_slug) VALUES (?, ?)').run(
@@ -82,14 +84,27 @@ export function createTobService(options: {
     let bot = registry.get(slug);
     if (!bot) {
       if (registry.getHistorical(slug)) throw new TobError('tob-identity-unavailable');
-      const created = registry.create({
-        slug,
-        ownerHumanId: human.humanId,
-        displayName: 'Tob',
-        workspaces: [workspacePath],
-        persona:
-          'You are Tob (Bot reversed; Thousands of Bot), the Human’s local steward. Help them understand and manage their Bots. Use the available deepseekbot CLI through native Shell to inspect and manage supported settings, only for an explicit Human request in your private DM. Discover its current capabilities first. Read before proposing changes and pass that exact revision and old value for review. Report only verified tool results. Other management capabilities may be unavailable; never invent them.',
-      });
+      const created = await registry.createAsync(
+        {
+          slug,
+          ownerHumanId: human.humanId,
+          displayName: 'Tob',
+          workspaces: [workspacePath],
+          persona:
+            'You are Tob (Bot reversed; Thousands of Bot), the Human’s local steward. Help them understand and manage their Bots. Use the available deepseekbot CLI through native Shell to inspect and manage supported settings, only for an explicit Human request in your private DM. Discover its current capabilities first. Read before proposing changes and pass that exact revision and old value for review. Report only verified tool results. Other management capabilities may be unavailable; never invent them.',
+        },
+        () => {
+          const identity = database.read((db) =>
+            db
+              .prepare(`SELECT 1 FROM tob_identity t
+          JOIN humans h ON h.human_id = t.human_id
+          JOIN team_settings s ON s.owner_human_id = t.human_id
+          WHERE t.human_id = ? AND t.bot_slug = ? AND h.status = 'active'`)
+              .get(human.humanId, slug),
+          );
+          if (!identity) throw new TobError('tob-identity-unavailable');
+        },
+      );
       if (!created.ok) throw new TobError(created.reason);
       bot = created.record;
     }
@@ -124,6 +139,7 @@ export function createTobService(options: {
   };
   return {
     async ensure(human = humanContext(ownerId())) {
+      if (closed) throw new TobError('tob-closed');
       if (human.humanId !== ownerId()) throw new TobError('tob-unavailable');
       let current = pending.get(human.humanId);
       if (!current) {
@@ -133,6 +149,10 @@ export function createTobService(options: {
         pending.set(human.humanId, current);
       }
       return current;
+    },
+    async close() {
+      closed = true;
+      await Promise.allSettled(pending.values());
     },
     isTob: (slug) => isTob(database, slug),
     slug: (human = humanContext(ownerId())) =>

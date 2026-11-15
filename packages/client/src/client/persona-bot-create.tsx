@@ -1,3 +1,4 @@
+import { BotCreateSteps } from './bot-create-source.js';
 import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
@@ -124,6 +125,7 @@ export function CreatePersonaBotModal({
   sectionName,
   t = zhTranslate,
   onCancel,
+  onBack,
   onCreated,
   target,
   targetUnavailable = false,
@@ -137,6 +139,7 @@ export function CreatePersonaBotModal({
   sectionName?: string;
   t?: BotHarnessTranslate | undefined;
   onCancel: () => void;
+  onBack?: (() => void) | undefined;
   onCreated: () => void;
   target?: ReactNode;
   targetUnavailable?: boolean;
@@ -317,6 +320,7 @@ export function CreatePersonaBotModal({
       }}
       onSubmit={submit}
     >
+      {onBack ? <BotCreateSteps t={t} onBack={onBack} disabled={fieldsLocked} /> : null}
       {target}
       {source === 'git' ? (
         <TextField

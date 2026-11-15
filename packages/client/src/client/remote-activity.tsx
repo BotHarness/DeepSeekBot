@@ -1,21 +1,15 @@
-import { useHostName, useHostLook, hostLooks } from './host-looks.js';
-import { HostGlyph } from './host-glyph.js';
+import { hostLooks } from './host-looks.js';
+import { ActivityEnvironmentBadge } from './activity-environment-badge.js';
 import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
-import { useMemo, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
-import * as stylex from '@stylexjs/stylex';
-import {
-  IconChevronDownOutlineMedium,
-  IconChevronRightOutlineMedium,
-  Button,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { useRef, useState, type ReactElement } from 'react';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InboxSnapshot } from '../../../../apps/mobile/src/host/inbox.js';
 import { isAvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
 import { parseHumanAttentionPage } from './bridge.js';
-import { ACTIVITY_SECTIONS, type ActivityQuery, type ActivitySection } from './activity-feed.js';
+import type { ActivitySection } from './activity-feed.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanelRegistry } from './dock-panels.js';
-import { color, space, text } from './ds/tokens.stylex.js';
-import { ActivityListView } from './activity-list-view.js';
+import type { ActivityListSource } from './activity-list-view.js';
 import { ActivityListSourceButton } from './activity-list-controls.js';
 import { createHostActivityActions, type HostActivityActions } from './host-activity-actions.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -24,35 +18,6 @@ import { UserQuestionCard } from './user-question-card.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { RemoteHost, RemoteHosts, RemoteConversationTarget } from './remote-hosts.js';
 import type { ChannelMessage, HumanAttentionItem, ActivityListState } from './store.js';
-
-const styles = stylex.create({
-  heading: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    margin: 0,
-    padding: space.x3,
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-  },
-  mark: { color: color.subtle, fontSize: text.metaSize, fontWeight: text.regular },
-  note: {
-    margin: 0,
-    paddingInline: space.x3,
-    paddingBlock: space.x2,
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
-});
-const titles = {
-  action: 'activityInbox.needsYou',
-  replies: 'activityInbox.forYou',
-  unread: 'activityList.unread',
-  handled: 'activityList.handled',
-} as const;
 
 export function remoteActivityTarget(
   host: RemoteHost,
@@ -112,27 +77,6 @@ export function remoteActivityPage(
     hasAction: false,
     channelUnread: inbox.status === 'ready' ? (inbox.unread ?? {}) : {},
   };
-}
-
-export function ActivityHostHeading({
-  name,
-  hostId,
-  remote = false,
-  t,
-}: {
-  name: string;
-  hostId?: string;
-  remote?: boolean;
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const look = useHostLook(hostId ?? 'local');
-  return (
-    <h2 {...stylex.props(styles.heading)}>
-      {hostId ? <HostGlyph look={look} /> : null}
-      {name}
-      {remote ? <span {...stylex.props(styles.mark)}>{t('remoteHosts.remote')}</span> : null}
-    </h2>
-  );
 }
 
 function RemoteActivityDetail({
@@ -225,87 +169,67 @@ function RemoteActivityDetail({
   );
 }
 
-export function RemoteActivityGroup({
+export type RemoteActivityObservation = NonNullable<ReturnType<RemoteHosts['activity']>>;
+
+export function createRemoteActivitySource({
   host,
   sources,
   avatars,
   registry,
-  query,
+  observation,
+  section,
   t,
 }: {
   host: RemoteHost;
   sources: RemoteHosts;
   avatars: ReadonlyMap<string, string>;
   registry?: DockPanelRegistry | undefined;
-  query: ActivityQuery;
+  observation: RemoteActivityObservation;
+  section: ActivitySection;
   t: BotHarnessTranslate;
-}): ReactElement | null {
-  const filtered =
-    query.search !== '' ||
-    query.sort !== 'default' ||
-    query.snoozed ||
-    query.category === 'handled';
-  const observation = useMemo(
-    () =>
-      sources.activity(
-        host.host.hostId,
-        filtered
-          ? {
-              activity: true,
-              search: query.search,
-              sort: query.sort,
-              section: query.snoozed ? 'snoozed' : query.category === 'handled' ? 'handled' : 'all',
-            }
-          : undefined,
-      )!,
-    [sources, host.host.hostId, filtered, query.search, query.sort, query.snoozed, query.category],
-  );
-  const inbox = useSyncExternalStore(observation.subscribe, observation.getSnapshot);
-  const currentInbox = useRef(inbox);
-  currentInbox.current = inbox;
-  const scopedActions = useMemo(
-    () =>
-      createHostActivityActions({
-        requestUnavailable: t('activityList.failed'),
-        client: () => {
-          const client = sources.client(host.host.hostId);
-          if (client === undefined || client.getSnapshot().connection.status === 'refused')
-            throw new Error(t('activityList.failed'));
-          return client;
-        },
-        items: () => {
-          const value = currentInbox.current;
-          return value.status === 'ready'
-            ? Object.values(value.sections).flatMap(
-                (items) => parseRemoteActivityItems(items).items,
-              )
-            : [];
-        },
-        refresh: async () => {
-          await observation.getInbox()?.refresh();
-        },
-        open: async (channelId) => {
-          const current = sources
-            .getSnapshot()
-            .hosts.find((entry) => entry.host.hostId === host.host.hostId);
-          if (current === undefined || current.snapshot.connection.status === 'refused')
-            throw new Error(t('activityList.failed'));
-          sources.open({
-            hostId: current.host.hostId,
-            channelId,
-            title:
-              current.snapshot.roster?.channels.find((channel) => channel.id === channelId)?.name ??
-              shownHostName(hostLooks().look(current.host.hostId), current.host.hostName),
-          });
-          registry?.open(CHANNEL_BODY_PANEL);
-        },
-      }),
-    [sources, host.host.hostId, observation, registry, t],
-  );
-  const [collapsed, setCollapsed] = useState<Partial<Record<ActivitySection, boolean>>>({});
-  const hostName = useHostName(host.host.hostId, host.host.hostName);
-  if (query.botSlug !== undefined || query.channelId !== undefined) return null;
-  const refused = host.snapshot.connection.status === 'refused';
+}): ActivityListSource {
+  const hostId = host.host.hostId;
+  const currentHost = (): RemoteHost => {
+    const current = sources.getSnapshot().hosts.find((entry) => entry.host.hostId === hostId);
+    if (!current || current.snapshot.connection.status === 'refused')
+      throw new Error(t('activityList.failed'));
+    return current;
+  };
+  const open = async (item: HumanAttentionItem): Promise<void> => {
+    sources.open(remoteActivityTarget(currentHost(), item));
+    registry?.open(CHANNEL_BODY_PANEL);
+  };
+  const refresh = async (): Promise<void> => {
+    await observation.getInbox()?.refresh();
+  };
+  const commands = createHostActivityActions({
+    requestUnavailable: t('activityList.failed'),
+    client: () => {
+      currentHost();
+      const client = sources.client(hostId);
+      if (!client || client.getSnapshot().connection.status === 'refused')
+        throw new Error(t('activityList.failed'));
+      return client;
+    },
+    items: () => {
+      const inbox = observation.getSnapshot();
+      return inbox.status === 'ready'
+        ? Object.values(inbox.sections).flatMap((items) => parseRemoteActivityItems(items).items)
+        : [];
+    },
+    refresh,
+    open: async (channelId) => {
+      const current = currentHost();
+      sources.open({
+        hostId,
+        channelId,
+        title:
+          current.snapshot.roster?.channels.find((channel) => channel.id === channelId)?.name ??
+          shownHostName(hostLooks().look(hostId), current.host.hostName),
+      });
+      registry?.open(CHANNEL_BODY_PANEL);
+    },
+  });
   const bots = (host.snapshot.roster?.bots ?? []).map((bot) => ({
     slug: bot.slug,
     displayName: bot.displayName,
@@ -320,98 +244,36 @@ export function RemoteActivityGroup({
     name: channel.name,
     type: 'group' as const,
   }));
-  const open = async (item: HumanAttentionItem) => {
-    const current = sources
-      .getSnapshot()
-      .hosts.find((entry) => entry.host.hostId === host.host.hostId);
-    if (current === undefined || current.snapshot.connection.status === 'refused')
-      throw new Error(t('activityList.failed'));
-    sources.open(remoteActivityTarget(current, item));
-    registry?.open(CHANNEL_BODY_PANEL);
+  return {
+    hostId,
+    origin: <ActivityEnvironmentBadge hostId={hostId} name={host.host.hostName} t={t} />,
+    commands,
+    detail: (item, onClose) => (
+      <RemoteActivityDetail
+        key={hostId + item.id}
+        item={item}
+        actions={commands}
+        t={t}
+        onClose={onClose}
+        onOpen={() => open(item)}
+      />
+    ),
+    botName: (slug) => bots.find((bot) => bot.slug === slug)?.displayName ?? slug,
+    isDirect: (channelId) => !channels.some((channel) => channel.id === channelId),
+    open,
+    sourceButton: (item, onOpen) => (
+      <ActivityListSourceButton
+        item={item}
+        bots={bots}
+        channels={channels}
+        t={t}
+        localIdentity={false}
+        onClick={onOpen}
+      />
+    ),
+    refresh,
+    loadMore: async () => {
+      await observation.getInbox()?.loadMore?.(section);
+    },
   };
-  return (
-    <section data-activity-host={host.host.hostId} aria-label={hostName}>
-      <ActivityHostHeading name={hostName} hostId={host.host.hostId} remote t={t} />
-      {host.snapshot.connection.status !== 'connected' ? (
-        <p role="status" {...stylex.props(styles.note)}>
-          {t(refused ? 'remoteHosts.refused' : 'remoteHosts.offline', { name: hostName })}
-        </p>
-      ) : null}
-      {refused
-        ? null
-        : (query.category === 'all' ? ACTIVITY_SECTIONS : [query.category]).map((section) => {
-            const page = remoteActivityPage(inbox, section, t);
-            const count =
-              section === 'unread'
-                ? page.items.reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
-                : page.items.length;
-            return (
-              <ActivityListView
-                key={section + JSON.stringify(query)}
-                t={t}
-                inboxOverride={page}
-                collapsed={collapsed[section] ?? false}
-                emptyMessage={query.search ? t('activityInbox.noResults') : undefined}
-                hostSource={{
-                  commands: scopedActions,
-                  detail: (item, onClose) => (
-                    <RemoteActivityDetail
-                      key={item.id}
-                      item={item}
-                      actions={scopedActions}
-                      t={t}
-                      onClose={onClose}
-                      onOpen={() => open(item)}
-                    />
-                  ),
-                  botName: (slug) => bots.find((bot) => bot.slug === slug)?.displayName ?? slug,
-                  isDirect: (channelId) => !channels.some((channel) => channel.id === channelId),
-                  open,
-                  sourceButton: (item, onOpen) => (
-                    <ActivityListSourceButton
-                      item={item}
-                      bots={bots}
-                      channels={channels}
-                      t={t}
-                      localIdentity={false}
-                      onClick={onOpen}
-                    />
-                  ),
-                  refresh: async () => {
-                    await observation.getInbox()?.refresh();
-                  },
-                  loadMore: async () => {
-                    await observation.getInbox()?.loadMore?.(section);
-                  },
-                }}
-                sectionHeading={
-                  <button
-                    type="button"
-                    className="bh-activity-section-toggle"
-                    aria-expanded={!collapsed[section]}
-                    aria-label={t(titles[section])}
-                    onClick={() =>
-                      setCollapsed((before) => ({ ...before, [section]: !before[section] }))
-                    }
-                  >
-                    {collapsed[section] ? (
-                      <IconChevronRightOutlineMedium />
-                    ) : (
-                      <IconChevronDownOutlineMedium />
-                    )}
-                    <span>{t(titles[section])}</span>
-                    <span
-                      className="bh-activity-section-count"
-                      data-attention={(section === 'action' && count > 0) || undefined}
-                    >
-                      {count}
-                      {page.nextCursor ? '+' : ''}
-                    </span>
-                  </button>
-                }
-              />
-            );
-          })}
-    </section>
-  );
 }

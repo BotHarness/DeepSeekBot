@@ -35,7 +35,7 @@ export function EnvironmentCreation(
   props: Parameters<typeof OwnerEnvironmentCreation>[0],
 ): ReactElement {
   if (!memberPage()) return <OwnerEnvironmentCreation {...props} />;
-  const { request, actions, t, onClose, sectionName } = props;
+  const { request, actions, t, onClose, sectionName, onBack } = props;
   if (request.kind === 'human-dm')
     return (
       <MessagePersonDialog
@@ -64,6 +64,7 @@ export function EnvironmentCreation(
     );
   return (
     <CreatePersonaBotModal
+      onBack={onBack}
       actions={actions}
       source={request.source}
       {...(request.sectionId === undefined ? {} : { sectionId: request.sectionId })}
@@ -81,6 +82,7 @@ function OwnerEnvironmentCreation({
   t,
   onClose,
   scope,
+  onBack,
   sectionName,
 }: {
   request: EnvironmentCreateRequest;
@@ -88,6 +90,7 @@ function OwnerEnvironmentCreation({
   t: BotHarnessTranslate;
   onClose: () => void;
   scope: string;
+  onBack?: (() => void) | undefined;
   sectionName?: string | undefined;
 }): ReactElement {
   const state = useRemoteHosts();
@@ -269,6 +272,7 @@ function OwnerEnvironmentCreation({
     );
   return (
     <CreatePersonaBotModal
+      onBack={onBack}
       actions={{
         ...actions,
         async createBot(input, sectionId) {

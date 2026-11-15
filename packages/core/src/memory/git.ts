@@ -109,6 +109,49 @@ export function commitMemoryRepositorySeed(root: string): string {
   return commitIfChanges(root, INIT_COMMIT_MESSAGE);
 }
 
+async function runAsync(root: string, args: string[]): Promise<string> {
+  return (await execFileText('git', args, { cwd: root, windowsHide: true, timeout: 10_000 }))
+    .stdout;
+}
+
+export async function initializeMemoryRepositoryAsync(root: string): Promise<{ created: boolean }> {
+  const created = !existsSync(join(root, '.git'));
+  if (created) await runAsync(root, ['init', '-b', 'main']);
+  for (const [key, value] of [
+    ['user.name', 'BotHarness'],
+    ['user.email', 'bot@botharness.local'],
+  ] as const) {
+    let present = false;
+    try {
+      present = (await runAsync(root, ['config', '--local', '--get', key])).trim().length > 0;
+    } catch {}
+    if (!present) await runAsync(root, ['config', key, value]);
+  }
+  await runAsync(root, ['config', 'commit.gpgsign', 'false']);
+  await runAsync(root, ['config', 'core.autocrlf', 'false']);
+  let head = '';
+  try {
+    head = (await runAsync(root, ['rev-parse', 'HEAD'])).trim();
+  } catch {}
+  if (head === '') {
+    const attributes = join(root, '.gitattributes');
+    if (!existsSync(attributes)) writeFileSync(attributes, GITATTRIBUTES, 'utf8');
+    await commitMemoryPathsAsync(root, [], INIT_COMMIT_MESSAGE);
+  }
+  return { created };
+}
+
+export async function commitMemoryPathsAsync(
+  root: string,
+  paths: readonly string[],
+  message: string,
+): Promise<void> {
+  const scope = paths.length ? ['--', ...paths] : [];
+  await runAsync(root, ['add', '-A', ...scope]);
+  if ((await runAsync(root, ['status', '--porcelain', ...scope])).trim() === '') return;
+  await runAsync(root, ['commit', '--no-gpg-sign', '-m', message, ...scope]);
+}
+
 export function createMemoryGit(root: string): MemoryGit {
   return {
     status() {
