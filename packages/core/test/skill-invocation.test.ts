@@ -7,7 +7,8 @@ import { createDshImProvider, type DshImOutboundService } from '../src/messaging
 import { parseImCommand } from '../src/messaging/im-commands.js';
 import { skillInvocationTokens } from '../src/bots/cli-skills.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { markSkillTokens, skillInvocationPrompt } from '../src/runtime/bot-runtime.js';
@@ -495,6 +496,178 @@ describe('Skill Invocation in a Human DM', () => {
     },
   );
 
+  it('shifts Skill snapshots after expanding All Bots and preserves earlier tokens', async () => {
+    const core = createCore({
+      dshHome: createTempRoot('botharness-skill-all-bots-'),
+      agents: adapter(async () => {}),
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      core.registry.create({ slug: 'bob', displayName: 'Bob Builder' });
+      const catalog = new SkillCatalog({
+        memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+        viewFor: liveView,
+      });
+      catalog.attach(registry([skill('pdf', 'user-agents', '/host/pdf/SKILL.md')], new Map()));
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Skills',
+        members: ['ada', 'bob'],
+      });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+      const preview = core.channels.previewAllBotMention(group.id);
+      for (const body of ['@All Bots /pdf', '/pdf @All Bots /pdf']) {
+        const start = body.indexOf('@All Bots');
+        const tokens = [...body.matchAll(/\/pdf/gu)].map((match) => ({
+          name: 'pdf',
+          owner: { kind: 'host' },
+          start: match.index,
+          end: match.index + 4,
+        }));
+        const sent = await methods.channelSend({
+          channelId: group.id,
+          body,
+          allBotMention: { start, end: start + 9, label: 'All Bots', preview },
+          skillInvocations: tokens,
+        });
+        expect(sent.ok).toBe(true);
+        if (!sent.ok) throw new Error(sent.error.message);
+        const stored = core.channels.message(group.id, sent.value.message.id)!;
+        expect(stored.body).toBe(body.replace('@All Bots', '@Ada @Bob Builder'));
+        expect(stored.skillInvocations).toHaveLength(tokens.length);
+        for (const token of stored.skillInvocations ?? []) {
+          expect(stored.body.slice(token.start, token.end)).toBe('/pdf');
+          expect(token).toMatchObject({ content: 'Body of pdf', path: '/host/pdf/SKILL.md' });
+        }
+        if (body.startsWith('/pdf')) expect(stored.skillInvocations?.[0]?.start).toBe(0);
+      }
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
+  it('keeps Group Skill catalog and sends within each Human readable active Bots', async () => {
+    const alice = humanContext('alice');
+    const bob = humanContext('bob');
+    const core = createCore({
+      dshHome: createTempRoot('botharness-skill-team-'),
+      agents: adapter(async () => {}),
+    });
+    try {
+      const database = attachOperationalModule(core.operationalDatabase, 'team');
+      database.transaction((db) => {
+        for (const human of [alice, bob]) {
+          db.prepare("INSERT INTO humans VALUES (?, ?, 'active', ?)").run(
+            human.humanId,
+            human.humanId,
+            new Date().toISOString(),
+          );
+          db.prepare("INSERT INTO human_roles VALUES (?, 'member')").run(human.humanId);
+        }
+        db.prepare('UPDATE team_settings SET enabled = 1').run();
+      });
+      for (const human of [OWNER_HUMAN_CONTEXT, alice, bob]) {
+        core.team.spaces.ensureAccount(human.humanId);
+        core.registry.create({
+          slug: human === OWNER_HUMAN_CONTEXT ? 'owner-bot' : human.humanId + '-bot',
+          displayName: human.humanId,
+          ownerHumanId: human.humanId,
+        });
+      }
+      const viewFor = vi.fn(liveView);
+      const catalog = new SkillCatalog({
+        memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+        viewFor,
+      });
+      catalog.attach(
+        registry(
+          [skill('host', 'user-agents', '/host/SKILL.md')],
+          new Map(
+            ['alice-bot', 'bob-bot', 'owner-bot'].map((slug) => {
+              const memory = core.registry.memoryDirFor(slug)!;
+              return [
+                memory,
+                [skill('pdf', 'project-agents', join(memory, '.agents/skills/pdf/SKILL.md'))],
+              ];
+            }),
+          ),
+        ),
+      );
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Shared Skills',
+        members: ['alice-bot', 'owner-bot', 'bob-bot'],
+      });
+      core.team.channelAccess.visibilitySet(OWNER_HUMAN_CONTEXT, group.id, { kind: 'public' });
+      for (const human of [alice, bob]) core.team.channelAccess.join(human, group.id);
+      const methods = (human: typeof alice) =>
+        createBridgeMethods(human, { ...core, skills: catalog });
+      const send = (human: typeof alice, botSlug: string) =>
+        methods(human).channelSend({
+          channelId: group.id,
+          body: '/pdf',
+          skillInvocations: [{ name: 'pdf', owner: { kind: 'bot', botSlug }, start: 0, end: 4 }],
+        });
+      for (const [human, slug] of [
+        [OWNER_HUMAN_CONTEXT, 'owner-bot'],
+        [alice, 'alice-bot'],
+        [bob, 'bob-bot'],
+      ] as const) {
+        expect(await methods(human).channelSkillCatalog({ channelId: group.id })).toMatchObject({
+          ok: true,
+          value: {
+            skills: [
+              { name: 'pdf', owner: { kind: 'bot', botSlug: slug } },
+              { name: 'host', owner: { kind: 'host' } },
+            ],
+          },
+        });
+        expect(await send(human, slug)).toMatchObject({
+          ok: true,
+          value: { message: { skillInvocations: [{ content: 'Body of pdf' }] } },
+        });
+      }
+      const before = core.channels.readMessages(group.id);
+      viewFor.mockClear();
+      const hidden = await send(bob, 'alice-bot');
+      expect(hidden).toEqual({
+        ok: false,
+        error: { code: 'skill-unavailable', message: 'Skill /pdf is no longer available' },
+      });
+      expect(await send(bob, 'missing-bot')).toEqual(hidden);
+      expect(await send(OWNER_HUMAN_CONTEXT, 'alice-bot')).toEqual(hidden);
+      expect(viewFor).not.toHaveBeenCalled();
+      expect(core.channels.readMessages(group.id)).toEqual(before);
+      expect(
+        await methods(bob).channelSend({
+          channelId: group.id,
+          body: '/host',
+          skillInvocations: [{ name: 'host', owner: { kind: 'host' }, start: 0, end: 5 }],
+        }),
+      ).toMatchObject({ ok: true });
+      expect(viewFor.mock.calls.map(([slug]) => slug)).toEqual(['bob-bot']);
+      core.registry.setPaused('alice-bot', true);
+      viewFor.mockClear();
+      expect(await methods(alice).channelSkillCatalog({ channelId: group.id })).toEqual({
+        ok: true,
+        value: { skills: [] },
+      });
+      const pausedBefore = core.channels.readMessages(group.id);
+      expect(await send(alice, 'alice-bot')).toEqual(hidden);
+      expect(
+        await methods(alice).channelSend({
+          channelId: group.id,
+          body: '/host',
+          skillInvocations: [{ name: 'host', owner: { kind: 'host' }, start: 0, end: 5 }],
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'skill-unavailable' } });
+      expect(viewFor).not.toHaveBeenCalled();
+      expect(core.channels.readMessages(group.id)).toEqual(pausedBefore);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('uses the DM Bot and first eligible Group Bot when resolving Host Skills', async () => {
     const core = createCore({
       dshHome: createTempRoot('botharness-skill-viewer-'),
@@ -509,13 +682,38 @@ describe('Skill Invocation in a Human DM', () => {
         memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
         viewFor,
       });
-      catalog.attach(registry([skill('host', 'user-agents', '/host/SKILL.md')], new Map()));
+      const memory = core.registry.memoryDirFor('ada')!;
+      catalog.attach(
+        registry(
+          [skill('host', 'user-agents', '/host/SKILL.md')],
+          new Map([
+            [memory, [skill('pdf', 'project-agents', join(memory, '.agents/skills/pdf/SKILL.md'))]],
+          ]),
+        ),
+      );
       const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
       const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Team',
         members: ['ada', 'bob'],
       });
       const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bob', 'Bob')!;
+      expect(await methods.channelSkillCatalog({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { skills: [{ name: 'host', owner: { kind: 'host' } }] },
+      });
+      viewFor.mockClear();
+      const before = core.channels.readMessages(group.id);
+      expect(
+        await methods.channelSend({
+          channelId: group.id,
+          body: '/pdf',
+          skillInvocations: [
+            { name: 'pdf', owner: { kind: 'bot', botSlug: 'ada' }, start: 0, end: 4 },
+          ],
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'skill-unavailable' } });
+      expect(core.channels.readMessages(group.id)).toEqual(before);
+      expect(viewFor).not.toHaveBeenCalled();
       for (const channelId of [group.id, dm.id]) {
         expect(
           await methods.channelSend({

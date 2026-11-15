@@ -2166,6 +2166,16 @@ function buildBridgeMethods(
 ): BridgeMethods {
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+  const channelSkillBots = (channel: ChannelRecord): string[] =>
+    (channel.type === 'group'
+      ? channel.members
+      : channel.botSlug === undefined
+        ? []
+        : [channel.botSlug]
+    ).filter((slug) => {
+      const bot = deps.registry.get(slug);
+      return bot !== undefined && bot.paused !== true;
+    });
   const requireOwnedBot = (slug: string): void => {
     if (
       deps.team &&
@@ -6956,16 +6966,7 @@ function buildBridgeMethods(
       const channel = deps.channels.get(channelId);
       if (channel === undefined) return unknownChannel(channelId);
       if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
-      const bots = (
-        channel.type === 'group'
-          ? channel.members
-          : channel.botSlug === undefined
-            ? []
-            : [channel.botSlug]
-      ).filter((slug) => {
-        const bot = deps.registry.get(slug);
-        return bot !== undefined && bot.paused !== true;
-      });
+      const bots = channelSkillBots(channel);
       try {
         return { ok: true, value: { skills: await deps.skills.list(bots) } };
       } catch (error) {
@@ -7107,9 +7108,6 @@ function buildBridgeMethods(
       if (rawAllBotMention !== undefined) {
         try {
           allBotMention = parseAllBotMention(rawAllBotMention, body);
-          const expanded = expandAllBotMention(body, mentions, allBotMention);
-          body = expanded.body;
-          mentions.splice(0, mentions.length, ...expanded.mentions);
         } catch (error) {
           return invalidInput((error as Error).message);
         }
@@ -7182,6 +7180,24 @@ function buildBridgeMethods(
           )
         )
           return invalidInput('overlapping selected tokens');
+      }
+      if (allBotMention !== undefined) {
+        try {
+          const expanded = expandAllBotMention(body, mentions, allBotMention);
+          const delta = expanded.body.length - body.length;
+          for (const token of [...channelRefs, ...skillTokens]) {
+            if (token.start < allBotMention.end && allBotMention.start < token.end)
+              return invalidInput('overlapping selected tokens');
+            if (token.start >= allBotMention.end) {
+              token.start += delta;
+              token.end += delta;
+            }
+          }
+          body = expanded.body;
+          mentions.splice(0, mentions.length, ...expanded.mentions);
+        } catch (error) {
+          return invalidInput((error as Error).message);
+        }
       }
       const rawReplyTo = source['replyTo'];
       if (rawReplyTo !== undefined && (typeof rawReplyTo !== 'string' || rawReplyTo.length === 0)) {
@@ -7448,25 +7464,14 @@ function buildBridgeMethods(
         return dmAdmissionFailure(channelId, channel.botSlug, 'archived-bot');
       }
       const skillInvocations: ChannelSkillInvocation[] = [];
-      const skillViewer =
-        skillTokens.length === 0
-          ? undefined
-          : (channel.type === 'group' ? channel.members : [channel.botSlug]).find((slug) => {
-              const bot = slug === undefined ? undefined : deps.registry.get(slug);
-              return bot !== undefined && bot.paused !== true;
-            });
+      const skillBots = skillTokens.length === 0 ? [] : channelSkillBots(channel);
+      const skillViewer = skillBots[0];
       for (const token of skillTokens) {
-        if (
-          token.owner.kind === 'bot' &&
-          !(channel.type === 'group'
-            ? channel.members.includes(token.owner.botSlug)
-            : channel.botSlug === token.owner.botSlug)
-        )
-          return invalidInput(`Skill /${token.name} belongs to a PersonaBot outside this Channel`);
         let resolved: ResolvedSkill | undefined;
         try {
           resolved =
-            skillViewer === undefined
+            skillViewer === undefined ||
+            (token.owner.kind === 'bot' && !skillBots.includes(token.owner.botSlug))
               ? undefined
               : await deps.skills?.resolve(token.name, token.owner, skillViewer);
         } catch (error) {
