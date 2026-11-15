@@ -191,7 +191,7 @@ it('lists one wake card per member Bot and edits it in a dialog', async () => {
 
 it('lists the group connectors as card rows that open the edit dialog', async () => {
   await act(async () => root.render(createElement(GroupConnectorsEntry, props())));
-  expect(actions.channelBridges).toHaveBeenCalledWith(GROUP.id);
+  expect(actions.channelBridges).toHaveBeenCalledWith(GROUP.id, 'saved');
   expect(actions.channelIngests).toHaveBeenCalledWith(GROUP.id);
   const row = host.querySelector('.bh-card-row')!;
   expect(row.querySelector('.bh-card-title')?.textContent).toBe('QA intake');

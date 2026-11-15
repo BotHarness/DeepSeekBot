@@ -160,6 +160,33 @@ it('edits WeChat typing in the current identity modal and keeps native request a
       zhTranslate('identity.typing.label'),
     );
     expect(toggle.getAttribute('aria-checked')).toBe('true');
+    const updateTyping = async (supported: boolean) =>
+      act(async () =>
+        root.render(
+          createElement(ExternalIdentityList, {
+            snapshot: {
+              accounts: [],
+              identities: [{ ...identity, typing: { ...identity.typing, supported } }],
+              grants: [],
+              intents: [],
+              checks: 'complete',
+            },
+            t: zhTranslate,
+            refresh: vi.fn(async () => undefined),
+            mutate,
+            conversation: vi.fn(),
+            rules: vi.fn(),
+          }),
+        ),
+      );
+    await updateTyping(false);
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+      zhTranslate('identity.typing.unavailable'),
+    );
+    await updateTyping(true);
+    expect(container.querySelector('[role="dialog"]')?.textContent).not.toContain(
+      zhTranslate('identity.typing.unavailable'),
+    );
     await act(async () => toggle.click());
     const save = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
       (b) => b.textContent === '保存身份',

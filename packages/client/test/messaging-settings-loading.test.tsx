@@ -7,10 +7,12 @@ import { refreshMessaging, useMessagingSnapshot } from '../src/client/messaging-
 
 function deferred<T>() {
   let resolve: (value: T) => void = () => {};
-  const promise = new Promise<T>((done) => {
+  let reject: (error: Error) => void = () => {};
+  const promise = new Promise<T>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 const value = (name: string, checks: 'pending' | 'complete'): MessagingSnapshot => ({
   accounts: [],
@@ -95,6 +97,45 @@ it('discovers apps only on request and keeps discovery available until the last 
       'saved',
       'status',
     ]);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
+it('does not surface a superseded shared read error over a fresh successful snapshot', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const old = deferred<MessagingSnapshot>();
+  let fresh = false;
+  const actions: Actions = {
+    messagingSnapshot: async (_slug, mode) =>
+      mode === 'saved'
+        ? value('Saved', 'pending')
+        : fresh
+          ? value('Fresh', 'complete')
+          : old.promise,
+  };
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  document.body.append(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(
+          'div',
+          null,
+          createElement(Probe, { actions }),
+          createElement(Probe, { actions }),
+        ),
+      ),
+    );
+    fresh = true;
+    await act(async () =>
+      refreshMessaging('same-bot', actions, { progressive: true, invalidate: true }),
+    );
+    await act(async () => old.reject(Error('superseded')));
+    expect(container.textContent).not.toContain(':true');
+    expect(container.textContent).toContain('Fresh:complete:false');
   } finally {
     await act(async () => root.unmount());
     container.remove();

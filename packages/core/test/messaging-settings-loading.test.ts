@@ -6,7 +6,7 @@ import type { MessagingProvider } from '../src/messaging/provider.js';
 import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 
-async function fixture(platform = 'qq') {
+async function fixture(platform = 'qq', seedConversation = true) {
   const agents: BotAgentAdapter = {
     async runOrchestrator() {},
     async runAssignment() {},
@@ -62,7 +62,7 @@ async function fixture(platform = 'qq') {
     fingerprint: account.fingerprint,
   });
   if (!consumer) throw Error('Missing receiver');
-  if (platform === 'qq')
+  if (platform === 'qq' && seedConversation)
     await consumer.onEvent(
       {
         version: 1,
@@ -98,6 +98,9 @@ async function fixture(platform = 'qq') {
     room,
     get reads() {
       return reads;
+    },
+    resetReads() {
+      reads = 0;
     },
     hold() {
       held = new Promise<void>((resolve) => {
@@ -244,6 +247,89 @@ it('never uses a saved or previous status view to authorize an identity mutation
       }),
     ).rejects.toMatchObject({ code: 'rebind-required' });
   } finally {
+    await fx.close();
+  }
+});
+
+it('shares account verification across explicit targets without skipping target checks', async () => {
+  const fx = await fixture('qq', false);
+  let targetChecks = 0;
+  const targets = ['one', 'two'].map((ref) => ({
+    ref,
+    name: ref,
+    digest: ref,
+    receiveScope: { kind: 'group' as const, conversationId: ref },
+  }));
+  try {
+    fx.core.externalMessaging.register({
+      ...fx.provider,
+      targets: async () => targets,
+      inspect: async (_ref, targetRef, checkedAccount) => {
+        targetChecks++;
+        return {
+          account: checkedAccount ?? (await fx.provider.inspectAccount!('app')),
+          target: targets.find((t) => t.ref === targetRef)!,
+        };
+      },
+    });
+    for (const target of targets)
+      await fx.core.externalMessaging.authorize({
+        botSlug: 'qa',
+        providerId: fx.provider.id,
+        accountRef: 'app',
+        fingerprint: fx.account.fingerprint,
+        targetRef: target.ref,
+        targetDigest: target.digest,
+      });
+    await tick();
+    fx.resetReads();
+    targetChecks = 0;
+    const snapshot = await fx.core.externalMessaging.snapshot('qa', 'status');
+    expect(snapshot.grants).toHaveLength(2);
+    expect(snapshot.grants.every((g) => g.availability === 'available')).toBe(true);
+    expect(fx.reads).toBe(1);
+    expect(targetChecks).toBe(2);
+  } finally {
+    await fx.close();
+  }
+});
+
+it('invalidates an already checked Provider while another account delays the snapshot', async () => {
+  const fx = await fixture();
+  let release: () => void = () => {};
+  const held = new Promise<void>((done) => {
+    release = done;
+  });
+  let hold = false;
+  const other = { ...fx.account, ref: 'other', fingerprint: 'b'.repeat(64) };
+  fx.core.externalMessaging.register({
+    ...fx.provider,
+    id: 'qa/slow',
+    inspectAccount: async () => {
+      if (hold) await held;
+      return other;
+    },
+  });
+  try {
+    await fx.core.externalMessaging.identity('qa', {
+      kind: 'bind',
+      providerId: 'qa/slow',
+      accountRef: 'other',
+      fingerprint: other.fingerprint,
+    });
+    hold = true;
+    const pending = fx.core.externalMessaging.snapshot('qa', 'status');
+    await tick();
+    await tick();
+    fx.core.externalMessaging.register({ ...fx.provider });
+    release();
+    const snapshot = await pending;
+    expect(
+      snapshot.identities?.find((row) => row.providerId === fx.provider.id)?.availability,
+    ).toBe('unavailable');
+    expect(snapshot.accounts.some((row) => row.providerId === fx.provider.id)).toBe(false);
+  } finally {
+    release();
     await fx.close();
   }
 });

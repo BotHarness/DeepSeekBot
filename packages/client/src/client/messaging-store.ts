@@ -102,9 +102,13 @@ export function useMessagingSnapshot(
     invalidate = false,
   ): Promise<void> => {
     const sequence = ++latest.current;
-    const current = () => isActive() && sequence === latest.current;
+    let sharedSequence: number | undefined;
+    const current = () =>
+      isActive() && sequence === latest.current && sharedSequence === store.requests.get(slug);
     try {
-      await refreshMessaging(slug, actions, { progressive, invalidate });
+      const read = refreshMessaging(slug, actions, { progressive, invalidate });
+      sharedSequence = store.requests.get(slug);
+      await read;
       if (current()) setFailed(false);
     } catch (error) {
       if (current()) setFailed(true);

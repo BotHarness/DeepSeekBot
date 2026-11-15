@@ -1091,7 +1091,15 @@ export function createOutboundMessaging(options: {
       inspected =
         value.origin === 'implicit'
           ? await inspectImplicit(entry, value, readAccount)
-          : await bounded(entry.provider.inspect(value.accountRef, value.targetRef));
+          : await bounded(
+              readAccount
+                ? entry.provider.inspect(
+                    value.accountRef,
+                    value.targetRef,
+                    await readAccount(entry, value.accountRef),
+                  )
+                : entry.provider.inspect(value.accountRef, value.targetRef),
+            );
     } catch (error) {
       current(value.providerId, entry.token);
       if (error instanceof MessagingError && error.code === 'rebind-required') suspend(value);
@@ -2439,7 +2447,9 @@ export function createOutboundMessaging(options: {
     async snapshot(botSlug, mode) {
       const reads = new Map<object, Map<string, Promise<MessagingAccount | undefined>>>();
       const statusAccounts: MessagingApp[] = [];
+      const retained = new Map<object, string>();
       const readAccount: AccountReader = (entry, ref) => {
+        retained.set(entry.token, entry.provider.id);
         let byRef = reads.get(entry.token);
         if (!byRef) {
           byRef = new Map();
@@ -2595,16 +2605,38 @@ export function createOutboundMessaging(options: {
           };
         }),
       );
+      const replaced = new Set(
+        [...retained]
+          .filter(([token, id]) => providers.get(id)?.token !== token)
+          .map(([, id]) => id),
+      );
+      for (const identity of identities)
+        if (replaced.has(identity.providerId)) {
+          identity.availability = identity.enabled ? 'unavailable' : 'paused';
+          identity.reception = identity.enabled ? 'unavailable' : 'off';
+          if (identity.typing) identity.typing.supported = false;
+        }
+      for (const grant of grants)
+        if (replaced.has(grant.providerId)) {
+          grant.availability = 'unavailable';
+          grant.reception = 'unavailable';
+          grant.canReceive = false;
+          grant.canPost = false;
+        }
+      for (let index = accounts.length - 1; index >= 0; index--)
+        if (replaced.has(accounts[index]!.providerId)) accounts.splice(index, 1);
       if (mode === 'status')
         accounts.push(
-          ...statusAccounts.map((account) => {
-            const identity = identities.find(
-              (row) => row.providerId === account.providerId && row.accountRef === account.ref,
-            );
-            return identity
-              ? { ...account, bindingId: identity.id, boundBotSlug: identity.botSlug }
-              : account;
-          }),
+          ...statusAccounts
+            .filter((account) => !replaced.has(account.providerId))
+            .map((account) => {
+              const identity = identities.find(
+                (row) => row.providerId === account.providerId && row.accountRef === account.ref,
+              );
+              return identity
+                ? { ...account, bindingId: identity.id, boundBotSlug: identity.botSlug }
+                : account;
+            }),
         );
       const channelTargets = database.read((db) => {
         const rows = db.prepare('SELECT channel_id FROM channel_records').all() as {

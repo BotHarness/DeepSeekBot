@@ -23,6 +23,12 @@ read modes, while an omitted mode preserves full discovery for existing callers:
   and does not enumerate unrelated apps or setup descriptors. Account inspection promises
   are shared only within this request and current Provider registration token.
 
+The internal Provider `inspect` contract optionally accepts the account already checked by
+this request. DSH IM and Cloud implementations reuse it while still inspecting each target;
+write/send callers omit it and keep fresh verification. Before returning the aggregate, the
+snapshot invalidates accounts and capabilities from registrations replaced during another
+Provider's slower check. A superseded Client read cannot publish either data or an error.
+
 The Client publishes saved configuration first, then fresh status. Pending verification is
 visible and must not be presented as verified availability. Binding a new app still explicitly
 requests full discovery. Existing lifecycle notifications invalidate in-flight Client reads;

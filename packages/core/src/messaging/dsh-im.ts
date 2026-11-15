@@ -684,8 +684,8 @@ export function createDshImProvider(
         }
       : {}),
     inspectAccount: account,
-    async inspect(accountRef, targetRef) {
-      const current = await account(accountRef);
+    async inspect(accountRef, targetRef, checkedAccount) {
+      const current = checkedAccount ?? (await account(accountRef));
       const target = (await targets(accountRef)).find((item) => item.ref === targetRef);
       if (target === undefined) throw new MessagingError('provider-unavailable');
       return { account: current, target };

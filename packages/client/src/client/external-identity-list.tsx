@@ -751,7 +751,9 @@ export function ExternalIdentityList({
                       onChange={setTypingEnabled}
                     />
                   )}
-                  {!selected.typing?.supported ? (
+                  {snapshot?.checks === 'pending' ? (
+                    <Note>{t('im.checking')}</Note>
+                  ) : !identities.find((row) => row.id === selected.id)?.typing?.supported ? (
                     <Note>{t('identity.typing.unavailable')}</Note>
                   ) : null}
                 </>
