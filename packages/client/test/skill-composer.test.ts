@@ -190,4 +190,51 @@ describe('composer / menu', () => {
       container.remove();
     }
   });
+  it('keeps a selected Skill chip out of command argument parsing', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const run = vi.fn();
+    try {
+      await act(async () => {
+        root.render(
+          createElement(ChannelComposer, {
+            value: '/model fast',
+            skills: [{ name: 'model', owner: { kind: 'host' }, start: 0, end: 6 }],
+            skillOptions: [{ name: 'model', description: 'Pick a model', owner: { kind: 'host' } }],
+            context: {
+              target: 'dm',
+              content: null,
+              shortcuts: [
+                {
+                  id: 'model',
+                  label: 'Model',
+                  run: () => undefined,
+                  choices: () => [{ id: 'model', label: 'fast', run }],
+                },
+              ],
+            },
+            placeholder: 'Message',
+            sending: false,
+            onChange: () => undefined,
+            onSubmit: () => undefined,
+          }),
+        );
+      });
+      const input = container.querySelector<HTMLElement>('.bh-composer-rich-input')!;
+      setRichSelection(input, '/model fast'.length);
+      await act(async () => {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(container.querySelectorAll('.bh-composer-shortcuts button')).toHaveLength(0);
+      await act(async () => {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(run).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
 });

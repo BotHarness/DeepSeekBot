@@ -13,6 +13,8 @@ The Host resolves the Skill when the message is sent and stores a snapshot in a 
 
 When a command and a Skill share a name, the command keeps the bare name.
 
+Delivery is staged under #4231. The first slice covers Human DMs with Host Skills and the PersonaBot's Memory Repository Skills, so `SkillOwner` has only the `host` and `bot` kinds. Group Channels and Workspace Grant Skills, with the `workspace:<name>` owner, arrive in later slices.
+
 ## Considered Options
 
 - **A Skill Invocation implicitly mentions the Skill's owner** — rejected: it adds hidden rules ("whose Skill is it?") to what Humans already understand as inserted text plus explicit mentions.
