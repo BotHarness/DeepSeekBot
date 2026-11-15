@@ -103,6 +103,7 @@ export function parseArgs(argv) {
     productArtifacts: null,
     dshVersion: null,
     json: false,
+    noAxModel: false,
     trustedHosts: [],
     clientDiagnostics: process.env['BOTHARNESS_CLIENT_DIAGNOSTICS'] !== '0',
   };
@@ -174,6 +175,9 @@ export function parseArgs(argv) {
         break;
       case '--json':
         options.json = true;
+        break;
+      case '--no-ax-model':
+        options.noAxModel = true;
         break;
       default:
         throw new Error(`unknown option: ${flag}`);
@@ -384,9 +388,9 @@ async function main() {
   options.copyRecoveries = [];
   try {
     const secret = resolveDevSecret();
-    options.axModel = resolveAxModel();
+    options.axModel = options.noAxModel ? undefined : resolveAxModel();
     mkdirSync(options.home, { recursive: true });
-    if (options.productArtifacts || options.axModel || options.dshVersion) {
+    if (options.productArtifacts || options.axModel || options.dshVersion || options.noAxModel) {
       if (options.productArtifacts) verifiedProductArtifacts(options.productArtifacts);
       const version = options.dshVersion ?? installedDshVersion(options.worktree);
       assertDshVersion(version);

@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "bot.context-overflow-recovery",
+      "label": "Native compaction and bounded retry after a gateway token-limit rejection",
+      "source": "packages/core/src/runtime/context-overflow-recovery.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/conversation-timeline.md",
+      "task": 4253,
+      "gap": "Local HTTP replay on a real Host; production provider and IM delivery require separate qualification."
+    },
+    {
       "id": "settings.first-tob-loading",
       "label": "Responsive lightweight settings during first-Tob Memory preparation",
       "source": "packages/core/src/tob/service.ts",
@@ -2610,6 +2618,14 @@
       "reason": "Fresh-Profile concurrent onboarding and settings requests with a 500ms response budget.",
       "task": 4226,
       "sha256": "a60b02ee56b57a840535969cefcdf28d1cdfa0bfe5d07047483289aeacbc89a8"
+    },
+    {
+      "path": "scripts/e2e-context-overflow.mjs",
+      "category": "mapped",
+      "behaviors": ["bot.context-overflow-recovery"],
+      "reason": "Same gateway rejection on base and fixed Tobs builds with the native isolated compaction service.",
+      "task": 4253,
+      "sha256": "e381ea1fa0e0d23dc7e7100cd477c3a894dff86f5c3bb489453b2391352230ce"
     }
   ],
   "native": [
