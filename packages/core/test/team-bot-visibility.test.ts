@@ -481,6 +481,30 @@ describe('M7 Bot principal and participant authority', () => {
       ).rejects.toMatchObject({ code: 'bot-channel-access-denied' });
     },
   );
+  it.each(['existing live', 'recreated'] as const)(
+    'resolves the %s participant DM instead of a deleted DM',
+    (kind) => {
+      const f = fixture();
+      const dm = f.channels.getOrCreateDm(alice, 'alice-bot')!;
+      f.db.transaction((db) => {
+        if (kind === 'existing live') {
+          const deleted = { ...dm, id: 'dm-000-deleted', dmHumanId: 'alice', deletedAt: 'now' };
+          db.prepare(
+            'INSERT INTO channel_records(channel_id,record_json,owner_human_id) VALUES (?,?,?)',
+          ).run(deleted.id, JSON.stringify(deleted), 'alice');
+        } else {
+          db.prepare(
+            "UPDATE channel_records SET record_json=json_set(record_json,'$.deletedAt','now') WHERE channel_id=?",
+          ).run(dm.id);
+        }
+      });
+      const resolved = f.channels.getOrCreateDm(alice, 'alice-bot', dm.name)!;
+      expect(resolved.id).toBe(dm.id);
+      expect(resolved.deletedAt).toBeUndefined();
+      expect(f.channels.get(resolved.id)).toEqual(resolved);
+    },
+  );
+
   it('keeps Human DM identity and privacy across a public Bot principal transfer', () => {
     const f = fixture();
     publicBot(f);

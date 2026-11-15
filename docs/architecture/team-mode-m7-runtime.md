@@ -203,8 +203,10 @@ same DM when principals later change: a new principal never acquires an earlier 
 DM, and an already-existing DM for the incoming principal is reused. Bot traces and M11 Bot-profile
 views select the current principal's own DM rather than assuming the legacy `dm-<slug>` ID. Member
 purge scopes these DMs by their participating Human, preserving another Human's conversation even
-when that Human's Bot changes ownership. Private, never-published Human–Bot DM transfer keeps M9's existing
-history-transfer semantics. Bot–Bot DMs retain their recorded initiating Human across transfer;
+when that Human's Bot changes ownership. Private, never-published Human–Bot DMs are also frozen to the previous
+principal in the ownership-transfer transaction before the owner changes. This includes existing
+unstamped legacy DMs at transfer time; already-stamped and unrelated DMs stay unchanged. The new
+principal reuses their own DM or receives a fresh one, without the previous participant's history. Bot–Bot DMs retain their recorded initiating Human across transfer;
 member purge removes that participant's DM independently of either Bot's later owner.
 
 ## Shared discovery and participant arrangement

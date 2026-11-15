@@ -818,6 +818,32 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     );
   });
 
+  it('preserves unstamped private DM participants across ownership transfer without sharing their history', async () => {
+    const f = fixture();
+    const original = createBot(f);
+    const unrelated = createBot(f, alice, 'alice-bot');
+    expect(original.dm.dmHumanId).toBeUndefined();
+    await f.core.channels.appendMessage(bob, original.dm.id, {
+      id: 'bob-private-history',
+      at: new Date().toISOString(),
+      author: { kind: 'human', humanId: 'bob' },
+      body: 'Bob private history',
+    });
+    await f.core.team.transfer(owner, 'bob', 'alice');
+    const aliceDm = f.core.team.bots.dm(alice, original.bot.slug)!;
+    expect(aliceDm.id).not.toBe(original.dm.id);
+    expect(f.core.channels.readMessages(aliceDm.id)).toEqual([]);
+    expect(f.core.channels.get(original.dm.id)?.dmHumanId).toBe('bob');
+    expect(f.core.team.channelAccess.canRead(alice, original.dm.id)).toBe(false);
+    expect(f.core.team.channelAccess.canRead(bob, original.dm.id)).toBe(true);
+    expect(f.core.channels.get(unrelated.dm.id)?.dmHumanId).toBeUndefined();
+    await f.core.team.transfer(owner, 'alice', 'bob');
+    expect(f.core.team.bots.dm(bob, original.bot.slug)?.id).toBe(original.dm.id);
+    expect(f.core.channels.get(aliceDm.id)?.dmHumanId).toBe('alice');
+    expect(f.core.team.channelAccess.canRead(bob, aliceDm.id)).toBe(false);
+    expect(f.core.channels.readMessages(original.dm.id)[0]?.body).toBe('Bob private history');
+  });
+
   it('stops the transferred Bot and rejects queued turns captured under the former owner', async () => {
     const options = { running: true };
     const f = fixture(options);

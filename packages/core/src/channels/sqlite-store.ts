@@ -486,6 +486,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         .prepare(`SELECT c.channel_id,c.record_json FROM channel_records c JOIN persona_bots b
       ON b.slug=json_extract(c.record_json,'$.botSlug') WHERE json_extract(c.record_json,'$.type')='dm'
       AND json_extract(c.record_json,'$.botSlug') IS NOT NULL AND b.slug=?
+      AND json_extract(c.record_json,'$.deletedAt') IS NULL
       AND coalesce(json_extract(c.record_json,'$.dmHumanId'),b.owner_human_id)=coalesce(?,b.owner_human_id)
       ORDER BY c.channel_id LIMIT 1`)
         .get(slug, humanId ?? null),

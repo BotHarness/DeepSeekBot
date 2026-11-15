@@ -1050,6 +1050,16 @@ export class TeamService {
               db,
             );
           spaceTransfer?.commit(db);
+          db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.dmHumanId', ?)
+          WHERE json_extract(record_json, '$.type') = 'dm'
+            AND json_extract(record_json, '$.dmHumanId') IS NULL
+            AND json_extract(record_json, '$.botSlug') IN (
+              SELECT slug FROM persona_bots WHERE owner_human_id = ?
+                AND slug IN (SELECT value FROM json_each(?)))`).run(
+            humanId,
+            humanId,
+            JSON.stringify(preview.bots.map((bot) => bot.slug)),
+          );
           db.prepare(`UPDATE persona_bots SET owner_human_id = ?, body = json_set(body, '$.ownerHumanId', ?)
           WHERE slug IN (SELECT value FROM json_each(?)) AND owner_human_id = ?`).run(
             toHumanId,

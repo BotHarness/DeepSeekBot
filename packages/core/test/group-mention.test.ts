@@ -447,6 +447,81 @@ describe('Group mention tracer', () => {
     }
   });
 
+  it('refuses Group mention steering after principal access is revoked before the running turn stops', async () => {
+    let started = (): void => {};
+    let release = (): void => {};
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const stopped = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const steered: string[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('m7-group-steer-revoked-'),
+      agents: {
+        async runOrchestrator() {
+          started();
+          await stopped;
+        },
+        steerOrchestrator(_slug, text) {
+          steered.push(text);
+          return true;
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('unexpected Assignment');
+        },
+        async close() {},
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Revoked',
+        members: ['ada'],
+      });
+      core.team.bots.switches(OWNER_HUMAN_CONTEXT, 'ada', { speakerContext: false });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        id: 'start',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'start',
+      });
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'start',
+        body: 'start',
+      });
+      await running;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
+        id: 'revoked-mention',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada secret',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      attachOperationalModule(core.operationalDatabase, 'revoked-steer-test').transaction((db) =>
+        db.prepare("UPDATE humans SET status='deactivated' WHERE human_id='local-human'").run(),
+      );
+      core.runtime.admitGroupMessage(group.id, 'revoked-mention');
+      expect(steered).toEqual([]);
+      expect(core.channels.message(group.id, 'revoked-mention')?.deliveries).toEqual([
+        { botSlug: 'ada', state: 'needs-repair' },
+      ]);
+      attachOperationalModule(core.operationalDatabase, 'revoked-steer-test').transaction((db) =>
+        db.prepare("UPDATE humans SET status='active' WHERE human_id='local-human'").run(),
+      );
+      release();
+      if (admission.admitted) await admission.settled;
+    } finally {
+      release();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('keeps other recipients running when one Bot fails', async () => {
     const home = createTempRoot('botharness-group-partial-');
     const runs: string[] = [];

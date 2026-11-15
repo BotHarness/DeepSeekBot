@@ -333,8 +333,8 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                    WHEN 'blocked' THEN 'assignment-blocked'
                    ELSE 'assignment-waiting-human'
                  END AS kind,
-                 coalesce(ask.created_at, a.latest_report_at) AS created_at, 'dm-' || a.bot_slug AS channel_id,
-                 coalesce((SELECT json_extract(dm.record_json, '$.name') FROM channel_records dm WHERE dm.channel_id = 'dm-' || a.bot_slug), a.bot_slug) AS channel_name, a.bot_slug,
+                 coalesce(ask.created_at, a.latest_report_at) AS created_at, assignment_dm.channel_id,
+                 coalesce(json_extract(assignment_dm.record_json, '$.name'), a.bot_slug) AS channel_name, a.bot_slug,
                  coalesce(ask.body, a.latest_report_summary) AS summary, NULL AS request_id,
                  NULL AS message_id, a.session_id AS assignment_session_id,
                  coalesce(a.open_ask_source_event_id, (
@@ -345,6 +345,14 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                  )) AS source_event_id
             FROM assignments a
             LEFT JOIN source_events ask ON ask.source_event_id = a.open_ask_source_event_id
+            JOIN channel_records assignment_dm ON json_extract(assignment_dm.record_json, '$.botSlug') = a.bot_slug
+              AND json_extract(assignment_dm.record_json, '$.type') = 'dm'
+              AND json_extract(assignment_dm.record_json, '$.deletedAt') IS NULL
+              AND coalesce(json_extract(assignment_dm.record_json, '$.dmHumanId'),
+                    (SELECT owner_human_id FROM persona_bots WHERE slug = a.bot_slug), 'local-human') = coalesce(
+                (SELECT human_id FROM source_events WHERE source_event_id = a.source_event_id),
+                (SELECT human_id FROM usage_turn_humans WHERE session_id = a.session_id AND turn >= 0 ORDER BY turn LIMIT 1),
+                (SELECT owner_human_id FROM persona_bots WHERE slug = a.bot_slug), 'local-human')
            WHERE ((coalesce(json_extract(ask.payload_json, '$.assignmentReport.state'), a.latest_report_state) = 'waiting-human'
                    AND a.open_ask_source_event_id IS NOT NULL)
                OR (coalesce(json_extract(ask.payload_json, '$.assignmentReport.state'), a.latest_report_state) = 'blocked'
@@ -352,9 +360,8 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                         OR a.activity IN ('idle', 'error'))))
              AND a.stop_state = 'running'
              AND a.latest_report_at IS NOT NULL
-             AND NOT EXISTS (SELECT 1 FROM channel_records dm WHERE dm.channel_id = 'dm-' || a.bot_slug AND json_extract(dm.record_json, '$.deletedAt') IS NOT NULL)
              AND (a.open_ask_source_event_id IS NOT NULL OR NOT EXISTS (
-               SELECT 1 FROM source_events reply WHERE reply.channel_id = 'dm-' || a.bot_slug
+               SELECT 1 FROM source_events reply WHERE reply.channel_id = assignment_dm.channel_id
                  AND reply.source_kind = 'human-message' AND json_extract(reply.payload_json, '$.author.kind') = 'human'
                  AND json_extract(reply.payload_json, '$.assignmentReply.sessionId') = +a.session_id
                  AND json_extract(reply.payload_json, '$.assignmentReply.sourceEventId') = coalesce(a.open_ask_source_event_id, (
@@ -423,11 +430,15 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                   OR EXISTS (SELECT 1 FROM human_roles hr JOIN host_roles r USING(role_id), json_each(r.permissions_json) permission_entry
                     WHERE hr.human_id = h.human_id AND permission_entry.value = 'approvals.opaqueTools'))
             ))))
-            OR (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input') AND
-              ${attentionBotOwner('candidate.bot_slug')}
+            OR (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input') AND (
+              EXISTS (SELECT 1 FROM channel_records dm WHERE dm.channel_id = candidate.channel_id
+                AND json_extract(dm.record_json, '$.type') = 'dm' AND ${attentionDmOwner('dm')})
+              OR (${attentionBotOwner('candidate.bot_slug')}
+              AND NOT EXISTS (SELECT 1 FROM channel_records dm WHERE dm.channel_id = candidate.channel_id
+                AND json_extract(dm.record_json, '$.type') = 'dm')
               AND ($humanId = 'local-human' OR candidate.channel_id IS NULL
                 OR NOT EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = candidate.channel_id AND json_extract(c.record_json, '$.type') = 'group')
-                OR EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL)))
+                OR EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = candidate.channel_id AND m.human_id = $humanId AND m.left_at IS NULL)))))
 
           )
         )`;

@@ -163,3 +163,43 @@ it('shows handled Assignment DM responses only to their recorded Human participa
   for (const human of [owner, humanContext('eve')])
     expect(f.core.humanAttention.list(human, { category: 'handled' }).items).toEqual([]);
 });
+
+it.each(['waiting-human', 'blocked'] as const)(
+  'routes Assignment %s action items to the requesting participant DM',
+  async (state) => {
+    const f = await fixture();
+    const { assignment } = await f.start();
+    await assignment.report({ state, summary: 'Bob must choose', expectsReply: true });
+    const actions = f.core.humanAttention.list(bob, { category: 'action' }).items;
+    expect(actions).toContainEqual(
+      expect.objectContaining({
+        kind: state === 'blocked' ? 'assignment-blocked' : 'assignment-waiting-human',
+        assignmentSessionId: assignment.sessionId,
+        channelId: f.dm.id,
+        channelName: f.dm.name,
+      }),
+    );
+    for (const human of [owner, humanContext('eve')])
+      expect(f.core.humanAttention.list(human, { category: 'action' }).items).toEqual([]);
+  },
+);
+
+it('routes Workspace Grant request actions only to the recorded shared DM participant', async () => {
+  const f = await fixture();
+  await f.core.channels.appendMessage(bob, f.dm.id, {
+    id: 'grant',
+    at: new Date().toISOString(),
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Choose a Workspace',
+    grantRequest: true,
+  });
+  expect(f.core.humanAttention.list(bob, { category: 'action' }).items).toContainEqual(
+    expect.objectContaining({
+      kind: 'workspace-grant-request',
+      channelId: f.dm.id,
+      messageId: 'grant',
+    }),
+  );
+  for (const human of [owner, humanContext('eve')])
+    expect(f.core.humanAttention.list(human, { category: 'action' }).items).toEqual([]);
+});

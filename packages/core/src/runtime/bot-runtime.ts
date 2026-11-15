@@ -3125,6 +3125,10 @@ class BotRuntimeImplementation implements BotRuntime {
           );
     let delivered: boolean;
     try {
+      this.#requireTurnAccess(
+        botSlug,
+        admissions.map((item) => item.sourceEventId),
+      );
       delivered = this.#steerWithMemory(botSlug, envelope?.text ?? body);
       if (delivered) envelope?.commit();
     } catch (error) {
