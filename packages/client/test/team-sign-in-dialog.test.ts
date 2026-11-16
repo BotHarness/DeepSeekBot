@@ -224,7 +224,8 @@ describe('Team sign-in dialog', () => {
         host: {
           id: 'h-team',
           name: 'Acme',
-          fingerprint: '1c46 d94c f1d1 4ffe 7838 53c4 99a8 3f95 e570 d6cd dad3 8d54 19d3 c97f b4ed a407',
+          fingerprint:
+            '1c46 d94c f1d1 4ffe 7838 53c4 99a8 3f95 e570 d6cd dad3 8d54 19d3 c97f b4ed a407',
         },
         routes: [],
         username: 'alice',

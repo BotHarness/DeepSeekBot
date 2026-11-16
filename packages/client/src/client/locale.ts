@@ -4961,7 +4961,8 @@ export const zh = {
   'remoteHosts.add.hint': '链接 10 分钟内有效，只能用一次。',
   'remoteHosts.add.submit': '添加',
   'teamSignIn.useUsername': '用用户名登录',
-  'teamSignIn.manualHint': '以成员身份登录别人的 Host。请向它的所有者索取 HTTPS 地址、你的用户名和一次性密码。',
+  'teamSignIn.manualHint':
+    '以成员身份登录别人的 Host。请向它的所有者索取 HTTPS 地址、你的用户名和一次性密码。',
   'teamSignIn.address': 'Host 地址',
   'teamSignIn.addressHint': 'Host 所有者给你的 HTTPS 地址。',
   'teamSignIn.username': '用户名',
@@ -4969,7 +4970,8 @@ export const zh = {
   'teamSignIn.titleGeneric': '登录 Team Host',
   'teamSignIn.title': '登录 {host}',
   'teamSignIn.as': '用户名：{username}',
-  'teamSignIn.fingerprintHint': '请 Host 所有者读出这台 Host 的指纹，或与其 Team 设置中显示的指纹对照。每一组都一致时再继续。',
+  'teamSignIn.fingerprintHint':
+    '请 Host 所有者读出这台 Host 的指纹，或与其 Team 设置中显示的指纹对照。每一组都一致时再继续。',
   'teamSignIn.password': '一次性密码',
   'teamSignIn.passwordHint': '使用 Host 所有者给你的密码。',
   'teamSignIn.signIn': '登录',
@@ -4982,7 +4984,8 @@ export const zh = {
   'teamSignIn.finish': '添加 Host',
   'teamSignIn.cancelled': '登录已取消。请重新开始。',
   'teamSignIn.switchTitle': '切换此 Host 上的账号？',
-  'teamSignIn.switchBody': '此浏览器将以 {name} 的身份使用该 Host，原账号会在此浏览器上退出该 Host。',
+  'teamSignIn.switchBody':
+    '此浏览器将以 {name} 的身份使用该 Host，原账号会在此浏览器上退出该 Host。',
   'teamSignIn.switchConfirm': '切换',
   'teamSignIn.error.generic': '无法登录，请重试。',
   'teamSignIn.error.invitation-invalid': '此邀请链接无效。',
@@ -11022,7 +11025,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'remoteHosts.add.hint': 'The link works once, for 10 minutes.',
   'remoteHosts.add.submit': 'Add',
   'teamSignIn.useUsername': 'Sign in with a username',
-  'teamSignIn.manualHint': "Sign in as a member of someone else's Host. Ask its owner for the HTTPS address, your username and your one-time password.",
+  'teamSignIn.manualHint':
+    "Sign in as a member of someone else's Host. Ask its owner for the HTTPS address, your username and your one-time password.",
   'teamSignIn.address': 'Host address',
   'teamSignIn.addressHint': 'The HTTPS address the Host owner gave you.',
   'teamSignIn.username': 'Username',
@@ -11030,7 +11034,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'teamSignIn.titleGeneric': 'Sign in to a Team Host',
   'teamSignIn.title': 'Sign in to {host}',
   'teamSignIn.as': 'As {username}',
-  'teamSignIn.fingerprintHint': "Ask the Host owner to read out this Host's fingerprint, or compare it with the one in their Team settings. Continue only if every group matches.",
+  'teamSignIn.fingerprintHint':
+    "Ask the Host owner to read out this Host's fingerprint, or compare it with the one in their Team settings. Continue only if every group matches.",
   'teamSignIn.password': 'One-time password',
   'teamSignIn.passwordHint': 'Use the password your Host owner gave you.',
   'teamSignIn.signIn': 'Sign in',
@@ -11043,7 +11048,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'teamSignIn.finish': 'Add Host',
   'teamSignIn.cancelled': 'Sign-in was cancelled. Start again to retry.',
   'teamSignIn.switchTitle': 'Switch account on this Host?',
-  'teamSignIn.switchBody': 'This browser will use the Host as {name}. The other account on this browser is signed out of it.',
+  'teamSignIn.switchBody':
+    'This browser will use the Host as {name}. The other account on this browser is signed out of it.',
   'teamSignIn.switchConfirm': 'Switch',
   'teamSignIn.error.generic': 'Could not sign in. Try again.',
   'teamSignIn.error.invitation-invalid': 'This invitation link is not valid.',
@@ -11051,14 +11057,17 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'teamSignIn.error.invitation-version-unsupported': 'Update DeepSeekBot to use this invitation.',
   'teamSignIn.error.credentials-invalid': 'Wrong username or password.',
   'teamSignIn.error.rate-limited': 'Too many attempts. Try again in {seconds} s.',
-  'teamSignIn.error.insecure-transport': 'This Host cannot accept sign-in over this address. Ask for its HTTPS address.',
+  'teamSignIn.error.insecure-transport':
+    'This Host cannot accept sign-in over this address. Ask for its HTTPS address.',
   'teamSignIn.error.team-mode-off': 'This Host does not accept member sign-in right now.',
   'teamSignIn.error.member-suspended': 'Your account is suspended. Ask the Host owner.',
-  'teamSignIn.error.fingerprint-mismatch': 'This Host does not match what you were given. Do not sign in.',
+  'teamSignIn.error.fingerprint-mismatch':
+    'This Host does not match what you were given. Do not sign in.',
   'teamSignIn.error.password-weak': 'Use at least {min} characters.',
   'teamSignIn.error.password-reused': 'Choose a password you have not used here.',
   'teamSignIn.error.mismatch': 'Passwords do not match.',
-  'teamSignIn.error.unreachable': 'Could not reach the Host. Check the address and network, then try again.',
+  'teamSignIn.error.unreachable':
+    'Could not reach the Host. Check the address and network, then try again.',
   'teamSignIn.error.storage-failed': 'Could not save the sign-in in this browser. Try again.',
   'teamSignIn.error.this-host': 'That is this Host. Open it from the Host list instead.',
   'teamSignIn.error.owner-required': 'Only the owner of this Host can add other Hosts here.',
