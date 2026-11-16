@@ -91,6 +91,22 @@ export function compare({ counts, spots = {}, baseline, guardrails, files }) {
   return { errors, stale };
 }
 
+export function malformed(baseline) {
+  const errors = [];
+  for (const [rule, files] of Object.entries(baseline))
+    for (const [file, count] of Object.entries(files))
+      if (!Number.isSafeInteger(count) || count < 0)
+        errors.push(`${file}: ${rule} baseline ${JSON.stringify(count)} is not a count`);
+  return errors;
+}
+
+function readBaseline(text, label) {
+  const baseline = JSON.parse(text);
+  const errors = malformed(baseline);
+  if (errors.length) throw new Error(`${label}:\n  ${errors.join('\n  ')}`);
+  return baseline;
+}
+
 export function raised(base, next) {
   const errors = [];
   for (const [rule, files] of Object.entries(next))
@@ -151,11 +167,16 @@ function baselineAt(revision) {
   if (git(['cat-file', '-e', `${revision}^{commit}`]).status !== 0)
     throw new Error(`cannot read revision ${revision}; fetch it first`);
   const result = git(['show', `${revision}:scripts/lint-baseline.json`]);
-  return result.status === 0 ? JSON.parse(result.stdout) : undefined;
+  return result.status === 0
+    ? readBaseline(result.stdout, `scripts/lint-baseline.json at ${revision}`)
+    : undefined;
 }
 
 function checkBase(revision) {
-  const current = JSON.parse(readFileSync(join(root, 'scripts/lint-baseline.json'), 'utf8'));
+  const current = readBaseline(
+    readFileSync(join(root, 'scripts/lint-baseline.json'), 'utf8'),
+    'scripts/lint-baseline.json',
+  );
   const previous = baselineAt(revision);
   if (previous === undefined) {
     console.log(`lint ratchet: ${revision} has no baseline yet`);
@@ -183,7 +204,7 @@ function main(argv) {
   if (argv.some((arg) => !arg.startsWith('--')) && paths.length === 0) return 0;
   const guardrails = ratcheted(readGuardrails());
   const baselineFile = join(root, 'scripts/lint-baseline.json');
-  const baseline = JSON.parse(readFileSync(baselineFile, 'utf8'));
+  const baseline = readBaseline(readFileSync(baselineFile, 'utf8'), 'scripts/lint-baseline.json');
   const diagnostics = runOxlint(paths);
   const { counts, spots, other } = countFindings(diagnostics, guardrails);
   if (update) {
