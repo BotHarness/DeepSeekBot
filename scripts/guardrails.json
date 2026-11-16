@@ -8,6 +8,13 @@
       "fix": "await the promise, return it, end it with .catch(...) that records a Developer diagnostics log, or mark a deliberate fire-and-forget with `void`.",
       "check": "scripts/lint-ratchet.mjs",
       "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "pr-provenance",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893",
+      "fix": "add a harness:<name> and a model:<id> label for every agent runner and model that wrote code, for example harness:claude-code and model:claude-opus-5-5.",
+      "check": "scripts/check-pr-provenance.mjs"
     }
   ]
 }
