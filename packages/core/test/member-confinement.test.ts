@@ -128,6 +128,30 @@ const original = (argv: readonly string[]) =>
     runnerFailureRules: [{ fatalSignatures: ['bwrap: '] }],
   });
 
+describe('confinement probe', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'finds network tools in sbin when the Host PATH leaves it out',
+    () => {
+      const spawn = ((command: string, args: string[]) => {
+        const script = args[1] ?? '';
+        if (command === '/bin/sh' && /^(?:PATH=\S+ )?command -v \w+$/u.test(script))
+          return spawnSync(
+            '/bin/sh',
+            ['-c', script.replace(/command -v \w+$/u, 'command -v addgroup')],
+            { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } },
+          );
+        return { status: 0, stdout: 'routed', error: undefined };
+      }) as unknown as typeof spawnSync;
+      expect(probeConfinement(spawn, 'linux')).toEqual({
+        enforcement: 'full',
+        filesystem: true,
+        network: true,
+        missing: [],
+      });
+    },
+  );
+});
+
 describe('member Bot execution plan', () => {
   let root: string;
   beforeAll(() => {
