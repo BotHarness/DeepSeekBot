@@ -124,7 +124,7 @@ it('runs activity commands through the real pinned encrypted carrier and preserv
   });
   entry.on('upgrade', (request, socket, head) => {
     upgraded++;
-    gateway.upgrade(request, socket, head);
+    void gateway.upgrade(request, socket, head);
   });
   await new Promise<void>((resolve) => entry.listen(0, '127.0.0.1', resolve));
   const entryAddress = entry.address();
