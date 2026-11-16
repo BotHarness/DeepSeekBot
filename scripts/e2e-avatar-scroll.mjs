@@ -109,9 +109,11 @@ try {
     [1440, 900, 'light'],
   ]) {
     await page.setViewport({ width, height });
-    await page.evaluate(
-      (dark) => document.body.toggleAttribute('data-ds-dark-theme', dark),
-      theme === 'dark',
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }]);
+    await page.waitForFunction(
+      (mode) => document.documentElement.dataset.bhAppearance === mode,
+      {},
+      theme,
     );
     const prefix = `${width}-${height}-${theme}`;
     await page.screenshot({ path: resolve(evidence, `${prefix}-top.png`) });
