@@ -5,6 +5,11 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
 const visibility = vi.hoisted(() => ({ recent: vi.fn(), read: vi.fn() }));
+vi.mock('../src/ui/chat/skill-suggestions', () => ({
+  SkillOwnerMark: () => null,
+  skillOwnerName: () => '',
+  SkillSuggestions: () => null,
+}));
 vi.mock('../src/ui/chat/mark-read', () => ({ useMarkRead: () => visibility.read }));
 import type { ChannelListItem } from '../src/host/wire';
 import type { RosterBot, RosterChannel } from '../src/host/client';

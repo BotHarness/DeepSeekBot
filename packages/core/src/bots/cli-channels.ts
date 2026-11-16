@@ -1,34 +1,9 @@
+export { CHANNEL_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import type { connectLiveHost } from './cli-live.js';
-
-export const CHANNEL_OPTIONS = {
-  'avatar-file': { type: 'string' },
-  'expected-channel': { type: 'string' },
-  invitation: { type: 'string' },
-  request: { type: 'string' },
-  accept: { type: 'boolean' },
-  decline: { type: 'boolean' },
-  inherit: { type: 'boolean' },
-  count: { type: 'string' },
-  interval: { type: 'string' },
-  direction: { type: 'string' },
-  around: { type: 'string' },
-  'older-limit': { type: 'string' },
-  'newer-limit': { type: 'string' },
-  through: { type: 'string' },
-  since: { type: 'string' },
-  epoch: { type: 'string' },
-  'source-event': { type: 'string', multiple: true },
-  confirm: { type: 'boolean' },
-  emoji: { type: 'string' },
-  remove: { type: 'boolean' },
-  off: { type: 'boolean' },
-  attachment: { type: 'string' },
-  representation: { type: 'string' },
-} as const;
 
 export const CHANNEL_COMMANDS = [
   {

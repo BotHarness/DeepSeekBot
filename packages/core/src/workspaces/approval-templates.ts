@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   closeSync,
   existsSync,
@@ -7,9 +8,11 @@ import {
   readSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { decodeApprovalTemplateGuidance } from './approval-template-guidance.js';
 import { atomicWriteFile } from '../fs/atomic-write.js';
 
 export const INHERIT_APPROVAL_TEMPLATE = '@global';
@@ -139,13 +142,15 @@ export interface ApprovalTemplateLibrary {
   setGlobal(name: string | null): void;
   list(): ApprovalTemplate[];
   get(name: string): ApprovalTemplate | undefined;
+  customFileIdentity(name: string): string | undefined;
   create(name: string, text: string): ApprovalTemplateWriteResult;
   update(name: string, text: string): ApprovalTemplateWriteResult;
   delete(name: string): Exclude<ApprovalTemplateWriteResult, { ok: true }> | { ok: true };
 }
 
 function summaryOf(name: string, text: string): ApprovalTemplate {
-  const lines = text.split(/\r?\n/u).map((line) => line.trim());
+  const guidance = decodeApprovalTemplateGuidance(text);
+  const lines = guidance.freeText.split(/\r?\n/u).map((line) => line.trim());
   const heading = lines.find((line) => /^#\s+\S/u.test(line));
   const start = lines.findIndex((line) => line !== '' && !line.startsWith('#'));
   const end = start < 0 ? -1 : lines.findIndex((line, index) => index > start && line === '');
@@ -168,14 +173,21 @@ function summaryOf(name: string, text: string): ApprovalTemplate {
 }
 
 function textProblem(text: string): boolean {
-  return (
+  if (
     typeof text !== 'string' ||
-    text.trim() === '' ||
-    Buffer.byteLength(text, 'utf8') > APPROVAL_TEMPLATE_TEXT_LIMIT
-  );
+    Buffer.byteLength(text, 'utf8') > APPROVAL_TEMPLATE_TEXT_LIMIT ||
+    text.trim() === ''
+  )
+    return true;
+  try {
+    decodeApprovalTemplateGuidance(text);
+  } catch {
+    return true;
+  }
+  return false;
 }
 
-function readTemplateFile(path: string): string {
+export function readApprovalTemplateFile(path: string): string {
   const descriptor = openSync(path, 'r');
   try {
     const buffer = Buffer.alloc(APPROVAL_TEMPLATE_TEXT_LIMIT + 1);
@@ -198,12 +210,13 @@ export function createApprovalTemplateLibrary(dir?: string): ApprovalTemplateLib
   const readCustom = (name: string): ApprovalTemplate | undefined => {
     if (dir === undefined || !isApprovalTemplateName(name) || approvalTemplate(name)) return;
     try {
-      return summaryOf(name, readTemplateFile(file(name)));
+      return summaryOf(name, readApprovalTemplateFile(file(name)));
     } catch {
       return undefined;
     }
   };
   const write = (name: string, text: string): ApprovalTemplate => {
+    decodeApprovalTemplateGuidance(text);
     mkdirSync(dir!, { recursive: true });
     const temporary = file(name) + '.' + process.pid + '.tmp';
     writeFileSync(temporary, text, { encoding: 'utf8', mode: 0o600 });
@@ -223,7 +236,7 @@ export function createApprovalTemplateLibrary(dir?: string): ApprovalTemplateLib
       if (dir === undefined) return { kind: 'off' };
       let value: unknown;
       try {
-        value = JSON.parse(readTemplateFile(join(dir, '.selection.json')));
+        value = JSON.parse(readApprovalTemplateFile(join(dir, '.selection.json')));
       } catch (error) {
         return error instanceof Error && 'code' in error && error.code === 'ENOENT'
           ? { kind: 'off' }
@@ -264,6 +277,29 @@ export function createApprovalTemplateLibrary(dir?: string): ApprovalTemplateLib
       const builtIn = approvalTemplate(name);
       return builtIn === undefined ? readCustom(name) : { ...builtIn };
     },
+    customFileIdentity(name) {
+      if (dir === undefined || !isApprovalTemplateName(name) || approvalTemplate(name)) return;
+      try {
+        const state = statSync(file(name), { bigint: true });
+        if (!state.isFile()) return;
+        return createHash('sha256')
+          .update(
+            JSON.stringify(
+              [
+                state.dev,
+                state.ino,
+                state.size,
+                state.mtimeNs,
+                state.ctimeNs,
+                state.birthtimeNs,
+              ].map((value) => value.toString()),
+            ),
+          )
+          .digest('hex');
+      } catch {
+        return undefined;
+      }
+    },
     create(name, text) {
       const problem = check(name, text);
       if (problem !== undefined) return problem;
@@ -287,6 +323,7 @@ export function createApprovalTemplateLibrary(dir?: string): ApprovalTemplateLib
 }
 
 const POLICY_CHANGE_PATTERNS: readonly RegExp[] = [
+  /--apply-to\b/iu,
   /approval-template-(?:global-)?set\b/iu,
   /grant-request-approve\b|grantRequestApprove\b|grant-write-set\b/iu,
   /approval-reviewer[\s\S]*\b(set|edit|delete|rm|remove)\b/iu,

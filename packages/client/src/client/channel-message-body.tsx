@@ -27,6 +27,7 @@ import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 're
 import {
   FileTypeIcon,
   fileSizeText,
+  IconFolderOpenOutlineRegular,
   MarkdownText,
   StateDot,
   Tag,
@@ -40,6 +41,7 @@ import { openModelsSettings } from './bot-settings-open.js';
 import { currentMentionLabel } from './actor-names.js';
 import type { ChannelHumanMember } from './store.js';
 import { referenceRuns } from './channel-refs.js';
+import { skillOwnerKey } from '../../../core/src/skills/entries.js';
 import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
 import type { BridgeActions } from './actions.js';
@@ -803,14 +805,16 @@ export function ChannelMessageBody({
     const owner =
       skill.owner.kind === 'host'
         ? t('composer.skillHost')
-        : (ownerBot?.displayName ?? skill.owner.botSlug);
+        : skill.owner.kind === 'workspace'
+          ? skill.owner.name
+          : (ownerBot?.displayName ?? skill.owner.botSlug);
     const preview =
       skill.content.length > 1500 ? `${skill.content.slice(0, 1500)}…` : skill.content;
     return (
       <span
         key={key}
         className="bh-inline-mention bh-inline-mention-sent bh-inline-skill"
-        data-skill-owner={skill.owner.kind === 'host' ? 'host' : `bot:${skill.owner.botSlug}`}
+        data-skill-owner={skillOwnerKey(skill.owner)}
         title={`/${skill.name} · ${owner}\n\n${preview}`}
       >
         {skill.owner.kind === 'bot' && host === undefined ? (
@@ -825,6 +829,10 @@ export function ChannelMessageBody({
               indicator={false}
               t={t}
             />
+          </span>
+        ) : skill.owner.kind === 'workspace' && host === undefined ? (
+          <span className="bh-inline-mention-avatar" aria-hidden="true">
+            <IconFolderOpenOutlineRegular size={16} />
           </span>
         ) : null}
         <span>/{skill.name}</span>

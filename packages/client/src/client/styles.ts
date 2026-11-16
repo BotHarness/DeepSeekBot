@@ -1966,6 +1966,85 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
 .bh-market-files i[data-type="data"] { background: var(--dsw-alias-label-tertiary); }
 .bh-market-files i[data-type="image"] { background: ${color.success}; }
 .bh-market-files i[data-type="script"] { background: ${color.warning}; }
+.bh-skill-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bh-skill-row {
+  display: flex;
+  align-items: baseline;
+  gap: ${space.x3};
+  width: 100%;
+  min-width: 0;
+  margin: 0 -${space.x2};
+  padding: ${space.x2};
+  box-sizing: content-box;
+  border: 0;
+  border-radius: ${radius.xs};
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.bh-skill-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.bh-skill-row-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+.bh-skill-row:hover .bh-skill-row-chevron { color: var(--dsw-alias-label-secondary); }
+.bh-file-preview {
+  max-height: min(64vh, 560px);
+  overflow-y: auto;
+  min-width: 0;
+  border: ${border.hairline} solid ${color.border};
+  border-radius: ${radius.md};
+  background: var(--dsw-alias-bg-module-platform);
+}
+.bh-skill-row:focus-visible { outline: ${border.focus} solid ${color.accent}; outline-offset: -2px; }
+.bh-skill-row-name {
+  flex-shrink: 0;
+  font-family: var(--dsw-font-family-mono, monospace);
+  font-weight: ${text.strong};
+  overflow-wrap: anywhere;
+}
+.bh-skill-row-description {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: ${text.metaSize};
+  color: var(--dsw-alias-label-secondary);
+}
+.bh-skill-detail, .bh-skills-card, .bh-market-skills, .bh-skill-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x3};
+  min-width: 0;
+}
+.bh-skill-detail-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: ${space.x2};
+  min-width: 0;
+  margin-left: -${space.x2};
+}
+.bh-skill-detail-path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--dsw-font-family-mono, monospace);
+  font-size: ${text.metaSize};
+  color: var(--dsw-alias-label-tertiary);
+}
+.bh-skill-detail-description { margin: 0; color: var(--dsw-alias-label-secondary); }
 .bh-market-reader {
   display: flex;
   flex-direction: column;
@@ -2001,7 +2080,6 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.bh-market-reader .bh-market-readme { padding-top: 0; border-top: 0; }
 .bh-market-file-name {
   flex: 1;
   min-width: 0;
@@ -2195,26 +2273,27 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
 .bh-market-hero[data-market-banner='none'] > .bh-market-banner { display: none; }
 .bh-market-hero[data-market-banner='none'] > .bh-market-row-head { margin-top: 0; }
 .bh-market-hero > .bh-market-row-head { margin-top: -36px; padding-left: ${space.x4}; }
-.bh-market-hero > .bh-market-row-head > .bh-market-copy { padding-bottom: ${space.x2}; }
+.bh-market-hero > .bh-market-row-head { justify-content: space-between; }
+.bh-market-hero > .bh-market-hero-name,
 .bh-market-hero > .bh-market-description,
 .bh-market-hero > .bh-market-meta { padding: 0 ${space.x2}; }
+.bh-market-hero-name { min-width: 0; }
+.bh-market-hero-name > .bh-market-name { flex-wrap: wrap; row-gap: ${space.x1}; overflow-wrap: anywhere; }
 .bh-market-hero .bh-market-name { font-size: ${text.titleSize}; font-weight: ${text.strong}; line-height: ${text.titleLine}; }
-.bh-market-hero .bh-market-github {
-  flex-shrink: 0;
-  padding: ${space.x2} ${space.x3};
+.bh-market-github {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   border: ${border.hairline} solid ${color.border};
   border-radius: 999px;
   background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
 }
-.bh-market-github {
-  flex: none;
-  color: ${color.accentText};
-  font-size: ${text.bodySize};
-  text-decoration: none;
-}
-.bh-market-github:hover {
-  text-decoration: underline;
-}
+.bh-market-github:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.bh-market-github:focus-visible { outline: ${border.focus} solid ${color.accent}; outline-offset: 2px; }
 .bh-market-readme {
   max-height: min(56vh, 480px);
   overflow-y: auto;

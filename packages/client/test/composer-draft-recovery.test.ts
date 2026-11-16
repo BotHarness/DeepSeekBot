@@ -99,11 +99,11 @@ describe('composer recovery integration', () => {
     await act(async () => root.render(createElement(View)));
     act(() => edit?.());
     second.update(scope, { text: 'other tab' });
-    act(() =>
+    act(() => {
       window.dispatchEvent(
         new StorageEvent('storage', { key: localStorage.key(0), storageArea: localStorage }),
-      ),
-    );
+      );
+    });
     expect(container.textContent).toBe('current editor|2|true');
   });
 });

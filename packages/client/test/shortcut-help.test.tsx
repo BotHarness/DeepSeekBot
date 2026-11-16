@@ -201,7 +201,7 @@ it('waits for native recording acknowledgement and releases interception after s
   );
   act(() => host.querySelector<HTMLButtonElement>('[data-shortcut="bot-mode"] button')!.click());
   const press = () =>
-    act(() =>
+    act(() => {
       host.querySelector('[data-shortcut-recorder]')!.dispatchEvent(
         new KeyboardEvent('keydown', {
           key: 'b',
@@ -210,8 +210,8 @@ it('waits for native recording acknowledgement and releases interception after s
           shiftKey: true,
           bubbles: true,
         }),
-      ),
-    );
+      );
+    });
   press();
   expect(bindings.isCustom('bot-mode')).toBe(false);
   await act(async () => {

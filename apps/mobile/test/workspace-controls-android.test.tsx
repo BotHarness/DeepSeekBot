@@ -108,7 +108,9 @@ describe('Android workspace controls', () => {
     act(() => row.click());
     expect(select).toHaveBeenCalledOnce();
     expect(menu).not.toHaveBeenCalled();
-    act(() => row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+    act(() => {
+      row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    });
     expect(menu).toHaveBeenCalledOnce();
     view.close();
   });

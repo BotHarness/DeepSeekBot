@@ -3,6 +3,7 @@ export type ActionSymbol =
   | 'check'
   | 'shield-check'
   | 'x'
+  | 'trash'
   | 'archive'
   | 'plus'
   | 'message-square'

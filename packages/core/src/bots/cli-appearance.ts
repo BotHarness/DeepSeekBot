@@ -1,4 +1,5 @@
-import { WALLPAPER_COMMANDS, WALLPAPER_OPTIONS, runWallpaperCommand } from './cli-wallpaper.js';
+export { APPEARANCE_OPTIONS } from './cli-option-spec.js';
+import { WALLPAPER_COMMANDS, runWallpaperCommand } from './cli-wallpaper.js';
 import { CliLiveError } from './cli-live-error.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 export const APPEARANCE_COMMANDS = [
@@ -30,12 +31,7 @@ export const APPEARANCE_COMMANDS = [
     description: 'write --patch-stdin to an explicit --client-id with --expected-revision',
   },
 ] as const;
-export const APPEARANCE_OPTIONS = {
-  ...WALLPAPER_OPTIONS,
-  'client-id': { type: 'string' },
-  'confirm-reset': { type: 'boolean' },
-  'expected-wallpaper-revision': { type: 'string' },
-} as const;
+
 export async function runAppearanceCommand(
   command: string,
   rest: string[],

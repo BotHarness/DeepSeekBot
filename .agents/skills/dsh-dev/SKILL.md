@@ -125,6 +125,12 @@ The regression uses the real native Session fold and LLM projection in
 
 BotHarness is a plugin layer inside DSH: unit tests do not cover the real boot. Every trap in this skill was invisible to `pnpm test` and only appeared in a running `dsh --profile web-dev`. **Validate against the running shell, not the test suite.**
 
+### Native approval requires a real open turn (#4212)
+
+On pinned DSH 0.2.2-rc.1, scoped Tools.execute supports an actual Agent outside a model step, but ApprovalService.request rejects outside an open native turn before appending approval/asked. A successful model-free read therefore does not prove protected-write approval parity. The public Agent.runMaintenance API is explicitly non-turn; do not append manual turn/start events to bypass the approval audit check or desynchronize the loop counter.
+
+For an admitted application-owned request, keep the canonical BotRuntime owner and exact live Agent. Queue one identified native input, use the supported agent/pre-step waterfall after session admission to execute the scoped Tool, then reject model-step entry. The native loop owns turn/start and turn/end; approval/asked and approval/decided remain genuinely enclosed, and no model request is made. Validate the exact claimed native input, cancellation, no queued foreign work, and all original source/permission fences. Keep a model-free request marker on its genuine Human DM so normal retry or continuation cannot replay an expired execution intent.
+
 ## Proactive Client verification
 
 After every isolated launch, Client reload and relevant UI action, read the real browser console and DOM yourself before accepting the result; do not wait for Human-copied errors. Read [the Client diagnostic loop](../../../docs/dev/guides/client-startup-diagnostics.md) for the agent-runnable reader, bounded attempt history, background-tab/freshness limits and native RC1 reproductions. Treat API health, Client shell evidence and browser-control failures as separate signals. Preserve first failure and each retry; recovery by reload does not establish a fix.

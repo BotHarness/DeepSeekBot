@@ -109,6 +109,15 @@ jobs:
             node scripts/check-pr-evidence.mjs --base HEAD^
           fi
       - run: pnpm install --frozen-lockfile
+      - name: Reject a raised lint baseline
+        env:
+          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node scripts/lint-ratchet.mjs --base="$BASELINE_BASE"
+          else
+            node scripts/lint-ratchet.mjs --base=HEAD^
+          fi
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck

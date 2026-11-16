@@ -1,6 +1,6 @@
 {
   "name": "genui-opening",
-  "fixture": "Three sequential plain/rich pairs, fresh browser per target, one canonical message per DM, bundled nine-scene HTML document; no model",
+  "fixture": "Three sequential plain/rich pairs, fresh browser per target, one canonical content message plus its exact one-time approval records per DM, bundled nine-scene HTML document; no model",
   "always": [
     {
       "metric": "plain.count",

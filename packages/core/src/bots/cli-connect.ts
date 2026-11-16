@@ -1,3 +1,4 @@
+export { CONNECT_OPTIONS } from './cli-option-spec.js';
 import { CliLiveError } from './cli-live-error.js';
 export const CONNECT_COMMANDS = [
   {
@@ -64,15 +65,7 @@ export const CONNECT_COMMANDS = [
     description: 'sign out another linked computer by host ID (--confirm)',
   },
 ] as const;
-export const CONNECT_OPTIONS = {
-  'expected-route-revision': { type: 'string' },
-  hostname: { type: 'string' },
-  'token-stdin': { type: 'boolean' },
-  wait: { type: 'boolean' },
-  quick: { type: 'boolean' },
-  origin: { type: 'string' },
-  lan: { type: 'boolean' },
-} as const;
+
 const DEVICES = '/api/botharness/devices';
 export function isConnectCommand(command: string): boolean {
   return CONNECT_COMMANDS.some((entry) => entry.command === command);
