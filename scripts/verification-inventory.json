@@ -2666,6 +2666,14 @@
       "reason": "Compares live Host Overview with production token snapshot reader and serializer; optional separately marked QA wire send.",
       "task": 4255,
       "sha256": "925304c37a3fd15e198ecdc54fe954e6f888d4b68dc3fd6e6a8760867d61e2ef"
+    },
+    {
+      "path": "scripts/e2e-avatar-scroll.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Real isolated Host pixel-avatar editing: wheel to final palette swatch and drawing footer at three desktop sizes, select color and cancel without changing saved appearance.",
+      "task": 4268,
+      "sha256": "c698d2145e1ef3ca75e90d42131ac3feff524e7d893b22b3bb2daa7989da8b53"
     }
   ],
   "native": [
