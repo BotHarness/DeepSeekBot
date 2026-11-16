@@ -32,6 +32,13 @@ import {
   type PixelCustomPart,
 } from '../../../core/src/bots/avatar-appearance.js';
 import type { BotHarnessTranslate } from './locale.js';
+import {
+  Button,
+  IconEditOutlineRegular,
+  IconSaveOutlineRegular,
+  IconCloseOutlineRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 
 type Key = Parameters<BotHarnessTranslate>[0];
 type Tool =
@@ -45,6 +52,16 @@ type Tool =
   | 'noise'
   | 'eyedropper';
 type Layers = Record<PartLayerName, PartLayer>;
+const TOOL_ICONS: Record<Exclude<Tool, 'pencil'>, string> = {
+  eraser: 'eraser',
+  fill: 'paint-bucket',
+  replace: 'replace',
+  line: 'slash',
+  rect: 'square',
+  gradient: 'blend',
+  noise: 'spray-can',
+  eyedropper: 'pipette',
+};
 type Point = readonly [number, number];
 interface Gesture {
   base: Layers;
@@ -405,67 +422,103 @@ export function CustomPartEditor({
     <div className="bh-part-editor" data-part-editor>
       <div className="bh-part-toolbar" role="toolbar" aria-label={t('profile.avatar.part.tools')}>
         {TOOLS.map((value) => (
-          <button
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={
+              value === 'pencil' ? (
+                <IconEditOutlineRegular />
+              ) : (
+                <ChannelSidebarIcon name={TOOL_ICONS[value]} />
+              )
+            }
             key={value}
             type="button"
-            className="bh-avatar-category"
             data-part-tool={value}
             aria-pressed={tool === value}
             onClick={() => setTool(value)}
           >
             {t(`profile.avatar.part.tool.${value}` as Key)}
-          </button>
+          </Button>
         ))}
-        <button
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<ChannelSidebarIcon name="triangles-centerline-dashed-horizontal" />}
           type="button"
-          className="bh-avatar-category"
           data-part-mirror
           aria-pressed={mirror}
           onClick={() => setMirror(!mirror)}
         >
           {t('profile.avatar.part.mirror')}
-        </button>
+        </Button>
         <span className="bh-part-divider" aria-hidden="true" />
         {(hair ? [] : (['front', 'back'] as const)).map((value) => (
-          <button
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<ChannelSidebarIcon name="layers-2" />}
             key={value}
             type="button"
-            className="bh-avatar-category"
             data-part-layer={value}
             aria-pressed={layer === value}
             onClick={() => setLayer(value)}
           >
             {t(`profile.avatar.part.layer.${value}` as Key)}
-          </button>
+          </Button>
         ))}
         <span className="bh-part-divider" aria-hidden="true" />
-        <button type="button" data-part-undo disabled={past.length === 0} onClick={undo}>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<ChannelSidebarIcon name="undo-2" />}
+          type="button"
+          data-part-undo
+          disabled={past.length === 0}
+          onClick={undo}
+        >
           {t('profile.avatar.part.undo')}
-        </button>
-        <button type="button" data-part-redo disabled={future.length === 0} onClick={redo}>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<ChannelSidebarIcon name="redo-2" />}
+          type="button"
+          data-part-redo
+          disabled={future.length === 0}
+          onClick={redo}
+        >
           {t('profile.avatar.part.redo')}
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<ChannelSidebarIcon name="zoom-out" />}
           type="button"
           data-part-zoom-out
           disabled={zoom <= MIN_ZOOM}
           aria-label={t('profile.avatar.part.zoomOut')}
           onClick={() => setZoom(zoom - 2)}
         >
-          −
-        </button>
-        <button
+          {t('profile.avatar.part.zoomOut')}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<ChannelSidebarIcon name="zoom-in" />}
           type="button"
           data-part-zoom-in
           disabled={zoom >= MAX_ZOOM}
           aria-label={t('profile.avatar.part.zoomIn')}
           onClick={() => setZoom(zoom + 2)}
         >
-          +
-        </button>
-        <button
+          {t('profile.avatar.part.zoomIn')}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<ChannelSidebarIcon name="move" />}
           type="button"
-          className="bh-avatar-category"
           data-part-offset
           aria-pressed={offset}
           onClick={() => {
@@ -474,23 +527,29 @@ export function CustomPartEditor({
           }}
         >
           {t('profile.avatar.part.offset')}
-        </button>
+        </Button>
       </div>
       <div className="bh-part-options" data-part-options={tool}>
         {tool === 'pencil' ? (
           <span role="group" aria-label={t('profile.avatar.part.shade')}>
             <small>{t('profile.avatar.part.shade')}</small>
             {SHADES.map(([key, value]) => (
-              <button
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={
+                  <ChannelSidebarIcon
+                    name={key === 'off' ? 'ban' : key === 'lighter' ? 'sun' : 'moon'}
+                  />
+                }
                 key={key}
                 type="button"
-                className="bh-avatar-category"
                 data-part-shade={key}
                 aria-pressed={shade === value}
                 onClick={() => setShade(value)}
               >
                 {t(`profile.avatar.part.shade.${key}` as Key)}
-              </button>
+              </Button>
             ))}
           </span>
         ) : null}
@@ -542,9 +601,17 @@ export function CustomPartEditor({
                 onChange={(event) => changeAmount(Number(event.target.value))}
               />
             </label>
-            <button type="button" data-part-reroll disabled={!noise} onClick={reroll}>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<ChannelSidebarIcon name="spray-can" />}
+              type="button"
+              data-part-reroll
+              disabled={!noise}
+              onClick={reroll}
+            >
               {t('profile.avatar.part.reroll')}
-            </button>
+            </Button>
           </span>
         ) : null}
         <small className="bh-part-hint">{t('profile.avatar.part.toolHint')}</small>
@@ -662,12 +729,28 @@ export function CustomPartEditor({
       </label>
       {failed ? <p role="alert">{t('profile.avatar.part.saveFailed')}</p> : null}
       <div className="bh-avatar-editor-actions">
-        <button type="button" data-part-save disabled={empty || busy} onClick={() => void save()}>
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<IconSaveOutlineRegular />}
+          type="button"
+          data-part-save
+          disabled={empty || busy}
+          onClick={() => void save()}
+        >
           {t('profile.avatar.part.save')}
-        </button>
-        <button type="button" data-part-cancel disabled={busy} onClick={onCancel}>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<IconCloseOutlineRegular />}
+          type="button"
+          data-part-cancel
+          disabled={busy}
+          onClick={onCancel}
+        >
           {t('profile.avatar.part.cancel')}
-        </button>
+        </Button>
       </div>
     </div>
   );
