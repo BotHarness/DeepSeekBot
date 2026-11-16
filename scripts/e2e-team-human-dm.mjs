@@ -130,9 +130,18 @@ try {
     require.resolve('playwright', {
       paths: [
         root,
-        process.platform === 'win32'
-          ? join(dirname(process.execPath), 'node_modules')
-          : join(dirname(process.execPath), '..', 'lib', 'node_modules'),
+        ...[
+          process.env.npm_config_prefix,
+          process.platform === 'win32'
+            ? dirname(process.execPath)
+            : join(dirname(process.execPath), '..'),
+        ]
+          .filter(Boolean)
+          .map((prefix) =>
+            process.platform === 'win32'
+              ? join(prefix, 'node_modules')
+              : join(prefix, 'lib', 'node_modules'),
+          ),
       ],
     }),
   );
