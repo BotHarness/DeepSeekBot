@@ -14,8 +14,9 @@ import { OverviewMemoryView } from './overview-memory-view.js';
 import { OverviewUsageView } from './overview-usage-view.js';
 import { remoteHostSettingsSource } from './remote-host-settings-source.js';
 import { RemoteNotificationSettings } from './remote-notification-settings.js';
-import { remoteHostActions } from './remote-host-actions.js';
-import { PromptsSection, VoiceSection } from './bot-settings-sections.js';
+import { remoteHostActions, remoteHostSettings } from './remote-host-actions.js';
+import { AutoApprovalSection, PromptsSection, VoiceSection } from './bot-settings-sections.js';
+import { useMountedResource } from './mounted-resource.js';
 import { StorageSettings } from './storage-settings.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import { TargetName } from './target-name.js';
@@ -62,6 +63,7 @@ export const REMOTE_SETTINGS_SECTIONS = {
   hostModels: 'environment-models',
   hostAppearance: 'environment-appearance',
   hostNotifications: 'environment-notifications',
+  hostApprovals: 'environment-approvals',
   hostPrompts: 'environment-prompts',
   hostVoice: 'environment-voice',
   hostUsage: 'environment-usage',
@@ -76,6 +78,7 @@ export const REMOTE_SECTION_ICONS: Readonly<Record<RemoteSettingsSection, string
   [REMOTE_SETTINGS_SECTIONS.hostModels]: 'cpu',
   [REMOTE_SETTINGS_SECTIONS.hostAppearance]: 'paintbrush',
   [REMOTE_SETTINGS_SECTIONS.hostNotifications]: 'bell',
+  [REMOTE_SETTINGS_SECTIONS.hostApprovals]: 'shield-check',
   [REMOTE_SETTINGS_SECTIONS.hostPrompts]: 'file-text',
   [REMOTE_SETTINGS_SECTIONS.hostVoice]: 'audio-lines',
   [REMOTE_SETTINGS_SECTIONS.hostUsage]: 'gauge',
@@ -90,6 +93,10 @@ export function remoteSettingsRows(
     {
       id: REMOTE_SETTINGS_SECTIONS.hostModels,
       label: t('remoteHosts.settings.models'),
+    },
+    {
+      id: REMOTE_SETTINGS_SECTIONS.hostApprovals,
+      label: t('botSettings.section.autoApproval'),
     },
     { id: REMOTE_SETTINGS_SECTIONS.hostPrompts, label: t('botSettings.section.prompts') },
     { id: REMOTE_SETTINGS_SECTIONS.hostVoice, label: t('botSettings.section.voice') },
@@ -197,6 +204,31 @@ export function LocalHostAppearance({
   return <HostLookSettings key={hostId} hostId={hostId} name={name} available t={t} />;
 }
 
+function RemoteHostApprovals({
+  client,
+  t,
+}: {
+  client: HostClient;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const settings = remoteHostSettings(client);
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const lifetime = new AbortController();
+    void settings.actions.refreshRoster(lifetime.signal).catch(() => undefined);
+    return () => lifetime.abort();
+  }, [settings]);
+  return (
+    <div ref={mount}>
+      <AutoApprovalSection
+        actions={settings.actions}
+        call={settings.call}
+        store={settings.store}
+        t={t}
+      />
+    </div>
+  );
+}
+
 function RemoteHostData({
   client,
   name,
@@ -209,6 +241,8 @@ function RemoteHostData({
   t: BotHarnessTranslate;
 }): ReactElement {
   const source = useMemo(() => remoteHostSettingsSource(client), [client]);
+  if (section === REMOTE_SETTINGS_SECTIONS.hostApprovals)
+    return <RemoteHostApprovals client={client} t={t} />;
   if (section === REMOTE_SETTINGS_SECTIONS.hostPrompts)
     return <PromptsSection actions={remoteHostActions(client)} t={t} />;
   if (section === REMOTE_SETTINGS_SECTIONS.hostVoice)

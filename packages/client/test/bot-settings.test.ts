@@ -669,6 +669,7 @@ it('switches the Host group to a remote Host from the top-right switcher and kee
     'shortcuts',
     'companions',
     '模型',
+    '自动审批',
     '提示词',
     '语音',
     '本应用中的外观',
