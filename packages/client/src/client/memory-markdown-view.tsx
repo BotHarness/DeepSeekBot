@@ -22,10 +22,13 @@ const styles = stylex.create({
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
     fontWeight: text.strong,
-    marginTop: space.x6,
+    marginTop: { default: space.x6, ':first-child': 0 },
     marginBottom: space.x3,
   },
-  paragraph: { marginTop: space.x3, marginBottom: space.x4 },
+  paragraph: {
+    marginTop: { default: space.x3, ':first-child': 0 },
+    marginBottom: { default: space.x4, ':last-child': 0 },
+  },
   code: {
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',

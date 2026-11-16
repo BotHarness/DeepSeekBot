@@ -2007,8 +2007,6 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
   border-radius: ${radius.md};
   background: var(--dsw-alias-bg-module-platform);
 }
-.bh-file-preview > .bh-memory-markdown > :first-child { margin-top: 0; }
-.bh-file-preview > .bh-memory-markdown > :last-child { margin-bottom: 0; }
 .bh-skill-row:focus-visible { outline: ${border.focus} solid ${color.accent}; outline-offset: -2px; }
 .bh-skill-row-name {
   flex-shrink: 0;
