@@ -16,6 +16,7 @@ const activity = vi.hoisted(() => ({
 }));
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
 vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
 vi.mock('../src/ui/chat/channel-details-screen', () => ({ ChannelDetailsScreen: () => null }));
