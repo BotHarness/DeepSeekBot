@@ -87,6 +87,26 @@ export function degradeHostCapability(
   return () => undefined;
 }
 
+export function hostSkillRegistry<Registry>(ctx: Context): Registry | undefined {
+  const skills: unknown = Reflect.get(ctx, 'skills');
+  return typeof skills === 'object' &&
+    skills !== null &&
+    typeof Reflect.get(skills, 'list') === 'function' &&
+    typeof Reflect.get(skills, 'get') === 'function'
+    ? (skills as Registry)
+    : undefined;
+}
+
+export function hostAgentPresets<Presets>(ctx: Context): Presets | undefined {
+  const presets: unknown = Reflect.get(ctx, 'get')?.call(ctx, 'agentPresets');
+  return typeof presets === 'object' &&
+    presets !== null &&
+    typeof Reflect.get(presets, 'serviceFor') === 'function' &&
+    typeof Reflect.get(presets, 'acquireScope') === 'function'
+    ? (presets as Presets)
+    : undefined;
+}
+
 export function requireHostCapability(capability: string, cause?: unknown): never {
   throw new HostIncompatibleError(capability, installedDshVersion(), cause);
 }

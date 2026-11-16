@@ -1,4 +1,4 @@
-import { useTeamMember } from './team-state.js';
+import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { humanIdOf, useSelfHumanId, SelfHumanContext } from './self-human.js';
@@ -113,6 +113,8 @@ import {
 import { insertAttachmentReferences, removeAttachmentReferences } from './attachment-refs.js';
 import { appendMention, quoteMention, rebaseMentions } from './mentions.js';
 import { AtSignIcon } from './at-sign-icon.js';
+import { liveSkills, type ComposerSkillOption } from './skill-refs.js';
+import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { rebaseChannelRefs } from './channel-refs.js';
 import { channelHumanName, humanLabel } from './actor-names.js';
 import { ChannelHeaderMenu, type ChannelMenuTrigger } from './human-channel-name.js';
@@ -1278,6 +1280,7 @@ function ConversationView({
   const sidebar = useChannelSidebar(state);
   const docked = useChannelDockActive();
   const workspaceEnabled = useContext(WorkspaceContext) !== undefined;
+  const teamMode = useTeamMode(actions.teamCall)?.enabled === true;
   const [detail, setDetail] = useScopedState<'files' | 'inbox' | undefined>(
     scopeKey,
     state.selection?.kind === 'bot' && state.selection.inboxRequest ? 'inbox' : undefined,
@@ -1377,6 +1380,8 @@ function ConversationView({
     'channelRefs',
     [],
   );
+  const [skillTokens, setSkillTokens] = useConversationDraft(draftScope, 'skills', []);
+  const [skillCatalog, setSkillCatalog] = useScopedState<SkillCatalogEntry[]>(scopeKey);
   const [selectedMemoryView, setSelectedMemoryView] = useScopedState<
     { channelId: string } & (
       | { kind: 'commit'; sha: string }
@@ -1903,6 +1908,27 @@ function ConversationView({
       cancelled = true;
     };
   }, [scopeKey, channelId, previewRoster]);
+  const skillCatalogMount = useMountedResource<HTMLSpanElement>(() => {
+    let cancelled = false;
+    setSkillCatalog(undefined);
+    if (channel?.type === 'dm' && channel.botSlug !== undefined && actions.skillCatalog)
+      void actions
+        .skillCatalog(channel.id)
+        .then((skills) => {
+          if (!cancelled) setSkillCatalog(skills);
+        })
+        .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [scopeKey, channelId]);
+  const skillOptions: ComposerSkillOption[] = (skillCatalog ?? []).map((entry) => ({
+    ...entry,
+    bot:
+      entry.owner.kind === 'bot'
+        ? state.bots.find((bot) => entry.owner.kind === 'bot' && bot.slug === entry.owner.botSlug)
+        : undefined,
+  }));
   const [searchTop, setSearchTop] = useScopedState<number | undefined>(scopeKey, undefined);
   const searchAvailable = useScopedRef(scopeKey, false);
   const searchReturnFocus = useScopedRef<HTMLElement | null>(scopeKey, null);
@@ -2674,6 +2700,12 @@ function ConversationView({
         ? [adjusted]
         : [];
     });
+    const submittedSkills = liveSkills(draft, skillTokens).flatMap((token) => {
+      const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
+      return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '/' + token.name
+        ? [adjusted]
+        : [];
+    });
     const submittedMentions = mentionTokens.flatMap((token) => {
       const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
       return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '@' + token.label
@@ -2743,7 +2775,7 @@ function ConversationView({
     );
     recall.current = undefined;
     setRecallNotice(undefined);
-    recovery.update({ text: '', mentions: [], channelRefs: [], uploads: [] });
+    recovery.update({ text: '', mentions: [], channelRefs: [], skills: [], uploads: [] });
     try {
       const sent = await actions.send(
         body,
@@ -2755,6 +2787,7 @@ function ConversationView({
         undefined,
         allBotMention,
         attempt?.id,
+        submittedSkills.map(({ name, owner, start, end }) => ({ name, owner, start, end })),
       );
       if (sent) {
         setAllBotNotice(undefined);
@@ -2771,6 +2804,7 @@ function ConversationView({
           setDraft((current) => current || body);
           setMentionTokens((current) => (current.length > 0 ? current : submittedMentions));
           setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
+          setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
           setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
         }
       }
@@ -3606,6 +3640,8 @@ function ConversationView({
                     value={draft}
                     mentions={mentionTokens}
                     channelRefs={channelRefTokens}
+                    skills={skillTokens}
+                    skillOptions={skillOptions}
                     channelCandidates={
                       channel?.type === 'dm' && channel.botSlug !== undefined
                         ? state.channels.filter((candidate) => candidate.type === 'group')
@@ -3672,11 +3708,12 @@ function ConversationView({
                           }
                     }
                     t={t}
-                    onChange={(value, mentions, channelRefs) => {
+                    onChange={(value, mentions, channelRefs, skills) => {
                       recovery.update({
                         text: value,
                         mentions: mentions ?? [],
                         channelRefs: channelRefs ?? [],
+                        ...(skills === undefined ? {} : { skills }),
                       });
                       setRestoreBlocked(false);
                     }}
@@ -3781,6 +3818,7 @@ function ConversationView({
   return (
     <div ref={conversationMount} className="bh-root bh-main">
       <span ref={allBotPreviewMount} hidden />
+      <span ref={skillCatalogMount} hidden />
       <span ref={searchShortcutMount} hidden />
       <span ref={replyPerfMount} hidden />
       <span ref={dockInboxMount} hidden />
@@ -3936,7 +3974,7 @@ function ConversationView({
                 (hasChannelBots(channel) ||
                   (entry.scope !== 'personabot' &&
                     entry.id !== 'sessions' &&
-                    entry.id !== 'members')) &&
+                    (entry.id !== 'members' || teamMode))) &&
                 (entry.scope === 'both' || entry.scope === settingsScope) &&
                 (entry.visible?.(state) ?? true)
               }

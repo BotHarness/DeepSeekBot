@@ -225,6 +225,7 @@ export interface ChannelMessage {
   mentions?: { botSlug: string; label: string; start: number; end: number }[];
   humanMentions?: { humanId: string; label: string; start: number; end: number }[];
   channelRefs?: { channelId: string; label: string; start: number; end: number }[];
+  skillInvocations?: import('../../../core/src/channels/channel.js').ChannelSkillInvocation[];
   humanReceipts?: {
     humanId: string;
     displayName: string;

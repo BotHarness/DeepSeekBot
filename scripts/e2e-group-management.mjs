@@ -421,7 +421,7 @@ try {
   if (!(await groupRecord(group.id)).avatar.startsWith('data:image/webp;base64,'))
     throw new Error('Group avatar was not saved as WebP');
 
-  await page.click('button[aria-label="Invite member"], button[aria-label="邀请新群员"]');
+  await page.click('button[aria-label="Invite a Bot"], button[aria-label="邀请 Bot"]');
   await page.waitForSelector('[data-group-invite]');
   await page.type('[data-group-invite-search]', target.displayName.slice(0, 8));
   await sleep(350);
@@ -433,15 +433,14 @@ try {
   await page.waitForFunction(() =>
     Array.from(document.querySelectorAll('button')).some(
       (button) =>
-        ['邀请新群员', 'Invite member'].includes(button.textContent?.trim() ?? '') &&
-        !button.disabled,
+        ['邀请 Bot', 'Invite a Bot'].includes(button.textContent?.trim() ?? '') && !button.disabled,
     ),
   );
   await page.evaluate(() => {
     Array.from(document.querySelectorAll('button'))
       .find(
         (button) =>
-          ['邀请新群员', 'Invite member'].includes(button.textContent?.trim() ?? '') &&
+          ['邀请 Bot', 'Invite a Bot'].includes(button.textContent?.trim() ?? '') &&
           !button.disabled,
       )
       ?.click();

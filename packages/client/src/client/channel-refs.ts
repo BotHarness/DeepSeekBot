@@ -1,5 +1,6 @@
 import type { SelectedMention } from './mentions.js';
 import type { ChannelMessage } from './store.js';
+import type { SelectedSkill } from './skill-refs.js';
 
 export interface SelectedChannelRef {
   channelId: string;
@@ -99,14 +100,28 @@ export function deleteSelectedChannelRef(
 }
 
 export type ReferenceRun<M extends SelectedMention = SelectedMention> =
-  | { text: string; mention?: never; channelRef?: never; humanMention?: never }
-  | { text: string; mention: M; channelRef?: never; humanMention?: never }
-  | { text: string; mention?: never; channelRef: SelectedChannelRef; humanMention?: never }
+  | { text: string; mention?: never; channelRef?: never; humanMention?: never; skill?: never }
+  | { text: string; mention: M; channelRef?: never; humanMention?: never; skill?: never }
+  | {
+      text: string;
+      mention?: never;
+      channelRef: SelectedChannelRef;
+      humanMention?: never;
+      skill?: never;
+    }
   | {
       text: string;
       mention?: never;
       channelRef?: never;
       humanMention: NonNullable<ChannelMessage['humanMentions']>[number];
+      skill?: never;
+    }
+  | {
+      text: string;
+      mention?: never;
+      channelRef?: never;
+      humanMention?: never;
+      skill: SelectedSkill;
     };
 
 export function referenceRuns<M extends SelectedMention>(
@@ -114,6 +129,7 @@ export function referenceRuns<M extends SelectedMention>(
   mentions: readonly M[],
   refs: readonly SelectedChannelRef[],
   humanMentions: readonly NonNullable<ChannelMessage['humanMentions']>[number][] = [],
+  skills: readonly SelectedSkill[] = [],
 ): ReferenceRun<M>[] {
   const tokens = [
     ...mentions.map((mention) => ({ start: mention.start, end: mention.end, mention })),
@@ -123,18 +139,23 @@ export function referenceRuns<M extends SelectedMention>(
       end: humanMention.end,
       humanMention,
     })),
+    ...skills.map((skill) => ({ start: skill.start, end: skill.end, skill })),
   ].sort((a, b) => a.start - b.start);
   const runs: ReferenceRun<M>[] = [];
   let cursor = 0;
   for (const token of tokens) {
     if (token.start < cursor) continue;
-    if ('mention' in token) {
+    if ('skill' in token) {
+      if (value.slice(token.start, token.end) !== '/' + token.skill.name) continue;
+    } else if ('mention' in token) {
       if (value.slice(token.start, token.end) !== '@' + token.mention.label) continue;
     } else if ('humanMention' in token) {
       if (value.slice(token.start, token.end) !== '@' + token.humanMention.label) continue;
     } else if (value.slice(token.start, token.end) !== '#' + token.channelRef.label) continue;
     if (token.start > cursor) runs.push({ text: value.slice(cursor, token.start) });
-    if ('mention' in token)
+    if ('skill' in token)
+      runs.push({ text: value.slice(token.start, token.end), skill: token.skill });
+    else if ('mention' in token)
       runs.push({ text: value.slice(token.start, token.end), mention: token.mention });
     else if ('humanMention' in token)
       runs.push({ text: value.slice(token.start, token.end), humanMention: token.humanMention });

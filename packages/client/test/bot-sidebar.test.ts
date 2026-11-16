@@ -220,6 +220,7 @@ function stubActions(): BridgeActions {
     deletionRetry: vi.fn(),
     deletionFolderApplications: vi.fn(),
     deletionFolderOpen: vi.fn(),
+    skillCatalog: vi.fn(async () => []),
     allBotPreview: vi.fn(async () => {
       throw new Error('unexpected All Bots preview');
     }),
