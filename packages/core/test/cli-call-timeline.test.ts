@@ -18,6 +18,11 @@ function connectTo(methods: Awaited<ReturnType<typeof setup>>['methods'], seen: 
   return async () => ({
     rpc: async <T>(method: string, args: Record<string, unknown>): Promise<T> => {
       seen.push({ method, args });
+      if (method === 'channelDm') {
+        const value = await methods.channelDm(args);
+        if (!value.ok) throw new CliLiveError(value.error.code, value.error.message);
+        return value.value as T;
+      }
       if (method !== 'botToolRun') throw new Error(`unexpected ${method}`);
       const result = await methods.botToolRun(args);
       if (!result.ok) throw new CliLiveError(result.error.code, result.error.message);
@@ -70,6 +75,7 @@ describe('deepseekbot call-list and call-read (#3693)', () => {
       });
       expect(JSON.stringify(listed)).not.toContain(OTHER_CALL);
       expect(seen).toEqual([
+        { method: 'channelDm', args: { slug: 'ada' } },
         {
           method: 'botToolRun',
           args: {

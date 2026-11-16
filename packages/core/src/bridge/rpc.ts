@@ -168,6 +168,7 @@ import type {
   PersonaBotDetail,
   ApprovalTemplateEntry,
   PersonaBotSummary,
+  SharedBotSummary,
   OwnedSessionSummary,
   OwnedSessionBot,
   ProfileActivity,
@@ -432,6 +433,43 @@ export class BotharnessBridgeService extends TypertRemoteService {
   spaces() {
     return unwrapAsync(this.methods.spaces({}));
   }
+  botVisibility(slug: string) {
+    return unwrapAsync(this.methods.botVisibility({ slug }));
+  }
+  botVisibilitySet(
+    slug: string,
+    visibility: import('../team/bot-contract.js').BotVisibility,
+    confirm?: boolean,
+  ) {
+    return unwrapAsync(this.methods.botVisibilitySet({ slug, visibility, confirm }));
+  }
+  botSwitches(
+    slug: string,
+    proactiveDms?: boolean,
+    joinPrincipalChannels?: boolean,
+    speakerContext?: boolean,
+  ) {
+    return unwrapAsync(
+      this.methods.botSwitches({
+        slug,
+        ...(proactiveDms === undefined ? {} : { proactiveDms }),
+        ...(joinPrincipalChannels === undefined ? {} : { joinPrincipalChannels }),
+        ...(speakerContext === undefined ? {} : { speakerContext }),
+      }),
+    );
+  }
+  reachableBots() {
+    return unwrapAsync(this.methods.reachableBots({}));
+  }
+  botProactiveOptOut(slug: string, optOut: boolean) {
+    return unwrapAsync(this.methods.botProactiveOptOut({ slug, optOut }));
+  }
+  roleConflicts(humanId?: string, username?: string) {
+    return unwrapAsync(this.methods.roleConflicts({ humanId, username }));
+  }
+  speakerPolicy(humanId?: string, topic?: string) {
+    return unwrapAsync(this.methods.speakerPolicy({ humanId, topic }));
+  }
   spaceCreate(name: string, audience: SpaceAudience) {
     return unwrapAsync(this.methods.spaceCreate({ name, audience }));
   }
@@ -490,16 +528,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     name: string,
     permissions: string[],
     models?: import('../team/permissions.js').RoleModels,
+    policy?: import('../team/bot-contract.js').RolePolicy,
   ) {
-    return unwrapAsync(this.methods.roleCreate({ name, permissions, models }));
+    return unwrapAsync(this.methods.roleCreate({ name, permissions, models, policy }));
   }
   roleUpdate(
     roleId: string,
     name?: string,
     permissions?: string[],
     models?: import('../team/permissions.js').RoleModels,
+    policy?: import('../team/bot-contract.js').RolePolicy,
   ) {
-    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions, models }));
+    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions, models, policy }));
   }
   roleDelete(roleId: string) {
     return unwrapAsync(this.methods.roleDelete({ roleId }));
@@ -1321,7 +1361,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  list(query?: string, administration?: boolean): { bots: Array<PersonaBotSummary | BotMetadata> } {
+  list(
+    query?: string,
+    administration?: boolean,
+  ): { bots: Array<PersonaBotSummary | SharedBotSummary | BotMetadata> } {
     return unwrap(
       this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
     );
@@ -1893,7 +1936,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(await this.methods.channelListChanges({ sinceSeq, epoch }));
   }
 
-  channelDm(slug: string, displayName?: string): { channel: ChannelRecord } {
+  channelDm(
+    slug: string,
+    displayName?: string,
+  ): { channel: ChannelRecord & { readOnly?: boolean } } {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 
@@ -3206,6 +3252,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
 }
 
 markRemoteMethods(BotharnessBridgeService.prototype, [
+  'botVisibility',
+  'botVisibilitySet',
+  'botSwitches',
+  'reachableBots',
+  'botProactiveOptOut',
+  'roleConflicts',
+  'speakerPolicy',
   'privateObjects',
   'privateContentOpen',
   'privateContentPage',

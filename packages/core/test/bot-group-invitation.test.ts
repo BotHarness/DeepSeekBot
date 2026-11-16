@@ -127,7 +127,7 @@ describe('Bot Group invitation tracer', () => {
         expect(run.message).toContain('Group invitation');
         expect(run.inboundChannelId).toBe('dm-' + run.bot.slug);
         expect(core.channels.get(groupId)?.members).not.toContain(run.bot.slug);
-        expect(() => run.channels.read({ channelId: groupId })).toThrow('not a member');
+        expect(() => run.channels.read({ channelId: groupId })).not.toThrow();
         await expect(
           run.channels.send({ channelId: groupId, body: 'too early' }),
         ).rejects.toThrow();

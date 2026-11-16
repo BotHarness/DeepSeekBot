@@ -2600,9 +2600,18 @@ export async function runBotCreateCli(
         create: 'create',
         delete: 'bot-delete-confirm',
       };
-      if (!action || !aliases[action]) throw usageError('invalid-input');
-      command = aliases[action];
-      rest = targets;
+      if (
+        action &&
+        ['visibility', 'visibility-set', 'switches', 'reachable', 'proactive-opt-out'].includes(
+          action,
+        )
+      ) {
+        command = 'bot-access';
+      } else {
+        if (!action || !aliases[action]) throw usageError('invalid-input');
+        command = aliases[action];
+        rest = targets;
+      }
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');
     compactOutput = values.compact === true;

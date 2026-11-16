@@ -1082,6 +1082,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
             'creation-unavailable',
             'permission-required',
             'storage-unavailable',
+            'member-not-found',
             'invalid-input',
           ]).toContain(code);
         result = { code };
@@ -3759,10 +3760,11 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
       author: { kind: 'human', humanId: f.human.humanId, displayName: 'Bob' },
       body: 'shared body',
     });
-    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('member-active');
-    await f.team.deactivate(owner, f.human.humanId);
-    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('transfer-required');
-    await f.team.transfer(owner, f.human.humanId, owner.humanId);
+    f.registry.create({
+      slug: 'private-bot',
+      displayName: 'Private Bot',
+      ownerHumanId: f.human.humanId,
+    });
     const dm = f.channels.getOrCreateDm(f.human, 'private-bot', 'Private Bot');
     if (!dm) throw new Error('DM unavailable');
     f.database.transaction((db) =>
@@ -3778,6 +3780,10 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
       author: { kind: 'human', humanId: f.human.humanId, displayName: 'Bob' },
       body: 'private body',
     });
+    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('member-active');
+    await f.team.deactivate(owner, f.human.humanId);
+    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('transfer-required');
+    await f.team.transfer(owner, f.human.humanId, owner.humanId);
     const preview = f.team.purgePreview(owner, f.human.humanId);
     expect(preview.counts).toEqual({ channels: 1, bots: 0, messages: 1, files: 0 });
     await expect(

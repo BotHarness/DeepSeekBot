@@ -1,12 +1,11 @@
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { Field, FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
-import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -14,7 +13,8 @@ import { useMountedResource } from './mounted-resource.js';
 import type { TeamMember } from './team-bridge.js';
 import type { TeamRole } from './team-roles-bridge.js';
 import { teamErrorText } from './team-settings.js';
-import { audienceOptions, audienceSummary } from './team-spaces-view.js';
+import { audienceSummary } from './team-spaces-view.js';
+import { AudienceField } from './audience-field.js';
 import {
   audienceReady,
   createSpace,
@@ -187,26 +187,6 @@ function SpaceDialog({
         onConfirm={() => run(() => deleteSpace(call, current.spaceId))}
       />
     );
-  const toggle = (id: string, on: boolean): void => {
-    if (audience.kind === 'roles') {
-      const next = new Set(audience.roleIds);
-      if (on) next.add(id);
-      else next.delete(id);
-      setAudience({ kind: 'roles', roleIds: [...next] });
-    } else if (audience.kind === 'members') {
-      const next = new Set(audience.humanIds);
-      if (on) next.add(id);
-      else next.delete(id);
-      setAudience({ kind: 'members', humanIds: [...next] });
-    }
-  };
-  const chosen =
-    audience.kind === 'roles'
-      ? audience.roleIds
-      : audience.kind === 'members'
-        ? audience.humanIds
-        : [];
-  const options = audienceOptions(t, audience, current?.audience, directory);
   return (
     <FormDialog
       title={
@@ -254,41 +234,15 @@ function SpaceDialog({
         />
         <Field label={t('team.spaces.audience')} group>
           {() => (
-            <>
-              <Select
-                label={t('team.spaces.audience')}
-                value={audience.kind}
-                disabled={busy}
-                options={[
-                  { value: 'everyone', label: t('team.spaces.audienceEveryone') },
-                  { value: 'roles', label: t('team.spaces.audienceRoles') },
-                  { value: 'members', label: t('team.spaces.audienceMembers') },
-                ]}
-                onChange={(kind) =>
-                  setAudience(
-                    kind === 'roles'
-                      ? { kind: 'roles', roleIds: [] }
-                      : kind === 'members'
-                        ? { kind: 'members', humanIds: [] }
-                        : { kind: 'everyone' },
-                  )
-                }
-              />
-              {options.length === 0 ? null : (
-                <div {...stylex.props(styles.checks)}>
-                  {options.map((option) => (
-                    <div key={option.id} data-space-audience={option.id}>
-                      <Checkbox
-                        label={option.label}
-                        checked={chosen.includes(option.id)}
-                        disabled={busy}
-                        onChange={(checked) => toggle(option.id, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            <AudienceField
+              t={t}
+              label={t('team.spaces.audience')}
+              audience={audience}
+              stored={current?.audience}
+              directory={directory}
+              disabled={busy}
+              onChange={setAudience}
+            />
           )}
         </Field>
       </FieldStack>

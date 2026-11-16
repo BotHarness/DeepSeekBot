@@ -1717,6 +1717,25 @@ The Team usage and Role model policy runtime is described in [M10 Host and CLI l
 
 The [M5 approval logic](team-mode-m5-runtime.md) adds caller-scoped masking across Channel projections, Activity and push, Human decision attribution and unattended routing to the Bot owner. Member-owned Sessions refuse full access, suppressed asks and escalation. Team status and invitation responses identify the current isolation as `trial`; M12 owns enforcement qualification.
 
+### Team mode M7 runtime access
+
+The application-defined Bot visibility/principal checks and append-only speaker policy are
+specified in [M7 runtime boundaries](team-mode-m7-runtime.md). Group Channels intersect current
+principal access with Bot restrictions. A Bot's own Human–Bot and established private-to-public
+Bot DMs explicitly use participant authority; this does not give the principal private DM
+content or delegate M11 audited viewing to Bots. M6 remains the shared Memory placement authority: public Bots use audience-matched, hidden
+`shared/.bot-<slug>/bots/<slug>/memory` repositories, with journaled relocation on publication or
+return to private and atomic audience retargeting. These spaces are never grantable folders.
+
+M7 shared discovery projects reachable non-owned public Bots as metadata-only roster entries;
+full Bot records remain principal-scoped. Per-Human arrangements persist independently in the
+operational database, and shared Bot attention is restricted to the participating Human DM.
+See [M7 runtime](team-mode-m7-runtime.md#shared-discovery-and-participant-arrangement).
+
+M7 participant DM history keeps metadata-only, read-only Bot entries after audience loss; these
+entries grant no reach or management. Online CLI Bot-DM commands resolve the caller’s actual
+Channel through the Host and preserve that ID in send receipts and lookups.
+
 ## Tool effect declarations (E1)
 
 The public application-defined `ToolEffects` model describes `changes` (`none`, `reversible`,

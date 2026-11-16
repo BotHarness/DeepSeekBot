@@ -123,6 +123,33 @@ describe('Channel settings', () => {
     ]);
   });
 
+  it('shows only Access, nickname and trace settings for a Bot shared with the viewer', () => {
+    const entries = [
+      entry('bot-access', 1, { surface: 'settings' }),
+      entry('model', 2, { surface: 'settings' }),
+      entry('human-nickname', 3, { surface: 'settings' }),
+    ];
+    const own = dmState();
+    const ada = {
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '',
+    };
+    const shared = { ...own, bots: [{ ...ada, sharedBy: 'Bob' }] } as ClientState;
+    expect(
+      channelSettingsSections(entries, { ...own, bots: [ada] } as ClientState).map(
+        (item) => item.id,
+      ),
+    ).toEqual(['bot-access', 'model', 'human-nickname']);
+    expect(channelSettingsSections(entries, shared).map((item) => item.id)).toEqual([
+      'bot-access',
+      'human-nickname',
+    ]);
+  });
+
   it('keeps the sidebar tab row free of a settings gear when no entry has view settings', () => {
     act(() =>
       root.render(

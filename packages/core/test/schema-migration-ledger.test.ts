@@ -93,6 +93,63 @@ describe('named schema migration ledger', () => {
     },
   );
 
+  it('upgrades the merged invitations prefix by appending visibility and roster migrations', () => {
+    const home = createTempRoot('bh-ledger-main-invitations-');
+    const mainPlan = defineSchemaPlan(
+      plan.migrations.slice(
+        0,
+        plan.migrations.findIndex((step) => step.id === 'bot-visibility'),
+      ),
+    );
+    const previous = trackTestOwner(
+      mountOperationalDatabase({ dshHome: home, schemaPlan: mainPlan }),
+    );
+    expect(previous.mode).toBe('ready');
+    attachOperationalModule(previous, 'test').transaction((db) =>
+      db.exec(
+        "CREATE TABLE integration_sentinel(value TEXT); INSERT INTO integration_sentinel VALUES ('kept')",
+      ),
+    );
+    previous.close();
+    const upgraded = open(home);
+    expect(upgraded.mode).toBe('ready');
+    expect(attachOperationalModule(upgraded, 'test').read(ledger)).toEqual(expected);
+    expect(
+      attachOperationalModule(upgraded, 'test').read((db) =>
+        db.prepare('SELECT value FROM integration_sentinel').get(),
+      ),
+    ).toEqual({ value: 'kept' });
+    upgraded.close();
+    expect(open(home).mode).toBe('ready');
+  });
+
+  it.each([false, true])(
+    'preserves divergent visibility-first Profiles with invitations applied=%s',
+    (includeInvitations) => {
+      const home = createTempRoot('bh-ledger-visibility-first-');
+      const invitations = plan.migrations.find((step) => step.id === 'channel-membership-basis')!;
+      const branchSteps = plan.migrations.filter((step) => step.id !== invitations.id);
+      const branchPlan = defineSchemaPlan(
+        includeInvitations ? [...branchSteps, invitations] : branchSteps,
+      );
+      const previous = trackTestOwner(
+        mountOperationalDatabase({ dshHome: home, schemaPlan: branchPlan }),
+      );
+      expect(previous.mode).toBe('ready');
+      previous.close();
+      const path = join(home, 'botharness/botharness.db');
+      const before = readFileSync(path);
+      const refused = open(home);
+      expect(refused.mode).toBe('recovery');
+      expect(refused.recovery?.code).toBe('upgrade-required');
+      expect(refused.recovery?.message).toContain(
+        'database id "bot-visibility", plan id "channel-membership-basis"',
+      );
+      refused.close();
+      expect(readFileSync(path)).toEqual(before);
+    },
+  );
+
   it.each([
     'renamed',
     'reordered',

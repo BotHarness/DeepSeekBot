@@ -1,3 +1,5 @@
+import { spaceAudienceSchema, type SpaceAudience } from './space-audience.js';
+import { BotMemoryPlacement } from './bot-memory-placement.js';
 import {
   existsSync,
   lstatSync,
@@ -16,7 +18,12 @@ import type { TeamRoles } from '../team/roles.js';
 import { TeamError } from '../team/error.js';
 import { WorkspaceGrantError, type DshWorkspace, type DshWorkspaceLookup } from './grants.js';
 import { canonicalPath, within } from './space-paths.js';
-import { accountMemoryPath, defaultSpaceMemoryPath } from './space-memory.js';
+import {
+  accountMemoryPath,
+  defaultSpaceMemoryPath,
+  isBotMemorySpace,
+  botMemorySpaceId,
+} from './space-memory.js';
 import {
   spaceRowSchema as rowSchema,
   recordSpaceDeletion,
@@ -57,12 +64,7 @@ function containsFile(
   );
 }
 
-export const spaceAudienceSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('everyone') }).strict(),
-  z.object({ kind: z.literal('roles'), roleIds: z.array(z.string().min(1)).max(1000) }).strict(),
-  z.object({ kind: z.literal('members'), humanIds: z.array(z.string().min(1)).max(1000) }).strict(),
-]);
-export type SpaceAudience = z.infer<typeof spaceAudienceSchema>;
+export { spaceAudienceSchema, type SpaceAudience } from './space-audience.js';
 export type WorkspaceSpace = {
   spaceId: string;
   name: string;
@@ -80,6 +82,7 @@ const botSchema = z.object({
 
 export class WorkspaceSpaces {
   readonly home: string;
+  readonly botMemory: BotMemoryPlacement;
   constructor(
     private readonly db: OperationalDatabaseModulePort,
     home: string,
@@ -88,6 +91,7 @@ export class WorkspaceSpaces {
     initialize = true,
   ) {
     this.home = realpathSync(home);
+    this.botMemory = new BotMemoryPlacement(db, this.home);
     if (!initialize) return;
     this.db.transaction(
       (connection) =>
@@ -95,7 +99,11 @@ export class WorkspaceSpaces {
       SELECT 'spaces/' || human_id, 'account', display_name, human_id, NULL FROM humans`),
       ['workspace-spaces'],
     );
-    for (const row of this.rows()) this.ensureDirectory(row.space_id);
+    for (const row of this.rows()) {
+      if (isBotMemorySpace(row.space_id))
+        this.botMemory.cleanupErased(row.space_id.slice('shared/.bot-'.length));
+      else this.ensureDirectory(row.space_id);
+    }
   }
 
   private rows(): SpaceRow[] {
@@ -192,16 +200,18 @@ export class WorkspaceSpaces {
     this.ensureAccount(human.humanId, true);
     const manage = this.roles.permissions(human).includes('workspaces.manageShared');
     const roleIds = this.roleIds(human.humanId);
-    return this.rows().flatMap<WorkspaceSpace>((row) => {
-      const record = this.record(row, row.kind === 'shared' && manage);
-      return record.kind === 'account'
-        ? record.ownerHumanId === human.humanId
-          ? [record]
-          : []
-        : manage || this.includes(record.audience, human.humanId, roleIds)
-          ? [record]
-          : [];
-    });
+    return this.rows()
+      .filter((row) => !isBotMemorySpace(row.space_id))
+      .flatMap<WorkspaceSpace>((row) => {
+        const record = this.record(row, row.kind === 'shared' && manage);
+        return record.kind === 'account'
+          ? record.ownerHumanId === human.humanId
+            ? [record]
+            : []
+          : manage || this.includes(record.audience, human.humanId, roleIds)
+            ? [record]
+            : [];
+      });
   }
   private audience(input: SpaceAudience): SpaceAudience {
     const audience = spaceAudienceSchema.parse(input);
@@ -274,7 +284,10 @@ export class WorkspaceSpaces {
     patch: { name?: string; audience?: SpaceAudience },
   ): WorkspaceSpace {
     this.roles.require(human, 'workspaces.manageShared');
-    const row = this.rows().find((entry) => entry.space_id === spaceId && entry.kind === 'shared');
+    const row = this.rows().find(
+      (entry) =>
+        entry.space_id === spaceId && entry.kind === 'shared' && !isBotMemorySpace(entry.space_id),
+    );
     if (!row) throw new TeamError('space-not-found');
     const name = patch.name === undefined ? row.name : this.name(patch.name, spaceId);
     const audience =
@@ -294,7 +307,10 @@ export class WorkspaceSpaces {
   delete(human: HumanContext, spaceId: string, confirm: boolean): null {
     this.roles.require(human, 'workspaces.manageShared');
     if (!confirm) throw new TeamError('confirm-required');
-    const row = this.rows().find((entry) => entry.space_id === spaceId && entry.kind === 'shared');
+    const row = this.rows().find(
+      (entry) =>
+        entry.space_id === spaceId && entry.kind === 'shared' && !isBotMemorySpace(entry.space_id),
+    );
     if (!row) throw new TeamError('space-not-found');
     const path = this.ensureDirectory(spaceId);
     if (
@@ -392,6 +408,15 @@ export class WorkspaceSpaces {
     this.pathCheck(botSlug, grant)(input);
   }
   assertMemoryPath(humanId: string, slug: string, input: string): void {
+    const shared = this.db.read((db) =>
+      db.prepare('SELECT 1 FROM workspace_spaces WHERE space_id=?').get(botMemorySpaceId(slug)),
+    );
+    if (
+      shared &&
+      canonicalPath(input) !== join(this.home, botMemorySpaceId(slug), 'bots', slug, 'memory')
+    )
+      this.refuse('grant-protected-path', input, botMemorySpaceId(slug));
+    if (shared) return;
     if (this.roles.isOwner(humanContext(humanId))) return;
     const path = canonicalPath(input);
     if (path === defaultSpaceMemoryPath(this.db, this.home, humanId, slug)) return;
@@ -444,6 +469,12 @@ export class WorkspaceSpaces {
       if (grant) {
         for (const row of rows)
           if (
+            isBotMemorySpace(row.space_id) &&
+            (within(this.path(row.space_id), path) || within(path, this.path(row.space_id)))
+          )
+            this.refuse('grant-protected-path', path, row.space_id);
+        for (const row of rows)
+          if (
             row.kind === 'account' &&
             row.owner_human_id !== owner &&
             (within(this.path(row.space_id), path) || within(path, this.path(row.space_id)))
@@ -456,6 +487,13 @@ export class WorkspaceSpaces {
           if (within(path, memory.memory)) this.refuse('grant-protected-path', path);
       }
       const ownMemory = !grant && bot !== undefined && within(bot.memory, path);
+      if (!ownMemory)
+        for (const row of rows)
+          if (
+            isBotMemorySpace(row.space_id) &&
+            (within(this.path(row.space_id), path) || within(path, this.path(row.space_id)))
+          )
+            this.refuse('grant-protected-path', path, row.space_id);
       for (const row of rows)
         if (
           !ownMemory &&
@@ -580,13 +618,15 @@ export class WorkspaceSpaces {
     };
   }
   workspaceLookup(external?: DshWorkspaceLookup): DshWorkspaceLookup {
-    const spaces: DshWorkspace[] = this.rows().map((row) => ({
-      id: row.space_id,
-      path: join(this.path(row.space_id), 'files'),
-      title: row.name,
-      status: async () =>
-        existsSync(join(this.path(row.space_id), 'files')) ? 'ok' : 'missing-dir',
-    }));
+    const spaces: DshWorkspace[] = this.rows()
+      .filter((row) => !isBotMemorySpace(row.space_id))
+      .map((row) => ({
+        id: row.space_id,
+        path: join(this.path(row.space_id), 'files'),
+        title: row.name,
+        status: async () =>
+          existsSync(join(this.path(row.space_id), 'files')) ? 'ok' : 'missing-dir',
+      }));
     return {
       get: (id) => spaces.find((space) => space.id === id) ?? external?.get(id),
       list: () => [...spaces, ...(external?.list() ?? [])],

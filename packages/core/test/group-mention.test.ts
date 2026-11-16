@@ -388,6 +388,12 @@ describe('Group mention tracer', () => {
       });
       expect(dmAdmission.admitted).toBe(true);
       await started;
+      core.team.roles.update(OWNER_HUMAN_CONTEXT, 'member', {
+        policy: [{ topic: 'steer', text: 'Steered policy revision', effect: 'deny' }],
+      });
+      attachOperationalModule(core.operationalDatabase, 'steer-role-test').transaction((db) =>
+        db.prepare("INSERT OR IGNORE INTO human_roles VALUES ('local-human','member')").run(),
+      );
       await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'group-context',
         at: '2026-09-25T00:00:00.500Z',
@@ -403,10 +409,13 @@ describe('Group mention tracer', () => {
         mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
       });
       core.runtime.admitGroupMessage(group.id, 'group-steer');
-      expect(steered[0]).toMatch(/^Source Event ID: [^\n]+\n\[Bot Inbox: direct Group mention/);
+      expect(steered[0]).toMatch(/^Source Event ID: [^\n]+/);
+      expect(steered[0]).toContain('[Bot Inbox: direct Group mention');
       expect(steered).toHaveLength(1);
       expect(steered[0]).toContain(group.id);
       expect(steered[0]).toContain('The answer is STEER-17');
+      expect(steered[0]).toContain('[Human · member]');
+      expect(steered[0]).toContain('Steered policy revision');
       expect(steered[0]).toContain('You may finish without replying');
       expect(core.channels.message(group.id, 'group-steer')?.deliveries).toEqual([
         { botSlug: 'ada', state: 'running' },
@@ -433,6 +442,81 @@ describe('Group mention tracer', () => {
       ).toEqual(['open']);
     } finally {
       releaseTurn();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
+  it('refuses Group mention steering after principal access is revoked before the running turn stops', async () => {
+    let started = (): void => {};
+    let release = (): void => {};
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const stopped = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const steered: string[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('m7-group-steer-revoked-'),
+      agents: {
+        async runOrchestrator() {
+          started();
+          await stopped;
+        },
+        steerOrchestrator(_slug, text) {
+          steered.push(text);
+          return true;
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('unexpected Assignment');
+        },
+        async close() {},
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Revoked',
+        members: ['ada'],
+      });
+      core.team.bots.switches(OWNER_HUMAN_CONTEXT, 'ada', { speakerContext: false });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        id: 'start',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'start',
+      });
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'start',
+        body: 'start',
+      });
+      await running;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
+        id: 'revoked-mention',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada secret',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      attachOperationalModule(core.operationalDatabase, 'revoked-steer-test').transaction((db) =>
+        db.prepare("UPDATE humans SET status='deactivated' WHERE human_id='local-human'").run(),
+      );
+      core.runtime.admitGroupMessage(group.id, 'revoked-mention');
+      expect(steered).toEqual([]);
+      expect(core.channels.message(group.id, 'revoked-mention')?.deliveries).toEqual([
+        { botSlug: 'ada', state: 'needs-repair' },
+      ]);
+      attachOperationalModule(core.operationalDatabase, 'revoked-steer-test').transaction((db) =>
+        db.prepare("UPDATE humans SET status='active' WHERE human_id='local-human'").run(),
+      );
+      release();
+      if (admission.admitted) await admission.settled;
+    } finally {
+      release();
       await core.runtime.close();
       core.operationalDatabase.close();
     }
@@ -611,6 +695,7 @@ describe('Group mention tracer', () => {
   it('treats a Memory branch-switch target as part of a retried Channel message identity', async () => {
     const core = createCore({ dshHome: createTempRoot('botharness-channel-retry-') });
     try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
       const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const first = {
         id: 'switch-message',

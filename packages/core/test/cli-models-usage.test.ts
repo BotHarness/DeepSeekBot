@@ -52,7 +52,10 @@ async function host(
       JSON.stringify({
         type: 'server-response',
         rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
+        result:
+          method === 'channelDm'
+            ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+            : handler(method, body.payload.args),
       }),
     );
   });
@@ -377,6 +380,7 @@ describe('Usage and activity commands', () => {
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'profileUsage',
         args: {
@@ -389,7 +393,9 @@ describe('Usage and activity commands', () => {
           },
         },
       },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'profileSessionUsage', args: { channelId: 'dm-ada' } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'profileActivity',
         args: { channelId: 'dm-ada', before: '2026-10-14', weeks: 4 },
