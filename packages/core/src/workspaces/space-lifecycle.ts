@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import { memoryOwnership } from '../bots/deletion.js';
 import { TeamError } from '../team/error.js';
-import { accountMemoryPath, defaultSpaceMemoryPath } from './space-memory.js';
+import { accountMemoryPath, defaultSpaceMemoryPath, botMemorySpaceId } from './space-memory.js';
 import { canonicalPath, within } from './space-paths.js';
 import { spaceDeletionSchema, spaceDeletionKey, restoreSpaceDeletion } from './space-deletion.js';
 import {
@@ -189,11 +189,15 @@ function recoverTransfer(db: OperationalDatabaseModulePort, key: string, transfe
         retireMemoryCopy(copyJournal(db, key, transfer, move), move.source, move.memory);
   clearTransfer(db, key);
 }
-export function recoverSpaceTransfers(db: OperationalDatabaseModulePort): void {
+export function recoverSpaceTransfers(db: OperationalDatabaseModulePort, key?: string): void {
   const rows = z
     .array(z.object({ human_id: z.string(), moves_json: z.string() }))
     .parse(
-      db.read((connection) => connection.prepare('SELECT * FROM workspace_file_transfers').all()),
+      db.read((connection) =>
+        key === undefined
+          ? connection.prepare('SELECT * FROM workspace_file_transfers').all()
+          : connection.prepare('SELECT * FROM workspace_file_transfers WHERE human_id=?').all(key),
+      ),
     );
   for (const row of rows) {
     const deletion = spaceDeletionSchema.safeParse(JSON.parse(row.moves_json));
@@ -209,6 +213,70 @@ export function recoverSpaceTransfers(db: OperationalDatabaseModulePort): void {
       : transferSchema.parse(body);
     recoverTransfer(db, row.human_id, transfer);
   }
+}
+export function prepareBotMemoryTransfer(
+  db: OperationalDatabaseModulePort,
+  slug: string,
+  source: string,
+  target: string,
+) {
+  const proof = memoryOwnership(source);
+  const retained = db.read((connection) =>
+    connection.prepare('SELECT body FROM persona_bot_memory_ownership WHERE slug = ?').get(slug),
+  );
+  if (!retained || JSON.stringify(proof) !== String(retained.body))
+    throw new TeamError('grant-protected-path');
+  if (existsSync(target)) throw new TeamError('space-name-taken');
+  const key = 'bot-memory/' + slug;
+  const move: Move = {
+    source,
+    target,
+    device: proof.device,
+    inode: proof.inode,
+    memory: proof,
+    botSlug: slug,
+  };
+  const transfer: Transfer = { phase: 'prepared', moves: [move] };
+  db.transaction(
+    (connection) =>
+      connection
+        .prepare('INSERT INTO workspace_file_transfers VALUES (?, ?)')
+        .run(key, JSON.stringify(transfer)),
+    ['workspace-spaces'],
+  );
+  try {
+    applyMoves(transfer.moves, { db, key, transfer });
+  } catch (error) {
+    recoverTransfer(db, key, transfer);
+    throw error;
+  }
+  return {
+    commit(connection: DatabaseSync) {
+      connection
+        .prepare("UPDATE persona_bots SET body=json_set(body,'$.memoryDir',?) WHERE slug=?")
+        .run(target, slug);
+      connection
+        .prepare('UPDATE persona_bot_memory_ownership SET body=? WHERE slug=?')
+        .run(JSON.stringify(memoryOwnership(target)), slug);
+      if (move.memory?.copy)
+        connection
+          .prepare('UPDATE workspace_file_transfers SET moves_json=? WHERE human_id=?')
+          .run(JSON.stringify({ ...transfer, phase: 'committed' }), key);
+      else connection.prepare('DELETE FROM workspace_file_transfers WHERE human_id=?').run(key);
+    },
+    rollback() {
+      recoverTransfer(db, key, transfer);
+    },
+    finish(): boolean {
+      if (!move.memory?.copy) return true;
+      try {
+        recoverTransfer(db, key, { ...transfer, phase: 'committed' });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
 }
 export function prepareSpaceTransfer(
   db: OperationalDatabaseModulePort,
@@ -234,9 +302,15 @@ export function prepareSpaceTransfer(
       defaultSpaceMemoryPath(db, home, humanId, slug);
     const canonical = canonicalPath(memory);
     const legacy = join(home, 'botharness', 'bots', slug, 'memory');
-    if (!within(sourceRoot, canonical) && within(home, canonical) && canonical !== legacy)
+    const publicMemory = canonical === join(home, botMemorySpaceId(slug), 'bots', slug, 'memory');
+    if (
+      !within(sourceRoot, canonical) &&
+      within(home, canonical) &&
+      canonical !== legacy &&
+      !publicMemory
+    )
       throw new TeamError('grant-protected-path');
-    const target = accountMemoryPath(home, targetHumanId, slug);
+    const target = publicMemory ? memory : accountMemoryPath(home, targetHumanId, slug);
     if (existsSync(memory)) {
       const proof = memoryOwnership(memory);
       const retained = db.read((connection) =>
@@ -265,6 +339,7 @@ export function prepareSpaceTransfer(
     for (const name of readdirSync(sourceRoot).sort())
       if (name !== 'bots') files(join(sourceRoot, name), join(targetRoot, name));
   for (const memory of memories) {
+    if (memory.memory === memory.target) continue;
     if (memory.source !== memory.memory && existsSync(memory.source))
       for (const name of readdirSync(memory.source).sort())
         if (name !== 'memory') add(join(memory.source, name), join(memory.destination, name));

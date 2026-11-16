@@ -376,13 +376,20 @@ describe('bounded model Channel read and exact Inbox settlement', () => {
         call(tools, { channel_id: groupId, message_id: 'long', content_cursor: 'broken' }),
       ).rejects.toThrow('invalid content_cursor');
       core.channels.removeGroupMember(groupId, 'ada');
+      attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+        db
+          .prepare(
+            "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+          )
+          .run(groupId),
+      );
       await expect(
         call(tools, {
           channel_id: groupId,
           message_id: 'long',
           content_cursor: first.contentCursor,
         }),
-      ).rejects.toThrow('not a member');
+      ).rejects.toThrow('bot-channel-access-denied');
     });
   });
 

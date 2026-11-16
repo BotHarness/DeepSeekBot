@@ -43,13 +43,14 @@ export function channelRoleMembershipExitSql(scope: 'human' | 'channel' | 'all')
 }
 
 export function channelBotDmEligibleSql(channel: string, humanId: string): string {
-  return `((json_extract(${channel}.record_json, '$.remoteBot') IS NOT NULL
+  return `((json_extract(${channel}.record_json, '$.dmHumanId') = ${humanId})
+    OR (json_extract(${channel}.record_json, '$.dmHumanId') IS NULL AND ((json_extract(${channel}.record_json, '$.remoteBot') IS NOT NULL
       AND ${humanId} = (SELECT owner_human_id FROM team_settings))
     OR (json_extract(${channel}.record_json, '$.remoteBot') IS NULL
       AND json_array_length(${channel}.record_json, '$.members') > 0
       AND NOT EXISTS (SELECT 1 FROM json_each(${channel}.record_json, '$.members') mb
         LEFT JOIN persona_bots b ON b.slug = mb.value
-        WHERE b.slug IS NULL OR b.owner_human_id <> ${humanId})))`;
+        WHERE b.slug IS NULL OR b.owner_human_id <> ${humanId})))))`;
 }
 
 export function channelAudienceSql(channel = 'c', membership = 'm'): string {

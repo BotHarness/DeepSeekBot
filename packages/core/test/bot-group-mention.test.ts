@@ -196,7 +196,7 @@ describe('Bot Group mention tracer', () => {
       }
       await core.runtime.whenIdle();
       expect(errors).toHaveLength(4);
-      expect(errors.some((error) => error.includes('not a member'))).toBe(true);
+      expect(errors.some((error) => error.includes('bot-channel-access-denied'))).toBe(true);
       const sent = core.channels.message(group.id, sentId)!;
       expect(sent.mentions).toEqual([{ botSlug: 'bea', label: 'BEA', start: 0, end: 4 }]);
       expect(sent.deliveries).toEqual([{ botSlug: 'bea', state: 'handled' }]);
@@ -356,7 +356,7 @@ describe('Bot Group mention tracer', () => {
           author: { kind: 'bot', slug: 'outsider' },
           botCausation: { rootSourceEventId: root, parentSourceEventId: 'parent-4', hop: 1 },
         }),
-      ).rejects.toThrow('joined Bot');
+      ).rejects.toThrow('bot-channel-access-denied');
     } finally {
       await resumed.runtime.close();
       resumed.operationalDatabase.close();

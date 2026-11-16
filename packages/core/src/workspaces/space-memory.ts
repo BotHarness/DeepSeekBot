@@ -62,6 +62,8 @@ export function defaultSpaceMemoryPath(
           .get(slug),
       ),
     );
+  const shared = join(home, botMemorySpaceId(slug), 'bots', slug, 'memory');
+  if (owner.existing === shared) return shared;
   const account = accountMemoryPath(home, humanId, slug);
   const legacy = join(home, 'botharness', 'bots', slug, 'memory');
   if (owner.existing === account || owner.existing === legacy) return owner.existing;
@@ -225,3 +227,6 @@ export function relocateSpaceMemories(db: OperationalDatabaseModulePort, home: s
       retireMemoryCopy(copyJournal(db, move.slug), source, relocationProof);
   }
 }
+
+export const botMemorySpaceId = (slug: string): string => 'shared/.bot-' + slug;
+export const isBotMemorySpace = (id: string): boolean => id.startsWith('shared/.bot-');

@@ -2,7 +2,7 @@ import { expandGitHubRef } from './bot-create-cli.js';
 import { parseMemoryGitUrl } from '../memory/clone.js';
 import { parseAgentBots } from './cli-agent-bots.js';
 import { validBotCreationKey, type BotCreationReceipt } from './creation.js';
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { PersonaBotDetail } from '../bridge/methods.js';
 import {
   isAssignmentModelOption,
@@ -414,8 +414,7 @@ export async function runOnlineManagement(
     });
     if (typeof detail.bot?.memoryDir !== 'string')
       throw new CliLiveError('host-protocol-error', 'The Host returned no Bot Memory path.');
-    const channelId = dmChannelId(bot.id);
-    await rpc('channelDm', { slug: bot.id, displayName: bot.name });
+    const channelId = await resolveBotDm(rpc, bot.id, bot.name);
     steps.push({ name: 'dm', status: 'ok' });
     const output: BotCreateResult = {
       bot,

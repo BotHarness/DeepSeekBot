@@ -345,7 +345,10 @@ describe('explicit Group draft recovery and commit receipts', () => {
           observation_id: fault === 'revoke' ? 'unavailable' : await f.read(),
           freshness_override: { draftVersion: held.draftVersion, reason: 'Still requested.' },
         };
-        if (fault === 'revoke') await expect(f.tool(args)).rejects.toThrow(/not a member/);
+        if (fault === 'revoke')
+          await expect(f.tool(args)).rejects.toThrow(
+            /not a member|bot-channel-access-denied|authorized Channel is unavailable/,
+          );
         else
           expect(await f.tool(args)).toMatchObject({
             reason: fault === 'expiry' ? 'draft-expired' : 'draft-terminal',
@@ -713,9 +716,10 @@ describe('explicit Group draft recovery and commit receipts', () => {
         }),
       ).toMatchObject({ status: 'expired' });
       f.current().channels.removeGroupMember(f.channelId, 'ada');
-      await expect(f.tool({ body: '', action: 'inspect', draft_id: held.draftId })).rejects.toThrow(
-        /not a member/,
-      );
+      expect(await f.tool({ body: '', action: 'inspect', draft_id: held.draftId })).toMatchObject({
+        status: 'refused',
+        reason: 'draft-access-unavailable',
+      });
       expect(
         f
           .current()

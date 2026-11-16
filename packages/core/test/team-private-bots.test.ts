@@ -79,6 +79,7 @@ describe('M2 private Bot boundaries', () => {
         name: 'Questions',
         members: ['bob-bot', 'alice-bot'],
       });
+      f.team.channelAccess.addMember(bob, group.id, 'alice');
       const channelId = kind === 'group' ? group.id : 'dm-bob-bot';
       const service = new ChannelUserQuestions(f.core.channels, f.core.ownership);
       const answer = vi.spyOn(service, 'answer').mockResolvedValue(true);
@@ -237,7 +238,7 @@ describe('M2 private Bot boundaries', () => {
       expect(result).toMatchObject({ ok: true });
       expect(
         await f.methods(bob).channelSend({ channelId: group.id, body: '@Research help' }),
-      ).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
+      ).toMatchObject({ ok: true });
     },
   );
 
@@ -458,6 +459,7 @@ describe('M2 private Bot boundaries', () => {
       count: 17,
       intervalSeconds: 43,
     });
+    f.team.channelAccess.join(alice, group.id);
     const invited = f.core.registry.get('alice-bot')!;
     const invitation = f.core.channels.inviteGroupBot({
       channelId: group.id,
@@ -479,7 +481,7 @@ describe('M2 private Bot boundaries', () => {
       ok: true,
       value: {
         channel: {
-          members: ['owner-bot'],
+          members: ['owner-bot', 'bob-bot'],
           invitations: [invitation],
           joinRequests: [request],
         },
@@ -495,7 +497,7 @@ describe('M2 private Bot boundaries', () => {
     const visible = f.methods(bob).channelGet({ channelId: group.id });
     expect(visible).toMatchObject({
       ok: true,
-      value: { channel: { id: group.id, name: group.name, members: ['bob-bot'] } },
+      value: { channel: { id: group.id, name: group.name, members: ['owner-bot', 'bob-bot'] } },
     });
     if (!visible.ok) throw new Error('member-group-read-refused');
     expect(Object.keys(visible.value).sort()).toEqual([
@@ -509,13 +511,11 @@ describe('M2 private Bot boundaries', () => {
     for (const key of ['invitations', 'joinRequests', 'wakePolicies', 'ownerBotSlug'])
       expect(visible.value.channel).not.toHaveProperty(key);
     for (const marker of [
-      'owner-bot',
       'alice-bot',
       'carol-bot',
       invitation.id,
       request.id,
       'digest',
-      '"humanId":"alice"',
       '"humanId":"carol"',
     ])
       expect(JSON.stringify(visible.value)).not.toContain(marker);
@@ -539,20 +539,20 @@ describe('M2 private Bot boundaries', () => {
       'role',
       'visibility',
     ]);
-    expect(after.value.channel.members).toEqual(['bob-bot']);
+    expect(after.value.channel.members).toEqual(['owner-bot', 'bob-bot']);
     expect(after.value).not.toHaveProperty('channelFingerprint');
     expect(
       f.methods(bob).channelSendStatus({ channelId: group.id, messageId: 'owner-private-request' }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(f.methods(alice).channelGet({ channelId: group.id })).toMatchObject({
       ok: true,
-      value: { channel: { members: [] }, visibility: { kind: 'public' } },
+      value: { channel: { members: ['owner-bot', 'bob-bot'] }, visibility: { kind: 'public' } },
     });
     expect(
       f
         .methods(alice)
         .channelSendStatus({ channelId: group.id, messageId: 'owner-private-request' }),
-    ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(f.core.channels.get(group.id)?.invitations).toContainEqual(invitation);
     expect(f.core.channels.get(group.id)?.joinRequests).toContainEqual(request);
   });
@@ -803,7 +803,7 @@ describe('M2 private Bot boundaries', () => {
         body: 'Hello',
         mentions: [{ botSlug: 'alice-bot', label: 'Alice', start: 0, end: 5 }],
       }),
-    ).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(
       await f.methods(bob).channelCreate({ name: 'Private', members: ['alice-bot'] }),
     ).toMatchObject({ ok: false });
@@ -949,6 +949,8 @@ describe('M2 private Bot boundaries', () => {
       }
       expect(core.channels.readMessages('dm-alice-bot')).toEqual([]);
     });
+    const groupCreator = f.team.roles.create(owner, 'Group creator', ['channels.create']).role;
+    f.team.roles.set(owner, bob.humanId, ['member', groupCreator.roleId]);
     core = f.core;
     core.channels.setHumanDefaultName(owner, 'Confidential Owner Name');
     core.channels.setHumanDefaultName(bob, 'Bob Runtime');
@@ -969,7 +971,7 @@ describe('M2 private Bot boundaries', () => {
     expect(prompts[0]).not.toContain('Confidential Owner Name');
     expect(outcomes).toEqual([
       { outputLimit: 12000, contacts: [] },
-      'bot-not-found',
+      'bot-audience-denied',
       'bot-not-found',
       'bot-not-found',
     ]);

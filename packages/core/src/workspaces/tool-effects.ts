@@ -117,6 +117,7 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   source_attention_get: read,
   source_attention_reset: write,
   source_attention_set: write,
+  speaker_policy: read,
   stop_assignment: { ...write, changes: 'irreversible' },
   subagent: send,
   subagent_fork: send,

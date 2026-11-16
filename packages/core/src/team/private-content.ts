@@ -99,7 +99,7 @@ export class TeamPrivateContent {
         continue;
       }
       const owners =
-        channel.humanParticipants ??
+        (channel.dmHumanId ? [channel.dmHumanId] : channel.humanParticipants) ??
         channel.members.flatMap((id) => {
           const bot = bySlug.get(id);
           return bot ? [botOwner(bot)] : [];
@@ -229,7 +229,7 @@ export class TeamPrivateContent {
           const actualKind =
             !channel.humanParticipants && channel.members.length > 1 ? 'bot-dm' : 'dm';
           const owners =
-            channel.humanParticipants ??
+            (channel.dmHumanId ? [channel.dmHumanId] : channel.humanParticipants) ??
             channel.members.flatMap((slug) => {
               const bot = this.provider?.registry.getHistorical(slug);
               return bot ? [botOwner(bot)] : [];
@@ -267,8 +267,29 @@ export class TeamPrivateContent {
         displayName: names.get(value.slug) ?? value.displayName ?? value.slug,
       };
     };
+    const dm =
+      object.kind === 'bot'
+        ? this.db.read((db) =>
+            db
+              .prepare(`SELECT channel_id FROM channel_records
+      WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug') IS NOT NULL
+      AND json_extract(record_json,'$.botSlug')=? AND coalesce(json_extract(record_json,'$.dmHumanId'),?)=? ORDER BY channel_id LIMIT 1`)
+              .get(
+                object.objectId,
+                object.ownerHumanIds[0] ?? null,
+                object.ownerHumanIds[0] ?? null,
+              ),
+          )
+        : undefined;
+    const channelId =
+      object.kind === 'bot'
+        ? typeof dm?.['channel_id'] === 'string'
+          ? dm['channel_id']
+          : undefined
+        : object.objectId;
+    if (channelId === undefined) return [];
     return this.channels
-      .readMessages(object.kind === 'bot' ? `dm-${object.objectId}` : object.objectId, {
+      .readMessages(channelId, {
         limit: PAGE_SIZE,
         ...(before === undefined ? {} : { before }),
       })
@@ -360,8 +381,7 @@ export class TeamPrivateContent {
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
     if (action === 'transfer' || action === 'memberPurgeConfirm')
       this.roles.requireManagementTarget(human, botOwner(bot));
-    else if (!this.roles.isOwner(human))
-      throw new TeamError('permission-required', undefined, { permission: 'owner' });
+    else this.roles.require(human, 'bots.manageAll');
     if (botOwner(bot) === human.humanId) return;
     this.audit.append(
       {

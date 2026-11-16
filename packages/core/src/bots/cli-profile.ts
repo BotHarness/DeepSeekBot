@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
@@ -192,19 +192,20 @@ export async function profileCall(
   rest: string[],
   values: ProfileValues,
   io: BotCreateCliIo,
-): Promise<[method: string, args: Record<string, unknown>]> {
+): Promise<[method: string, args: Record<string, unknown>, dmSlug?: string]> {
   switch (command) {
     case 'bot-avatar-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       if ((values.file !== undefined) === (values.clear === true))
         usage('bot-avatar-set needs exactly one of --file or --clear.');
       return [
         'botAvatarSet',
-        { channelId, avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
+        { avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
+        dmSlug,
       ];
     }
     case 'bot-banner-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       const chosen = [values.file !== undefined, values['recipe-stdin'] === true, values.clear];
       if (chosen.filter(Boolean).length !== 1)
         usage('bot-banner-set needs exactly one of --file, --recipe-stdin or --clear.');
@@ -213,15 +214,15 @@ export async function profileCall(
         : values['recipe-stdin']
           ? { recipe: await stdinJson(io, '--recipe-stdin') }
           : { image: `data:image/png;base64,${readBytes(values.file).toString('base64')}` };
-      return ['botBannerSet', { channelId, banner }];
+      return ['botBannerSet', { banner }, dmSlug];
     }
     case 'bot-appearance-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       if (values['recipe-stdin'] !== true) usage('bot-appearance-set requires --recipe-stdin.');
-      return ['botAppearanceSet', { channelId, recipe: await stdinJson(io, '--recipe-stdin') }];
+      return ['botAppearanceSet', { recipe: await stdinJson(io, '--recipe-stdin') }, dmSlug];
     }
     case 'bot-primary-color-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       if ((values.color !== undefined) === (values.automatic === true))
         usage('bot-primary-color-set needs exactly one of --color or --automatic.');
       if (values.color !== undefined && !/^#[0-9a-f]{6}$/iu.test(values.color))
@@ -229,11 +230,11 @@ export async function profileCall(
       return [
         'botPrimaryColorSet',
         {
-          channelId,
           primaryColor: values.automatic
             ? { mode: 'automatic' }
             : { mode: 'custom', color: values.color!.toLowerCase() },
         },
+        dmSlug,
       ];
     }
     case 'bot-source-policies':
@@ -424,9 +425,12 @@ export async function runProfileCommand(
   io: BotCreateCliIo,
   connect: () => Promise<ProfileRpc>,
 ): Promise<unknown> {
-  const [method, args] = await profileCall(command, rest, values, io);
+  const [method, args, dmSlug] = await profileCall(command, rest, values, io);
   const rpc = await connect();
-  const result = await rpc<unknown>(method, args);
+  const result = await rpc<unknown>(
+    method,
+    dmSlug === undefined ? args : { ...args, channelId: await resolveBotDm(rpc, dmSlug) },
+  );
   if (command !== 'part-library-export') return result;
   const exported = result as { fileName?: unknown; data?: unknown };
   if (typeof exported.fileName !== 'string' || typeof exported.data !== 'string')

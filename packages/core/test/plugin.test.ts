@@ -841,6 +841,13 @@ describe('plugin entry', () => {
     expect(
       remoteMethods(bridge as object).map((marker) => marker.exportName ?? marker.method),
     ).toEqual([
+      'botVisibility',
+      'botVisibilitySet',
+      'botSwitches',
+      'reachableBots',
+      'botProactiveOptOut',
+      'roleConflicts',
+      'speakerPolicy',
       'privateObjects',
       'privateContentOpen',
       'privateContentPage',

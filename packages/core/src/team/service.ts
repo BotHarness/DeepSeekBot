@@ -1,3 +1,6 @@
+import { audienceContains, type BotVisibility } from './bot-contract.js';
+import { TeamBots } from './bots.js';
+import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
 import { accountSpaceFiles, prepareSpaceTransfer } from '../workspaces/space-lifecycle.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
@@ -100,6 +103,8 @@ const grantSchema = z.object({
 const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export class TeamService {
+  readonly bots: TeamBots;
+  readonly speakerPolicy: SpeakerPolicy;
   readonly privateAccess: TeamPrivateContent;
   readonly roles: TeamRoles;
   readonly approvals: TeamApprovals;
@@ -197,6 +202,7 @@ export class TeamService {
     if (!spaces) throw new TeamError('unavailable');
     return spaces;
   }
+  private readonly replaceBotMemory: (<T>(slug: string, action: () => T) => Promise<T>) | undefined;
   private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
   private readonly settleBotPreparations: ((humanId: string) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
@@ -214,6 +220,7 @@ export class TeamService {
     options: {
       purge?: ContentPurge;
       spaces?: () => WorkspaceSpaces;
+      replaceBotMemory?: <T>(slug: string, action: () => T) => Promise<T>;
       stopBots?: (slugs: readonly string[]) => Promise<void>;
       settleBotPreparations?: (humanId: string) => Promise<void>;
       now?: () => number;
@@ -223,6 +230,7 @@ export class TeamService {
   ) {
     this.purge = options.purge;
     this.spaceProvider = options.spaces;
+    this.replaceBotMemory = options.replaceBotMemory;
     this.stopBots = options.stopBots;
     this.settleBotPreparations = options.settleBotPreparations;
     this.ensureTob = options.ensureTob;
@@ -230,12 +238,29 @@ export class TeamService {
     this.channelAccess = new TeamChannels(db, channels, this.roles, (revoke) =>
       this.accessChanged(revoke),
     );
-    this.approvals = new TeamApprovals(db, channels, this.roles);
+    this.bots = new TeamBots(
+      db,
+      channels,
+      this.roles,
+      this.channelAccess,
+      (revoke) => this.accessChanged(revoke),
+      (human, bot) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet'),
+      this.spaceProvider,
+    );
+
+    this.speakerPolicy = new SpeakerPolicy(db, this.roles);
+    this.approvals = new TeamApprovals(db, channels, this.roles, this.bots);
     channels.bindHumanAccess?.({
       searchText: (human, channelId, messageId, text) =>
         this.approvals.searchText(human, channelId, messageId, text),
       canRead: (human, id) => this.channelAccess.canRead(human, id),
       requirePolicy: (human, id, key) => this.channelAccess.requirePolicy(human, id, key),
+      requireBotPost: (slug, channel) =>
+        this.bots.available && this.bots.requireChannel(slug, channel, true),
+      requireBotJoin: (slug, id) => {
+        if (this.bots.available) this.bots.requireJoin(slug, id);
+      },
+      requireDm: (human, slug) => this.bots.available && this.bots.requireReach(human, slug),
       requirePost: (human, id, all, message) => {
         const decision =
           message?.toolApprovalDecision ??
@@ -250,6 +275,7 @@ export class TeamService {
           return;
         }
         const channel = channels.get(id);
+        if (channel?.botSlug && this.bots.available) this.bots.requireDmPost(human, channel);
         if (channel?.type !== 'group' && !channel?.humanParticipants) return;
         this.channelAccess.requirePolicy(human, id, 'post');
         if (all) this.channelAccess.requirePolicy(human, id, 'mentionAll');
@@ -968,6 +994,24 @@ export class TeamService {
     };
   }
 
+  async setBotVisibility(
+    human: HumanContext,
+    slug: string,
+    visibility: BotVisibility,
+    confirm?: boolean,
+  ) {
+    const preview = this.bots.setVisibility(human, slug, visibility, false);
+    if (preview.applied || confirm === false) return preview;
+    const current = this.bots.view(human, slug).visibility;
+    const shrinking = !audienceContains(visibility, current);
+    if (shrinking && !confirm) return preview;
+    const action = () => this.bots.setVisibility(human, slug, visibility, true);
+    const memory = preview.preview.memory;
+    return this.replaceBotMemory && memory && memory.from !== memory.to
+      ? this.replaceBotMemory(slug, action)
+      : action();
+  }
+
   async transfer(human: HumanContext, humanId: string, toHumanId: string): Promise<null> {
     if (human.caller === 'bot')
       throw new TeamError('permission-required', undefined, { permission: 'members.manage' });
@@ -1007,6 +1051,16 @@ export class TeamService {
               db,
             );
           spaceTransfer?.commit(db);
+          db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.dmHumanId', ?)
+          WHERE json_extract(record_json, '$.type') = 'dm'
+            AND json_extract(record_json, '$.dmHumanId') IS NULL
+            AND json_extract(record_json, '$.botSlug') IN (
+              SELECT slug FROM persona_bots WHERE owner_human_id = ?
+                AND slug IN (SELECT value FROM json_each(?)))`).run(
+            humanId,
+            humanId,
+            JSON.stringify(preview.bots.map((bot) => bot.slug)),
+          );
           db.prepare(`UPDATE persona_bots SET owner_human_id = ?, body = json_set(body, '$.ownerHumanId', ?)
           WHERE slug IN (SELECT value FROM json_each(?)) AND owner_human_id = ?`).run(
             toHumanId,

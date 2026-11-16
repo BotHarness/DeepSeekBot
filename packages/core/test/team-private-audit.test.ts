@@ -81,6 +81,11 @@ async function fixture() {
   expect(
     core.registry.create({ slug: 'bob-bot', displayName: 'Bob Bot', ownerHumanId: bob.humanId }).ok,
   ).toBe(true);
+  db.transaction((sql) =>
+    sql
+      .prepare("UPDATE persona_bots SET visibility_json=? WHERE slug='bob-bot'")
+      .run(JSON.stringify({ kind: 'public', audience: { kind: 'everyone' } })),
+  );
   const dm = core.channels.getOrCreateDm(alice, 'alice-bot', 'Alice Bot');
   const botDm = core.channels.getOrCreateBotDm(alice, 'alice-bot', 'bob-bot', 'Bot conversation');
   const group = core.channels.createGroup(alice, { name: 'Private group', members: [] });
@@ -277,7 +282,7 @@ describe('M11 private-content audit', () => {
     expect(f.log().records).toHaveLength(0);
   });
 
-  it('retains every DM owner after an interrupted Bot deletion and still protects Owner content', async () => {
+  it('retains the Bot–Bot DM participant after an interrupted peer Bot deletion', async () => {
     const f = await fixture();
     expect(f.core.registry.create({ slug: 'owner-private', displayName: 'Owner private' }).ok).toBe(
       true,
@@ -300,19 +305,24 @@ describe('M11 private-content audit', () => {
     );
     expect(f.core.registry.get('owner-private')).toBeUndefined();
     expect(f.core.registry.getHistorical('owner-private')?.ownerHumanId).toBe(owner.humanId);
-    expect(f.team.privateAccess.objects(carol, {})).not.toEqual(
+    expect(f.team.privateAccess.objects(carol, {})).toEqual(
       expect.arrayContaining([expect.objectContaining({ objectId: dm.id })]),
     );
-    expect(() => f.team.privateAccess.open(carol, { kind: 'bot-dm', objectId: dm.id })).toThrow(
-      expect.objectContaining({
-        code: 'permission-required',
-        details: { permission: 'privateContent.view' },
-      }),
+    f.team.roles.set(
+      owner,
+      alice.humanId,
+      f.team.roles
+        .list(owner)
+        .filter((role) => role.name === 'Auditor')
+        .map((role) => role.roleId),
     );
-    expect(() => f.team.privateAccess.open(owner, { kind: 'bot-dm', objectId: dm.id })).toThrow(
+    expect(() => f.team.privateAccess.open(alice, { kind: 'bot-dm', objectId: dm.id })).toThrow(
       expect.objectContaining({ code: 'own-content' }),
     );
-    expect(f.log().records).toHaveLength(0);
+    expect(f.team.privateAccess.open(carol, { kind: 'bot-dm', objectId: dm.id })).toMatchObject({
+      object: { ownerHumanIds: [alice.humanId] },
+    });
+    expect(f.log().records).toHaveLength(1);
   });
 
   it('audits failed provider loads without retaining a view slot', async () => {

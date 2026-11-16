@@ -1,3 +1,4 @@
+import { botVisibilitySchema, rolePolicySchema } from './bot-contract.js';
 import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import { roleModelsSchema, PERMISSION_CATALOG } from './permissions.js';
 import {
@@ -38,6 +39,68 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
     }
   };
   return {
+    botVisibility: (payload: unknown) =>
+      call((service) =>
+        service.bots.view(human, z.object({ slug: z.string() }).parse(payload).slug),
+      ),
+    botVisibilitySet: (payload: unknown) =>
+      call((service) => {
+        const p = z
+          .object({
+            slug: z.string(),
+            visibility: botVisibilitySchema,
+            confirm: z.boolean().optional(),
+          })
+          .strict()
+          .parse(payload);
+        return service.setBotVisibility(human, p.slug, p.visibility, p.confirm);
+      }),
+    botSwitches: (payload: unknown) =>
+      call((service) => {
+        const { slug, ...patch } = z
+          .object({
+            slug: z.string(),
+            proactiveDms: z.boolean().optional(),
+            joinPrincipalChannels: z.boolean().optional(),
+            speakerContext: z.boolean().optional(),
+          })
+          .strict()
+          .parse(payload);
+        return service.bots.switches(human, slug, {
+          ...(patch.proactiveDms === undefined ? {} : { proactiveDms: patch.proactiveDms }),
+          ...(patch.joinPrincipalChannels === undefined
+            ? {}
+            : { joinPrincipalChannels: patch.joinPrincipalChannels }),
+          ...(patch.speakerContext === undefined ? {} : { speakerContext: patch.speakerContext }),
+        });
+      }),
+    reachableBots: (_payload: unknown) => call((service) => service.bots.reachable(human)),
+    botProactiveOptOut: (payload: unknown) =>
+      call((service) => {
+        const p = z.object({ slug: z.string(), optOut: z.boolean() }).strict().parse(payload);
+        return service.bots.optOut(human, p.slug, p.optOut);
+      }),
+    roleConflicts: (payload: unknown) =>
+      call((service) => {
+        const p = z
+          .object({ humanId: z.string().optional(), username: z.string().optional() })
+          .strict()
+          .parse(payload);
+        const id =
+          p.humanId ?? (p.username ? service.memberByUsername(p.username)?.humanId : undefined);
+        if (!id) throw new TeamError('member-not-found');
+        return service.speakerPolicy.conflicts(human, id);
+      }),
+    speakerPolicy: (payload: unknown) =>
+      call((service) => {
+        const p = z
+          .object({ humanId: z.string().optional(), topic: z.string().optional() })
+          .strict()
+          .parse(payload);
+        if (p.humanId && p.humanId !== human.humanId)
+          service.roles.require(human, 'members.manage', 'roles.manage');
+        return service.speakerPolicy.forHuman(p.humanId ?? human.humanId, p.topic);
+      }),
     privateObjects: (payload: unknown) =>
       call((service) => service.privateAccess.objects(human, payload)),
     privateContentOpen: (payload: unknown) =>
@@ -102,14 +165,15 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
     roles: (_payload: unknown) => call((service) => service.roles.list(human)),
     roleCreate: (payload: unknown) =>
       call((service) => {
-        const { name, permissions, models } = z
+        const { name, permissions, models, policy } = z
           .object({
             name: z.string(),
             permissions: z.array(z.string()),
             models: roleModelsSchema.optional(),
+            policy: rolePolicySchema.optional(),
           })
           .parse(payload);
-        return service.roles.create(human, name, permissions, models);
+        return service.roles.create(human, name, permissions, models, policy);
       }),
     roleUpdate: (payload: unknown) =>
       call((service) => {
@@ -119,9 +183,11 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
             name: z.string().optional(),
             permissions: z.array(z.string()).optional(),
             models: roleModelsSchema.optional(),
+            policy: rolePolicySchema.optional(),
           })
           .parse(payload);
         return service.roles.update(human, roleId, {
+          ...(patch.policy === undefined ? {} : { policy: patch.policy }),
           ...(patch.models === undefined ? {} : { models: patch.models }),
           ...(patch.name === undefined ? {} : { name: patch.name }),
           ...(patch.permissions === undefined ? {} : { permissions: patch.permissions }),

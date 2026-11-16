@@ -48,7 +48,8 @@ export function ProfileView({
   onClose,
 }: ProfileViewProps): ReactElement {
   const [deleting, setDeleting] = useState(false);
-  const visibleCards = cards.list().filter((card) => card.visible?.(bot) ?? true);
+  const visibleCards =
+    bot.sharedBy === undefined ? cards.list().filter((card) => card.visible?.(bot) ?? true) : [];
   return (
     <div className="bh-profile-view">
       <button type="button" className="bh-profile-back" onClick={onClose}>

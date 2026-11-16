@@ -2,11 +2,24 @@ import { describe, expect, it } from 'vitest';
 import {
   decideToolApproval,
   toolEffects,
+  toolApprovalRequired,
   type ToolApprovalContext,
   type ToolEffects,
 } from '../src/workspaces/tool-effects.js';
 
 describe('public tool effects', () => {
+  it.each([{}, { humanId: 'alice', topic: 'publishing' }])(
+    'keeps speaker policy lookup read-only with existing admission for %j',
+    (args) => {
+      expect(toolEffects('speaker_policy', args)).toEqual({
+        changes: 'none',
+        reach: 'local',
+        personalData: true,
+      });
+      expect(toolApprovalRequired('speaker_policy', args, false)).toBe(false);
+      expect(toolApprovalRequired('speaker_policy', args, true)).toBe(false);
+    },
+  );
   it.each(['GET', 'get', 'GeT'])('uses HTTP execution normalization for %s', (method) => {
     expect(toolEffects('secret_http', { method })).toEqual({
       changes: 'none',
