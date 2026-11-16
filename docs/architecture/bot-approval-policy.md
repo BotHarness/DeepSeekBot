@@ -4,6 +4,8 @@ Status: Human-confirmed target design, 2026-11-15. Runtime behavior is unchanged
 
 [ADR-0342](../adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md) owns the durable choices and trade-offs. This document owns the integrated target behavior. GitHub issues own delivery status. Neither this interview nor these documents authorize implementation, live permission changes or a SQLite migration.
 
+Implementation slice #4211 adds global/Bot selection through the existing file owner, authenticated Host, online CLI and Client Select, plus two-outcome versioned Reviews. The remaining editor, rules-table and confirmed bulk-deletion workflows are subsequent slices.
+
 ## One effective template
 
 The Profile has an optional global default selected from its shared Approval Template library. Each Bot chooses exactly one mode:
@@ -107,3 +109,9 @@ The User confirmed the design after questions Q1–Q18 and a complete summary. T
 Future delivery must demonstrate inherited versus specific/Off behavior, Reviewer conflict/uncertainty routing, deterministic bypass without an LLM call, Bot-only card-rule scope, disclosed deletion fallback, captured policy versions, failure routing and management refusal without valid authority. These are acceptance requirements, not claims that tests or the runtime already implement them.
 
 Performance assessment: this change edits documentation only, introduces no dependency and changes no runtime hot path, so no runtime benchmark is warranted. Future E2/E3 work must separately budget added admission work and model calls, prove deterministic hits make no Reviewer call, and verify the affected real journey under the repository's performance policy.
+
+## Human approval result presentation
+
+A Reviewer handoff appends an explicit `ask-human` result to the canonical Channel before the Human request, with its captured template identity/version, sanitized input and reason. Record failure still routes to Human; cancellation and owner changes cannot grant authorization. Historical autonomous rejection records remain readable; the historical rejection override cannot accept an `ask-human` record.
+
+The Web and mobile Human approval card keeps its full request content after Allow once, Always allow or Reject. Only the operation area becomes the selected, disabled result. Open details remain open across a decision, and historical cards retain the original content on reload. Mobile projects validated display-only request content from the existing Channel message, without per-card history/status reads; cached content never authorizes a decision. Missing or malformed historical content is shown as unavailable.

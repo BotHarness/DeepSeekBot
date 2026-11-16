@@ -2,6 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { defineTool, type ToolExecution, type ToolExecutor } from '@deepseek-ai/dsh-tools';
 
 import type { ChannelMessage, ChannelRecord } from '../src/channels/channel.js';
@@ -64,6 +65,8 @@ function fixture(
   options: {
     review?: (request: ApprovalReviewRequest) => Promise<ApprovalReview>;
     template?: string;
+    lookup?: () => { name: string; text: string } | undefined;
+    logger?: () => void;
     rules?: ToolApprovalRuleStore;
     fullAccess?: () => boolean;
   } = {},
@@ -73,6 +76,9 @@ function fixture(
   const channels = {
     get: vi.fn((id: string) => (id === channelId ? channel : undefined)),
     getOrCreateDm: vi.fn(() => channel),
+    message: vi.fn((_id: string, messageId: string) =>
+      messages.find((message) => message.id === messageId),
+    ),
     appendMessage: vi.fn(async (_human: unknown, id: string, message: ChannelMessage) => {
       if (id !== channelId) return undefined;
       messages.push(message);
@@ -91,13 +97,15 @@ function fixture(
     options.review ??
       (async () => ({ outcome: 'allow', reason: 'Planning is allowed.' }) as ApprovalReview),
   );
-  const log = vi.fn();
+  const log = vi.fn(options.logger);
   const template = options.template === undefined ? 'get-work-done' : options.template;
   const auto: ToolAutoApproval = {
-    template: () => {
-      const found = template === '' ? undefined : approvalTemplate(template);
-      return found && { name: found.name, text: found.text };
-    },
+    template:
+      options.lookup ??
+      (() => {
+        const found = template === '' ? undefined : approvalTemplate(template);
+        return found && { name: found.name, text: found.text };
+      }),
     review,
     log,
   };
@@ -115,7 +123,7 @@ function fixture(
   const execution = (args: Record<string, unknown> = { todos: [] }, name = 'todo_write') =>
     ({ agent, name, callId: 'call-1', arguments: args, token: Symbol('call') }) as ToolExecution;
   const ask = (name = 'todo_write') => broker.ask({ agent, toolName: name, callId: 'call-1' });
-  return { broker, messages, review, log, execution, ask };
+  return { broker, messages, channels, review, log, execution, ask };
 }
 
 describe('Full Access approval composition', () => {
@@ -170,6 +178,7 @@ describe('Approval Templates', () => {
 
   it('recognizes calls that change a Bot approval policy', () => {
     expect(changesApprovalPolicy('deepseekbot approval-template-set ada get-work-done')).toBe(true);
+    expect(changesApprovalPolicy('deepseekbot approval-template-global-set cautious')).toBe(true);
     expect(changesApprovalPolicy('deepseekbot bot approval-template set ada off')).toBe(true);
     expect(changesApprovalPolicy('{"method":"botApprovalTemplateSet"}')).toBe(true);
     expect(changesApprovalPolicy('deepseekbot approval-reviewer model set bot')).toBe(true);
@@ -245,10 +254,7 @@ describe('Approval Reviewer input', () => {
       outcome: 'allow',
       reason: 'ok',
     });
-    expect(parseApprovalReview('Sure.\n{"outcome":"reject","reason":" no  "}')).toEqual({
-      outcome: 'reject',
-      reason: 'no',
-    });
+    expect(parseApprovalReview('Sure.\n{"outcome":"reject","reason":" no  "}')).toBeUndefined();
     expect(parseApprovalReview('{"outcome":"maybe","reason":"x"}')).toBeUndefined();
     expect(parseApprovalReview('{"outcome":"allow"}')).toBeUndefined();
     expect(parseApprovalReview('allow')).toBeUndefined();
@@ -446,6 +452,113 @@ describe('Approval Reviewer input', () => {
 });
 
 describe('Approval Reviewer in the tool approval gate', () => {
+  it('posts a Human card even when selected-template lookup and diagnostics both fail', async () => {
+    const state = fixture({
+      lookup: () => {
+        throw new Error('private path');
+      },
+      logger: () => {
+        throw new Error('logging offline');
+      },
+    });
+    state.broker.track(state.execution());
+    const answer = state.ask();
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    expect(state.messages[0]?.toolApprovalRequest?.approvalReview).toEqual({
+      kind: 'template-unavailable',
+      reason: 'The selected approval template could not be read.',
+    });
+    expect(state.review).not.toHaveBeenCalled();
+    await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
+    expect(await answer).toBe('rejected');
+  });
+
+  it.each(['ask-human', 'timeout'] as const)(
+    'retains the captured version and reason on Human fallback: %s',
+    async (outcome) => {
+      const selected = { name: 'original', text: 'Original policy' };
+      const state = fixture({
+        lookup: () => selected,
+        review: async () => {
+          selected.name = 'edited';
+          selected.text = 'Changed policy';
+          if (outcome === 'timeout')
+            throw Object.assign(new Error('private diagnostics'), { code: 'timeout' });
+          return { outcome: 'ask-human', reason: 'Ask before sending.' };
+        },
+        logger: () => {
+          throw new Error('logging offline');
+        },
+      });
+      state.broker.track(state.execution());
+      const answer = state.ask();
+      await vi.waitFor(() => expect(state.messages).toHaveLength(2));
+      expect(state.messages[0]?.toolAutoApproval).toMatchObject({
+        outcome: 'ask-human',
+        template: 'original',
+        templateVersion: state.review.mock.calls[0]?.[0].template.version,
+      });
+      expect(JSON.stringify(state.messages[0])).not.toContain('private diagnostics');
+      expect(state.messages[1]?.toolApprovalRequest?.approvalReview).toMatchObject({
+        kind: 'review',
+        template: 'original',
+        version: expect.stringMatching(/^[a-f0-9]{64}$/),
+        reason:
+          outcome === 'timeout' ? 'Automatic review unavailable (timeout).' : 'Ask before sending.',
+      });
+      expect(state.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'original',
+          templateVersion: state.review.mock.calls[0]?.[0].template.version,
+        }),
+      );
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[1]!.id, 'rejected');
+      expect(await answer).toBe('rejected');
+    },
+  );
+
+  it('pins template identity, content and version at Review start', async () => {
+    let captured: ApprovalReviewRequest | undefined;
+    let finish!: (value: ApprovalReview) => void;
+    const selected = { name: 'first', text: 'Original content' };
+    let reviews = 0;
+    const state = fixture({
+      lookup: () => selected,
+      review: async (request) => {
+        reviews++;
+        captured = request;
+        if (reviews > 1) return { outcome: 'allow', reason: 'New policy.' };
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    });
+    state.broker.track(state.execution());
+    const answer = state.ask();
+    await vi.waitFor(() => expect(captured).toBeDefined());
+    expect(captured?.template).toMatchObject({
+      name: 'first',
+      text: 'Original content',
+      version: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    const firstVersion = captured?.template.version;
+    selected.name = 'second';
+    selected.text = 'Updated content';
+    finish({ outcome: 'allow', reason: 'Covered.' });
+    expect(await answer).toBe('allowed-once');
+    expect(state.messages[0]?.toolAutoApproval).toMatchObject({
+      template: 'first',
+      templateVersion: firstVersion,
+    });
+    const second = { ...state.execution(), callId: ToolCallId('call-2') };
+    state.broker.track(second);
+    expect(
+      await state.broker.ask({ agent: second.agent!, toolName: 'todo_write', callId: 'call-2' }),
+    ).toBe('allowed-once');
+    expect(captured?.template).toMatchObject({ name: 'second', text: 'Updated content' });
+    expect(captured?.template.version).not.toBe(firstVersion);
+  });
+
   it('allows a call without a card and leaves a folded record', async () => {
     const state = fixture();
     state.broker.track(state.execution());
@@ -466,22 +579,6 @@ describe('Approval Reviewer in the tool approval gate', () => {
     expect(state.broker.validAfterDecision(state.execution().agent!, 'call-1')).toBe(true);
   });
 
-  it('rejects a call and keeps the reason for the Bot', async () => {
-    const state = fixture({
-      review: async () => ({
-        outcome: 'reject',
-        reason: 'The Human said not to send anything yet.',
-      }),
-    });
-    state.broker.track(state.execution());
-    expect(await state.ask()).toBe('rejected');
-    expect(state.messages[0]!.toolAutoApproval?.outcome).toBe('rejected');
-    expect(state.broker.takeReviewRejection(sessionId, 'call-1')).toBe(
-      'The Human said not to send anything yet.',
-    );
-    expect(state.broker.takeReviewRejection(sessionId, 'call-1')).toBeUndefined();
-  });
-
   it('posts the ordinary card on ask-human and on any reviewer failure', async () => {
     for (const review of [
       async () => ({ outcome: 'ask-human', reason: 'Not covered.' }) as ApprovalReview,
@@ -492,10 +589,10 @@ describe('Approval Reviewer in the tool approval gate', () => {
       const state = fixture({ review });
       state.broker.track(state.execution());
       const answer = state.ask();
-      await vi.waitFor(() => expect(state.messages).toHaveLength(1));
-      expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('todo_write');
+      await vi.waitFor(() => expect(state.messages).toHaveLength(2));
+      expect(state.messages[1]!.toolApprovalRequest?.toolName).toBe('todo_write');
       expect(
-        await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected'),
+        await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[1]!.id, 'rejected'),
       ).toBe(true);
       expect(await answer).toBe('rejected');
       expect(state.broker.takeReviewRejection(sessionId, 'call-1')).toBeUndefined();
@@ -515,6 +612,7 @@ describe('Approval Reviewer in the tool approval gate', () => {
 
   it.each([
     'deepseekbot approval-template-set ada off',
+    'deepseekbot approval-template-global-set cautious',
     'deepseekbot grant-request-approve ada --channel dm-ada --request req --workspace project --confirm',
     'deepseekbot grant-write-set ada grant --enabled true',
     '{"method":"grantRequestApprove"}',
@@ -596,7 +694,7 @@ describe('Approval Reviewer in the tool approval gate', () => {
       ['secret_mcp_connect', { ...secretArgs, server_name: 'github', program: 'npx' }],
     ] as const) {
       const state = fixture({
-        review: async () => ({ outcome: 'reject', reason: 'Not this account.' }),
+        review: async () => ({ outcome: 'allow', reason: 'Covered.' }),
       });
       const agent = state.execution().agent as unknown as {
         session: { snapshotEvents: () => unknown };
@@ -606,13 +704,13 @@ describe('Approval Reviewer in the tool approval gate', () => {
         state.execution(args, name),
         name === 'secret_cli' ? 'operation' : 'each-use',
       );
-      expect(await state.ask(name)).toBe('rejected');
+      expect(await state.ask(name)).toBe('allowed-once');
       const request = state.review.mock.calls[0]![0];
       const seen = JSON.stringify(request) + reviewerUserPrompt(request);
       for (const secret of secrets) expect(seen).not.toContain(secret);
       expect(seen).toContain('secret_mcp_connect');
       expect(JSON.stringify(state.messages)).not.toContain('ghp_');
-      expect(state.messages[0]!.toolAutoApproval?.outcome).toBe('rejected');
+      expect(state.messages[0]!.toolAutoApproval?.outcome).toBe('allowed');
     }
   });
 
@@ -623,10 +721,10 @@ describe('Approval Reviewer in the tool approval gate', () => {
     });
     state.broker.track(state.execution(secretArgs, 'secret_cli'));
     const answer = state.ask('secret_cli');
-    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    await vi.waitFor(() => expect(state.messages).toHaveLength(2));
     expect(state.review.mock.calls[0]![0].template.name).toBe('cautious');
-    expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('secret_cli');
-    await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
+    expect(state.messages[1]!.toolApprovalRequest?.toolName).toBe('secret_cli');
+    await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[1]!.id, 'rejected');
     expect(await answer).toBe('rejected');
   });
 
@@ -658,5 +756,65 @@ describe('Approval Reviewer in the tool approval gate', () => {
     expect(allowWork).toContain('secret_cli');
     expect(allowWork).toContain('known program');
     expect(allowWork).toContain('Browser Authorization');
+  });
+});
+
+describe('Reviewer handoff records', () => {
+  it('still asks the Human when recording the handoff fails', async () => {
+    const state = fixture({
+      review: async () => ({ outcome: 'ask-human', reason: 'Please confirm.' }),
+    });
+    const append = vi.mocked(state.channels.appendMessage).getMockImplementation()!;
+    vi.spyOn(state.channels, 'appendMessage').mockImplementation(async (...args) => {
+      if (args[2].toolAutoApproval !== undefined) throw new Error('record unavailable');
+      return append(...args);
+    });
+    state.broker.track(state.execution());
+    const answer = state.ask();
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    expect(state.messages[0]?.toolApprovalRequest).toBeDefined();
+    await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
+    expect(await answer).toBe('rejected');
+  });
+
+  it('records ask-human before the Human card, with the captured template and no legacy override', async () => {
+    const template = { name: 'private-policy', text: 'Review snapshot one' };
+    const state = fixture({
+      lookup: () => template,
+      review: async () => {
+        template.text = 'Edited during review';
+        return { outcome: 'ask-human', reason: 'Human should confirm this command.' };
+      },
+    });
+    state.broker.track(state.execution());
+    const answer = state.ask();
+    await vi.waitFor(() =>
+      expect(state.messages.some((message) => message.toolApprovalRequest)).toBe(true),
+    );
+    const record = state.messages[0]!;
+    const request = state.messages[1]!;
+    expect(record.toolAutoApproval).toMatchObject({
+      outcome: 'ask-human',
+      template: 'private-policy',
+      reason: 'Human should confirm this command.',
+    });
+    expect(JSON.stringify(state.log.mock.calls)).not.toContain(
+      'Human should confirm this command.',
+    );
+    const snapshot = request.toolApprovalRequest?.approvalReview;
+    if (snapshot?.kind !== 'review') throw new Error('Missing Review snapshot');
+    expect(record.toolAutoApproval?.templateVersion).toBe(snapshot.version);
+    expect(request.toolApprovalRequest?.approvalReview).toMatchObject({
+      template: 'private-policy',
+      reason: 'Human should confirm this command.',
+    });
+    expect(await state.broker.overrideRejection(OWNER_HUMAN_CONTEXT, channelId, record.id)).toEqual(
+      { ok: false, code: 'not-rejected' },
+    );
+    expect(await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'rejected')).toBe(
+      true,
+    );
+    expect(await answer).toBe('rejected');
+    expect(request.toolApprovalRequest?.input).toContain('todos');
   });
 });

@@ -1123,6 +1123,7 @@ describe('plugin entry', () => {
       'approvalTemplateCreate',
       'approvalTemplateUpdate',
       'approvalTemplateDelete',
+      'approvalTemplateGlobalSet',
       'botApprovalTemplateSet',
       'approvalReviewerModel',
       'approvalReviewerModelSet',

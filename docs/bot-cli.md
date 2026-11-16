@@ -845,36 +845,35 @@ printf '{"title":"Water the plants"}' | deepseekbot todo-tool <bot-id> todos_add
 
 ### Auto approval (Approval Templates)
 
-A PersonaBot can select one Approval Template ([ADR-0207](adr/0207-an-approval-template-lets-a-reviewer-session-answer-tool-approvals.md)). While one is selected, an Approval Reviewer answers the Bot's approvals by the template before any card is posted: Shell commands that leave the sandbox, file tools, opening an attachment, `secret_cli` and `secret_mcp_connect` calls, and Computer and Browser Authorization. For a secret tool the reviewer sees the program, its arguments, the account and the placeholder names, never a secret value or an environment value; for an Authorization it sees the device and the Session. `cautious` sends secret tools and both Authorizations to the Human; `get-work-done` allows a known program with the account for its own service, and Browser Authorization when the task needs it. Any call that changes approval policy still goes to the Human as a card.
-
-Templates are a Profile-wide library. Two are built in and read-only, `cautious` and `get-work-done`. Every other template is one Markdown file, `$DSH_HOME/botharness/approval-templates/<name>.md`, that the settings page (Settings → Auto approval) and these commands both read and write. A name uses lowercase letters, digits and dashes; the text is at most 32 KiB, and its first `#` heading and first line become the title and description.
+Each Bot dynamically inherits the optional Profile default, selects one shared template in full replacement, or turns the Reviewer off ([ADR-0342](adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)). New Bots inherit; existing specific selections and missing legacy fields keep their previous selection or Off. Off does not revoke saved Tool Approval Rules or change Full Access.
 
 ```bash
 deepseekbot approval-template list [--bot <bot-id>]
+deepseekbot approval-template-global-set cautious
+deepseekbot approval-template-global-set off
+deepseekbot approval-template-set <bot-id> inherit
+deepseekbot approval-template-set <bot-id> cautious
+deepseekbot approval-template-set <bot-id> off
+deepseekbot approval-template-global-set off --literal-template
+deepseekbot approval-template-set <bot-id> inherit --literal-template
 deepseekbot approval-template show cautious
 deepseekbot approval-template create night-shift --file night-shift.md
-cat night-shift.md | deepseekbot approval-template create night-shift --text-stdin
 deepseekbot approval-template create my-cautious --from cautious
 deepseekbot approval-template edit night-shift --file night-shift.md
 deepseekbot approval-template delete night-shift
-deepseekbot approval-template-set <bot-id> night-shift
-deepseekbot approval-template-set <bot-id> off
 ```
 
-`list` returns `{templates}` with each template's `name`, `title`, `description`, `builtIn` and `usedBy` (the Bots that select it); with `--bot` it also returns that Bot's `selected` template, or `null`. `show` returns `{template}` with its full Markdown `text`. `create` and `edit` return `{template}`; `create --from` copies another template's text, which is how a built-in is changed. `delete` returns `{template, clearedBots}`: every Bot that used the template has its selection cleared, so its approvals go back to cards. `approval-template-set` returns `{bot}` with the new `approvalTemplate`. `approval-templates` and `approval-template-show` remain as aliases of `list` and `show`.
+Names such as `off` and `inherit` remain valid custom template names. Add `--literal-template` to a selection command to select that literal name; without it the existing Off and inheritance aliases keep their meaning.
 
-Self-escalation guard: when a Bot runs these commands from its own Shell, writing a new template or editing one that no Bot uses needs no card, so a Bot can draft a template for you. Selecting a template, and editing or deleting one that some Bot currently uses, requires a Human decision or an explicit saved rule in the management scope, while the model Approval Reviewer cannot answer; when you reject it, the file stays unchanged. Refusals carry a code: `invalid-input` (a bad name, empty or oversized text, an unknown template to select), `template-exists`, `template-read-only` (a built-in), `unknown-template` and `unknown-bot`.
+`list` returns `templates` and `globalDefault` (a template name or `null`). With `--bot`, it also returns `selected` (`@global`, a specific template name, or `null`), `source` (`global`, `specific`, or `off`) and `effective` (a name or `null`). The global setter returns `{template}`; the Bot setter returns `{bot}`. The authenticated Host owns these writes; missing templates refuse selection, and an unreadable global selection returns `approval-selection-unavailable` rather than an empty default.
 
-Each call the reviewer rejects becomes an `auto-rejection` item in Activity. Its `autoRejection` holds the Session, tool, input, template and reason. `activity-allow-once` is the Inbox's "Allow this once anyway": it covers that exact call only. The Bot is told it may retry, and the next call in that Session with the same tool and identical input runs without review. Later calls are still reviewed.
+Templates remain read-only built-ins or Markdown files in `$DSH_HOME/botharness/approval-templates/`. The same file owner saves the global choice in `.selection.json`; no schema migration is involved. Names use lowercase letters, digits and dashes, text is at most 32 KiB. `show` returns full text; `create --from` copies text. The existing editor and deletion flow remain unchanged; three-part editing, shared rule tables and confirmed bulk deletion fallback are separate slices.
 
-```bash
-deepseekbot activity --category action --kind auto-rejection
-deepseekbot activity-allow-once autoreject:<source-event-id>
-```
+Deterministic authorization runs first and makes no Reviewer call when it covers the request. Otherwise the selected template guides a fresh tool-less Reviewer Session: only `allow` for this call or `ask-human` are accepted. Always ask takes precedence over Always allow; free text supplements both. Legacy Reject guidance means ask the Human. The model never saves rules or rejects autonomously, so rejection-based pausing is no longer active. Historical rejection records and their explicit Human override remain readable.
 
-`activity-allow-once` returns `{accepted, channelId, messageId}`, where `messageId` is the Human's override message in the Channel. An item that was already allowed, or whose Bot left the Channel, is refused with `auto-rejection-unavailable`.
+Each Review captures its template name, content and SHA-256 content version at the start. Edits and switches affect later Reviews. Auto-approval records retain `templateVersion`; Human cards retain `approvalReview` with the reason, template and version when available. Missing/unreadable templates, model failure, timeout and malformed replies send the current request to the Human without choosing another template or changing selection. Developer logs include the captured version and safe failure code. Workspace, ownership and current authorization checks still run before execution.
 
-**Circuit breaker.** After 3 rejections in a row, or 20 in one Session, auto approval pauses for that Session: every request posts a card, and the Channel shows a notice. The next approval the Human gives in that Session, on a card or from the Inbox, resumes it with fresh counts. The thresholds are fixed. The breaker and unused "allow once" overrides live in Host memory, so a Host restart resumes auto approval with fresh counts and drops an override the Bot has not used yet; the Inbox item stays handled.
+Effective policy management bypasses Full Access and the model Reviewer. Selecting a Bot/global template or changing an effective template requires a Human decision or a saved authorization in ADR-0249's separate management scope. Creating or editing an unused draft retains its existing path. Refusals include `invalid-input`, `template-exists`, `template-read-only`, `unknown-template`, `unknown-bot` and `unavailable`.
 
 ### Voice messages (TTS Providers)
 

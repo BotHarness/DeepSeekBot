@@ -1585,6 +1585,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   approvalTemplates(slug?: string): {
     templates: ApprovalTemplateEntry[];
     selected?: string | null;
+    globalDefault?: string | null;
+    effective?: string | null;
+    source?: 'global' | 'specific' | 'off';
   } {
     return unwrap(this.methods.approvalTemplates(slug === undefined ? {} : { slug }));
   }
@@ -1680,6 +1683,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     clearedBots: string[];
   } {
     return unwrap(this.methods.approvalTemplateDelete({ name }));
+  }
+
+  approvalTemplateGlobalSet(template: string | null): { template: string | null } {
+    return unwrap(this.methods.approvalTemplateGlobalSet({ template }));
   }
 
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
@@ -3470,6 +3477,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
   'approvalTemplateDelete',
+  'approvalTemplateGlobalSet',
   'botApprovalTemplateSet',
   'approvalReviewerModel',
   'approvalReviewerModelSet',

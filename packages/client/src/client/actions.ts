@@ -935,9 +935,11 @@ export interface BridgeActions {
     scope?: 'chat' | 'assignments',
   ): Promise<AssignmentAccessPresetView>;
   listToolApprovalRules(slug: string): Promise<ToolApprovalRuleView[]>;
-  approvalTemplates?(
-    slug: string,
-  ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }>;
+  approvalTemplates?(slug: string): Promise<{
+    templates: ApprovalTemplateView[];
+    selected: string | null;
+    globalDefault?: string | null;
+  }>;
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
   voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
