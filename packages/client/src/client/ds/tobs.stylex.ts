@@ -7,6 +7,7 @@ export const layer = stylex.defineConsts({
   field: 'var(--tobs-layer-field)',
   nav: 'var(--tobs-layer-nav)',
   sheet: 'var(--tobs-layer-sheet)',
+  elevated: 'var(--tobs-layer-elevated)',
   scrim: 'var(--tobs-layer-scrim)',
 });
 

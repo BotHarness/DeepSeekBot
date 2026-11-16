@@ -80,6 +80,11 @@
           "$value": "#ffffff",
           "$extensions": { "app.tobs.dark": "#1f2023" }
         },
+        "elevated": {
+          "$type": "color",
+          "$value": "#ffffff",
+          "$extensions": { "app.tobs.dark": "#303237" }
+        },
         "scrim": {
           "$type": "color",
           "$value": "#0f111547",

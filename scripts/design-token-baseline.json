@@ -178,9 +178,6 @@
   "packages/client/src/client/call-rail-button.tsx": {
     "rawControl": 1
   },
-  "packages/client/src/client/call-styles.ts": {
-    "dshToken": 15
-  },
   "packages/client/src/client/channel-access-settings.tsx": {
     "dshImport": 1
   },
@@ -236,7 +233,7 @@
     "rawControl": 2
   },
   "packages/client/src/client/combobox.tsx": {
-    "dshToken": 11,
+    "dshToken": 2,
     "dshImport": 1,
     "rawControl": 2
   },
@@ -251,9 +248,6 @@
   },
   "packages/client/src/client/composer-context-bar.tsx": {
     "dshImport": 1
-  },
-  "packages/client/src/client/composer-context-styles.ts": {
-    "dshToken": 17
   },
   "packages/client/src/client/composer-voice.tsx": {
     "dshImport": 1,
@@ -351,7 +345,7 @@
     "dshToken": 1
   },
   "packages/client/src/client/ds/tokens.stylex.ts": {
-    "dshToken": 40
+    "dshToken": 6
   },
   "packages/client/src/client/ds/tooltip.tsx": {
     "dshImport": 1
@@ -452,9 +446,6 @@
   },
   "packages/client/src/client/im-apps-section.tsx": {
     "dshImport": 2
-  },
-  "packages/client/src/client/internal-tour-styles.ts": {
-    "dshToken": 20
   },
   "packages/client/src/client/internal-tour.ts": {
     "dshToken": 1
@@ -564,7 +555,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/message-reactions.tsx": {
-    "dshToken": 3,
+    "dshToken": 2,
     "dshImport": 1,
     "rawControl": 2
   },
@@ -695,7 +686,6 @@
     "dshToken": 3
   },
   "packages/client/src/client/profile-header.tsx": {
-    "dshToken": 1,
     "dshImport": 1,
     "rawControl": 7
   },
@@ -741,13 +731,12 @@
     "dshImport": 1
   },
   "packages/client/src/client/remote-viewer/tokens.ts": {
-    "dshToken": 14
+    "dshToken": 1
   },
   "packages/client/src/client/role-policy-field.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/schedules-entry.tsx": {
-    "dshToken": 1,
     "dshImport": 1,
     "rawControl": 2
   },
@@ -782,7 +771,7 @@
     "dshImport": 2
   },
   "packages/client/src/client/styles.ts": {
-    "dshToken": 776
+    "dshToken": 49
   },
   "packages/client/src/client/tag-editor.tsx": {
     "dshImport": 1
@@ -835,9 +824,6 @@
   "packages/client/src/client/voice-mic-test.tsx": {
     "dshImport": 1,
     "rawControl": 1
-  },
-  "packages/client/src/client/voice-ripple-styles.ts": {
-    "dshToken": 4
   },
   "packages/client/src/client/voice-settings.tsx": {
     "dshImport": 1

@@ -184,7 +184,7 @@ describe('@botharness/ui browser bundle', () => {
     const missing = [...classes].filter((name) => !bundleCode.includes(`.${name}`));
     expect(missing).toEqual([]);
     expect(bundleCode).toMatch(
-      /\.bhx[a-z0-9]+(?::not\(#\\\\#\))+\{color:var\(--dsw-alias-label-primary\)\}/,
+      /\.bhx[a-z0-9]+(?::not\(#\\\\#\))+\{color:var\(--tobs-ink-primary\)\}/,
     );
   });
 
