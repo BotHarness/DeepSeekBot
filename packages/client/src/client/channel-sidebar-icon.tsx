@@ -1002,10 +1002,12 @@ export function ChannelSidebarIcon({
   name = 'panels-top-left',
   size = 16,
   filled = false,
+  strokeWidth = 2,
 }: {
   name?: string | undefined;
   size?: number | string;
   filled?: boolean;
+  strokeWidth?: number;
 }): ReactElement {
   const nodes = Object.hasOwn(glyphs, name) ? glyphs[name]! : glyphs['panels-top-left']!;
   return (
@@ -1015,7 +1017,7 @@ export function ChannelSidebarIcon({
       viewBox="0 0 24 24"
       fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

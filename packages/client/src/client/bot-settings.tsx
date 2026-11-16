@@ -7,7 +7,7 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from './bot-settings-slot.js';
 import { MEMBER_SETTINGS_SECTIONS } from './member-settings.js';
 import { useTeamMember } from './team-state.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Icon } from './ds/icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
 import { useHostDraftGuard } from './host-draft-guard.js';
@@ -414,7 +414,7 @@ export function BotSettingsView({
             : DEVICE_SETTINGS_SECTIONS.has(row.id)
               ? DEVICE_GROUP
               : HOST_GROUP,
-        icon: <ChannelSidebarIcon name={rowIcon(row.id)} />,
+        icon: <Icon name={rowIcon(row.id)} />,
       }))}
       groups={
         grouped
@@ -499,7 +499,7 @@ export function BotSettingsView({
               .map((row) => ({
                 id: row.id,
                 label: row.label,
-                icon: <ChannelSidebarIcon name={rowIcon(row.id)} size={18} />,
+                icon: <Icon name={rowIcon(row.id)} large />,
               }))}
             pins={pins}
             onOpen={(id) => {

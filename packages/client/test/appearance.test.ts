@@ -123,7 +123,10 @@ describe('device-local appearance authority', () => {
     const after = appearanceCss(owner.getSnapshot());
     expect(after).toContain('--dsw-alias-state-business-primary:#123456');
     expect(after).toContain('color-scheme:dark');
-    expect(after).not.toMatch(/(?:^|})body|(?:^|}):root\s*\{/);
+    const globals = [...after.matchAll(/(?:^|})\s*(?:body|:root)\s*\{([^}]*)\}/g)];
+    expect(globals).toHaveLength(1);
+    for (const declaration of globals[0]?.[1]?.split(';') ?? [])
+      expect(declaration).toMatch(/^--tobs-[a-z0-9-]+:var\(--dsw-[a-z0-9-]+\)$/);
     expect(before).toContain('color-scheme:light');
     const status = (css: string) => /--dsw-alias-state-error-primary:([^;}]+)/.exec(css)?.[1];
     owner.update({ mode: 'dark', primary: '#abcdef' });

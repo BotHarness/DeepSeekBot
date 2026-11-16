@@ -298,7 +298,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
             `${MEMBER_COOKIE}=${result.token}; Path=${TEAM_PATH}/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`,
           );
           return json(response, 200, {
-            isolation: 'trial',
+            isolation: options.team.isolation(),
             humanId: result.member.humanId,
             displayName: result.member.displayName,
             mustChangePassword: result.member.mustChangePassword,

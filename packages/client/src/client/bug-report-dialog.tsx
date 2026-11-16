@@ -40,6 +40,7 @@ import { Select } from './ds/select.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   section: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
@@ -170,7 +171,7 @@ const styles = stylex.create({
   },
   doneIcon: { display: 'inline-flex', color: color.success },
   mono: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     overflowWrap: 'anywhere',
   },

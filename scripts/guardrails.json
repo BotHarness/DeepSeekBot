@@ -8,6 +8,28 @@
       "fix": "await the promise, return it, end it with .catch(...) that records a Developer diagnostics log, or mark a deliberate fire-and-forget with `void`.",
       "check": "scripts/lint-ratchet.mjs",
       "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "pr-provenance",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893",
+      "fix": "write `Harness: <name>` and `Model: <id>` lines in the PR or issue description (several allowed, comma-separated), or add the harness:<name> and model:<id> labels.",
+      "check": "scripts/check-pr-provenance.mjs"
+    },
+    {
+      "id": "tobs-design-tokens",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4282",
+      "fix": "read a Tobs token from ds/tobs.stylex.ts and compose a ds/ component instead of a DSH --dsw-* variable, a DSH UI import or a styled raw control; when a use goes away, shrink the baseline with node scripts/check-design-tokens.mjs --write.",
+      "check": "scripts/check-design-tokens.mjs",
+      "baseline": "scripts/design-token-baseline.json"
+    },
+    {
+      "id": "tobs-token-outputs",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",
+      "fix": "edit design/tokens/tobs.tokens.json and run pnpm tokens; never edit ds/tobs-tokens.generated.ts or ds/tobs.stylex.ts by hand.",
+      "check": "scripts/generate-tokens.mjs"
     }
   ]
 }

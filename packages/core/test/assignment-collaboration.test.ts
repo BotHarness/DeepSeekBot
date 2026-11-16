@@ -2254,7 +2254,7 @@ describe('Assignment collaboration', () => {
     });
     if (created.outcome !== 'created') throw new Error('create failed');
     const sessionId = created.assignment.sessionId;
-    agents.started[0]?.run.report({ state: 'completed', summary: 'A 方向完成' });
+    await agents.started[0]?.run.report({ state: 'completed', summary: 'A 方向完成' });
     agents.finish(sessionId);
     await runtime.whenIdle();
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('idle');

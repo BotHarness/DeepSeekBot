@@ -7,7 +7,7 @@ import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { createPrivateRelay } from './server.mjs';
 
-test(
+await test(
   'claim is exclusive, admission is secret, opaque traffic relays, and disconnect closes phone',
   { timeout: 10_000 },
   async () => {
@@ -72,7 +72,7 @@ test(
   },
 );
 
-test('restart retains first owner and rejects a new claimant', async () => {
+await test('restart retains first owner and rejects a new claimant', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'private-restart-'));
   const bootstrap = 'a'.repeat(64);
   let relay = createPrivateRelay({ directory, bootstrap });
@@ -99,7 +99,7 @@ test('restart retains first owner and rejects a new claimant', async () => {
   }
 });
 
-test(
+await test(
   'v2 serves several Hosts with isolated admission and passes conformance',
   { timeout: 20_000 },
   async () => {
@@ -158,7 +158,7 @@ test(
   },
 );
 
-test('host key file rejects malformed lines', async () => {
+await test('host key file rejects malformed lines', async () => {
   const { writeFileSync } = await import('node:fs');
   const { readHostKeys } = await import('./server.mjs');
   const directory = mkdtempSync(join(tmpdir(), 'private-keys-'));

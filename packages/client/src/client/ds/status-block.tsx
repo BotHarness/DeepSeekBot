@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
 import { Tooltip } from './tooltip.js';
 import { border, color, radius, space, text } from './tokens.stylex.js';
+import { font } from './tobs.stylex.js';
 
 const NARROW = '@container (max-width: 480px)';
 
@@ -142,7 +143,7 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },

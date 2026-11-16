@@ -599,7 +599,6 @@ describe('Skill Invocation in a Human DM', () => {
         members: ['alice-bot', 'owner-bot', 'bob-bot'],
       });
       core.team.channelAccess.visibilitySet(OWNER_HUMAN_CONTEXT, group.id, { kind: 'public' });
-      for (const human of [alice, bob]) core.team.channelAccess.join(human, group.id);
       const methods = (human: typeof alice) =>
         createBridgeMethods(human, { ...core, skills: catalog });
       const send = (human: typeof alice, botSlug: string) =>

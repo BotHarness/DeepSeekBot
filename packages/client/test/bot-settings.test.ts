@@ -45,6 +45,7 @@ vi.mock('../src/client/settings-environment.js', async (importOriginal) => ({
 }));
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  useModalLayer: () => undefined,
   Input: (props: object) => createElement('input', props),
   Button: ({ children, onClick }: { children?: ReactNode; onClick?(): void }) =>
     createElement('button', { type: 'button', onClick }, children),
@@ -271,7 +272,7 @@ it('stays closed until opened and lists sections in order', () => {
   });
   const dialog = document.querySelector('[role="dialog"]');
   expect(dialog?.getAttribute('aria-label')).toBe('Bot 设置');
-  expect(dialog?.getAttribute('data-headless')).toBe('true');
+  expect(dialog?.getAttribute('aria-modal')).toBe('true');
   expect(navLabels()).toEqual(['通用', '模型与运行', '本应用中的外观', '数据与隐私', '关于']);
   expect(current()).toBe('通用');
   expect(shownSection()).toBe('general');
@@ -395,7 +396,7 @@ it('closes from the close button, the mask, and the section itself', () => {
     settings.open();
   });
   act(() => {
-    document.querySelector<HTMLButtonElement>('[data-testid="mask"]')?.click();
+    document.querySelector<HTMLElement>('[data-tobs-dialog-scrim]')?.click();
   });
   expect(isOpen()).toBe(false);
 

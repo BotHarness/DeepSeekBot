@@ -4,7 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Note } from './ds/note.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { accent, edge, ink, layer, line, radius, space, state, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const SETTINGS_HOME = 'home';
@@ -57,11 +57,11 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     minWidth: 0,
-    borderWidth: border.hairline,
+    borderWidth: edge.hairline,
     borderStyle: 'solid',
-    borderColor: color.border,
+    borderColor: line.edge,
     borderRadius: radius.md,
-    backgroundColor: { default: color.surface, ':hover': color.hover },
+    backgroundColor: { default: layer.raised, ':hover': state.hover },
   },
   open: {
     display: 'flex',
@@ -75,14 +75,14 @@ const styles = stylex.create({
     borderStyle: 'none',
     borderRadius: radius.md,
     backgroundColor: 'transparent',
-    color: color.fg,
+    color: ink.primary,
     fontFamily: 'inherit',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    fontWeight: text.strong,
+    fontSize: type.labelSize,
+    lineHeight: type.labelLine,
+    fontWeight: type.labelWeight,
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${edge.focus} solid ${line.focus}` },
     outlineOffset: '-2px',
   },
   icon: {
@@ -90,7 +90,7 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    color: color.muted,
+    color: ink.secondary,
   },
   label: {
     minWidth: 0,
@@ -99,7 +99,7 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   unpin: { marginInlineEnd: space.x3 },
-  pinned: { color: { default: color.accent, ':hover': color.accent } },
+  pinned: { color: { default: accent.base, ':hover': accent.base } },
 });
 
 export function SettingsHome({
@@ -143,7 +143,7 @@ export function SettingsHome({
             }}
             xstyle={styles.unpin}
           >
-            <ChannelSidebarIcon name="star" size={14} filled />
+            <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled />
           </IconButton>
         </div>
       ))}
@@ -175,7 +175,7 @@ export function PinToggle({
       }}
       xstyle={on ? styles.pinned : undefined}
     >
-      <ChannelSidebarIcon name="star" size={14} filled={on} />
+      <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled={on} />
     </IconButton>
   );
 }

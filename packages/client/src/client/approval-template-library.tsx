@@ -24,7 +24,7 @@ import {
   type BridgeCall,
 } from './bridge.js';
 import { Callout } from './ds/callout.js';
-import { Field, FieldStack, TextAreaField, TextField } from './ds/field.js';
+import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { ConfirmDialog, DangerTextButton, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
@@ -52,6 +52,22 @@ const NAME = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
 
 const styles = stylex.create({
   meta: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  ruleSection: { margin: 0, padding: 0, borderWidth: 0, minWidth: 0 },
+  ruleLegend: { width: '100%', padding: 0, marginBottom: space.x3 },
+  ruleHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x3,
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    fontWeight: text.strong,
+  },
+  ruleList: { backgroundColor: color.surface },
+  freeTextLabel: { display: 'inline-block', paddingBottom: space.x2 },
+  ruleMain: { alignItems: 'baseline' },
+  ruleNumber: { fontSize: text.bodySize, lineHeight: text.bodyLine },
   ruleInput: {
     boxSizing: 'border-box',
     width: '100%',
@@ -100,6 +116,7 @@ function GuidanceFields({
   onChange(text: string): void;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const focusAddedRow = useRef<{ section: 'alwaysAsk' | 'alwaysAllow'; index: number }>();
   const parts = decodeApprovalTemplateGuidance(text);
   const update = (next: ApprovalTemplateGuidance): void =>
     onChange(encodeApprovalTemplateGuidance(next));
@@ -112,62 +129,91 @@ function GuidanceFields({
             ? 'autoApproval.library.alwaysAsk'
             : 'autoApproval.library.alwaysAllow',
         );
+        const addRow = (): void => {
+          focusAddedRow.current = { section: key, index: parts[key].length };
+          update({ ...parts, [key]: [...parts[key], ''] });
+        };
+        const addLabel = t('autoApproval.library.addRow', { section: label });
         return (
-          <Field key={key} label={label} group>
-            {() => (
-              <SidebarCardList label={label}>
-                {parts[key].map((row, index) => {
-                  const rowLabel = label + ' ' + String(index + 1);
-                  return (
-                    <SidebarCardRow
-                      key={index}
-                      leading={<span aria-hidden>{index + 1}</span>}
-                      title={
-                        <Input
-                          aria-label={rowLabel}
-                          className={stylex.props(styles.ruleInput).className ?? ''}
-                          value={row}
-                          onChange={(event) =>
-                            update({
-                              ...parts,
-                              [key]: parts[key].map((item, position) =>
-                                position === index ? event.currentTarget.value : item,
-                              ),
-                            })
+          <fieldset key={key} aria-label={label} {...stylex.props(styles.ruleSection)}>
+            <legend {...stylex.props(styles.ruleLegend)}>
+              <span {...stylex.props(styles.ruleHeader)}>
+                <span>{label}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={addLabel}
+                  data-approval-guidance-add={key}
+                  onClick={addRow}
+                >
+                  <ChannelSidebarIcon name="plus" size={16} />
+                  {t('autoApproval.library.add')}
+                </Button>
+              </span>
+            </legend>
+            <SidebarCardList label={label} className={stylex.props(styles.ruleList).className}>
+              {parts[key].map((row, index) => {
+                const rowLabel = label + ' ' + String(index + 1);
+                return (
+                  <SidebarCardRow
+                    key={index}
+                    mainClassName={stylex.props(styles.ruleMain).className}
+                    leading={
+                      <span aria-hidden {...stylex.props(styles.ruleNumber)}>
+                        {index + 1}
+                      </span>
+                    }
+                    title={
+                      <Input
+                        ref={(input) => {
+                          const pending = focusAddedRow.current;
+                          if (input && pending?.section === key && pending.index === index) {
+                            focusAddedRow.current = undefined;
+                            input.focus();
                           }
-                        />
-                      }
-                      trailing={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={t('autoApproval.library.removeRow') + ' · ' + rowLabel}
-                          onClick={() =>
-                            update({
-                              ...parts,
-                              [key]: parts[key].filter((_, position) => position !== index),
-                            })
-                          }
-                        >
-                          <ChannelSidebarIcon name="x" size={16} />
-                        </Button>
-                      }
-                    />
-                  );
-                })}
-                <SidebarCardRow
-                  icon="plus"
-                  title={t('autoApproval.library.addRow', { section: label })}
-                  onClick={() => update({ ...parts, [key]: [...parts[key], ''] })}
-                />
-              </SidebarCardList>
-            )}
-          </Field>
+                        }}
+                        aria-label={rowLabel}
+                        className={stylex.props(styles.ruleInput).className ?? ''}
+                        value={row}
+                        onChange={(event) =>
+                          update({
+                            ...parts,
+                            [key]: parts[key].map((item, position) =>
+                              position === index ? event.currentTarget.value : item,
+                            ),
+                          })
+                        }
+                      />
+                    }
+                    trailing={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t('autoApproval.library.removeRow') + ' · ' + rowLabel}
+                        onClick={() =>
+                          update({
+                            ...parts,
+                            [key]: parts[key].filter((_, position) => position !== index),
+                          })
+                        }
+                      >
+                        <ChannelSidebarIcon name="x" size={16} />
+                      </Button>
+                    }
+                  />
+                );
+              })}
+              <SidebarCardRow icon="plus" title={addLabel} onClick={addRow} />
+            </SidebarCardList>
+          </fieldset>
         );
       })}
       <TextAreaField
-        label={t('autoApproval.library.freeText')}
+        label={
+          <span {...stylex.props(styles.freeTextLabel)}>{t('autoApproval.library.freeText')}</span>
+        }
         hint={t('autoApproval.library.freeTextHint')}
         value={parts.freeText}
         rows={8}
