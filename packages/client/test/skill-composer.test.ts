@@ -237,4 +237,128 @@ describe('composer / menu', () => {
       container.remove();
     }
   });
+  it('gives the bare name to a command and keeps the same-named Skill selectable', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const run = vi.fn();
+    const changes: Array<SelectedSkill[] | undefined> = [];
+    const show = () =>
+      act(async () => {
+        root.render(
+          createElement(ChannelComposer, {
+            value: '/sessions',
+            skillOptions: [
+              {
+                name: 'sessions',
+                description: 'Summarize Sessions',
+                owner: { kind: 'bot', botSlug: 'ada' },
+                bot: ada,
+              },
+            ],
+            context: {
+              target: 'group',
+              content: null,
+              shortcuts: [{ id: 'sessions', label: 'Sessions', run }],
+            },
+            placeholder: 'Message',
+            sending: false,
+            onChange: (_v: string, _m: unknown, _c: unknown, skills?: SelectedSkill[]) =>
+              changes.push(skills),
+            onSubmit: () => undefined,
+          }),
+        );
+      });
+    try {
+      await show();
+      const input = container.querySelector<HTMLElement>('.bh-composer-rich-input')!;
+      setRichSelection(input, '/sessions'.length);
+      await act(async () => {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(
+        [...container.querySelectorAll<HTMLElement>('.bh-composer-shortcuts button')].map((row) =>
+          row.getAttribute('aria-label'),
+        ),
+      ).toEqual(['Sessions', '/sessions · Ada']);
+      await act(async () => {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(run).toHaveBeenCalledTimes(1);
+      await show();
+      setRichSelection(input, '/sessions'.length);
+      await act(async () => {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await act(async () => {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      });
+      await act(async () => {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(changes.at(-1)).toEqual([
+        { name: 'sessions', owner: { kind: 'bot', botSlug: 'ada' }, start: 0, end: 9 },
+      ]);
+      expect(run).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+  it('ranks a Group menu by owning Bot name between name and description matches', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const alice = { ...ada, slug: 'alice', displayName: 'Alice' };
+    const bob = { ...ada, slug: 'bob', displayName: 'Bob' };
+    try {
+      await act(async () => {
+        root.render(
+          createElement(ChannelComposer, {
+            value: '/alice',
+            skillOptions: [
+              { name: 'notes', description: 'Ask alice first', owner: { kind: 'host' } },
+              {
+                name: 'triage',
+                description: 'Sort bugs',
+                owner: { kind: 'bot', botSlug: 'alice' },
+                bot: alice,
+              },
+              {
+                name: 'review',
+                description: 'Review code',
+                owner: { kind: 'bot', botSlug: 'bob' },
+                bot: bob,
+              },
+              {
+                name: 'alice-intro',
+                description: 'Introduce',
+                owner: { kind: 'bot', botSlug: 'bob' },
+                bot: bob,
+              },
+            ],
+            placeholder: 'Message',
+            sending: false,
+            onChange: () => undefined,
+            onSubmit: () => undefined,
+          }),
+        );
+      });
+      const input = container.querySelector<HTMLElement>('.bh-composer-rich-input')!;
+      setRichSelection(input, '/alice'.length);
+      await act(async () => {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(
+        [...container.querySelectorAll<HTMLElement>('.bh-composer-shortcuts button')].map((row) =>
+          row.getAttribute('aria-label'),
+        ),
+      ).toEqual(['/alice-intro · Bob', '/triage · Alice', '/notes · 本机']);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
 });

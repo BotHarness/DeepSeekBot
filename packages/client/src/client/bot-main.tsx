@@ -1911,7 +1911,10 @@ function ConversationView({
   const skillCatalogMount = useMountedResource<HTMLSpanElement>(() => {
     let cancelled = false;
     setSkillCatalog(undefined);
-    if (channel?.type === 'dm' && channel.botSlug !== undefined && actions.skillCatalog)
+    if (
+      ((channel?.type === 'dm' && channel.botSlug !== undefined) || channel?.type === 'group') &&
+      actions.skillCatalog
+    )
       void actions
         .skillCatalog(channel.id)
         .then((skills) => {
@@ -1921,7 +1924,7 @@ function ConversationView({
     return () => {
       cancelled = true;
     };
-  }, [scopeKey, channelId]);
+  }, [scopeKey, channelId, previewRoster]);
   const skillOptions: ComposerSkillOption[] = (skillCatalog ?? []).map((entry) => ({
     ...entry,
     bot:
@@ -2801,10 +2804,15 @@ function ConversationView({
         if (!failedEcho) {
           if (attempt !== undefined && submittedFor !== undefined)
             actions.submissions.cancel(submittedFor, attempt.id);
-          setDraft((current) => current || body);
+          let draftRestored = false;
+          setDraft((current) => {
+            draftRestored = current.length === 0;
+            return current || body;
+          });
           setMentionTokens((current) => (current.length > 0 ? current : submittedMentions));
           setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
-          setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
+          if (draftRestored)
+            setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
           setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
         }
       }
@@ -2822,7 +2830,11 @@ function ConversationView({
         store.setConversation({ error: undefined });
         setAllBotNotice(t('composer.allBotsChanged'));
         setAllBotPreview(preview);
-        setDraft((current) => current || body);
+        let draftRestored = false;
+        setDraft((current) => {
+          draftRestored = current.length === 0;
+          return current || body;
+        });
         setMentionTokens((current) =>
           current.length > 0
             ? current
@@ -2831,6 +2843,8 @@ function ConversationView({
               ),
         );
         setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
+        if (draftRestored)
+          setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
         setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
       } else throw error;
     } finally {
