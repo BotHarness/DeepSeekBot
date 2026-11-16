@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Guard for the Tobs design system migration (#4282). Bot-mode client code must not add new
-// DSH design-token references or DSH UI imports, and feature code composes ds/ components
-// instead of styling raw controls. Existing uses live in a baseline that only shrinks.
-//   node scripts/check-design-tokens.mjs          check
-//   node scripts/check-design-tokens.mjs --write  rewrite the baseline after removing uses
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';

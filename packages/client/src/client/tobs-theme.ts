@@ -2,11 +2,6 @@ import { BUBBLE_SURFACES, readable } from './bot-name-color.js';
 import type { AppearanceMode, AppearancePreset } from './appearance.js';
 import { TOBS_ACCENTS, TOBS_TOKENS } from './ds/tobs-tokens.generated.js';
 
-/**
- * Tobs custom properties for one colour scheme (#4282). The scheme comes from the Appearance
- * preference only, never from DSH's dark flag. A preset swaps the accent family; the default
- * preset keeps the hand-tuned hover, tint and ink from the token source.
- */
 export function tobsTokens(
   mode: AppearanceMode,
   preset: AppearancePreset,

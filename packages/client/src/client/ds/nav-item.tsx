@@ -3,8 +3,6 @@ import * as stylex from '@stylexjs/stylex';
 
 import { accent, edge, ink, radius, size, space, state, status, type } from './tobs.stylex.js';
 
-// Alignment contract (#4282): [inset][icon slot][gap][label column][trailing].
-// A heading has no icon but starts its text on the same label column.
 const INSET = space.x3;
 const GAP = space.x3;
 
@@ -92,15 +90,12 @@ export interface NavItemProps {
   readonly icon?: ReactNode;
   readonly label: string;
   readonly current?: boolean;
-  /** Accessible name of the attention dot; the dot shows only when set. */
   readonly attention?: string | undefined;
   readonly trailing?: ReactNode;
-  /** Extra `data-*` attributes for callers that locate or autofocus the row. */
   readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
   readonly onSelect: () => void;
 }
 
-/** One navigation row. The icon always sits in a fixed slot so labels share one column. */
 export function NavItem({
   icon,
   label,
@@ -134,7 +129,6 @@ export function NavItem({
   );
 }
 
-/** A group label above navigation rows, aligned to the rows' label column. */
 export function NavGroupHeading({
   label,
   trailing,
