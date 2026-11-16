@@ -145,9 +145,18 @@ try {
     require.resolve('playwright', {
       paths: [
         root,
-        process.platform === 'win32'
-          ? join(dirname(process.execPath), 'node_modules')
-          : join(dirname(process.execPath), '..', 'lib', 'node_modules'),
+        ...[
+          process.env.npm_config_prefix,
+          process.platform === 'win32'
+            ? dirname(process.execPath)
+            : join(dirname(process.execPath), '..'),
+        ]
+          .filter(Boolean)
+          .map((prefix) =>
+            process.platform === 'win32'
+              ? join(prefix, 'node_modules')
+              : join(prefix, 'lib', 'node_modules'),
+          ),
       ],
     }),
   );
@@ -185,19 +194,20 @@ try {
     });
   check('rendered member list shows the public Channel without a join step', null);
 
-  run(['members', 'roles', bob, '--set', `member,${finance}`]);
-  assert.deepEqual(channelIds(bob), [books, lobby].sort());
-  check('granting the role joins the role Channel', null);
-  const grantedCookies = await signIn(bob);
-  for (const scheme of ['light', 'dark'])
-    await capture('member-granted', scheme, grantedCookies, async (page) => {
+  for (const scheme of ['light', 'dark']) {
+    run(['members', 'roles', bob, '--set', 'member']);
+    await capture('member-granted', scheme, bobCookies, async (page) => {
+      assert.equal(await page.locator('text=Books >> visible=true').count(), 0);
+      run(['members', 'roles', bob, '--set', `member,${finance}`]);
       await page.locator('text=Books >> visible=true').first().waitFor({ timeout: 30_000 });
     });
+    assert.deepEqual(channelIds(bob), [books, lobby].sort());
+  }
+  check('granting the role joins the role Channel and shows it without a reload', null);
 
   for (const scheme of ['light', 'dark']) {
     run(['members', 'roles', bob, '--set', `member,${finance}`]);
-    const cookies = await signIn(bob);
-    const revoked = await capture('member-revoked-open', scheme, cookies, async (page) => {
+    const revoked = await capture('member-revoked-open', scheme, bobCookies, async (page) => {
       await page.locator('text=Books >> visible=true').first().click();
       await page.waitForTimeout(1500);
       run(['members', 'roles', bob, '--set', 'member']);
