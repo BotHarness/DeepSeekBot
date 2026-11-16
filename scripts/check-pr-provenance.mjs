@@ -98,6 +98,7 @@ async function main() {
   const item = event.pull_request ?? event.issue;
   const repo = event.repository.full_name;
   const labels = item.labels.map((label) => label.name);
+  const fork = (event.pull_request?.head.repo?.full_name ?? repo) !== repo;
   const result = plan({
     body: item.body,
     labels,
@@ -111,6 +112,12 @@ async function main() {
     await github(`/repos/${repo}/issues/${item.number}/labels`, {
       method: 'POST',
       body: JSON.stringify({ labels: result.add }),
+    }).catch((error) => {
+      if (!fork) throw error;
+      result.warnings.push(
+        `a fork's token cannot label; a maintainer adds ${result.add.join(', ')} (${error.message})`,
+      );
+      result.add = [];
     });
   for (const warning of result.warnings) console.log(`::warning::${warning}`);
   for (const error of result.errors) console.log(`::error::${error}`);
