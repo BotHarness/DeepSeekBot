@@ -106,7 +106,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
         ? items.map((item) =>
             createElement(
               'button',
-              { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
+              {
+                key: item.id,
+                role: 'menuitem',
+                onClick: () => onSelect(item.id),
+              },
               item.label,
             ),
           )
@@ -177,7 +181,11 @@ function mount(
           owner: { close(): void; clientOnly?: boolean },
           options?: { only?: string },
         ) => {
-          rendered.push({ id: options?.only, close: owner.close, clientOnly: owner.clientOnly });
+          rendered.push({
+            id: options?.only,
+            close: owner.close,
+            clientOnly: owner.clientOnly,
+          });
           return createElement('p', { 'data-section': options?.only }, `section:${options?.only}`);
         }) as never,
       }),
@@ -234,7 +242,11 @@ function remoteEnvironments(): SettingsEnvironments & { unpair(): void } {
 }
 
 function fullRows(): BotSettingsSectionRow[] {
-  return Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id }));
+  return Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+    id,
+    order,
+    label: id,
+  }));
 }
 
 function current(): string | null {
@@ -526,7 +538,10 @@ it('routes the phone entry to Connections while keeping ordinary settings indepe
     pairPhone: false,
   });
   settings.select('general');
-  expect(settings.getSnapshot()).toMatchObject({ sectionId: 'general', pairPhone: false });
+  expect(settings.getSnapshot()).toMatchObject({
+    sectionId: 'general',
+    pairPhone: false,
+  });
 });
 
 it('opens Connections outside the settings sidebar and passes the phone intent to its shared surface', () => {
@@ -568,7 +583,10 @@ it('limits App preferences navigation and section mounting to Client-local owner
   act(() => settings.select('voice'));
   expect(shownSection()).toBe('appearance');
   act(() => settings.select('notifications'));
-  expect(rendered.at(-1)).toMatchObject({ id: 'notifications', clientOnly: true });
+  expect(rendered.at(-1)).toMatchObject({
+    id: 'notifications',
+    clientOnly: true,
+  });
   act(() => settings.open('models'));
   expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Bot 设置');
   expect(navLabels()).toContain('voice');
@@ -582,7 +600,11 @@ it('intersects member access with Client preferences for navigation, search and 
   const settings = new BotSettings();
   mount(
     settings,
-    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id })),
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
   );
   act(() => settings.openClientPreferences());
   expect(navLabels()).toEqual(['appearance', 'notifications', 'shortcuts']);
@@ -605,7 +627,11 @@ it('lists device preferences under This device and Host options under the curren
   const settings = new BotSettings();
   mount(
     settings,
-    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id })),
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
   );
   act(() => settings.open('appearance'));
   expect(groupHeadings()).toEqual(['此设备', '本机']);
@@ -621,7 +647,11 @@ it('switches the Host group to a remote Host from the top-right switcher and kee
   const settings = new BotSettings();
   mount(
     settings,
-    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id })),
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
     remoteEnvironments(),
   );
   act(() => settings.open('models'));
@@ -665,7 +695,11 @@ it('asks before leaving a remote Host with unsaved model changes', async () => {
   const settings = new BotSettings();
   mount(
     settings,
-    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id })),
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
     remoteEnvironments(),
   );
   act(() => settings.open('models'));
@@ -717,11 +751,24 @@ it('keeps a selected remote Host open after it leaves the paired list', async ()
   mount(settings, fullRows(), environments);
   act(() => settings.open('models'));
   await click('[data-env="studio"]');
-  act(() => environments.unpair());
-  expect(document.querySelector('[data-remote-models]')?.getAttribute('data-remote-models')).toBe(
-    'studio',
-  );
-  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+  const release = hostSettingsDrafts.register('studio', {
+    dirty: () => true,
+    save: async () => true,
+    discard: () => undefined,
+  });
+  try {
+    act(() => environments.unpair());
+    expect(document.querySelector('[data-remote-models]')?.getAttribute('data-remote-models')).toBe(
+      'studio',
+    );
+    expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+    expect(hostSettingsDrafts.hasDirty('studio')).toBe(true);
+    await click('[data-env="local"]');
+    expect(document.body.textContent).toContain('保存并切换');
+    expect(document.querySelector('[data-remote-models]')).not.toBeNull();
+  } finally {
+    release();
+  }
 });
 
 it('drops an open unsaved-changes prompt when Settings closes from elsewhere', async () => {
