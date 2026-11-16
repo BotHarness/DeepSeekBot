@@ -68,6 +68,7 @@ describe('Bot settings shortcut', () => {
       open: true,
       sectionId: 'shortcuts',
       pairPhone: false,
+      joinComputer: false,
     });
     let changes = 0;
     botSettings.subscribe(() => {
