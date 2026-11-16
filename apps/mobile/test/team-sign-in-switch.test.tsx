@@ -44,10 +44,10 @@ const session = vi.hoisted(() => ({
 vi.mock('../src/host/host-session', () => ({ hostSession: session }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
 const revokePairing = vi.hoisted(() => vi.fn(async () => 'revoked' as const));
-vi.mock('../src/host/pairing', () => ({ revokePairing }));
+vi.mock('@botharness/host-client/pairing', () => ({ revokePairing }));
 const dialog = vi.hoisted(() => vi.fn());
 vi.mock('../src/ui/primitives/app-dialog', () => ({ showAppDialog: dialog }));
-vi.mock('../src/host/team-client', () => ({
+vi.mock('@botharness/host-client/team-client', () => ({
   parseTeamInvitation: () => ({
     ok: true,
     value: { host: { name: 'Studio' }, username: 'bob' },

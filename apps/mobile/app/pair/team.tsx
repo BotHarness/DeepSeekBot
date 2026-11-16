@@ -6,7 +6,7 @@ import { Platform, View } from 'react-native';
 import { hostSession } from '../../src/host/host-session';
 import type { SavedHost } from '@botharness/host-client/hosts';
 import { nativeCarrier } from '../../src/host/native-carrier';
-import { revokePairing } from '../../src/host/pairing';
+import { revokePairing } from '@botharness/host-client/pairing';
 import {
   changeTeamDevicePassword,
   parseTeamInvitation,
