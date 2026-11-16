@@ -1,0 +1,21 @@
+{
+  "path": "/Users/doodlebear/.t3/worktrees/BotHarness/t3-a3a3672b-bd4249754583aa71",
+  "branch": "s2-fixes2",
+  "head": "e942d795feccdee89d105e99cfd99ccd589c9f57",
+  "merge_head": null,
+  "changed": [
+    "changes/4233-group-skill-delivery-fixes.md",
+    "packages/core/src/runtime/bot-runtime.ts",
+    "packages/core/test/skill-invocation.test.ts"
+  ],
+  "hashes": {
+    "changes/4233-group-skill-delivery-fixes.md": "3cdd650c36b16fbc06c0192e9c9f2838eca000d245c3fe1c518d4e6322e74d82",
+    "packages/core/src/runtime/bot-runtime.ts": "c28e1734683ddaa352ed4c61e770c839814c908ca98093497adbda026ed003a1",
+    "packages/core/test/skill-invocation.test.ts": "963401a012eb5014fa97ad083c31f2e99d6b7c61372f4b860f536c256e62a6ed"
+  },
+  "status_hex": "204d206368616e6765732f343233332d67726f75702d736b696c6c2d64656c69766572792d66697865732e6d6400204d207061636b616765732f636f72652f7372632f72756e74696d652f626f742d72756e74696d652e747300204d207061636b616765732f636f72652f746573742f736b696c6c2d696e766f636174696f6e2e746573742e747300",
+  "unmerged": "",
+  "label": "skills-s2-review-wip",
+  "checkpoint_kind": "UNVALIDATED_SOURCE_SNAPSHOT",
+  "recorded_at": "2026-11-16T05:28:22.543168+00:00"
+}
