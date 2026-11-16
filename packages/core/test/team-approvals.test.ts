@@ -1,4 +1,5 @@
 import { questionAnswerReceipts } from '../src/channels/question-answer-receipts.js';
+import type { ConfinementStatus } from '../src/execution/linux-confinement.js';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -1680,6 +1681,31 @@ describe('M5 approval projections and decisions', () => {
       isolation: 'trial',
       viewer: { kind: 'owner' },
     });
+  });
+
+  it('reports enforced isolation only while both file and network confinement are active', async () => {
+    const f = fixture();
+    let status: ConfinementStatus | undefined = {
+      enforcement: 'full',
+      filesystem: true,
+      network: true,
+      missing: [],
+    };
+    f.team.bindConfinement(() => status);
+    expect(await f.invoke(owner, 'teamMode', {})).toMatchObject({
+      isolation: 'enforced',
+      confinement: { enforcement: 'full' },
+    });
+    const member = (await f.invoke(bob, 'teamMode', {})) as Record<string, unknown>;
+    expect(member).toMatchObject({ isolation: 'enforced' });
+    expect(member).not.toHaveProperty('confinement');
+    status = { enforcement: 'partial', filesystem: true, network: false, missing: ['slirp4netns'] };
+    expect(await f.invoke(owner, 'teamMode', {})).toMatchObject({
+      isolation: 'trial',
+      confinement: { missing: ['slirp4netns'] },
+    });
+    status = undefined;
+    expect(await f.invoke(bob, 'teamMode', {})).toMatchObject({ isolation: 'trial' });
   });
 });
 

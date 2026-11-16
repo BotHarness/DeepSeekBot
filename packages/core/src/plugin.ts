@@ -349,6 +349,7 @@ import {
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
 import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
+import { installMemberConfinement, MemberConfinement } from './execution/member-confinement.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
   createAssignmentAccessStore,
@@ -2214,6 +2215,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     undefined,
     secretMcpStore,
     diagnosticEvents,
+  );
+  const memberConfinement = new MemberConfinement(core, dshHome);
+  installMemberConfinement(ctx, memberConfinement);
+  core.team.bindConfinement(() =>
+    process.platform === 'linux' ? memberConfinement.status() : undefined,
   );
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   mountTakeoverTools(ctx, core, takeovers);

@@ -25,7 +25,7 @@ Human 在 2026-11-13 完成 Q1–Q35 并确认的目标设计，不代表已实�
 敲定的范围：
 
 - M12 之前，Team mode 以轻量**试用**形态开放：只显示一句告知"成员的 Bot 技术上能读到这台 Host 上其他 Bot 的数据"，不对 Shell 做逐次审批；成员 Bot 不能升级，也不能用 `danger-full-access`（M5）。
-- **M12**：Linux 执行隔离。给 DSH 的 bwrap 包一层 `runnerCommand` 脚本，隐藏 `DSH_HOME`、各空间目录和 `/home`，只挂回这个 Session 有权访问的目录；网络命名空间拒绝本机、链路本地地址、私有网段和 tailnet；解析不到 Session 时拒绝执行。机密放在 Host 上，所以结束试用之前必须完成 M12。
+- **M12**：Linux 执行隔离。BotHarness 包装 `ctx.sandbox.confine`，而不是设置 `runnerCommand`，因为只有 `confine` 能拿到调用方的 `sessionId`。成员 Bot 的命令运行在 bwrap 里：隐藏 `DSH_HOME`、Host 用户主目录、`/home`、`/root`、`/run`、`/mnt`、`/media`、`/srv`、其他 Bot 的 Memory 和这个 Session 之外的所有 Workspace，再只挂回 Session 有权访问的目录（`sessionRoots`，与 `currentRoots(session, kind)` 同一套计算）、Bot Memory 旁边的私有 `HOME`，以及 `PATH` 里的 Host 工具目录。看起来像密钥的环境变量在沙箱内被移除。用户和网络命名空间配合 slirp4netns 与 nftables：允许公网和 DNS，拒绝 Host 本机、链路本地、RFC1918、`100.64.0.0/10` 和组播地址。Team mode 开启时，没有调用方 Session 的命令一律拒绝；归属已知但 Bot 或目录解析不到的 Session 也拒绝，绝不放宽。只有探测到 bwrap 和网络命名空间都可用时 `isolation` 才变为 `enforced`；否则继续显示试用告知，Owner 的 `team-mode status` 会在 `confinement.missing` 里列出缺少的组件。机密放在 Host 上，所以结束试用之前必须完成 M12。
 - 账号空间（`spaces/<humanId>`）和按受众划分的共享空间（如 `shared/team`、`shared/finance`）；每个空间里，Bot 的 Memory（`bots/<slug>/memory`）和可以授权的 `files/` 目录分开存放。
 - 不在范围内：账号配额，macOS 和 Windows 的隔离（macOS 上的 Team Host 一直显示试用告知），部署检查脚本，microVM，每个成员一个 OS 用户或容器。高敏感数据建议放在单独的 Host 上。
 
