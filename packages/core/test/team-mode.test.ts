@@ -4,6 +4,7 @@ import {
   pairHost,
 } from '../../../apps/mobile/src/host/pairing.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
+import { memberRoutes } from '../src/team/member-urls.js';
 import { createMemberDevices } from '../src/team/devices.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
@@ -31,6 +32,7 @@ import { createChannelManagement } from '../src/channels/management.js';
 import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { stampConnectRoute } from '../src/devices/route-context.js';
 import { createTeamHttp, passwordTransportAllowed, TEAM_PATH } from '../src/team/http.js';
+import { createManagedTlsIngress } from '../src/devices/managed-tls-ingress.js';
 import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
@@ -70,7 +72,9 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}) {
+function teamFixture(
+  options: { urls?: () => string[]; routes?: () => Promise<string[]>; now?: () => number } = {},
+) {
   const root = createTempRoot('team-mode-');
   const registry = createTestRegistry({ rootDir: root });
   const db = registryDatabase(root);
@@ -153,7 +157,9 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     team,
     pairing,
     encryption: async () => encryption,
-    routes: async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080'],
+    routes:
+      options.routes ??
+      (async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080']),
     ...(options.now ? { now: options.now } : {}),
   });
   const unbindDevices = team.bindDevices(devices);
@@ -1499,7 +1505,15 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
       Object.defineProperty(socket, 'remoteAddress', { value: address });
       const request = new IncomingMessage(socket);
       expect(passwordTransportAllowed(request, { team: f.team, tls: () => false })).toBe(true);
-      for (const name of ['forwarded', 'x-forwarded-for', 'x-real-ip', 'via']) {
+      for (const name of [
+        'forwarded',
+        'x-forwarded-for',
+        'x-forwarded-proto',
+        'x-forwarded-host',
+        'x-forwarded-port',
+        'x-real-ip',
+        'via',
+      ]) {
         request.headers = {
           [name]: '',
           'x-forwarded-proto': 'https',
@@ -1530,6 +1544,38 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
       expect((await plain.signIn('bob', f.initialPassword, headers)).status).toBe(200);
     },
   );
+  it('admits browser sign-in only through the managed listener and uses HTTPS origin and Secure cookies', async () => {
+    const f = await enabledFixture();
+    const main = await memberHttp(f);
+    const ingress = createManagedTlsIngress({ port: Number(new URL(main.origin).port) });
+    closes.push(() => ingress.close());
+    const origin = `http://127.0.0.1:${await ingress.start()}`;
+    const headers = {
+      'x-forwarded-for': '192.0.2.5',
+      'x-forwarded-proto': 'https',
+      'x-botharness-device-route': 'managed-tls',
+    };
+    for (const tag of ['managed-tls', 'connect', 'tailscale']) {
+      const denied = await main.signIn('bob', f.initialPassword, {
+        ...headers,
+        'x-botharness-device-route': tag,
+      });
+      expect(denied.status).toBe(403);
+      expect(await denied.json()).toEqual({ code: 'insecure-transport' });
+    }
+    const result = await fetch(`${origin}${TEAM_PATH}/sign-in`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        origin: origin.replace('http:', 'https:'),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ username: 'bob', password: f.initialPassword }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.headers.get('set-cookie')).toContain('; Secure');
+    expect(await result.json()).toMatchObject({ humanId: f.human.humanId });
+  });
   it('serves the nonce-protected sign-in page and loopback member cookie, then dispatches calls as the member', async () => {
     const f = await enabledFixture();
     const http = await memberHttp(f);
@@ -1755,7 +1801,7 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
 });
 
 describe('member entry addresses', () => {
-  it('offers only non-loopback HTTPS or explicitly allowed LAN HTTP addresses', () => {
+  it('offers only non-loopback HTTPS addresses even with the insecure HTTP opt-in', () => {
     const entry = (origin: string) => `${origin}${TEAM_PATH}/`;
     const https = [
       'https://192.168.1.20:5050',
@@ -1787,7 +1833,7 @@ describe('member entry addresses', () => {
     });
     expect(f.team.mode(owner).memberUrls).toEqual(https);
     f.team.setInsecureHttp(owner, true);
-    expect(f.team.mode(owner).memberUrls).toEqual([...https, ...lan]);
+    expect(f.team.mode(owner).memberUrls).toEqual(https);
     f.team.setInsecureHttp(owner, false);
     expect(f.team.mode(owner).memberUrls).toEqual(https);
     const local = teamFixture({ urls: () => [entry('http://127.0.0.1:5050')] });
@@ -1896,7 +1942,94 @@ async function memberDeviceHost(
   return { origin, post, signIn, mintOwner, carrier };
 }
 
+it('admits M8 device passwords through managed TLS ingress and refuses forged main-port headers', async () => {
+  const f = await enabledFixture();
+  const main = await memberDeviceHost(f, { tls: false });
+  const ingress = createManagedTlsIngress({ port: Number(new URL(main.origin).port) });
+  closes.push(() => ingress.close());
+  const origin = `http://127.0.0.1:${await ingress.start()}`;
+  const headers = {
+    'content-type': 'application/json',
+    'x-forwarded-for': '192.0.2.5',
+    'x-forwarded-proto': 'https',
+    'x-botharness-device-route': 'managed-tls',
+  };
+  const body = JSON.stringify({
+    username: 'bob',
+    password: f.initialPassword,
+    deviceName: 'Phone',
+    fingerprint: f.encryption.fingerprint,
+  });
+  const path = '/botharness-device/team/device-sign-in';
+  for (const tag of ['managed-tls', 'connect', 'tailscale']) {
+    const denied = await fetch(`${main.origin}${path}`, {
+      method: 'POST',
+      headers: { ...headers, 'x-botharness-device-route': tag },
+      body,
+    });
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({ code: 'insecure-transport' });
+  }
+  const allowed = await fetch(`${origin}${path}`, { method: 'POST', headers, body });
+  expect(allowed.status).toBe(200);
+  const signed = await allowed.json();
+  expect(signed).toMatchObject({
+    humanId: f.human.humanId,
+    credential: expect.stringMatching(/^member\./u),
+  });
+  const password = await fetch(`${origin}/botharness-device/team/device-password`, {
+    method: 'POST',
+    headers: { ...headers, authorization: `Device ${signed.credential}` },
+    body: JSON.stringify({ current: f.initialPassword, next: 'new-member-password-1' }),
+  });
+  expect(password.status).toBe(200);
+  expect(main.mintOwner).not.toHaveBeenCalled();
+});
+
 describe('member devices', { timeout: 60_000 }, () => {
+  it('uses the same eligible routes for status, invitations and member pairing offers', async () => {
+    let trusted = false;
+    const f = await enabledFixture({
+      routes: async () =>
+        memberRoutes('http://127.0.0.1:3080', {
+          tailscale: 'running',
+          serveCommand: '',
+          routes: [
+            {
+              url: 'https://fixture.tail.ts.net',
+              kind: 'tailscale',
+              ready: true,
+              memberSignIn: trusted ? 'managed-tls' : 'untrusted',
+            },
+            { url: 'https://habcdefghijkl.deepseekbot.dev', kind: 'connect', ready: true },
+            { url: 'http://192.168.0.2:3080', kind: 'lan', ready: true },
+          ],
+        }),
+    });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    for (const enabled of [false, true, false]) {
+      trusted = enabled;
+      const expected = [
+        ...(trusted ? ['https://fixture.tail.ts.net'] : []),
+        'https://habcdefghijkl.deepseekbot.dev',
+      ];
+      expect(await f.methods(owner).teamMode({})).toMatchObject({
+        ok: true,
+        value: { memberUrls: expected.map((origin) => `${origin}${TEAM_PATH}/`) },
+      });
+      const invitation = await f.team.invitation(owner, f.human.humanId);
+      const encoded = new URL(invitation.link).searchParams.get('i');
+      expect(encoded).toBeTruthy();
+      expect(JSON.parse(Buffer.from(encoded ?? '', 'base64url').toString()).routes).toEqual(
+        expected,
+      );
+      const offer = await f.devices.pairingOffer(f.human.humanId);
+      expect(parsePairingLink(offer.link)).toMatchObject({
+        ok: true,
+        payload: { routes: expected },
+      });
+    }
+  });
   it('issues a secret-free invitation with member-management authority and self-pairing only for the caller', async () => {
     const f = await enabledFixture();
     const invitation = await f.team.invitation(owner, f.human.humanId);

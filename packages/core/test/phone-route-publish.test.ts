@@ -1,3 +1,4 @@
+import { fixedIngress } from './support/phone-route-ingress.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDevicesHttp } from '../src/devices/http.js';
@@ -41,6 +42,7 @@ describe('publishing the phone route', () => {
     const fake = tailscale();
     let release: (() => void) | undefined;
     const owner = createManagedPhoneRoute({
+      ingress: fixedIngress(4100),
       port: 4100,
       run: fake.run,
       read: async () => undefined,
@@ -69,6 +71,7 @@ describe('publishing the phone route', () => {
     };
     const create = () =>
       createManagedPhoneRoute({
+        ingress: fixedIngress(4100),
         port: 4100,
         run,
         read: async () => state,
@@ -106,6 +109,7 @@ describe('publishing the phone route', () => {
     };
     const { run, calls } = tailscale({ serve: SERVED.replace('4100', '3000') });
     const manager = createManagedPhoneRoute({
+      ingress: fixedIngress(4100),
       port: 4100,
       run,
       read: async () => state,
@@ -123,6 +127,7 @@ describe('publishing the phone route', () => {
     const { run, calls } = tailscale({ serve: SERVED });
     let state: ManagedPhoneRouteState | undefined;
     const manager = createManagedPhoneRoute({
+      ingress: fixedIngress(4100),
       port: 4100,
       run,
       read: async () => state,
@@ -289,10 +294,21 @@ describe('phone-route CLI', () => {
 
   it('reads the route status from the devices snapshot', async () => {
     const http = vi.fn(async () =>
-      reply({ devices: [{ id: 'd' }], routes: { tailscale: 'running' } }),
+      reply({
+        devices: [{ id: 'd' }],
+        routes: {
+          tailscale: 'running',
+          managed: { enabled: true, owned: true, trustedIngress: true },
+          routes: [{ kind: 'tailscale', ready: true, memberSignIn: 'managed-tls' }],
+        },
+      }),
     );
     expect(await runPhoneRouteCommand('phone-route', [], {}, async () => ({ http }))).toEqual({
-      routes: { tailscale: 'running' },
+      routes: {
+        tailscale: 'running',
+        managed: { enabled: true, owned: true, trustedIngress: true },
+        routes: [{ kind: 'tailscale', ready: true, memberSignIn: 'managed-tls' }],
+      },
     });
     expect(http).toHaveBeenCalledWith('/api/botharness/devices');
   });
