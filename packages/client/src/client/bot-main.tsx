@@ -2804,10 +2804,15 @@ function ConversationView({
         if (!failedEcho) {
           if (attempt !== undefined && submittedFor !== undefined)
             actions.submissions.cancel(submittedFor, attempt.id);
-          setDraft((current) => current || body);
+          let draftRestored = false;
+          setDraft((current) => {
+            draftRestored = current.length === 0;
+            return current || body;
+          });
           setMentionTokens((current) => (current.length > 0 ? current : submittedMentions));
           setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
-          setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
+          if (draftRestored)
+            setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
           setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
         }
       }
@@ -2825,7 +2830,11 @@ function ConversationView({
         store.setConversation({ error: undefined });
         setAllBotNotice(t('composer.allBotsChanged'));
         setAllBotPreview(preview);
-        setDraft((current) => current || body);
+        let draftRestored = false;
+        setDraft((current) => {
+          draftRestored = current.length === 0;
+          return current || body;
+        });
         setMentionTokens((current) =>
           current.length > 0
             ? current
@@ -2834,7 +2843,8 @@ function ConversationView({
               ),
         );
         setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
-        setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
+        if (draftRestored)
+          setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
         setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
       } else throw error;
     } finally {
