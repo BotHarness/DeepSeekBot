@@ -686,6 +686,18 @@ describe('Host client', () => {
     expect(count('settings/describe')).toBe(2);
   });
 
+  it('stays connected with the Host default sorting when the Host refuses settings to a member', async () => {
+    const host = new FakeHost();
+    host.methods.set('settings/describe', () => {
+      throw Object.assign(new Error('remote access: settings/describe: access denied'), {
+        code: 'remote-access/denied',
+      });
+    });
+    const target = connect(host);
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(target.getSnapshot().roster?.sorting).toBeUndefined();
+  });
+
   it('does not reuse a roster arrangement whose last read failed', async () => {
     const host = new FakeHost();
     const target = connect(host);

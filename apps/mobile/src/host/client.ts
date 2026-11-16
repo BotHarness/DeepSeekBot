@@ -984,7 +984,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const readSorting = (): Promise<RosterSorting | undefined> => {
     fetchedSorting = undefined;
     return call<unknown>('settings/describe')
-      .then(rosterSortingOf)
+      .then(rosterSortingOf, (error: unknown) => {
+        if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
+        throw error;
+      })
       .then((value) => {
         fetchedSorting = { value, at: Date.now() };
         return value;
