@@ -1477,4 +1477,54 @@ describe('Uploaded Bots in the Market panel', () => {
       },
     );
   });
+
+  it('lists the package Skills with their descriptions and opens SKILL.md', async () => {
+    const file = vi.fn(async (_id: string, path: string) => ({
+      path,
+      size: 60,
+      type: 'markdown',
+      text:
+        path === '.dsh/skills/review/SKILL.md'
+          ? '---\nname: review\ndescription: Review a pull request\n---\nCheck tests.'
+          : '---\nname: notes\ndescription: Keep notes\n---\nWrite notes.',
+    }));
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host }) => {
+        await click(host, '查看 Alice/Helper 详情');
+        await act(async () => {});
+        const block = host.querySelector('[data-market-skills]')!;
+        expect(block.getAttribute('data-market-skills')).toBe('2');
+        expect(
+          [...block.querySelectorAll('[data-skill-row]')].map((row) => row.textContent),
+        ).toEqual(['/notesKeep notes', '/reviewReview a pull request']);
+        await act(async () => {
+          block.querySelector<HTMLElement>('[data-skill-row="review"]')!.click();
+        });
+        await act(async () => {});
+        expect(file).toHaveBeenCalledWith('U_helper', '.dsh/skills/review/SKILL.md');
+        expect(host.querySelector('[data-market-reader]')?.getAttribute('data-market-reader')).toBe(
+          '.dsh/skills/review/SKILL.md',
+        );
+        const body = host.querySelector('[data-market-reader-body="markdown"]')!.textContent;
+        expect(body).toContain('Check tests.');
+        expect(body).not.toContain('description:');
+      },
+      {
+        marketplaceFile: file,
+        marketplaceDetail: vi.fn(async () => ({
+          bot: uploaded,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [
+            { path: 'SOUL.md', size: 20, kind: 'text' },
+            { path: '.agents/skills/review/SKILL.md', size: 60, kind: 'text' },
+            { path: '.dsh/skills/review/SKILL.md', size: 60, kind: 'text' },
+            { path: '.agents/skills/notes.md', size: 60, kind: 'text' },
+          ],
+        })),
+      },
+    );
+  });
 });

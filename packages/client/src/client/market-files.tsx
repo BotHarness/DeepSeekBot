@@ -186,6 +186,12 @@ type ReaderState =
   | { status: 'error'; cause: unknown }
   | { status: 'ready'; file: MarketplaceFileView };
 
+const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/u;
+
+export function markdownBody(text: string): string {
+  return text.replace(FRONTMATTER, '');
+}
+
 export function MarketplaceFileReader({
   actions,
   botId,
@@ -248,7 +254,7 @@ export function MarketplaceFileReader({
       ) : null}
       {state.status === 'ready' && state.file.type === 'markdown' ? (
         <div className="bh-market-readme" data-market-reader-body="markdown">
-          <MarkdownText text={state.file.text} labels={labels} />
+          <MarkdownText text={markdownBody(state.file.text)} labels={labels} />
         </div>
       ) : null}
       {state.status === 'ready' && state.file.type !== 'markdown' ? (
