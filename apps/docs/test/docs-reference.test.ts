@@ -98,6 +98,8 @@ describe("generated developer reference", () => {
     ).toEqual([
       { name: "agent/assistant-stream", direction: "consumes", operation: "on" },
       { name: "agent/created", direction: "consumes", operation: "on" },
+      { name: "agent/created", direction: "consumes", operation: "on" },
+      { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/inbox/claimed", direction: "consumes", operation: "on" },
