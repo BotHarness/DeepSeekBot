@@ -4,7 +4,16 @@ import { createAttachmentStore } from '../src/attachments/store.js';
 import { DatabaseSync } from 'node:sqlite';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { RELATIONSHIP_ACTIONS } from '../src/devices/relationship-http.js';
+import {
+  createRelationshipHttp,
+  RELATIONSHIP_ACTIONS,
+  RELATIONSHIPS_PATH,
+} from '../src/devices/relationship-http.js';
+import { createHostRelationships } from '../src/devices/relationships.js';
+import { createRelationshipControl } from '../src/devices/relationship-control.js';
+import { noiseFingerprint, noisePublicKey, NOISE_PROTOCOL } from '../src/devices/noise/xk.js';
+import { CONNECT_PROTOCOL } from '../src/devices/noise/channel.js';
+import { randomBytes } from 'node:crypto';
 import { createServer, IncomingMessage, request as httpRequest } from 'node:http';
 import { Socket } from 'node:net';
 import { readFileSync } from 'node:fs';
@@ -16,7 +25,7 @@ import { stampConnectRoute } from '../src/devices/route-context.js';
 import { createTeamHttp, passwordTransportAllowed, TEAM_PATH } from '../src/team/http.js';
 import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
-import { Peer } from '@deepseek-ai/dsh-client-connection';
+import { API_PATH, HostConnectionService, Peer } from '@deepseek-ai/dsh-client-connection';
 import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
 import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
@@ -1310,6 +1319,99 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
       ).toEqual([]);
     },
   );
+  it('refuses Member and Admin peers at the DSH shared fetch gate for the registered relationship route', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const admin = await f.team.createMember(owner, 'carol', 'Carol');
+    await f.team.changePassword(
+      humanContext(admin.member.humanId),
+      admin.initialPassword,
+      'admin-password-1',
+    );
+    f.team.roles.set(owner, admin.member.humanId, ['admin']);
+    const pairing = createDevicePairing({
+      database: f.database,
+      hostName: 'Test',
+      ownerHumanId: () => f.team.ownerContext().humanId,
+    });
+    const relationships = createHostRelationships({ database: f.database, pairing });
+    const privateKey = randomBytes(32);
+    const publicKey = noisePublicKey(privateKey);
+    const control = createRelationshipControl({
+      relationships,
+      pairing,
+      identity: {
+        key: async () => Uint8Array.from(privateKey),
+        publicIdentity: async () => ({
+          protocol: CONNECT_PROTOCOL,
+          noise: NOISE_PROTOCOL,
+          required: true,
+          publicKey: Buffer.from(publicKey).toString('hex'),
+          fingerprint: noiseFingerprint(publicKey),
+        }),
+      },
+      routes: async () => ['http://127.0.0.1:1'],
+    });
+    closes.push(async () => control.close());
+    const reached = vi.fn(createRelationshipHttp(control));
+    const connection = new HostConnectionService(f.ctx, ['localhost'], {} as never);
+    connection.fetch.register({
+      path: RELATIONSHIPS_PATH,
+      methods: ['GET', 'POST'],
+      requestBody: 'buffered',
+      fetch: reached,
+    });
+    const shared = connection.createSharedFetchHandler(API_PATH);
+    const call = (peer: Peer, action: string) =>
+      shared.fetch(
+        new Request(`http://localhost${RELATIONSHIPS_PATH}`, {
+          method: action === 'list' ? 'GET' : 'POST',
+          headers: { 'content-type': 'application/json' },
+          ...(action === 'list'
+            ? {}
+            : {
+                body: JSON.stringify({
+                  action,
+                  id: 'a'.repeat(32),
+                  link: 'https://example.invalid/pair',
+                  confirmedKey: 'b'.repeat(64),
+                  publicKey: 'c'.repeat(64),
+                  name: 'Laptop',
+                  generation: 'g1',
+                  confirm: true,
+                }),
+              }),
+        }),
+        peer,
+      );
+    const bob = await f.team.signIn('bob', 'member-password-1', '127.0.0.1');
+    const carol = await f.team.signIn('carol', 'admin-password-1', '127.0.0.1');
+    expect(f.team.roles.permissions(humanContext(carol.member.humanId)).length).toBeGreaterThan(
+      f.team.roles.permissions(f.human).length,
+    );
+    for (const { peer } of [bob, carol])
+      for (const action of ['list', ...RELATIONSHIP_ACTIONS]) {
+        const response = await call(peer as Peer, action);
+        expect(response.status).toBe(403);
+        expect(await response.text()).toBe('forbidden');
+      }
+    expect(reached).not.toHaveBeenCalled();
+    expect(f.database.read((db) => db.prepare('SELECT * FROM host_relationships').all())).toEqual(
+      [],
+    );
+    expect(
+      f.database.read((db) => db.prepare('SELECT * FROM relationship_device_grants').all()),
+    ).toEqual([]);
+    expect(pairing.list()).toEqual([]);
+    const ownerPeer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+    const listed = await call(ownerPeer, 'list');
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual({ relationships: [] });
+    const approve = await call(ownerPeer, 'approve');
+    expect(approve.status).toBe(409);
+    expect(await approve.json()).toEqual({ code: expect.stringMatching(/^relationship-/u) });
+    expect(reached).toHaveBeenCalledTimes(2);
+  });
   it('allows cross-site top-level entry navigation but refuses cross-site subresources and POSTs', async () => {
     const f = await enabledFixture();
     const http = await memberHttp(f);

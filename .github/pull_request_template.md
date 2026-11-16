@@ -4,6 +4,13 @@ Explain the user problem in one sentence / 用一句话说明要解决的问题�
 
 Issue / Discussion: write `Closes #N` as plain text when this PR delivers the feature or fixes the bug, even if release or device QA is still pending (open a separate issue for the remaining QA); use `Refs #N` only when part of the issue is still unbuilt. GitHub only closes the issue when the PR merges into `main`: once a stacked PR's parent is in `main`, retarget it to `main` before merging, or close the issue by hand after the work reaches `main` / 做完功能或修好 bug 就写 `Closes #N`（纯文本，不要写在链接里），不必等发版或真机验收，剩余验收另开 issue；只有 issue 还有未实现的部分才用 `Refs #N`。GitHub 只在合进 `main` 时关闭 issue：叠放 PR 等父 PR 进 `main` 后改回 `main` 再合，否则等工作进入 `main` 后手动关。
 
+## Harness / Model
+
+List every agent runner and model that wrote code, comma-separated; leave both empty for a hand-written change. A bot turns them into `harness:` and `model:` labels / 列出写代码用到的所有 agent 工具和模型，逗号分隔；纯手写留空。机器人会据此打标签。
+
+Harness:
+Model:
+
 ## Special things to note
 
 - Merge risk: reversibility, blast radius and review focus / 回退方式、影响范围与评审重点。

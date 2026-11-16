@@ -22,7 +22,9 @@ import type {
   WireMessageVoice,
   WireReaction,
   WireReplyPreview,
+  WireSkillInvocation,
 } from './wire';
+import { skillInvocationsOf } from './skill-catalog';
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
 
@@ -163,6 +165,7 @@ export interface ConversationMessage {
   bot?: string;
   body: string;
   mentions?: WireMention[];
+  skillInvocations?: WireSkillInvocation[];
   replyTo?: string;
   replyPreview?: WireReplyPreview | null;
   replyThumbnail?: ReplyThumbnail;
@@ -331,6 +334,7 @@ export const ATTACHMENT_PATH = '/api/botharness/attachment';
 
 export interface MessageTags {
   mentions?: WireMention[];
+  skillInvocations?: WireSkillInvocation[];
   allBotMention?: WireAllBotMention;
   replyTo?: string;
   genuiReply?: GenuiDocumentReply;
@@ -641,6 +645,9 @@ function present(
     ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
     body: message.body,
     ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
+    ...(kind !== 'human' || message.skillInvocations === undefined
+      ? {}
+      : { skillInvocations: skillInvocationsOf(message.body, message.skillInvocations) }),
     ...(message.replyTo === undefined
       ? {}
       : {
@@ -763,6 +770,9 @@ export function createConversation(options: ConversationOptions): Conversation {
         author: 'human',
         body: item.body,
         ...(item.tags.mentions === undefined ? {} : { mentions: item.tags.mentions }),
+        ...(item.tags.skillInvocations === undefined
+          ? {}
+          : { skillInvocations: item.tags.skillInvocations }),
         ...(item.tags.replyTo === undefined ? {} : quote(item.tags.replyTo)),
         attachments: item.files.map((file, index) => ({
           key: `${item.id}:${index}`,
@@ -1273,6 +1283,9 @@ export function createConversation(options: ConversationOptions): Conversation {
         ...(item.tags.allBotMention === undefined
           ? {}
           : { allBotMention: item.tags.allBotMention }),
+        ...(item.tags.skillInvocations === undefined || item.tags.skillInvocations.length === 0
+          ? {}
+          : { skillInvocations: item.tags.skillInvocations }),
         ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
         ...(item.tags.genuiReply === undefined ? {} : { genuiReply: item.tags.genuiReply }),
       });

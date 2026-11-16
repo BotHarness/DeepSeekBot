@@ -1788,3 +1788,7 @@ The authenticated Owner `tob-cli start/status/cancel` interface uses the existin
 S3 的文件监听器同时管理每个去重 Workspace 的两个 Skill 目录；文件事件只使该 Workspace 缓存失效并合并推送到其授权 Bot 的 Channel，`workspace-grants` 提交时重新协调监听与受影响 Channel。最后一个有效 Grant 撤销后不再列出或解析该 Workspace。Skill Invocation 不创建 mention、不修改路由，也不注册 DSH Skill：无 Grant 的接收 Bot 仍可收到快照文本，其路径读取继续由 ADR-0067 守卫执行。模型原生发现仍仅在对应 Assignment 内发生。
 
 性能边界：重复目录读取复用每 Workspace 的缓存；多个 Bot 的重复 Grant 不重复扫描。文件事件按 Workspace 合并 25 ms，Grant 变更后按需重读；发送只读取所选 Workspace 的 Skill 目录，不重新扫描其他 Workspace。回归覆盖重复读取不变、定向失效与跨 Bot 去重；浏览器及原生 UI 验收属于 UI 切片。
+
+### Mobile Skill Invocation（#4275）
+
+Expo 移动端复用 Web 的 `skill-refs` 解析、`rankSkillEntries` 排序与 `selectSkill`/`rebaseSkills` 编辑规则，不另写一套。Composer 在 `/` 后从 `channelSkillCatalog` 读取当前 Channel 的目录，按名称与 owner 名排序最多 8 项；每个 Channel 一个 `useSyncExternalStore` 缓存，首个订阅者加载，roster 实时帧 `skills` 命中该 Channel 时重读。选中项是原子 chip：在 chip 内退格一次删除整个 `/name`。发送时 `skillInvocations` 按去除首尾空白后的正文偏移提交，只在 `/name` 仍与正文一致时保留；不生成 mention，不改变收件 Bot。消息气泡按存储的 `skillInvocations` 渲染 chip，owner 用 Bot 头像或原生 SF Symbol / Material Symbol（folder、desktopcomputer/computer）。

@@ -61,13 +61,14 @@ describe('update runs', () => {
   it('keeps only the tail of long output', async () => {
     const runs = createUpdateRuns();
     const gate = deferred<{ status: 'installed'; applied: boolean }>();
-    runs.run(TARGET, { requestId: ID, joinable: false }, () => gate.promise);
+    const done = runs.run(TARGET, { requestId: ID, joinable: false }, () => gate.promise);
     runs.log({ requestId: ID, jobId: 'j', argv: ['pnpm'], text: 'a'.repeat(40_000) + 'END' });
     const command = runs.get(ID)!.commands[0]!;
     expect(command.truncated).toBe(true);
     expect(command.output.length).toBe(32_000);
     expect(command.output.endsWith('END')).toBe(true);
     gate.resolve({ status: 'installed', applied: false });
+    await done;
   });
 
   it('stops a run before pnpm starts without asking the Plugin Manager', async () => {
@@ -112,7 +113,7 @@ describe('update runs', () => {
     const runs = createUpdateRuns({
       canceller: () => ({ cancelInstall: async () => ({ status: 'too-late' }) }),
     });
-    runs.run(TARGET, { requestId: ID, joinable: false }, (handle) => {
+    const applying = runs.run(TARGET, { requestId: ID, joinable: false }, (handle) => {
       handle.installing();
       return gate.promise;
     });
@@ -120,16 +121,18 @@ describe('update runs', () => {
     expect(await runs.cancel(ID)).toEqual({ status: 'too-late' });
     expect(runs.get(ID)).toMatchObject({ phase: 'applying', cancellable: false });
     gate.resolve({ status: 'installed', applied: true });
+    await applying;
 
     const plain = createUpdateRuns({ canceller: () => ({}) });
     const other = deferred<{ status: 'installed'; applied: boolean }>();
-    plain.run(TARGET, { requestId: ID, joinable: false }, (handle) => {
+    const unsupported = plain.run(TARGET, { requestId: ID, joinable: false }, (handle) => {
       handle.installing();
       return other.promise;
     });
     await Promise.resolve();
     expect(await plain.cancel(ID)).toEqual({ status: 'unsupported' });
     other.resolve({ status: 'installed', applied: false });
+    await unsupported;
   });
 
   it('joins a repeated request for the same target and refuses any other', async () => {

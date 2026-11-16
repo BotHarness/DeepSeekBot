@@ -113,7 +113,8 @@ import {
 import { insertAttachmentReferences, removeAttachmentReferences } from './attachment-refs.js';
 import { appendMention, quoteMention, rebaseMentions } from './mentions.js';
 import { AtSignIcon } from './at-sign-icon.js';
-import { liveSkills, type ComposerSkillOption } from './skill-refs.js';
+import { liveSkills } from './skill-refs.js';
+import type { ComposerSkillOption } from './channel-composer.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { rebaseChannelRefs } from './channel-refs.js';
 import { channelHumanName, humanLabel } from './actor-names.js';

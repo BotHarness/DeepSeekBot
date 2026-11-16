@@ -10,12 +10,17 @@ import { useTeamMember } from './team-state.js';
 import { Icon } from './ds/icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
-import { HostSettings } from './host-settings.js';
 import { useHostDraftGuard } from './host-draft-guard.js';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
 import {
   EnvironmentSwitcher,
-  RemoteEnvironmentModels,
+  LocalHostAppearance,
+  REMOTE_DEVICE_SECTIONS,
+  REMOTE_SECTION_ICONS,
+  REMOTE_SETTINGS_SECTIONS,
+  RemoteEnvironmentSection,
+  isRemoteSettingsSection,
+  remoteSettingsRows,
   type SettingsEnvironments,
 } from './settings-environment.js';
 import { THIS_HOST } from './remote-hosts.js';
@@ -49,16 +54,6 @@ export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
 export const DEVICE_SETTINGS_SECTIONS: ReadonlySet<string> = new Set(
   Object.keys(CLIENT_SETTINGS_INDEX),
 );
-
-export const REMOTE_SETTINGS_SECTIONS = {
-  hostModels: 'environment-models',
-  hostMore: 'environment-more',
-} as const;
-
-const REMOTE_SECTION_ICONS: Readonly<Record<string, string>> = {
-  [REMOTE_SETTINGS_SECTIONS.hostModels]: 'cpu',
-  [REMOTE_SETTINGS_SECTIONS.hostMore]: 'settings',
-};
 
 const DEVICE_GROUP = 'device';
 const HOST_GROUP = 'host';
@@ -111,6 +106,12 @@ export interface BotSettingsSnapshot {
   readonly pairPhone?: boolean;
   readonly target?: BotSettingsTarget | undefined;
   readonly clientOnly?: boolean;
+  readonly host?: BotSettingsHost | undefined;
+}
+
+export interface BotSettingsHost {
+  readonly remote: { readonly hostId: string; readonly hostName: string } | undefined;
+  readonly nonce: number;
 }
 
 export interface BotSettingsSectionSource {
@@ -148,11 +149,32 @@ export class BotSettings {
 
   readonly select = (sectionId: string, target?: string): void => {
     if (this.#snapshot.clientOnly && !Object.hasOwn(CLIENT_SETTINGS_INDEX, sectionId)) return;
-    this.#set({ ...this.#snapshot, sectionId, pairPhone: false, target: this.#target(target) });
+    this.#set({
+      ...this.#snapshot,
+      sectionId,
+      pairPhone: false,
+      target: this.#target(target),
+    });
+  };
+
+  readonly openHost = (host?: { hostId: string; hostName: string }): void => {
+    this.#set({
+      open: true,
+      sectionId:
+        host === undefined ? BOT_SETTINGS_SECTIONS.models : REMOTE_SETTINGS_SECTIONS.hostModels,
+      host: {
+        remote: host && { hostId: host.hostId, hostName: host.hostName },
+        nonce: Date.now(),
+      },
+    });
   };
 
   readonly openClientPreferences = (): void => {
-    this.#set({ open: true, sectionId: BOT_SETTINGS_SECTIONS.appearance, clientOnly: true });
+    this.#set({
+      open: true,
+      sectionId: BOT_SETTINGS_SECTIONS.appearance,
+      clientOnly: true,
+    });
   };
 
   readonly close = (): void => {
@@ -169,7 +191,8 @@ export class BotSettings {
       next.sectionId === this.#snapshot.sectionId &&
       next.pairPhone === this.#snapshot.pairPhone &&
       next.target === this.#snapshot.target &&
-      next.clientOnly === this.#snapshot.clientOnly
+      next.clientOnly === this.#snapshot.clientOnly &&
+      next.host === this.#snapshot.host
     )
       return;
     this.#snapshot = next;
@@ -184,34 +207,40 @@ export type BotSettingsViewProps = PropsRenderSlots<'botharness.settings.section
   t: BotHarnessTranslate;
 };
 
-const NO_ENVIRONMENTS: SettingsEnvironments = {
+const NO_ENVIRONMENTS: Omit<SettingsEnvironments, 'notifications'> = {
   getSnapshot: () => EMPTY_ENVIRONMENTS,
   subscribe: () => () => undefined,
   client: () => undefined,
 };
-const EMPTY_ENVIRONMENTS = { hosts: [], avatars: new Map(), tab: '' } as ReturnType<
-  SettingsEnvironments['getSnapshot']
->;
+const EMPTY_ENVIRONMENTS = {
+  hosts: [],
+  avatars: new Map(),
+  tab: '',
+} as ReturnType<SettingsEnvironments['getSnapshot']>;
 
 export function BotSettingsView({
   botSettings,
   sections,
-  environments = NO_ENVIRONMENTS,
+  environments,
   renderSlot,
   t,
 }: BotSettingsViewProps): ReactElement | null {
   const state = useSyncExternalStore(botSettings.subscribe, botSettings.getSnapshot);
   const registered = useSyncExternalStore(sections.subscribe, sections.getSnapshot);
-  const remotes = useSyncExternalStore(
-    environments.subscribe,
-    environments.getSnapshot,
-    environments.getSnapshot,
-  ).hosts;
+  const known = environments ?? NO_ENVIRONMENTS;
+  const remotes = useSyncExternalStore(known.subscribe, known.getSnapshot, known.getSnapshot).hosts;
   const member = useTeamMember();
   const thisHost = useThisHost();
   const [query, setQuery] = useState('');
-  const [chosenHost, setChosenHost] = useState<{ hostId: string; hostName: string }>();
-  const [moreHost, setMoreHost] = useState(false);
+  const [chosenHost, setChosenHost] = useState<{
+    hostId: string;
+    hostName: string;
+  }>();
+  const [appliedHost, setAppliedHost] = useState(state.host);
+  if (state.host !== appliedHost) {
+    setAppliedHost(state.host);
+    if (state.host !== undefined) setChosenHost(state.host.remote);
+  }
   const grouped = state.clientOnly !== true;
   const localRequest =
     chosenHost !== undefined &&
@@ -274,39 +303,37 @@ export function BotSettingsView({
   const deviceRows = rows.filter((row) => DEVICE_SETTINGS_SECTIONS.has(row.id));
   const hereName = thisHost.name ?? t('remoteHosts.this');
   const hostRows: readonly BotSettingsSectionRow[] = remote
-    ? [
-        {
-          id: REMOTE_SETTINGS_SECTIONS.hostModels,
-          order: 0,
-          label: t('remoteHosts.settings.models'),
-        },
-        {
-          id: REMOTE_SETTINGS_SECTIONS.hostMore,
-          order: 1,
-          label: t('environment.settings.moreHost'),
-        },
-      ]
-    : rows.filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id));
+    ? remoteSettingsRows(t)
+    : rows
+        .filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id))
+        .flatMap((row) =>
+          grouped && !member && row.id === BOT_SETTINGS_SECTIONS.models
+            ? [
+                row,
+                {
+                  id: REMOTE_SETTINGS_SECTIONS.hostAppearance,
+                  order: row.order,
+                  label: t('environment.settings.appearance'),
+                },
+              ]
+            : [row],
+        );
   const navRows = grouped ? [...deviceRows, ...hostRows] : rows;
   const active =
-    navRows.find(
-      (row) => row.id === state.sectionId && row.id !== REMOTE_SETTINGS_SECTIONS.hostMore,
-    ) ??
+    navRows.find((row) => row.id === state.sectionId) ??
     (remote
       ? hostRows[0]
       : (rows.find((row) => row.id === BOT_SETTINGS_DEFAULT_SECTION) ?? navRows[0]));
   const close = (): void => {
     void guard.leave(() => {
       setQuery('');
-      setMoreHost(false);
       botSettings.close();
     });
   };
   const select = (id: string, target?: string): void => {
     void guard.leave(() => {
       setQuery('');
-      if (id === REMOTE_SETTINGS_SECTIONS.hostMore) setMoreHost(true);
-      else botSettings.select(id, target);
+      botSettings.select(id, target);
     });
   };
   const switchHost = (hostId: string): void => {
@@ -319,17 +346,6 @@ export function BotSettingsView({
       );
     }, 'switch');
   };
-  if (remote && moreHost)
-    return (
-      <HostSettings
-        hostId={remote.hostId}
-        name={remote.hostName}
-        onClose={() => {
-          setMoreHost(false);
-        }}
-        t={t}
-      />
-    );
   const multi = grouped && (remotes.length > 0 || remote !== undefined);
   const hostLabel = multi ? (
     <TargetName
@@ -343,9 +359,11 @@ export function BotSettingsView({
   const scope =
     !multi || active === undefined
       ? undefined
-      : DEVICE_SETTINGS_SECTIONS.has(active.id)
+      : DEVICE_SETTINGS_SECTIONS.has(active.id) || REMOTE_DEVICE_SECTIONS.has(active.id)
         ? t('environment.settings.deviceScope')
-        : t('environment.settings.hostScope', { name: remote?.hostName ?? hereName });
+        : t('environment.settings.hostScope', {
+            name: remote?.hostName ?? hereName,
+          });
   const searchable = remote ? deviceRows : rows;
   if (active?.id === BOT_SETTINGS_SECTIONS.devices) {
     return (
@@ -369,12 +387,23 @@ export function BotSettingsView({
         id: row.id,
         label: row.label,
         group: DEVICE_SETTINGS_SECTIONS.has(row.id) ? DEVICE_GROUP : HOST_GROUP,
-        icon: <Icon name={REMOTE_SECTION_ICONS[row.id] ?? botSettingsSectionIcon(row.id)} />,
+        icon: (
+          <Icon
+            name={
+              isRemoteSettingsSection(row.id)
+                ? REMOTE_SECTION_ICONS[row.id]
+                : botSettingsSectionIcon(row.id)
+            }
+          />
+        ),
       }))}
       groups={
         grouped
           ? [
-              { id: DEVICE_GROUP, label: t('environment.settings.deviceGroup') },
+              {
+                id: DEVICE_GROUP,
+                label: t('environment.settings.deviceGroup'),
+              },
               { id: HOST_GROUP, label: hostLabel },
             ]
           : undefined
@@ -385,7 +414,10 @@ export function BotSettingsView({
           <EnvironmentSwitcher
             here={{ hostId: thisHost.id ?? THIS_HOST, name: hereName }}
             remotes={[
-              ...remotes.map(({ host }) => ({ hostId: host.hostId, name: host.hostName })),
+              ...remotes.map(({ host }) => ({
+                hostId: host.hostId,
+                name: host.hostName,
+              })),
               ...(remote && !remotes.some((entry) => entry.host.hostId === remote.hostId)
                 ? [{ hostId: remote.hostId, name: remote.hostName }]
                 : []),
@@ -435,14 +467,18 @@ export function BotSettingsView({
     >
       {guard.view}
       <div ref={locate} data-settings-content={active?.id}>
-        {active === undefined ? null : remote &&
-          active.id === REMOTE_SETTINGS_SECTIONS.hostModels ? (
-          <RemoteEnvironmentModels
+        {active === undefined ? null : environments &&
+          remote &&
+          isRemoteSettingsSection(active.id) ? (
+          <RemoteEnvironmentSection
             environments={environments}
             hostId={remote.hostId}
             name={remote.hostName}
+            section={active.id}
             t={t}
           />
+        ) : active.id === REMOTE_SETTINGS_SECTIONS.hostAppearance ? (
+          <LocalHostAppearance hostId={thisHost.id} name={hereName} t={t} />
         ) : (
           (renderSlot(
             SECTION_SLOT,
