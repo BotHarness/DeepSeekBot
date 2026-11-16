@@ -5,7 +5,7 @@
 (() => {
   const { envs, roles, sections, about, topTasks } = window.PROTO;
   const q = new URLSearchParams(location.search);
-  const VARIANTS = { A: '范围切换', B: '常用优先', C: '环境即对象' };
+  const VARIANTS = { A: '范围切换', B: '常用优先', C: '环境即对象', D: 'B′ 修订版' };
   const state = {
     variant: VARIANTS[q.get('variant')] ? q.get('variant') : 'A',
     device: q.get('device') === 'mobile' ? 'mobile' : 'desktop',
@@ -19,6 +19,18 @@
     flow: null,
     values: {},
     mobile: { left: 'root', sheet: null },
+    pins: [
+      'defaultModel',
+      'theme',
+      'pairPhone',
+      'linkComputer',
+      'template',
+      'desktopNotify',
+      'imApps',
+      'members',
+    ],
+    editPins: q.get('edit') === '1',
+    single: q.get('single') === '1',
   };
   if (q.get('flow')) state.flow = newFlow(q.get('flow'), q.get('path'), Number(q.get('step') || 0));
   if (q.get('open')) state.open = q.get('open');
@@ -112,9 +124,14 @@
     const lockTag = locked
       ? `<span class="tag">${ic('lock')}由 ${e.owner || 'Owner'} 管理</span>`
       : '';
+    const pinned = state.pins.includes(it.id);
+    const pin =
+      opts.pin && !locked
+        ? `<button class="pinbtn ${pinned ? 'on' : ''}" data-a="pin" data-v="${it.id}" aria-label="${pinned ? '从常用移除' : '钉到常用'}" title="${pinned ? '从常用移除' : '钉到常用'}">${ic('pin')}</button>`
+        : '';
     return `<div class="row ${link ? 'link' : ''} ${locked ? 'locked' : ''}" ${link ? `data-a="toast" data-v="原型：打开「${it.label}」子页面"` : ''} id="row-${it.id}">
       <div class="txt"><span class="title">${esc(it.label)}${tag}${lockTag}</span>${desc}</div>
-      ${locked ? `<span class="val">${esc(val(it, s, e))}</span>` : control(it, s, e)}
+      ${locked ? `<span class="val">${esc(val(it, s, e))}</span>` : control(it, s, e)}${pin}
     </div>`;
   }
   function scopeTag(s, e) {
@@ -218,6 +235,103 @@
   // ======================================================================
   // Variant B — task-first home, goal-based groups, scope tag on every row
   // ======================================================================
+  // ======================================================================
+  // Variant B′ — revised after Vain's feedback (2026-11-16): pinnable tiles,
+  // environment switcher top-right, sidebar only names the current environment.
+  // ======================================================================
+  function pinTile(id, e) {
+    const [s, it] = findItem(id);
+    if (!it || !secVisible(s, e) || !itemVisible(e, it)) return '';
+    const preset = topTasks.find((t) => t.id === id);
+    const t = preset || {
+      id,
+      label: it.label,
+      icon: s.icon,
+      section: s.id,
+      flow: it.control === 'flow' ? it.flow : undefined,
+    };
+    if (it.control === 'flow' && !t.flow) t.flow = it.flow;
+    const html = tile(t, e);
+    if (!html) return '';
+    if (!state.editPins) return html;
+    return html.replace(
+      '<div style="position:relative">',
+      `<div style="position:relative" class="editing"><button class="unpin" data-a="pin" data-v="${id}" aria-label="从常用移除">${ic('x')}</button>`,
+    );
+  }
+  function envSwitch(e, key, style) {
+    return `<span style="position:relative"><button class="scope btn" data-a="open" data-v="${key}" aria-label="切换环境">${glyph(e)}${esc(e.name)}<span class="dot ${e.status === 'offline' ? 'off' : ''}"></span>${ic('chevrons-up-down')}</button>${envMenu(key, style)}</span>`;
+  }
+  const B2_PAGES = [
+    {
+      id: 'p-bot',
+      label: 'Bot 与模型',
+      icon: 'cpu',
+      secs: ['models', 'approvals', 'prompts', 'tools'],
+    },
+    { id: 'p-chat', label: '聊天', icon: 'message-square', secs: ['me', 'collab', 'im'] },
+    { id: 'p-connect', label: '连接', icon: 'cable', secs: ['connections'] },
+    { id: 'p-team', label: '团队', icon: 'users', secs: ['team', 'account'] },
+    { id: 'p-data', label: '数据与存储', icon: 'database', secs: ['data'] },
+  ];
+  const multi = () => !state.single;
+  function variantB2() {
+    const e = state.single ? env('local') : env();
+    const home = !state.section && !state.search;
+    const page = B2_PAGES.find((p) => p.id === state.section || p.secs.includes(state.section));
+    const dsec =
+      !page && sec(state.section) && sec(state.section).scope === 'device'
+        ? sec(state.section)
+        : null;
+    const pageSecs = (p) => p.secs.map(sec).filter((s) => secVisible(s, e));
+    const cell = (id, icon, label) =>
+      `<button class="nav-cell" aria-current="${(state.section === id || B2_PAGES.find((p) => p.id === id)?.secs.includes(state.section)) && !state.search ? 'page' : 'false'}" data-a="sec" data-v="${id}">${ic(icon)}<span class="lbl">${label}</span></button>`;
+    const hostPages = e.status === 'offline' ? [] : B2_PAGES.filter((p) => pageSecs(p).length);
+    const nav = `<nav class="nav">
+      <div class="nav-title">设置</div>
+      <div class="nav-list">
+        <button class="nav-cell" aria-current="${home ? 'page' : 'false'}" data-a="sec" data-v="">${ic('house')}<span class="lbl">常用</span></button>
+        <div class="nav-group">${ic('laptop')}此设备</div>
+        ${deviceSecs()
+          .map((s) => cell(s.id, s.icon, s.label))
+          .join('')}
+        <div class="nav-group">${multi() ? glyph(e) : ic('server')}${esc(e.name)}${multi() && e.team ? `<span class="tag">${roleOf(e)}</span>` : ''}</div>
+        ${e.status === 'offline' ? `<div class="nav-group" style="font-weight:400">离线</div>` : hostPages.map((p) => cell(p.id, p.icon, p.label)).join('')}
+        ${hiddenNote(e)}
+      </div>
+      <button class="nav-cell" data-a="toast" data-v="${about.version} · ${about.build}">${ic('info')}<span class="lbl">关于</span><span class="tail">${about.version}</span></button>
+    </nav>`;
+    const sw = multi() ? envSwitch(e, 'envmenu-b2', 'right:0;top:34px') : '';
+    const searchBox = `<label class="search" style="height:38px;margin-bottom:14px">${ic('search')}<input data-a="search" placeholder="搜索设置" value="${esc(state.search)}"/></label>`;
+    let head, body;
+    if (state.search) {
+      head = `<h2>搜索结果</h2>${sw}`;
+      body = searchBox + searchResults(e, true);
+    } else if (home) {
+      head = `<h2>常用</h2><button class="btn sm ${state.editPins ? 'primary' : ''}" data-a="editpins">${ic(state.editPins ? 'check' : 'pencil')}${state.editPins ? '完成' : '编辑'}</button>${sw}`;
+      const tiles = state.pins.map((id) => pinTile(id, e)).join('');
+      const add = state.editPins
+        ? `<div class="tile addtile">${ic('pin')}<span class="tl">添加</span><span class="tv">在任意设置行点图钉</span></div>`
+        : '';
+      body = `${searchBox}<div class="tiles">${tiles}${add}</div>${state.editPins ? `<div class="note" style="margin-top:12px">${ic('info')}<span>钉选只影响你自己。没权限的卡片不会显示。</span></div>` : ''}`;
+    } else if (dsec) {
+      head = `<h2>${dsec.label}</h2><span class="scope">${glyph(null)}只保存在这台设备</span><span style="flex:0 0 8px"></span>${sw}`;
+      body = sectionBody(dsec, e, { notes: true, pin: true });
+    } else {
+      const p = page || hostPages[0];
+      head = `<h2>${p.label}</h2>${multi() ? `<span class="scope">${glyph(e)}${e.team ? '团队共享' : `写入${kindLabel(e)} Host`}</span><span style="flex:0 0 8px"></span>` : ''}${sw}`;
+      if (e.status === 'offline') body = offline(e);
+      else
+        body = pageSecs(p)
+          .map(
+            (s) =>
+              `<div class="sec"><div class="sec-title">${s.label}${e.team && s.scope === 'me' ? `<span class="tag">${ic('user-round')}只影响我</span>` : ''}</div>${sectionBody(s, e, { notes: true, pin: true })}</div>`,
+          )
+          .join('');
+    }
+    return dialog(nav, head, body);
+  }
+
   const B_GROUPS = [
     { label: '外观与通知', ids: ['appearance', 'notifications', 'window'] },
     { label: 'Bot 与模型', ids: ['models', 'approvals', 'prompts', 'tools'] },
@@ -701,7 +815,7 @@
       <button data-a="var" data-v="-1" aria-label="上一个">${ic('chevron-left')}</button><span class="lab">${state.variant} · ${VARIANTS[state.variant]}</span><button data-a="var" data-v="1" aria-label="下一个">${ic('chevron-right')}</button>
       <span class="sepv"></span>${['desktop', 'mobile'].map((d) => `<button class="${state.device === d ? 'on' : ''}" data-a="device" data-v="${d}">${ic(d === 'desktop' ? 'monitor' : 'smartphone')}</button>`).join('')}
       <button data-a="theme">${ic(state.theme === 'dark' ? 'moon' : 'sun')}</button>
-      <span class="sepv"></span><span style="opacity:.7;padding-left:4px">团队 Host 上我是</span>${['Owner', 'Admin', 'Member'].map((r) => `<button class="${state.role === r ? 'on' : ''}" data-a="role" data-v="${r}">${r}</button>`).join('')}
+      ${state.variant === 'D' ? `<span class="sepv"></span><button class="${state.single ? 'on' : ''}" data-a="single">只有本机</button>` : ''}<span class="sepv"></span><span style="opacity:.7;padding-left:4px">团队 Host 上我是</span>${['Owner', 'Admin', 'Member'].map((r) => `<button class="${state.role === r ? 'on' : ''}" data-a="role" data-v="${r}">${r}</button>`).join('')}
       <span class="sepv"></span><span style="opacity:.5;padding:0 6px">PROTOTYPE · ${keys.join('/')}</span></div>`;
   }
 
@@ -725,6 +839,7 @@
     if (state.device === 'mobile') p.set('device', 'mobile');
     if (state.theme === 'dark') p.set('theme', 'dark');
     p.set('role', state.role);
+    if (state.single) p.set('single', '1');
     p.set('env', state.env);
     if (state.section) p.set('section', state.section);
     if (state.page !== 'root') p.set('page', state.page);
@@ -740,7 +855,9 @@
           ? variantA()
           : state.variant === 'B'
             ? variantB()
-            : variantC();
+            : state.variant === 'D'
+              ? variantB2()
+              : variantC();
     root.innerHTML = view + (q.get('shot') ? '' : bar());
     window.lucide?.createIcons({ attrs: { 'stroke-width': 1.75 } });
     if (focusSearch) {
@@ -795,6 +912,21 @@
         break;
       case 'role':
         state.role = v;
+        break;
+      case 'single':
+        state.single = !state.single;
+        if (state.single) state.env = 'local';
+        break;
+      case 'pin':
+        state.pins = state.pins.includes(v)
+          ? state.pins.filter((x) => x !== v)
+          : [...state.pins, v];
+        if (state.pins.includes(v)) {
+          toast('已钉到常用');
+        }
+        break;
+      case 'editpins':
+        state.editPins = !state.editPins;
         break;
       case 'open':
         state.open = prevOpen === v ? null : v;

@@ -1498,3 +1498,65 @@ svg.lucide.ic-lg {
   font-size: 12px;
   z-index: 120;
 }
+
+/* variant D (B′): pins */
+.pinbtn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+}
+.row:hover .pinbtn,
+.pinbtn:focus-visible {
+  opacity: 1;
+}
+.pinbtn:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+.pinbtn.on {
+  opacity: 1;
+  color: var(--accent);
+}
+.editing .tile {
+  outline: 1.5px dashed var(--border3);
+  outline-offset: -1.5px;
+}
+.unpin {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--fg);
+  color: var(--base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.unpin svg.lucide {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5;
+}
+.addtile {
+  cursor: default;
+  border: 1.5px dashed var(--border3);
+  background: transparent;
+  color: var(--muted);
+}
+.addtile svg.lucide {
+  color: var(--accent);
+}
