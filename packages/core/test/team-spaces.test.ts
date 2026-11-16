@@ -436,7 +436,11 @@ describe('M6 spaces and current authority', () => {
     );
     expect(
       await f.bridge(alice).memoryMove({ slug: 'alice-bot', location: outside }),
-    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    ).toMatchObject({ ok: false, error: { code: 'grant-foreign-space' } });
+    expect(await f.bridge(alice).memoryMove({ slug: 'alice-bot', location: null })).toEqual({
+      ok: true,
+      value: { memoryDir: before, moved: false },
+    });
     expect(f.core.registry.memoryDirFor('alice-bot')).toBe(before);
     expect(existsSync(join(outside, 'alice-bot'))).toBe(false);
   });

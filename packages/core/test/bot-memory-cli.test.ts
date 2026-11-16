@@ -110,6 +110,99 @@ async function invoke(argv: string[], url: string) {
 const DM = 'dm-ada';
 
 describe('Agent memory commands against a live Host', () => {
+  it('carries every member Memory command through team-as without an Owner fallback', async () => {
+    let refused = false;
+    const live = await host((call) => {
+      expect(call.path).toBe('/api/botharness/team-as');
+      expect(call.body).toMatchObject({ username: 'alice', namespace: 'botharness' });
+      return {
+        json: refused
+          ? { ok: false, error: { code: 'bot-not-found', message: 'bot-not-found' } }
+          : { ok: true, value: { member: true } },
+      };
+    });
+    const commands = [
+      ['memory-snapshot', 'ada'],
+      ['memory-file', 'ada', '--path', 'own.md'],
+      ['memory-history', 'ada'],
+      ['memory-diff', 'ada', '--sha', 'a'.repeat(40)],
+      ['memory-file-target', 'ada', '--path', 'own.md'],
+      ['memory-graph', 'ada'],
+      ['memory-commit-diff', 'ada', '--sha', 'a'.repeat(40)],
+      ['memory-changes', 'ada'],
+      ['memory-working-diff', 'ada', '--path', 'own.md', '--kind', 'unstaged'],
+      ['memory-checkpoints', 'ada'],
+      [
+        'memory-save',
+        'ada',
+        '--path',
+        'own.md',
+        '--body',
+        'Hello',
+        '--expected-head',
+        'a'.repeat(40),
+      ],
+      ['memory-restore', 'ada', '--checkpoint', 'cp-2', '--expected-current', 'cp-1'],
+      ['memory-restore-commit', 'ada', '--sha', 'a'.repeat(40), '--expected-head', 'b'.repeat(40)],
+      ['memory-versions', 'ada'],
+      ['memory-version-name', 'ada', '--sha', 'a'.repeat(40), '--name', 'First'],
+      ['memory-version-unname', 'ada', '--tag', 'first'],
+      ['memory-repair', 'ada', '--expected-head', 'a'.repeat(40)],
+      ['memory-move', 'ada', '--default-location'],
+    ];
+    for (const argv of commands) {
+      const result = await invoke(['--as', 'alice', ...argv], live.url);
+      expect(result).toEqual({ code: 0, json: { member: true } });
+    }
+    expect(live.calls).toHaveLength(commands.length);
+    refused = true;
+    for (const argv of commands) {
+      const result = await invoke(['--as', 'alice', ...argv], live.url);
+      expect(result.code).toBe(1);
+      expect(result.json).toMatchObject({ error: { code: 'bot-not-found' } });
+    }
+    expect(live.calls).toHaveLength(commands.length * 2);
+  });
+
+  it('exports member Memory images through the ownership-checked RPC', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'member-image-'));
+    dirs.push(dir);
+    const out = join(dir, 'image.png');
+    const bytes = Buffer.from('image fixture');
+    const live = await host((call) => {
+      expect(call.path).toBe('/api/botharness/team-as');
+      expect(call.body).toMatchObject({
+        username: 'alice',
+        namespace: 'botharness',
+        method: 'memoryImage',
+        args: { slug: 'ada', path: 'image.png', source: 'worktree', revision: 'a'.repeat(64) },
+      });
+      return {
+        json: { ok: true, value: { mime: 'image/png', dataBase64: bytes.toString('base64') } },
+      };
+    });
+    const result = await invoke(
+      [
+        '--as',
+        'alice',
+        'memory-image',
+        'ada',
+        '--path',
+        'image.png',
+        '--image-source',
+        'worktree',
+        '--image-revision',
+        'a'.repeat(64),
+        '--out',
+        out,
+      ],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(readFileSync(out)).toEqual(bytes);
+    expect(live.calls).toHaveLength(1);
+  });
+
   it("reads a Bot's memory through its DM channel", async () => {
     const live = await host(() => ({ json: { ok: true, value: { read: true } } }));
     for (const argv of [

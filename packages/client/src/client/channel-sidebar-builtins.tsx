@@ -227,7 +227,11 @@ function GroupManagementHeaderForChannel({
 }
 
 function MembersBadge(): ReactElement {
-  const count = useClientStore((state) => state.conversation.channel?.members.length ?? 0);
+  const count = useClientStore(
+    (state) =>
+      (state.conversation.channel?.members.length ?? 0) +
+      (state.conversation.channel?.humanMembers?.length ?? 0),
+  );
   return <Tag tone="neutral">{count}</Tag>;
 }
 

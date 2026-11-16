@@ -18,6 +18,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconCloseOutlineRegular: () => null,
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
+  IconSkillOutlineRegular: () => null,
   ImageLightbox: () => null,
 }));
 
@@ -82,7 +83,7 @@ describe('rich mention editor', () => {
     const chip = editor.querySelector<HTMLElement>('[data-attachment-id="report"]')!;
     expect(chip.contentEditable).toBe('false');
     expect(chip.textContent).toBe('1report.txt5 B');
-    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [] });
+    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [], skills: [] });
     setRichSelection(editor, 9 + text.length);
     expect(richSelectionOffsets(editor)).toEqual({ start: 9 + text.length, end: 9 + text.length });
     insertRichPlainText(editor, ' next');
@@ -127,6 +128,7 @@ describe('rich mention editor', () => {
       value: '@All Bots check',
       mentions: [{ kind: 'all-bots', preview, label: 'All Bots', start: 0, end: 9 }],
       channelRefs: [],
+      skills: [],
     });
     expect(
       deleteSelectedMention(
@@ -333,7 +335,7 @@ describe('rich mention editor', () => {
     const mounts = renderRichMentionDraft(editor, value, mentions, []);
     expect(editor.textContent).toBe('Ada hi Bea');
     expect(mounts.map((item) => item.botSlug)).toEqual(['ada', 'bea']);
-    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [] });
+    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [], skills: [] });
 
     setRichSelection(editor, 4);
     expect(richSelectionOffsets(editor)).toEqual({ start: 4, end: 4 });
@@ -342,6 +344,7 @@ describe('rich mention editor', () => {
       value: '@Ada there hi @Bea',
       mentions: [mentions[0], { botSlug: 'bea', label: 'Bea', start: 14, end: 18 }],
       channelRefs: [],
+      skills: [],
     });
     editor.remove();
   });
@@ -373,7 +376,12 @@ describe('rich mention editor', () => {
     expect(editor.querySelector('[data-channel-id="group-planning"]')?.textContent).toBe(
       '#Planning',
     );
-    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: refs });
+    expect(readRichMentionDraft(editor)).toEqual({
+      value,
+      mentions,
+      channelRefs: refs,
+      skills: [],
+    });
     expect(referenceRuns(value, mentions, refs).map((run) => run.text)).toEqual([
       '@Ada',
       ' please use ',

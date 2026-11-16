@@ -3671,6 +3671,33 @@ const MIGRATION_LEDGER_MIGRATION: SchemaMigration = {
   migrate() {},
 };
 
+const CHANNEL_MEMBERSHIP_BASIS_MIGRATION: SchemaMigration = {
+  id: 'channel-membership-basis',
+  module: 'team',
+  description: 'Distinguish named invitations from role-based Channel joins',
+  migrate(db) {
+    db.exec(`
+      ALTER TABLE channel_human_members ADD COLUMN membership_basis TEXT NOT NULL DEFAULT 'invited'
+        CHECK (membership_basis IN ('role', 'invited'));
+      CREATE INDEX channel_role_members_by_human ON channel_human_members(human_id, channel_id)
+        WHERE left_at IS NULL AND membership_basis = 'role';
+      UPDATE channel_human_members AS m SET membership_basis = 'role'
+      WHERE m.human_id <> (SELECT owner_human_id FROM team_settings)
+        AND EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = m.channel_id
+          AND json_extract(c.record_json, '$.type') = 'group'
+          AND json_extract(c.visibility_json, '$.kind') = 'roles'
+          AND c.owner_human_id <> m.human_id)
+        AND NOT EXISTS (SELECT 1 FROM channel_admins a
+          WHERE a.channel_id = m.channel_id AND a.human_id = m.human_id);
+      UPDATE channel_human_members AS m SET left_at = COALESCE(left_at, datetime('now'))
+      WHERE membership_basis = 'role' AND NOT EXISTS (
+        SELECT 1 FROM channel_records c, json_each(c.visibility_json, '$.roleIds') vr
+        JOIN human_roles r ON r.role_id = vr.value AND r.human_id = m.human_id
+        WHERE c.channel_id = m.channel_id);
+    `);
+  },
+};
+
 export const BOT_VISIBILITY_MIGRATION: SchemaMigration = {
   id: 'bot-visibility',
   module: 'team',
@@ -3881,6 +3908,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PRIVATE_CONTENT_AUDIT_MIGRATION,
   MINIMAL_MEMBER_MIGRATION,
   MIGRATION_LEDGER_MIGRATION,
+  CHANNEL_MEMBERSHIP_BASIS_MIGRATION,
   BOT_VISIBILITY_MIGRATION,
   HUMAN_ROSTER_ARRANGEMENTS_MIGRATION,
 ]);

@@ -239,6 +239,15 @@ function noticeOrigin(
     : {};
 }
 
+function skillInvocationIntent(message: ChannelMessage) {
+  return (message.skillInvocations ?? []).map(({ name, owner, start, end }) => ({
+    name,
+    owner,
+    start,
+    end,
+  }));
+}
+
 function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
   const author = (message: ChannelMessage) =>
     message.author.kind === 'human'
@@ -254,6 +263,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       mentions: left.mentions ?? [],
       humanMentions: left.humanMentions ?? [],
       channelRefs: left.channelRefs ?? [],
+      skillInvocations: skillInvocationIntent(left),
       botDmAction: left.botDmAction,
       botCausation: left.botCausation,
       grantRequestResolution: left.grantRequestResolution,
@@ -271,6 +281,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       mentions: right.mentions ?? [],
       humanMentions: right.humanMentions ?? [],
       channelRefs: right.channelRefs ?? [],
+      skillInvocations: skillInvocationIntent(right),
       botDmAction: right.botDmAction,
       botCausation: right.botCausation,
       grantRequestResolution: right.grantRequestResolution,

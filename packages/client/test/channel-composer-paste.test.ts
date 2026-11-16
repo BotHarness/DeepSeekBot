@@ -19,6 +19,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconCloseOutlineRegular: () => null,
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
+  IconSkillOutlineRegular: () => null,
   ImageLightbox: ({
     src,
     alt,

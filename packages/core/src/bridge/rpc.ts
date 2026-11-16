@@ -176,7 +176,13 @@ import type {
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
-import type { ChannelMessage, ChannelReaction, ChannelRecord } from '../channels/channel.js';
+import type {
+  ChannelMessage,
+  ChannelReaction,
+  ChannelRecord,
+  ChannelSkillInvocationToken,
+} from '../channels/channel.js';
+import type { SkillCatalogEntry } from '../skills/catalog.js';
 import type { ChannelSendStatus, HumanMessageSearchPage } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
@@ -586,6 +592,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
         channelId,
         policy,
         ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      }),
+    );
+  }
+  channelMemberCandidates(channelId: string, query?: string) {
+    return unwrapAsync(
+      this.methods.channelMemberCandidates({
+        channelId,
+        ...(query === undefined ? {} : { query }),
       }),
     );
   }
@@ -2229,6 +2243,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.messageSearch({ text, cursor, limit }));
   }
 
+  async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
+    return unwrap(await this.methods.channelSkillCatalog({ channelId }));
+  }
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
@@ -2249,9 +2266,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentReply?: ChannelMessage['assignmentReply'],
     allBotMention?: AllBotMention,
     genuiReply?: GenuiMessageReply,
+    skillInvocations?: ChannelSkillInvocationToken[],
   ): Promise<{ message: ChannelMessage }> {
     return unwrap(
       await this.methods.channelSend({
+        ...(skillInvocations === undefined ? {} : { skillInvocations }),
         channelId,
         body,
         ...(allBotMention === undefined ? {} : { allBotMention }),
@@ -2700,6 +2719,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   memoryFileTarget(slug: string, path: string): { target: MemoryFileTarget } {
     return unwrap(this.methods.memoryFileTarget({ slug, path }));
+  }
+
+  memoryImage(
+    slug: string,
+    path: string,
+    source: string,
+    revision: string,
+    reference?: string,
+  ): { mime: string; dataBase64: string } {
+    return unwrap(
+      this.methods.memoryImage({
+        slug,
+        path,
+        source,
+        revision,
+        ...(reference === undefined ? {} : { reference }),
+      }),
+    );
   }
 
   memorySnapshot(channelId: string): { snapshot: MemoryAcceptedSnapshot } {
@@ -3240,6 +3277,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelAdminsSet',
   'channelPolicySet',
   'channelHumanAdd',
+  'channelMemberCandidates',
   'channelDescriptionSet',
   'teamDirectory',
   'humanDm',
@@ -3382,6 +3420,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
+  'channelSkillCatalog',
   'channelSend',
   'channelSendStatus',
   'channelGenuiView',
@@ -3434,6 +3473,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionOwner',
   'botSessionIds',
   'memoryFileTarget',
+  'memoryImage',
   'memorySnapshot',
   'memoryFile',
   'memoryHistory',

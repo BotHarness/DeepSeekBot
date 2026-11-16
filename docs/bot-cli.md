@@ -214,6 +214,8 @@ From a built checkout, `node scripts/cli-smoke.mjs --preset <id> [--zip ./shared
 deepseekbot send <bot-id> --body "Reply with QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "Yes, this one" --reply-to <message-id>
+deepseekbot skills-list --bot <bot-id> [--query <text>]
+deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
 deepseekbot send-status <bot-id> --message-id <receipt-message-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <card-id>
@@ -235,6 +237,8 @@ deepseekbot workspace-options
 deepseekbot folder-browse [<folder-path>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
+
+`skills-list` returns the Skills the `/` menu offers in that conversation, ranked like the menu by `--query` (name prefix, then name subsequence, then description): Host Skills (`owner.kind` `host`) and the Project Skills under each PersonaBot's Memory Repository `.agents/skills` or `.dsh/skills` (`owner.kind` `bot`), as that Bot's Orchestrator sees them. Pass `--channel <channel-id>` instead of `--bot` for any Channel. `send --skill <owner>/<name>` (owner `host` or `bot:<bot-id>`, repeatable) turns the first unused `/name` token in the body into a Skill Invocation for each flag, in flag order (the token must start and end at whitespace or a body boundary; the send is refused if no unused occurrence remains): the Host stores the Skill's text as it is now with the message and the Bot reads it as a `<skill_invocation>` block. The Skill does not choose who replies; a Skill that is gone refuses with `skill-unavailable`, and Skill text longer than 64,000 characters refuses with `skill-too-large` instead of being truncated. See [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md).
 
 `tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to. `--outcome allowed-always-kind` is the `secret_cli` card's "Always allow this kind": it allows this call and saves a rule for the same program, account and environment variable names, which `tool-approval-rules` lists with kind `secret-cli`; any other card refuses it.
 
@@ -1306,6 +1310,10 @@ deepseekbot folder-browse 'D:\code' --offset 500
 
 ## Memory
 
+With an online Host (`--host` or `DEEPSEEKBOT_HOST`), `--as <member>` supports the same Memory reads, edits, Git history, checkpoints, restore, versions, repair, file targets and image exports for that member's own Bots. Every call resolves the authenticated Human on the Host; another principal's Bot returns `bot-not-found`. Offline `--home` Memory commands cannot be combined with `--as` (`as-online-required`). Memory stays in `spaces/<humanId>/bots/<slug>/memory` when Team mode is turned off and on; members must sign in again. Memory moves remain subject to the account-space path rules.
+
+`memory-image --as <member>` uses the ownership-checked `memoryImage` bridge method; images keep the existing revision checks and 25 MiB size limit. The Owner image command retains its HTTP transport. Own-Bot prompt, approval-template, access/source settings and Session history adapters use the same member catalog. Global configuration and native DSH Session APIs remain subject to their existing permissions.
+
 `memory-snapshot`, `memory-file --path`, `memory-history [--limit]`, and `memory-diff --sha` read the Bot memory store; `memory-save --path (--body | --body-stdin)` writes one file and commits it. `--expected-head` defaults to the current HEAD (pass it explicitly for compare-and-swap); `--edit-id` defaults to a fresh UUID and makes repeat submissions idempotent. A stale head or a no-change write fails with `memory-conflict`, a missing file reads back `null`, and malformed shas fail `invalid-input`.
 
 With a live Host selected, the same commands go through the Host's Memory owner instead of the local store, and `memory-save` then requires `--expected-head`. The live Host also offers the rest of the Memory panel:
@@ -2112,3 +2120,13 @@ deepseekbot models allowed [--as <username>]
 ```
 
 Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
+
+### Channel invitations (M14)
+
+```sh
+deepseekbot channels member-candidates <channel-id> --query Alice
+deepseekbot --as bob channels member-candidates <channel-id> --query alice
+deepseekbot --as bob channels add-member <channel-id> alice
+```
+
+Candidate listing returns up to 100 active people outside the Channel, with `humanId`, `displayName` and nullable `username`. Search matches names and usernames. Both commands enforce the calling Human's `addMembers` right, including Channel owner/admin and `channels.manageAll`; refusal is `permission-required` with `details.permission: 'addMembers'`. Invitations grant access immediately for every visibility and survive role revocation. Browse-and-join memberships depend on allowed roles and leave when that access is revoked. See [M14 runtime notes](architecture/team-mode.md#m14-runtime-invitations-and-membership-basis) for upgrade classification.

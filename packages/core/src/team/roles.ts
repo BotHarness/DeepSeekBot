@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import { TeamError } from './error.js';
+import { channelRoleMembershipExitSql } from './channel-contract.js';
 import {
   ALL_PERMISSIONS,
   roleSchema,
@@ -322,6 +323,7 @@ export class TeamRoles {
         db.prepare(`INSERT INTO human_roles SELECT h.human_id, 'member' FROM humans h
         WHERE h.human_id <> (SELECT owner_human_id FROM team_settings)
         AND NOT EXISTS (SELECT 1 FROM human_roles m WHERE m.human_id = h.human_id)`).run();
+        db.prepare(channelRoleMembershipExitSql('all')).run(new Date().toISOString());
       },
       ['team'],
     );
@@ -385,6 +387,7 @@ export class TeamRoles {
       (db) => {
         db.prepare('DELETE FROM human_roles WHERE human_id = ?').run(humanId);
         for (const id of ids) db.prepare('INSERT INTO human_roles VALUES (?, ?)').run(humanId, id);
+        db.prepare(channelRoleMembershipExitSql('human')).run(new Date().toISOString(), humanId);
       },
       ['team'],
     );

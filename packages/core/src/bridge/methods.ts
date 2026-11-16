@@ -38,6 +38,7 @@ import {
 } from '../workspaces/grant-requests.js';
 import { notificationAttentionPage } from '../runtime/notification-attention.js';
 import { MemoryImageError } from '../memory/image.js';
+import { inspectImage } from '../media/image-format.js';
 import {
   MIN_IDLE_MS,
   type IdleCompaction,
@@ -256,6 +257,7 @@ import {
   isChannelCallVisual,
   isChannelVoiceCallMessage,
   isValidChannelId,
+  isSkillInvocationToken,
   isGroupAvatar,
   isReactionEmoji,
   type LocalHumanIdentity,
@@ -264,6 +266,8 @@ import {
   type ChannelReaction,
   type ChannelRecord,
   type ChannelReference,
+  type ChannelSkillInvocation,
+  type ChannelSkillInvocationToken,
 } from '../channels/channel.js';
 import { botAvatarUrl } from '../bots/avatar-http.js';
 import { botBannerSummary, type BotBannerSummary } from '../bots/banner-http.js';
@@ -335,6 +339,12 @@ import {
   type DataResetPreview,
   type DataResetResult,
 } from '../data-reset/reset.js';
+import {
+  SkillContentTooLargeError,
+  type SkillCatalog,
+  type SkillCatalogEntry,
+  type ResolvedSkill,
+} from '../skills/catalog.js';
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -899,6 +909,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   messageSearch(payload: unknown): BridgeResult<HumanMessageSearchPage>;
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
+  channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
   channelGenuiView(payload: unknown): BridgeResult<GenuiPrivateView>;
@@ -1009,6 +1020,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   messageAttachmentTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
   channelMediaTarget(payload: unknown): Promise<BridgeResult<{ target: MemoryFileTarget }>>;
   memoryFileTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
+  memoryImage(payload: unknown): BridgeResult<{ mime: string; dataBase64: string }>;
   memorySnapshot(payload: unknown): BridgeResult<{ snapshot: MemoryAcceptedSnapshot }>;
   memoryFile(payload: unknown): BridgeResult<{
     file?: {
@@ -1271,6 +1283,7 @@ export interface BridgeMethodsDeps {
   team?: TeamService;
   voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
+  skills?: SkillCatalog;
   voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
@@ -2083,6 +2096,7 @@ function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefine
   }
 }
 const MAX_CHANNEL_SEND_ATTACHMENTS = 10;
+const MAX_SKILL_INVOCATIONS = 5;
 
 function ownAttachments(
   message: ChannelMessage,
@@ -2165,6 +2179,16 @@ function buildBridgeMethods(
 ): BridgeMethods {
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+  const channelSkillBots = (channel: ChannelRecord): string[] =>
+    (channel.type === 'group'
+      ? channel.members
+      : channel.botSlug === undefined
+        ? []
+        : [channel.botSlug]
+    ).filter((slug) => {
+      const bot = deps.registry.get(slug);
+      return bot !== undefined && bot.paused !== true;
+    });
   const requireOwnedBot = (slug: string): void => {
     if (
       deps.team &&
@@ -6982,6 +7006,22 @@ function buildBridgeMethods(
         return invalidInput(String(error));
       }
     },
+    async channelSkillCatalog(payload) {
+      const channelId = asNonBlank(asObject(payload), 'channelId');
+      if (channelId === undefined) return invalidInput('channelId is required');
+      const channel = deps.channels.get(channelId);
+      if (channel === undefined) return unknownChannel(channelId);
+      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
+      const bots = channelSkillBots(channel);
+      try {
+        return { ok: true, value: { skills: await deps.skills.list(bots) } };
+      } catch (error) {
+        return {
+          ok: false,
+          error: { code: 'skills-unavailable', message: (error as Error).message },
+        };
+      }
+    },
     channelAllBotPreview(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
@@ -7114,9 +7154,6 @@ function buildBridgeMethods(
       if (rawAllBotMention !== undefined) {
         try {
           allBotMention = parseAllBotMention(rawAllBotMention, body);
-          const expanded = expandAllBotMention(body, mentions, allBotMention);
-          body = expanded.body;
-          mentions.splice(0, mentions.length, ...expanded.mentions);
         } catch (error) {
           return invalidInput((error as Error).message);
         }
@@ -7161,6 +7198,52 @@ function buildBridgeMethods(
           )
         )
           return invalidInput('overlapping selected tokens');
+      }
+      const rawSkills = source['skillInvocations'];
+      if (rawSkills !== undefined && !Array.isArray(rawSkills))
+        return invalidInput('skillInvocations must be selected /Skill tokens');
+      const skillTokens: ChannelSkillInvocationToken[] = [];
+      if (Array.isArray(rawSkills)) {
+        if (rawSkills.length > MAX_SKILL_INVOCATIONS) return invalidInput('too many Skills');
+        for (const item of rawSkills) {
+          if (!isSkillInvocationToken(item, body)) return invalidInput('invalid Skill token');
+          const owner =
+            item.owner.kind === 'host'
+              ? ({ kind: 'host' } as const)
+              : ({ kind: 'bot', botSlug: item.owner.botSlug } as const);
+          skillTokens.push({ name: item.name, owner, start: item.start, end: item.end });
+        }
+        skillTokens.sort((a, b) => a.start - b.start);
+        if (
+          skillTokens.some((item, index) => index > 0 && item.start < skillTokens[index - 1]!.end)
+        )
+          return invalidInput('overlapping Skill tokens');
+        if (
+          skillTokens.some((skill) =>
+            [...mentions, ...channelRefs].some(
+              (token) => skill.start < token.end && token.start < skill.end,
+            ),
+          )
+        )
+          return invalidInput('overlapping selected tokens');
+      }
+      if (allBotMention !== undefined) {
+        try {
+          const expanded = expandAllBotMention(body, mentions, allBotMention);
+          const delta = expanded.body.length - body.length;
+          for (const token of [...channelRefs, ...skillTokens]) {
+            if (token.start < allBotMention.end && allBotMention.start < token.end)
+              return invalidInput('overlapping selected tokens');
+            if (token.start >= allBotMention.end) {
+              token.start += delta;
+              token.end += delta;
+            }
+          }
+          body = expanded.body;
+          mentions.splice(0, mentions.length, ...expanded.mentions);
+        } catch (error) {
+          return invalidInput((error as Error).message);
+        }
       }
       const rawReplyTo = source['replyTo'];
       if (rawReplyTo !== undefined && (typeof rawReplyTo !== 'string' || rawReplyTo.length === 0)) {
@@ -7324,6 +7407,14 @@ function buildBridgeMethods(
             JSON.stringify(attachmentIntent(attachments ?? [])) &&
           JSON.stringify(existing.mentions ?? []) === JSON.stringify(mentions) &&
           JSON.stringify(existing.channelRefs ?? []) === JSON.stringify(channelRefs) &&
+          JSON.stringify(
+            (existing.skillInvocations ?? []).map(({ name, owner, start, end }) => ({
+              name,
+              owner,
+              start,
+              end,
+            })),
+          ) === JSON.stringify(skillTokens) &&
           JSON.stringify(existing.grantRequestResolution) ===
             JSON.stringify(grantRequestResolution);
         return same
@@ -7418,6 +7509,36 @@ function buildBridgeMethods(
       ) {
         return dmAdmissionFailure(channelId, channel.botSlug, 'archived-bot');
       }
+      const skillInvocations: ChannelSkillInvocation[] = [];
+      const skillBots = skillTokens.length === 0 ? [] : channelSkillBots(channel);
+      const skillViewer = skillBots[0];
+      for (const token of skillTokens) {
+        let resolved: ResolvedSkill | undefined;
+        try {
+          resolved =
+            skillViewer === undefined ||
+            (token.owner.kind === 'bot' && !skillBots.includes(token.owner.botSlug))
+              ? undefined
+              : await deps.skills?.resolve(token.name, token.owner, skillViewer);
+        } catch (error) {
+          if (error instanceof SkillContentTooLargeError)
+            return { ok: false, error: { code: error.code, message: error.message } };
+          throw error;
+        }
+        if (resolved === undefined)
+          return {
+            ok: false,
+            error: {
+              code: 'skill-unavailable',
+              message: `Skill /${token.name} is no longer available`,
+            },
+          };
+        skillInvocations.push({
+          ...token,
+          content: resolved.content,
+          ...(resolved.path === undefined ? {} : { path: resolved.path }),
+        });
+      }
       const id = requestedMessageId ?? randomUUID();
       const harvest =
         voiceCall === undefined && channel.type === 'dm' && channel.botSlug !== undefined
@@ -7445,6 +7566,7 @@ function buildBridgeMethods(
         ...(sent.length === 0 ? {} : { attachments: sent }),
         ...(mentions.length === 0 ? {} : { mentions }),
         ...(channelRefs.length === 0 ? {} : { channelRefs }),
+        ...(skillInvocations.length === 0 ? {} : { skillInvocations }),
         ...(replyTo === undefined ? {} : { replyTo }),
         ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
         ...(assignmentReply === undefined ? {} : { assignmentReply }),
@@ -9486,6 +9608,28 @@ function buildBridgeMethods(
       return memoryCall(() => ({
         target: deps.memory!.fileTarget(slug, path),
       }));
+    },
+    memoryImage(payload) {
+      const input = z
+        .object({
+          slug: z.string().min(1),
+          path: z.string().min(1),
+          source: z.string().min(1),
+          revision: z.string().min(1),
+          reference: z.string().optional(),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return invalidInput('slug, path, source and revision are required');
+      const { slug, path, source, revision, reference } = input.data;
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      return memoryCall(() => {
+        const bytes =
+          reference === undefined
+            ? deps.memory!.imageFile(slug, path, source, revision)
+            : deps.memory!.markdownImageFile(slug, path, source, revision, reference);
+        return { mime: inspectImage(bytes).mime, dataBase64: bytes.toString('base64') };
+      });
     },
     memorySnapshot(payload) {
       const scope = dmMemory(payload);

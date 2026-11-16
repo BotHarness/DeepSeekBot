@@ -530,7 +530,6 @@ describe('M7 Bot principal and participant authority', () => {
     async (kind) => {
       const f = fixture();
       const channel = f.channels.createGroup(bob, { name: 'Group', members: ['alice-bot'] });
-      f.team.channelAccess.addMember(bob, channel.id, 'alice');
       if (kind === 'role') {
         const role = f.team.roles.create(owner, 'Finance', []).role;
         f.team.roles.set(owner, 'alice', [role.roleId]);
@@ -538,7 +537,8 @@ describe('M7 Bot principal and participant authority', () => {
           kind: 'roles',
           roleIds: [role.roleId],
         });
-      }
+        f.team.channelAccess.join(alice, channel.id);
+      } else f.team.channelAccess.addMember(bob, channel.id, 'alice');
       expect(f.team.bots.canRead('alice-bot', channel)).toBe(true);
       await f.channels.appendMessage(alice, channel.id, post('before', 'bot'));
       if (kind === 'role') f.team.roles.set(owner, 'alice', []);
@@ -829,19 +829,13 @@ describe('M7 Bot principal and participant authority', () => {
         core.registry.create({ slug: 'worker', displayName: 'Worker', ownerHumanId: 'alice' }).ok,
       ).toBe(true);
       const group = core.channels.createGroup(owner, { name: 'Restricted', members: ['worker'] });
-      db.transaction((db) =>
-        db
-          .prepare(
-            "INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at) VALUES (?,'alice','Alice',1,'now')",
-          )
-          .run(group.id),
-      );
       const role = core.team.roles.create(owner, 'Finance', []).role;
       core.team.roles.set(owner, 'alice', [role.roleId]);
       core.team.channelAccess.visibilitySet(owner, group.id, {
         kind: 'roles',
         roleIds: [role.roleId],
       });
+      core.team.channelAccess.join(alice, group.id);
       await core.channels.appendMessage(owner, group.id, {
         ...post('start'),
         body: '@Worker start',
