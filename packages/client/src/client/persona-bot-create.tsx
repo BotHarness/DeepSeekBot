@@ -12,6 +12,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { TagEditor, tagsWithDraft } from './tag-editor.js';
+import { font } from './ds/tobs.stylex.js';
 
 export { normalizeRoleBadges } from './tag-editor.js';
 
@@ -68,7 +69,7 @@ const styles = stylex.create({
     borderRadius: radius.sm,
     backgroundColor: color.surface,
     color: color.fg,
-    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',
@@ -84,7 +85,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
   },
   detail: {
-    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    fontFamily: font.familyMono,
     overflowWrap: 'anywhere',
   },
   advanced: {

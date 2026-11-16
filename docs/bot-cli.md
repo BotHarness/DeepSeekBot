@@ -272,11 +272,12 @@ printf '{"autoCollapseMessages":true}' | deepseekbot settings-set botharness-cli
 printf '{"showDeliveryReceipts":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"botHopLimit":128}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"settingsPins":["models","auto-approval","devices"]}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
 
-`access-set` refuses `danger-full-access` unless `--acknowledge-risk` is given: full access lets the Bot perform ordinary work and use the Browser and Computer without routine approval cards; permission and approval-policy management still needs an individual Human decision. `--scope chat` also applies it to the Bot's own chat; `assignments` keeps it to new Assignments. `settings` returns `{ns, revision, value}` for one namespace; `settings-set` reads a JSON object of fields from stdin and applies it against that revision, so a concurrent change fails instead of being overwritten. Only fields the Host marks as live can be changed this way. `botHopLimit` (integer 1–1000, default 128, Settings → Messaging) is the maximum depth of a Bot-to-Bot chain started by one Human message. A Bot send that would wake another Bot (an @ mention or a Bot DM) past it is refused with `collaboration-hop-limit` and nothing is committed; a Group message without Bot mentions is still posted but wakes no one. The scoped Tob CLI cannot change it. `workspace-create` takes an absolute path and returns the Host workspace, whose id `grant-create` uses.
+`access-set` refuses `danger-full-access` unless `--acknowledge-risk` is given: full access lets the Bot perform ordinary work and use the Browser and Computer without routine approval cards; permission and approval-policy management still needs an individual Human decision. `--scope chat` also applies it to the Bot's own chat; `assignments` keeps it to new Assignments. `settings` returns `{ns, revision, value}` for one namespace; `settings-set` reads a JSON object of fields from stdin and applies it against that revision, so a concurrent change fails instead of being overwritten. Only fields the Host marks as live can be changed this way. `botHopLimit` (integer 1–1000, default 128, Settings → Messaging) is the maximum depth of a Bot-to-Bot chain started by one Human message. A Bot send that would wake another Bot (an @ mention or a Bot DM) past it is refused with `collaboration-hop-limit` and nothing is committed; a Group message without Bot mentions is still posted but wakes no one. The scoped Tob CLI cannot change it. `settingsPins` is the ordered list of settings page ids shown under Settings → Pinned. It is saved on the Host, so every client of that Host shows the same pins. `workspace-create` takes an absolute path and returns the Host workspace, whose id `grant-create` uses.
 
 ### GenUI documents in a Bot DM
 
@@ -1023,7 +1024,11 @@ deepseekbot phone-route-publish --confirm
 deepseekbot phone-route-disable --confirm
 ```
 
-`phone-route` returns `{routes}` with Tailscale availability, each route's readiness, the proposed `serveCommand`, and managed enablement/ownership. `phone-route-publish` explicitly enables managed publishing and restart recovery, returning `{published, changed, routes}`. On restart, it updates a still-owned mapping in place, preserving its HTTPS address and retaining the old mapping if publication fails. Status includes `staleRoutes` (URL and local target port) for unresponsive loopback proxies; checks are bounded and cached for five seconds, and unknown ownership never authorizes deletion. New publication keeps the Host port and chooses a free publishing port from 443, then 8443–8452; an existing matching publication is reused without taking ownership. `phone-route-disable` turns off recovery and removes only a still-matching mapping created by this owner. It preserves pairings and other routes. Refusals are `confirm-required`, `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (no candidate is free or configuration changed), `serve-needs-enable` (includes the Tailscale admin `enableUrl`), `serve-denied`, and `serve-failed`. A permission or tailnet HTTPS refusal requires the corresponding setup action; changing ports does not fix those refusals.
+`phone-route` returns `{routes}` with Tailscale availability, each route's readiness, the proposed `serveCommand`, and managed enablement/ownership. `phone-route-publish` explicitly enables managed publishing and restart recovery, returning `{published, changed, routes}`. On restart, it updates a still-owned mapping in place, preserving its HTTPS address and retaining the old mapping if publication fails. Status includes `staleRoutes` (URL and local target port) for unresponsive loopback proxies; checks are bounded and cached for five seconds, and unknown ownership never authorizes deletion. New publication keeps the Host port and chooses a free publishing port from 443, then 8443–8452; manual publications remain untouched; managed publishing chooses its own free route rather than adopting one. `phone-route-disable` turns off recovery and removes only a still-matching mapping created by this owner. It preserves pairings and other routes. Refusals are `confirm-required`, `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (no candidate is free or configuration changed), `serve-needs-enable` (includes the Tailscale admin `enableUrl`), `serve-denied`, and `serve-failed`. A permission or tailnet HTTPS refusal requires the corresponding setup action; changing ports does not fix those refusals.
+
+Managed publication targets a dedicated ephemeral ingress bound only to `127.0.0.1`, which streams HTTP and WebSocket traffic to the Host. `routes.managed.trustedIngress` is true only while this listener is active and the exact owned Serve mapping still targets it with HTTPS enabled. Each Tailscale route reports `memberSignIn: "managed-tls" | "untrusted"`; readiness alone does not qualify password sign-in. Owned legacy mappings are retargeted in place, preserving their HTTPS address; manual mappings stay untrusted. Disable closes the listener as well as removing the owned mapping. Forwarded headers on the main Host port never establish trust.
+
+`team-mode status` lists the same eligible member addresses as `members invite` and member pairing offers: direct TLS, Connect and trusted managed Tailscale. It excludes loopback, plain HTTP and unowned Tailscale routes, including when the browser's insecure HTTP exception is enabled. Suggested Client copy: **Member sign-in available** / **Publish with this Host to allow member sign-in** (Chinese: **可供成员登录** / **通过本 Host 发布后，成员才能登录**). Client rendering is a separate UI change. A Host-port label must read the loopback route URL; the final port in `serveCommand` is now the ingress target.
 
 ### Paired devices
 
@@ -2076,11 +2081,12 @@ deepseekbot team-mode owner-password --password-stdin < owner-password.txt
 deepseekbot team-mode on
 deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
 deepseekbot members list
+deepseekbot members invite bob
+deepseekbot --as bob members pairing-offer
 deepseekbot members reset-password bob --initial-password-file ./bob-reset.txt
 deepseekbot channels set-public <channel-id> on
 deepseekbot --as bob members password --password-stdin < password-change.json
-deepseekbot --as bob channels browse-public
-deepseekbot --as bob channels join-public <channel-id>
+deepseekbot --as bob channels
 deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
 deepseekbot --as bob channel-messages <channel-id>
 
@@ -2156,6 +2162,10 @@ Bots are private by default: only the principal (the owner) can DM a private Bot
 Role Policy input is a JSON array of `{ "topic", "text", "effect": "allow" | "deny" }` (at most 100 items). It is advisory: the Bot reads the speaking Human's roles and matching items through `speaker-policy` and the `speaker_policy` tool. When roles conflict on a topic, Deny applies; `roles conflicts <username>` lists the conflicting role pairs.
 
 Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
+
+`members invite <username>` resolves the username with `members.manage` and the target-role ceiling and returns `{ link, qr: { size, path }, expiresAt }`. The invitation contains the Host identity fingerprint, reachable HTTPS / encrypted-gateway routes and username; it contains no initial password. Deliver that password separately. `--as <username> members pairing-offer` creates a ten-minute, single-use pairing offer for that member alone, with an additional `receipt`. It refuses until the initial password has changed. Redemption creates a `paired-device` member grant for the same Human, without creating an Owner device or obtaining an Owner cookie.
+
+The phone stores one secure identity per Host ID. Replacing a different member on the same Host requires confirmation and clears the previous identity's local content. The phone verifies the invitation fingerprint before sign-in; the Host also refuses `fingerprint-mismatch`. Every other device API and mux refuses `password-change-required` until the initial password changes. Password routes retain `credentials-invalid`, `password-weak`, `password-reused` and `rate-limited` with `retryAfterSeconds`; device passwords cannot use the browser's insecure HTTP exception. iOS and Android native acceptance are recorded separately.
 
 ### Three-part approval guidance
 

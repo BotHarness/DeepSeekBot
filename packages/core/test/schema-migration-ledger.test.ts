@@ -68,6 +68,47 @@ describe('named schema migration ledger', () => {
     expect(readFileSync(path)).toEqual(before);
   });
 
+  it('appends member-devices to a ledger-backed main database without replacing existing browser grants', () => {
+    const home = createTempRoot('bh-ledger-member-devices-');
+    const previous = defineSchemaPlan(
+      plan.migrations.slice(
+        0,
+        plan.migrations.findIndex((migration) => migration.id === 'member-devices'),
+      ),
+    );
+    expect(previous.migrations.at(-1)?.id).toBe('channel-auto-join');
+    const old = trackTestOwner(mountOperationalDatabase({ dshHome: home, schemaPlan: previous }));
+    expect(old.mode).toBe('ready');
+    attachOperationalModule(old, 'team').transaction((db) => {
+      db.prepare('INSERT INTO member_grants VALUES (?, ?, ?, ?, ?, NULL)').run(
+        'existing-browser',
+        'token-hash',
+        'local-human',
+        '2026-11-14',
+        '2026-11-14',
+      );
+    });
+    old.close();
+    const upgraded = open(home);
+    expect(upgraded.mode).toBe('ready');
+    expect(
+      attachOperationalModule(upgraded, 'team').read((db) =>
+        db
+          .prepare(
+            'SELECT grant_id, kind, device_name, public_key FROM member_grants WHERE grant_id = ?',
+          )
+          .get('existing-browser'),
+      ),
+    ).toEqual({
+      grant_id: 'existing-browser',
+      kind: 'browser-session',
+      device_name: null,
+      public_key: null,
+    });
+    expect(attachOperationalModule(upgraded, 'team').read(ledger)).toEqual(expected);
+    expect(expected.at(-1)?.id).toBe('member-devices');
+  });
+
   it.each([1, 25, 78, 116, 149, 153])(
     'backfills every applied generation from a pre-ledger generation %i',
     (generation) => {
@@ -128,7 +169,12 @@ describe('named schema migration ledger', () => {
     (includeInvitations) => {
       const home = createTempRoot('bh-ledger-visibility-first-');
       const invitations = plan.migrations.find((step) => step.id === 'channel-membership-basis')!;
-      const branchSteps = plan.migrations.filter((step) => step.id !== invitations.id);
+      const branchSteps = plan.migrations
+        .slice(
+          0,
+          plan.migrations.findIndex((step) => step.id === 'channel-auto-join'),
+        )
+        .filter((step) => step.id !== invitations.id);
       const branchPlan = defineSchemaPlan(
         includeInvitations ? [...branchSteps, invitations] : branchSteps,
       );

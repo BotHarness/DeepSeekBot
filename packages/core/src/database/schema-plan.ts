@@ -3754,6 +3754,46 @@ const HUMAN_ROSTER_ARRANGEMENTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const CHANNEL_AUTO_JOIN_MIGRATION: SchemaMigration = {
+  id: 'channel-auto-join',
+  module: 'team',
+  description: 'Join every active Human to each public or role Channel they can view',
+  migrate(db) {
+    db.exec(`
+      UPDATE channel_human_members AS m SET left_at = datetime('now')
+      WHERE left_at IS NULL AND membership_basis = 'role'
+        AND EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = m.channel_id
+          AND json_extract(c.visibility_json, '$.kind') = 'private');
+      INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at, membership_basis)
+      SELECT c.channel_id, h.human_id, h.display_name, 1, datetime('now'), 'role'
+      FROM channel_records c JOIN humans h ON h.status = 'active'
+      WHERE json_extract(c.record_json, '$.type') = 'group'
+        AND json_extract(c.record_json, '$.deletedAt') IS NULL
+        AND json_extract(c.visibility_json, '$.kind') IN ('public', 'roles')
+        AND (json_extract(c.visibility_json, '$.kind') = 'public'
+          OR EXISTS (SELECT 1 FROM human_roles r JOIN json_each(c.visibility_json, '$.roleIds') v
+            ON v.value = r.role_id WHERE r.human_id = h.human_id))
+        AND NOT EXISTS (SELECT 1 FROM channel_human_members x
+          WHERE x.channel_id = c.channel_id AND x.human_id = h.human_id AND x.left_at IS NULL)
+      ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL, membership_basis = 'role';
+    `);
+  },
+};
+
+const MEMBER_DEVICES_MIGRATION: SchemaMigration = {
+  id: 'member-devices',
+  module: 'team',
+  description: 'Member grants distinguish browser sessions and paired devices',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE member_grants ADD COLUMN kind TEXT NOT NULL DEFAULT 'browser-session'
+        CHECK (kind IN ('browser-session', 'paired-device'));
+      ALTER TABLE member_grants ADD COLUMN device_name TEXT;
+      ALTER TABLE member_grants ADD COLUMN public_key TEXT;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3911,4 +3951,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_MEMBERSHIP_BASIS_MIGRATION,
   BOT_VISIBILITY_MIGRATION,
   HUMAN_ROSTER_ARRANGEMENTS_MIGRATION,
+  CHANNEL_AUTO_JOIN_MIGRATION,
+  MEMBER_DEVICES_MIGRATION,
 ]);

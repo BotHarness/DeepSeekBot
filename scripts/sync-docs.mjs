@@ -801,6 +801,10 @@ export const PAGES = [
 ];
 
 const LINK_REWRITES = [
+  [
+    /\]\((?:\.\.\/){1,2}decisions\/([a-z0-9-]+)\.md(#[\w-]+)?\)/g,
+    `](${GITHUB_BLOB}docs/decisions/$1.md$2)`,
+  ],
   [/\]\((?:\.\.\/){1,2}adr\/([0-9]{4}-[a-z0-9-]+)\.md\)/g, '](/dev/adr/$1)'],
   [
     /\]\((?:\.\.\/){1,2}architecture\/botharness-architecture\.md\)/g,

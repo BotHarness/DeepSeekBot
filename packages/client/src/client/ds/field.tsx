@@ -9,6 +9,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, radius, space, text } from './tokens.stylex.js';
+import { font } from './tobs.stylex.js';
 
 const styles = stylex.create({
   field: {
@@ -42,7 +43,7 @@ const styles = stylex.create({
     overflowWrap: 'anywhere',
   },
   input: { boxSizing: 'border-box', width: '100%', minWidth: 0 },
-  mono: { fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)' },
+  mono: { fontFamily: font.familyMono },
   textarea: {
     boxSizing: 'border-box',
     width: '100%',

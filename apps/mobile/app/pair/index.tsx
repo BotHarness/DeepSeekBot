@@ -70,6 +70,15 @@ export default function PairChoiceScreen() {
           }
         />
         <SettingsRow
+          testID="pair-choice-team"
+          on={SHEET_GROUP}
+          title={t.pairChoice.team}
+          detail={t.pairChoice.teamDetail}
+          icon="account"
+          disclosure
+          onPress={() => router.push('/pair/team')}
+        />
+        <SettingsRow
           testID="pair-choice-account"
           on={SHEET_GROUP}
           title={t.pairChoice.account}

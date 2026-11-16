@@ -31,3 +31,11 @@ body:
     attributes:
       label: Sanitized evidence / 脱敏证据
       description: Optional screenshots or short logs; remove secrets and unrelated conversations / 可选，先脱敏。
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Harness / Model
+      description: If a coding agent wrote or will write the fix, list each runner and model, comma-separated; a bot turns them into labels / 如由 coding agent 实现，列出用到的工具和模型，逗号分隔，机器人会据此打标签。
+      value: |
+        Harness:
+        Model:

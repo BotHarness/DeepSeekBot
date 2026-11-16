@@ -652,7 +652,6 @@ describe('M7 Bot principal and participant authority', () => {
           kind: 'roles',
           roleIds: [role.roleId],
         });
-        f.team.channelAccess.join(alice, channel.id);
       } else f.team.channelAccess.addMember(bob, channel.id, 'alice');
       expect(f.team.bots.canRead('alice-bot', channel)).toBe(true);
       await f.channels.appendMessage(alice, channel.id, post('before', 'bot'));
@@ -950,7 +949,6 @@ describe('M7 Bot principal and participant authority', () => {
         kind: 'roles',
         roleIds: [role.roleId],
       });
-      core.team.channelAccess.join(alice, group.id);
       await core.channels.appendMessage(owner, group.id, {
         ...post('start'),
         body: '@Worker start',
@@ -1119,8 +1117,6 @@ describe('M7 Bot principal and participant authority', () => {
     });
     groupId = group.id;
     core.team.setPublic(owner, group.id, true);
-    core.team.joinPublic(alice, group.id);
-    core.team.joinPublic(bob, group.id);
     const dm = core.team.bots.dm(bob, 'public-helper')!;
     const body = 'Please join #Team';
     await core.channels.appendMessage(bob, dm.id, {

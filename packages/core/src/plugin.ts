@@ -1128,6 +1128,7 @@ function initializeCore(
             'member-purged',
             'assignment-report',
             'bot-ownership',
+            'team',
           ].includes(topic),
         )
       )

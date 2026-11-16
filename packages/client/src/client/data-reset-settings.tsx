@@ -18,6 +18,7 @@ import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey } from './locale.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   content: {
@@ -63,7 +64,7 @@ const styles = stylex.create({
   },
   path: {
     overflowWrap: 'anywhere',
-    fontFamily: 'var(--dsw-font-family-mono)',
+    fontFamily: font.familyMono,
   },
   choice: {
     color: color.fg,

@@ -11,7 +11,14 @@ import type {
   HostSocketEvents,
 } from './carrier';
 import type { HostEncryption } from './hosts';
-import { checkRoute, hasPrivateOrigin, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import {
+  checkRoute,
+  hasPrivateOrigin,
+  isConnectRoute,
+  isEncryptedRoute,
+  isLanRoute,
+  socketOrigin,
+} from './route';
 import { APP_VERSION_HEADER } from '../../../../packages/core/src/devices/client-compat';
 
 export const HOST_KEY_REJECTIONS: ReadonlySet<string> = new Set([
@@ -25,14 +32,24 @@ export class ConnectRefused extends Error {
   }
 }
 
-function requestUrl(input: string, privateOrigin?: Parameters<typeof checkRoute>[1]): URL {
+function requestUrl(
+  input: string,
+  privateOrigin?: Parameters<typeof checkRoute>[1],
+  trustedHttpsOrigins: readonly string[] = [],
+): URL {
   let url: URL;
   try {
     url = new URL(input);
   } catch {
     throw new ConnectRefused('route-invalid');
   }
-  if (!checkRoute(url.origin, privateOrigin).ok || url.username || url.password || url.hash)
+  if (
+    (!checkRoute(url.origin, privateOrigin).ok &&
+      !(url.protocol === 'https:' && trustedHttpsOrigins.includes(url.origin))) ||
+    url.username ||
+    url.password ||
+    url.hash
+  )
     throw new ConnectRefused('route-invalid');
   return url;
 }
@@ -103,12 +120,20 @@ export function openNoiseSocket(options: {
   origin: string;
   hostId: string;
   encryption: HostEncryption;
+  trustedHttpsOrigins?: readonly string[];
   raw: HostCarrier;
   timeoutMs?: number;
   message(value: Record<string, unknown>): void;
   closed(reason: string): void;
 }) {
-  if (!checkRoute(options.origin, options.encryption.privateRelay).ok)
+  if (
+    !checkRoute(options.origin, options.encryption.privateRelay).ok &&
+    !(
+      options.trustedHttpsOrigins?.includes(options.origin) &&
+      new URL(options.origin).protocol === 'https:' &&
+      new URL(options.origin).origin === options.origin
+    )
+  )
     throw new ConnectRefused('route-invalid');
   const channel = new ConnectChannel({
     role: 'initiator',
@@ -280,11 +305,20 @@ interface DirectRetry {
 
 export function encryptedCarrier(options: {
   requireEncryption?: boolean;
+  trustedHttpsOrigins?: readonly string[];
   raw: HostCarrier;
   hostId: string;
   credential: string;
   encryption?: HostEncryption;
 }): HostCarrier {
+  const needsEncryption = (origin: string) =>
+    isEncryptedRoute(origin, options.encryption) &&
+    !(
+      options.trustedHttpsOrigins?.includes(origin) &&
+      !isConnectRoute(origin) &&
+      !isLanRoute(origin) &&
+      !options.encryption?.privateRelay
+    );
   const sessions = new Map<string, Session>();
   const directs = new Map<string, Session>();
   const retries = new Map<string, DirectRetry>();
@@ -437,7 +471,13 @@ export function encryptedCarrier(options: {
   };
   const upgrade = (origin: string) => {
     const openDirect = options.raw.openDirect;
-    if (!openDirect || closedCarrier || isLanRoute(origin)) return;
+    if (
+      options.credential.startsWith('member.') ||
+      !openDirect ||
+      closedCarrier ||
+      isLanRoute(origin)
+    )
+      return;
     const state = retryState(origin);
     const relay = sessions.get(origin);
     if (state.blocked || state.running || directs.has(origin) || !relay?.admitted) return;
@@ -481,7 +521,7 @@ export function encryptedCarrier(options: {
     url: string,
     init: HostRequest,
   ): Promise<HostResponse> => {
-    const parsed = requestUrl(url, options.encryption?.privateRelay);
+    const parsed = requestUrl(url, options.encryption?.privateRelay, options.trustedHttpsOrigins);
     await waitForAdmission(current.ready, init.signal);
     if (init.signal.aborted) throw new Error('request-cancelled');
     if (
@@ -556,15 +596,19 @@ export function encryptedCarrier(options: {
       directs.clear();
     },
     async request(url, init) {
-      const parsed = requestUrl(url, options.encryption?.privateRelay);
-      if (!options.requireEncryption && !isEncryptedRoute(parsed.origin, options.encryption))
+      const parsed = requestUrl(url, options.encryption?.privateRelay, options.trustedHttpsOrigins);
+      if (!options.requireEncryption && !needsEncryption(parsed.origin))
         return options.raw.request(url, init);
       if (init.signal.aborted) throw new Error('request-cancelled');
       return relayRequest(pick(parsed.origin), url, init);
     },
     openSocket(url, events, headers): HostSocket {
-      const parsed = requestUrl(url.replace(/^ws/u, 'http'), options.encryption?.privateRelay);
-      if (!options.requireEncryption && !isEncryptedRoute(parsed.origin, options.encryption))
+      const parsed = requestUrl(
+        url.replace(/^ws/u, 'http'),
+        options.encryption?.privateRelay,
+        options.trustedHttpsOrigins,
+      );
+      if (!options.requireEncryption && !needsEncryption(parsed.origin))
         return options.raw.openSocket(url, events, headers);
       let current: Session | undefined,
         done = false;

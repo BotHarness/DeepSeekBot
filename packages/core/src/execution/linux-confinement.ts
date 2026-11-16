@@ -43,24 +43,26 @@ trap cleanup EXIT
 trap 'kill -TERM "\${child:-0}" 2>/dev/null' TERM INT HUP
 rules=$1
 shift
+nft=$(PATH="$PATH:/usr/local/sbin:/usr/sbin:/sbin" command -v nft) || fail "nft is not installed"
+ipcmd=$(PATH="$PATH:/usr/local/sbin:/usr/sbin:/sbin" command -v ip) || ipcmd=ip
 printf 'nameserver 10.0.2.3\n' > "$dir/resolv.conf" || fail "cannot create a private resolver file"
 mkfifo "$dir/go" || fail "cannot create a synchronisation pipe"
 unshare --user --map-root-user --net --kill-child -- /bin/sh -c '
   read -r ready < "$1/go"
   [ "$ready" = go ] || { echo "bh-confine: network setup was not confirmed" >&2; exit 125; }
-  ip link set lo up 2>/dev/null
+  "$4" link set lo up 2>/dev/null
   n=0
   until grep -q tap0 /proc/net/route; do
     n=$((n + 1))
     [ "$n" -gt 250 ] && { echo "bh-confine: the private network has no route" >&2; exit 125; }
     sleep 0.02
   done
-  printf "%s" "$2" | nft -f - || { echo "bh-confine: network rules were refused" >&2; exit 125; }
-  nft list table inet botharness >/dev/null 2>&1 || { echo "bh-confine: network rules are not active" >&2; exit 125; }
+  printf "%s" "$2" | "$3" -f - || { echo "bh-confine: network rules were refused" >&2; exit 125; }
+  "$3" list table inet botharness >/dev/null 2>&1 || { echo "bh-confine: network rules are not active" >&2; exit 125; }
   exec 9< "$1/resolv.conf" || { echo "bh-confine: the private resolver file is missing" >&2; exit 125; }
-  shift 2
+  shift 4
   exec "$@"
-' bh-confine "$dir" "$rules" "$@" &
+' bh-confine "$dir" "$rules" "$nft" "$ipcmd" "$@" &
 child=$!
 host=$(readlink /proc/self/ns/net)
 i=0
@@ -214,7 +216,12 @@ export function probeConfinement(
       missing: ['bwrap'],
     };
   const tools = ['unshare', 'slirp4netns', 'nft'].filter(
-    (tool) => !runs(spawn, ['/bin/sh', '-c', `command -v ${tool}`]).ok,
+    (tool) =>
+      !runs(spawn, [
+        '/bin/sh',
+        '-c',
+        `PATH="$PATH:/usr/local/sbin:/usr/sbin:/sbin" command -v ${tool}`,
+      ]).ok,
   );
   const network =
     tools.length === 0 &&

@@ -1,3 +1,4 @@
+import type { HostMemberIdentity } from './member-identity';
 import { readComputerAvailability } from './computer-availability';
 import {
   encryptedCarrier,
@@ -193,6 +194,7 @@ export interface HostClient {
   secretInputAllowed?(): boolean;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
   onPurged?(listener: (placements: unknown) => void): () => void;
+  onSkills?(listener: (channelIds: readonly string[]) => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
 
@@ -209,6 +211,7 @@ export interface HostApiAnswer {
 }
 
 export interface HostClientOptions {
+  member?: HostMemberIdentity;
   routePreference?: string;
   onRoutePreferenceChanged?: (route: string | undefined) => Promise<void>;
   onRoutesChanged?: (routes: string[]) => Promise<void>;
@@ -378,6 +381,7 @@ export function arrangementOf(value: unknown): RosterArrangement | undefined {
 export function createHostClient(options: HostClientOptions): HostClient {
   const carrier = encryptedCarrier({
     raw: options.carrier,
+    ...(options.member ? { trustedHttpsOrigins: options.routes } : {}),
     hostId: options.hostId ?? '',
     credential: options.credential,
     ...(options.encryption === undefined ? {} : { encryption: options.encryption }),
@@ -408,6 +412,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const avatarLoading = new Set<string>();
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
+  const skillListeners = new Set<(channelIds: readonly string[]) => void>();
   const purgeListeners = new Set<(placements: unknown) => void>();
   let snapshot: HostSnapshot = {
     connection: { status: 'stopped', route },
@@ -979,7 +984,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const readSorting = (): Promise<RosterSorting | undefined> => {
     fetchedSorting = undefined;
     return call<unknown>('settings/describe')
-      .then(rosterSortingOf)
+      .then(rosterSortingOf, (error: unknown) => {
+        if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
+        throw error;
+      })
       .then((value) => {
         fetchedSorting = { value, at: Date.now() };
         return value;
@@ -1092,6 +1100,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         latestMessage: frame.message,
       });
       publish();
+    } else if (frame.type === 'skills') {
+      for (const listener of skillListeners) listener(frame.change.channelIds);
     } else if (frame.type === 'changed' || frame.type === 'purged') {
       reloadInBackground();
     }
@@ -1765,6 +1775,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     onPurged(listener) {
       purgeListeners.add(listener);
       return () => purgeListeners.delete(listener);
+    },
+    onSkills(listener) {
+      skillListeners.add(listener);
+      return () => skillListeners.delete(listener);
     },
     follow(endpoint, args, handlers) {
       const follower: Follower = { endpoint, args, handlers };

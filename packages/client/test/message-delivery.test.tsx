@@ -20,13 +20,19 @@ it('keeps fast sends silent and delayed feedback separate from message content',
   try {
     act(() => root.render(createElement(PendingDelivery, { message, t })));
     expect(container.textContent).toBe('');
-    act(() => vi.advanceTimersByTime(2999));
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
     expect(container.textContent).toBe('');
-    act(() => vi.advanceTimersByTime(1));
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(container.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe('发送中');
     expect(container.textContent).toBe('…');
     act(() => root.render(null));
-    act(() => vi.advanceTimersByTime(3000));
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
     expect(container.textContent).toBe('');
   } finally {
     act(() => root.unmount());

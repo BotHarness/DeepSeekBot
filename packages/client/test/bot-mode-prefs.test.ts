@@ -341,6 +341,24 @@ describe('BOT-mode policy store', () => {
     expect(scope.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['sortModes', 's1'] }]);
   });
 
+  it('keeps Settings pins on the Host and adopts pins saved elsewhere', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    expect(prefs.source.getSnapshot().settingsPins).toBeUndefined();
+
+    botModePrefsFace(prefs).setSettingsPins(['models', 'about', 'models']);
+    expect(prefs.source.getSnapshot().settingsPins).toEqual(['models', 'about']);
+    expect(scope.set).toHaveBeenCalledWith('settingsPins', ['models', 'about']);
+
+    scope.set.mockClear();
+    prefs.setSettingsPins(['models', 'about']);
+    expect(scope.set).not.toHaveBeenCalled();
+
+    scope.push({ value: { ...scope.host.getSnapshot().value!, settingsPins: ['voice'] } });
+    expect(prefs.source.getSnapshot().settingsPins).toEqual(['voice']);
+  });
+
   it('resolves a section without an override to inherit', () => {
     const snapshot = {
       motionPreference: 'system' as const,

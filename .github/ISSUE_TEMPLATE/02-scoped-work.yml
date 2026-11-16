@@ -27,3 +27,11 @@ body:
       description: Describe the observable result and a practical check / 描述可观察结果与验证方式。
     validations:
       required: true
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Harness / Model
+      description: If a coding agent wrote or will write the fix, list each runner and model, comma-separated; a bot turns them into labels / 如由 coding agent 实现，列出用到的工具和模型，逗号分隔，机器人会据此打标签。
+      value: |
+        Harness:
+        Model:

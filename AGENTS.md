@@ -15,9 +15,13 @@ BotHarness — a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 ```bash
 pnpm install
-pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
+pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:changed
 pnpm build
 ```
+
+`pnpm test:changed` runs the tests CI selects for your diff against `origin/main` (`scripts/ci-plan.mjs`); it falls back to the full suite only when CI would. Run `pnpm test` only when asked for a full run.
+
+Lint rules with an existing backlog run through `scripts/lint-ratchet.mjs` (type-aware oxlint, registered in `scripts/guardrails.json`): new findings fail at edit (Claude Code hook), commit and CI; fixing old ones means running `pnpm lint:baseline`, which only lowers `scripts/lint-baseline.json`.
 
 Toolchain: pnpm 12.4.2 · Node ≥22 (`.node-version` = v24.21.0) · TypeScript 7 · oxlint · oxfmt · vitest · tsdown.
 In WSL, use the fnm node and `corepack pnpm` — Windows pnpm cannot create symlinks on WSL paths.

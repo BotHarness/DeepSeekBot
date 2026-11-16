@@ -9,6 +9,7 @@ import {
   channelPolicySchema,
   channelBotDmEligibleSql,
   channelRoleEligibleSql,
+  channelRoleMembershipEntrySql,
   channelRoleMembershipExitSql,
   channelVisibilitySchema,
   type ChannelPolicy,
@@ -211,10 +212,9 @@ export class TeamChannels {
         db.prepare(
           'UPDATE channel_records SET visibility_json = ?, public = ? WHERE channel_id = ?',
         ).run(JSON.stringify(visibility), Number(visibility.kind === 'public'), channelId);
-        db.prepare(channelRoleMembershipExitSql('channel')).run(
-          new Date().toISOString(),
-          channelId,
-        );
+        const at = new Date().toISOString();
+        db.prepare(channelRoleMembershipExitSql('channel')).run(at, channelId);
+        db.prepare(channelRoleMembershipEntrySql('channel')).run(at, channelId);
       },
       ['channels', 'team'],
     );
@@ -295,51 +295,6 @@ export class TeamChannels {
     );
     if (!updated) throw new TeamError('stale-channel-policy');
     this.changed(true);
-    return null;
-  }
-  browse(human: HumanContext) {
-    return z
-      .array(
-        z.object({
-          channelId: z.string(),
-          name: z.string(),
-          description: z
-            .string()
-            .nullable()
-            .transform((v) => v ?? undefined),
-          memberCount: z.number(),
-          joined: z.coerce.boolean(),
-          visibility: z.enum(['public', 'roles']),
-        }),
-      )
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare(`WITH viewer AS (SELECT human_id FROM humans WHERE human_id = ? AND status = 'active')
-      SELECT c.channel_id AS channelId, json_extract(c.record_json, '$.name') AS name, json_extract(c.record_json, '$.description') AS description,
-      COALESCE(json_array_length(c.record_json, '$.members'),0) + (SELECT COUNT(*) FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.left_at IS NULL) AS memberCount,
-      EXISTS(SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id = h.human_id AND m.left_at IS NULL) AS joined,
-      json_extract(c.visibility_json, '$.kind') AS visibility
-      FROM channel_records c CROSS JOIN viewer h WHERE json_extract(c.record_json, '$.type') = 'group' AND json_extract(c.record_json, '$.deletedAt') IS NULL
-      AND json_extract(c.visibility_json, '$.kind') IN ('public','roles')
-      AND ${channelRoleEligibleSql('c', 'h.human_id')} ORDER BY c.channel_id`)
-            .all(human.humanId),
-        ),
-      );
-  }
-  join(human: HumanContext, channelId: string): null {
-    if (!this.browse(human).some((c) => c.channelId === channelId))
-      throw new TeamError('channel-not-found');
-    this.db.transaction(
-      (db) =>
-        db
-          .prepare(
-            `INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at, membership_basis) SELECT ?, human_id, display_name, 1, ?, 'role' FROM humans WHERE human_id = ? AND status = 'active' ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL, membership_basis = CASE WHEN channel_human_members.left_at IS NULL THEN channel_human_members.membership_basis ELSE 'role' END`,
-          )
-          .run(channelId, new Date().toISOString(), human.humanId),
-      ['channels', 'team'],
-    );
-    this.changed();
     return null;
   }
   addMember(human: HumanContext, channelId: string, reference: string): null {

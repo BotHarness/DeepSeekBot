@@ -137,7 +137,7 @@ export function startInternalTour(
           activeTour.moveNext();
         }
       },
-      overlayColor: 'var(--dsw-alias-bg-mask-1)',
+      overlayColor: 'var(--tobs-layer-scrim)',
       overlayOpacity: 1,
       popoverClass: 'bh-internal-tour',
       showButtons: ['next', 'previous', 'close'],

@@ -21,3 +21,7 @@ Icon-set gaps are filled by **vendoring external glyphs** as first-party compone
 ## Update (2026-10-13)
 
 ADR-0194 adds the DeepSeekBot design system on top of this record: StyleX tokens and components that resolve to `--dsw-*` and compose DSH primitives. It is a semantic layer over DSH, not a second design system, so the rule above stands.
+
+## Update (2026-11-16)
+
+ADR-0349 supersedes the "no component library in-harness" clause for Bot mode. Tobs overlays are built on Base UI, which is bundled inline, and they meet DSH's overlay stack only through `ds/shell-layer.ts`.

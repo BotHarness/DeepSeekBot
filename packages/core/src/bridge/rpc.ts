@@ -573,17 +573,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
       );
     return unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers }));
   }
+  memberInvitation(humanId: string) {
+    return unwrapAsync(this.methods.memberInvitation({ humanId }));
+  }
+  memberPairingOffer() {
+    return unwrapAsync(this.methods.memberPairingOffer({}));
+  }
   memberPasswordReset(humanId: string) {
     return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
   }
   channelRoleDirectory(channelId: string) {
     return unwrapAsync(this.methods.channelRoleDirectory({ channelId }));
-  }
-  browsableChannels() {
-    return unwrapAsync(this.methods.browsableChannels({}));
-  }
-  channelJoin(channelId: string) {
-    return unwrapAsync(this.methods.channelJoin({ channelId }));
   }
   channelVisibilitySet(channelId: string, visibility: ChannelVisibility) {
     return unwrapAsync(this.methods.channelVisibilitySet({ channelId, visibility }));
@@ -640,12 +640,6 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   memberPurgeConfirm(humanId: string, token: string, username: string) {
     return unwrapAsync(this.methods.memberPurgeConfirm({ humanId, token, username }));
-  }
-  publicChannels() {
-    return unwrapAsync(this.methods.publicChannels({}));
-  }
-  publicChannelJoin(channelId: string) {
-    return unwrapAsync(this.methods.publicChannelJoin({ channelId }));
   }
   channelPublicSet(channelId: string, publicValue: boolean) {
     return unwrapAsync(this.methods.channelPublicSet({ channelId, public: publicValue }));
@@ -3311,9 +3305,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'ownerTransfer',
   'memberPasswordChange',
   'memberPasswordReset',
+  'memberInvitation',
+  'memberPairingOffer',
   'channelRoleDirectory',
-  'browsableChannels',
-  'channelJoin',
   'channelVisibilitySet',
   'channelAdminsSet',
   'channelPolicySet',
@@ -3329,8 +3323,6 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'memberTransfer',
   'memberPurgePreview',
   'memberPurgeConfirm',
-  'publicChannels',
-  'publicChannelJoin',
   'channelPublicSet',
   'privateInputStatus',
   'privateInputSubmit',

@@ -7,6 +7,7 @@ import type { ConnectSignInCode } from './connect-sign-in.js';
 import { CopyChip, StatusBlock } from './ds/status-block.js';
 import { StepProgress } from './ds/step-progress.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   code: {
@@ -20,7 +21,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   codeValue: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
     fontWeight: text.strong,

@@ -508,3 +508,5 @@ export const signInBrand = {
   googleMark: { red: '#ea4335', blue: '#4285f4', yellow: '#fbbc05', green: '#34a853' },
   appIcon: 64,
 } as const;
+
+export const qrCode = { ink: '#000000', paper: '#ffffff' } as const;

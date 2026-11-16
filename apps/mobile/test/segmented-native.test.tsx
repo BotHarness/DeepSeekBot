@@ -321,7 +321,9 @@ describe('native segmented control', () => {
       'false',
       'false',
     ]);
-    act(() => choices[2]!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    act(() => {
+      choices[2]!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
     expect(onChange).toHaveBeenCalledExactlyOnceWith('stars');
   });
 
