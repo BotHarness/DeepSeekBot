@@ -1,4 +1,4 @@
-import { watch } from 'node:fs';
+import { mkdirSync, watch } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SkillCatalog } from '../src/skills/catalog.js';
@@ -136,5 +136,84 @@ describe('Skill watcher recovery', () => {
     expect(watch).toHaveBeenCalledTimes(calls);
     expect(f.changed).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('Skill watcher edge recovery', () => {
+  function hostFixture(memoryDir: string) {
+    vi.useFakeTimers();
+    const bots = new Map<string, { slug: string; memoryDir: string; agent?: object }>([
+      ['ada', { slug: 'ada', memoryDir }],
+    ]);
+    let host = 'host-before';
+    const catalog = new SkillCatalog({ memoryDirFor: (slug) => bots.get(slug)?.memoryDir });
+    catalog.attach({
+      async list(options) {
+        return options?.cwd === undefined
+          ? [
+              {
+                name: host,
+                description: host,
+                path: `/host/${host}/SKILL.md`,
+                source: 'user',
+                invocation: { userInvocable: true },
+              },
+            ]
+          : [];
+      },
+      async get() {
+        return undefined;
+      },
+    });
+    const changed = vi.fn();
+    const diagnostic = vi.fn();
+    const refresh = watchSkillCatalog({
+      catalog,
+      bots: () => [...bots.values()],
+      changed,
+      diagnostic,
+    });
+    stops.push(() => refresh.close());
+    changed.mockClear();
+    return {
+      bots,
+      catalog,
+      changed,
+      refresh,
+      setHost: (value: string) => {
+        host = value;
+      },
+    };
+  }
+
+  it('drops the previous Agent view, Host entries included, when the selected Agent changes', async () => {
+    const f = hostFixture(createTempRoot());
+    expect((await f.catalog.list(['ada'])).map((skill) => skill.name)).toEqual(['host-before']);
+    f.setHost('host-other-agent');
+    f.bots.set('ada', { ...f.bots.get('ada')!, agent: {} });
+    f.refresh.reconcile();
+    expect(f.changed).toHaveBeenCalledExactlyOnceWith(['ada']);
+    expect((await f.catalog.list(['ada'])).map((skill) => skill.name)).toEqual([
+      'host-other-agent',
+    ]);
+  });
+
+  it('retries until a missing Memory Repository appears instead of watching nothing', async () => {
+    const memoryDir = join(createTempRoot(), 'memory');
+    hostFixture(memoryDir);
+    expect(watch).not.toHaveBeenCalled();
+    mkdirSync(memoryDir);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(vi.mocked(watch).mock.calls.map(([path]) => path)).toContain(memoryDir);
+  });
+
+  it('invalidates Host entries and notifies Clients when a Host refresh fails', async () => {
+    const f = hostFixture(createTempRoot());
+    expect((await f.catalog.list(['ada'])).map((skill) => skill.name)).toEqual(['host-before']);
+    f.setHost('host-after');
+    vi.spyOn(f.catalog, 'refreshHost').mockRejectedValueOnce(new Error('registry busy'));
+    await expect(f.refresh.hostChanged()).resolves.toBeUndefined();
+    expect(f.changed).toHaveBeenCalledExactlyOnceWith(['ada']);
+    expect((await f.catalog.list(['ada'])).map((skill) => skill.name)).toEqual(['host-after']);
   });
 });
