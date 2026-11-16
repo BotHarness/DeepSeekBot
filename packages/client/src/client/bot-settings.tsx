@@ -12,6 +12,7 @@ import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
 import { HostSettings } from './host-settings.js';
 import { useHostDraftGuard } from './host-draft-guard.js';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
 import {
   EnvironmentSwitcher,
   RemoteEnvironmentModels,
@@ -209,12 +210,21 @@ export function BotSettingsView({
   const member = useTeamMember();
   const thisHost = useThisHost();
   const [query, setQuery] = useState('');
-  const [chosenHost, setChosenHost] = useState<string>();
+  const [chosenHost, setChosenHost] = useState<{ hostId: string; hostName: string }>();
   const [moreHost, setMoreHost] = useState(false);
   const grouped = state.clientOnly !== true;
-  const remote = grouped
-    ? remotes.find((entry) => entry.host.hostId === chosenHost)?.host
-    : undefined;
+  const localRequest =
+    chosenHost !== undefined &&
+    state.sectionId !== undefined &&
+    !DEVICE_SETTINGS_SECTIONS.has(state.sectionId) &&
+    registered.some((row) => row.id === state.sectionId) &&
+    !hostSettingsDrafts.hasDirty(chosenHost.hostId);
+  if (localRequest) setChosenHost(undefined);
+  const chosen = localRequest ? undefined : chosenHost;
+  const remote =
+    grouped && chosen
+      ? (remotes.find((entry) => entry.host.hostId === chosen.hostId)?.host ?? chosen)
+      : undefined;
   const guard = useHostDraftGuard(remote?.hostId, t);
   const target = state.target;
   const locate = useMountedResource<HTMLDivElement>(
@@ -301,8 +311,8 @@ export function BotSettingsView({
   };
   const switchHost = (hostId: string): void => {
     void guard.leave(() => {
-      const next = remotes.some((entry) => entry.host.hostId === hostId) ? hostId : undefined;
-      setChosenHost(next);
+      const next = remotes.find((entry) => entry.host.hostId === hostId)?.host;
+      setChosenHost(next && { hostId: next.hostId, hostName: next.hostName });
       if (active === undefined || DEVICE_SETTINGS_SECTIONS.has(active.id)) return;
       botSettings.select(
         next === undefined ? BOT_SETTINGS_SECTIONS.models : REMOTE_SETTINGS_SECTIONS.hostModels,
@@ -320,7 +330,7 @@ export function BotSettingsView({
         t={t}
       />
     );
-  const multi = grouped && remotes.length > 0;
+  const multi = grouped && (remotes.length > 0 || remote !== undefined);
   const hostLabel = multi ? (
     <TargetName
       hostId={remote?.hostId ?? thisHost.id ?? THIS_HOST}
@@ -378,7 +388,12 @@ export function BotSettingsView({
         multi ? (
           <EnvironmentSwitcher
             here={{ hostId: thisHost.id ?? THIS_HOST, name: hereName }}
-            remotes={remotes.map(({ host }) => ({ hostId: host.hostId, name: host.hostName }))}
+            remotes={[
+              ...remotes.map(({ host }) => ({ hostId: host.hostId, name: host.hostName })),
+              ...(remote && !remotes.some((entry) => entry.host.hostId === remote.hostId)
+                ? [{ hostId: remote.hostId, name: remote.hostName }]
+                : []),
+            ]}
             value={remote?.hostId ?? thisHost.id ?? THIS_HOST}
             onChange={switchHost}
             t={t}

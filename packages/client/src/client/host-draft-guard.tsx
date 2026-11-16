@@ -41,6 +41,7 @@ export function useHostDraftGuard(
       release();
       choice.current?.('cancel');
       choice.current = undefined;
+      setDraftPrompt(false);
     };
   }, [hostId]);
   const leave = async (next: () => void, reason: HostDraftLeaveReason = 'leave') => {

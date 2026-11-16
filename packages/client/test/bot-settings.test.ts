@@ -212,17 +212,29 @@ async function click(selector: string): Promise<void> {
   });
 }
 
-function remoteEnvironments(): SettingsEnvironments {
-  const snapshot = {
+function remoteEnvironments(): SettingsEnvironments & { unpair(): void } {
+  const listeners = new Set<() => void>();
+  let snapshot = {
     hosts: [{ host: { hostId: 'studio', hostName: 'Studio' } }],
     avatars: new Map(),
     tab: '',
   } as unknown as ReturnType<SettingsEnvironments['getSnapshot']>;
   return {
     getSnapshot: () => snapshot,
-    subscribe: () => () => undefined,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     client: () => undefined,
+    unpair: () => {
+      snapshot = { ...snapshot, hosts: [] };
+      for (const listener of listeners) listener();
+    },
   };
+}
+
+function fullRows(): BotSettingsSectionRow[] {
+  return Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id }));
 }
 
 function current(): string | null {
@@ -682,6 +694,52 @@ it('asks before leaving a remote Host with unsaved model changes', async () => {
     expect(discard).toHaveBeenCalledOnce();
     expect(document.querySelector('[data-remote-models]')).toBeNull();
     expect(shownSection()).toBe('models');
+  } finally {
+    release();
+  }
+});
+
+it('returns to the local Host when a local page is opened directly while a remote is selected', async () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), remoteEnvironments());
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  expect(shownSection()).toBeNull();
+  act(() => settings.close());
+  act(() => settings.open('voice'));
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('local');
+  expect(shownSection()).toBe('voice');
+});
+
+it('keeps a selected remote Host open after it leaves the paired list', async () => {
+  const settings = new BotSettings();
+  const environments = remoteEnvironments();
+  mount(settings, fullRows(), environments);
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  act(() => environments.unpair());
+  expect(document.querySelector('[data-remote-models]')?.getAttribute('data-remote-models')).toBe(
+    'studio',
+  );
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+});
+
+it('drops an open unsaved-changes prompt when Settings closes from elsewhere', async () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), remoteEnvironments());
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  const release = hostSettingsDrafts.register('studio', {
+    dirty: () => true,
+    save: async () => true,
+    discard: () => undefined,
+  });
+  try {
+    await click('[data-env="local"]');
+    expect(document.body.textContent).toContain('保存并切换');
+    act(() => settings.close());
+    act(() => settings.open('appearance'));
+    expect(document.body.textContent).not.toContain('保存并切换');
   } finally {
     release();
   }
