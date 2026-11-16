@@ -306,6 +306,7 @@ export const zh = {
   'connections.stepChannels': '频道',
   'connections.botPrompt.copy': '复制给 Bot 的提示词',
   'connections.botPrompt.copied': '已复制，发给 Bot 即可',
+  'connections.botPrompt.failed': '没能复制。选中下面的提示词，发给 Bot。',
   'connections.botPrompt.method':
     '帮我选手机连接这台电脑的方式：运行 `deepseekbot phone-route` 和 `deepseekbot devices`，告诉我哪些连接方式已就绪、推荐用哪个。需要打开局域网连接时先问我，我同意后再运行 `deepseekbot device-lan enable --confirm`。',
   'connections.botPrompt.prepare':
@@ -6179,6 +6180,7 @@ export const en = {
   'connections.stepChannels': 'Channels',
   'connections.botPrompt.copy': 'Copy prompt for a Bot',
   'connections.botPrompt.copied': 'Copied. Send it to a Bot',
+  'connections.botPrompt.failed': 'Couldn’t copy. Select the prompt below and send it to a Bot.',
   'connections.botPrompt.method':
     'Help me choose how my phone connects to this computer: run `deepseekbot phone-route` and `deepseekbot devices`, then tell me which connection methods are ready and which you recommend. If the local network connection needs turning on, ask me first, and only after I agree run `deepseekbot device-lan enable --confirm`.',
   'connections.botPrompt.prepare':

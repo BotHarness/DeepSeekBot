@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { ActionButton } from './ds/action-button.js';
+import { Note } from './ds/note.js';
 import { StepProgress } from './ds/step-progress.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -19,11 +20,13 @@ export function ConnectionProgress({
   joining?: boolean;
   t: BotHarnessTranslate;
 }) {
-  const [copied, setCopied] = useState<number>();
+  const [copy, setCopy] = useState<{ step: number; ok: boolean }>();
   const labels = joining
     ? (['connections.stepLink', 'connections.stepIdentity', 'connections.stepChannels'] as const)
     : (['connections.stepMethod', 'connections.stepPrepare', 'connections.stepApprove'] as const);
   const prompt = joining ? undefined : PHONE_PROMPTS[step];
+  const copied = copy?.step === step && copy.ok;
+  const failed = copy?.step === step && !copy.ok;
   return (
     <>
       <StepProgress
@@ -34,17 +37,28 @@ export function ConnectionProgress({
       {prompt === undefined ? null : (
         <div>
           <ActionButton
-            icon={copied === step ? 'check' : 'terminal'}
+            icon={copied ? 'check' : 'terminal'}
             data-connection-bot-prompt={prompt}
             onClick={() => {
-              void navigator.clipboard?.writeText(t(prompt)).then(
-                () => setCopied(step),
-                () => setCopied(undefined),
+              const clipboard = navigator.clipboard;
+              if (clipboard === undefined) {
+                setCopy({ step, ok: false });
+                return;
+              }
+              void clipboard.writeText(t(prompt)).then(
+                () => setCopy({ step, ok: true }),
+                () => setCopy({ step, ok: false }),
               );
             }}
           >
-            {t(copied === step ? 'connections.botPrompt.copied' : 'connections.botPrompt.copy')}
+            {t(copied ? 'connections.botPrompt.copied' : 'connections.botPrompt.copy')}
           </ActionButton>
+          {failed ? (
+            <>
+              <Note tone="danger">{t('connections.botPrompt.failed')}</Note>
+              <Note>{t(prompt)}</Note>
+            </>
+          ) : null}
         </div>
       )}
     </>
