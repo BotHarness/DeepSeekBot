@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { accent, edge, ink, radius, size, space, state, status, type } from './tobs.stylex.js';
+import { edge, ink, line, radius, size, space, state, status, type } from './tobs.stylex.js';
 
 const INSET = space.x3;
 const GAP = space.x3;
@@ -33,7 +33,7 @@ const styles = stylex.create({
     fontWeight: { default: type.bodyWeight, ':is([aria-current=page])': type.labelWeight },
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${edge.focus} solid ${accent.base}` },
+    outline: { default: 'none', ':focus-visible': `${edge.focus} solid ${line.focus}` },
     outlineOffset: `-${edge.focus}`,
   },
   slot: {
