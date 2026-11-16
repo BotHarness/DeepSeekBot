@@ -17,7 +17,7 @@ export const RULES = {
     fix: 'use a ds/ component instead of a DSH UI import',
   },
   rawControl: {
-    pattern: /<(?:button|input|select|textarea)\b[^>]*?(?:stylex\.props|className=)/gs,
+    pattern: /<(?:button|input|select|textarea)\b(?:=>|[^>])*?(?:stylex\.props|className=)/gs,
     fix: 'compose a ds/ control (extend it if it nearly fits) instead of styling a raw control',
     outsideDs: true,
   },

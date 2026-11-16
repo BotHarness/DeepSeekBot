@@ -48,6 +48,9 @@
   "packages/client/src/client/appearance-native-tokens.ts": {
     "dshToken": 809
   },
+  "packages/client/src/client/appearance-pickers.tsx": {
+    "rawControl": 4
+  },
   "packages/client/src/client/appearance-primitives.tsx": {
     "dshImport": 1
   },
@@ -100,14 +103,16 @@
     "rawControl": 1
   },
   "packages/client/src/client/bot-intro.tsx": {
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 6
   },
   "packages/client/src/client/bot-main.tsx": {
     "dshImport": 1,
     "rawControl": 9
   },
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
-    "dshImport": 2
+    "dshImport": 2,
+    "rawControl": 1
   },
   "packages/client/src/client/bot-mode-sidebar.tsx": {
     "dshImport": 1
@@ -137,7 +142,7 @@
   },
   "packages/client/src/client/bot-zip.tsx": {
     "dshImport": 1,
-    "rawControl": 1
+    "rawControl": 2
   },
   "packages/client/src/client/bridge-audio.tsx": {
     "dshImport": 1
@@ -157,16 +162,18 @@
   },
   "packages/client/src/client/bug-report-annotate-dialog.tsx": {
     "dshToken": 1,
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 2
   },
   "packages/client/src/client/bug-report-dialog.tsx": {
     "dshToken": 1,
     "dshImport": 1,
-    "rawControl": 1
+    "rawControl": 6
   },
   "packages/client/src/client/bug-report-dock.tsx": {
     "dshToken": 2,
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 2
   },
   "packages/client/src/client/call-rail-button.tsx": {
     "rawControl": 1
@@ -181,21 +188,26 @@
     "dshImport": 1,
     "rawControl": 2
   },
+  "packages/client/src/client/channel-add-people.tsx": {
+    "rawControl": 1
+  },
   "packages/client/src/client/channel-bridge-list.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/channel-composer.tsx": {
     "dshImport": 1,
-    "rawControl": 13
+    "rawControl": 14
   },
   "packages/client/src/client/channel-delivery-receipt.tsx": {
     "rawControl": 2
   },
   "packages/client/src/client/channel-dock.tsx": {
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 1
   },
   "packages/client/src/client/channel-history.tsx": {
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 1
   },
   "packages/client/src/client/channel-message-body.tsx": {
     "dshImport": 1,
@@ -292,7 +304,8 @@
     "dshImport": 2
   },
   "packages/client/src/client/diagnostic-bundle.tsx": {
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 1
   },
   "packages/client/src/client/diagnostic-logs-dialog.tsx": {
     "dshToken": 2,
@@ -372,7 +385,8 @@
     "dshImport": 1
   },
   "packages/client/src/client/genui-report.tsx": {
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 2
   },
   "packages/client/src/client/git-settings.tsx": {
     "dshImport": 1
@@ -393,7 +407,7 @@
   },
   "packages/client/src/client/group-member-controls.tsx": {
     "dshImport": 1,
-    "rawControl": 5
+    "rawControl": 7
   },
   "packages/client/src/client/group-profile.tsx": {
     "dshImport": 1,
@@ -407,7 +421,8 @@
   },
   "packages/client/src/client/header-session-stop.tsx": {
     "dshToken": 2,
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 4
   },
   "packages/client/src/client/hidden-channels.tsx": {
     "dshImport": 1
@@ -527,7 +542,8 @@
     "dshImport": 1
   },
   "packages/client/src/client/message-bot-dialog.tsx": {
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 1
   },
   "packages/client/src/client/message-copy-action.tsx": {
     "dshImport": 1
@@ -541,10 +557,11 @@
   "packages/client/src/client/message-image-gallery.tsx": {
     "dshToken": 6,
     "dshImport": 1,
-    "rawControl": 1
+    "rawControl": 3
   },
   "packages/client/src/client/message-person-dialog.tsx": {
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 1
   },
   "packages/client/src/client/message-reactions.tsx": {
     "dshToken": 3,
@@ -650,6 +667,9 @@
   "packages/client/src/client/plugin-updates-view.tsx": {
     "dshImport": 2
   },
+  "packages/client/src/client/primary-color-editor.tsx": {
+    "rawControl": 3
+  },
   "packages/client/src/client/private-account-controls.tsx": {
     "dshImport": 1
   },
@@ -677,7 +697,7 @@
   "packages/client/src/client/profile-header.tsx": {
     "dshToken": 1,
     "dshImport": 1,
-    "rawControl": 3
+    "rawControl": 7
   },
   "packages/client/src/client/profile-tags.tsx": {
     "dshImport": 1
@@ -728,7 +748,8 @@
   },
   "packages/client/src/client/schedules-entry.tsx": {
     "dshToken": 1,
-    "dshImport": 1
+    "dshImport": 1,
+    "rawControl": 2
   },
   "packages/client/src/client/section-management.tsx": {
     "dshImport": 1
@@ -825,6 +846,9 @@
     "dshImport": 1,
     "rawControl": 1
   },
+  "packages/client/src/client/wallpaper-library.tsx": {
+    "rawControl": 5
+  },
   "packages/client/src/client/wallpaper-settings.tsx": {
     "dshImport": 1
   },
@@ -841,7 +865,7 @@
   },
   "packages/client/src/client/workspace-grants-entry.tsx": {
     "dshImport": 1,
-    "rawControl": 1
+    "rawControl": 4
   },
   "packages/client/src/client/workspace.tsx": {
     "dshImport": 1,

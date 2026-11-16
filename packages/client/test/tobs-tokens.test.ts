@@ -37,6 +37,7 @@ describe('Tobs design tokens', () => {
       for (const mark of ['--tobs-ink-tertiary', '--tobs-accent-base'] as const)
         expect(contrast(t[mark], t[surface]), `${mark} on ${surface}`).toBeGreaterThanOrEqual(3);
     }
+    expect(contrast(t['--tobs-ink-secondary'], t['--tobs-layer-nav'])).toBeGreaterThanOrEqual(4.5);
     expect(contrast(t['--tobs-state-selected-ink'], t['--tobs-state-selected'])).toBeGreaterThan(
       4.5,
     );
@@ -84,6 +85,7 @@ describe('design token guard', () => {
       match('dshImport', "import { Button } from '@deepseek-ai/dsh-client-ui-primitives';"),
     ).toBe(true);
     expect(match('rawControl', '<button type="button" {...stylex.props(styles.x)}>')).toBe(true);
+    expect(match('rawControl', '<button onClick={() => go()} className={styles.x}>')).toBe(true);
     expect(match('rawControl', '<NavItem label="x" />')).toBe(false);
   });
 });
