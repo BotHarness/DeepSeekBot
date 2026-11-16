@@ -205,6 +205,7 @@ export class TeamService {
   private invalidate: () => void = () => {};
   private devices:
     | {
+        routes(): Promise<string[]>;
         invitation(humanId: string): Promise<import('./devices.js').MemberInvitation>;
         pairingOffer(humanId: string): Promise<import('./devices.js').MemberPairingOffer>;
       }
@@ -288,6 +289,17 @@ export class TeamService {
       this.invalidate();
       this.invalidate = () => {};
       this.urls = () => [];
+    };
+  }
+
+  async modeStatus(human: HumanContext): Promise<TeamModeView> {
+    const view = this.mode(human);
+    if (!this.devices) return view;
+    return {
+      ...view,
+      memberUrls: (await this.devices.routes()).map(
+        (origin) => `${origin}/botharness-device/team/`,
+      ),
     };
   }
 
@@ -418,7 +430,7 @@ export class TeamService {
       ),
       insecureHttpAllowed: settings.insecure_http_allowed,
       ownerPasswordSet: this.hasCredential(this.ownerContext().humanId),
-      memberUrls: memberUrls(this.urls(), settings.insecure_http_allowed),
+      memberUrls: memberUrls(this.urls()),
       viewer: {
         humanId: member.humanId,
         kind: member.owner ? 'owner' : 'member',

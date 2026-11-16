@@ -80,7 +80,7 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .parse(payload);
         return service.spaces.delete(human, spaceId, confirm);
       }),
-    teamMode: (_payload: unknown) => call((service) => service.mode(human)),
+    teamMode: (_payload: unknown) => call((service) => service.modeStatus(human)),
     teamModeSet: (payload: unknown) =>
       call((service) =>
         service.setMode(human, z.object({ enabled: z.boolean() }).parse(payload).enabled),
