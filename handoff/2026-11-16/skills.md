@@ -18,13 +18,13 @@ Hub: [#4231](https://github.com/BotHarness/DeepSeekBot/issues/4231). Read all cu
 **S2** recovery `handoff/20261116-skills-s2-review-wip`, based on original child `s2-fixes2` at `e942d795f`. Three dirty files: runtime/bot-runtime.ts, test/skill-invocation.test.ts, changes/4233-group-skill-delivery-fixes.md. Review these before applying to current `deacc6747`:
 - Add the Group `channel_id` to the excerpt's full-Skill retrieval pointer, avoiding cross-Group message-not-found.
 - Limit the oversized-first-message exemption once per shared batch, not once per Group.
-The parent's latest UI/docs commit is newer than the child base. Preserve restored IM read-mode/reconnect docs and the draft-empty guard that prevents old Skill chips attaching to newly typed text. Failed-message retry still sends plain `/name`; that explicit S1 exclusion needs a separate scoped change if the latest spec requires it. Child still had two affected batches/docs check queued at handoff.
+The parent's latest UI/docs commit is newer than the child base. Preserve restored IM read-mode/reconnect docs and the draft-empty guard that prevents old Skill chips attaching to newly typed text. Failed-message retry still sends plain `/name`; that explicit S1 exclusion needs a separate scoped change if the latest spec requires it. Final stop report: all owned wait/test processes stopped. Four new cases were red on old code; current lint, tsc, 56 focused tests and formatting passed. First affected batch: 116 files / 1,523 passed / 4 skipped. Two more 115-file batches and docs public-surface tests remain. No commit was made for the three dirty files. Outcome: https://github.com/BotHarness/DeepSeekBot/issues/4233#issuecomment-6908316834 .
 
 **S3** recovery `handoff/20261116-skills-s3-review-wip`. Original child `s3-fixes` has commit `d86047589` implementing the three review fixes, plus a six-line uncommitted regression in `skill-catalog-retry.test.ts`:
 - Invalidate pending/cold Host loads before notifying clients, not only populated caches.
 - Invalidate a Bot's Project catalog when its live Agent selection changes, preserving Host cache.
 - Bounded watcher retry/backoff and cancellation on removal/controller close.
-The new dirty regression asks that an explicit reconciliation still recover after retry exhaustion. Child said it had added the regression before adjusting exhausted state; **this may be red/unimplemented**. Verify and fix rather than assuming the snapshot is green. Remaining compiler/focused checks were queued behind other tests.
+The new dirty regression asks that an explicit reconciliation still recover after retry exhaustion. Child said it had added the regression before adjusting exhausted state; **this may be red/unimplemented**. Verify and fix rather than assuming the snapshot is green. Final stop report: early 99 focused tests passed before the later type fixes and new dirty assertion. Type fixes were committed but not rechecked; lint remains blocked by migration 155; affected suites were not run. See [stopped S3 report](reports/skills-s3.md).
 
 After fixes and current-head CI/review pass, merge order remains **S2 → retarget/sync S3 → S3 → retarget/sync S4 → S4**. S4 guidance-refresh fix `dbfe8f3d2` makes an existing Assignment re-read Skill-install guidance after prompt refresh; its new regression was reported red before fix and green after, with 89 file tests passing.
 
@@ -32,7 +32,7 @@ After fixes and current-head CI/review pass, merge order remains **S2 → retarg
 
 Recovery `handoff/20261116-skills-s5-core`, original child `s5-core`, implementation commit `744b8e59552ff36bb6ed1ba4a40722ca8dbb56b7`, built on an older S4 commit `8b2835b27`. Review its delta, absorb current S2/S3/S4 fixes, then let Claude add folder identity/icon/name to menu and chips. Core covers workspace owner type, root-only scanning (not parent git root), dedup across Bots, removal on grant revocation, viewer ownership refusal and unauthorized Bot text-only receipt with denied file read. Read #4236 for every AC.
 
-Last child report: 68 focused tests passed; 420/482 affected files finished, final 62-file batch running; three earlier timeouts retained for individual reruns. Full final validation is not established. There was no S5 PR at audit.
+Final stopped-child report: 68 focused tests passed; 420/482 affected files finished (4,546 passed / 3 timeouts / 19 skipped), final 62-file batch interrupted. Rerun three timeout files individually. Root typecheck has **six React owner-handling diagnostics**, in channel-composer.tsx at 484, 1137, 1140 and channel-message-body.tsx at 806, 813; Claude must add exhaustive Workspace-owner UI. Lint blocked by the stale migration-155 baseline. Docs and E2E smoke not run. No S5 PR. See [stopped S5 report](reports/skills-s5.md).
 
 ## Existing runtime evidence and explicit gaps
 

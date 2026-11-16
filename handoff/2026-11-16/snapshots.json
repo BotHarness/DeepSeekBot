@@ -123,7 +123,10 @@
     "snapshot_commit": "cff17d4bc389b7b39cf4fabd2797ee43c78df591",
     "remote_branch": "handoff/20261116-team-trusted-ingress-wip",
     "consistent_at_capture": true,
-    "changed_after_capture": []
+    "changed_after_capture": [],
+    "final_commit": "149f6e4f9cea310bf9e54218152a75140955ab4a",
+    "final_remote_branch": "codex/team-trusted-ingress",
+    "final_worktree_clean": true
   },
   {
     "path": "/Users/doodlebear/Documents/code/BotHarness/.claude/worktrees/team-mode-m0-m11-053808/.worktrees/4146-mobile-sign-in",

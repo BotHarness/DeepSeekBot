@@ -37,11 +37,11 @@ In a fresh Cloud checkout, create a recovery branch from the original HEAD and s
 
 ## Managed Tailscale ingress
 
-Child original branch `codex/team-trusted-ingress`, HEAD `97d852cebd37d7045859fe5a08cd522098e6faf8`, based on M8 rather than main. Recovery branch `handoff/20261116-team-trusted-ingress-wip`, 22 changed/new source/doc/test files, includes ADR-0347 (check numbering collisions before integration).
+Child original branch `codex/team-trusted-ingress`, HEAD `97d852cebd37d7045859fe5a08cd522098e6faf8`, based on M8 rather than main. Final committed branch **`codex/team-trusted-ingress`**, commit **`149f6e4f9cea310bf9e54218152a75140955ab4a`**, now pushed. Prefer this implementation commit to the older recovery branch `handoff/20261116-team-trusted-ingress-wip`. It contains the same 22 source/doc/test files and ADR-0347 (check numbering collisions before integration).
 
 Design: the Host owns a dedicated loopback-only listener; only its own Tailscale Serve mapping targets that listener. The route attaches an internal unforgeable request marker; normal-port proxy headers remain untrusted. Invitation URLs advertise only genuinely login-capable endpoints. No blanket trust of forwarded headers, arbitrary Serve mappings, or client-provided flags. Preserve the existing Connect trust boundary. Review the full dirty implementation before integrating into resolved M8, then sync dependent #4265.
 
-Last child self-report: all 343 affected files completed, 4,237 tests passed and 19 skipped after two timeout-only files passed unchanged reruns (104 tests). Typecheck, lint, formatting and docs build were just starting. These are **child reports**, not new verified transfer results; later checks may still change locally.
+Final stopped-child report: all 343 files completed, 4,237 tests passed and 19 skipped, with two unchanged timeout reruns passing. Root/mobile typecheck, format, docs/public-surface, slides and isolated smoke passed. **Full lint did not pass:** two proven M8-base violations remain (migration generation 155 order; prohibited comment at `apps/mobile/src/team/team-link-path.ts:4`). Real Tailscale publish/sign-in/cleanup verification was not started. Claude still needs trust-status UI and the `paired-devices.tsx` Host-port label adjustment: `serveCommand` now names an ingress port, so read the actual loopback route port instead. See [stopped child report](reports/trusted-ingress.md). These are child receipts; transfer did not rerun them.
 
 ## Native acceptance — only lane that returns to the Mac
 

@@ -24,17 +24,17 @@ These are source recovery branches, not review-ready PRs. They have an extra `.c
 | handoff/20261116-team-trusted-ingress-wip | Managed Tailscale TLS ingress implementation and tests, 22 dirty/new files |
 | handoff/20261116-team-m8-merge-wip | Exact unfinished M8 merge working files; contains conflict markers |
 
-## Local writers were not stopped
+## Local tasks stopped — confirmed after Human intervention
 
-At audit, four delegated Codex tasks were still shown as running: Team trusted ingress, Skills S5, S3 review fixes and S2 review fixes. Cross-thread `task_cancel` was rejected: `does not belong to thread`. Asking their parent threads to cancel them was also rejected because the Claude API provider was disabled for the project. **Do not assume they are stopped.** No alternate agent was started. The snapshots were internally stable when captured; a second hash comparison found no file changes at that moment. A still-running task may create later work. Ask the Human to stop those tasks in T3 UI, or paste the stop prompt below into each enabled parent, before treating Cloud as sole writer. Reconcile any later local commits before pushing to the same PR branch.
+All four delegated tasks now report `completed`; each final response says its own tests/waiters stopped and unrelated services/devices were preserved. Task status and final reports were read again for this update. No task was restarted. The transfer session did not separately audit OS process ownership.
 
-Parent stop prompt:
+- Team trusted ingress finalized commit `149f6e4f9cea310bf9e54218152a75140955ab4a`; clean worktree. It is now pushed on `codex/team-trusted-ingress`. Prefer this real implementation commit over the earlier ingress WIP checkpoint. Source content is identical to the earlier snapshot; only the finalized commit and reporting changed.
+- S5 remains clean at `744b8e595`; source checkpoint still current.
+- S3 remains at `d86047589` plus its six-line dirty regression; checkpoint still current.
+- S2 remains at `e942d795f` plus three dirty files; checkpoint still current.
+- M8's unfinished merge checkpoint is unchanged.
 
-> 准备迁移到 Claude Cloud。请停止本线程继续实现、自动续跑和 PR 监控，用 task_cancel 取消本线程名下所有运行/等待/排队的子任务，不启动替代任务。保留 worktree、dirty 修改、未完成 merge、证据和 Simulator/Metro/测试 Host，不做 reset/clean/强推/merge/deploy。列出每个停止结果、分支、HEAD、未提交文件和剩余检查。若有持续自动运行的 goal，请暂停。
-
-Individual child prompt when its parent is unavailable:
-
-> 本任务迁移到 Claude Cloud，请在当前安全边界停止。停止自己启动的测试/等待进程，保留源码和所有未提交修改，不清理、不 reset、不 merge、不部署，也不要继续长测试。请输出分支、HEAD、dirty 文件、测试结果和剩余工作后结束本轮。保留其他任务的服务、设备和文件。
+Read the stopped-task reports in `reports/` for exact validation gaps. Local-only log paths are evidence pointers, not files available to Cloud. S2's stop/verification outcome is also recorded at https://github.com/BotHarness/DeepSeekBot/issues/4233#issuecomment-6908316834 .
 
 ## Import a checkpoint without importing its metadata
 
@@ -54,8 +54,8 @@ For **M8**, follow `team-mode.md`; its checkpoint is an unfinished merge, not a 
 
 Team:
 
-> 接手 BotHarness Team mode。先 fetch origin，读取 handoff/20261116-cloud-transfer 分支的 handoff/2026-11-16/README.md 和 team-mode.md，以及 snapshots.json。按最新 spec #4137/hub #4138 和附属 issues 完成所有未完成 slices。Claude Opus 5.5 medium 统筹及 UI/UX；非 UI 逻辑委派 GPT-6.1 Sol medium/high。先核对 PR #4258 的 4 条未解决审阅，再恢复 #4165 的未完成 main merge、集成 trusted-ingress checkpoint，继续 #4265 和其余 slices。所有常规开发/测试在 Cloud，只有 iOS Simulator/实机连接我的 Mac。先确认本地 4 个旧子任务停止或协调好单写者，再推送相同 PR 分支。设置持续 goal，完成验收、PR 和 issue closure；区分 CI/Web/installed native/real service/Human gates。
+> 接手 BotHarness Team mode。先 fetch origin，读取 handoff/20261116-cloud-transfer 分支的 handoff/2026-11-16/README.md 和 team-mode.md，以及 snapshots.json。按最新 spec #4137/hub #4138 和附属 issues 完成所有未完成 slices。Claude Opus 5.5 medium 统筹及 UI/UX；非 UI 逻辑委派 GPT-6.1 Sol medium/high。先核对 PR #4258 的 4 条未解决审阅，再恢复 #4165 的未完成 main merge、集成 trusted-ingress checkpoint，继续 #4265 和其余 slices。所有常规开发/测试在 Cloud，只有 iOS Simulator/实机连接我的 Mac。旧子任务已停止；推送前仍需核对远端最新 head。设置持续 goal，完成验收、PR 和 issue closure；区分 CI/Web/installed native/real service/Human gates。
 
 Skills:
 
-> 接手 BotHarness Skills。先 fetch origin，读取 handoff/20261116-cloud-transfer 分支的 handoff/2026-11-16/README.md 和 skills.md，以及 snapshots.json。按最新 hub #4231 与 S1–S8 issues 完成剩余 slices。Claude Opus 5.5 medium 统筹及 UI/UX，非 UI 逻辑委派 GPT-6.1 Sol medium/high。S1 已合并；恢复 S2/S3 review checkpoints，按 S2→S3→S4 顺序集成，随后 S5/S6/S8。S7 已由 Human 决定 not planned，勿重新实现导入隔离/审阅。常规开发与 Web e2e 在 Cloud，iOS Simulator/实机才连接 Mac。确认本地旧任务停止或建立单写者协调后再推送相同 PR 分支。设置持续 goal、开窄 PR、完成验收并 close 对应 issues。
+> 接手 BotHarness Skills。先 fetch origin，读取 handoff/20261116-cloud-transfer 分支的 handoff/2026-11-16/README.md 和 skills.md，以及 snapshots.json。按最新 hub #4231 与 S1–S8 issues 完成剩余 slices。Claude Opus 5.5 medium 统筹及 UI/UX，非 UI 逻辑委派 GPT-6.1 Sol medium/high。S1 已合并；恢复 S2/S3 review checkpoints，按 S2→S3→S4 顺序集成，随后 S5/S6/S8。S7 已由 Human 决定 not planned，勿重新实现导入隔离/审阅。常规开发与 Web e2e 在 Cloud，iOS Simulator/实机才连接 Mac。旧子任务已停止；推送前仍需核对远端最新 head。设置持续 goal、开窄 PR、完成验收并 close 对应 issues。

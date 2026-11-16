@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-11-16T05:42:42.028431+00:00",
+  "task_statuses": {
+    "Team trusted ingress": "completed",
+    "Skills S5": "completed",
+    "Skills S3 review fixes": "completed",
+    "Skills S2 review fixes": "completed"
+  },
+  "final_ingress_branch": "codex/team-trusted-ingress",
+  "final_ingress_commit": "149f6e4f9cea310bf9e54218152a75140955ab4a",
+  "other_source_checkpoints_unchanged": true,
+  "process_stop_evidence": "Child final reports; transfer did not perform independent OS inventory."
+}
