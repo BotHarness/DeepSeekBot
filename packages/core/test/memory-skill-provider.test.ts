@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis';
-import { createScope } from '@deepseek-ai/dsh-scope';
+import { bindScopeParent, createScope } from '@deepseek-ai/dsh-scope';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -109,8 +109,10 @@ describe('Memory Skills in Assignment Sessions', () => {
       }));
       const ada = {};
       const bob = {};
-      const stopAda = installMemorySkillProvider(scoped(ada, preset), () => adaMemory);
-      installMemorySkillProvider(scoped(bob, preset), () => bobMemory);
+      const stopAda = installMemorySkillProvider(scoped(ada), () => adaMemory);
+      installMemorySkillProvider(scoped(bob), () => bobMemory);
+      bindScopeParent(ada, preset);
+      bindScopeParent(bob, preset);
 
       const seen = await registry.list({ cwd: workspace, scope: ada });
       expect(seen.map((entry) => [entry.name, entry.source])).toEqual([

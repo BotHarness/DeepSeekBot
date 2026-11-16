@@ -76,7 +76,6 @@ export function installMemorySkillProvider(
   if (registry === undefined || installed.has(agentCtx)) return () => {};
   installed.add(agentCtx);
   const agentScope = scopeOf(agentCtx);
-  const outerScope = agentScope === undefined ? undefined : scopeParentOf(agentScope);
   const dispose = registry.registerProvider(() => ({
     name: MEMORY_SKILL_PROVIDER,
     async list(options) {
@@ -84,7 +83,11 @@ export function installMemorySkillProvider(
       if (root === undefined) return [];
       const [own, outer] = await Promise.all([
         readWorkspaceSkills(root),
-        registry.list({ cwd: options.cwd, signal: options.signal, scope: outerScope }),
+        registry.list({
+          cwd: options.cwd,
+          signal: options.signal,
+          scope: agentScope === undefined ? undefined : scopeParentOf(agentScope),
+        }),
       ]);
       const project = new Set(
         outer.filter((skill) => skill.source.startsWith('project-')).map((skill) => skill.name),
