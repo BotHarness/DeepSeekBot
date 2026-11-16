@@ -238,7 +238,10 @@ it.each([false, true])(
     await act(async () => {
       await pairing.pair('new-link', 'paste');
     });
-    if (batch) act(() => pairing.finishSetup());
+    if (batch)
+      act(() => {
+        pairing.finishSetup();
+      });
     expect(history.state.routes.map((route) => route.name)).toEqual([
       '(tabs)',
       '(bot-creation)',
