@@ -1178,6 +1178,67 @@ export function parseSkillCatalogChange(value: unknown): SkillCatalogChange | un
   }
 }
 
+export interface BotSkillRow {
+  name: string;
+  description: string;
+  path: string;
+  userInvocable: boolean;
+}
+
+export interface SkillDetailView {
+  name: string;
+  description: string;
+  owner: SkillOwner;
+  path?: string;
+  content: string;
+}
+
+export async function loadBotSkills(call: BridgeCall, slug: string): Promise<BotSkillRow[]> {
+  const value = asRecord(await unwrap(call, 'botSkills', { slug }));
+  if (!Array.isArray(value?.['skills'])) throw new Error('invalid botSkills response');
+  return value['skills'].flatMap((entry: unknown): BotSkillRow[] => {
+    const item = asRecord(entry);
+    const name = item?.['name'];
+    const description = item?.['description'];
+    const path = item?.['path'];
+    if (typeof name !== 'string' || typeof description !== 'string' || typeof path !== 'string')
+      return [];
+    return [{ name, description, path, userInvocable: item?.['userInvocable'] !== false }];
+  });
+}
+
+export async function loadSkillDetail(
+  call: BridgeCall,
+  name: string,
+  owner: string,
+): Promise<SkillDetailView> {
+  const skill = asRecord(asRecord(await unwrap(call, 'skillShow', { name, owner }))?.['skill']);
+  const parsedOwner = parseSkillOwner(asRecord(skill?.['owner']));
+  const content = skill?.['content'];
+  if (
+    typeof skill?.['name'] !== 'string' ||
+    typeof content !== 'string' ||
+    parsedOwner === undefined
+  )
+    throw new Error('invalid skillShow response');
+  const path = skill['path'];
+  return {
+    name: skill['name'],
+    description: typeof skill['description'] === 'string' ? skill['description'] : '',
+    owner: parsedOwner,
+    ...(typeof path === 'string' ? { path } : {}),
+    content,
+  };
+}
+
+export async function removeBotSkill(
+  call: BridgeCall,
+  slug: string,
+  name: string,
+): Promise<void> {
+  await unwrap(call, 'botSkillRemove', { slug, name });
+}
+
 export async function loadChannelSkillCatalog(
   call: BridgeCall,
   channelId: string,

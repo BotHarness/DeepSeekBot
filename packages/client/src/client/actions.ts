@@ -88,7 +88,15 @@ import type {
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
-import { loadAllBotPreview, loadChannelSkillCatalog } from './bridge.js';
+import {
+  loadAllBotPreview,
+  loadBotSkills,
+  loadChannelSkillCatalog,
+  loadSkillDetail,
+  removeBotSkill,
+  type BotSkillRow,
+  type SkillDetailView,
+} from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 import type { ChannelSkillInvocationToken } from '../../../core/src/channels/channel.js';
@@ -1037,6 +1045,9 @@ export interface BridgeActions {
     skillInvocations?: ChannelSkillInvocationToken[],
   ): Promise<boolean>;
   skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
+  botSkills?(slug: string): Promise<BotSkillRow[]>;
+  skillDetail?(name: string, owner: string): Promise<SkillDetailView>;
+  botSkillRemove?(slug: string, name: string): Promise<void>;
   subscribeSkillCatalog?(channelId: string, listener: () => void): () => void;
   submissions: {
     subscribe(listener: () => void): () => void;
@@ -3321,6 +3332,9 @@ export function createActions(
     allBotPreview: (channelId) => loadAllBotPreview(call, channelId),
     subscribeSkillCatalog,
     skillCatalog: (channelId) => loadChannelSkillCatalog(call, channelId),
+    botSkills: (slug) => loadBotSkills(call, slug),
+    skillDetail: (name, owner) => loadSkillDetail(call, name, owner),
+    botSkillRemove: (slug, name) => removeBotSkill(call, slug, name),
     validateComposerDraft: (channelId, attachments, replyTo) =>
       validateComposerDraft(call, channelId, attachments, replyTo),
     async send(
