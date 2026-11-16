@@ -7221,7 +7221,6 @@ function buildBridgeMethods(
       if (memoryDir === undefined) return unknownBot(slug);
       try {
         const result = await removeBotSkill(memoryDir, name);
-        deps.skills?.invalidateMemory(slug);
         return { ok: true, value: result };
       } catch (error) {
         if (error instanceof BotSkillNotFoundError)
@@ -7230,6 +7229,8 @@ function buildBridgeMethods(
           ok: false,
           error: { code: 'skills-unavailable', message: (error as Error).message },
         };
+      } finally {
+        deps.skills?.invalidateMemory(slug);
       }
     },
     channelAllBotPreview(payload) {

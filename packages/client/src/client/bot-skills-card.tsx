@@ -302,9 +302,11 @@ export function MarketplaceSkills({
   const skills = useMemo(() => marketplaceSkillFiles(files), [files]);
   const [descriptions, setDescriptions] = useState<ReadonlyMap<string, string>>(new Map());
   const [open, setOpen] = useState<MarketplaceSkillFile | undefined>(undefined);
+  const [attempt, setAttempt] = useState(0);
   const root = useMountedResource<HTMLElement>(() => {
     let live = true;
     for (const skill of skills) {
+      if (descriptions.has(skill.name)) continue;
       void actions.marketplaceFile(botId, skill.file.path).then(
         (view) => {
           if (!live) return;
@@ -317,7 +319,7 @@ export function MarketplaceSkills({
     return () => {
       live = false;
     };
-  }, [actions, botId, skills]);
+  }, [actions, botId, skills, attempt]);
   if (skills.length === 0) return null;
   return (
     <section ref={root} className="bh-market-skills" data-market-skills={skills.length}>
@@ -340,7 +342,10 @@ export function MarketplaceSkills({
           file={open.file}
           t={t}
           describeError={describeError}
-          onBack={() => setOpen(undefined)}
+          onBack={() => {
+            setOpen(undefined);
+            setAttempt((value) => value + 1);
+          }}
         />
       )}
     </section>

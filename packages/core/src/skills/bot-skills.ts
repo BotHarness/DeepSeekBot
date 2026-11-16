@@ -72,12 +72,14 @@ export async function removeBotSkill(
   const skill = skills.find((entry) => entry.name === name);
   if (skill === undefined) throw new BotSkillNotFoundError(name);
   const absolute = `${root}${sep}${skill.path.split('/').join(sep)}`;
-  const target = basename(absolute) === 'SKILL.md' ? dirname(absolute) : absolute;
+  const folder = basename(absolute) === 'SKILL.md' && basename(dirname(absolute)) !== 'skills';
+  const target = folder ? dirname(absolute) : absolute;
   const skillsRoot = dirname(target);
   if (!inside(root, target) || basename(skillsRoot) !== 'skills')
     throw new BotSkillNotFoundError(name);
-  await rm(target, { recursive: true, force: true });
   const removed = relative(root, target).split(sep).join('/');
+  await commitMemoryPathsAsync(root, [removed], `skills: save ${name} before removal`);
+  await rm(target, { recursive: true, force: true });
   await commitMemoryPathsAsync(root, [removed], `skills: remove ${name}`);
   return { name, removed };
 }
