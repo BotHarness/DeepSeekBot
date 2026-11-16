@@ -25,6 +25,7 @@ import {
 } from './settings-environment.js';
 import { THIS_HOST } from './remote-hosts.js';
 import { TargetName } from './target-name.js';
+import { PinToggle, SETTINGS_HOME, SettingsHome, type SettingsPins } from './settings-home.js';
 import { useThisHost } from './this-host.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -55,6 +56,7 @@ export const DEVICE_SETTINGS_SECTIONS: ReadonlySet<string> = new Set(
   Object.keys(CLIENT_SETTINGS_INDEX),
 );
 
+const HOME_GROUP = 'home';
 const DEVICE_GROUP = 'device';
 const HOST_GROUP = 'host';
 
@@ -83,6 +85,11 @@ const SECTION_ICONS: Readonly<Record<string, string>> = {
 
 export function botSettingsSectionIcon(id: string): string {
   return Object.hasOwn(SECTION_ICONS, id) ? SECTION_ICONS[id]! : 'settings-2';
+}
+
+function rowIcon(id: string): string {
+  if (id === SETTINGS_HOME) return 'house';
+  return isRemoteSettingsSection(id) ? REMOTE_SECTION_ICONS[id] : botSettingsSectionIcon(id);
 }
 
 const SECTION_SLOT = 'botharness.settings.section';
@@ -204,6 +211,7 @@ export type BotSettingsViewProps = PropsRenderSlots<'botharness.settings.section
   botSettings: BotSettings;
   sections: BotSettingsSectionSource;
   environments?: SettingsEnvironments | undefined;
+  pins?: SettingsPins | undefined;
   t: BotHarnessTranslate;
 };
 
@@ -222,6 +230,7 @@ export function BotSettingsView({
   botSettings,
   sections,
   environments,
+  pins,
   renderSlot,
   t,
 }: BotSettingsViewProps): ReactElement | null {
@@ -318,12 +327,20 @@ export function BotSettingsView({
               ]
             : [row],
         );
-  const navRows = grouped ? [...deviceRows, ...hostRows] : rows;
+  const home = grouped && pins !== undefined;
+  const homeRow: BotSettingsSectionRow = {
+    id: SETTINGS_HOME,
+    order: -1,
+    label: t('settings.home'),
+  };
+  const navRows = grouped ? [...(home ? [homeRow] : []), ...deviceRows, ...hostRows] : rows;
   const active =
     navRows.find((row) => row.id === state.sectionId) ??
-    (remote
-      ? hostRows[0]
-      : (rows.find((row) => row.id === BOT_SETTINGS_DEFAULT_SECTION) ?? navRows[0]));
+    (home
+      ? homeRow
+      : remote
+        ? hostRows[0]
+        : (rows.find((row) => row.id === BOT_SETTINGS_DEFAULT_SECTION) ?? navRows[0]));
   const close = (): void => {
     void guard.leave(() => {
       setQuery('');
@@ -340,7 +357,12 @@ export function BotSettingsView({
     void guard.leave(() => {
       const next = remotes.find((entry) => entry.host.hostId === hostId)?.host;
       setChosenHost(next && { hostId: next.hostId, hostName: next.hostName });
-      if (active === undefined || DEVICE_SETTINGS_SECTIONS.has(active.id)) return;
+      if (
+        active === undefined ||
+        active.id === SETTINGS_HOME ||
+        DEVICE_SETTINGS_SECTIONS.has(active.id)
+      )
+        return;
       botSettings.select(
         next === undefined ? BOT_SETTINGS_SECTIONS.models : REMOTE_SETTINGS_SECTIONS.hostModels,
       );
@@ -357,7 +379,7 @@ export function BotSettingsView({
     hereName
   );
   const scope =
-    !multi || active === undefined
+    !multi || active === undefined || active.id === SETTINGS_HOME
       ? undefined
       : DEVICE_SETTINGS_SECTIONS.has(active.id) || REMOTE_DEVICE_SECTIONS.has(active.id)
         ? t('environment.settings.deviceScope')
@@ -386,20 +408,18 @@ export function BotSettingsView({
       sections={navRows.map((row) => ({
         id: row.id,
         label: row.label,
-        group: DEVICE_SETTINGS_SECTIONS.has(row.id) ? DEVICE_GROUP : HOST_GROUP,
-        icon: (
-          <ChannelSidebarIcon
-            name={
-              isRemoteSettingsSection(row.id)
-                ? REMOTE_SECTION_ICONS[row.id]
-                : botSettingsSectionIcon(row.id)
-            }
-          />
-        ),
+        group:
+          row.id === SETTINGS_HOME
+            ? HOME_GROUP
+            : DEVICE_SETTINGS_SECTIONS.has(row.id)
+              ? DEVICE_GROUP
+              : HOST_GROUP,
+        icon: <ChannelSidebarIcon name={rowIcon(row.id)} />,
       }))}
       groups={
         grouped
           ? [
+              { id: HOME_GROUP },
               {
                 id: DEVICE_GROUP,
                 label: t('environment.settings.deviceGroup'),
@@ -410,23 +430,28 @@ export function BotSettingsView({
       }
       scope={scope}
       headerAction={
-        multi ? (
-          <EnvironmentSwitcher
-            here={{ hostId: thisHost.id ?? THIS_HOST, name: hereName }}
-            remotes={[
-              ...remotes.map(({ host }) => ({
-                hostId: host.hostId,
-                name: host.hostName,
-              })),
-              ...(remote && !remotes.some((entry) => entry.host.hostId === remote.hostId)
-                ? [{ hostId: remote.hostId, name: remote.hostName }]
-                : []),
-            ]}
-            value={remote?.hostId ?? thisHost.id ?? THIS_HOST}
-            onChange={switchHost}
-            t={t}
-          />
-        ) : undefined
+        <>
+          {pins !== undefined && home && active !== undefined && active.id !== SETTINGS_HOME ? (
+            <PinToggle sectionId={active.id} pins={pins} t={t} />
+          ) : null}
+          {multi ? (
+            <EnvironmentSwitcher
+              here={{ hostId: thisHost.id ?? THIS_HOST, name: hereName }}
+              remotes={[
+                ...remotes.map(({ host }) => ({
+                  hostId: host.hostId,
+                  name: host.hostName,
+                })),
+                ...(remote && !remotes.some((entry) => entry.host.hostId === remote.hostId)
+                  ? [{ hostId: remote.hostId, name: remote.hostName }]
+                  : []),
+              ]}
+              value={remote?.hostId ?? thisHost.id ?? THIS_HOST}
+              onChange={switchHost}
+              t={t}
+            />
+          ) : null}
+        </>
       }
       activeId={active?.id}
       navigationSearch={<SettingsSearch query={query} onChange={setQuery} t={t} />}
@@ -467,9 +492,22 @@ export function BotSettingsView({
     >
       {guard.view}
       <div ref={locate} data-settings-content={active?.id}>
-        {active === undefined ? null : environments &&
-          remote &&
-          isRemoteSettingsSection(active.id) ? (
+        {active === undefined ? null : pins !== undefined && active.id === SETTINGS_HOME ? (
+          <SettingsHome
+            rows={navRows
+              .filter((row) => row.id !== SETTINGS_HOME)
+              .map((row) => ({
+                id: row.id,
+                label: row.label,
+                icon: <ChannelSidebarIcon name={rowIcon(row.id)} size={18} />,
+              }))}
+            pins={pins}
+            onOpen={(id) => {
+              select(id);
+            }}
+            t={t}
+          />
+        ) : environments && remote && isRemoteSettingsSection(active.id) ? (
           <RemoteEnvironmentSection
             environments={environments}
             hostId={remote.hostId}

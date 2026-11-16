@@ -1001,9 +1001,11 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
 export function ChannelSidebarIcon({
   name = 'panels-top-left',
   size = 16,
+  filled = false,
 }: {
   name?: string | undefined;
   size?: number | string;
+  filled?: boolean;
 }): ReactElement {
   const nodes = Object.hasOwn(glyphs, name) ? glyphs[name]! : glyphs['panels-top-left']!;
   return (
@@ -1011,7 +1013,7 @@ export function ChannelSidebarIcon({
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth={2}
       strokeLinecap="round"

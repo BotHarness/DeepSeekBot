@@ -218,6 +218,7 @@
         "field:packages/client/src/bot-mode-settings.ts:showDeliveryReceipts",
         "field:packages/client/src/bot-mode-settings.ts:streamReplies",
         "field:packages/client/src/bot-mode-settings.ts:botHopLimit",
+        "field:packages/client/src/bot-mode-settings.ts:settingsPins",
         "setting:packages/client/src/client/bot-hop-limit-setting.tsx:{t('botHopLimit.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('groupAutoAccept.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('icon.row.title')}",

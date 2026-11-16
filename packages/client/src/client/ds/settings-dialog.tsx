@@ -277,7 +277,7 @@ export interface SettingsDialogSection {
 
 export interface SettingsDialogGroup {
   readonly id: string;
-  readonly label: ReactNode;
+  readonly label?: ReactNode;
 }
 
 export interface SettingsDialogLabels {
@@ -448,6 +448,12 @@ export function SettingsDialog({
                 : groups.map((group) => {
                     const members = sections.filter((section) => section.group === group.id);
                     if (members.length === 0) return null;
+                    if (group.label === undefined)
+                      return (
+                        <div key={group.id} {...stylex.props(styles.navGroupList)}>
+                          {members.map(navCell)}
+                        </div>
+                      );
                     const headingId = `${groupId}-${group.id}`;
                     return (
                       <Fragment key={group.id}>

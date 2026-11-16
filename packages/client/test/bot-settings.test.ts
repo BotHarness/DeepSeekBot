@@ -128,6 +128,7 @@ import {
 import { hostSettingsDrafts } from '../src/client/host-settings-drafts.js';
 import type { SettingsEnvironments } from '../src/client/settings-environment.js';
 import { zhTranslate } from '../src/client/locale.js';
+import type { SettingsPins } from '../src/client/settings-home.js';
 
 const ROWS: readonly BotSettingsSectionRow[] = [
   { id: 'about', order: 70, label: '关于' },
@@ -164,6 +165,7 @@ function mount(
   settings: BotSettings,
   rows: readonly BotSettingsSectionRow[] = ROWS,
   environments?: SettingsEnvironments,
+  pins?: SettingsPins,
 ): void {
   const sections = {
     getSnapshot: () => rows,
@@ -175,6 +177,7 @@ function mount(
         botSettings: settings,
         sections,
         environments,
+        pins,
         t: zhTranslate,
         renderSlot: ((
           _name: string,
@@ -816,4 +819,90 @@ it('opens a chosen Host from outside the dialog and returns to this Host when as
   act(() => settings.openHost());
   expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('local');
   expect(shownSection()).toBe('models');
+});
+
+function memoryPins(initial: readonly string[]): SettingsPins & { saved: string[][] } {
+  const listeners = new Set<() => void>();
+  let pins = initial;
+  const saved: string[][] = [];
+  return {
+    saved,
+    getSnapshot: () => pins,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    set: (next) => {
+      pins = next;
+      saved.push([...next]);
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
+it('opens on Pinned, which leads the sidebar and opens each pinned page from its card', async () => {
+  const settings = new BotSettings();
+  const pins = memoryPins(['models', 'appearance', 'missing']);
+  mount(settings, fullRows(), undefined, pins);
+  act(() => settings.open());
+  expect(navLabels()[0]).toBe('常用');
+  expect(groupHeadings()).toEqual(['此设备', '本机']);
+  expect(current()).toBe('常用');
+  expect(
+    [...document.querySelectorAll('[data-settings-pin]')].map((card) =>
+      card.getAttribute('data-settings-pin'),
+    ),
+  ).toEqual(['models', 'appearance']);
+  expect(document.querySelector('[data-settings-pin-toggle]')).toBeNull();
+
+  await click('[data-settings-pin="appearance"] button');
+  expect(current()).toBe('appearance');
+  expect(shownSection()).toBe('appearance');
+});
+
+it('pins the open page from the header star and unpins it from its card', async () => {
+  const settings = new BotSettings();
+  const pins = memoryPins(['models']);
+  mount(settings, fullRows(), undefined, pins);
+  act(() => settings.open('about'));
+  const toggle = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>('[data-settings-pin-toggle]');
+  expect(toggle()?.getAttribute('aria-pressed')).toBe('false');
+  expect(toggle()?.getAttribute('aria-label')).toBe('固定到常用');
+  await click('[data-settings-pin-toggle]');
+  expect(pins.saved).toEqual([['models', 'about']]);
+  expect(toggle()?.getAttribute('aria-pressed')).toBe('true');
+
+  await click('[data-settings-section="home"]');
+  await click('[data-settings-pin="models"] [aria-label="从常用移除models"]');
+  expect(pins.saved.at(-1)).toEqual(['about']);
+  expect(document.querySelector('[data-settings-pin="models"]')).toBeNull();
+});
+
+it('shows pinned Host pages for the chosen remote Host and keeps one pin per page', async () => {
+  const settings = new BotSettings();
+  const pins = memoryPins(['models', 'appearance']);
+  mount(settings, fullRows(), remoteEnvironments(), pins);
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  await click('[data-settings-section="home"]');
+  expect(
+    [...document.querySelectorAll('[data-settings-pin]')].map((card) =>
+      card.getAttribute('data-settings-pin'),
+    ),
+  ).toEqual(['environment-models', 'appearance']);
+  await click('[data-settings-pin="environment-models"] button');
+  expect(document.querySelector('[data-settings-pin-toggle]')?.getAttribute('aria-pressed')).toBe(
+    'true',
+  );
+  await click('[data-settings-pin-toggle]');
+  expect(pins.saved).toEqual([['appearance']]);
+});
+
+it('keeps App preferences free of Pinned', () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), undefined, memoryPins(['appearance']));
+  act(() => settings.openClientPreferences());
+  expect(navLabels()).not.toContain('常用');
+  expect(document.querySelector('[data-settings-pin-toggle]')).toBeNull();
 });
