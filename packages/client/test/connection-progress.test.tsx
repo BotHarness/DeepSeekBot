@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 it('copies a Bot prompt for the current phone step that names its CLI commands', async () => {
-  const writeText = vi.fn(async () => undefined);
+  const writeText = vi.fn(async (_text: string) => undefined);
   vi.stubGlobal('navigator', { clipboard: { writeText } });
   const host = document.createElement('div');
   document.body.append(host);

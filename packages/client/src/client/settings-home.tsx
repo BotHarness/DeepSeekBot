@@ -1,7 +1,9 @@
 import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import { DEFAULT_SETTINGS_PINS } from '../bot-mode-settings.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ActionButton } from './ds/action-button.js';
 import { IconButton } from './ds/icon-button.js';
 import { ShortcutTile } from './ds/shortcut-tile.js';
 import { Note } from './ds/note.js';
@@ -48,6 +50,7 @@ export function useSettingsPins(pins: SettingsPins): readonly string[] {
 }
 
 const styles = stylex.create({
+  home: { display: 'flex', flexDirection: 'column', gap: space.x5 },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))',
@@ -70,35 +73,53 @@ export function SettingsHome({
 }): ReactElement {
   const pinned = useSettingsPins(pins);
   const cards = pinnedRows(pinned, rows);
-  if (cards.length === 0) return <Note>{t('settings.home.empty')}</Note>;
-  return (
-    <div data-settings-home="" {...stylex.props(styles.grid)}>
-      {cards.map((row) => (
-        <ShortcutTile
-          key={row.id}
-          data={{ 'data-settings-pin': row.id }}
-          icon={row.icon}
-          label={row.label}
-          onOpen={() => {
-            onOpen(row.id);
+  const restore =
+    pinned.length === DEFAULT_SETTINGS_PINS.length &&
+    pinned.every((id, index) => DEFAULT_SETTINGS_PINS[index] === id) ? null : (
+      <div>
+        <ActionButton
+          icon="refresh"
+          data-settings-pins-restore=""
+          onClick={() => {
+            pins.set(DEFAULT_SETTINGS_PINS);
           }}
-          action={
-            <IconButton
-              size="inline"
-              tone="subtle"
-              aria-label={t('settings.unpinNamed', { section: row.label })}
-              title={t('settings.unpin')}
-              onClick={() => {
-                const id = settingsPinId(row.id);
-                pins.set(pinned.filter((pin) => pin !== id));
-              }}
-              xstyle={styles.unpin}
-            >
-              <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled />
-            </IconButton>
-          }
-        />
-      ))}
+        >
+          {t('settings.home.restore')}
+        </ActionButton>
+      </div>
+    );
+  return (
+    <div {...stylex.props(styles.home)}>
+      {cards.length === 0 ? <Note>{t('settings.home.empty')}</Note> : null}
+      <div data-settings-home="" {...stylex.props(styles.grid)}>
+        {cards.map((row) => (
+          <ShortcutTile
+            key={row.id}
+            data={{ 'data-settings-pin': row.id }}
+            icon={row.icon}
+            label={row.label}
+            onOpen={() => {
+              onOpen(row.id);
+            }}
+            action={
+              <IconButton
+                size="inline"
+                tone="subtle"
+                aria-label={t('settings.unpinNamed', { section: row.label })}
+                title={t('settings.unpin')}
+                onClick={() => {
+                  const id = settingsPinId(row.id);
+                  pins.set(pinned.filter((pin) => pin !== id));
+                }}
+                xstyle={styles.unpin}
+              >
+                <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled />
+              </IconButton>
+            }
+          />
+        ))}
+      </div>
+      {restore}
     </div>
   );
 }
