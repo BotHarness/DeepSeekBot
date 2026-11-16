@@ -1,5 +1,10 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import {
+  Button,
+  IconSaveOutlineRegular,
+  IconCloseOutlineRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives';
+import {
   AVATAR_COLORS,
   AVATAR_FAMILIES,
   AVATAR_EXTRA_PARTS,
@@ -1167,19 +1172,23 @@ export function AvatarAppearanceEditor({
           ) : null}
           {draft ? (
             <div className="bh-profile-avatar-actions">
-              <button
+              <Button
+                size="sm"
+                variant="primary"
+                icon={<IconSaveOutlineRegular />}
                 data-avatar-save
                 type="button"
-                className="bh-profile-action bh-profile-action-primary"
                 disabled={busy || drawing !== undefined}
                 onClick={() => void save()}
               >
                 {t('profile.save')}
-              </button>
-              <button
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<IconCloseOutlineRegular />}
                 data-avatar-cancel
                 type="button"
-                className="bh-profile-action"
                 disabled={busy}
                 onClick={() => {
                   setDrafts(undefined);
@@ -1188,7 +1197,7 @@ export function AvatarAppearanceEditor({
                 }}
               >
                 {t('common.cancel')}
-              </button>
+              </Button>
             </div>
           ) : null}
           {failed ? (
