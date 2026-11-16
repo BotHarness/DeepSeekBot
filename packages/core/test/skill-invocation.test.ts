@@ -863,6 +863,163 @@ describe('Skill Invocation in a Human DM', () => {
 });
 
 describe('Skill Invocation in a Group Channel', () => {
+  async function withMultiGroupHarvest(
+    delivery: 'digest' | 'pending-context',
+    budget: number,
+    check: (fixture: {
+      core: ReturnType<typeof createCore>;
+      run: OrchestratorAgentRun;
+      rows: { channelId: string; messageId: string; content: string }[];
+    }) => Promise<void>,
+  ): Promise<void> {
+    let releaseInitial = (): void => undefined;
+    let releaseHarvest = (): void => undefined;
+    let markInitial = (): void => undefined;
+    let markHarvest = (_run: OrchestratorAgentRun): void => undefined;
+    const initialStarted = new Promise<void>((resolve) => {
+      markInitial = resolve;
+    });
+    const harvestStarted = new Promise<OrchestratorAgentRun>((resolve) => {
+      markHarvest = resolve;
+    });
+    const initialGate = new Promise<void>((resolve) => {
+      releaseInitial = resolve;
+    });
+    const harvestGate = new Promise<void>((resolve) => {
+      releaseHarvest = resolve;
+    });
+    let calls = 0;
+    const core = createCore({
+      dshHome: createTempRoot('botharness-multi-group-skill-'),
+      agents: adapter(async (run) => {
+        if (calls++ === 0) {
+          markInitial();
+          await initialGate;
+        } else {
+          markHarvest(run);
+          await harvestGate;
+        }
+      }),
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      core.registry.setPromptSettings('ada', { limits: { 'group-context-chars': budget } });
+      const groups = ['A', 'B', 'C'].map((name) =>
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name, members: ['ada'] }),
+      );
+      for (const group of groups)
+        core.channels.setGroupWakePolicy(
+          group.id,
+          'ada',
+          { mode: delivery === 'digest' ? 'digest' : 'mentions', count: 1, intervalSeconds: 30 },
+          { kind: 'human' },
+        );
+      const content = 'Immutable Skill snapshot\n' + 'x'.repeat(16_000);
+      const catalog = new SkillCatalog({
+        memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+        viewFor: liveView,
+      });
+      catalog.attach(
+        registry([skill('review', 'user-agents', '/host/review/SKILL.md', content)], new Map()),
+      );
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      expect(await methods.channelSend({ channelId: dm.id, body: 'Hold this turn' })).toMatchObject(
+        { ok: true },
+      );
+      await initialStarted;
+      const rows: { channelId: string; messageId: string; content: string }[] = [];
+      for (const group of groups) {
+        const sent = await methods.channelSend({
+          channelId: group.id,
+          body: '/review',
+          skillInvocations: [{ name: 'review', owner: { kind: 'host' }, start: 0, end: 7 }],
+        });
+        if (!sent.ok) throw new Error(sent.error.message);
+        rows.push({ channelId: group.id, messageId: sent.value.message.id, content });
+        if (delivery === 'pending-context')
+          expect(
+            await methods.channelSend({
+              channelId: group.id,
+              body: '@Ada check context',
+              mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+            }),
+          ).toMatchObject({ ok: true });
+      }
+      releaseInitial();
+      const run = await harvestStarted;
+      await check({ core, run, rows });
+    } finally {
+      releaseInitial();
+      releaseHarvest();
+      core.externalMessaging.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  }
+
+  it.each(['digest', 'pending-context'] as const)(
+    'recovers a cross-Channel Skill snapshot from the %s pointer through every content page',
+    async (delivery) =>
+      withMultiGroupHarvest(delivery, 24_000, async ({ run, rows }) => {
+        const row = rows[1]!;
+        expect(run.inboundChannelId).not.toBe(row.channelId);
+        expect(run.message).toContain(
+          `channel_id ${row.channelId} and message_id ${row.messageId}`,
+        );
+        expect(run.message).toContain('content_cursor');
+        expect(run.message).toContain('keep both channel_id and message_id');
+        expect(() => run.channels.readModel({ messageId: row.messageId })).toThrow(
+          'message not found',
+        );
+        let recovered = '';
+        let contentCursor: string | undefined;
+        let pages = 0;
+        do {
+          const chunk = JSON.parse(
+            run.channels.readModel({
+              channelId: row.channelId,
+              messageId: row.messageId,
+              ...(contentCursor === undefined ? {} : { contentCursor }),
+            }),
+          );
+          recovered += chunk.content;
+          contentCursor = chunk.contentCursor;
+          pages++;
+        } while (contentCursor !== undefined);
+        expect(pages).toBeGreaterThan(1);
+        expect(JSON.parse(recovered).message.skillInvocations[0].content).toBe(row.content);
+      }),
+  );
+
+  it.each(['digest', 'pending-context'] as const)(
+    'allows only one oversized row across Channels in a %s harvest and leaves omitted admissions pending',
+    async (delivery) =>
+      withMultiGroupHarvest(delivery, 2_000, async ({ core, run, rows }) => {
+        const rendered = rows.filter((row) => run.message.includes(`- Message ${row.messageId} `));
+        expect(rendered).toEqual([rows[0]]);
+        expect(run.message.match(/<skill_invocation /gu)).toHaveLength(1);
+        const admissions = attachOperationalModule(
+          core.operationalDatabase,
+          'multi-group-budget',
+        ).read((db) =>
+          db
+            .prepare(
+              `SELECT e.message_id, a.attempt_state, a.observed_at FROM inbox_admissions a
+         JOIN source_events e ON e.source_event_id = a.source_event_id
+         WHERE a.bot_slug = 'ada' AND a.reason = 'group-ordinary' ORDER BY e.rowid`,
+            )
+            .all(),
+        );
+        expect(admissions).toEqual(
+          rows.map((row, index) => ({
+            message_id: row.messageId,
+            attempt_state: index === 0 ? 'running' : 'pending',
+            observed_at: index === 0 ? expect.any(String) : null,
+          })),
+        );
+      }),
+  );
   it.each([
     { delivery: 'digest', budget: 24_000 },
     { delivery: 'pending-context', budget: 24_000 },

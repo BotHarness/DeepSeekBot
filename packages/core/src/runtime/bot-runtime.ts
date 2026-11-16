@@ -1147,7 +1147,7 @@ function rowSkillInvocations(row: DigestRow): ChannelSkillInvocation[] | undefin
     : undefined;
 }
 
-function groupSkillInvocationPrompt(row: DigestRow): string {
+function groupSkillInvocationPrompt(row: DigestRow, channelId: string): string {
   const invocations = rowSkillInvocations(row);
   if (invocations === undefined || invocations.length === 0) return '';
   const contentLimit = Math.floor(GROUP_SKILL_CONTENT_LIMIT / invocations.length);
@@ -1157,7 +1157,7 @@ function groupSkillInvocationPrompt(row: DigestRow): string {
         ? skill
         : {
             ...skill,
-            content: `${skill.content.slice(0, contentLimit)}\n[Full Skill text is truncated here. Read the complete snapshot with channel_read using message_id ${row.message_id} and follow contentCursor.]`,
+            content: `${skill.content.slice(0, contentLimit)}\n[Full Skill text is truncated here. Read the complete snapshot with channel_read using channel_id ${channelId} and message_id ${row.message_id}; follow contentCursor using content_cursor and keep both channel_id and message_id on every page.]`,
           },
     ),
   );
@@ -3920,7 +3920,7 @@ class BotRuntimeImplementation implements BotRuntime {
               group.count - rows.length - 1,
             ).length;
             if (
-              alreadyIncluded + rows.length > 0 &&
+              (budget.includedByChannel.size > 0 || rows.length > 0) &&
               nextLength > budget.remainingCharacters - contextReserve
             )
               break;
@@ -4017,7 +4017,7 @@ class BotRuntimeImplementation implements BotRuntime {
         bodyLimit,
       };
       if (
-        alreadyIncluded + rows.length > 0 &&
+        (budget.includedByChannel.size > 0 || rows.length > 0) &&
         this.#groupContextSection(candidateContext).length > budget.remainingCharacters
       )
         break;
@@ -4071,7 +4071,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${groupSkillInvocationPrompt(row)}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${groupSkillInvocationPrompt(row, context.channelId)}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -4096,7 +4096,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `${rows.length} ordinary messages are due. ${this.#promptText(botSlug)('digest-hint')}`,
       ...rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${groupSkillInvocationPrompt(row)}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${groupSkillInvocationPrompt(row, channelId)}`,
       ),
       ...(omittedCount > 0
         ? [
