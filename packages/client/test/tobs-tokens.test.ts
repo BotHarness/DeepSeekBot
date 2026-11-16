@@ -6,16 +6,49 @@ import {
   CSS_OUTPUT,
   STYLEX_OUTPUT,
   contrast,
+  readResolver,
   renderCss,
   renderStylex,
+  resolveTokens,
   webTokens,
 } from '../../../scripts/generate-tokens.mjs';
 import { RULES, compare, scan } from '../../../scripts/check-design-tokens.mjs';
-import { TOBS_ACCENTS, TOBS_TOKENS } from '../src/client/ds/tobs-tokens.generated.js';
+import {
+  TOBS_ACCENT_ROLES,
+  TOBS_ACCENTS,
+  TOBS_STYLES,
+  TOBS_TOKENS,
+} from '../src/client/ds/tobs-tokens.generated.js';
 import { tobsTokens } from '../src/client/tobs-theme.js';
 
 const SCHEMES = ['light', 'dark'] as const;
-const SURFACES = ['--tobs-layer-canvas', '--tobs-layer-raised', '--tobs-layer-well'] as const;
+const SURFACES = [
+  '--tobs-layer-canvas',
+  '--tobs-layer-raised',
+  '--tobs-layer-well',
+  '--tobs-layer-field',
+  '--tobs-layer-nav',
+  '--tobs-layer-sheet',
+  '--tobs-layer-elevated',
+] as const;
+const SELECTION_SURFACES = ['--tobs-layer-canvas', '--tobs-layer-nav', '--tobs-layer-sheet'];
+const resolver = readResolver();
+const contexts = (name: string) => Object.keys(resolver.modifiers[name]?.contexts ?? {});
+const COMBINATIONS = contexts('mode').flatMap((mode) =>
+  contexts('style').flatMap((style) =>
+    contexts('accent').map((accent) => ({ mode, style, accent })),
+  ),
+);
+
+function resolved(input: { mode: string; style: string; accent: string }) {
+  const leaves = resolveTokens(input, resolver);
+  const value = (path: string) => {
+    const leaf = leaves.find((l) => l.path.join('.') === path);
+    if (!leaf) throw new Error(`missing ${path}`);
+    return leaf.value;
+  };
+  return value;
+}
 
 describe('Tobs design tokens', () => {
   it('keeps the generated outputs in step with the token source', () => {
@@ -24,45 +57,72 @@ describe('Tobs design tokens', () => {
     expect(readFileSync(STYLEX_OUTPUT, 'utf8')).toBe(renderStylex(tokens));
   });
 
-  it('defines the same custom properties in both schemes', () => {
+  it('defines the same custom properties in every mode, accent and style', () => {
     expect(Object.keys(TOBS_TOKENS.dark)).toEqual(Object.keys(TOBS_TOKENS.light));
     for (const name of Object.keys(TOBS_TOKENS.light)) expect(name).toMatch(/^--tobs-[a-z0-9-]+$/);
+    for (const preset of Object.values(TOBS_ACCENT_ROLES))
+      expect(Object.keys(preset.dark)).toEqual(Object.keys(preset.light));
+    const styleKeys = Object.keys(TOBS_STYLES.a);
+    for (const style of Object.values(TOBS_STYLES)) expect(Object.keys(style)).toEqual(styleKeys);
+    for (const name of styleKeys) expect(name).toMatch(/^--tobs-style-[a-z0-9-]+$/);
   });
 
-  it.each(SCHEMES)('meets the contrast gate on every surface in %s', (scheme) => {
-    const t = TOBS_TOKENS[scheme];
-    for (const surface of SURFACES) {
-      for (const ink of ['--tobs-ink-primary', '--tobs-ink-secondary'] as const)
-        expect(contrast(t[ink], t[surface]), `${ink} on ${surface}`).toBeGreaterThanOrEqual(4.5);
-      for (const mark of ['--tobs-ink-tertiary', '--tobs-accent-base'] as const)
-        expect(contrast(t[mark], t[surface]), `${mark} on ${surface}`).toBeGreaterThanOrEqual(3);
+  it(`covers ${COMBINATIONS.length} mode, style and accent combinations`, () => {
+    expect(COMBINATIONS.length).toBe(
+      contexts('mode').length * contexts('style').length * contexts('accent').length,
+    );
+  });
+
+  it.each(COMBINATIONS)('meets the contrast rules in $mode, style $style, $accent', (input) => {
+    const v = resolved(input);
+    const surfaces = SURFACES.map((s) => v(`web.color.layer.${s.slice('--tobs-layer-'.length)}`));
+    const on = (fg: string, bg: string, min: number, label: string) =>
+      expect(contrast(fg, bg), label).toBeGreaterThanOrEqual(min);
+    for (const [i, surface] of surfaces.entries()) {
+      for (const ink of ['primary', 'secondary', 'tertiary'])
+        on(v(`web.color.ink.${ink}`), surface, 4.5, `ink.${ink} on ${SURFACES[i]}`);
+      on(v('web.color.ink.quiet'), surface, 3, `ink.quiet on ${SURFACES[i]}`);
+      on(v('web.color.accent.ink'), surface, 4.5, `accent.ink on ${SURFACES[i]}`);
+      on(v('web.color.accent.focus'), surface, 3, `accent.focus on ${SURFACES[i]}`);
+      on(v('web.color.accent.solid'), surface, 3, `accent.solid on ${SURFACES[i]}`);
     }
-    expect(contrast(t['--tobs-ink-secondary'], t['--tobs-layer-nav'])).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(t['--tobs-state-selected-ink'], t['--tobs-state-selected'])).toBeGreaterThan(
-      4.5,
-    );
-    for (const tone of ['danger', 'warning', 'success'] as const)
-      expect(
-        contrast(t[`--tobs-status-${tone}-ink`], t[`--tobs-status-${tone}-tint`]),
+    for (const name of SELECTION_SURFACES)
+      on(
+        v('web.color.state.selected'),
+        v(`web.color.layer.${name.slice('--tobs-layer-'.length)}`),
+        1.5,
+        `state.selected on ${name}`,
+      );
+    on(v('web.color.state.selected-ink'), v('web.color.state.selected'), 4.5, 'selected ink');
+    on(v('web.color.accent.ink'), v('web.color.state.selected'), 4.5, 'accent.ink on selected');
+    on(v('web.color.accent.on-solid'), v('web.color.accent.solid'), 4.5, 'on-solid');
+    on(v('web.color.accent.on-solid'), v('web.color.accent.solid-hover'), 4.5, 'on-solid hover');
+    on(v('web.color.accent.on-container'), v('web.color.accent.container'), 4.5, 'on-container');
+    on(v('web.color.accent.ink'), v('web.color.accent.tint'), 4.5, 'accent.ink on tint');
+    on(v('web.color.accent.on-selection'), v('web.color.accent.selection'), 4.5, 'on-selection');
+    for (const tone of ['danger', 'warning', 'success'])
+      on(
+        v(`web.color.status.${tone}.ink`),
+        v(`web.color.status.${tone}.tint`),
+        4.5,
         `${tone} ink on tint`,
-      ).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(t['--tobs-ink-on-accent'], t['--tobs-accent-base'])).toBeGreaterThanOrEqual(
-      4.5,
-    );
+      );
   });
 
-  it('swaps only the accent family for a preset', () => {
+  it('applies the generated role set for a preset and mixes only a custom colour', () => {
     const blue = tobsTokens('light', 'classic-blue');
-    expect(blue).toEqual(TOBS_TOKENS.light);
+    expect(blue).toEqual({ ...TOBS_TOKENS.light, ...TOBS_STYLES.a });
     const green = tobsTokens('dark', 'forest-green');
-    expect(green['--tobs-accent-base']).toBe(TOBS_ACCENTS['forest-green'].dark);
+    expect(green).toMatchObject(TOBS_ACCENT_ROLES['forest-green'].dark);
     expect(green['--tobs-layer-canvas']).toBe(TOBS_TOKENS.dark['--tobs-layer-canvas']);
-    expect(green['--tobs-line-focus']).toBe(TOBS_ACCENTS['forest-green'].dark);
-    expect(tobsTokens('light', 'classic-blue', '#aa3366')['--tobs-accent-base']).toBe('#aa3366');
+    expect(tobsTokens('dark', 'forest-green', TOBS_ACCENTS['forest-green'].dark)).toEqual(green);
+    const custom = tobsTokens('light', 'classic-blue', '#aa3366');
+    expect(custom['--tobs-accent-solid']).toBe('#aa3366');
+    expect(custom['--tobs-accent-tint']).toMatch(/^color-mix/);
     for (const scheme of SCHEMES)
       for (const primary of ['#f8f9fa', '#1b1c1f']) {
         const t = tobsTokens(scheme, 'classic-blue', primary);
-        for (const surface of [...SURFACES, '--tobs-layer-nav'] as const)
+        for (const surface of SURFACES)
           expect(
             contrast(t['--tobs-line-focus'] ?? '', t[surface] ?? ''),
             `focus for ${primary} on ${surface} in ${scheme}`,

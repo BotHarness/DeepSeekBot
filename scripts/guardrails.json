@@ -28,7 +28,7 @@
       "id": "tobs-token-outputs",
       "layer": "L2 lint",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",
-      "fix": "edit design/tokens/tobs.tokens.json and run pnpm tokens; never edit ds/tobs-tokens.generated.ts or ds/tobs.stylex.ts by hand.",
+      "fix": "edit the set files under design/tokens/ (wired by tobs.resolver.json) and run pnpm tokens; never edit ds/tobs-tokens.generated.ts or ds/tobs.stylex.ts by hand.",
       "check": "scripts/generate-tokens.mjs"
     }
   ]

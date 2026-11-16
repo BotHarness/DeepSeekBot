@@ -12,7 +12,7 @@ export const CALL_CSS = `
 .bh-call-duration { flex: none; color: ${color.muted}; font-size: ${text.metaSize}; font-variant-numeric: tabular-nums; }
 .bh-call-mic { flex: none; display: inline-flex; border-radius: 999px; --bh-voice-reach: 0.4; --bh-voice-pulse-near: 4px; --bh-voice-pulse-far: 6px; }
 .bh-call-mic > button { border-radius: 999px; }
-.bh-call-mic[data-ripple='on'] > button { color: var(--tobs-accent-base); }
+.bh-call-mic[data-ripple='on'] > button { color: var(--tobs-accent-solid); }
 .bh-call-island [data-muted='true'] { color: ${color.fg}; background: ${color.selected}; }
 .bh-call-hangup { flex: none; display: inline-flex; align-items: center; justify-content: center; width: ${size.icon}; height: ${size.icon}; padding: 0; border: 0; border-radius: 999px; background: ${color.danger}; color: ${color.onDanger}; cursor: pointer; }
 .bh-call-hangup:hover { background: color-mix(in srgb, ${color.danger} 88%, black); }

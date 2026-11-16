@@ -1,0 +1,130 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/resolver.json",
+  "name": "Tobs",
+  "version": "2025.10",
+  "description": "Tobs design tokens (#4282, ADR-0350). Three independent modifiers: colour mode, style and accent preset. Accent role sets (solid, container, ink, focus, selection…) are derived per accent and mode by scripts/generate-tokens.mjs; run it after any change.",
+  "sets": {
+    "core": {
+      "sources": [
+        {
+          "$ref": "core.tokens.json"
+        }
+      ]
+    },
+    "web": {
+      "sources": [
+        {
+          "$ref": "web.tokens.json"
+        }
+      ]
+    }
+  },
+  "modifiers": {
+    "mode": {
+      "description": "Colour mode.",
+      "contexts": {
+        "light": [
+          {
+            "$ref": "mode/light.tokens.json"
+          }
+        ],
+        "dark": [
+          {
+            "$ref": "mode/dark.tokens.json"
+          }
+        ]
+      },
+      "default": "light"
+    },
+    "style": {
+      "description": "A quiet, B native, C tonal.",
+      "contexts": {
+        "a": [
+          {
+            "$ref": "style/a.tokens.json"
+          }
+        ]
+      },
+      "default": "a"
+    },
+    "accent": {
+      "description": "Accent preset; picks the seed the accent roles derive from.",
+      "contexts": {
+        "classic-blue": [
+          {
+            "web": {
+              "color": {
+                "accent": {
+                  "seed": {
+                    "$type": "color",
+                    "$value": "{palette.accent.classic-blue}"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "mist-purple": [
+          {
+            "web": {
+              "color": {
+                "accent": {
+                  "seed": {
+                    "$type": "color",
+                    "$value": "{palette.accent.mist-purple}"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "forest-green": [
+          {
+            "web": {
+              "color": {
+                "accent": {
+                  "seed": {
+                    "$type": "color",
+                    "$value": "{palette.accent.forest-green}"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "warm-amber": [
+          {
+            "web": {
+              "color": {
+                "accent": {
+                  "seed": {
+                    "$type": "color",
+                    "$value": "{palette.accent.warm-amber}"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "default": "classic-blue"
+    }
+  },
+  "resolutionOrder": [
+    {
+      "$ref": "#/sets/core"
+    },
+    {
+      "$ref": "#/sets/web"
+    },
+    {
+      "$ref": "#/modifiers/mode"
+    },
+    {
+      "$ref": "#/modifiers/style"
+    },
+    {
+      "$ref": "#/modifiers/accent"
+    }
+  ]
+}
