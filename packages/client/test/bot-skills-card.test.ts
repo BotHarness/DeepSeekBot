@@ -17,7 +17,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
         { type, onClick, disabled, 'aria-label': (rest as Record<string, unknown>)['aria-label'] },
         children,
       ),
-    MarkdownText: ({ text }: { text: string }) => createElement('div', { 'data-md': '' }, text),
     Tag: ({ children }: PropsWithChildren) => createElement('span', { 'data-tag': '' }, children),
   };
   return new Proxy(base, {
@@ -110,7 +109,9 @@ describe('Skills profile card', () => {
 
     await click(host.querySelector('[data-skill-row="review"]'));
     expect(skills.read).toHaveBeenCalledWith('review');
-    expect(host.querySelector('[data-md]')?.textContent).toBe('Body of review');
+    expect(host.querySelector('[data-skill-body] .bh-memory-markdown')?.textContent).toBe(
+      'Body of review',
+    );
     expect(host.textContent).toContain('.agents/skills/review/SKILL.md');
 
     await click(button(host, 'Delete'));

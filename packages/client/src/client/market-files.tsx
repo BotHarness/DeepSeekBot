@@ -1,11 +1,6 @@
 import { useState, type ReactElement } from 'react';
 
-import {
-  IconChevronLeftOutlineRegular,
-  MarkdownText,
-  Tag,
-  type MarkdownLabels,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronLeftOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceFile,
@@ -17,6 +12,7 @@ import type { BridgeActions } from './actions.js';
 import { IconButton } from './ds/icon-button.js';
 import { ReadFailure } from './ds/read-failure.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { MarkdownDocument, MarkdownImageLabel } from './memory-markdown-view.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export function fileSize(bytes: number): string {
@@ -196,7 +192,6 @@ export function MarketplaceFileReader({
   actions,
   botId,
   file,
-  labels,
   t,
   describeError,
   onBack,
@@ -204,7 +199,6 @@ export function MarketplaceFileReader({
   actions: Pick<BridgeActions, 'marketplaceFile'>;
   botId: string;
   file: MarketplaceFile;
-  labels: MarkdownLabels;
   t: BotHarnessTranslate;
   describeError: (cause: unknown) => string;
   onBack: () => void;
@@ -253,8 +247,11 @@ export function MarketplaceFileReader({
         </ReadFailure>
       ) : null}
       {state.status === 'ready' && state.file.type === 'markdown' ? (
-        <div className="bh-market-readme" data-market-reader-body="markdown">
-          <MarkdownText text={markdownBody(state.file.text)} labels={labels} />
+        <div className="bh-file-preview" data-market-reader-body="markdown">
+          <MarkdownDocument
+            body={markdownBody(state.file.text)}
+            image={(src, alt) => <MarkdownImageLabel key={src} src={src} alt={alt} />}
+          />
         </div>
       ) : null}
       {state.status === 'ready' && state.file.type !== 'markdown' ? (

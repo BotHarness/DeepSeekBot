@@ -563,7 +563,12 @@ describe('Market panel', () => {
           entry: 'rising',
           step: 'detail',
         });
-        expect(host.querySelector('[data-market-page="bot"]')).not.toBeNull();
+        const botPage = host.querySelector<HTMLElement>('[data-market-page="bot"]')!;
+        const github = botPage.querySelector<HTMLAnchorElement>('a[aria-label="在 GitHub 查看"]')!;
+        expect(github.getAttribute('href')).toBe('https://github.com/alice/sprinter');
+        expect(github.textContent).toBe('');
+        expect(botPage.querySelector('.bh-market-row-head .bh-market-name')).toBeNull();
+        expect(botPage.querySelector('.bh-market-hero-name')?.textContent).toContain('sprinter');
         expect(page.getAttribute('aria-hidden')).toBe('true');
         await act(async () =>
           button(host.querySelector<HTMLElement>('[data-market-page="bot"]')!, '返回').click(),
@@ -1450,7 +1455,8 @@ describe('Uploaded Bots in the Market panel', () => {
         await act(async () => {});
         const markdown = host.querySelector('[data-market-reader-body="markdown"]')!;
         expect(markdown.tagName).toBe('DIV');
-        expect(markdown.textContent).toBe('# Soul\n\nI help.');
+        expect(markdown.querySelector('.bh-memory-markdown h1')?.textContent).toBe('Soul');
+        expect(markdown.querySelector('.bh-memory-markdown p')?.textContent).toBe('I help.');
       },
       {
         marketplaceFile: file,

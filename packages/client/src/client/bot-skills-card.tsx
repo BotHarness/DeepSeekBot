@@ -2,9 +2,8 @@ import { useMemo, useState, type ReactElement } from 'react';
 
 import {
   IconChevronLeftOutlineRegular,
-  MarkdownText,
+  IconChevronRightOutlineRegular,
   Tag,
-  type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { MarketplaceFile } from '../../../core/src/marketplace/client.js';
@@ -15,7 +14,8 @@ import { IconButton } from './ds/icon-button.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { MarketplaceFileReader } from './market-files.js';
+import { MarketplaceFileReader, markdownBody } from './market-files.js';
+import { MarkdownDocument, MarkdownImageLabel } from './memory-markdown-view.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export interface BotSkillsSource {
@@ -23,16 +23,6 @@ export interface BotSkillsSource {
   read(name: string): Promise<SkillDetailView>;
   remove(name: string): Promise<void>;
   subscribe?(listener: () => void): () => void;
-}
-
-function useMarkdownLabels(t: BotHarnessTranslate): MarkdownLabels {
-  return useMemo(
-    () => ({
-      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
-      footnotes: t('message.footnotes'),
-    }),
-    [t],
-  );
 }
 
 function SkillRows({
@@ -58,11 +48,12 @@ function SkillRows({
             {skill.userInvocable === false ? (
               <Tag tone="outline">{t('skills.modelOnly')}</Tag>
             ) : null}
-            {skill.description.length === 0 ? null : (
-              <span className="bh-skill-row-description" title={skill.description}>
-                {skill.description}
-              </span>
-            )}
+            <span className="bh-skill-row-description" title={skill.description}>
+              {skill.description}
+            </span>
+            <span className="bh-skill-row-chevron" aria-hidden="true">
+              <IconChevronRightOutlineRegular size={16} />
+            </span>
           </button>
         </li>
       ))}
@@ -95,7 +86,6 @@ function SkillDetail({
   onBack(): void;
   onRemoved(): void;
 }): ReactElement {
-  const labels = useMarkdownLabels(t);
   const [state, setState] = useState<DetailState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [confirming, setConfirming] = useState(false);
@@ -156,8 +146,11 @@ function SkillDetail({
           {state.skill.description.length === 0 ? null : (
             <p className="bh-skill-detail-description">{state.skill.description}</p>
           )}
-          <div className="bh-market-readme" data-skill-body>
-            <MarkdownText text={state.skill.content} labels={labels} />
+          <div className="bh-file-preview" data-skill-body>
+            <MarkdownDocument
+              body={markdownBody(state.skill.content)}
+              image={(src, alt) => <MarkdownImageLabel key={src} src={src} alt={alt} />}
+            />
           </div>
           {confirming ? (
             <div
@@ -306,7 +299,6 @@ export function MarketplaceSkills({
   t: BotHarnessTranslate;
   describeError: (cause: unknown) => string;
 }): ReactElement | null {
-  const labels = useMarkdownLabels(t);
   const skills = useMemo(() => marketplaceSkillFiles(files), [files]);
   const [descriptions, setDescriptions] = useState<ReadonlyMap<string, string>>(new Map());
   const [open, setOpen] = useState<MarketplaceSkillFile | undefined>(undefined);
@@ -346,7 +338,6 @@ export function MarketplaceSkills({
           actions={actions}
           botId={botId}
           file={open.file}
-          labels={labels}
           t={t}
           describeError={describeError}
           onBack={() => setOpen(undefined)}
