@@ -4882,6 +4882,8 @@ export const zh = {
   'botSettings.section.devices': '连接',
   'botSettings.section.connect': 'Connect',
   'devices.tailscale.disable': '关闭自动发布',
+  'devices.tailscale.memberSignIn.trusted': '团队成员可通过这个地址登录',
+  'devices.tailscale.memberSignIn.untrusted': '团队成员无法通过这个地址登录：请开启自动发布',
   'devices.tailscale.localPort': '本地端口 {port}',
   'devices.tailscale.stale':
     '这些 Tailscale 地址的本地服务未响应。请检查 Serve 配置；未确认归属的规则不会自动删除。',
@@ -10912,6 +10914,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botSettings.section.devices': 'Connections',
   'botSettings.section.connect': 'Connect',
   'devices.tailscale.disable': 'Turn off automatic publishing',
+  'devices.tailscale.memberSignIn.trusted': 'Team members can sign in at this address',
+  'devices.tailscale.memberSignIn.untrusted':
+    'Team members can’t sign in at this address. Turn on automatic publishing.',
   'devices.tailscale.localPort': 'Local port {port}',
   'devices.tailscale.stale':
     'These Tailscale addresses point to local services that are not responding. Check your Serve configuration; routes with unknown ownership are preserved.',
