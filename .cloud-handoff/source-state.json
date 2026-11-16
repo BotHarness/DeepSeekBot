@@ -1,0 +1,17 @@
+{
+  "path": "/Users/doodlebear/.t3/worktrees/BotHarness/t3-e326980b-907bf3492d9671a5",
+  "branch": "s3-fixes",
+  "head": "d8604758941e900fb610e0bd1268b3968866d9a9",
+  "merge_head": null,
+  "changed": [
+    "packages/core/test/skill-catalog-retry.test.ts"
+  ],
+  "hashes": {
+    "packages/core/test/skill-catalog-retry.test.ts": "6ef33e41ddc16da6031e0f9690615001c0ae474fbd6f8d27405e819425b31b48"
+  },
+  "status_hex": "204d207061636b616765732f636f72652f746573742f736b696c6c2d636174616c6f672d72657472792e746573742e747300",
+  "unmerged": "",
+  "label": "skills-s3-review-wip",
+  "checkpoint_kind": "UNVALIDATED_SOURCE_SNAPSHOT",
+  "recorded_at": "2026-11-16T05:28:36.412434+00:00"
+}
