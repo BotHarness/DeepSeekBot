@@ -14,7 +14,7 @@ it('reads and writes prompt and voice settings on the remote Host it was made fo
         ? { presetId: args['presetId'] }
         : method === 'promptPresets'
           ? { presets: [], globalPresetId: null }
-          : { providers: [] };
+          : { providers: [], presets: [] };
     });
   const client = createHostClient({
     routes: ['https://studio.test.ts.net'],
@@ -28,7 +28,10 @@ it('reads and writes prompt and voice settings on the remote Host it was made fo
     expect(remoteHostActions(client)).toBe(actions);
     await actions.promptPresets?.();
     await expect(actions.promptGlobalSet?.('concise')).resolves.toEqual({ presetId: 'concise' });
-    await actions.voiceProviders?.().catch(() => undefined);
+    await expect(actions.voiceProviders?.()).resolves.toMatchObject({
+      providers: [],
+      presets: [],
+    });
     expect(seen.map(([method]) => method)).toEqual([
       'promptPresets',
       'promptGlobalSet',
