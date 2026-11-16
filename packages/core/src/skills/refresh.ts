@@ -182,6 +182,14 @@ export function watchSkillCatalog(options: {
           changed.add(slug);
         }
         entry.bot = bot;
+        if (entry.state.kind === 'failed') {
+          entry.failures = 0;
+          if (start(entry)) {
+            options.catalog.invalidateMemory(slug);
+            options.invalidateNative?.();
+            changed.add(slug);
+          }
+        }
         continue;
       }
       stop(entry);

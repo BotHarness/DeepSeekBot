@@ -100,6 +100,12 @@ describe('Skill watcher recovery', () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(watch).toHaveBeenCalledTimes(4);
     expect(vi.getTimerCount()).toBe(0);
+    expect((await f.catalog.list(['ada']))[0]?.name).toBe('before');
+    f.rename('after-exhaustion');
+    f.refresh.reconcile();
+    expect(watch).toHaveBeenCalledTimes(5);
+    expect((await f.catalog.list(['ada']))[0]?.name).toBe('after-exhaustion');
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('retries a failed watcher creation and invalidates edits made during the outage', async () => {
