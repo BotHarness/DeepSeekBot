@@ -114,11 +114,11 @@ describe('nested functional appearance', () => {
       );
     try {
       render('file.md');
-      act(() =>
+      act(() => {
         host
           .querySelector('[data-appearance-header]')!
-          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
-      );
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      });
       expect(parent).not.toHaveBeenCalled();
       expect(host.querySelectorAll('[data-test-menu]')).toHaveLength(1);
       act(() => host.querySelector<HTMLButtonElement>('button')!.click());

@@ -160,9 +160,13 @@ describe('Bot mode sidebar', () => {
     expect(logo.classList.contains('bh-mode-sidebar-logo')).toBe(true);
     expect(logo.getAttribute('data-bh-tour')).toBe('bot-mode');
     expect(logo.hasAttribute('data-exit')).toBe(false);
-    act(() => logo.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
+    act(() => {
+      logo.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }));
+    });
     expect(logo.getAttribute('data-exit')).toBe('true');
-    act(() => logo.dispatchEvent(new MouseEvent('pointerout', { bubbles: true })));
+    act(() => {
+      logo.dispatchEvent(new MouseEvent('pointerout', { bubbles: true }));
+    });
     expect(logo.hasAttribute('data-exit')).toBe(false);
 
     act(() => button('Exit Bot mode').click());

@@ -14,6 +14,8 @@ import { OverviewMemoryView } from './overview-memory-view.js';
 import { OverviewUsageView } from './overview-usage-view.js';
 import { remoteHostSettingsSource } from './remote-host-settings-source.js';
 import { RemoteNotificationSettings } from './remote-notification-settings.js';
+import { remoteHostActions } from './remote-host-actions.js';
+import { PromptsSection, VoiceSection } from './bot-settings-sections.js';
 import { StorageSettings } from './storage-settings.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import { TargetName } from './target-name.js';
@@ -60,6 +62,8 @@ export const REMOTE_SETTINGS_SECTIONS = {
   hostModels: 'environment-models',
   hostAppearance: 'environment-appearance',
   hostNotifications: 'environment-notifications',
+  hostPrompts: 'environment-prompts',
+  hostVoice: 'environment-voice',
   hostUsage: 'environment-usage',
   hostStorage: 'environment-storage',
   hostConnections: 'environment-connections',
@@ -72,6 +76,8 @@ export const REMOTE_SECTION_ICONS: Readonly<Record<RemoteSettingsSection, string
   [REMOTE_SETTINGS_SECTIONS.hostModels]: 'cpu',
   [REMOTE_SETTINGS_SECTIONS.hostAppearance]: 'paintbrush',
   [REMOTE_SETTINGS_SECTIONS.hostNotifications]: 'bell',
+  [REMOTE_SETTINGS_SECTIONS.hostPrompts]: 'file-text',
+  [REMOTE_SETTINGS_SECTIONS.hostVoice]: 'audio-lines',
   [REMOTE_SETTINGS_SECTIONS.hostUsage]: 'gauge',
   [REMOTE_SETTINGS_SECTIONS.hostStorage]: 'files',
   [REMOTE_SETTINGS_SECTIONS.hostConnections]: 'plug',
@@ -85,6 +91,8 @@ export function remoteSettingsRows(
       id: REMOTE_SETTINGS_SECTIONS.hostModels,
       label: t('remoteHosts.settings.models'),
     },
+    { id: REMOTE_SETTINGS_SECTIONS.hostPrompts, label: t('botSettings.section.prompts') },
+    { id: REMOTE_SETTINGS_SECTIONS.hostVoice, label: t('botSettings.section.voice') },
     {
       id: REMOTE_SETTINGS_SECTIONS.hostAppearance,
       label: t('environment.settings.appearance'),
@@ -173,30 +181,26 @@ export function RemoteEnvironmentSection({
     );
   }
   if (!connected || client === undefined) return offline;
-  return (
-    <RemoteHostData
-      key={hostId}
-      client={client}
-      name={displayName}
-      storage={section === REMOTE_SETTINGS_SECTIONS.hostStorage}
-      t={t}
-    />
-  );
+  return <RemoteHostData key={hostId} client={client} name={displayName} section={section} t={t} />;
 }
 
 function RemoteHostData({
   client,
   name,
-  storage,
+  section,
   t,
 }: {
   client: HostClient;
   name: string;
-  storage: boolean;
+  section: RemoteSettingsSection;
   t: BotHarnessTranslate;
 }): ReactElement {
   const source = useMemo(() => remoteHostSettingsSource(client), [client]);
-  if (storage)
+  if (section === REMOTE_SETTINGS_SECTIONS.hostPrompts)
+    return <PromptsSection actions={remoteHostActions(client)} t={t} />;
+  if (section === REMOTE_SETTINGS_SECTIONS.hostVoice)
+    return <VoiceSection actions={remoteHostActions(client)} t={t} />;
+  if (section === REMOTE_SETTINGS_SECTIONS.hostStorage)
     return (
       <StorageSettings
         source={source.storage}

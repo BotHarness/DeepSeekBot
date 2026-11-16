@@ -142,7 +142,9 @@ describe('activity row layout and interaction', () => {
     const button = container.querySelector('button')!;
     act(() => button.click());
     expect(opened).not.toHaveBeenCalled();
-    act(() => button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+    act(() => {
+      button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    });
     expect(opened).toHaveBeenCalledWith(
       { x: 12, y: 120, width: 366, height: 18 },
       expect.stringContaining('First line.\nSecond line.'),
@@ -196,11 +198,11 @@ describe('activity row layout and interaction', () => {
       { kind: 'turn-stop', humanName: 'You', botName: 'Ada', botSlug: 'ada', sessionId: 'session' },
       'ada',
     );
-    act(() =>
+    act(() => {
       container
         .querySelector('button')!
-        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })),
-    );
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    });
     expect(opened).toHaveBeenCalledWith(expect.any(Object), expect.any(String), undefined);
   });
 });
