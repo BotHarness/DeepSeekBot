@@ -841,7 +841,7 @@ deepseekbot approval-template delete night-shift
 
 `list` 返回 `templates` 和 `globalDefault`（模板名或 `null`）。加 `--bot` 时还返回 `selected`（`@global`、特定模板名或 `null`）、`source`（`global`、`specific`、`off`）及 `effective`（模板名或 `null`）。全局设置返回 `{template}`，Bot 设置返回 `{bot}`。写入由认证 Host 持有；不存在的模板不能被选中，全局选择读取失败返回 `approval-selection-unavailable`，不冒充空默认。
 
-模板继续使用内置只读内容或 `$DSH_HOME/botharness/approval-templates/` 下的 Markdown 文件；同一文件 owner 在 `.selection.json` 保存全局选择，不新增 schema 迁移。名称使用小写字母、数字和短横线，正文最多 32 KiB。`show` 返回全文；`create --from` 复制内容。现有编辑和删除流程保持原状；三部分编辑、统一规则表和确认后的批量删除回退由后续切片交付。
+模板继续使用内置只读内容或 `$DSH_HOME/botharness/approval-templates/` 下的 Markdown 文件；同一文件 owner 在 `.selection.json` 保存全局选择，不新增 schema 迁移。名称使用小写字母、数字和短横线，正文最多 32 KiB。`show` 返回全文；`create --from` 复制内容。编辑器提供 Always ask、Always allow 与 free text，可显式从空白或副本开始，并选择仅保存或保存后应用。详见[三部分模板编写](#三部分审批指导)。统一规则表和确认后的批量删除回退由后续切片交付。
 
 确定性授权先处理，覆盖请求时不调用 Reviewer。其余请求按所选模板进入全新、无工具的 Reviewer Session，只接受本次 `allow` 或 `ask-human`。Always ask 优先于 Always allow，free text 补充两者；旧模板的 Reject 指引表示交给 Human。模型不存规则、不自主拒绝，拒绝熔断不再生效。旧拒绝记录及显式 Human override 保持可读。
 
@@ -2088,6 +2088,24 @@ Bot 默认私有：只有主体（所有者）可以私聊私有 Bot 或把它�
 角色策略输入为 JSON 数组 `{ "topic", "text", "effect": "allow" | "deny" }`（最多 100 项），仅供参考：Bot 通过 `speaker-policy` 和 `speaker_policy` 工具读取发言 Human 的角色与匹配条目。同一主题上角色冲突时以 Deny 为准；`roles conflicts <username>` 列出冲突的角色对。
 
 工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
+
+### 三部分审批指导
+
+使用 `deepseekbot approval-template create my-draft --blank` 明确创建空白草稿，或使用 `deepseekbot approval-template create my-copy --from cautious` 创建独立副本。不会自动选取来源，副本不保留来源关联。仍支持 `--file`／`--text-stdin` Markdown 输入。
+
+三部分编辑使用 UTF-8 JSON 文件：
+
+```json
+{
+  "alwaysAsk": ["发送消息或花钱"],
+  "alwaysAllow": ["读取本地项目文件"],
+  "freeText": "不确定时问我。"
+}
+```
+
+运行 `deepseekbot approval-template edit my-draft --parts-file guidance.json`，再用 `deepseekbot approval-template show my-draft` 读回；`text` 包含带格式版本的内容。创建／编辑时添加 `--apply-to <bot-id>` 才会在保存后为该 Bot 选用模板。不加时不改变选择。应用仍通过现有 Bot 选择授权；应用失败时已保存的草稿保留，可单独选用。
+
+编辑共享原件影响 `usedBy` 中所有 Bot 的后续 Review，包括全局继承者。需要独立修改时先复制。总是询问优先于总是允许，补充说明不能取消前者。这些是可能被模型误解的自然语言指导，不是确定性 Tool Approval Rules；冲突、未覆盖或不确定均交给 Human。转换时旧 Markdown 完整保留为补充说明，已经开始的 Review 保留捕获的内容和版本。
 
 ### Channel 邀请（M14）
 

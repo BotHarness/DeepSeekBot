@@ -872,7 +872,7 @@ Names such as `off` and `inherit` remain valid custom template names. Add `--lit
 
 `list` returns `templates` and `globalDefault` (a template name or `null`). With `--bot`, it also returns `selected` (`@global`, a specific template name, or `null`), `source` (`global`, `specific`, or `off`) and `effective` (a name or `null`). The global setter returns `{template}`; the Bot setter returns `{bot}`. The authenticated Host owns these writes; missing templates refuse selection, and an unreadable global selection returns `approval-selection-unavailable` rather than an empty default.
 
-Templates remain read-only built-ins or Markdown files in `$DSH_HOME/botharness/approval-templates/`. The same file owner saves the global choice in `.selection.json`; no schema migration is involved. Names use lowercase letters, digits and dashes, text is at most 32 KiB. `show` returns full text; `create --from` copies text. The existing editor and deletion flow remain unchanged; three-part editing, shared rule tables and confirmed bulk deletion fallback are separate slices.
+Templates remain read-only built-ins or Markdown files in `$DSH_HOME/botharness/approval-templates/`. The same file owner saves the global choice in `.selection.json`; no schema migration is involved. Names use lowercase letters, digits and dashes, text is at most 32 KiB. `show` returns full text; `create --from` copies text. The editor exposes Always ask, Always allow and free text, with explicit blank/copy creation and save-only or save-and-apply. See [three-part template authoring](#three-part-approval-guidance). Shared rule tables and confirmed bulk deletion fallback are separate slices.
 
 Deterministic authorization runs first and makes no Reviewer call when it covers the request. Otherwise the selected template guides a fresh tool-less Reviewer Session: only `allow` for this call or `ask-human` are accepted. Always ask takes precedence over Always allow; free text supplements both. Legacy Reject guidance means ask the Human. The model never saves rules or rejects autonomously, so rejection-based pausing is no longer active. Historical rejection records and their explicit Human override remain readable.
 
@@ -2147,6 +2147,24 @@ Bots are private by default: only the principal (the owner) can DM a private Bot
 Role Policy input is a JSON array of `{ "topic", "text", "effect": "allow" | "deny" }` (at most 100 items). It is advisory: the Bot reads the speaking Human's roles and matching items through `speaker-policy` and the `speaker_policy` tool. When roles conflict on a topic, Deny applies; `roles conflicts <username>` lists the conflicting role pairs.
 
 Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
+
+### Three-part approval guidance
+
+Create an empty draft explicitly with `deepseekbot approval-template create my-draft --blank`, or an independent copy with `deepseekbot approval-template create my-copy --from cautious`. No source is selected implicitly; copies retain no origin link. Existing `--file` / `--text-stdin` Markdown input remains supported.
+
+For three-part editing, write a UTF-8 JSON file:
+
+```json
+{
+  "alwaysAsk": ["Send messages or spend money"],
+  "alwaysAllow": ["Read local project files"],
+  "freeText": "Ask me when unsure."
+}
+```
+
+Run `deepseekbot approval-template edit my-draft --parts-file guidance.json`. Read it back with `deepseekbot approval-template show my-draft`; `text` contains the versioned representation. Add `--apply-to <bot-id>` to create/edit to save and then select it for that Bot. Without that flag, saving changes no selection. Applying uses the existing Bot selection authorization; if applying fails, the saved draft remains and can be selected separately.
+
+Editing a shared original affects future Reviews for every Bot in its `usedBy` list, including global inheritors. Copy first to work independently. Always ask has priority over Always allow, then free text supplements both. These are fallible natural-language instructions, never deterministic Tool Approval Rules. Conflicts, missing coverage or uncertainty ask the Human. Legacy Markdown remains intact as free text when converted; already-started Reviews retain their captured content/version.
 
 ### Channel invitations (M14)
 
