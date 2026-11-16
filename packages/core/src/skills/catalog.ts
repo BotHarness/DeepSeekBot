@@ -3,6 +3,8 @@ import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import type { SkillCatalogEntry, SkillOwner } from './entries.js';
+import { readWorkspaceSkills, type SkillWorkspace } from './workspace.js';
+import type { WorkspaceGrant } from '../workspaces/grants.js';
 
 export {
   parseSkillOwnerKey,
@@ -126,14 +128,21 @@ export class SkillCatalog {
   #registry: SkillRegistryPort | undefined;
   readonly #memoryDirFor: (botSlug: string) => string | undefined;
   readonly #viewFor: SkillViewPort | undefined;
+  readonly #grantsFor: ((botSlug: string) => readonly WorkspaceGrant[]) | undefined;
+  readonly #workspaces = new Map<
+    string,
+    { path: string; entries: Promise<SkillRegistryDefinition[]> }
+  >();
   readonly #cache = new Map<string, CachedCatalog>();
 
   constructor(options: {
     memoryDirFor(botSlug: string): string | undefined;
     viewFor?: SkillViewPort;
+    grantsFor?(botSlug: string): readonly WorkspaceGrant[];
   }) {
     this.#memoryDirFor = options.memoryDirFor;
     this.#viewFor = options.viewFor;
+    this.#grantsFor = options.grantsFor;
   }
 
   get available(): boolean {
@@ -143,10 +152,12 @@ export class SkillCatalog {
   attach(registry: SkillRegistryPort): () => void {
     this.#registry = registry;
     this.#cache.clear();
+    this.#workspaces.clear();
     return () => {
       if (this.#registry === registry) {
         this.#registry = undefined;
         this.#cache.clear();
+        this.#workspaces.clear();
       }
     };
   }
@@ -159,6 +170,50 @@ export class SkillCatalog {
     if (this.#viewFor === undefined) return read(registry, {});
     await using view = await this.#viewFor(botSlug, registry);
     return await read(view.registry, view.scope === undefined ? {} : { scope: view.scope });
+  }
+
+  workspaces(botSlugs: readonly string[]): SkillWorkspace[] {
+    const workspaces = new Map<string, SkillWorkspace>();
+    for (const botSlug of new Set(botSlugs)) {
+      for (const grant of this.#grantsFor?.(botSlug) ?? []) {
+        if (grant.revokedAt !== undefined) continue;
+        const entry = workspaces.get(grant.workspaceId);
+        if (entry !== undefined) {
+          if (entry.path === grant.workspacePath && !entry.botSlugs.includes(botSlug))
+            entry.botSlugs.push(botSlug);
+          continue;
+        }
+        workspaces.set(grant.workspaceId, {
+          workspaceId: grant.workspaceId,
+          name: grant.workspaceTitle,
+          path: grant.workspacePath,
+          botSlugs: [botSlug],
+        });
+      }
+    }
+    return [...workspaces.values()];
+  }
+
+  invalidateWorkspace(workspaceId: string): void {
+    this.#workspaces.delete(workspaceId);
+  }
+
+  async #workspaceEntries(workspace: SkillWorkspace): Promise<SkillRegistryDefinition[]> {
+    let cached = this.#workspaces.get(workspace.workspaceId);
+    if (cached?.path !== workspace.path) {
+      cached = { path: workspace.path, entries: readWorkspaceSkills(workspace.path) };
+      this.#workspaces.set(workspace.workspaceId, cached);
+    }
+    try {
+      const entries = await cached.entries;
+      return this.#workspaces.get(workspace.workspaceId) === cached
+        ? entries
+        : this.#workspaceEntries(workspace);
+    } catch (error) {
+      if (this.#workspaces.get(workspace.workspaceId) === cached)
+        this.invalidateWorkspace(workspace.workspaceId);
+      throw error;
+    }
   }
 
   invalidateBot(botSlug: string): void {
@@ -253,6 +308,31 @@ export class SkillCatalog {
     }
     if ([...observed].some(([slug, entry]) => this.#cache.get(slug) !== entry))
       return this.list(botSlugs);
+    const workspaceEntries = [];
+    for (const workspace of this.workspaces(botSlugs))
+      workspaceEntries.push({ workspace, skills: await this.#workspaceEntries(workspace) });
+    const activeWorkspaces = new Map(
+      this.workspaces(botSlugs).map((workspace) => [workspace.workspaceId, workspace]),
+    );
+    for (const { workspace, skills } of workspaceEntries) {
+      const current = activeWorkspaces.get(workspace.workspaceId);
+      if (current?.path !== workspace.path) continue;
+      entries.push(
+        ...skills
+          .filter((skill) => skill.invocation.userInvocable)
+          .map((skill): SkillCatalogEntry => ({
+            name: skill.name,
+            description: skill.description,
+            owner: { kind: 'workspace', workspaceId: current.workspaceId, name: current.name },
+            ...(skill.path === undefined ? {} : { path: skill.path }),
+          })),
+      );
+    }
+    if (
+      this.#registry !== registry ||
+      [...observed].some(([slug, entry]) => this.#cache.get(slug) !== entry)
+    )
+      return this.list(botSlugs);
     return [...entries, ...(hostEntries ?? [])];
   }
 
@@ -260,9 +340,34 @@ export class SkillCatalog {
     name: string,
     owner: SkillOwner,
     viewerBotSlug: string,
+    botSlugs: readonly string[] = [viewerBotSlug],
   ): Promise<ResolvedSkill | undefined> {
     const registry = this.#registry;
     if (registry === undefined) return undefined;
+    if (owner.kind === 'workspace') {
+      const workspace = this.workspaces(botSlugs).find(
+        (entry) => entry.workspaceId === owner.workspaceId,
+      );
+      if (workspace === undefined) return undefined;
+      const skill = (await readWorkspaceSkills(workspace.path)).find(
+        (entry) => entry.name === name && entry.invocation.userInvocable,
+      );
+      if (
+        skill === undefined ||
+        !this.workspaces(botSlugs).some(
+          (entry) => entry.workspaceId === workspace.workspaceId && entry.path === workspace.path,
+        )
+      )
+        return undefined;
+      if (skill.content.length > MAX_SKILL_INVOCATION_CONTENT)
+        throw new SkillContentTooLargeError(name);
+      return {
+        name,
+        owner: { kind: 'workspace', workspaceId: workspace.workspaceId, name: workspace.name },
+        content: skill.content,
+        ...(skill.path === undefined ? {} : { path: skill.path }),
+      };
+    }
     const resolved = await this.#withView(
       owner.kind === 'bot' ? owner.botSlug : viewerBotSlug,
       registry,

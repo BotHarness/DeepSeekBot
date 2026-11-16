@@ -1,5 +1,5 @@
 import type { ApprovalCard } from '../team/approval-contract.js';
-import type { SkillOwner } from '../skills/entries.js';
+import { isSkillWorkspaceId, type SkillOwner } from '../skills/entries.js';
 import type { ChannelMessageAuthor } from './message-author.js';
 import type { ChannelReplyPreview } from './reply-preview.js';
 import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
@@ -312,8 +312,12 @@ export function isSkillInvocationToken(
   const { name, owner, start, end } = item as Record<string, unknown>;
   if (typeof name !== 'string' || name.length > 64 || !SKILL_NAME.test(name)) return false;
   if (typeof owner !== 'object' || owner === null) return false;
-  const { kind, botSlug } = owner as Record<string, unknown>;
-  if (kind !== 'host' && !(kind === 'bot' && typeof botSlug === 'string' && isValidSlug(botSlug)))
+  const { kind, botSlug, workspaceId, name: workspaceName } = owner as Record<string, unknown>;
+  if (
+    kind !== 'host' &&
+    !(kind === 'bot' && typeof botSlug === 'string' && isValidSlug(botSlug)) &&
+    !(kind === 'workspace' && isSkillWorkspaceId(workspaceId) && typeof workspaceName === 'string')
+  )
     return false;
   return (
     typeof start === 'number' &&

@@ -1,3 +1,4 @@
+import { skillOwnerKey } from '../skills/entries.js';
 import { TeamError } from '../team/error.js';
 import { botOwner } from '../team/bot-access.js';
 import { humanContext } from '../humans/context.js';
@@ -767,7 +768,7 @@ export function skillInvocationPrompt(
 ): string {
   if (invocations === undefined || invocations.length === 0) return '';
   const blocks = invocations.map((skill) => {
-    const owner = skill.owner.kind === 'host' ? 'host' : `bot:${skill.owner.botSlug}`;
+    const owner = xmlAttribute(skillOwnerKey(skill.owner));
     const path = skill.path === undefined ? '' : ` path="${xmlAttribute(skill.path)}"`;
     return `<skill_invocation name="${skill.name}" owner="${owner}"${path}>\n${skill.content}\n</skill_invocation>`;
   });

@@ -3276,6 +3276,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   let invalidateNativeSkills: (() => void) | undefined;
   const skillCatalog = new SkillCatalog({
+    grantsFor: (slug) =>
+      core.grants.list(slug).flatMap((grant) => {
+        try {
+          return [core.grants.requireActive(slug, grant.id)];
+        } catch {
+          return [];
+        }
+      }),
     memoryDirFor: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     viewFor: createSkillViewPort({
@@ -3321,7 +3329,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       diagnostic: (phase, fields) => diagnosticEvents.record('skills', phase, fields),
     });
     const offRegistry = core.operationalDatabase.subscribe(({ topics }) => {
-      if (topics.some((topic) => ['bot-registry', 'member-purged'].includes(topic)))
+      if (
+        topics.some((topic) =>
+          ['bot-registry', 'member-purged', 'workspace-grants'].includes(topic),
+        )
+      )
         refresh.reconcile();
     });
     const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());

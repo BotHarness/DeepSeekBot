@@ -340,6 +340,7 @@ import {
 } from '../data-reset/reset.js';
 import {
   SkillContentTooLargeError,
+  skillOwnerKey,
   type SkillCatalog,
   type SkillCatalogEntry,
   type ResolvedSkill,
@@ -7164,7 +7165,13 @@ function buildBridgeMethods(
           const owner =
             item.owner.kind === 'host'
               ? ({ kind: 'host' } as const)
-              : ({ kind: 'bot', botSlug: item.owner.botSlug } as const);
+              : item.owner.kind === 'bot'
+                ? ({ kind: 'bot', botSlug: item.owner.botSlug } as const)
+                : ({
+                    kind: 'workspace',
+                    workspaceId: item.owner.workspaceId,
+                    name: item.owner.name,
+                  } as const);
           skillTokens.push({ name: item.name, owner, start: item.start, end: item.end });
         }
         skillTokens.sort((a, b) => a.start - b.start);
@@ -7364,11 +7371,19 @@ function buildBridgeMethods(
           JSON.stringify(
             (existing.skillInvocations ?? []).map(({ name, owner, start, end }) => ({
               name,
-              owner,
+              owner: skillOwnerKey(owner),
               start,
               end,
             })),
-          ) === JSON.stringify(skillTokens) &&
+          ) ===
+            JSON.stringify(
+              skillTokens.map(({ name, owner, start, end }) => ({
+                name,
+                owner: skillOwnerKey(owner),
+                start,
+                end,
+              })),
+            ) &&
           JSON.stringify(existing.grantRequestResolution) ===
             JSON.stringify(grantRequestResolution);
         return same
@@ -7473,7 +7488,7 @@ function buildBridgeMethods(
             skillViewer === undefined ||
             (token.owner.kind === 'bot' && !skillBots.includes(token.owner.botSlug))
               ? undefined
-              : await deps.skills?.resolve(token.name, token.owner, skillViewer);
+              : await deps.skills?.resolve(token.name, token.owner, skillViewer, skillBots);
         } catch (error) {
           if (error instanceof SkillContentTooLargeError)
             return { ok: false, error: { code: error.code, message: error.message } };
@@ -7489,6 +7504,7 @@ function buildBridgeMethods(
           };
         skillInvocations.push({
           ...token,
+          owner: resolved.owner,
           content: resolved.content,
           ...(resolved.path === undefined ? {} : { path: resolved.path }),
         });

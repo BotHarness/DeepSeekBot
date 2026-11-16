@@ -1,6 +1,7 @@
 import { existsSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { join, normalize, sep } from 'node:path';
 import type { SkillCatalog } from './catalog.js';
+import type { SkillWorkspace } from './workspace.js';
 
 export interface SkillCatalogBot {
   slug: string;
@@ -49,7 +50,9 @@ function watchMemorySkills(
             ? parts[0] !== '.agents' && parts[0] !== '.dsh'
             : !recursive
               ? parts[0] !== 'skills'
-              : event !== 'rename' && parts.at(-1) !== 'SKILL.md')
+              : event !== 'rename' &&
+                parts.at(-1) !== 'SKILL.md' &&
+                !(parts.length === 1 && parts[0]?.endsWith('.md')))
         )
           return;
         try {
@@ -82,9 +85,14 @@ export function watchSkillCatalog(options: {
   invalidateNative?(): void;
   bots(): SkillCatalogBot[];
   changed(botSlugs: string[]): void;
-  diagnostic(phase: string, fields: { botSlug?: string; reason?: string; count?: number }): void;
+  diagnostic(
+    phase: string,
+    fields: { botSlug?: string; workspaceId?: string; reason?: string; count?: number },
+  ): void;
 }): { reconcile(): void; hostChanged(): Promise<void>; close(): void } {
   const watched = new Map<string, { bot: SkillCatalogBot; close(): void }>();
+  const workspaceWatchers = new Map<string, { workspace: SkillWorkspace; close(): void }>();
+  const workspacePending = new Map<string, ReturnType<typeof setTimeout>>();
   let closed = false;
   let hostDirty = false;
   let hostRefresh: Promise<void> | undefined;
@@ -151,6 +159,67 @@ export function watchSkillCatalog(options: {
         });
       }
     }
+    const workspaces = new Map(
+      options.catalog
+        .workspaces([...bots.keys()])
+        .map((workspace) => [workspace.workspaceId, workspace]),
+    );
+    for (const [id, entry] of workspaceWatchers) {
+      if (JSON.stringify(workspaces.get(id)) === JSON.stringify(entry.workspace)) continue;
+      entry.close();
+      clearTimeout(workspacePending.get(id));
+      workspacePending.delete(id);
+      workspaceWatchers.delete(id);
+      options.diagnostic('unwatch-workspace', { workspaceId: id });
+      options.catalog.invalidateWorkspace(id);
+      for (const slug of entry.workspace.botSlugs) changed.add(slug);
+    }
+    for (const [id, workspace] of workspaces) {
+      if (workspaceWatchers.has(id)) continue;
+      for (const slug of workspace.botSlugs) changed.add(slug);
+      const invalidate = (): void => {
+        options.catalog.invalidateWorkspace(id);
+        clearTimeout(workspacePending.get(id));
+        workspacePending.set(
+          id,
+          setTimeout(() => {
+            workspacePending.delete(id);
+            if (!closed && workspaceWatchers.has(id)) options.changed(workspace.botSlugs);
+          }, 25),
+        );
+      };
+      try {
+        const entry = {
+          workspace,
+          close: watchMemorySkills(
+            workspace.path,
+            () => {
+              if (!closed && workspaceWatchers.get(id) === entry) invalidate();
+            },
+            (error) => {
+              if (closed || workspaceWatchers.get(id) !== entry) return;
+              entry.close();
+              clearTimeout(workspacePending.get(id));
+              workspacePending.delete(id);
+              workspaceWatchers.delete(id);
+              options.catalog.invalidateWorkspace(id);
+              options.diagnostic('failed', { workspaceId: id, reason: error.name });
+              options.changed(workspace.botSlugs);
+            },
+          ),
+        };
+        workspaceWatchers.set(id, entry);
+        options.diagnostic('watch-workspace', {
+          workspaceId: id,
+          count: workspace.botSlugs.length,
+        });
+      } catch (error) {
+        options.diagnostic('failed', {
+          workspaceId: id,
+          reason: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    }
     if (changed.size > 0) options.changed([...changed]);
   };
   reconcile();
@@ -180,8 +249,15 @@ export function watchSkillCatalog(options: {
         cancel(slug);
         options.catalog.invalidateBot(slug);
       }
-      options.diagnostic('closed', { count: watched.size });
+      options.diagnostic('closed', { count: watched.size + workspaceWatchers.size });
       watched.clear();
+      for (const timer of workspacePending.values()) clearTimeout(timer);
+      workspacePending.clear();
+      for (const [id, entry] of workspaceWatchers) {
+        entry.close();
+        options.catalog.invalidateWorkspace(id);
+      }
+      workspaceWatchers.clear();
     },
   };
 }
