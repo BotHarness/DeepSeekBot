@@ -1,3 +1,4 @@
+export { DEVICE_NOTIFICATION_OPTIONS } from './cli-option-spec.js';
 import { readFileSync } from 'node:fs';
 import { parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { parseNotificationPreferences } from '../../../../apps/mobile/src/host/device-notification-preferences.js';
@@ -15,14 +16,6 @@ export const DEVICE_NOTIFICATION_COMMANDS = [
       'read or copy a paired device notification preference (--device-file, --preferences-stdin, --delivery push|in-app)',
   },
 ] as const;
-export const DEVICE_NOTIFICATION_OPTIONS = {
-  'metro-port': { type: 'string' },
-  'target-id': { type: 'string' },
-  'device-name': { type: 'string' },
-  'device-file': { type: 'string' },
-  'preferences-stdin': { type: 'boolean' },
-  delivery: { type: 'string' },
-} as const;
 
 export async function runDeviceNotifications(
   rest: string[],

@@ -215,6 +215,9 @@ deepseekbot send <bot-id> --body "Reply with QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "Yes, this one" --reply-to <message-id>
 deepseekbot skills-list --bot <bot-id> [--query <text>]
+deepseekbot skills-memory --bot <bot-id>
+deepseekbot skills-show <name> --owner bot:<bot-id>
+deepseekbot skills-remove <name> --bot <bot-id> --confirm
 deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
 deepseekbot send-status <bot-id> --message-id <receipt-message-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
@@ -238,7 +241,11 @@ deepseekbot folder-browse [<folder-path>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
-`skills-list` returns the Skills the `/` menu offers in that conversation, ranked like the menu by `--query` (name prefix, then name subsequence, then owning Bot display name or slug substring, then description substring): Host Skills (`owner.kind` `host`) and the Project Skills under each PersonaBot's Memory Repository `.agents/skills` or `.dsh/skills` (`owner.kind` `bot`), as that Bot's Orchestrator sees them. Pass `--channel <channel-id>` instead of `--bot` for any Channel. `send --skill <owner>/<name>` (owner `host` or `bot:<bot-id>`, repeatable) turns the first unused `/name` token in the body into a Skill Invocation for each flag, in flag order (the token must start and end at whitespace or a body boundary; the send is refused if no unused occurrence remains): the Host stores the Skill's text as it is now with the message and the Bot reads it as a `<skill_invocation>` block. The Skill does not choose who replies; a Skill that is gone refuses with `skill-unavailable`, and Skill text longer than 64,000 characters refuses with `skill-too-large` instead of being truncated. See [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md).
+Trusted irreversible external tool calls enter common approval even with Full Access. `bot-tool` uses the same Host admission without a model; a valid saved authorization is checked before any Reviewer call. Read `toolApprovalRequest.effects` and bilingual `effectLabels.en` / `effectLabels.zh` on approval messages from online `channel-messages`. These labels describe trusted declarations, not claims in tool input or output. Management operations still require their dedicated explicit authorization (ADR-0249).
+
+`skills-list` returns the Skills the `/` menu offers in that conversation, ranked like the menu by `--query` (name prefix, then name subsequence, then owning Bot display name or slug or Workspace name or ID substring, then description substring): Host Skills (`owner.kind` `host`) and the Project Skills under each PersonaBot's Memory Repository `.agents/skills` or `.dsh/skills` (`owner.kind` `bot`), as that Bot's Orchestrator sees them, plus Project Skills in the two Skill directories at each active Workspace Grant root (`owner.kind` `workspace`, with stable `workspaceId` and display `name`). Workspace entries are listed once across conversation Bots, never include an enclosing repository's Skills, and disappear when the last eligible Grant is revoked. Only active Bots readable by the sender contribute entries. Pass `--channel <channel-id>` instead of `--bot` for any Channel. `send --skill <owner>/<name>` (owner `host`, `bot:<bot-id>` or `workspace:<workspace-id>`, repeatable) turns the first unused `/name` token in the body into a Skill Invocation for each flag, in flag order (the token must start and end at whitespace or a body boundary; the send is refused if no unused occurrence remains): the Host stores the Skill's text as it is now with the message and the Bot reads it as a `<skill_invocation>` block. Workspace IDs come from `skills-list` and remain the owner identity when the folder display name changes. For example, `send --channel <id> --skill workspace:<workspace-id>/review --body '/review'` snapshots the selected Skill without mentioning any Bot; mentions must still be supplied through the normal send options. A recipient without that Grant receives the text while the existing file guard blocks reads of its path. The Skill does not choose who replies; a Skill that is gone refuses with `skill-unavailable`, and Skill text longer than 64,000 characters refuses with `skill-too-large` instead of being truncated. See [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md).
+
+`skills-memory --bot <bot-id>` lists the Project Skills in that PersonaBot's own Memory Repository, the same list as its profile's **Skills** card: root `.dsh/skills` before `.agents/skills`, model-only Skills included (`userInvocable: false`), Workspace Skills excluded. `skills-show <name> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` returns that Skill's full text. `skills-remove <name> --bot <bot-id> --confirm` deletes the Skill folder (or flat `.md` file) from the Memory Repository and commits `skills: remove <name>`, so git history can restore it (uncommitted edits are committed first as `skills: save <name> before removal`; a folder holding git-ignored files refuses with `skill-has-ignored-files`, because history could not restore them); the open `/` menu updates through the live catalog event. Without `--confirm` it refuses. There is no disable switch. A missing Skill refuses with `skill-not-found`.
 
 `tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to. `--outcome allowed-always-kind` is the `secret_cli` card's "Always allow this kind": it allows this call and saves a rule for the same program, account and environment variable names, which `tool-approval-rules` lists with kind `secret-cli`; any other card refuses it.
 
@@ -624,6 +631,8 @@ deepseekbot private-mcp-set <bot-id> --server <name> --enabled
 deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
 
+Card-created rules also appear under **Always allow · this Bot** in Bot permissions. This is the same canonical rule list: `tool-approval-rules` reads it and `tool-approval-rule-revoke` revokes it. Rules retain their Bot, role and authority scope independently of shared template text and copies. Reload the permissions list after a CLI revoke; the next matching call returns to the existing review flow.
+
 `session-stop <bot-id> <session-id>` stops one running Session of a Bot, as the stop button on its row in the Sessions panel does. Its Subagents stop with it, and the Bot's other Sessions keep running. It returns `stopped` and `alreadyIdle`, each a list of `{ botSlug, sessionId, role }`: a Session that is idle, already stopped or stopped twice comes back in `alreadyIdle` and still succeeds. A Session the Bot does not own is refused with `unknown-session`. With `--channel`, the Channel the stop came from gets a one-line notice (`turnStop.target`, plus `messageId` in the result), but only when the Session belongs there: the Bot's Orchestrator in a Channel the Bot is in, an Assignment only in the Channel that started it.
 
 `session-stop <bot-id> --activity <activity-id>` stops the Session behind one row of the Bot's live activity snapshot (`sessions[].id`), as the stop on a row of the Messages header popover does. A row that has already gone means the Session finished, so the command returns empty `stopped` and `alreadyIdle` lists and still succeeds. Pass either a Session id or `--activity`, not both.
@@ -861,13 +870,18 @@ deepseekbot approval-template create night-shift --file night-shift.md
 deepseekbot approval-template create my-cautious --from cautious
 deepseekbot approval-template edit night-shift --file night-shift.md
 deepseekbot approval-template delete night-shift
+deepseekbot approval-template delete night-shift --confirm --delete-revision <revision-from-preview>
 ```
+
+Deletion first returns a read-only `preview`: its `revision` binds the template contents, current global choice and all references. It includes `globalDefaultBefore`, `globalDefaultAfter`, `globalDefaultAvailable`, visible `affectedBots` (`slug` and `source`) and `hiddenBotCount` for references whose private identity you cannot view. Confirm with `--confirm --delete-revision`; no confirmation means no deletion or choice change. Changed contents, references or global policy return `approval-template-delete-changed` and require a fresh preview.
+
+Confirmed deletion switches specific references to `@global`. Deleting the global default clears it; existing inheritors remain inherited with Reviewer off. A different remaining global default becomes effective; unavailable defaults remain visible as unavailable and unresolved calls go to the Human. Other specific choices, Off, Full Access and saved deterministic rules remain unchanged. Started Reviews retain their captured version. The result includes `inheritedBots` and `globalDefault`; legacy `clearedBots` names the visible specific references that were removed. A failed deletion returns `approval-template-delete-unavailable` (or `approval-template-delete-incomplete` if restoring choices also failed); reload current state before retrying. Unreadable or oversized custom content can still be explicitly deleted: the preview reports `contentUnavailable: true`. Its confirmation revision binds bounded filesystem identity (device/inode, size and timestamps), rather than hashing unreadable contents; normal readable templates retain content-bound revisions. A changed identity or repaired content requires a new preview. Unreadable files are omitted from the template list; address their known name with the CLI preview/delete commands for recovery. Global-selection read failures still refuse deletion.
 
 Names such as `off` and `inherit` remain valid custom template names. Add `--literal-template` to a selection command to select that literal name; without it the existing Off and inheritance aliases keep their meaning.
 
 `list` returns `templates` and `globalDefault` (a template name or `null`). With `--bot`, it also returns `selected` (`@global`, a specific template name, or `null`), `source` (`global`, `specific`, or `off`) and `effective` (a name or `null`). The global setter returns `{template}`; the Bot setter returns `{bot}`. The authenticated Host owns these writes; missing templates refuse selection, and an unreadable global selection returns `approval-selection-unavailable` rather than an empty default.
 
-Templates remain read-only built-ins or Markdown files in `$DSH_HOME/botharness/approval-templates/`. The same file owner saves the global choice in `.selection.json`; no schema migration is involved. Names use lowercase letters, digits and dashes, text is at most 32 KiB. `show` returns full text; `create --from` copies text. The existing editor and deletion flow remain unchanged; three-part editing, shared rule tables and confirmed bulk deletion fallback are separate slices.
+Templates remain read-only built-ins or Markdown files in `$DSH_HOME/botharness/approval-templates/`. The same file owner saves the global choice in `.selection.json`; no schema migration is involved. Names use lowercase letters, digits and dashes, text is at most 32 KiB. `show` returns full text; `create --from` copies text. The editor exposes Always ask, Always allow and free text, with explicit blank/copy creation and save-only or save-and-apply. See [three-part template authoring](#three-part-approval-guidance).
 
 Deterministic authorization runs first and makes no Reviewer call when it covers the request. Otherwise the selected template guides a fresh tool-less Reviewer Session: only `allow` for this call or `ask-human` are accepted. Always ask takes precedence over Always allow; free text supplements both. Legacy Reject guidance means ask the Human. The model never saves rules or rejects autonomously, so rejection-based pausing is no longer active. Historical rejection records and their explicit Human override remain readable.
 
@@ -2142,6 +2156,44 @@ Bots are private by default: only the principal (the owner) can DM a private Bot
 Role Policy input is a JSON array of `{ "topic", "text", "effect": "allow" | "deny" }` (at most 100 items). It is advisory: the Bot reads the speaking Human's roles and matching items through `speaker-policy` and the `speaker_policy` tool. When roles conflict on a topic, Deny applies; `roles conflicts <username>` lists the conflicting role pairs.
 
 Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
+
+### Three-part approval guidance
+
+Create an empty draft explicitly with `deepseekbot approval-template create my-draft --blank`, or an independent copy with `deepseekbot approval-template create my-copy --from cautious`. No source is selected implicitly; copies retain no origin link. Existing `--file` / `--text-stdin` Markdown input remains supported.
+
+For three-part editing, write a UTF-8 JSON file:
+
+```json
+{
+  "alwaysAsk": ["Send messages or spend money"],
+  "alwaysAllow": ["Read local project files"],
+  "freeText": "Ask me when unsure."
+}
+```
+
+Run `deepseekbot approval-template edit my-draft --parts-file guidance.json`. Read it back with `deepseekbot approval-template show my-draft`; `text` contains the versioned representation. Add `--apply-to <bot-id>` to create/edit to save and then select it for that Bot. Without that flag, saving changes no selection. Applying uses the existing Bot selection authorization; if applying fails, the saved draft remains and can be selected separately.
+
+Editing a shared original affects future Reviews for every Bot in its `usedBy` list, including global inheritors. Copy first to work independently. Always ask has priority over Always allow, then free text supplements both. These are fallible natural-language instructions, never deterministic Tool Approval Rules. Conflicts, missing coverage or uncertainty ask the Human. Legacy Markdown remains intact as free text when converted; already-started Reviews retain their captured content/version.
+
+### Command effects and caller authority
+
+The CLI and Tob broker share application-defined command effect declarations. Lint checks actual command registration arrays and entry dispatch branches, independently of the search index. A declaration is not authorization: direct online commands retain authenticated Host owner checks; the broker retains Human DM origin, target ownership, exact argv and stdin hash, confirmation flags, revisions, cancellation and live execution fences. Unknown commands remain undeclared, retain broker approval, and receive the existing CLI refusal. Mixed-purpose commands keep conservative declarations and their existing approval gates; unmigrated Shell text protection remains active.
+
+Effect resolution uses the CLI's strict argument parser. `channels send` and member-device revocation cannot inherit the same family's broker read admission. `bots` aliases resolve by their dispatched action. Arbitrary tool calls and generic `settings-set` remain opaque when their stdin is unavailable in the proposal; a stdin hash binds operation identity and supplies neither authority nor trusted effects.
+
+## Model-free Tob CLI requests
+
+The authenticated Host Owner can run a typed Tob CLI command without a model. Put `{"argv":["approval-templates"],"stdin":""}` in a private JSON file, then run:
+
+```sh
+deepseekbot tob-cli start --args-stdin < request.json
+deepseekbot tob-cli status <request-id>
+deepseekbot tob-cli cancel <request-id>
+```
+
+Start returns `{id,channelId,messageId,state,cancelRequested}`. The Host records a genuine Human DM and accepts it through the existing Source Event/Admission owner. Its live Tob Orchestrator executes the scoped `deepseekbot_cli` Tool and broker without a model request. No actor, Source Event, Session, cwd or permission override is accepted. Writes keep the existing real approval card; use `tool-approval-status` and `tool-approval-decide`, or decide in the Tob DM. Status becomes `completed` with `result:{exitCode,stdout,stderr}`, or `failed` / `cancelled` with a code. A completed invocation can contain a command refusal: inspect exitCode and JSON stdout. Cancellation is a request until settlement; it does not undo an effect already committed.
+
+Only one live CLI request is allowed; `bot-busy` refuses overlap with another request, a model turn or a direct tool. The Host refuses unavailable authority (`tob-authority-required`), a closed runtime (`runtime-closed`), and missing/expired request IDs (`cli-request-unavailable`). Results last at most ten minutes after settlement (sixteen retained entries); restart expires them. Commands time out after ten minutes. Input is limited to 256 argv entries / 64 KiB argv and one MiB stdin, output to one MiB combined. Stdin is never copied into the DM. Keep private request files local. After an uncertain result, read the command owner’s canonical state before starting another request. See [ADR-0347](adr/0347-model-free-tob-cli-uses-the-accepted-human-dm-turn.md).
 
 ### Channel invitations (M14)
 

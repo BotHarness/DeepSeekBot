@@ -1,14 +1,9 @@
+export { STORAGE_OPTIONS } from './cli-option-spec.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { STORAGE_MEDIA_KINDS, type StorageMediaKind } from '../storage/media-cleanup.js';
 
 type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown>;
-
-export const STORAGE_OPTIONS = {
-  chat: { type: 'string', multiple: true },
-  media: { type: 'string', multiple: true },
-  'older-than-days': { type: 'string' },
-} as const;
 
 export const STORAGE_COMMANDS = [
   {

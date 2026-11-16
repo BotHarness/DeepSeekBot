@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import type { ProfileActivityWindow, UsageFilter, UsageQueryResult } from './bridge.js';
 
 import type { GroupProfileActivity, ProfileActivity } from './bridge.js';
+import type { BotSkillsSource } from './bot-skills-card.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 
@@ -15,6 +16,7 @@ export interface ProfileCardViewProps extends ProfileCardProps {
   compact: boolean;
   loadUsage?: (filter: UsageFilter) => Promise<UsageQueryResult>;
   loadActivity?: (window: ProfileActivityWindow) => Promise<ProfileActivity>;
+  skills?: BotSkillsSource;
 }
 
 export interface ProfileCardDescriptor {

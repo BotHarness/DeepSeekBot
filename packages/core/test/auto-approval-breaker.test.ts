@@ -43,6 +43,7 @@ function fixture(fullAccess?: () => boolean) {
     const outcome = verdicts.shift() ?? 'ask-human';
     return { outcome, reason: outcome === 'allow' ? 'Fine.' : 'Not under this template.' };
   });
+  const template = vi.fn(() => ({ name: 'cautious', text: '# Cautious' }));
   broker = new ChannelToolApproval(
     core.channels,
     core.ownership,
@@ -52,7 +53,7 @@ function fixture(fullAccess?: () => boolean) {
     undefined,
     undefined,
     {
-      template: () => ({ name: 'cautious', text: '# Cautious' }),
+      template,
       review,
       log: () => undefined,
     },
@@ -91,6 +92,7 @@ function fixture(fullAccess?: () => boolean) {
     broker,
     methods,
     review,
+    template,
     verdicts,
     channelId,
     sessionId,
@@ -146,9 +148,27 @@ describe('two-outcome Reviewer Human control', () => {
     );
     expect(await first).toBe('allowed-once');
     f.review.mockClear();
+    f.template.mockClear();
     expect(await f.call('different input')).toBe('allowed-once');
     expect(f.review).not.toHaveBeenCalled();
     expect(f.messages().filter((message) => message.toolApprovalRequest)).toHaveLength(1);
+    expect(f.template).not.toHaveBeenCalled();
+    const listed = f.methods.toolApprovalRules({ slug: 'ada' });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) throw new Error('Expected canonical rules');
+    const rule = listed.value.rules[0]!;
+    expect(rule).toMatchObject({
+      botSlug: 'ada',
+      role: 'orchestrator',
+      scopeKey: 'qa-scope',
+      kind: 'tool',
+    });
+    expect(f.methods.toolApprovalRuleRevoke({ slug: 'ada', id: rule.id }).ok).toBe(true);
+    f.verdicts.push('allow');
+    expect(await f.call('different input')).toBe('allowed-once');
+    expect(f.review).toHaveBeenCalledTimes(1);
+    expect(f.core.toolRules.list('ada')).toHaveLength(1);
+    expect(f.core.toolRules.list('ada')[0]?.revokedAt).toBeDefined();
   });
   it('keeps reviewing later calls after repeated Human rejections without pausing', async () => {
     const f = fixture();

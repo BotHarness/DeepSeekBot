@@ -222,11 +222,11 @@ describe('Tob native Shell scoped CLI leases', () => {
         supplied.env!['DEEPSEEKBOT_AGENT_TOKEN'],
       );
       const child = await (process.platform === 'win32'
-        ? promisify(execFile)(
-            process.env['ComSpec'] ?? 'cmd.exe',
-            ['/d', '/s', '/c', spec.command],
-            { env: { ...process.env, ...supplied.env }, windowsHide: true },
-          )
+        ? promisify(execFile)(process.execPath, [join(directory, 'entry.mjs'), 'capabilities'], {
+            env: { ...process.env, ...supplied.env },
+            shell: false,
+            windowsHide: true,
+          })
         : promisify(execFile)('/bin/sh', ['-c', spec.command], {
             env: { ...process.env, ...supplied.env },
           }));

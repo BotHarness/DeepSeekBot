@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { skillOwnerKey } from '../skills/entries.js';
 import { TeamError } from '../team/error.js';
 import { acceptedQuestionAnswer } from './accepted-question-answer.js';
 import { channelAudienceSql } from '../team/channel-contract.js';
@@ -242,7 +243,7 @@ function noticeOrigin(
 function skillInvocationIntent(message: ChannelMessage) {
   return (message.skillInvocations ?? []).map(({ name, owner, start, end }) => ({
     name,
-    owner,
+    owner: skillOwnerKey(owner),
     start,
     end,
   }));
@@ -260,6 +261,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       attachments: attachmentIntent(left.attachments ?? []),
       replyTo: left.replyTo,
       memorySwitchTarget: left.memorySwitchTarget,
+      tobCliRequestId: left.tobCliRequestId,
       mentions: left.mentions ?? [],
       humanMentions: left.humanMentions ?? [],
       channelRefs: left.channelRefs ?? [],
@@ -278,6 +280,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       attachments: attachmentIntent(right.attachments ?? []),
       replyTo: right.replyTo,
       memorySwitchTarget: right.memorySwitchTarget,
+      tobCliRequestId: right.tobCliRequestId,
       mentions: right.mentions ?? [],
       humanMentions: right.humanMentions ?? [],
       channelRefs: right.channelRefs ?? [],

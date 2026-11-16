@@ -221,6 +221,26 @@ describe('M7 public Bot Memory placement', () => {
       if (turn.admitted) await turn.settled;
     }
   });
+  it('publishes more than one Bot without colliding hidden backing-space names', () => {
+    const f = fixture();
+    expect(
+      f.core.registry.create({ slug: 'mentor', displayName: 'Mentor', ownerHumanId: 'alice' }).ok,
+    ).toBe(true);
+    f.core.team.bots.setVisibility(owner, 'helper', everyone);
+    expect(f.core.team.bots.setVisibility(owner, 'mentor', everyone).applied).toBe(true);
+    const names = f.db.read((sql) =>
+      sql
+        .prepare(
+          "SELECT space_id, name FROM workspace_spaces WHERE kind = 'shared' ORDER BY space_id",
+        )
+        .all(),
+    );
+    expect(names.map((row) => row['space_id'])).toEqual([
+      botMemorySpaceId('helper'),
+      botMemorySpaceId('mentor'),
+    ]);
+    expect(new Set(names.map((row) => row['name'])).size).toBe(2);
+  });
   it('does no repository or metadata writes for an already-correct startup placement', () => {
     const f = fixture();
     f.core.team.bots.setVisibility(owner, 'helper', everyone);

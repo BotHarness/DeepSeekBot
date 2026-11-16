@@ -101,6 +101,52 @@ function post(id: string, author: 'human' | 'bot' = 'human', slug = 'alice-bot')
 }
 
 describe('M7 Bot principal and participant authority', () => {
+  it('binds authenticated direct tools to the caller DM and releases the transient origin', async () => {
+    const root = createTempRoot('m7-direct-approval-origin-');
+    let core: ReturnType<typeof createCore>;
+    let sessionId: string | undefined;
+    let observedOrigin: string | undefined;
+    core = createCore({
+      dshHome: root,
+      agents: createDshBotAgentAdapter({
+        agents: new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => {} }),
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => join(root, 'memory'),
+        onAgentSetup: (_ctx, agent) => {
+          sessionId = agent.session.id;
+          observedOrigin = core.runtime.askChannel?.(sessionId);
+        },
+      }),
+    });
+    closes.push(async () => {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    });
+    const db = attachOperationalModule(core.operationalDatabase, 'direct-approval-origin-test');
+    db.transaction((sql) => {
+      sql.prepare('UPDATE team_settings SET enabled=1').run();
+      sql.prepare("INSERT INTO humans VALUES ('alice','Alice','active','now')").run();
+      sql.prepare("INSERT INTO human_roles VALUES ('alice','member')").run();
+    });
+    core.spaces.ensureAccount(alice.humanId);
+    expect(
+      core.registry.create({ slug: 'helper', displayName: 'Helper', ownerHumanId: alice.humanId })
+        .ok,
+    ).toBe(true);
+    const dm = core.channels.getOrCreateDm(alice, 'helper', 'Helper')!;
+    const result = await createBridgeMethodsForHumans(core)(alice).botToolRun({
+      slug: 'helper',
+      tool: 'bot_send_message',
+      args: { body: 'No target, no delivery.' },
+      humanId: owner.humanId,
+    });
+    expect(result.ok).toBe(false);
+    expect(observedOrigin).toBe(dm.id);
+    expect(sessionId).toBeDefined();
+    expect(core.runtime.askChannel?.(sessionId!)).toBeUndefined();
+    expect(core.channels.readMessages(dm.id)).toEqual([]);
+  });
+
   it('preserves omitted switches and performs no write for a slug-only bridge read', async () => {
     const f = fixture();
     f.team.bots.switches(alice, 'alice-bot', {

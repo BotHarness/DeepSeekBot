@@ -1,9 +1,6 @@
+export { SCHEDULE_OPTIONS } from './cli-option-spec.js';
 import type { BotScheduleTrigger } from '../schedules/bot-schedules.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const SCHEDULE_OPTIONS = {
-  confirm: { type: 'boolean' },
-} as const;
 
 export const SCHEDULE_COMMANDS = [
   'schedules',

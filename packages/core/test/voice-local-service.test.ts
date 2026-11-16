@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 
 import { Context } from '@deepseek-ai/cordis';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runVoiceLocalKit } from '../src/bots/cli-voice.js';
 import { parseAgentManagement } from '../src/bots/cli-agent-management.js';
@@ -237,6 +237,47 @@ describe('unreachable custom provider on this computer', () => {
 });
 
 describe('Tob voice operations', () => {
+  it('prepares a Provider test for approval and rejects changed targets before network work', async () => {
+    const { providers, registry } = await fixture();
+    const provider = await providers.add({ preset: 'local' });
+    const prepare = createTobVoiceOperations({
+      providers: () => providers,
+      registry,
+      isProtectedBot: () => false,
+    });
+    const prepared = await prepare('voice-provider-test', {
+      id: provider.id,
+      voiceId: 'fixture-voice',
+    });
+    if (!prepared) throw new Error('Expected Provider test preparation');
+    expect(prepared.proposal).toEqual({
+      command: 'voice-provider-test',
+      target: provider.id,
+      previousValue: providers.get(provider.id),
+      patch: { id: provider.id, voiceId: 'fixture-voice' },
+    });
+    expect(
+      TOB_VOICE_CAPABILITIES.find((entry) => entry.command === 'voice-provider-test')?.write,
+    ).toBe(true);
+    const externalTest = vi.spyOn(providers, 'test');
+    const beforeEffect = vi.fn();
+    try {
+      await expect(
+        prepared.run(() => {
+          throw new TobError('approval-denied');
+        }, beforeEffect),
+      ).rejects.toThrow('approval-denied');
+      const removal = await prepare('voice-provider-remove', { id: provider.id });
+      if (!removal) throw new Error('Expected Provider removal preparation');
+      await removal.run(() => undefined);
+      await expect(prepared.run(() => undefined, beforeEffect)).rejects.toThrow('stale-setting');
+      expect(beforeEffect).not.toHaveBeenCalled();
+      expect(externalTest).not.toHaveBeenCalled();
+    } finally {
+      externalTest.mockRestore();
+    }
+  });
+
   it('lists, adds a keyless provider with a proposal, and binds a Bot voice', async () => {
     const { providers, registry } = await fixture();
     const prepare = createTobVoiceOperations({

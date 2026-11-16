@@ -139,3 +139,8 @@ Use the Mac/iOS or Windows/Android device queue; Web and model tests do not qual
 - The top entrance is the same chat content and composer as the normal Tob row. Check its down-entry/up-exit, Back, iOS edge cancellation/commit, keyboard-open exit and dark flash. Toggle Reduce Motion while the app remains running: on returning, entry and exit must stop sliding without a JS reload. Test normal Tob-row push separately. Keep physical/Simulator/Android and source SHA results separate.
 
 Retain the first failure with native screenshot/AX/video and exact source/binary identity, then restore preferences, remove only this run's temporary pairing, revoke its Host key and stop owned resources. The full device matrix is tracked in #3090 and #3093.
+
+
+## Model-free typed CLI parity (#4212)
+
+Use the authenticated Owner `tob-cli start --args-stdin` with private JSON `{argv,stdin}`; read its request ID with `tob-cli status` and cancel with `tob-cli cancel`. This creates a genuine Human DM and accepted Admission, prepares the actual owned Tob root Agent and executes the typed `deepseekbot_cli` through native Tools.execute without a model. A historical source or temporary direct Session cannot substitute. For a local nondestructive fixture, request an approval-template selection, inspect the real pending card in the Tob DM (exact argv and stdin size/hash), decide with existing Human `tool-approval-decide`, and read both the result and selected template. Match source/build hashes; no model request should appear. Repeat denial, cancellation, stale revision and authority-revoke fences. A template readback alone is not broker approval proof. Capture actual Client light/dark pending/settled states separately; Web evidence does not qualify native mobile.

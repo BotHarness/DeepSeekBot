@@ -1,3 +1,4 @@
+export { WALLPAPER_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CliLiveError } from './cli-live-error.js';
@@ -32,9 +33,7 @@ export const WALLPAPER_COMMANDS = [
       'set {interval,shuffle} from --patch-stdin; interval is 0 or 60000/300000/900000/1800000/3600000 ms',
   },
 ] as const;
-export const WALLPAPER_OPTIONS = {
-  'wallpaper-item': { type: 'string' },
-} as const;
+
 export async function runWallpaperCommand(
   command: string,
   rest: string[],
