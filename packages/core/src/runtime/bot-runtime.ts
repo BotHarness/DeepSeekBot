@@ -2276,7 +2276,10 @@ class BotRuntimeImplementation implements BotRuntime {
         !bot ||
         bot.paused ||
         this.#closed ||
-        botOwner(bot) !== human.humanId ||
+        (this.#team
+          ? !this.#team.channelAccess.canRead(human, input.channelId) ||
+            !this.#team.bots.canReach(human, bot.slug)
+          : botOwner(bot) !== human.humanId) ||
         !this.#memberBotEnabled(bot)
       )
         throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');

@@ -523,6 +523,26 @@ describe('M7 Bot principal and participant authority', () => {
     });
     expect(await mention('bob-bot')).toMatchObject({ ok: true });
   });
+  it('offers a reachable shared Bot as the Skill viewer in a participant DM only while reachable', async () => {
+    const f = fixture();
+    publicBot(f);
+    const dm = f.team.bots.dm(bob, 'alice-bot')!;
+    const list = vi.fn(async (bots: readonly string[]) => bots.map((name) => ({ name })));
+    const bridge = createBridgeMethodsForHumans({
+      registry: f.registry,
+      channels: f.channels,
+      team: f.team,
+      states: f.states,
+      ownership: createTestOwnership(),
+      roster: createTestRosterStore({ database: f.database }),
+      skills: { list } as never,
+    });
+    expect(await bridge(bob).channelSkillCatalog({ channelId: dm.id })).toMatchObject({ ok: true });
+    expect(list).toHaveBeenLastCalledWith(['alice-bot']);
+    f.team.bots.setVisibility(owner, 'alice-bot', { kind: 'private' }, true);
+    await bridge(bob).channelSkillCatalog({ channelId: dm.id });
+    expect(list).toHaveBeenLastCalledWith([]);
+  });
   it('never reuses another Human/Bot pair when a Bot slug matches a participant DM id', () => {
     const f = fixture();
     publicBot(f);

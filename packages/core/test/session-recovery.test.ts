@@ -1,4 +1,5 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { humanContext, OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -19,7 +20,7 @@ function namedError(name: string, message: string): Error {
   return error;
 }
 
-async function fixture(sideEffect = false, { unsaved = false } = {}) {
+async function fixture(sideEffect = false, { unsaved = false, member = false } = {}) {
   const archived = new Set<string>();
   const saved = new Set<string>();
   const runs: string[] = [];
@@ -63,14 +64,30 @@ async function fixture(sideEffect = false, { unsaved = false } = {}) {
   });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
-  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+  let human: HumanContext = OWNER_HUMAN_CONTEXT;
+  if (member) {
+    attachOperationalModule(core.operationalDatabase, 'team').transaction((db) => {
+      db.prepare('UPDATE team_settings SET enabled=1').run();
+      db.prepare("INSERT INTO humans VALUES ('bob','Bob','active','now')").run();
+      db.prepare("INSERT INTO human_roles VALUES ('bob','member')").run();
+    });
+    core.team.spaces.ensureAccount('bob');
+    core.team.bots.setVisibility(OWNER_HUMAN_CONTEXT, 'ada', {
+      kind: 'public',
+      audience: { kind: 'everyone' },
+    });
+    human = humanContext('bob');
+  }
+  const dm = member
+    ? core.team.bots.dm(human, 'ada')!
+    : core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  await core.channels.appendMessage(human, dm.id, {
     id: 'human-request',
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Hello',
   });
-  const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+  const admission = core.runtime.admitDmMessage(human, {
     channelId: dm.id,
     messageId: 'human-request',
     body: 'Hello',
@@ -87,6 +104,7 @@ async function fixture(sideEffect = false, { unsaved = false } = {}) {
     runs,
     loaded,
     archived,
+    human,
     input: { channelId: dm.id, failureMessageId: failure.id },
     methods: createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }),
   };
@@ -245,4 +263,25 @@ it('points compaction of a never-saved Session to a new Session', async () => {
   await expect(result).rejects.toMatchObject({ code: 'session-unsaved' });
   await expect(result).rejects.toThrow(/new Session/);
   expect(fx.runs).toHaveLength(1);
+});
+
+it('lets a reachable shared-Bot participant recover their DM and refuses after access ends', async () => {
+  const fx = await fixture(false, { member: true });
+  expect(fx.dm.dmHumanId).toBe('bob');
+  await fx.core.runtime.recoverDmMessage!(
+    { ...fx.input, action: 'new-session', compact: async () => false },
+    fx.human,
+  );
+  await fx.core.runtime.whenIdle();
+  expect(fx.runs).toHaveLength(2);
+  const revoked = await fixture(false, { member: true });
+  revoked.core.team.bots.setVisibility(OWNER_HUMAN_CONTEXT, 'ada', { kind: 'private' }, true);
+  for (const human of [revoked.human, humanContext('carol')])
+    await expect(
+      revoked.core.runtime.recoverDmMessage!(
+        { ...revoked.input, action: 'new-session', compact: async () => false },
+        human,
+      ),
+    ).rejects.toMatchObject({ code: 'recovery-unavailable' });
+  expect(revoked.runs).toHaveLength(1);
 });

@@ -2179,16 +2179,17 @@ function buildBridgeMethods(
 ): BridgeMethods {
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
-  const channelSkillBots = (channel: ChannelRecord): string[] =>
-    (channel.type === 'group'
-      ? channel.members
-      : channel.botSlug === undefined
-        ? []
-        : [channel.botSlug]
-    ).filter((slug) => {
-      const bot = deps.registry.get(slug);
-      return bot !== undefined && bot.paused !== true;
-    });
+  const channelSkillBots = (channel: ChannelRecord): string[] => {
+    if (channel.type === 'group')
+      return channel.members.filter((slug) => {
+        const bot = deps.registry.get(slug);
+        return bot !== undefined && bot.paused !== true;
+      });
+    const slug = channel.botSlug;
+    if (slug === undefined || deps.team?.bots.canReach(human, slug) === false) return [];
+    const bot = globalRegistry.get(slug);
+    return bot === undefined || bot.paused === true ? [] : [slug];
+  };
   const requireOwnedBot = (slug: string): void => {
     if (
       deps.team &&
