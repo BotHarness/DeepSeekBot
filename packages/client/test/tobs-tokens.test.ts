@@ -64,7 +64,7 @@ describe('Tobs design tokens', () => {
         const t = tobsTokens(scheme, 'classic-blue', primary);
         for (const surface of [...SURFACES, '--tobs-layer-nav'] as const)
           expect(
-            contrast(t['--tobs-line-focus'], t[surface]),
+            contrast(t['--tobs-line-focus'] ?? '', t[surface] ?? ''),
             `focus for ${primary} on ${surface} in ${scheme}`,
           ).toBeGreaterThanOrEqual(3);
       }
