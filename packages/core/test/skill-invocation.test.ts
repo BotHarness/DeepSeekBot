@@ -864,6 +864,209 @@ describe('Skill Invocation in a Human DM', () => {
 });
 
 describe('Skill Invocation in a Group Channel', () => {
+  it.each([
+    { delivery: 'digest', budget: 24_000 },
+    { delivery: 'pending-context', budget: 24_000 },
+    { delivery: 'digest', budget: 2_000 },
+    { delivery: 'pending-context', budget: 2_000 },
+  ])(
+    'delivers an oversized Skill snapshot and later ordinary rows in $delivery with budget $budget',
+    async ({ delivery, budget }) => {
+      const runs: OrchestratorAgentRun[] = [];
+      const core = createCore({
+        dshHome: createTempRoot('botharness-group-skill-budget-'),
+        agents: adapter(async (run) => {
+          runs.push(run);
+        }),
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        core.registry.setPromptSettings('ada', { limits: { 'group-context-chars': budget } });
+        const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'Team',
+          members: ['ada'],
+        });
+        core.channels.setGroupWakePolicy(
+          group.id,
+          'ada',
+          { mode: delivery === 'digest' ? 'digest' : 'mentions', count: 2, intervalSeconds: 30 },
+          { kind: 'human' },
+        );
+        const content = 'Skill snapshot prefix\n' + 'x'.repeat(MAX_SKILL_INVOCATION_CONTENT - 22);
+        const catalog = new SkillCatalog({
+          memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+          viewFor: liveView,
+        });
+        catalog.attach(
+          registry([skill('review', 'user-agents', '/host/review/SKILL.md', content)], new Map()),
+        );
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+        const sent = await methods.channelSend({
+          channelId: group.id,
+          body: '/review',
+          skillInvocations: [{ name: 'review', owner: { kind: 'host' }, start: 0, end: 7 }],
+        });
+        if (!sent.ok) throw new Error(sent.error.message);
+        const later = await methods.channelSend({
+          channelId: group.id,
+          body: 'Later ordinary row',
+        });
+        if (!later.ok) throw new Error(later.error.message);
+        const ordinaryIds = [sent.value.message.id, later.value.message.id];
+        if (delivery === 'pending-context') {
+          expect(runs).toEqual([]);
+          expect(
+            await methods.channelSend({
+              channelId: group.id,
+              body: '@Ada check context',
+              mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+            }),
+          ).toMatchObject({ ok: true });
+        }
+        await core.runtime.whenIdle();
+        if (delivery === 'digest' && budget === 2_000) {
+          const wake = await methods.channelSend({
+            channelId: group.id,
+            body: 'Wake remaining digest',
+          });
+          if (!wake.ok) throw new Error(wake.error.message);
+          ordinaryIds.push(wake.value.message.id);
+          await core.runtime.whenIdle();
+        }
+        if (delivery === 'pending-context' && budget === 2_000) {
+          expect(
+            await methods.channelSend({
+              channelId: group.id,
+              body: '@Ada check remaining context',
+              mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+            }),
+          ).toMatchObject({ ok: true });
+          await core.runtime.whenIdle();
+        }
+        expect(runs.length).toBeGreaterThan(0);
+        const prompt = runs.map((run) => run.message).join('\n');
+        expect(prompt).toContain(
+          delivery === 'digest'
+            ? '[Bot Inbox: Group digest]'
+            : '[Bot Inbox: pending Group context]',
+        );
+        for (const id of ordinaryIds) expect(prompt.split(`- Message ${id} `)).toHaveLength(2);
+        expect(prompt).toMatch(
+          /<skill_invocation[^>]*>\nSkill snapshot prefix[\s\S]*Full Skill text is truncated here[\s\S]*channel_read[\s\S]*<\/skill_invocation>/u,
+        );
+        for (const run of runs) expect(run.message.length).toBeLessThan(24_000);
+        expect(prompt).not.toContain(content);
+        expect(
+          core.channels.message(group.id, sent.value.message.id)?.skillInvocations?.[0]?.content,
+        ).toBe(content);
+        const admissions = attachOperationalModule(core.operationalDatabase, 'skill-budget').read(
+          (db) =>
+            db
+              .prepare(
+                `SELECT e.message_id, a.attempt_state, a.observed_at FROM inbox_admissions a
+           JOIN source_events e ON e.source_event_id = a.source_event_id
+           WHERE a.bot_slug = 'ada' AND a.reason = 'group-ordinary' ORDER BY e.rowid`,
+              )
+              .all(),
+        );
+        expect(admissions).toEqual(
+          ordinaryIds.map((message_id) => ({
+            message_id,
+            attempt_state: 'handled',
+            observed_at: expect.any(String),
+          })),
+        );
+        let recovered = '';
+        let contentCursor: string | undefined;
+        do {
+          const chunk = JSON.parse(
+            runs[0]!.channels.readModel({
+              channelId: group.id,
+              messageId: sent.value.message.id,
+              ...(contentCursor === undefined ? {} : { contentCursor }),
+            }),
+          );
+          recovered += chunk.content;
+          contentCursor = chunk.contentCursor;
+        } while (contentCursor !== undefined);
+        expect(JSON.parse(recovered).message.skillInvocations[0].content).toBe(content);
+      } finally {
+        core.externalMessaging.close();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
+  it('includes the full Human Skill snapshot when steering an active Group mention', async () => {
+    let markStarted = (): void => undefined;
+    let releaseTurn = (): void => undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      releaseTurn = resolve;
+    });
+    const steer = vi.fn((_slug: string, _text: string) => true);
+    const core = createCore({
+      dshHome: createTempRoot('botharness-group-skill-steer-'),
+      agents: {
+        ...adapter(async () => {
+          markStarted();
+          await released;
+        }),
+        steerOrchestrator: steer,
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      core.sourcePolicy.setImmediateDelivery('ada', 'group-mention', 'steer', { kind: 'human' });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const content = 'Full steered snapshot\n' + 'x'.repeat(60_000);
+      const catalog = new SkillCatalog({
+        memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
+        viewFor: liveView,
+      });
+      catalog.attach(
+        registry([skill('review', 'user-agents', '/host/review/SKILL.md', content)], new Map()),
+      );
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, skills: catalog });
+      expect(
+        await methods.channelSend({
+          channelId: group.id,
+          body: '@Ada start',
+          mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+        }),
+      ).toMatchObject({ ok: true });
+      await started;
+      expect(
+        await methods.channelSend({
+          channelId: group.id,
+          body: '/review @Ada',
+          mentions: [{ botSlug: 'ada', label: 'Ada', start: 8, end: 12 }],
+          skillInvocations: [{ name: 'review', owner: { kind: 'host' }, start: 0, end: 7 }],
+        }),
+      ).toMatchObject({ ok: true });
+      expect(steer).toHaveBeenCalledTimes(1);
+      const prompt = steer.mock.calls[0];
+      expect(prompt).toEqual(['ada', expect.stringContaining('[/review]')]);
+      expect(prompt).toEqual([
+        'ada',
+        expect.stringContaining(
+          `<skill_invocation name="review" owner="host" path="/host/review/SKILL.md">\n${content}\n</skill_invocation>`,
+        ),
+      ]);
+    } finally {
+      releaseTurn();
+      core.externalMessaging.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it.each(['mention-b', 'ordinary-b', 'mentions-only', 'pending-context'] as const)(
     'keeps the Skill owner independent from routing: %s',
     async (routing) => {
@@ -894,7 +1097,9 @@ describe('Skill Invocation in a Group Channel', () => {
           );
         const memory = core.registry.memoryDirFor('a')!;
         const path = join(memory, '.agents/skills/review/SKILL.md');
-        const content = 'Use this exact snapshot from Alice.'.repeat(40);
+        const content = 'Use this exact snapshot from Alice.'.repeat(
+          routing === 'mention-b' ? 1_600 : 40,
+        );
         const definitions = [skill('review', 'project-agents', path, content)];
         const catalog = new SkillCatalog({
           memoryDirFor: (slug) => core.registry.memoryDirFor(slug),
