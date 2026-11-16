@@ -1,0 +1,13 @@
+{
+  "path": "/Users/doodlebear/.t3/worktrees/BotHarness/t3-5bcec50f-5756a4e346be221a",
+  "branch": "s5-core",
+  "head": "744b8e59552ff36bb6ed1ba4a40722ca8dbb56b7",
+  "merge_head": null,
+  "changed": [],
+  "hashes": {},
+  "status_hex": "",
+  "unmerged": "",
+  "label": "skills-s5-core",
+  "checkpoint_kind": "UNVALIDATED_SOURCE_SNAPSHOT",
+  "recorded_at": "2026-11-16T05:28:38.304124+00:00"
+}
