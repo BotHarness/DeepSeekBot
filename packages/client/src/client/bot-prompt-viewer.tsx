@@ -9,6 +9,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { PendingApply } from './pending-apply.js';
 import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { font } from './ds/tobs.stylex.js';
 
 export type BotPromptView = 'system-prompt' | 'turn-input';
 
@@ -45,7 +46,7 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: color.divider,
     borderRadius: radius.sm,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',

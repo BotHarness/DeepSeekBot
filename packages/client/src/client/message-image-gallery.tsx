@@ -48,8 +48,7 @@ const styles = stylex.create({
   mask: {
     position: 'absolute',
     inset: 0,
-    backgroundColor: 'var(--dsw-alias-bg-mask-1)',
-    backdropFilter: 'var(--dsw-mask-blur)',
+    backgroundColor: 'var(--tobs-layer-scrim)',
   },
   image: {
     position: 'relative',
@@ -57,8 +56,8 @@ const styles = stylex.create({
     maxHeight: 'calc(100vh - 112px)',
     objectFit: 'contain',
     borderRadius: radius.lg,
-    backgroundColor: 'var(--dsw-specific-input-major)',
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    backgroundColor: 'var(--tobs-layer-field)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   control: {
     position: 'fixed',
@@ -72,7 +71,7 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: color.border,
     borderRadius: radius.round,
-    backgroundColor: 'var(--dsw-specific-input-major)',
+    backgroundColor: 'var(--tobs-layer-field)',
     color: color.fg,
     cursor: 'pointer',
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
@@ -90,7 +89,7 @@ const styles = stylex.create({
     paddingBlock: space.x1,
     paddingInline: space.x3,
     borderRadius: radius.sm,
-    backgroundColor: 'var(--dsw-specific-input-major)',
+    backgroundColor: 'var(--tobs-layer-field)',
     color: color.muted,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,

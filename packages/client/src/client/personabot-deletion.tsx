@@ -12,6 +12,7 @@ import { Note } from './ds/note.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   content: {
@@ -57,7 +58,7 @@ const styles = stylex.create({
   },
   path: {
     overflowWrap: 'anywhere',
-    fontFamily: 'var(--dsw-font-family-mono)',
+    fontFamily: font.familyMono,
   },
   actions: {
     display: 'flex',

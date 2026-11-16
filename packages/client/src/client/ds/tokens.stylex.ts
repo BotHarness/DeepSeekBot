@@ -21,17 +21,17 @@ export const text = stylex.defineConsts({
 });
 
 export const radius = stylex.defineConsts({
-  xs: 'var(--dsw-radius-xs, 4px)',
-  sm: 'var(--dsw-radius-sm, 8px)',
-  md: 'var(--dsw-radius-md, 12px)',
-  lg: 'var(--dsw-radius-lg, 16px)',
-  panel: 'var(--dsw-radius-panel)',
+  xs: '4px',
+  sm: '8px',
+  md: '12px',
+  lg: '16px',
+  panel: '28px',
   round: '50%',
 });
 
 export const border = stylex.defineConsts({
   hairline: '1px',
-  focus: 'var(--dsw-focus-ring-width, 2px)',
+  focus: '2px',
 });
 
 export const size = stylex.defineConsts({
@@ -49,41 +49,37 @@ export const dialog = stylex.defineConsts({
 });
 
 export const actionColor = stylex.defineConsts({
-  secondary:
-    'color-mix(in srgb, var(--dsw-alias-label-primary) 8%, var(--dsw-alias-bg-module-platform))',
-  hover:
-    'color-mix(in srgb, var(--dsw-alias-label-primary) 13%, var(--dsw-alias-bg-module-platform))',
-  danger:
-    'color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, var(--dsw-alias-bg-module-platform))',
-  dangerLabel:
-    'color-mix(in srgb, var(--dsw-alias-state-error-primary) 65%, var(--dsw-alias-label-primary))',
+  secondary: 'color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))',
+  hover: 'color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))',
+  danger: 'var(--tobs-status-danger-tint)',
+  dangerLabel: 'var(--tobs-status-danger-ink)',
 });
 
 export const color = stylex.defineConsts({
-  fg: 'var(--dsw-alias-label-primary)',
-  muted: 'var(--dsw-alias-label-secondary)',
-  subtle: 'var(--dsw-alias-label-tertiary)',
-  divider: 'var(--dsw-alias-border-l1)',
-  border: 'var(--dsw-alias-border-l2)',
-  borderStrong: 'var(--dsw-alias-border-l3)',
-  hover: 'var(--dsw-alias-interactive-bg-hover)',
-  selected: 'var(--dsw-alias-interactive-bg-active)',
-  navSelected: 'var(--dsw-specific-sidebar-nav-item-active)',
-  accent: 'var(--dsw-alias-state-business-primary)',
-  accentText: 'var(--dsw-alias-link)',
-  onAccent: 'var(--dsw-alias-label-primary-foreground)',
-  danger: 'var(--dsw-alias-state-error-primary)',
-  onDanger: 'var(--dsw-alias-label-primary-foreground)',
-  dangerEdge: 'var(--dsw-alias-state-error-secondary)',
-  dangerSoft: 'var(--dsw-alias-interactive-bg-hover-danger)',
-  warning: 'var(--dsw-alias-state-warn-primary)',
-  warningEdge: 'var(--dsw-alias-state-warn-secondary)',
-  warningSoft: 'var(--dsw-alias-state-warn-tertiary)',
-  success: 'var(--dsw-alias-state-success-primary)',
-  surface: 'var(--dsw-alias-bg-module-platform)',
-  elevated: 'var(--dsw-alias-button-elevated-fill)',
-  base: 'var(--dsw-alias-bg-base)',
-  modal: 'var(--dsw-alias-bg-layer-2)',
-  well: 'var(--dsw-alias-bg-base)',
-  accentTint: 'var(--dsw-alias-state-business-tertiary)',
+  fg: 'var(--tobs-ink-primary)',
+  muted: 'var(--tobs-ink-secondary)',
+  subtle: 'var(--tobs-ink-tertiary)',
+  divider: 'var(--tobs-line-divider)',
+  border: 'var(--tobs-line-edge)',
+  borderStrong: 'var(--tobs-line-strong)',
+  hover: 'var(--tobs-state-hover)',
+  selected: 'var(--tobs-state-pressed)',
+  navSelected: 'var(--tobs-state-selected)',
+  accent: 'var(--tobs-accent-base)',
+  accentText: 'var(--tobs-accent-ink)',
+  onAccent: 'var(--tobs-ink-on-accent)',
+  danger: 'var(--tobs-status-danger-base)',
+  onDanger: 'var(--tobs-ink-on-accent)',
+  dangerEdge: 'color-mix(in srgb, var(--tobs-status-danger-base) 45%, transparent)',
+  dangerSoft: 'var(--tobs-status-danger-tint)',
+  warning: 'var(--tobs-status-warning-base)',
+  warningEdge: 'color-mix(in srgb, var(--tobs-status-warning-base) 45%, transparent)',
+  warningSoft: 'var(--tobs-status-warning-tint)',
+  success: 'var(--tobs-status-success-base)',
+  surface: 'var(--tobs-layer-raised)',
+  elevated: 'var(--tobs-layer-elevated)',
+  base: 'var(--tobs-layer-canvas)',
+  modal: 'var(--tobs-layer-sheet)',
+  well: 'var(--tobs-layer-well)',
+  accentTint: 'var(--tobs-accent-tint)',
 });

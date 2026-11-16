@@ -76,7 +76,7 @@ describe('named schema migration ledger', () => {
         plan.migrations.findIndex((migration) => migration.id === 'member-devices'),
       ),
     );
-    expect(previous.migrations.at(-1)?.id).toBe('human-roster-arrangements');
+    expect(previous.migrations.at(-1)?.id).toBe('channel-auto-join');
     const old = trackTestOwner(mountOperationalDatabase({ dshHome: home, schemaPlan: previous }));
     expect(old.mode).toBe('ready');
     attachOperationalModule(old, 'team').transaction((db) => {
@@ -169,7 +169,12 @@ describe('named schema migration ledger', () => {
     (includeInvitations) => {
       const home = createTempRoot('bh-ledger-visibility-first-');
       const invitations = plan.migrations.find((step) => step.id === 'channel-membership-basis')!;
-      const branchSteps = plan.migrations.filter((step) => step.id !== invitations.id);
+      const branchSteps = plan.migrations
+        .slice(
+          0,
+          plan.migrations.findIndex((step) => step.id === 'channel-auto-join'),
+        )
+        .filter((step) => step.id !== invitations.id);
       const branchPlan = defineSchemaPlan(
         includeInvitations ? [...branchSteps, invitations] : branchSteps,
       );

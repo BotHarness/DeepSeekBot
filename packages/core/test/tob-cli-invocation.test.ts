@@ -419,11 +419,23 @@ describe('owned model-free Tob CLI invocation', () => {
     const f = await fixture();
     let shouldDelegate = false;
     let captured: ToolExecution | undefined;
+    let retainedExpiry: Promise<void> | undefined;
+    let resumeExpired: (() => void) | undefined;
+    const expiryReady = new Promise<void>((resolve) => {
+      resumeExpired = resolve;
+    });
     f.ctx.on(
       'tools/pre-execute',
       async (execution) => {
         captured = execution;
         expect(f.authority.delegate(execution)).toBe(shouldDelegate ? 'delegated' : 'refused');
+        if (shouldDelegate) {
+          expect(() => f.authority.require(execution)).not.toThrow();
+          retainedExpiry = (async () => {
+            await expiryReady;
+            expect(() => f.authority.require(execution)).toThrow();
+          })();
+        }
         return { kind: 'deny', reason: 'Origin probe completed before body' };
       },
       { global: true, prepend: true },
@@ -431,11 +443,14 @@ describe('owned model-free Tob CLI invocation', () => {
     await f.native();
     shouldDelegate = true;
     await f.authority.run(f.input, () => f.native());
+    if (!captured) throw new Error('Native executor did not enter policy');
+    const admitted = captured;
+    expect(() => f.authority.require(admitted)).toThrow();
+    if (!retainedExpiry || !resumeExpired) throw new Error('Missing retained invocation context');
+    resumeExpired();
+    await retainedExpiry;
     shouldDelegate = false;
     await f.native();
-    if (!captured) throw new Error('Native executor did not enter policy');
-    const expired = captured;
-    expect(() => f.authority.require(expired)).toThrow();
     expect(f.runHost).not.toHaveBeenCalled();
   });
 

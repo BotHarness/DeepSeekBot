@@ -89,7 +89,7 @@ const styles = stylex.create({
     },
     color: {
       default: color.muted,
-      ':is([aria-pressed=true])': 'var(--dsw-alias-bg-base)',
+      ':is([aria-pressed=true])': 'var(--tobs-layer-canvas)',
     },
     fontFamily: 'inherit',
     fontSize: text.metaSize,

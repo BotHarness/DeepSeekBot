@@ -992,6 +992,9 @@ export function createChannelLiveHub(
         for (const subscriber of rosterSubscribers)
           if (visibleChannel(subscriber.human, commit.channelId))
             subscriber.latest(commit.channelId, preview);
+        if (commit.revision === 1 && channels.get(commit.channelId)?.humanParticipants)
+          for (const subscriber of rosterSubscribers)
+            if (visibleChannel(subscriber.human, commit.channelId)) subscriber.push();
       }
       if (commit.message.author.kind !== 'bot') return;
       const botSlug = commit.message.author.slug;

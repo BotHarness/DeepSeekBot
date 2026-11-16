@@ -47,7 +47,7 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: color.border,
     borderRadius: radius.sm,
-    backgroundColor: 'var(--dsw-alias-bg-base)',
+    backgroundColor: 'var(--tobs-layer-canvas)',
     color: color.fg,
     fontFamily: 'inherit',
     fontSize: text.bodySize,

@@ -967,7 +967,7 @@ window.__ModuleLoader__.load({
 				rx: "2"
 			}]]
 		};
-		function ChannelSidebarIcon({ name = "panels-top-left", size = 16 }) {
+		function ChannelSidebarIcon({ name = "panels-top-left", size = 16, strokeWidth = 2 }) {
 			const nodes = Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 				width: size,
@@ -975,7 +975,7 @@ window.__ModuleLoader__.load({
 				viewBox: "0 0 24 24",
 				fill: "none",
 				stroke: "currentColor",
-				strokeWidth: 2,
+				strokeWidth,
 				strokeLinecap: "round",
 				strokeLinejoin: "round",
 				"aria-hidden": "true",
@@ -1006,44 +1006,44 @@ window.__ModuleLoader__.load({
 			strong: "500"
 		};
 		const radius = {
-			xs: "var(--dsw-radius-xs, 4px)",
-			sm: "var(--dsw-radius-sm, 8px)",
-			md: "var(--dsw-radius-md, 12px)",
-			lg: "var(--dsw-radius-lg, 16px)",
-			panel: "var(--dsw-radius-panel)",
+			xs: "4px",
+			sm: "8px",
+			md: "12px",
+			lg: "16px",
+			panel: "28px",
 			round: "50%"
 		};
 		const border = {
 			hairline: "1px",
-			focus: "var(--dsw-focus-ring-width, 2px)"
+			focus: "2px"
 		};
 		const color = {
-			fg: "var(--dsw-alias-label-primary)",
-			muted: "var(--dsw-alias-label-secondary)",
-			subtle: "var(--dsw-alias-label-tertiary)",
-			divider: "var(--dsw-alias-border-l1)",
-			border: "var(--dsw-alias-border-l2)",
-			borderStrong: "var(--dsw-alias-border-l3)",
-			hover: "var(--dsw-alias-interactive-bg-hover)",
-			selected: "var(--dsw-alias-interactive-bg-active)",
-			navSelected: "var(--dsw-specific-sidebar-nav-item-active)",
-			accent: "var(--dsw-alias-state-business-primary)",
-			accentText: "var(--dsw-alias-link)",
-			onAccent: "var(--dsw-alias-label-primary-foreground)",
-			danger: "var(--dsw-alias-state-error-primary)",
-			onDanger: "var(--dsw-alias-label-primary-foreground)",
-			dangerEdge: "var(--dsw-alias-state-error-secondary)",
-			dangerSoft: "var(--dsw-alias-interactive-bg-hover-danger)",
-			warning: "var(--dsw-alias-state-warn-primary)",
-			warningEdge: "var(--dsw-alias-state-warn-secondary)",
-			warningSoft: "var(--dsw-alias-state-warn-tertiary)",
-			success: "var(--dsw-alias-state-success-primary)",
-			surface: "var(--dsw-alias-bg-module-platform)",
-			elevated: "var(--dsw-alias-button-elevated-fill)",
-			base: "var(--dsw-alias-bg-base)",
-			modal: "var(--dsw-alias-bg-layer-2)",
-			well: "var(--dsw-alias-bg-base)",
-			accentTint: "var(--dsw-alias-state-business-tertiary)"
+			fg: "var(--tobs-ink-primary)",
+			muted: "var(--tobs-ink-secondary)",
+			subtle: "var(--tobs-ink-tertiary)",
+			divider: "var(--tobs-line-divider)",
+			border: "var(--tobs-line-edge)",
+			borderStrong: "var(--tobs-line-strong)",
+			hover: "var(--tobs-state-hover)",
+			selected: "var(--tobs-state-pressed)",
+			navSelected: "var(--tobs-state-selected)",
+			accent: "var(--tobs-accent-base)",
+			accentText: "var(--tobs-accent-ink)",
+			onAccent: "var(--tobs-ink-on-accent)",
+			danger: "var(--tobs-status-danger-base)",
+			onDanger: "var(--tobs-ink-on-accent)",
+			dangerEdge: "color-mix(in srgb, var(--tobs-status-danger-base) 45%, transparent)",
+			dangerSoft: "var(--tobs-status-danger-tint)",
+			warning: "var(--tobs-status-warning-base)",
+			warningEdge: "color-mix(in srgb, var(--tobs-status-warning-base) 45%, transparent)",
+			warningSoft: "var(--tobs-status-warning-tint)",
+			success: "var(--tobs-status-success-base)",
+			surface: "var(--tobs-layer-raised)",
+			elevated: "var(--tobs-layer-elevated)",
+			base: "var(--tobs-layer-canvas)",
+			modal: "var(--tobs-layer-sheet)",
+			well: "var(--tobs-layer-well)",
+			accentTint: "var(--tobs-accent-tint)"
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/empty-state.tsx
@@ -1085,20 +1085,20 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/remote-viewer/tokens.ts
 		const BH = {
-			labelSecondary: "var(--dsw-alias-label-secondary)",
-			hoverFill: "var(--dsw-alias-interactive-bg-hover)",
-			errorPrimary: "var(--dsw-alias-state-error-primary)",
-			radiusMd: "var(--dsw-radius-md)",
-			labelPrimary: "var(--dsw-alias-label-primary, #0f1115)",
-			labelPrimaryForeground: "var(--dsw-alias-label-primary-foreground, #ffffff)",
-			borderL2: "var(--dsw-alias-border-l2, #0000001a)",
-			borderL3: "var(--dsw-alias-border-l3, #0000001f)",
-			borderL4: "var(--dsw-alias-border-l4, #00000029)",
-			bgBase: "var(--dsw-alias-bg-base, #ffffff)",
-			buttonPrimaryFill: "var(--dsw-alias-button-primary-fill, #0f1115)",
-			buttonElevatedFill: "var(--dsw-alias-button-elevated-fill, transparent)",
-			businessPrimary: "var(--dsw-alias-state-business-primary, #4176e6)",
-			hoverScrim: "color-mix(in srgb, var(--dsw-alias-bg-base) 35%, transparent)"
+			labelSecondary: "var(--tobs-ink-secondary)",
+			hoverFill: "var(--tobs-state-hover)",
+			errorPrimary: "var(--tobs-status-danger-base)",
+			radiusMd: "12px",
+			labelPrimary: "var(--tobs-ink-primary, #0f1115)",
+			labelPrimaryForeground: "var(--tobs-ink-on-accent, #ffffff)",
+			borderL2: "var(--tobs-line-edge, #0000001a)",
+			borderL3: "var(--tobs-line-strong, #0000001f)",
+			borderL4: "var(--tobs-line-strong, #00000029)",
+			bgBase: "var(--tobs-layer-canvas, #ffffff)",
+			buttonPrimaryFill: "var(--tobs-accent-base, #0f1115)",
+			buttonElevatedFill: "var(--tobs-layer-elevated, transparent)",
+			businessPrimary: "var(--tobs-accent-base, #4176e6)",
+			hoverScrim: "color-mix(in srgb, var(--tobs-layer-canvas) 35%, transparent)"
 		};
 		const VIDEO_SURFACE = {
 			background: "#000000",
@@ -2373,6 +2373,48 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		}
+		Object.fromEntries(Object.entries({
+			"--tobs-layer-canvas": "alias-bg-base",
+			"--tobs-layer-raised": "alias-bg-module-platform",
+			"--tobs-layer-well": "alias-bg-base",
+			"--tobs-layer-field": "specific-input-major",
+			"--tobs-layer-nav": "specific-sidebar-fill",
+			"--tobs-layer-sheet": "alias-bg-layer-2",
+			"--tobs-layer-elevated": "alias-button-elevated-fill",
+			"--tobs-layer-scrim": "alias-bg-mask-1",
+			"--tobs-ink-primary": "alias-label-primary",
+			"--tobs-ink-secondary": "alias-label-secondary",
+			"--tobs-ink-tertiary": "alias-label-tertiary",
+			"--tobs-ink-disabled": "alias-label-dimmed",
+			"--tobs-ink-on-accent": "alias-label-primary-foreground",
+			"--tobs-line-divider": "alias-border-l1",
+			"--tobs-line-edge": "alias-border-l2",
+			"--tobs-line-strong": "alias-border-l3",
+			"--tobs-line-focus": "alias-state-business-primary",
+			"--tobs-state-hover": "alias-interactive-bg-hover",
+			"--tobs-state-pressed": "alias-interactive-bg-active",
+			"--tobs-state-selected": "specific-sidebar-nav-item-active",
+			"--tobs-state-selected-ink": "alias-label-primary",
+			"--tobs-accent-base": "alias-state-business-primary",
+			"--tobs-accent-hover": "alias-button-primary-hover",
+			"--tobs-accent-tint": "alias-state-business-tertiary",
+			"--tobs-accent-ink": "alias-link",
+			"--tobs-status-danger-base": "alias-state-error-primary",
+			"--tobs-status-danger-tint": "alias-interactive-bg-hover-danger",
+			"--tobs-status-danger-ink": "alias-state-error-primary",
+			"--tobs-status-warning-base": "alias-state-warn-primary",
+			"--tobs-status-warning-tint": "alias-state-warn-tertiary",
+			"--tobs-status-warning-ink": "alias-state-warn-label",
+			"--tobs-status-success-base": "alias-state-success-primary",
+			"--tobs-status-success-tint": "alias-state-success-tertiary",
+			"--tobs-status-success-ink": "alias-state-success-primary",
+			"--tobs-status-info-base": "alias-state-business-primary",
+			"--tobs-status-info-tint": "alias-state-business-tertiary",
+			"--tobs-status-info-ink": "alias-link",
+			"--tobs-elevation-1": "elevation-soft",
+			"--tobs-elevation-2": "elevation-prominent",
+			"--tobs-elevation-3": "elevation-panel"
+		}).map(([name, role]) => [name, `var(--dsw-${role})`]));
 		//#endregion
 		//#region packages/client/src/client/appearance-scope.ts
 		const APPEARANCE_CLASS = "bh-appearance-scope";
@@ -3489,7 +3531,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/stylex-css.ts
-		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--dsw-alias-border-l2)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--dsw-radius-md, 12px)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--dsw-radius-sm, 8px)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1kwkzks.bhx1kwkzks:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--dsw-alias-state-business-primary)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--dsw-alias-label-primary) 8%, var(--dsw-alias-bg-module-platform))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-error-primary)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-success-primary)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--dsw-alias-label-primary) 13%, var(--dsw-alias-bg-module-platform))}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l1)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1kkor1i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
+		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:12px}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:8px}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-base)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1kwkzks.bhx1kwkzks:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-base)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-line-divider)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1kkor1i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
 		//#endregion
 		//#region packages/computer/src/client/index.tsx
 		const ACCESS_STYLE = `

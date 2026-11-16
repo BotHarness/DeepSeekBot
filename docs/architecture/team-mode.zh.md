@@ -25,7 +25,7 @@ Human 在 2026-11-13 完成 Q1–Q35 并确认的目标设计，不代表已实�
 敲定的范围：
 
 - M12 之前，Team mode 以轻量**试用**形态开放：只显示一句告知"成员的 Bot 技术上能读到这台 Host 上其他 Bot 的数据"，不对 Shell 做逐次审批；成员 Bot 不能升级，也不能用 `danger-full-access`（M5）。
-- **M12**：Linux 执行隔离。给 DSH 的 bwrap 包一层 `runnerCommand` 脚本，隐藏 `DSH_HOME`、各空间目录和 `/home`，只挂回这个 Session 有权访问的目录；网络命名空间拒绝本机、链路本地地址、私有网段和 tailnet；解析不到 Session 时拒绝执行。机密放在 Host 上，所以结束试用之前必须完成 M12。
+- **M12**：Linux 执行隔离。BotHarness 包装 `ctx.sandbox.confine`，而不是设置 `runnerCommand`，因为只有 `confine` 能拿到调用方的 `sessionId`。成员 Bot 的命令运行在 bwrap 里：隐藏 `DSH_HOME`、Host 用户主目录、`/home`、`/root`、`/run`、`/mnt`、`/media`、`/srv`、其他 Bot 的 Memory 和这个 Session 之外的所有 Workspace，再只挂回 Session 有权访问的目录（`sessionRoots`，与 `currentRoots(session, kind)` 同一套计算）、Bot Memory 旁边的私有 `HOME`，以及 `PATH` 里的 Host 工具目录。看起来像密钥的环境变量在沙箱内被移除。用户和网络命名空间配合 slirp4netns 与 nftables：允许公网和 DNS，拒绝 Host 本机、链路本地、RFC1918、`100.64.0.0/10` 和组播地址。Team mode 开启时，没有调用方 Session 的命令一律拒绝；归属已知但 Bot 或目录解析不到的 Session 也拒绝，绝不放宽。只有探测到 bwrap 和网络命名空间都可用时 `isolation` 才变为 `enforced`；否则继续显示试用告知，Owner 的 `team-mode status` 会在 `confinement.missing` 里列出缺少的组件。机密放在 Host 上，所以结束试用之前必须完成 M12。
 - 账号空间（`spaces/<humanId>`）和按受众划分的共享空间（如 `shared/team`、`shared/finance`）；每个空间里，Bot 的 Memory（`bots/<slug>/memory`）和可以授权的 `files/` 目录分开存放。
 - 不在范围内：账号配额，macOS 和 Windows 的隔离（macOS 上的 Team Host 一直显示试用告知），部署检查脚本，microVM，每个成员一个 OS 用户或容器。高敏感数据建议放在单独的 Host 上。
 
@@ -33,11 +33,15 @@ Human 在 2026-11-13 完成 Q1–Q35 并确认的目标设计，不代表已实�
 
 M0 去硬编码 → **M1 首个端到端 tracer**（开启团队模式、创建成员、内网 HTTPS 登录、加入公开 Channel 互发消息、CLI）→ M2 私有 Bot、Tob 与 Activity（M11 之前 Owner 不能查看成员私有内容）→ M3 角色与成员管理 → M4 Channel 可见性与 Human DM → M5 审批 → M6 Workspace → M7 Bot 可见性与角色策略 → M8 移动端 → M9 密码与离职 → M10 用量 → M11 审计 → M12 Linux 执行隔离（结束试用告知）。依赖关系见[英文版](team-mode.md#delivery)。M1 完成后先取得 Human 反馈，再扩展。
 
+## 自动加入 Channel（#4222）
+
+没有浏览和加入这一步。每个活跃的人自动成为所有公开 Channel 以及其角色可见的角色 Channel 的成员。Host 在授予访问的同一事务里写入这些 `role` 成员关系：创建或恢复成员、修改其角色、删除角色（回落到 `member`）、移交 Owner、重新开启团队模式，以及把 Channel 设为公开或角色可见。同样这些事务会结束已失去访问的 `role` 成员关系；把 Channel 设为私有会结束它的全部 `role` 成员关系，因此它立刻从列表消失，已打开的 Channel 也立即失去读取权限。姓名邀请（`invited`）不变。成员不能退出自动加入的 Channel，只能静音或隐藏。`channel-auto-join` 迁移对已有 Host 按同一规则执行一次。`browsableChannels`、`channelJoin`、`publicChannels`、`publicChannelJoin` 方法，`channels browse`、`channels join`、`channels browse-public`、`channels join-public` CLI 以及“浏览频道”对话框均已移除。
+
 ## M14 运行时：邀请与成员访问依据
 
 规格 #4137 在 2026-11-15 的修订取代上文旧的 Bot 受众包含限制：邀请 Human 不因 Channel 里有 Bot 而拒绝；Bot 继承其 principal 访问的实现由 M7 单独交付。
 
-`channel_human_members.membership_basis` 按 Channel/Human 保存访问依据。浏览后通过 `channelJoin`（或旧 `publicChannelJoin`）加入记为 `role`；按姓名通过 `channelHumanAdd` 添加记为 `invited`，也可将已有角色加入提升为姓名邀请。重复 Join 不会降低有效邀请。无论 private、roles 或 public，可添加成员的人都能直接授予访问，不比较被邀请者的角色或 Host 权限高低。撤销角色后，不再符合任何允许角色的 `role` 成员在同一事务中退出，流立即关闭，列表和搜索不再显示；恢复角色只恢复浏览资格，不自动重新加入。可见性变更、删除角色和移交 Owner 时的角色重置沿用此规则。姓名邀请一直有效，直到离开或被移除；创建 Channel 和显式移交所有权也授予姓名访问，移交不自动删除原所有者仍有效的姓名成员关系。
+`channel_human_members.membership_basis` 按 Channel/Human 保存访问依据。自动加入（见下文）记为 `role`；按姓名通过 `channelHumanAdd` 添加记为 `invited`，也可将已有角色加入提升为姓名邀请。角色变化不会降低有效邀请。无论 private、roles 或 public，可添加成员的人都能直接授予访问，不比较被邀请者的角色或 Host 权限高低。撤销角色后，不再符合任何允许角色的 `role` 成员在同一事务中退出，流立即关闭，列表和搜索不再显示；恢复角色会自动重新加入。可见性变更、删除角色和移交 Owner 时的角色重置沿用此规则。姓名邀请一直有效，直到离开或被移除；创建 Channel 和显式移交所有权也授予姓名访问，移交不自动删除原所有者仍有效的姓名成员关系。
 
 应用定义的 Host 方法从受信任的显式 `HumanContext` 取得调用者。`channelHumanAdd { channelId, humanId }` 接受 Human ID 或用户名，返回 `null`。`channelMemberCandidates { channelId, query?: string }` 按显示名和 Human ID 排序，最多返回 100 条 `{ humanId, displayName, username: string | null }`；搜索默认为空，最多 200 字符，匹配显示名和用户名，排除非活跃者与现有成员。两者允许 Host Owner、`channels.manageAll`、已加入的 Channel owner/admin，或 `addMembers: 'everyone'` 时已加入的普通成员。缺权返回 `permission-required`，带 `details.permission: 'addMembers'`；未知或非群组 Channel 返回 `channel-not-found`，未知或非活跃目标返回 `member-not-found`，无效输入返回 `invalid-input`。
 

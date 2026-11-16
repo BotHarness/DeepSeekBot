@@ -304,15 +304,6 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
         ),
       ),
-    browsableChannels: (_payload: unknown) =>
-      call((service) => service.channelAccess.browse(human)),
-    channelJoin: (payload: unknown) =>
-      call((service) =>
-        service.channelAccess.join(
-          human,
-          z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
-        ),
-      ),
     channelVisibilitySet: (payload: unknown) =>
       call((service) => {
         const { channelId, visibility } = z
@@ -375,14 +366,6 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .parse(payload);
         return service.channelAccess.descriptionSet(human, channelId, description);
       }),
-    publicChannels: (_payload: unknown) => call((service) => service.publicChannels(human)),
-    publicChannelJoin: (payload: unknown) =>
-      call((service) =>
-        service.joinPublic(
-          human,
-          z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
-        ),
-      ),
     channelPublicSet: (payload: unknown) =>
       call((service) => {
         const input = z

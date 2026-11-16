@@ -22,6 +22,7 @@ import {
   type TransferPreview,
 } from './team-offboarding-bridge.js';
 import { teamErrorText } from './team-settings.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   actions: { display: 'flex', flexWrap: 'wrap', gap: space.x2, minWidth: 0 },
@@ -41,7 +42,7 @@ const styles = stylex.create({
     padding: space.x4,
     borderRadius: radius.md,
     backgroundColor: color.well,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     color: color.fg,
