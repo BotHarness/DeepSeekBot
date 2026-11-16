@@ -59,6 +59,15 @@ describe('Tobs design tokens', () => {
     expect(green['--tobs-layer-canvas']).toBe(TOBS_TOKENS.dark['--tobs-layer-canvas']);
     expect(green['--tobs-line-focus']).toBe(TOBS_ACCENTS['forest-green'].dark);
     expect(tobsTokens('light', 'classic-blue', '#aa3366')['--tobs-accent-base']).toBe('#aa3366');
+    for (const scheme of SCHEMES)
+      for (const primary of ['#f8f9fa', '#1b1c1f']) {
+        const t = tobsTokens(scheme, 'classic-blue', primary);
+        for (const surface of [...SURFACES, '--tobs-layer-nav'] as const)
+          expect(
+            contrast(t['--tobs-line-focus'], t[surface]),
+            `focus for ${primary} on ${surface} in ${scheme}`,
+          ).toBeGreaterThanOrEqual(3);
+      }
   });
 });
 

@@ -16,7 +16,7 @@ export function tobsTokens(
     `color-mix(in srgb, ${base} 86%, ${mode === 'dark' ? '#ffffff' : '#000000'})`;
   tokens['--tobs-accent-tint'] = `color-mix(in srgb, ${base} 14%, ${canvas})`;
   tokens['--tobs-accent-ink'] = readable(base, BUBBLE_SURFACES[mode].surface, 4.6);
-  tokens['--tobs-line-focus'] = base;
+  tokens['--tobs-line-focus'] = readable(base, TOBS_TOKENS[mode]['--tobs-layer-well'], 3);
   tokens['--tobs-status-info-base'] = base;
   tokens['--tobs-status-info-tint'] = tokens['--tobs-accent-tint'];
   tokens['--tobs-status-info-ink'] = tokens['--tobs-accent-ink'];
