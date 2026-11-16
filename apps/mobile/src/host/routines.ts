@@ -1,5 +1,9 @@
-import type { HostClient } from './client';
-import type { BotScheduleFiring, BotScheduleSummary, ScheduleTrigger } from './wire';
+import type { HostClient } from '@botharness/host-client/client';
+import type {
+  BotScheduleFiring,
+  BotScheduleSummary,
+  ScheduleTrigger,
+} from '@botharness/host-protocol/wire';
 
 export type RoutineTarget = { kind: 'new' } | { kind: 'open'; routine: BotScheduleSummary };
 

@@ -20,7 +20,7 @@ import { cloudClient } from '../../cloud/native';
 import { useCloudConversations } from '../../cloud/native-conversations';
 import { cloudError } from '../../cloud/client';
 import { prepareCloudCreation } from '../../cloud/prepare-creation';
-import { shownHostName } from '../design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useDesignTheme } from '../design/theme';
 import { fab, materialNavigationBar, navigationBar, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';

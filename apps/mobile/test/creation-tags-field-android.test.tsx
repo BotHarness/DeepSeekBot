@@ -2,7 +2,7 @@
 import { act, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { editCreationTags, type CreationTagDraft } from '../src/host/bot-creation-tags';
+import { editCreationTags, type CreationTagDraft } from '@botharness/host-client/bot-creation-tags';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const native = vi.hoisted(() => ({

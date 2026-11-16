@@ -7,9 +7,9 @@ let profileHistory = channelNavigationHarness();
 const visibility = vi.hoisted(() => ({ recent: vi.fn(), read: vi.fn() }));
 vi.mock('../src/ui/chat/skill-suggestions', () => ({ SkillSuggestions: () => null }));
 vi.mock('../src/ui/chat/mark-read', () => ({ useMarkRead: () => visibility.read }));
-import type { ChannelListItem } from '../src/host/wire';
-import type { RosterBot, RosterChannel } from '../src/host/client';
-import type { Conversation, ConversationSnapshot } from '../src/host/conversation';
+import type { ChannelListItem } from '@botharness/host-protocol/wire';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
+import type { Conversation, ConversationSnapshot } from '@botharness/host-client/conversation';
 
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -959,9 +959,9 @@ it('shows a message-shaped skeleton only while an empty history is opening', asy
 });
 
 it('retries a failed earlier page through the Conversation owner without replacing loaded history', async () => {
-  const { createConversation } = await import('../src/host/conversation');
-  const { createHostClient } = await import('../src/host/client');
-  const { FakeHost } = await import('./fake-host');
+  const { createConversation } = await import('@botharness/host-client/conversation');
+  const { createHostClient } = await import('@botharness/host-client/client');
+  const { FakeHost } = await import('../../../packages/host-client/test/fake-host.js');
   const host = new FakeHost();
   for (let index = 1; index <= 4; index += 1)
     host.channel('dm-ada').append({ id: `history-${index}`, body: `Earlier ${index}` }, false);

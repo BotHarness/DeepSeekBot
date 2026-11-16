@@ -36,8 +36,8 @@ import { MemoryPreviewImage } from '../src/ui/chat/memory-preview-image';
 import { MemoryVisibility } from '../src/ui/chat/memory-visibility';
 import { memoryInlineParts } from '../src/ui/chat/memory-markdown';
 import { Lexer } from 'marked';
-import { createHostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { t } from '../src/ui/strings';
 import profileWire from './fixtures/profile-wire.json';
 
@@ -194,7 +194,7 @@ function previewPort() {
   return {
     fetch: vi.fn(
       async (
-        _source: import('../src/host/client').RemoteSource,
+        _source: import('@botharness/host-client/client').RemoteSource,
         _signal: AbortSignal,
       ): Promise<Response> => new Response(imageBytes),
     ),

@@ -12,7 +12,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import type { StageZoom } from '../../host/browser-viewer';
+import type { StageZoom } from '@botharness/host-client/browser-viewer';
 import { videoPointerPosition } from '../../host/local-video-pointer';
 import { decelerateCurve } from '../design/motion';
 import { computerClickRipple as ripple, edge, pointer, radius } from '../design/tokens';

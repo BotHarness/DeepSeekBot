@@ -1,4 +1,4 @@
-import { BUBBLE_SURFACES, readable } from './bot-name-color.js';
+import { BUBBLE_SURFACES, readable } from '@botharness/host-client/shared/bot-name-color';
 import type { AppearanceMode, AppearancePreset } from './appearance.js';
 import { TOBS_ACCENTS, TOBS_TOKENS } from './ds/tobs-tokens.generated.js';
 

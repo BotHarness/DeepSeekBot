@@ -2,7 +2,7 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import { useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import type { MessageVoice } from '../../host/conversation';
+import type { MessageVoice } from '@botharness/host-client/conversation';
 import { tint } from '../design/layers';
 import { radius, space, voiceRow } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';

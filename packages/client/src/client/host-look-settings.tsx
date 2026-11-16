@@ -24,7 +24,7 @@ import {
   withHostIcon,
   withHostColor,
   type HostLook,
-} from '../../../../apps/mobile/src/ui/design/host-look.js';
+} from '@botharness/host-client/ui/design/host-look';
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
 const styles = stylex.create({

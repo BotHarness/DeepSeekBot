@@ -118,7 +118,7 @@ import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
 import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
 import { RemoteHostModels } from '../src/client/remote-host-models.js';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
+import { createHostClient } from '@botharness/host-client/client';
 import { createCore } from '../../core/src/plugin.js';
 import { createBridgeMethods } from '../../core/src/bridge/methods.js';
 import { createTempRoot } from '../../core/test/helpers.js';

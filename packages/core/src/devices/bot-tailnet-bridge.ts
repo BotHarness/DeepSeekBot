@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { NoiseXk, noisePublicKey, type NoiseTransport } from './noise/xk.js';
+import { NoiseXk, noisePublicKey, type NoiseTransport } from '@botharness/host-protocol/noise/xk';
 import {
   botNetworkHandshake,
   finishBotHandshake,

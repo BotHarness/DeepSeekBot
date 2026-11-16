@@ -3,8 +3,8 @@ import { networkInterfaces } from 'node:os';
 import type { AddressInfo, Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { phoneRoute, type PhoneRoute } from './routes.js';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
-import { isLanAddress } from './lan-address.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
+import { isLanAddress } from '@botharness/host-protocol/lan-address';
 import { BOT_LAN_PATH } from './bot-lan-bridge.js';
 
 export interface LanStatus {

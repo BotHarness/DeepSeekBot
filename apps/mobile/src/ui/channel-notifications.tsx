@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ScrollView, type ScrollViewInstance } from 'react-native';
 
-import { PushRequestFailed, type PushSettings } from '../host/push';
+import { PushRequestFailed, type PushSettings } from '@botharness/host-client/push';
 import type { PushStatus } from '../host/push-session';
 import { space } from './design/tokens';
 import { useDesignTheme } from './design/theme';

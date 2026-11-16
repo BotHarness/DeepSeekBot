@@ -3,7 +3,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { installedAppVersion } from '../src/host/app-version';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
-import { isConnectRoute, isLanRoute, isLoopbackRoute, isTailscaleRoute } from '../src/host/route';
+import {
+  isConnectRoute,
+  isLanRoute,
+  isLoopbackRoute,
+  isTailscaleRoute,
+} from '@botharness/host-protocol/route';
 import { SHEET_GROUP } from '../src/ui/chat/sheet';
 import { space } from '../src/ui/design/tokens';
 import { SheetHeader } from '../src/ui/primitives/sheet-header';

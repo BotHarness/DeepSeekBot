@@ -1,6 +1,6 @@
-import type { ConnectHost } from './connect-account';
-import type { SavedHost } from './hosts';
-import type { PairingFailure } from './pairing';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { PairingFailure } from '@botharness/host-client/pairing';
 
 export function accountHostAdded(host: ConnectHost, saved: readonly SavedHost[]): boolean {
   return saved.some(

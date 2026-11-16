@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { watchAccountHosts } from '../src/host/watch-account-hosts';
-import type { ConnectHost } from '../src/host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 
 const first: ConnectHost = {
   id: 'first',

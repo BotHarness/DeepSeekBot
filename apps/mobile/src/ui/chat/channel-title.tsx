@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
 
-import type { RosterBot, RosterChannel } from '../../host/client';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';

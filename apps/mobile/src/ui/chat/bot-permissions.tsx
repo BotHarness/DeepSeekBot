@@ -3,8 +3,8 @@ import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 
 import { botAccess } from '../../host/bot-access';
-import { botSettings } from '../../host/bot-settings';
-import type { HostClient, RosterBot } from '../../host/client';
+import { botSettings } from '@botharness/host-client/bot-settings';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { useDesignTheme } from '../design/theme';
 import { edge } from '../design/tokens';
 import { type RowIconName } from '../primitives/row-icon';

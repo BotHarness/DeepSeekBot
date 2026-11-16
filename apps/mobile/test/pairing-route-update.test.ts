@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
-import { ConnectChannel } from '../../../packages/core/src/devices/noise/channel';
-import { noisePublicKey } from '../../../packages/core/src/devices/noise/xk';
-import { updatePairedRoutes } from '../src/host/pairing';
-import type { HostCarrier } from '../src/host/carrier';
-import type { SavedHost } from '../src/host/hosts';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
+import { updatePairedRoutes } from '@botharness/host-client/pairing';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import type { SavedHost } from '@botharness/host-client/hosts';
 
 it('updates scanned Tailscale addresses over pinned encryption with the existing device credential', async () => {
   const key = randomBytes(32);

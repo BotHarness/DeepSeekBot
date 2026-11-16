@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 function retainedSource(messages: readonly ConversationMessage[], id: string) {
   return messages.find(

@@ -1,7 +1,7 @@
 import { useHostLook } from '../../host/native-host-look';
 import type { DeletionTarget } from '../../host/deletion';
 import { ManagedConversationRow } from './managed-conversation-row';
-import { shownHostName } from '../design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import type { EnvironmentChatRow as Row } from './environment-chat-list';
 
 export function HostRow({

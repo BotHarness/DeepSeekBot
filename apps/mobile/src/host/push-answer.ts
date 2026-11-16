@@ -1,5 +1,5 @@
-import type { SavedHost } from './hosts';
-import { parsePushData } from './push';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import { parsePushData } from '@botharness/host-client/push';
 import { ANSWERED, APPROVAL_ACTIONS, decideFromPush, type PushDecision } from './push-actions';
 
 export interface AnswerResponse {

@@ -7,7 +7,7 @@ import {
   HostAnswerInvalid,
   type ModelRoute,
   type ModelSettingsClient,
-} from '../../../../apps/mobile/src/host/bot-settings.js';
+} from '@botharness/host-client/bot-settings';
 import {
   modelRoutes,
   modelScopeKey,
@@ -17,7 +17,7 @@ import {
   toggleAssignmentModel,
   type ModelScope,
   type ModelSettingsState,
-} from '../../../../apps/mobile/src/host/model-settings.js';
+} from '@botharness/host-client/model-settings';
 import { Combobox } from './combobox.js';
 import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';

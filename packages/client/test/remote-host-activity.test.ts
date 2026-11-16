@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RosterBot } from '../../../apps/mobile/src/host/client.js';
+import type { RosterBot } from '@botharness/host-client/client';
 import { createRemoteActivityProjection } from '../src/client/remote-host-activity.js';
 
 describe('remote activity presentation', () => {

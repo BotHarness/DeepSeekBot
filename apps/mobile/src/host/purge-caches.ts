@@ -1,4 +1,4 @@
-import { mediaCacheKey } from './conversation';
+import { mediaCacheKey } from '@botharness/host-client/conversation';
 
 export interface PurgedPlacement {
   sourceEventId: string;

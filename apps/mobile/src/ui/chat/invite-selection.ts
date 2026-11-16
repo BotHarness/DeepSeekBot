@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import type { RosterBot } from '../../host/client';
-import { errorText } from '../../host/bot-settings';
+import type { RosterBot } from '@botharness/host-client/client';
+import { errorText } from '@botharness/host-client/bot-settings';
 import { t } from '../strings';
 import { useMounted } from '../mounted';
 

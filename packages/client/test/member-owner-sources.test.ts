@@ -45,8 +45,8 @@ it.each(['member', 'admin'])(
     vi.stubGlobal('indexedDB', { open });
     const { createRemoteHosts, remoteHosts, REMOTE_HOSTS_STORAGE_KEY, HOST_TAB_STORAGE_KEY } =
       await import('../src/client/remote-hosts.js');
-    const { createHostClient } = await import('../../../apps/mobile/src/host/client.js');
-    const { FakeHost } = await import('../../../apps/mobile/test/fake-host.js');
+    const { createHostClient } = await import('@botharness/host-client/client');
+    const { FakeHost } = await import('../../host-client/test/fake-host.js');
     const ownerClient = createHostClient({
       hostId: 'owner-host',
       routes: ['http://127.0.0.1:47001'],

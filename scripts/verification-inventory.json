@@ -459,7 +459,7 @@
     {
       "id": "phone.browser",
       "label": "View Browser frame, take over, input and handle revocation",
-      "source": "apps/mobile/src/host/browser-viewer.ts",
+      "source": "packages/host-client/src/browser-viewer.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-browser.md",
       "task": 1976,
       "gap": null
@@ -491,7 +491,7 @@
     {
       "id": "phone.activity.inbox",
       "label": "Read current native Inbox and handle existing requests",
-      "source": "apps/mobile/src/host/inbox.ts",
+      "source": "packages/host-client/src/inbox.ts",
       "guide": null,
       "task": 1954,
       "gap": "Current main Inbox only. The unmerged #1954 redesign and its later options semantics are excluded from the implemented denominator; native requalification and complete map belong to #1954."
@@ -699,7 +699,7 @@
     {
       "id": "phone.full-client",
       "label": "Open paired full Client and revoke access without revoking operator",
-      "source": "apps/mobile/src/host/client.ts",
+      "source": "packages/host-client/src/client.ts",
       "guide": null,
       "task": 1967,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -707,7 +707,7 @@
     {
       "id": "phone.viewers",
       "label": "Read paired Browser/Computer viewers with isolation and revocation",
-      "source": "apps/mobile/src/host/computer-viewer.ts",
+      "source": "packages/host-client/src/computer-viewer.ts",
       "guide": null,
       "task": 1977,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."

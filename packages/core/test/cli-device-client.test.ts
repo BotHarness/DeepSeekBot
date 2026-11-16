@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { createTempRoot } from './helpers.js';
 const paired = vi.hoisted(() => vi.fn());
-vi.mock('../../../apps/mobile/src/host/pairing.js', () => ({ pairHost: paired }));
+vi.mock('@botharness/host-client/pairing', () => ({ pairHost: paired }));
 vi.mock('../src/devices/connect-identity-fetch.js', () => ({
   requestConnectIdentity: (url: string, init?: RequestInit) => fetch(url, init),
 }));

@@ -30,16 +30,16 @@ import {
 import type { SpawnTunnel, TunnelProcess } from '../src/devices/connect.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
-import { redeemPairing } from '../../../apps/mobile/src/host/pairing.js';
-import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
+import { redeemPairing } from '@botharness/host-client/pairing';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
 import { createDevicesHttp, type PairingOfferView } from '../src/devices/http.js';
 import { detectPhoneRoutes } from '../src/devices/routes.js';
 import { createNoiseIdentity } from '../src/devices/noise-identity.js';
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 

@@ -1,5 +1,5 @@
 import type { LocalVideoClientState } from '../../../../../packages/computer/src/local-video-client';
-import type { ConnectionState } from '../../host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 import { connectionRecoveryText } from '../connection-recovery';
 import { t } from '../strings';
 

@@ -1,4 +1,4 @@
-import { LocalStoreError, type LocalStore } from './local-store';
+import { LocalStoreError, type LocalStore } from '@botharness/host-client/local-store';
 
 export interface HostStoreOpener {
   open(hostId: string): Promise<LocalStore>;

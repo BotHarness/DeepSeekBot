@@ -7,7 +7,7 @@ import { createLanBotMembership } from '../src/devices/bot-lan-membership.js';
 import { createLanBotBridge } from '../src/devices/bot-lan-bridge.js';
 import { createDeviceLan } from '../src/devices/lan.js';
 import { createBotNetworkRoutes } from '../src/devices/bot-network-routes.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { receiveNetworkBotDm } from '../src/runtime/bot-network.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';

@@ -464,6 +464,26 @@ describe('CI test plan drift checks', () => {
   });
 });
 
+it('verifies mobile when a shared workspace package changes', () => {
+  const files = {
+    'apps/mobile/package.json': JSON.stringify({ name: '@botharness/mobile' }),
+    'apps/mobile/src/session.ts': "import { client } from '@botharness/host-client/client';",
+    'packages/host-client/package.json': JSON.stringify({ name: '@botharness/host-client' }),
+    'packages/host-client/src/client.ts': "import { codec } from '@botharness/host-protocol/wire';",
+    'packages/host-protocol/package.json': JSON.stringify({ name: '@botharness/host-protocol' }),
+    'packages/host-protocol/src/wire.ts': 'export const codec = 1;',
+  };
+  for (const path of ['packages/host-client/src/client.ts', 'packages/host-protocol/src/wire.ts']) {
+    expect(
+      mobileVerification({
+        event: 'pull_request',
+        changes: [{ status: 'modified', path }],
+        index: createIndex(Object.keys(files), (file) => files[file]),
+      }),
+    ).toEqual({ run: true, reason: `${path} is imported by mobile` });
+  }
+});
+
 describe('local test plan commands', () => {
   it('runs only the related tests for an affected plan', () => {
     expect(

@@ -25,7 +25,7 @@ import {
   type CallActivityBadges,
 } from '../../host/native-call-activity-images';
 import { callAudioPreference } from '../../host/native-call-audio-route';
-import { humanBubbleColors } from '../../../../../packages/client/src/client/bot-name-color';
+import { humanBubbleColors } from '@botharness/host-client/shared/bot-name-color';
 import { botColor } from '../bot-color';
 import { useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';

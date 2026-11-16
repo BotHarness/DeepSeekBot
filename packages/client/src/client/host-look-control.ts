@@ -1,14 +1,10 @@
-import {
-  isHostColor,
-  isHostIcon,
-  type HostLooks,
-} from '../../../../apps/mobile/src/host/host-look.js';
+import { isHostColor, isHostIcon, type HostLooks } from '@botharness/host-client/host-look';
 import {
   withHostColor,
   withHostIcon,
   withHostName,
   type HostLook,
-} from '../../../../apps/mobile/src/ui/design/host-look.js';
+} from '@botharness/host-client/ui/design/host-look';
 import { AppearanceError, object } from './appearance.js';
 
 export async function controlHostLook(

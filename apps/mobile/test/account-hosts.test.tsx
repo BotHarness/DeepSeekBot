@@ -95,7 +95,7 @@ vi.mock('expo-router', () => ({
   },
 }));
 
-import type { ConnectHost } from '../src/host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { AccountHosts } from '../src/ui/account-hosts';
 import { t } from '../src/ui/strings';
 import { appDialogs } from '../src/ui/primitives/dialog-state';

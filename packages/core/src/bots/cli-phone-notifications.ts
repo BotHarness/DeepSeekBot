@@ -1,6 +1,6 @@
 import { connect } from './development-inspector.mjs';
-import { parseNotificationPreferences } from '../../../../apps/mobile/src/host/device-notification-preferences.js';
-import type { PushPreferences } from '../../../../apps/mobile/src/host/push.js';
+import { parseNotificationPreferences } from '@botharness/host-client/device-notification-preferences';
+import type { PushPreferences } from '@botharness/host-client/push';
 import { CliLiveError } from './cli-live-error.js';
 
 export function phoneNotificationExpression(preferences?: PushPreferences): string {

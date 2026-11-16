@@ -8,8 +8,8 @@ import { connect } from '../src/bots/development-inspector.mjs';
 import {
   createDeviceNotificationPreferences,
   DEFAULT_NOTIFICATION_PREFERENCES,
-} from '../../../apps/mobile/src/host/device-notification-preferences.js';
-import type { PushPreferences } from '../../../apps/mobile/src/host/push.js';
+} from '@botharness/host-client/device-notification-preferences';
+import type { PushPreferences } from '@botharness/host-client/push';
 
 const { WebSocketServer, WebSocket } = createRequire(import.meta.url)('ws');
 const schedule = globalThis.setTimeout;

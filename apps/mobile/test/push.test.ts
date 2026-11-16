@@ -21,8 +21,13 @@ import {
   withHost,
   withoutHost,
   type SavedHost,
-} from '../src/host/hosts';
-import { createHostPush, parsePushData, pushHref, PushRequestFailed } from '../src/host/push';
+} from '@botharness/host-client/hosts';
+import {
+  createHostPush,
+  parsePushData,
+  pushHref,
+  PushRequestFailed,
+} from '@botharness/host-client/push';
 import {
   decideFromPush,
   registerApprovalCategories,

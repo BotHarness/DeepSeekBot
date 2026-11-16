@@ -14,7 +14,7 @@ vi.mock('react-native-svg', () => ({
   Circle: () => null,
 }));
 
-import { hostColorInk } from '../src/ui/design/host-look';
+import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { resolveTheme } from '../src/ui/design/resolve-theme';
 import { SourceName } from '../src/ui/chat/source-name';
 

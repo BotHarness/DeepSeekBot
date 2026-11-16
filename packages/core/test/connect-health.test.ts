@@ -7,8 +7,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { randomBytes } from 'node:crypto';
-import { ConnectChannel } from '../src/devices/noise/channel.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { checkPublicConnect, createConnectHealth } from '../src/devices/connect-health.js';
 
 const disposals: Array<() => Promise<void>> = [];

@@ -4,16 +4,16 @@ import { useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 
 import { hostSession } from '../../src/host/host-session';
-import type { SavedHost } from '../../src/host/hosts';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { nativeCarrier } from '../../src/host/native-carrier';
-import { revokePairing } from '../../src/host/pairing';
+import { revokePairing } from '@botharness/host-client/pairing';
 import {
   changeTeamDevicePassword,
   parseTeamInvitation,
   signInTeamDevice,
   type TeamErrorCode,
   type TeamInvitation,
-} from '../../src/host/team-client';
+} from '@botharness/host-client/team-client';
 import { space } from '../../src/ui/design/tokens';
 import { Button } from '../../src/ui/primitives/button';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';

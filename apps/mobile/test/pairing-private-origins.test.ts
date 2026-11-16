@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { redeemPairing } from '../src/host/pairing';
-import type { HostCarrier } from '../src/host/carrier';
+import { redeemPairing } from '@botharness/host-client/pairing';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 const origin = 'https://primary.example';
 const backup = 'https://backup.example';

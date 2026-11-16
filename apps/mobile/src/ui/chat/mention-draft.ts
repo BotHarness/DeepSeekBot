@@ -6,9 +6,9 @@ import {
   type MentionQuery,
   type SelectedMention,
 } from '../../../../../packages/client/src/client/mentions';
-import type { RosterBot } from '../../host/client';
-import type { MessageTags } from '../../host/conversation';
-import type { WireAllBotPreview } from '../../host/wire';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { MessageTags } from '@botharness/host-client/conversation';
+import type { WireAllBotPreview } from '@botharness/host-protocol/wire';
 
 export {
   activeMentionQuery,

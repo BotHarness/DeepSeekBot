@@ -1,4 +1,4 @@
-import type { RosterBot, RosterChannel } from '../../host/client';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
 
 export function headerStatus(
   bot: RosterBot | undefined,

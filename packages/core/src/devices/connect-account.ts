@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 import type { DeviceConnect } from './connect.js';
 import { CONNECT_ZONES } from './routes.js';
-import { checkRoute, isConnectRoute } from '../../../../apps/mobile/src/host/route.js';
+import { checkRoute, isConnectRoute } from '@botharness/host-protocol/route';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 

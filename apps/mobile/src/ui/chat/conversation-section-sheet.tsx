@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { FlatList, Platform, View, type ViewInstance } from 'react-native';
 
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import { useHostSnapshot } from '../../host/host-session';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';

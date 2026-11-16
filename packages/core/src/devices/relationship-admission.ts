@@ -5,7 +5,7 @@ import {
 } from '@deepseek-ai/dsh-credentials';
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
-import { isPrivateRoute } from '../../../../apps/mobile/src/host/route.js';
+import { isPrivateRoute } from '@botharness/host-protocol/route';
 import {
   relationshipRouteAdmissionSchema,
   type RelationshipTransportPeer,

@@ -13,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { MessageAttachment } from '../../host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { decelerateCurve, spring } from '../design/motion';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';

@@ -6,9 +6,9 @@ import {
   type ChannelListChanges,
   type ChannelListCursor,
   type ChannelListSource,
-} from '../src/host/channel-list-store';
-import { openLocalStore, type LocalStore } from '../src/host/local-store';
-import type { ChannelListItem } from '../src/host/wire';
+} from '@botharness/host-client/channel-list-store';
+import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
+import type { ChannelListItem } from '@botharness/host-protocol/wire';
 import { nodeSqlConnection } from './node-sql-connection';
 
 const opened: LocalStore[] = [];

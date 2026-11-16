@@ -14,9 +14,9 @@ import {
   type PrivateTunnelStep,
   type PrivateTunnelView,
 } from './private-tunnel-settings.js';
-import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
-import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
+import { keyBytes } from '@botharness/host-client/encrypted-carrier';
+import { checkRoute, isConnectRoute, isLanRoute } from '@botharness/host-protocol/route';
 import { useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';

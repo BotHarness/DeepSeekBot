@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MethodRefused, type HostClient } from '../../../apps/mobile/src/host/client.js';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
 import { BridgeCallError, type CreatedBot } from '../src/client/bridge.js';
 import {
   bindBotCreationOwner,

@@ -10,7 +10,7 @@ import {
   type BotSessionFoldersProps,
 } from '../src/client/bot-session-folders.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { BotModeIcon } from '../src/bot-mode-settings.js';
+import type { BotModeIcon } from '@botharness/host-client/shared/bot-mode-settings';
 import { createStore, type BotSummary } from '../src/client/store.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({

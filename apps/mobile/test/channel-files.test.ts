@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import { createChannelFiles, type ChannelFiles } from '../src/host/channel-files';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 let client: HostClient | undefined;
 let files: ChannelFiles | undefined;

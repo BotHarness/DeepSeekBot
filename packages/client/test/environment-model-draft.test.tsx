@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { ModelSettingsClient } from '../../../apps/mobile/src/host/bot-settings.js';
+import type { ModelSettingsClient } from '@botharness/host-client/bot-settings';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import { errorText } from '../../host/bot-settings';
-import type { RosterBot } from '../../host/client';
+import { errorText } from '@botharness/host-client/bot-settings';
+import type { RosterBot } from '@botharness/host-client/client';
 import {
   liveStopping,
   runningSessions,

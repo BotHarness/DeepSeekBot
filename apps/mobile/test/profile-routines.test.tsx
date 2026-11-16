@@ -18,7 +18,7 @@ vi.mock('../src/ui/primitives/app-dialog', () => ({
   showActionMenu: vi.fn(),
 }));
 
-import type { BotScheduleSummary, ScheduleTrigger } from '../src/host/wire';
+import type { BotScheduleSummary, ScheduleTrigger } from '@botharness/host-protocol/wire';
 import {
   routineGroupOf,
   routineGroups,

@@ -7,7 +7,7 @@ import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol';
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway';
 import { viewerCarrierScript } from '@deepseek-ai/dsh-experimental-liveshare-protocol';
 import { z } from 'zod';
-import { renderTeamSignInPage } from '../../../client/src/shared/team-sign-in-page.js';
+import { renderTeamSignInPage } from '@botharness/host-client/shared/team-sign-in-page';
 import { isConnectRequest, isManagedTlsRequest } from '../devices/route-context.js';
 import { TeamError, type TeamService } from './service.js';
 

@@ -1,6 +1,6 @@
 import { RTCPeerConnection, type RTCDataChannel } from 'werift';
 import { WebSocket } from 'ws';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 
 export const DIRECT_PATH = '/direct';
 export const DIRECT_LABEL = 'botharness-direct-v1';

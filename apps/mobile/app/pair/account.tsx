@@ -1,9 +1,9 @@
-import type { ConnectionDiagnostic } from '../../src/host/connection-diagnostic';
+import type { ConnectionDiagnostic } from '@botharness/host-client/connection-diagnostic';
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { pairAccountSelection } from '../../src/host/account-pairing';
-import type { ConnectHost } from '../../src/host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { useHostSession } from '../../src/host/host-session';
 import { connectAccount } from '../../src/host/native-connect-account';
 import { AccountHosts } from '../../src/ui/account-hosts';

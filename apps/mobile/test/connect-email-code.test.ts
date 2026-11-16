@@ -10,7 +10,7 @@ import {
   type EmailCodeOutcome,
   type EmailCodeRefusal,
   type RedirectWatcher,
-} from '../src/host/connect-account';
+} from '@botharness/host-client/connect-account';
 import { startEmailCodeSignIn, takeEmailCodeSignIn } from '../src/host/email-code-bridge';
 
 const RELAY = 'https://relay.test';

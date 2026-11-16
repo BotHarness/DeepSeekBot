@@ -12,9 +12,9 @@ import {
   type ModelUsage,
   type UsageBucket,
 } from '../../host/bot-activity';
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { compactTokenCount, dayLabel, weekdayLabel } from '../../host/usage-days';
-import type { ProfileActivity } from '../../host/wire';
+import type { ProfileActivity } from '@botharness/host-protocol/wire';
 import { botColor } from '../bot-color';
 import { chart, heatTones, seriesTones } from '../design/chart';
 import { AccentProvider, useDesignTheme } from '../design/theme';

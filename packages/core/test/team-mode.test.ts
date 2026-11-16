@@ -1,22 +1,19 @@
-import {
-  parsePairingLink,
-  redeemPairing,
-  pairHost,
-} from '../../../apps/mobile/src/host/pairing.js';
+import { parsePairingLink, redeemPairing, pairHost } from '@botharness/host-client/pairing';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { memberRoutes } from '../src/team/member-urls.js';
 import { createMemberDevices } from '../src/team/devices.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
-import { noisePublicKey, noiseFingerprint, NOISE_PROTOCOL } from '../src/devices/noise/xk.js';
-import { CONNECT_PROTOCOL } from '../src/devices/noise/channel.js';
+import {
+  noisePublicKey,
+  noiseFingerprint,
+  NOISE_PROTOCOL,
+} from '@botharness/host-protocol/noise/xk';
+import { CONNECT_PROTOCOL } from '@botharness/host-protocol/noise/channel';
 import { randomBytes } from 'node:crypto';
 import { WebSocket } from 'ws';
-import {
-  signInTeamDevice,
-  changeTeamDevicePassword,
-} from '../../../apps/mobile/src/host/team-client.js';
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import { signInTeamDevice, changeTeamDevicePassword } from '@botharness/host-client/team-client';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { roleModelsSchema } from '../src/team/permissions.js';
 import { channelPolicySchema } from '../src/team/channel-contract.js';
 import { createAttachmentStore } from '../src/attachments/store.js';
@@ -2604,9 +2601,7 @@ it('redeems a member self-pairing QR on Host HTTPS through the existing Noise pa
     deviceId: paired.host.deviceId,
   });
   const another = await f.team.pairingOffer(f.human);
-  const save = vi.fn(
-    async (_host: import('../../../apps/mobile/src/host/hosts.js').SavedHost) => {},
-  );
+  const save = vi.fn(async (_host: import('@botharness/host-client/hosts').SavedHost) => {});
   expect(
     await pairHost({
       text: another.link,

@@ -1,5 +1,5 @@
 import { Pressable, View } from 'react-native';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { useDesignTheme } from '../design/theme';
 import { radius, space, swipeReply } from '../design/tokens';
 import { CloseIcon, ReplyIcon } from '../shell/icons';

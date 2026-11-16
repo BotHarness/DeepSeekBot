@@ -1,4 +1,4 @@
-import type { ConversationMessage } from './conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 export type DmActivityKind = 'posts' | 'memory';
 export type DmActivitySettings = Record<string, Record<string, readonly DmActivityKind[]>>;

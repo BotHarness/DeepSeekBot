@@ -1,6 +1,6 @@
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store';
 
-import type { BotModeMotionPreference } from '../bot-mode-settings.js';
+import type { BotModeMotionPreference } from '@botharness/host-client/shared/bot-mode-settings';
 
 export type EffectiveMotion = 'reduce' | 'full';
 

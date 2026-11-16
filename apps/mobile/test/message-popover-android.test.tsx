@@ -3,7 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
@@ -33,7 +33,7 @@ vi.mock('../src/ui/shell/icons', () => ({
 
 const { MessageActions } = await import('../src/ui/chat/message-actions.android');
 const { t } = await import('../src/ui/strings');
-const { MENU_REACTIONS } = await import('../src/host/conversation');
+const { MENU_REACTIONS } = await import('@botharness/host-client/conversation');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;

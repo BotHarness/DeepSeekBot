@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { shareAttachment } from '../src/host/share-attachment';
-import type { MessageAttachment } from '../src/host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 
 const native = vi.hoisted(() => ({ download: vi.fn(), share: vi.fn(), write: vi.fn() }));
 vi.mock('expo-sharing', () => ({ shareAsync: native.share }));

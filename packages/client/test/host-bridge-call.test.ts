@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { createHostClient, deviceRefusal } from '../../../apps/mobile/src/host/client.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostClient, deviceRefusal } from '@botharness/host-client/client';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { hostBridgeCall } from '../src/client/host-bridge-call.js';
 

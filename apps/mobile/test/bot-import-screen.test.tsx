@@ -6,7 +6,7 @@ import {
   BotCreationFailure,
   createBotCreationController,
   type BotCreationOperation,
-} from '../src/host/bot-creation';
+} from '@botharness/host-client/bot-creation';
 
 const fixture = vi.hoisted(() => ({
   routeReady: true,
@@ -89,7 +89,7 @@ vi.mock('../src/host/host-session', () => ({
   useHostAvailability: () => fixture.hosts.map(({ hostId }) => ({ hostId, status: 'checking' })),
 }));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: { look: () => ({}) } }));
-vi.mock('../src/ui/design/host-look', () => ({
+vi.mock('@botharness/host-client/ui/design/host-look', () => ({
   shownHostName: (_look: unknown, name: string) => name,
 }));
 vi.mock('../src/ui/primitives/text', () => ({

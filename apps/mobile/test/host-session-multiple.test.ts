@@ -7,7 +7,7 @@ import {
   preferenceSync,
   preferenceRetry,
 } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 vi.mock('react-native', () => ({
   AppState: {

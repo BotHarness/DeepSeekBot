@@ -15,7 +15,7 @@ import Svg, { Rect } from 'react-native-svg';
 
 import { avatarSvg } from '../../../../packages/core/src/bots/avatar-appearance';
 import { resolvedAvatarRecipe } from '../../../../packages/core/src/bots/primary-color';
-import type { RemoteSource, RosterBot } from '../host/client';
+import type { RemoteSource, RosterBot } from '@botharness/host-client/client';
 import { ResourceImage } from './primitives/resource-image';
 import { stateRing } from './design/tokens';
 import { useMounted } from './mounted';

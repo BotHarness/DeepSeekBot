@@ -63,7 +63,7 @@ vi.mock('../src/host/native-notification-avatars', () => ({
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { foreground: () => undefined, send: () => undefined },
 }));
-vi.mock('../src/telemetry/connection', () => ({
+vi.mock('@botharness/host-client/telemetry/connection', () => ({
   createConnectionTelemetry: () => undefined,
 }));
 vi.mock('../src/host/push-session', () => ({
@@ -79,8 +79,8 @@ vi.mock('../src/host/push-session', () => ({
   }),
 }));
 
-import { FakeHost } from './fake-host';
-import type { HostCarrier } from '../src/host/carrier';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 export const remotes = new Map<string, FakeHost>();
 const carrier: HostCarrier = {

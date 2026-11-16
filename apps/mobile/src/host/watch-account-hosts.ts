@@ -1,9 +1,9 @@
-import type { ConnectAccount, ConnectHost } from './connect-account';
+import type { ConnectAccount, ConnectHost } from '@botharness/host-client/connect-account';
 import {
   connectionDiagnostic,
   networkDiagnosticReason,
   type ConnectionDiagnostic,
-} from './connection-diagnostic';
+} from '@botharness/host-client/connection-diagnostic';
 
 export function watchAccountHosts(options: {
   account: Pick<ConnectAccount, 'actionKey' | 'hosts'>;

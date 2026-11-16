@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import vector from './fixtures/noise/xk-cacophony.json';
-import { NoiseXk } from '../src/devices/noise/xk.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
-import { ConnectChannel } from '../src/devices/noise/channel.js';
+import { NoiseXk } from '@botharness/host-protocol/noise/xk';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
 import { randomBytes } from 'node:crypto';
 
 it('refuses a Connect handshake replayed at the LAN entry', () => {

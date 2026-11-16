@@ -4,10 +4,10 @@ import { Platform, View, type ViewInstance } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import type { PinnedRole } from '../../host/bot-profile';
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import { memoryConflict } from '../../host/memory-edit';
 import type { MemoryPreviewIO } from '../../host/memory-preview';
-import type { MemoryFile } from '../../host/wire';
+import type { MemoryFile } from '@botharness/host-protocol/wire';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { confirmDestructive } from '../primitives/app-dialog';

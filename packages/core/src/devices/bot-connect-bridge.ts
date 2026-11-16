@@ -4,7 +4,7 @@ import { BotNetworkDeliveryError, type NetworkBotMessage } from '../runtime/bot-
 import { botNetworkScopes, type BotNetworkMembership } from '../channels/channel.js';
 import { createBotConnectChannel } from './bot-connect-channel.js';
 import { contactSchema, messageSchema, pageSchema } from './bot-network-wire.js';
-import { noisePublicKey } from './noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import type {
   createConnectBotNetwork,
   AuthenticatedConnectBotPeer,

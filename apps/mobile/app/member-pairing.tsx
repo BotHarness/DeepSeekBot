@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { useHostSession } from '../src/host/host-session';
-import { memberPairingOffer, type MemberPairingOffer } from '../src/host/team-client';
+import { memberPairingOffer, type MemberPairingOffer } from '@botharness/host-client/team-client';
 import { qrCode, radius, space } from '../src/ui/design/tokens';
 import { useMounted } from '../src/ui/mounted';
 import { Button } from '../src/ui/primitives/button';

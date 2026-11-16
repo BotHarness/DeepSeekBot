@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
   createConversation,
   reactable,
@@ -8,11 +8,11 @@ import {
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
-} from '../src/host/conversation';
+} from '@botharness/host-client/conversation';
 import { createConversationPlayback } from '../src/host/conversation-playback';
 import { messageForDisplay } from '../src/host/message-display';
-import { FakeHost, type FakeChannel } from './fake-host';
-import wire from './fixtures/host-wire.json';
+import { FakeHost, type FakeChannel } from '../../../packages/host-client/test/fake-host.js';
+import wire from '../../../packages/host-client/test/fixtures/host-wire.json';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';

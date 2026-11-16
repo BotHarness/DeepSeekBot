@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalVideoClientState } from '../../../packages/computer/src/local-video-client';
-import type { ConnectionState } from '../src/host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 import { computerVideoStatus } from '../src/ui/chat/computer-video-status';
 
 const connected = {

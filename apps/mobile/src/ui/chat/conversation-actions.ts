@@ -1,5 +1,5 @@
-import type { HostClient } from '../../host/client';
-import type { Inbox } from '../../host/inbox';
+import type { HostClient } from '@botharness/host-client/client';
+import type { Inbox } from '@botharness/host-client/inbox';
 import { t } from '../strings';
 import type { Conversation } from './conversations';
 

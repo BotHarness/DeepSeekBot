@@ -5,7 +5,7 @@ import {
   createBotCreationController,
   type CreationRecord,
   type BotCreationOperation,
-} from '../src/host/bot-creation';
+} from '@botharness/host-client/bot-creation';
 import { selectMarketplaceImport } from '../src/marketplace/import-selection';
 
 const detail: MarketplaceDetail = {

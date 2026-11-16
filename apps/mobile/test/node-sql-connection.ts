@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 
-import type { SqlConnection, SqlValue } from '../src/host/local-store';
+import type { SqlConnection, SqlValue } from '@botharness/host-client/local-store';
 
 export function nodeSqlConnection(
   path = ':memory:',

@@ -3,9 +3,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { remotes, secure } from './host-session-fixture';
-import { FakeHost } from './fake-host';
-import { createHostClient } from '../src/host/client';
-import type { Conversation, ConversationTimelineSnapshot } from '../src/host/conversation';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { createHostClient } from '@botharness/host-client/client';
+import type {
+  Conversation,
+  ConversationTimelineSnapshot,
+} from '@botharness/host-client/conversation';
 
 vi.mock('expo-router', async () => {
   const { useEffect } = await import('react');

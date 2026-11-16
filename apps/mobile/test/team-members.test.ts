@@ -1,19 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { parseTeamInvitation, type TeamInvitation } from '../src/host/team-invitation';
+import {
+  parseTeamInvitation,
+  type TeamInvitation,
+} from '@botharness/host-protocol/team-invitation';
 import {
   changeTeamDevicePassword,
   signInTeamDevice,
   memberPairingOffer,
-} from '../src/host/team-client';
+} from '@botharness/host-client/team-client';
 import {
   memberPasswordGate,
   prepareMemberIdentity,
   identitySwitchRequired,
-} from '../src/host/member-identity';
-import { parseSavedHosts, withHost, type SavedHost } from '../src/host/hosts';
-import type { HostCarrier } from '../src/host/carrier';
-import { noiseFingerprint, noisePublicKey } from '../../../packages/core/src/devices/noise/xk';
+} from '@botharness/host-client/member-identity';
+import { parseSavedHosts, withHost, type SavedHost } from '@botharness/host-client/hosts';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { noiseFingerprint, noisePublicKey } from '@botharness/host-protocol/noise/xk';
 
 const secure = new Map<string, string>();
 vi.mock('expo-secure-store', () => ({

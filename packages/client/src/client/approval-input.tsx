@@ -1,5 +1,8 @@
 import { useState, type ReactElement } from 'react';
-import { approvalFileChange, approvalShellCommand } from './approval-diff.js';
+import {
+  approvalFileChange,
+  approvalShellCommand,
+} from '@botharness/host-client/shared/approval-diff';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const APPROVAL_INPUT_PREVIEW_LINES = 12;

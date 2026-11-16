@@ -8,7 +8,7 @@ import {
   type BotCreationOperation,
   type CreationReceipt,
   type CreationRecord,
-} from '../src/host/bot-creation';
+} from '@botharness/host-client/bot-creation';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -125,7 +125,7 @@ vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { ready: Promise.resolve(), set: () => {} },
 }));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: { look: () => ({}) } }));
-vi.mock('../src/ui/design/host-look', () => ({
+vi.mock('@botharness/host-client/ui/design/host-look', () => ({
   shownHostName: (_look: unknown, name: string) => name,
 }));
 vi.mock('../src/ui/primitives/sheet-content', () => ({

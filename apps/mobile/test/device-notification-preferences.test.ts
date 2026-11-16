@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createDeviceNotificationPreferences,
   DEFAULT_NOTIFICATION_PREFERENCES,
-} from '../src/host/device-notification-preferences';
-import type { SavedHost } from '../src/host/hosts';
-import type { HostPush, PushPreferences } from '../src/host/push';
+} from '@botharness/host-client/device-notification-preferences';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { HostPush, PushPreferences } from '@botharness/host-client/push';
 import { createPushSession } from '../src/host/push-session';
 
 const flush = async () => {

@@ -1,4 +1,4 @@
-import type { BotCreationDraft, BotCreationOperation } from './bot-creation';
+import type { BotCreationDraft, BotCreationOperation } from '@botharness/host-client/bot-creation';
 import { hostUnavailable, type HostStatus } from './host-glance';
 
 export type CreationFlow = 'blank' | 'git' | 'zip' | 'marketplace';

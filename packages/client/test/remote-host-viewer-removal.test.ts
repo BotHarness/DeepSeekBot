@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createRemoteHostViewer } from '../src/client/remote-host-viewer.js';
 import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
 

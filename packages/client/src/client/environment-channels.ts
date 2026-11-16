@@ -1,6 +1,6 @@
 import type { ChannelSummary } from './store.js';
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
-import type { RosterChannel, RosterView } from '../../../../apps/mobile/src/host/client.js';
+import type { RosterChannel, RosterView } from '@botharness/host-client/client';
 import { parseChannelRecord } from './bridge.js';
 import { isHumanDmChannel } from './channel-kind.js';
 

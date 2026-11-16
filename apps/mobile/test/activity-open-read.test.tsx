@@ -42,8 +42,8 @@ vi.mock('../src/ui/bot-avatar', () => ({
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
-import { createHostLooks } from '../src/host/host-look';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { createHostLooks } from '@botharness/host-client/host-look';
 
 const push = vi.fn();
 const looks = createHostLooks({ read: async () => undefined, write() {} });

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import {
   botNetworkHandshake,
   finishBotHandshake,

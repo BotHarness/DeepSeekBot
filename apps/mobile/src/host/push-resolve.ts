@@ -1,4 +1,4 @@
-import { parsePushData } from './push';
+import { parsePushData } from '@botharness/host-client/push';
 
 export type PushResolved = { hostId: string; itemIds: readonly string[] };
 

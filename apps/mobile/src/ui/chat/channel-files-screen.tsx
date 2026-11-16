@@ -9,8 +9,8 @@ import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 're
 import { FlatList, Pressable, View } from 'react-native';
 
 import { createChannelFiles, type ChannelFile } from '../../host/channel-files';
-import type { HostClient } from '../../host/client';
-import type { MessageAttachment } from '../../host/conversation';
+import type { HostClient } from '@botharness/host-client/client';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { retainHostActivity, useHostSession, useHostSnapshot } from '../../host/host-session';
 import { shareAttachment } from '../../host/share-attachment';
 import { channelMedia, edge, space } from '../design/tokens';

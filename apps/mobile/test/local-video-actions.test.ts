@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { localVideoActions, watchLocalVideoForeground } from '../src/host/local-video-actions';
 import type { LocalVideoClientState } from '../../../packages/computer/src/local-video-client';
-import type { ConnectionState } from '../src/host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 
 const connected = {
   status: 'connected',

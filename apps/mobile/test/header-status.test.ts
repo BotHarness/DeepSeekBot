@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RosterBot, RosterChannel } from '../src/host/client';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
 import { headerStatus } from '../src/ui/chat/header-status';
 
 const bot = (slug: string, state: RosterBot['state'], paused = false): RosterBot => ({

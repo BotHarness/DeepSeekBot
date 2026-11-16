@@ -1,6 +1,6 @@
 import { hostStore, hostStoreAvailable } from './host-store';
 import { redactLocalConversations } from './local-conversation-cache';
-import { forgetMedia } from './media-cache';
+import { forgetMedia } from '@botharness/host-client/media-cache';
 import { redactHostConversationCache } from './native-cache';
 import type { PurgeTargets } from './purge-caches';
 import { forgetSharedCopies } from './share-attachment';

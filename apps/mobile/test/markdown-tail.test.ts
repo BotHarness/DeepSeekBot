@@ -1,11 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createHostClient, type HostClient } from '../src/host/client';
-import { createConversation, type Conversation } from '../src/host/conversation';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { createConversation, type Conversation } from '@botharness/host-client/conversation';
 import {
   createConversationPlayback,
   type ConversationPlayback,
 } from '../src/host/conversation-playback';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import body from './fixtures/markdown-tail.json';
 
 const slug = 'bot-59296301f8d044d2b022d8784c5ed3fe';

@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 const native = vi.hoisted(() => ({
   os: 'ios',
@@ -189,7 +189,7 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
 const ios = await import('../src/ui/chat/message-actions.ios');
 const { menuGroups } = await import('../src/ui/chat/message-sheet');
 const { t } = await import('../src/ui/strings');
-const { MENU_REACTIONS, QUICK_REACTIONS } = await import('../src/host/conversation');
+const { MENU_REACTIONS, QUICK_REACTIONS } = await import('@botharness/host-client/conversation');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { WebSocket } from 'ws';
-import { ConnectChannel, CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { ConnectChannel, CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import { freeLoopbackPort, openSshLoopback } from './ssh-loopback.js';
 
 export class SshTunnelError extends Error {

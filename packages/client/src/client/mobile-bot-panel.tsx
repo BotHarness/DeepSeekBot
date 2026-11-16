@@ -10,7 +10,7 @@ import {
 import { BotPanel } from './bot-main.js';
 import { BotSidebar } from './bot-sidebar.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
-import type { BotModeSortMode } from '../bot-mode-settings.js';
+import type { BotModeSortMode } from '@botharness/host-client/shared/bot-mode-settings';
 import { useMountedResource } from './mounted-resource.js';
 import { store } from './store.js';
 import { MOBILE_BOT_CSS } from './mobile-bot-styles.js';

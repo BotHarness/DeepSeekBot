@@ -1,7 +1,7 @@
 import {
   connectionDiagnostic,
   type ConnectionDiagnostic,
-} from '../../src/host/connection-diagnostic';
+} from '@botharness/host-client/connection-diagnostic';
 import type { AccountPairResult } from '../../src/ui/primitives/account-panel';
 import * as Application from 'expo-application';
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';

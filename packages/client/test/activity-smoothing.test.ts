@@ -3,7 +3,7 @@ import {
   ACTIVITY_DETAIL_MS,
   ACTIVITY_HOLD_MS,
   ActivitySmoother,
-} from '../src/client/activity-smoothing.js';
+} from '@botharness/host-client/shared/activity-smoothing';
 import {
   createStore,
   type BotSummary,

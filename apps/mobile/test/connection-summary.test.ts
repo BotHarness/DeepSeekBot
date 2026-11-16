@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { connectionSummary } from '../src/host/connection-summary';
-import type { HumanAttentionItem } from '../src/host/wire';
-import type { InboxSnapshot } from '../src/host/inbox';
-import type { HostSnapshot } from '../src/host/client';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
+import type { HostSnapshot } from '@botharness/host-client/client';
 
 const request = (id: string, botSlug = 'same'): HumanAttentionItem => ({
   id,

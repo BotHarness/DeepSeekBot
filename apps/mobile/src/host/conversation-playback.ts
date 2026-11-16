@@ -1,4 +1,8 @@
-import type { Conversation, ConversationDraft, ConversationMessage } from './conversation';
+import type {
+  Conversation,
+  ConversationDraft,
+  ConversationMessage,
+} from '@botharness/host-client/conversation';
 import { playbackTiming, type TextPlayback } from './text-playback';
 import { createPlaybackRuntime, type PlaybackRuntime } from './playback-runtime';
 

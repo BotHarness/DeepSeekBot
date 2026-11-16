@@ -2,11 +2,7 @@ import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNod
 import { Dimensions, Platform, useColorScheme } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
-import {
-  parseColor,
-  toHex,
-  type Rgb,
-} from '../../../../../packages/client/src/client/bot-name-color';
+import { parseColor, toHex, type Rgb } from '@botharness/host-client/shared/bot-name-color';
 import { glass, PRESS_TINT, replyQuote, type PlatformOS } from './tokens';
 import { interfacePreferences } from '../interface-preferences';
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { ConnectChannel } from '../src/devices/noise/channel.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 
 function pair() {
   const hostKey = randomBytes(32);

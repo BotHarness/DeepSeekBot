@@ -1,12 +1,12 @@
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import type { HostClient } from '@botharness/host-client/client';
 import type { RemoteHost, RemoteHosts } from './remote-hosts.js';
 import { AppearanceError, object } from './appearance.js';
 import {
   connectionMutationSchema,
   type ConnectionMutation,
 } from '../../../core/src/devices/connection-operation.js';
-import { isLanRoute, isConnectRoute } from '../../../../apps/mobile/src/host/route.js';
+import { isLanRoute, isConnectRoute } from '@botharness/host-protocol/route';
 
 export function connectionRows(hosts: readonly RemoteHost[], account: readonly ConnectedHost[]) {
   const matched = new Set<string>();

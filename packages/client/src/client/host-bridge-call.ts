@@ -1,4 +1,4 @@
-import { MethodRefused } from '../../../../apps/mobile/src/host/client.js';
+import { MethodRefused } from '@botharness/host-client/client';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
 
 export function hostBridgeCall(

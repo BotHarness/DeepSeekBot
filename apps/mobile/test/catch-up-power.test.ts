@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createCatchUp } from '../src/host/catch-up';
-import { openLocalStore, type LocalStore } from '../src/host/local-store';
+import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
 import { nodeSqlConnection } from './node-sql-connection';
 
 const battery = vi.hoisted(() => ({
