@@ -7,6 +7,7 @@ import {
   compare,
   countFindings,
   lowered,
+  raised,
   readGuardrails,
   validateGuardrails,
 } from '../lint-ratchet.mjs';
@@ -72,6 +73,16 @@ describe('lint ratchet', () => {
     expect(lowered(baseline, counts, [guardrail])).toEqual({ [rule]: { 'a.ts': 1 } });
   });
 
+  it('rejects a baseline raised or extended since the base revision', () => {
+    const base = { [rule]: { 'a.ts': 1 } };
+    expect(raised(base, { [rule]: { 'a.ts': 1 } })).toEqual([]);
+    expect(raised(base, {})).toEqual([]);
+    expect(raised(base, { [rule]: { 'a.ts': 2, 'b.ts': 1 } })).toEqual([
+      `a.ts: ${rule} baseline raised from 1 to 2`,
+      `b.ts: ${rule} baseline raised from 0 to 1`,
+    ]);
+  });
+
   it('ignores warnings from rules outside the registry but keeps their errors', () => {
     const warning = { ...finding('a.ts'), code: 'eslint(no-unused-vars)', severity: 'warning' };
     const error = { ...warning, severity: 'error' };
@@ -94,8 +105,9 @@ describe('lint ratchet', () => {
     expect(() => readGuardrails(root)).not.toThrow();
   });
 
-  it('catches the floating promise from computer-scroll-pad and passes its `void` fix', () => {
+  it('catches the floating promise from computer-scroll-pad and passes its `await` and `void` fixes', () => {
     expect(lintFixture('floating-promise.ts')).toEqual({ [rule]: { 'floating-promise.ts': 1 } });
+    expect(lintFixture('awaited-promise.ts')).toEqual({});
     expect(lintFixture('handled-promise.ts')).toEqual({});
   }, 30_000);
 });
