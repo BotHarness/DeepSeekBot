@@ -1023,11 +1023,16 @@ describe('M7 Bot principal and participant authority', () => {
   });
   it('accepts a selected #Group from a participant DM for a join request', async () => {
     const outcomes: string[] = [];
+    const ownerRuns: string[] = [];
     let groupId = '';
     const core = createCore({
       dshHome: createTempRoot('m7-participant-group-join-'),
       agents: {
         async runOrchestrator(run) {
+          if (run.bot.slug !== 'public-helper') {
+            ownerRuns.push(run.message);
+            return;
+          }
           try {
             outcomes.push(run.channels.requestGroupJoin!({ channelId: groupId }).id);
           } catch (error) {
@@ -1060,9 +1065,15 @@ describe('M7 Bot principal and participant authority', () => {
     ).toBe(true);
     core.channels.getOrCreateDm(alice, 'public-helper');
     core.team.bots.setVisibility(owner, 'public-helper', everyone);
-    const group = core.channels.createGroup(alice, { name: 'Team', members: [] });
+    expect(core.registry.create({ slug: 'owl', displayName: 'Owl' }).ok).toBe(true);
+    const group = core.channels.createGroup(owner, {
+      name: 'Team',
+      members: ['owl'],
+      ownerBotSlug: 'owl',
+    });
     groupId = group.id;
     core.team.setPublic(owner, group.id, true);
+    core.team.joinPublic(alice, group.id);
     core.team.joinPublic(bob, group.id);
     const dm = core.team.bots.dm(bob, 'public-helper')!;
     const body = 'Please join #Team';
@@ -1078,8 +1089,13 @@ describe('M7 Bot principal and participant authority', () => {
     });
     expect(admission.admitted).toBe(true);
     if (admission.admitted) await admission.settled;
+    await core.runtime.whenIdle();
     expect(outcomes).toHaveLength(1);
     expect(outcomes[0]).toMatch(/^group-join-/u);
+    expect(ownerRuns.filter((message) => message.includes('Group join request'))).toEqual([]);
+    expect(core.channels.get(group.id)?.joinRequests).toContainEqual(
+      expect.objectContaining({ id: outcomes[0], requesterBotSlug: 'public-helper' }),
+    );
   });
   it('runs private→public Bot messaging and a participant-authorized reply without tracing it into the public principal DM', async () => {
     let sent = false,

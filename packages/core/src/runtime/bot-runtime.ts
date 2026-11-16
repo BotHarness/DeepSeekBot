@@ -8126,7 +8126,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#requireBotHop(botCausation);
         beforeSend();
         const ownerDm =
-          owner === undefined
+          owner === undefined || botOwner(owner) !== botOwner(requester)
             ? undefined
             : this.#channels.getOrCreateDm(
                 humanContext(botOwner(this.#registry.get(owner.slug)!)),
