@@ -1147,6 +1147,22 @@ function rowSkillInvocations(row: DigestRow): ChannelSkillInvocation[] | undefin
     : undefined;
 }
 
+function groupSkillInvocationPrompt(row: DigestRow): string {
+  const invocations = rowSkillInvocations(row);
+  if (invocations === undefined || invocations.length === 0) return '';
+  const contentLimit = Math.floor(GROUP_SKILL_CONTENT_LIMIT / invocations.length);
+  return skillInvocationPrompt(
+    invocations.map((skill) =>
+      skill.content.length <= contentLimit
+        ? skill
+        : {
+            ...skill,
+            content: `${skill.content.slice(0, contentLimit)}\n[Full Skill text is truncated here. Read the complete snapshot with channel_read using message_id ${row.message_id} and follow contentCursor.]`,
+          },
+    ),
+  );
+}
+
 function groupMessageBody(row: DigestRow): string {
   const invocations = rowSkillInvocations(row);
   if (invocations?.length)
@@ -1171,6 +1187,7 @@ interface GroupPromptBudget {
 }
 
 const GROUP_PROMPT_CHANNEL_LIMIT = 100;
+const GROUP_SKILL_CONTENT_LIMIT = 2_000;
 
 interface ScheduleFiringFacts {
   id: string;
@@ -3100,7 +3117,8 @@ class BotRuntimeImplementation implements BotRuntime {
             this.#channels.message(channelId, steered.takeoverResolution.requestMessageId),
           )
         : `Source Event ID: ${sourceEventId}\n` +
-          this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
+          this.#groupMentionPrompt(botSlug, channelId, messageId, source.body) +
+          (steered?.author.kind === 'human' ? skillInvocationPrompt(steered.skillInvocations) : '');
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -3901,7 +3919,11 @@ class BotRuntimeImplementation implements BotRuntime {
               [...rows, row],
               group.count - rows.length - 1,
             ).length;
-            if (nextLength > budget.remainingCharacters - contextReserve) break;
+            if (
+              alreadyIncluded + rows.length > 0 &&
+              nextLength > budget.remainingCharacters - contextReserve
+            )
+              break;
             rows.push(row);
           }
           if (rows.length > 0) {
@@ -3994,7 +4016,11 @@ class BotRuntimeImplementation implements BotRuntime {
         omittedCount: total.count - rows.length - 1,
         bodyLimit,
       };
-      if (this.#groupContextSection(candidateContext).length > budget.remainingCharacters) break;
+      if (
+        alreadyIncluded + rows.length > 0 &&
+        this.#groupContextSection(candidateContext).length > budget.remainingCharacters
+      )
+        break;
       rows.push(row);
     }
     if (rows.length === 0) return undefined;
@@ -4045,7 +4071,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${skillInvocationPrompt(rowSkillInvocations(row))}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${groupSkillInvocationPrompt(row)}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -4070,7 +4096,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `${rows.length} ordinary messages are due. ${this.#promptText(botSlug)('digest-hint')}`,
       ...rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${skillInvocationPrompt(rowSkillInvocations(row))}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${groupSkillInvocationPrompt(row)}`,
       ),
       ...(omittedCount > 0
         ? [
