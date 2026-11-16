@@ -18,6 +18,7 @@ it('marks captured Human Channel heads read, preserves requests and leaves later
   let core = createCore({ dshHome: home, agents });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    core.registry.create({ slug: 'bea', displayName: 'Bea' });
     const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Team',
@@ -90,6 +91,7 @@ it('excludes inaccessible heads and reports a corrupt latest placement instead o
   const fixture = attachOperationalModule(core.operationalDatabase, 'channels');
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    core.registry.create({ slug: 'bea', displayName: 'Bea' });
     const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Former membership',
@@ -144,6 +146,7 @@ it("marks only the chosen Channel, or only the chosen Bot's Channels", async () 
   const core = createCore({ dshHome: createTempRoot('bh-all-read-scope-'), agents });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    core.registry.create({ slug: 'bea', displayName: 'Bea' });
     core.registry.create({ slug: 'bea', displayName: 'Bea' });
     const ada = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const bea = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;

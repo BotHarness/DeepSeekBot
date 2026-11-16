@@ -21,6 +21,36 @@ export interface TeamRole {
   readonly builtin: BuiltinRole | null;
   readonly permissions: readonly string[];
   readonly memberCount: number;
+  readonly policy: readonly PolicyItem[];
+  readonly policyRevision: number;
+}
+
+export interface PolicyItem {
+  readonly topic: string;
+  readonly text: string;
+  readonly effect: 'allow' | 'deny';
+}
+
+export function parsePolicy(value: unknown): PolicyItem[] {
+  return Array.isArray(value)
+    ? value.flatMap((raw: unknown) => {
+        const item = record(raw);
+        const topic = item?.['topic'];
+        const text = item?.['text'];
+        const effect = item?.['effect'];
+        return typeof topic === 'string' &&
+          typeof text === 'string' &&
+          (effect === 'allow' || effect === 'deny')
+          ? [{ topic, text, effect }]
+          : [];
+      })
+    : [];
+}
+
+function policyPayload(policy: readonly PolicyItem[] | undefined): Record<string, unknown> {
+  return policy === undefined
+    ? {}
+    : { policy: policy.map(({ topic, text, effect }) => ({ topic, text, effect })) };
 }
 
 export interface MemberDevice {
@@ -62,6 +92,8 @@ export function parseRole(row: Record<string, unknown>): TeamRole | undefined {
     permissions: strings(row['permissions']),
     models: parseRoleModels(row['models']),
     memberCount: typeof count === 'number' && count >= 0 ? count : 0,
+    policy: parsePolicy(row['policy']),
+    policyRevision: typeof row['policyRevision'] === 'number' ? row['policyRevision'] : 0,
   };
 }
 
@@ -123,20 +155,32 @@ export async function loadRoles(call: BridgeCall, signal?: AbortSignal): Promise
 
 export async function createRole(
   call: BridgeCall,
-  input: { name: string; permissions: readonly string[]; models?: RoleModels },
+  input: {
+    name: string;
+    permissions: readonly string[];
+    models?: RoleModels;
+    policy?: readonly PolicyItem[];
+  },
 ): Promise<TeamRole> {
   return roleOf(
     await unwrap(call, 'roleCreate', {
       name: input.name,
       permissions: [...input.permissions],
       ...modelsPayload(input.models),
+      ...policyPayload(input.policy),
     }),
   );
 }
 
 export async function updateRole(
   call: BridgeCall,
-  input: { roleId: string; name?: string; permissions?: readonly string[]; models?: RoleModels },
+  input: {
+    roleId: string;
+    name?: string;
+    permissions?: readonly string[];
+    models?: RoleModels;
+    policy?: readonly PolicyItem[];
+  },
 ): Promise<TeamRole> {
   return roleOf(
     await unwrap(call, 'roleUpdate', {
@@ -144,6 +188,7 @@ export async function updateRole(
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.permissions === undefined ? {} : { permissions: [...input.permissions] }),
       ...modelsPayload(input.models),
+      ...policyPayload(input.policy),
     }),
   );
 }
@@ -203,4 +248,35 @@ export function canGrant(viewer: GrantingViewer, permission: string): boolean {
 
 export function canGrantAll(viewer: GrantingViewer, permissions: readonly string[]): boolean {
   return permissions.every((permission) => canGrant(viewer, permission));
+}
+
+export function policyReady(policy: readonly PolicyItem[]): boolean {
+  return policy.every((item) => item.topic.trim().length > 0 && item.text.trim().length > 0);
+}
+
+export function trimmedPolicy(policy: readonly PolicyItem[]): PolicyItem[] {
+  return policy.map((item) => ({ ...item, topic: item.topic.trim(), text: item.text.trim() }));
+}
+
+export interface PolicyConflict {
+  readonly topic: string;
+  readonly allowRole: string;
+  readonly denyRole: string;
+}
+
+export function policyConflicts(
+  roles: readonly { name: string; policy: readonly PolicyItem[] }[],
+): PolicyConflict[] {
+  const byTopic = new Map<string, { topic: string; allow: string[]; deny: string[] }>();
+  for (const role of roles)
+    for (const item of role.policy) {
+      const key = item.topic.trim();
+      const entry = byTopic.get(key) ?? { topic: key, allow: [], deny: [] };
+      const side = item.effect === 'allow' ? entry.allow : entry.deny;
+      if (!side.includes(role.name)) side.push(role.name);
+      byTopic.set(key, entry);
+    }
+  return [...byTopic.values()].flatMap(({ topic, allow, deny }) =>
+    allow.flatMap((allowRole) => deny.map((denyRole) => ({ topic, allowRole, denyRole }))),
+  );
 }

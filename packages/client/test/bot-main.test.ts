@@ -1217,6 +1217,73 @@ describe('Bot main Sessions pane', () => {
     await act(async () => root.unmount());
     container.remove();
   });
+  it('locks reactions in a shared-Bot DM whose Bot can no longer be reached', async () => {
+    const bot = {
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-member-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      readOnly: true as const,
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: 'ada' });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      focusMessageId: undefined,
+      messages: [
+        {
+          id: 'b1',
+          at: '2026-09-21T00:01:00.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Ready',
+          channelRevision: 1,
+          reactions: [{ emoji: '🎉', actors: [{ kind: 'bot', id: 'ada' }] }],
+        },
+      ],
+    });
+    const reactToMessage = vi.fn().mockResolvedValue(undefined);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () =>
+      root.render(
+        createElement(BotMain, {
+          actions: {
+            profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+            listWorkspaceGrants: async () => [],
+            modelPlanState: async () => undefined,
+            botSourcePolicies: async () => [],
+            reactToMessage,
+            ...inertSubmissionActions,
+          } as unknown as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      ),
+    );
+    container.querySelector<HTMLButtonElement>('[data-reaction="🎉"]')?.click();
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+    );
+    expect(container.querySelector('[data-reaction-picker-trigger]')).toBeNull();
+    expect(reactToMessage).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+    container.remove();
+  });
   it('reacts from the hover bar and toggles reactions from their chips', async () => {
     const bot = {
       slug: 'ada',

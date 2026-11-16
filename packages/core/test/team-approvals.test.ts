@@ -97,6 +97,13 @@ function fixture(
     channels.getOrCreateDm(human, slug);
   }
   const group = channels.createGroup(bob, { name: 'Team', members: ['alice-bot', 'owner-bot'] });
+  database.transaction((db) =>
+    db
+      .prepare(
+        "INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at) SELECT ?,human_id,display_name,1,'now' FROM humans WHERE human_id IN ('alice','local-human')",
+      )
+      .run(group.id),
+  );
   const active: string[] = [];
   const attention = createHumanAttentionQuery(
     database,
@@ -199,6 +206,7 @@ function fixture(
     await ctx.fiber.dispose();
   });
   return {
+    root,
     registry,
     gateway,
     database,
@@ -263,7 +271,12 @@ async function seed(
             },
           }),
   };
-  await f.channels.appendMessage(owner, channelId, message);
+  const target = f.channels.get(channelId);
+  const historicalCardWriter =
+    target?.type === 'dm' && !target.botSlug && !!target.humanParticipants
+      ? createSqliteChannelStore({ database: f.database, rootDir: join(f.root, 'channels') })
+      : f.channels;
+  await historicalCardWriter.appendMessage(owner, channelId, message);
   f.active.push(message.id);
   return message;
 }
@@ -924,6 +937,11 @@ describe('M5 approval projections and decisions', () => {
     'preserves role-restricted access around %s approval projections',
     async (kind) => {
       const f = fixture();
+      f.database.transaction((db) =>
+        db
+          .prepare('DELETE FROM channel_human_members WHERE channel_id = ? AND human_id = ?')
+          .run(f.group.id, alice.humanId),
+      );
       f.team.channelAccess.visibilitySet(bob, f.group.id, { kind: 'roles', roleIds: ['member'] });
       f.team.channelAccess.join(alice, f.group.id);
       const request = await seed(f, kind);
@@ -948,7 +966,7 @@ describe('M5 approval projections and decisions', () => {
       expect(() => f.team.approvals.requireRequest(alice, f.group.id, request.id)).toThrow(
         'approval-not-allowed',
       );
-      masked(f.attention.list(alice, { category: 'action' }), request.id);
+      expect(f.attention.list(alice, { category: 'action' }).items).toEqual([]);
       expect(f.attention.list(admin, { category: 'action' }).items).toHaveLength(0);
     },
   );
@@ -1001,6 +1019,13 @@ describe('M5 approval projections and decisions', () => {
   it('routes unattended requests to the Bot owner once and removes that fallback when an approver joins', async () => {
     const f = fixture();
     await seed(f, 'question');
+    f.database.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE channel_human_members SET left_at='now' WHERE channel_id=? AND human_id IN ('alice','local-human')",
+        )
+        .run(f.group.id),
+    );
     expect(f.attention.list(alice, { category: 'action' }).items).toHaveLength(1);
     const source = activityListPushSource(f.attention, (slug) => slug);
     expect(source.pending(alice).items).toHaveLength(1);
@@ -1291,17 +1316,7 @@ describe('M5 approval projections and decisions', () => {
           questions: [{ id: 'q', question: 'New request' }],
           wait: { callId: ToolCallId('new-request'), timed: true },
         });
-        void next.catch(() => {});
-        await vi.waitFor(() => expect(f.userQuestions.requests(botSlug)).toHaveLength(1));
-        const card = f.userQuestions.requests(botSlug)[0]!;
-        await expect(
-          f.userQuestions.answer(
-            botSlug,
-            card.messageId,
-            { answers: [{ id: 'q', selected: [], custom: 'new' }] },
-            human,
-          ),
-        ).rejects.toMatchObject({ code: 'approval-not-allowed' });
+        await expect(next).rejects.toMatchObject({ code: 'bot-channel-access-denied' });
       }
     },
   );
@@ -1309,16 +1324,6 @@ describe('M5 approval projections and decisions', () => {
   it('commits a real question answer and retains its decider', async () => {
     const f = fixture();
     f.team.channelAccess.addMember(bob, f.group.id, alice.humanId);
-    f.team.channelAccess.policySet(bob, f.group.id, {
-      addMembers: 'everyone',
-      post: 'admins',
-      mentionAll: 'admins',
-      addBots: 'admins',
-      editDetails: 'admins',
-    });
-    await expect(
-      f.invoke(alice, 'channelSend', { channelId: f.group.id, body: 'ordinary post' }),
-    ).rejects.toMatchObject({ code: 'channel-post-restricted' });
     const sessionId = 'm5-real-question';
     f.ownership.claim({
       sessionId,
@@ -1335,6 +1340,16 @@ describe('M5 approval projections and decisions', () => {
     });
     await vi.waitFor(() => expect(f.userQuestions.requests('alice-bot')).toHaveLength(1));
     const request = f.userQuestions.requests('alice-bot')[0]!;
+    f.team.channelAccess.policySet(bob, f.group.id, {
+      addMembers: 'everyone',
+      post: 'admins',
+      mentionAll: 'admins',
+      addBots: 'admins',
+      editDetails: 'admins',
+    });
+    await expect(
+      f.invoke(alice, 'channelSend', { channelId: f.group.id, body: 'ordinary post' }),
+    ).rejects.toMatchObject({ code: 'channel-post-restricted' });
     const answer = { answers: [{ id: 'q', selected: [], custom: 'Answer' }] };
     expect(
       await f.invoke(alice, 'userQuestionAnswer', {

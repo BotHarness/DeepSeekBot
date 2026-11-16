@@ -1992,7 +1992,17 @@ export function createActions(
       await actions.load();
       await openChannelById(channelId);
     },
-    onboarding: (slug, action) => invoke('onboarding', { slug, action }),
+    onboarding: (slug, action) =>
+      invoke('onboarding', {
+        slug:
+          slug !== undefined &&
+          clientStore
+            .getSnapshot()
+            .bots.some((bot) => bot.slug === slug && bot.sharedBy !== undefined)
+            ? undefined
+            : slug,
+        action,
+      }),
     onboardingModel: async (slug, expectedRevision, route, globalDefault) => {
       const result = await invoke<{ revision: number }>('onboardingModel', {
         slug,
@@ -2391,7 +2401,8 @@ export function createActions(
           clientStore.setConversation({ channel, error: undefined });
           await actions.refreshChannelMessages(channel.id);
           await refreshUnreadDivider(channel.id, active);
-          await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+          if (bot.sharedBy === undefined)
+            await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
           return;
         }
         if (cached) {
@@ -2448,7 +2459,8 @@ export function createActions(
           sending: false,
         });
       }
-      await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+      if (bot.sharedBy === undefined)
+        await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
     },
     refreshBotInbox(slug) {
       const selection = currentSelection();

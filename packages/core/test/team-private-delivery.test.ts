@@ -37,6 +37,7 @@ function fixture() {
       .prepare("INSERT INTO humans VALUES ('bob', 'Bob', 'active', ?)")
       .run(new Date().toISOString()),
   );
+  database.transaction((db) => db.prepare('UPDATE team_settings SET enabled=1').run());
   const pairing = createDevicePairing({ database, hostName: 'test-host' });
   const device = (humanId: string) => {
     const grant = pairing.redeem({ offer: pairing.createOffer().offer, name: humanId + '-phone' });

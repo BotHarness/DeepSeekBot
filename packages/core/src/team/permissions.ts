@@ -1,3 +1,4 @@
+import { rolePolicySchema } from './bot-contract.js';
 import { z } from 'zod';
 
 export const PERMISSION_CATALOG = [
@@ -40,6 +41,8 @@ export const roleSchema = z.object({
   builtin: z.enum(['admin', 'member']).nullable(),
   permissions: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
   models: z.string().transform((value) => roleModelsSchema.parse(JSON.parse(value))),
+  policy: z.string().transform((v) => rolePolicySchema.parse(JSON.parse(v))),
+  policyRevision: z.number().int().positive(),
   memberCount: z.number().int().nonnegative(),
 });
 export type HostRole = z.infer<typeof roleSchema>;

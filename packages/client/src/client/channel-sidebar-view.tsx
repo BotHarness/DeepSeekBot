@@ -37,7 +37,11 @@ import { useMountedResource } from './mounted-resource.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { insertEntryBefore, moveEntry, resolveEntryOrder } from './channel-sidebar-order.js';
 import { ChannelSidebarSettings } from './channel-sidebar-settings.js';
-import { isChannelSettingsSection } from './channel-settings-state.js';
+import {
+  channelEntryVisible,
+  isChannelSettingsSection,
+  sharedBotSelected,
+} from './channel-settings-state.js';
 import { sidebarStyles } from './channel-sidebar-styles.js';
 import { hooked } from './ds/hooked.js';
 import { PanelHeader } from './ds/panel-header.js';
@@ -720,7 +724,7 @@ export function ChannelSidebar({
   const visibleEntries =
     entryProps === undefined
       ? []
-      : sidebarEntries.filter((entry) => entry.visible?.(state) ?? true);
+      : sidebarEntries.filter((entry) => channelEntryVisible(entry, state));
   const dockedWidth = clampChannelSidebarWidth(controller.width);
   const panel = (
     <div
@@ -781,7 +785,10 @@ export function ChannelSidebar({
       {entryProps === undefined ? null : controller.mode === 'dock' ? (
         <ChannelSidebarTabs
           key={controller.scopeKey}
-          tabs={resolveChannelSidebarTabs(tabs, visibleEntries)}
+          tabs={resolveChannelSidebarTabs(
+            sharedBotSelected(state) ? tabs.filter((tab) => tab.id === 'conversation') : tabs,
+            visibleEntries,
+          )}
           entryProps={entryProps}
           scopeKey={controller.scopeKey}
         />

@@ -93,7 +93,14 @@ it('appends account150 after published Team models148 and usage149 while preserv
   ];
   const before = database.read((db) =>
     Object.fromEntries(
-      tables.map((table) => [table, db.prepare(`SELECT * FROM ${table} ORDER BY 1`).all()]),
+      tables.map((table) => [
+        table,
+        db
+          .prepare(
+            `SELECT ${table === 'host_roles' ? 'role_id,name,builtin,permissions_json,models_json' : '*'} FROM ${table} ORDER BY 1`,
+          )
+          .all(),
+      ]),
     ),
   );
   previous.close();
@@ -107,7 +114,14 @@ it('appends account150 after published Team models148 and usage149 while preserv
   expect(
     current.read((db) =>
       Object.fromEntries(
-        tables.map((table) => [table, db.prepare(`SELECT * FROM ${table} ORDER BY 1`).all()]),
+        tables.map((table) => [
+          table,
+          db
+            .prepare(
+              `SELECT ${table === 'host_roles' ? 'role_id,name,builtin,permissions_json,models_json' : '*'} FROM ${table} ORDER BY 1`,
+            )
+            .all(),
+        ]),
       ),
     ),
   ).toEqual(before);

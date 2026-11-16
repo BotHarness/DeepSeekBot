@@ -2064,6 +2064,29 @@ Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。
 
 公网阶段仅对 DNS、网络、超时及 HTTP 429/5xx 短暂失败重试：最多四次，间隔 1/3/6 秒，仍受同一个 20 秒总时限约束。证书或身份失败不重试。每次自检完成后，界面刷新一次账号电脑列表。
 
+### Bot 访问与角色策略（M7）
+
+```sh
+deepseekbot bots visibility <bot-id>
+deepseekbot bots visibility-set <bot-id> --private --confirm
+deepseekbot bots visibility-set <bot-id> --public everyone
+deepseekbot bots visibility-set <bot-id> --public roles:<roleId>,<roleId> [--preview | --confirm]
+deepseekbot bots visibility-set <bot-id> --public members:<humanId>,<humanId> [--preview | --confirm]
+deepseekbot bots switches <bot-id> [--proactive-dms on|off] [--join-channels on|off] [--speaker-context on|off]
+deepseekbot --as alice bots reachable
+deepseekbot --as alice bots proactive-opt-out <bot-id> on|off
+deepseekbot roles create --name finance --permissions "" --policy-stdin < policy.json
+deepseekbot roles update <roleId> --policy-stdin < policy.json
+deepseekbot roles conflicts <username>
+deepseekbot speaker-policy [--human-id <humanId>] [--topic <topic>]
+```
+
+Bot 默认私有：只有主体（所有者）可以私聊私有 Bot 或把它加入 Channel。`--public` 向所有人、指定角色或指定的人开放，需要“创建公开 Bot”权限；缺权时扩大受众返回 `permission-required`。缩小受众时如不带 `--confirm`，返回 `applied: false` 和 `preview`，列出 `dmsBecomingReadOnly` 以及 Bot 将退出的 Channel；带 `--confirm` 才生效。缩小后，范围外成员的私聊仍在列表中且可阅读，但发送返回 `bot-dm-read-only`；排列操作（置顶、取消置顶、隐藏、移动）仍接受该 Bot 的 id。每个 Human 与公开 Bot 有各自的私聊；主体只能通过受审计的私密查看读取。
+
+`bots reachable` 列出调用者可以私聊的 Bot，只含公开元数据和 `principalDisplayName`。调用者无法访问的 Bot 返回 `bot-not-found`，在私聊里 `@` 它也一样。`switches` 只修改给出的开关；`proactive-opt-out` 让受众成员停止某个 Bot 的主动私聊。
+
+角色策略输入为 JSON 数组 `{ "topic", "text", "effect": "allow" | "deny" }`（最多 100 项），仅供参考：Bot 通过 `speaker-policy` 和 `speaker_policy` 工具读取发言 Human 的角色与匹配条目。同一主题上角色冲突时以 Deny 为准；`roles conflicts <username>` 列出冲突的角色对。
+
 工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
 
 ### Channel 邀请（M14）
