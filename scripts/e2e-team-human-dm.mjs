@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyPaths } from './verify-app.mjs';
 
@@ -126,28 +126,20 @@ try {
   check('opening a person from the picker lists no DM for either side', null);
 
   const require = createRequire(import.meta.url);
-  const npmRoot = () => {
-    const cli = join(
-      process.platform === 'win32'
-        ? dirname(process.execPath)
-        : join(dirname(process.execPath), '..', 'lib'),
-      'node_modules',
-      'npm',
-      'bin',
-      'npm-cli.js',
-    );
-    const result = spawnSync(process.execPath, [cli, 'root', '-g'], {
-      shell: false,
-      windowsHide: true,
-      encoding: 'utf8',
-    });
-    return result.status === 0 ? [result.stdout.trim()] : [];
-  };
+  const globalRoots = () =>
+    [dirname(process.execPath), ...(process.env.PATH ?? process.env.Path ?? '').split(delimiter)]
+      .map((entry) => entry.replace(/^"|"$/gu, ''))
+      .filter(Boolean)
+      .map((bin) =>
+        process.platform === 'win32'
+          ? join(bin, 'node_modules')
+          : join(bin, '..', 'lib', 'node_modules'),
+      );
   let playwright;
   try {
     playwright = require.resolve('playwright', { paths: [root] });
   } catch {
-    playwright = require.resolve('playwright', { paths: npmRoot() });
+    playwright = require.resolve('playwright', { paths: globalRoots() });
   }
   const { chromium } = require(playwright);
   browser = await chromium.launch();

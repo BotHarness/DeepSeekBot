@@ -1938,7 +1938,7 @@
       "behaviors": ["team.human-dm-first-message"],
       "reason": "Fresh named Host; picker opens a Human DM through --as without listing it for either side, the first message lists it for both and the recipient's member Web Client shows it live in light and dark; no model or native mobile qualification.",
       "task": 4222,
-      "sha256": "5102f4c949d89eaea92454b4881715edf86959ebd92973d1f0c6b737908d51b9"
+      "sha256": "a4e99876da9f68436be1ecf28bfa02d6ebac14ceae6c62f9b0aad75e18da72b1"
     },
     {
       "path": "scripts/e2e-team-bot-memory.mjs",
