@@ -9,11 +9,8 @@ vi.mock('../src/client/team-state.js', () => ({ useTeamMember: () => member }));
 vi.mock('../src/client/target-name.js', () => ({
   TargetName: ({ name }: { name: string }) => name,
 }));
-vi.mock('../src/client/host-settings.js', () => ({
-  HostSettings: ({ hostId, onClose }: { hostId: string; onClose(): void }) =>
-    createElement('button', { 'data-host-settings': hostId, onClick: onClose }, 'legacy'),
-}));
-vi.mock('../src/client/settings-environment.js', () => ({
+vi.mock('../src/client/settings-environment.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   EnvironmentSwitcher: ({
     here,
     remotes,
@@ -40,8 +37,11 @@ vi.mock('../src/client/settings-environment.js', () => ({
         ),
       ),
     ),
-  RemoteEnvironmentModels: ({ hostId }: { hostId: string }) =>
-    createElement('p', { 'data-remote-models': hostId }),
+  RemoteEnvironmentSection: ({ hostId, section }: { hostId: string; section: string }) =>
+    createElement('p', {
+      'data-remote-models': hostId,
+      'data-remote-section': section,
+    }),
 }));
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
@@ -234,6 +234,7 @@ function remoteEnvironments(): SettingsEnvironments & { unpair(): void } {
       return () => listeners.delete(listener);
     },
     client: () => undefined,
+    notifications: {} as SettingsEnvironments['notifications'],
     unpair: () => {
       snapshot = { ...snapshot, hosts: [] };
       for (const listener of listeners) listener();
@@ -666,7 +667,11 @@ it('switches the Host group to a remote Host from the top-right switcher and kee
     'shortcuts',
     'companions',
     '模型',
-    '更多设置',
+    '本应用中的外观',
+    '通知',
+    'Token 用量',
+    '存储空间',
+    '连接',
   ]);
   expect(current()).toBe('模型');
   expect(document.querySelector('[data-remote-models]')?.getAttribute('data-remote-models')).toBe(
@@ -678,12 +683,14 @@ it('switches the Host group to a remote Host from the top-right switcher and kee
   expect(shownSection()).toBe('appearance');
   expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('只保存在这台设备');
 
-  await click('[data-settings-section="environment-more"]');
-  expect(document.querySelector('[data-host-settings]')?.getAttribute('data-host-settings')).toBe(
-    'studio',
+  await click('[data-settings-section="environment-storage"]');
+  expect(document.querySelector('[data-remote-section]')?.getAttribute('data-remote-section')).toBe(
+    'environment-storage',
   );
-  await click('[data-host-settings]');
-  expect(shownSection()).toBe('appearance');
+  expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('保存在 Studio');
+
+  await click('[data-settings-section="environment-notifications"]');
+  expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('只保存在这台设备');
 
   await click('[data-settings-section="environment-models"]');
   await click('[data-env="local"]');
