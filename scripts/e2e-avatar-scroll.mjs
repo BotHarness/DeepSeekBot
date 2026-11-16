@@ -99,6 +99,7 @@ try {
   await page.waitForSelector('.bh-profile-avatar-button');
   await click('Change avatar');
   await page.locator('[data-avatar-edit]').click();
+  await page.locator('[data-avatar-family="illustrated"]').click();
   await page.waitForSelector('[data-avatar-category="bangs"]');
   await page.locator('[data-avatar-category="bangs"]').click();
   await click('Draw or edit this piece');
@@ -134,6 +135,9 @@ try {
       theme,
     );
     const prefix = `${width}-${height}-${theme}`;
+    await page.$eval('[data-part-canvas]', (canvas) => {
+      for (let node = canvas.parentElement; node; node = node.parentElement) node.scrollTop = 0;
+    });
     await page.screenshot({ path: resolve(evidence, `${prefix}-top.png`) });
     const point = await page.$eval('[data-part-canvas]', (node) => {
       const r = node.getBoundingClientRect();
@@ -183,6 +187,20 @@ try {
     'last palette color and footer must be reachable by wheel scrolling',
   );
   assert.deepEqual(errors, [], 'no page errors');
+  const previewBefore = await page.$eval('[data-avatar-preview]', (node) => node.innerHTML);
+  const selectedInk = await page.$eval('.bh-part-swatch[aria-pressed="true"]', (node) =>
+    node.getAttribute('data-part-ink'),
+  );
+  await page.locator('[data-part-cell="16,8"]').click();
+  assert.equal(
+    await page.$eval('[data-part-cell="16,8"]', (node) => node.getAttribute('data-part-ink')),
+    selectedInk,
+  );
+  await page.waitForFunction(
+    (before) => document.querySelector('[data-avatar-preview]').innerHTML !== before,
+    {},
+    previewBefore,
+  );
   await page.locator('[data-part-cancel]').click();
   await page.locator('[data-avatar-cancel]').click();
   const savedBot = (await rpc(instance, 'botharness/activitySnapshot')).bots.find(

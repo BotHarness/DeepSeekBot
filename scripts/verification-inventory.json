@@ -2673,7 +2673,7 @@
       "behaviors": ["desktop.bot-mode.dock"],
       "reason": "Real isolated Host pixel-avatar editing: wheel to final palette swatch and drawing footer at three desktop sizes, select color and cancel without changing saved appearance.",
       "task": 4268,
-      "sha256": "bc75a592164cca2d2cfa0255473dedc3673cceaeb03010c2c098d5a90289857d"
+      "sha256": "6958575fe6d1aa292c2fe303b6c629a3a923b75fa6fbfed6ec74aec1a4e13ec2"
     }
   ],
   "native": [
