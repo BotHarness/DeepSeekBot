@@ -22,6 +22,7 @@ import {
 } from '../src/prompts/prompt-presets.js';
 import { createPromptSettings } from '../src/prompts/prompt-settings.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
+import { orchestratorPromptSections } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { createTempRoot } from './helpers.js';
 
 const AT = '2026-10-26T00:00:00.000Z';
@@ -52,6 +53,21 @@ describe('Prompt Preset parts', () => {
     expect(parsePromptPartEdits({ triage: 'x'.repeat(8001) })).toBeUndefined();
     expect(parsePromptPartEdits([])).toBeUndefined();
   });
+
+  it.each([false, true])(
+    'appends Skill installation guidance to the Orchestrator (Tob: %s)',
+    (tob) => {
+      const text = defaultPromptText('skill-installation');
+      expect(PROMPT_PARTS.at(-1)).toMatchObject({ id: 'skill-installation', kind: 'system' });
+      expect(
+        orchestratorPromptSections(DEFAULT_PROMPT_TEXT, tob).role.endsWith(`\n\n${text}`),
+      ).toBe(true);
+      expect(text).toMatchInlineSnapshot(
+        `"Install a Skill by writing .agents/skills/<name>/SKILL.md. Decide from the Human's request where it belongs: a Bot's own capability goes in its Memory Repository, which only its Orchestrator may write freely; a project convention goes in the matching Workspace, through its existing write authorization and approval. Start SKILL.md with YAML frontmatter: required name (kebab-case, equal to the folder name) and description; optional whenToUse (text), user-invocable and disable-model-invocation (booleans). Follow the frontmatter with the instructions body. Use ordinary file tools and commit Memory Skill writes with Git; its history is the record, with no separate install tool or activity entry."`,
+      );
+      expect(text.length).toBeLessThanOrEqual(800);
+    },
+  );
 
   it('drops an edit set to null and records the default it was based on', () => {
     const edited = applyPromptPartEdits({}, { triage: 'Close what is done.' });
@@ -176,6 +192,52 @@ describe('Prompt settings per Session', () => {
     });
     expect(settings.textForSession('s1')('attention')).toBe('Global attention.');
     expect(settings.textForSession('unknown')('attention')).toBe(defaultPromptText('attention'));
+    owner.close();
+  });
+
+  it('freezes Skill installation overrides across restart until compaction', () => {
+    const { owner, ownership, library, bots, settings } = setup();
+    const original = settings.textForSession('s1')('skill-installation');
+    bots['ada'] = {
+      promptOverrides: {
+        'skill-installation': override('Install requested Skills.', 'skill-installation'),
+      },
+    };
+    const restarted = createPromptSettings({
+      library,
+      registry: { get: (slug) => bots[slug] as never },
+      ownership,
+    });
+    expect(restarted.textForSession('s1')('skill-installation')).toBe(original);
+    expect(orchestratorPromptSections(restarted.textForSession('s1')).role.endsWith(original)).toBe(
+      true,
+    );
+    expect(restarted.pending('ada', 's1')).toBe(true);
+    expect(restarted.refreshAfterCompaction('s1')).toEqual({ refreshed: true });
+    expect(
+      orchestratorPromptSections(restarted.textForSession('s1')).role.endsWith(
+        'Install requested Skills.',
+      ),
+    ).toBe(true);
+    owner.close();
+  });
+
+  it('keeps pre-S4 Session prompt bytes until compaction admits the new part', () => {
+    const { owner, ownership, settings } = setup();
+    ownership.writePromptSnapshot('s1', '{}', false);
+    const frozen = settings.textForSession('s1');
+    expect(frozen('skill-installation')).toBe('');
+    expect(frozen('coordination')).toBe(defaultPromptText('coordination'));
+    const originalRole = orchestratorPromptSections(DEFAULT_PROMPT_TEXT).role.slice(
+      0,
+      -`\n\n${defaultPromptText('skill-installation')}`.length,
+    );
+    expect(orchestratorPromptSections(frozen).role).toBe(originalRole);
+    expect(settings.pending('ada', 's1')).toBe(true);
+    expect(settings.refreshAfterCompaction('s1')).toEqual({ refreshed: true });
+    expect(orchestratorPromptSections(settings.textForSession('s1')).role).toBe(
+      orchestratorPromptSections(DEFAULT_PROMPT_TEXT).role,
+    );
     owner.close();
   });
 });

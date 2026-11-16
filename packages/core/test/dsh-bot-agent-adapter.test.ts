@@ -18,6 +18,7 @@ import type {
   OrchestratorAgentRun,
 } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
+import { defaultPromptText, promptTextOf } from '../src/prompts/prompt-parts.js';
 
 const TOB_GROUP_TOOL_CASES = [
   ['group_create', { name: 'Group' }, 'createGroup'],
@@ -619,6 +620,43 @@ describe('explicit Inbox completion with messaging tools', () => {
 });
 
 describe('DSH Bot Agent adapter', () => {
+  it.each(['workspace-write', 'danger-full-access'] as const)(
+    'appends the Session Skill guidance to an Assignment without granting Memory writes (%s)',
+    async (mode) => {
+      const host = new FakeAgentHost();
+      const guidance = `${defaultPromptText('skill-installation')} Test preset.`;
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+        promptText: () => promptTextOf({ 'skill-installation': guidance }),
+      });
+      try {
+        await adapter.runAssignment({
+          sessionId: 'skill-assignment',
+          bot: BOT,
+          text: 'Install the project convention Skill',
+          permission: {
+            grantId: 'grant-1',
+            workspaceId: 'workspace-1',
+            primaryCwd: '/project',
+            mode,
+            approval: 'ask',
+            presetRevision: 0,
+          },
+          report: vi.fn(),
+        });
+        const prompt = host.scopes
+          .get('skill-assignment')!
+          .sections.find((section) => section.name === 'botharness:assignment-role')!.text;
+        expect(prompt.endsWith(`\n\n${guidance}`)).toBe(true);
+        expect(prompt).toContain('only its Orchestrator may write freely');
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
   it.each([true, false])(
     'installs trusted CLI guidance only for Host-resolved Tob identity (%s)',
     async (tobCli) => {

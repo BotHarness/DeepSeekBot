@@ -2,7 +2,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 
 export const inertSubmissionActions: Pick<
   BridgeActions,
-  'submissions' | 'averageReplyPerf' | 'subscribeSkillCatalog'
+  'submissions' | 'averageReplyPerf' | 'skillCatalog' | 'subscribeSkillCatalog'
 > = {
   submissions: {
     subscribe: () => () => {},
@@ -14,5 +14,6 @@ export const inertSubmissionActions: Pick<
     reconcile: async () => {},
   },
   averageReplyPerf: async () => undefined,
+  skillCatalog: async () => [],
   subscribeSkillCatalog: () => () => {},
 };

@@ -332,12 +332,17 @@ The Human explicitly enabled dangerous full access before this Assignment was cr
 Report progress at meaningful milestones with report_to_orchestrator state progress, and report one terminal state before finishing: completed, blocked, waiting-human, or failed, including anything worth remembering so the Orchestrator can persist it, and list the files you created.
 If you cannot proceed without an Orchestrator decision, report with state blocked (or waiting-human when the Human must decide) and expects_reply true, then end your turn: you will be resumed with the answer as your next message. Do not block waiting or address the Human directly.`;
 
+function appendSkillInstallation(prompt: string, text: PromptText): string {
+  const guidance = text('skill-installation');
+  return guidance === '' ? prompt : `${prompt}\n\n${guidance}`;
+}
+
 export function orchestratorPromptSections(
   text: PromptText,
   tob = false,
 ): { role: string; replyDelivery: string } {
   return {
-    role: orchestratorPrompt(text, tob),
+    role: appendSkillInstallation(orchestratorPrompt(text, tob), text),
     replyDelivery: `${replyDeliveryPrompt(text)}\n\n${peerReviewPrompt(text)}`,
   };
 }
@@ -4129,10 +4134,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         const disposeRolePrompt = agentCtx.systemPrompt.section({
           name: 'botharness:assignment-role',
           order: ROLE_PROMPT_ORDER,
-          text:
+          text: appendSkillInstallation(
             run.permission.mode === 'danger-full-access'
               ? DANGER_ASSIGNMENT_PROMPT
               : ASSIGNMENT_PROMPT,
+            this.#promptText(run.sessionId),
+          ),
         });
         if (borrowed) borrowedDisposers.push(disposeRolePrompt);
         registerTool(
