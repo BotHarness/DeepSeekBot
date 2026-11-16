@@ -3240,6 +3240,43 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
     });
   });
 
+  it('lists a Human DM for both people only once the first message is sent', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'm4222alice', 'Alice');
+    const other = humanContext(alice.member.humanId);
+    const listed = async (human: ReturnType<typeof humanContext>) => {
+      const result = await f.methods(human).channels({});
+      if (!result.ok) throw new Error('channels-refused');
+      return result.value.channels.map((channel) => channel.id);
+    };
+    const opened = await f.methods(f.human).humanDm({ humanId: other.humanId });
+    if (!opened.ok) throw new Error('human-dm-refused');
+    const dm = opened.value.channel;
+    expect(await listed(f.human)).not.toContain(dm.id);
+    expect(await listed(other)).not.toContain(dm.id);
+    expect(await f.methods(f.human).channelGet({ channelId: dm.id })).toMatchObject({ ok: true });
+    const abort = new AbortController();
+    const roster = f.live.followRoster(other, abort.signal)[Symbol.asyncIterator]();
+    try {
+      await roster.next();
+      const next = roster.next();
+      expect(
+        await f.methods(f.human).channelSend({ channelId: dm.id, body: 'first DM' }),
+      ).toMatchObject({ ok: true });
+      expect(f.channels.revision(dm.id)).toBe(1);
+      const [message] = f.channels.readMessages(dm.id);
+      f.live.publishCommitted({ channelId: dm.id, message: message!, revision: 1 });
+      const frames = [(await next).value];
+      if (frames[0]?.type !== 'changed') frames.push((await roster.next()).value);
+      expect(frames).toContainEqual({ type: 'changed' });
+      expect(await listed(other)).toContain(dm.id);
+      expect(await listed(f.human)).toContain(dm.id);
+    } finally {
+      abort.abort();
+      await roster.return?.();
+    }
+  });
+
   it.each(['visibility', 'role'] as const)(
     'immediately closes browser Peers, paired mux and queued streams on %s revocation',
     async (cause) => {

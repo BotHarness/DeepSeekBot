@@ -44,6 +44,14 @@
       "gap": "Two-Host Web and direct CLI qualification is separate from installed Desktop, native mobile and Human acceptance."
     },
     {
+      "id": "team.human-dm-first-message",
+      "label": "A Human DM is listed for both people only once the first message is sent",
+      "source": "packages/core/src/bridge/methods.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
+      "task": 4222,
+      "gap": "Packaged Host, CLI member carrier and rendered member Web Client; native mobile and Human acceptance are separate."
+    },
+    {
       "id": "team.member-sign-in",
       "label": "Host member sign-in, public Channels and local CLI member dispatch",
       "source": "packages/core/src/team/http.ts",
@@ -1923,6 +1931,14 @@
       "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory.",
       "task": 1975,
       "sha256": "dfe816b10b04620373e7cbbb33926462bc6bf67914a71d2fc23c75d3bf0aaef8"
+    },
+    {
+      "path": "scripts/e2e-team-human-dm.mjs",
+      "category": "mapped",
+      "behaviors": ["team.human-dm-first-message"],
+      "reason": "Fresh named Host; picker opens a Human DM through --as without listing it for either side, the first message lists it for both and the recipient's member Web Client shows it live in light and dark; no model or native mobile qualification.",
+      "task": 4222,
+      "sha256": "33be84b20b9c5f549f120c138d9cfba87369195ec82a15341f349dc7c62102a3"
     },
     {
       "path": "scripts/e2e-team-bot-memory.mjs",

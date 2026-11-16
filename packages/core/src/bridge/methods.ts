@@ -2523,7 +2523,14 @@ function buildBridgeMethods(
       deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
     if (deps.team) {
       const visible = deps.team.channelAccess.visibleIds(human);
-      return deps.channels.list().filter((channel) => visible.has(channel.id));
+      return deps.channels
+        .list()
+        .filter(
+          (channel) =>
+            visible.has(channel.id) &&
+            (channel.humanParticipants === undefined ||
+              deps.channels.latestMessage(channel.id) !== undefined),
+        );
     }
     return deps.channels
       .list()
