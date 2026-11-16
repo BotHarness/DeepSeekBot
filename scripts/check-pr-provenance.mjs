@@ -82,7 +82,6 @@ async function repoLabels(repo) {
   }
 }
 
-// A private org member shows up as CONTRIBUTOR or NONE, so a writer is internal too.
 export const isInternal = (association, permission) =>
   INTERNAL.has(association) || WRITERS.has(permission);
 
