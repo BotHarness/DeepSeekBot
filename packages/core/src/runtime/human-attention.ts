@@ -375,7 +375,9 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                ${assignmentRequester} = ${assignmentPrincipal}
                AND NOT EXISTS (SELECT 1 FROM channel_records existing_dm
                  WHERE json_extract(existing_dm.record_json, '$.botSlug') = a.bot_slug
-                   AND json_extract(existing_dm.record_json, '$.type') = 'dm')))
+                   AND json_extract(existing_dm.record_json, '$.type') = 'dm'
+                   AND coalesce(json_extract(existing_dm.record_json, '$.dmHumanId'),
+                         ${assignmentPrincipal}) = ${assignmentRequester})))
              AND ((coalesce(json_extract(ask.payload_json, '$.assignmentReport.state'), a.latest_report_state) = 'waiting-human'
                    AND a.open_ask_source_event_id IS NOT NULL)
                OR (coalesce(json_extract(ask.payload_json, '$.assignmentReport.state'), a.latest_report_state) = 'blocked'

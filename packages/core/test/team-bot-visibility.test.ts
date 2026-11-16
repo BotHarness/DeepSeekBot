@@ -543,6 +543,17 @@ describe('M7 Bot principal and participant authority', () => {
     await bridge(bob).channelSkillCatalog({ channelId: dm.id });
     expect(list).toHaveBeenLastCalledWith([]);
   });
+  it('refuses reactions in a participant DM once its Bot is no longer reachable', async () => {
+    const f = fixture();
+    publicBot(f);
+    const dm = f.team.bots.dm(bob, 'alice-bot')!;
+    await f.channels.appendMessage(bob, dm.id, post('bob-reaction'));
+    const react = () =>
+      f.bridge(bob).channelReact({ channelId: dm.id, messageId: 'bob-reaction', emoji: '👍' });
+    expect(await react()).toMatchObject({ ok: true });
+    f.team.bots.setVisibility(owner, 'alice-bot', { kind: 'private' }, true);
+    expect(await react()).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+  });
   it('never reuses another Human/Bot pair when a Bot slug matches a participant DM id', () => {
     const f = fixture();
     publicBot(f);
@@ -1009,6 +1020,66 @@ describe('M7 Bot principal and participant authority', () => {
     });
     if (third.admitted) await third.settled;
     expect(inputs[2]).not.toContain('[bob · member]');
+  });
+  it('accepts a selected #Group from a participant DM for a join request', async () => {
+    const outcomes: string[] = [];
+    let groupId = '';
+    const core = createCore({
+      dshHome: createTempRoot('m7-participant-group-join-'),
+      agents: {
+        async runOrchestrator(run) {
+          try {
+            outcomes.push(run.channels.requestGroupJoin!({ channelId: groupId }).id);
+          } catch (error) {
+            outcomes.push(String(error));
+          }
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('unexpected');
+        },
+        async close() {},
+      },
+    });
+    closes.push(async () => {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    });
+    const db = attachOperationalModule(core.operationalDatabase, 'team');
+    db.transaction((db) => {
+      db.prepare('UPDATE team_settings SET enabled=1').run();
+      for (const id of ['alice', 'bob']) {
+        db.prepare("INSERT INTO humans VALUES (?,?,'active','now')").run(id, id);
+        db.prepare("INSERT INTO human_roles VALUES (?,'member')").run(id);
+      }
+    });
+    core.team.spaces.ensureAccount('alice');
+    expect(
+      core.registry.create({ slug: 'public-helper', displayName: 'Helper', ownerHumanId: 'alice' })
+        .ok,
+    ).toBe(true);
+    core.channels.getOrCreateDm(alice, 'public-helper');
+    core.team.bots.setVisibility(owner, 'public-helper', everyone);
+    const group = core.channels.createGroup(alice, { name: 'Team', members: [] });
+    groupId = group.id;
+    core.team.setPublic(owner, group.id, true);
+    core.team.joinPublic(bob, group.id);
+    const dm = core.team.bots.dm(bob, 'public-helper')!;
+    const body = 'Please join #Team';
+    await core.channels.appendMessage(bob, dm.id, {
+      ...post('participant-group-ref'),
+      body,
+      channelRefs: [{ channelId: group.id, label: 'Team', start: 12, end: body.length }],
+    });
+    const admission = core.runtime.admitDmMessage(bob, {
+      channelId: dm.id,
+      messageId: 'participant-group-ref',
+      body,
+    });
+    expect(admission.admitted).toBe(true);
+    if (admission.admitted) await admission.settled;
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatch(/^group-join-/u);
   });
   it('runs private→public Bot messaging and a participant-authorized reply without tracing it into the public principal DM', async () => {
     let sent = false,

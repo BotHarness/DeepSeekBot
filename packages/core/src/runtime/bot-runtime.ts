@@ -8095,9 +8095,13 @@ class BotRuntimeImplementation implements BotRuntime {
               source_kind: string;
             }
           | undefined;
+        const sourceChannel =
+          source?.channel_id == null ? undefined : this.#channels.get(source.channel_id);
         const selected =
           source?.source_kind === 'human-message' &&
-          source.channel_id === `dm-${botSlug}` &&
+          source.channel_id !== null &&
+          sourceChannel?.type === 'dm' &&
+          sourceChannel.botSlug === botSlug &&
           source.message_id !== null
             ? this.#channels.message(source.channel_id, source.message_id)?.channelRefs
             : undefined;

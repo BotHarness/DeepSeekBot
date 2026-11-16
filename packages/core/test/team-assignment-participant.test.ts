@@ -92,7 +92,7 @@ async function fixture(failExecution = false) {
     if (!assignment || !access) throw new Error('assignment not started');
     return { assignment, access };
   };
-  return { core, db, dm, principalDm, foreignDm, start };
+  return { core, db, dm, principalDm, foreignDm, start, current: () => assignment };
 }
 
 it.each(['execution', 'request'] as const)(
@@ -196,6 +196,39 @@ it('does not fall back to the principal when the requesting participant DM is de
       .run(f.dm.id),
   );
   for (const human of [bob, owner, humanContext('eve')])
+    expect(f.core.humanAttention.list(human, { category: 'action' }).items).toEqual([]);
+});
+
+it("keeps the principal's Assignment action when only another Human's DM exists", async () => {
+  const f = await fixture();
+  await f.core.channels.appendMessage(owner, f.principalDm.id, {
+    id: 'owner-start',
+    at: new Date().toISOString(),
+    author: { kind: 'human' },
+    body: 'create-private-task',
+  });
+  const admission = f.core.runtime.admitDmMessage(owner, {
+    channelId: f.principalDm.id,
+    messageId: 'owner-start',
+    body: 'create-private-task',
+  });
+  if (!admission.admitted) throw new Error('not admitted');
+  await admission.settled;
+  await f.core.runtime.whenIdle();
+  const run = f.current()!;
+  const session = run.sessionId;
+  f.db.transaction((db) =>
+    db
+      .prepare(
+        "UPDATE channel_records SET record_json=json_set(record_json,'$.botSlug','retired-ada') WHERE channel_id=?",
+      )
+      .run(f.principalDm.id),
+  );
+  await run.report({ state: 'blocked', summary: 'Owner blocker', expectsReply: true });
+  expect(f.core.humanAttention.list(owner, { category: 'action' }).items).toContainEqual(
+    expect.objectContaining({ kind: 'assignment-blocked', assignmentSessionId: session }),
+  );
+  for (const human of [bob, humanContext('eve')])
     expect(f.core.humanAttention.list(human, { category: 'action' }).items).toEqual([]);
 });
 

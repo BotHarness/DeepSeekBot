@@ -6877,7 +6877,14 @@ function buildBridgeMethods(
         return invalidInput('channelId and messageId are required');
       if (!isReactionEmoji(emoji)) return invalidInput('emoji must be a single emoji');
       if (typeof active !== 'boolean') return invalidInput('active must be a boolean');
-      if (deps.channels.get(channelId) === undefined) return unknownChannel(channelId);
+      const reacted = deps.channels.get(channelId);
+      if (reacted === undefined) return unknownChannel(channelId);
+      if (
+        reacted.type === 'dm' &&
+        reacted.botSlug !== undefined &&
+        deps.team?.bots.canReach(human, reacted.botSlug) === false
+      )
+        return invalidInput('message cannot take reactions in this Channel');
       if (deps.channels.setHumanReaction === undefined)
         return {
           ok: false,
