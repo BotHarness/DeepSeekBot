@@ -112,9 +112,26 @@ const DM = 'dm-ada';
 describe('Agent memory commands against a live Host', () => {
   it('carries every member Memory command through team-as without an Owner fallback', async () => {
     let refused = false;
+    const methods: string[] = [];
+    const participantDm = 'dm-member-alice-ada';
     const live = await host((call) => {
       expect(call.path).toBe('/api/botharness/team-as');
       expect(call.body).toMatchObject({ username: 'alice', namespace: 'botharness' });
+      if (
+        typeof call.body !== 'object' ||
+        call.body === null ||
+        !('method' in call.body) ||
+        typeof call.body.method !== 'string'
+      )
+        throw new Error('missing member method');
+      const method = call.body.method;
+      methods.push(method);
+      if (!refused && method === 'channelDm') {
+        expect(call.body).toMatchObject({ args: { slug: 'ada' } });
+        return { json: { ok: true, value: { channel: { id: participantDm } } } };
+      }
+      if (!refused && method !== 'memoryMove' && method !== 'memoryFileTarget')
+        expect(call.body).toMatchObject({ args: { channelId: participantDm } });
       return {
         json: refused
           ? { ok: false, error: { code: 'bot-not-found', message: 'bot-not-found' } }
@@ -154,14 +171,15 @@ describe('Agent memory commands against a live Host', () => {
       const result = await invoke(['--as', 'alice', ...argv], live.url);
       expect(result).toEqual({ code: 0, json: { member: true } });
     }
-    expect(live.calls).toHaveLength(commands.length);
+    expect(methods.filter((method) => method !== 'channelDm')).toHaveLength(commands.length);
+    const successfulCalls = live.calls.length;
     refused = true;
     for (const argv of commands) {
       const result = await invoke(['--as', 'alice', ...argv], live.url);
       expect(result.code).toBe(1);
       expect(result.json).toMatchObject({ error: { code: 'bot-not-found' } });
     }
-    expect(live.calls).toHaveLength(commands.length * 2);
+    expect(live.calls).toHaveLength(successfulCalls + commands.length);
   });
 
   it('exports member Memory images through the ownership-checked RPC', async () => {

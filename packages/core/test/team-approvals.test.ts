@@ -937,6 +937,11 @@ describe('M5 approval projections and decisions', () => {
     'preserves role-restricted access around %s approval projections',
     async (kind) => {
       const f = fixture();
+      f.database.transaction((db) =>
+        db
+          .prepare('DELETE FROM channel_human_members WHERE channel_id = ? AND human_id = ?')
+          .run(f.group.id, alice.humanId),
+      );
       f.team.channelAccess.visibilitySet(bob, f.group.id, { kind: 'roles', roleIds: ['member'] });
       f.team.channelAccess.join(alice, f.group.id);
       const request = await seed(f, kind);
@@ -961,7 +966,7 @@ describe('M5 approval projections and decisions', () => {
       expect(() => f.team.approvals.requireRequest(alice, f.group.id, request.id)).toThrow(
         'approval-not-allowed',
       );
-      masked(f.attention.list(alice, { category: 'action' }), request.id);
+      expect(f.attention.list(alice, { category: 'action' }).items).toEqual([]);
       expect(f.attention.list(admin, { category: 'action' }).items).toHaveLength(0);
     },
   );
