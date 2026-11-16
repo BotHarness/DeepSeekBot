@@ -1444,7 +1444,9 @@ export function createActions(
     }
   };
 
+  let rosterRefreshGeneration = 0;
   const refreshRoster = async (signal?: AbortSignal): Promise<void> => {
+    const generation = ++rosterRefreshGeneration;
     const [rosterResult, channelResult, botResult, identityResult] = await Promise.allSettled([
       loadRoster(call, signal),
       loadChannels(call, signal),
@@ -1457,7 +1459,7 @@ export function createActions(
     );
     if (botResult.status === 'fulfilled')
       clientStore.setRoster(botResult.value, clientStore.getSnapshot().channels);
-    if (channelResult.status === 'fulfilled') {
+    if (channelResult.status === 'fulfilled' && generation === rosterRefreshGeneration) {
       const channels = channelResult.value;
       const before = clientStore.getSnapshot();
       const current = before.conversation.channel;
@@ -1468,7 +1470,7 @@ export function createActions(
         else if (before.channels.some((item) => item.id === current.id))
           clientStore.select(undefined);
       }
-    } else {
+    } else if (channelResult.status === 'rejected') {
       console.warn('botharness: channel refresh failed', channelResult.reason);
     }
     if (rosterResult.status === 'fulfilled') {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, execSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -143,7 +143,12 @@ try {
   const require = createRequire(import.meta.url);
   const { chromium } = require(
     require.resolve('playwright', {
-      paths: [root, execSync('npm root -g', { encoding: 'utf8' }).trim()],
+      paths: [
+        root,
+        process.platform === 'win32'
+          ? join(dirname(process.execPath), 'node_modules')
+          : join(dirname(process.execPath), '..', 'lib', 'node_modules'),
+      ],
     }),
   );
   browser = await chromium.launch();

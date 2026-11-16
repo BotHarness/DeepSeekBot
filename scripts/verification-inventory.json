@@ -1938,7 +1938,7 @@
       "behaviors": ["team.channel-auto-join"],
       "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification.",
       "task": 4222,
-      "sha256": "e129beefafbfea762f9c66bc2528b00a4dde7f8dd4e274af35a69df3932ac13f"
+      "sha256": "197532a8ca1cc289a824275e7e813b4f50e790702e1e5e218ef74f7f18d9704b"
     },
     {
       "path": "scripts/e2e-team-bot-memory.mjs",

@@ -2331,6 +2331,31 @@ describe('bridge actions', () => {
     expect(clientStore.getSnapshot().selection).toEqual({ kind: 'channel', channelId: fresh.id });
   });
 
+  it('ignores a channel list from a refresh that a newer refresh overtook', async () => {
+    const pending: Array<(value: { channels: (typeof GROUP | typeof DM)[] }) => void> = [];
+    let deferred = false;
+    const { clientStore, actions } = setup({
+      channels: () =>
+        deferred ? new Promise((resolve) => pending.push(resolve)) : { channels: [GROUP, DM] },
+    });
+    await actions.load();
+    clientStore.select({ kind: 'channel', channelId: GROUP.id });
+    clientStore.setConversation({ channel: GROUP });
+    deferred = true;
+    const stale = actions.refreshRoster();
+    const fresh = actions.refreshRoster();
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    pending[1]!({ channels: [GROUP, DM] });
+    await fresh;
+    pending[0]!({ channels: [DM] });
+    await stale;
+    expect(clientStore.getSnapshot().selection).toEqual({ kind: 'channel', channelId: GROUP.id });
+    expect(clientStore.getSnapshot().channels.map((channel) => channel.id)).toEqual([
+      GROUP.id,
+      DM.id,
+    ]);
+  });
+
   it('mirrors the host arrangement into the roster state', async () => {
     const { clientStore, actions } = setup({
       rosterGet: () => ({
