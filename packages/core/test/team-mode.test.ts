@@ -2387,11 +2387,27 @@ it('uses the member Peer for device mux, refuses native streams and closes the s
     { current: f.initialPassword, next: 'member-password-1' },
     signed.credential,
   );
+  const crossSite = await new Promise<number | undefined>((resolve) => {
+    const ws = new WebSocket(
+      host.origin.replace('http:', 'ws:') + '/botharness-device/api/remote.mux',
+      { headers: { authorization: `Device ${signed.credential}`, origin: 'https://evil.example' } },
+    );
+    ws.on('unexpected-response', (_request, response) => {
+      resolve(response.statusCode);
+      ws.terminate();
+    });
+    ws.on('open', () => {
+      resolve(101);
+      ws.terminate();
+    });
+    ws.on('error', () => {});
+  });
+  expect(crossSite).toBe(403);
   const own = f.channels.createGroup(f.human, { name: 'Own device Channel', members: [] });
   const secret = f.channels.createGroup(owner, { name: 'Owner Channel', members: [] });
   const ws = new WebSocket(
     host.origin.replace('http:', 'ws:') + '/botharness-device/api/remote.mux',
-    { headers: { authorization: `Device ${signed.credential}` } },
+    { headers: { authorization: `Device ${signed.credential}` }, origin: host.origin },
   );
   closes.push(async () => {
     ws.terminate();

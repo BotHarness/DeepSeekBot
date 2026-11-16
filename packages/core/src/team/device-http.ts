@@ -30,6 +30,15 @@ function authorization(request: IncomingMessage): string | undefined {
   const value = request.headers.authorization;
   return Array.isArray(value) ? value[0] : value;
 }
+function crossOrigin(request: IncomingMessage): boolean {
+  const origin = request.headers.origin;
+  if (origin === undefined) return false;
+  try {
+    return new URL(origin).host !== request.headers.host;
+  } catch {
+    return true;
+  }
+}
 export function memberDeviceRequest(request: IncomingMessage): boolean {
   return authorization(request)?.startsWith('Device member.') === true;
 }
@@ -173,7 +182,7 @@ export function createTeamDeviceHttp(options: {
     async upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
       let peer: PeerScope;
       try {
-        if (request.headers.origin || request.url !== `${PREFIX}/api/remote.mux`)
+        if (crossOrigin(request) || request.url !== `${PREFIX}/api/remote.mux`)
           throw new TeamError('remote-access/denied');
         peer = peerFor(request);
         assertDevice(peer);
