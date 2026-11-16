@@ -3,8 +3,9 @@ import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
+import { ShortcutTile } from './ds/shortcut-tile.js';
 import { Note } from './ds/note.js';
-import { accent, edge, ink, layer, line, radius, space, state, type } from './ds/tobs.stylex.js';
+import { accent, space } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const SETTINGS_HOME = 'home';
@@ -52,52 +53,6 @@ const styles = stylex.create({
     gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))',
     gap: space.x4,
   },
-  card: {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    minWidth: 0,
-    borderWidth: edge.hairline,
-    borderStyle: 'solid',
-    borderColor: line.edge,
-    borderRadius: radius.md,
-    backgroundColor: { default: layer.raised, ':hover': state.hover },
-  },
-  open: {
-    display: 'flex',
-    flexGrow: 1,
-    alignItems: 'center',
-    gap: space.x4,
-    minWidth: 0,
-    padding: space.x5,
-    paddingInlineEnd: space.x2,
-    borderWidth: 0,
-    borderStyle: 'none',
-    borderRadius: radius.md,
-    backgroundColor: 'transparent',
-    color: ink.primary,
-    fontFamily: 'inherit',
-    fontSize: type.labelSize,
-    lineHeight: type.labelLine,
-    fontWeight: type.labelWeight,
-    textAlign: 'start',
-    cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${edge.focus} solid ${line.focus}` },
-    outlineOffset: '-2px',
-  },
-  icon: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    color: ink.secondary,
-  },
-  label: {
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
   unpin: { marginInlineEnd: space.x3 },
   pinned: { color: { default: accent.base, ':hover': accent.base } },
 });
@@ -119,33 +74,30 @@ export function SettingsHome({
   return (
     <div data-settings-home="" {...stylex.props(styles.grid)}>
       {cards.map((row) => (
-        <div key={row.id} data-settings-pin={row.id} {...stylex.props(styles.card)}>
-          <button
-            type="button"
-            onClick={() => {
-              onOpen(row.id);
-            }}
-            {...stylex.props(styles.open)}
-          >
-            <span aria-hidden="true" {...stylex.props(styles.icon)}>
-              {row.icon}
-            </span>
-            <span {...stylex.props(styles.label)}>{row.label}</span>
-          </button>
-          <IconButton
-            size="inline"
-            tone="subtle"
-            aria-label={t('settings.unpinNamed', { section: row.label })}
-            title={t('settings.unpin')}
-            onClick={() => {
-              const id = settingsPinId(row.id);
-              pins.set(pinned.filter((pin) => pin !== id));
-            }}
-            xstyle={styles.unpin}
-          >
-            <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled />
-          </IconButton>
-        </div>
+        <ShortcutTile
+          key={row.id}
+          data={{ 'data-settings-pin': row.id }}
+          icon={row.icon}
+          label={row.label}
+          onOpen={() => {
+            onOpen(row.id);
+          }}
+          action={
+            <IconButton
+              size="inline"
+              tone="subtle"
+              aria-label={t('settings.unpinNamed', { section: row.label })}
+              title={t('settings.unpin')}
+              onClick={() => {
+                const id = settingsPinId(row.id);
+                pins.set(pinned.filter((pin) => pin !== id));
+              }}
+              xstyle={styles.unpin}
+            >
+              <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled />
+            </IconButton>
+          }
+        />
       ))}
     </div>
   );
