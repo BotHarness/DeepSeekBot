@@ -31,11 +31,11 @@ Neither H run said which paths stayed exposed. CI has no real Chrome, so green c
 
 ## Guardrails that came out of it
 
-| Problem seen                                    | Change                                                            |
-| ----------------------------------------------- | ----------------------------------------------------------------- |
-| Strong models run the full suite and time out   | #4322 `pnpm test:changed`                                         |
-| The no-comment rule surfaced minutes after push | #4331 source policy in pre-commit (0.2 s per commit)              |
-| Fabricated criterion quotes                     | #4214 itself warns when a quoted criterion differs from the issue |
+| Problem seen                                    | Change                                                                        |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| Strong models run the full suite and time out   | #4322 `pnpm test:changed`                                                     |
+| The no-comment rule surfaced minutes after push | #4331 source policy in pre-commit (0.2 s per commit)                          |
+| Fabricated criterion quotes                     | Open: #4214, once built, warns when a quoted criterion differs from the issue |
 
 ## Not yet measured
 
