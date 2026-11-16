@@ -207,7 +207,7 @@ when that Human's Bot changes ownership. Private, never-published Human–Bot DM
 principal in the ownership-transfer transaction before the owner changes. This includes existing
 unstamped legacy DMs at transfer time; already-stamped and unrelated DMs stay unchanged. The new
 principal reuses their own DM or receives a fresh one, without the previous participant's history. Bot–Bot DMs retain their recorded initiating Human across transfer;
-member purge removes that participant's DM independently of either Bot's later owner.
+member purge removes that participant's DM independently of either Bot's later owner. Legacy Owner-only Assignment attention without a persisted DM projection retains its principal-DM locator only when the recorded requester is the principal and no Bot DM record exists; missing or deleted participant DMs never fall back to another Human.
 
 ## Shared discovery and participant arrangement
 

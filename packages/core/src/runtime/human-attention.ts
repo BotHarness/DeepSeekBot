@@ -154,6 +154,11 @@ const attentionBotOwner = (slug: string): string =>
   `coalesce((SELECT b.owner_human_id FROM persona_bots b WHERE b.slug = ${slug}), 'local-human') = $humanId`;
 const attentionDmOwner = (channel: string): string =>
   `(coalesce(json_extract(${channel}.record_json,'$.dmHumanId'), (SELECT b.owner_human_id FROM persona_bots b WHERE b.slug=json_extract(${channel}.record_json,'$.botSlug')), 'local-human') = $humanId)`;
+const assignmentPrincipal = `coalesce((SELECT owner_human_id FROM persona_bots WHERE slug = a.bot_slug), 'local-human')`;
+const assignmentRequester = `coalesce(
+  (SELECT human_id FROM source_events WHERE source_event_id = a.source_event_id),
+  (SELECT human_id FROM usage_turn_humans WHERE session_id = a.session_id AND turn >= 0 ORDER BY turn LIMIT 1),
+  ${assignmentPrincipal})`;
 
 const approvalAudience = (channel: string, humanId: string): string => `(
   (json_extract(${channel}.record_json,'$.dmHumanId') IS NULL OR json_extract(${channel}.record_json,'$.dmHumanId')=${humanId})
@@ -333,7 +338,8 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                    WHEN 'blocked' THEN 'assignment-blocked'
                    ELSE 'assignment-waiting-human'
                  END AS kind,
-                 coalesce(ask.created_at, a.latest_report_at) AS created_at, assignment_dm.channel_id,
+                 coalesce(ask.created_at, a.latest_report_at) AS created_at,
+                 coalesce(assignment_dm.channel_id, 'dm-' || a.bot_slug) AS channel_id,
                  coalesce(json_extract(assignment_dm.record_json, '$.name'), a.bot_slug) AS channel_name, a.bot_slug,
                  coalesce(ask.body, a.latest_report_summary) AS summary, NULL AS request_id,
                  NULL AS message_id, a.session_id AS assignment_session_id,
@@ -345,15 +351,17 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                  )) AS source_event_id
             FROM assignments a
             LEFT JOIN source_events ask ON ask.source_event_id = a.open_ask_source_event_id
-            JOIN channel_records assignment_dm ON json_extract(assignment_dm.record_json, '$.botSlug') = a.bot_slug
+            LEFT JOIN channel_records assignment_dm ON json_extract(assignment_dm.record_json, '$.botSlug') = a.bot_slug
               AND json_extract(assignment_dm.record_json, '$.type') = 'dm'
               AND json_extract(assignment_dm.record_json, '$.deletedAt') IS NULL
               AND coalesce(json_extract(assignment_dm.record_json, '$.dmHumanId'),
-                    (SELECT owner_human_id FROM persona_bots WHERE slug = a.bot_slug), 'local-human') = coalesce(
-                (SELECT human_id FROM source_events WHERE source_event_id = a.source_event_id),
-                (SELECT human_id FROM usage_turn_humans WHERE session_id = a.session_id AND turn >= 0 ORDER BY turn LIMIT 1),
-                (SELECT owner_human_id FROM persona_bots WHERE slug = a.bot_slug), 'local-human')
-           WHERE ((coalesce(json_extract(ask.payload_json, '$.assignmentReport.state'), a.latest_report_state) = 'waiting-human'
+                    ${assignmentPrincipal}) = ${assignmentRequester}
+           WHERE (assignment_dm.channel_id IS NOT NULL OR (
+               ${assignmentRequester} = ${assignmentPrincipal}
+               AND NOT EXISTS (SELECT 1 FROM channel_records existing_dm
+                 WHERE json_extract(existing_dm.record_json, '$.botSlug') = a.bot_slug
+                   AND json_extract(existing_dm.record_json, '$.type') = 'dm')))
+             AND ((coalesce(json_extract(ask.payload_json, '$.assignmentReport.state'), a.latest_report_state) = 'waiting-human'
                    AND a.open_ask_source_event_id IS NOT NULL)
                OR (coalesce(json_extract(ask.payload_json, '$.assignmentReport.state'), a.latest_report_state) = 'blocked'
                    AND (a.open_ask_source_event_id IS NOT NULL
@@ -361,7 +369,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
              AND a.stop_state = 'running'
              AND a.latest_report_at IS NOT NULL
              AND (a.open_ask_source_event_id IS NOT NULL OR NOT EXISTS (
-               SELECT 1 FROM source_events reply WHERE reply.channel_id = assignment_dm.channel_id
+               SELECT 1 FROM source_events reply WHERE reply.channel_id = coalesce(assignment_dm.channel_id, 'dm-' || a.bot_slug)
                  AND reply.source_kind = 'human-message' AND json_extract(reply.payload_json, '$.author.kind') = 'human'
                  AND json_extract(reply.payload_json, '$.assignmentReply.sessionId') = +a.session_id
                  AND json_extract(reply.payload_json, '$.assignmentReply.sourceEventId') = coalesce(a.open_ask_source_event_id, (

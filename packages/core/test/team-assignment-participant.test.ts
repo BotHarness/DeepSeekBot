@@ -184,6 +184,21 @@ it.each(['waiting-human', 'blocked'] as const)(
   },
 );
 
+it('does not fall back to the principal when the requesting participant DM is deleted', async () => {
+  const f = await fixture();
+  const { assignment } = await f.start();
+  await assignment.report({ state: 'blocked', summary: 'Bob private blocker', expectsReply: true });
+  f.db.transaction((db) =>
+    db
+      .prepare(
+        "UPDATE channel_records SET record_json=json_set(record_json,'$.deletedAt','now') WHERE channel_id=?",
+      )
+      .run(f.dm.id),
+  );
+  for (const human of [bob, owner, humanContext('eve')])
+    expect(f.core.humanAttention.list(human, { category: 'action' }).items).toEqual([]);
+});
+
 it('routes Workspace Grant request actions only to the recorded shared DM participant', async () => {
   const f = await fixture();
   await f.core.channels.appendMessage(bob, f.dm.id, {

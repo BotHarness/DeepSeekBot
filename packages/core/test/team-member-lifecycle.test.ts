@@ -520,19 +520,31 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
           attachments: [channelId === tob.channelId ? tobFile : botFile],
         });
       if (operation === 'transfer-first') await f.core.team.transfer(owner, 'bob', 'alice');
+      const transferredDms =
+        operation === 'transfer-first'
+          ? ['bob-bot', 'bob-second', tob.botSlug].map((slug) => f.core.team.bots.dm(alice, slug)!)
+          : [];
+      for (const dm of transferredDms) expect(f.core.channels.readMessages(dm.id)).toEqual([]);
       await f.core.team.deactivate(owner, 'bob');
       const preview = f.core.team.purgePreview(owner, 'bob');
       expect(preview.counts).toEqual(
         operation === 'purge'
           ? { channels: 5, bots: 3, messages: 3, files: 2 + accountFileCount(f) }
-          : { channels: 2, bots: 0, messages: 0, files: accountFileCount(f) },
+          : { channels: 5, bots: 0, messages: 3, files: 2 + accountFileCount(f) },
       );
       await f.core.team.purgeConfirm(owner, 'bob', preview.token, 'bob');
-      expect(Boolean(f.core.channels.get(tob.channelId))).toBe(operation === 'transfer-first');
-      expect(f.core.attachments.has(tobFile)).toBe(operation === 'transfer-first');
+      expect(f.core.channels.get(tob.channelId)).toBeUndefined();
+      expect(f.core.attachments.has(tobFile)).toBe(false);
       for (const channelId of [opened.value.channel.id, second.dm.id])
-        expect(Boolean(f.core.channels.get(channelId))).toBe(operation === 'transfer-first');
-      expect(f.core.attachments.has(botFile)).toBe(operation === 'transfer-first');
+        expect(f.core.channels.get(channelId)).toBeUndefined();
+      expect(f.core.attachments.has(botFile)).toBe(false);
+      if (operation === 'transfer-first') {
+        for (const dm of transferredDms) {
+          expect(f.core.registry.get(dm.botSlug!)?.ownerHumanId).toBe('alice');
+          expect(f.core.team.bots.dm(alice, dm.botSlug!)?.id).toBe(dm.id);
+          expect(f.core.channels.readMessages(dm.id)).toEqual([]);
+        }
+      }
       expect(f.core.channels.get(other.dm.id)).toBeDefined();
       for (const channelId of [exclusive.id, mixed.id])
         expect(f.core.channels.get(channelId)).toBeUndefined();
@@ -858,7 +870,10 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     expect(f.runs).toHaveBeenCalledOnce();
     expect(f.stop.mock.calls.map(([slug]) => slug)).toContain('bob-bot');
     options.running = false;
-    await f.core.channels.appendMessage(alice, 'dm-bob-bot', {
+    const aliceDm = f.core.team.bots.dm(alice, 'bob-bot')!;
+    expect(aliceDm.id).not.toBe('dm-bob-bot');
+    expect(f.core.team.channelAccess.canRead(alice, 'dm-bob-bot')).toBe(false);
+    await f.core.channels.appendMessage(alice, aliceDm.id, {
       id: 'new-owner',
       at: new Date().toISOString(),
       author: { kind: 'human', humanId: 'alice' },
@@ -866,7 +881,7 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     });
     expect(
       f.core.runtime.admitDmMessage(alice, {
-        channelId: 'dm-bob-bot',
+        channelId: aliceDm.id,
         messageId: 'new-owner',
         body: 'new owner request',
       }).admitted,
