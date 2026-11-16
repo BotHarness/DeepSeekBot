@@ -2637,14 +2637,14 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
 .bh-avatar-hidden-note { grid-column: 1 / -1; margin: 0; color: var(--dsw-alias-label-secondary); font-size: ${text.bodySize}; }
 .bh-part-editor { grid-column: 1 / -1; display: flex; flex-direction: column; gap: ${space.x3}; }
 .bh-part-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: ${space.x2}; }
-.bh-part-toolbar > button:not(.bh-avatar-category) { min-height: 28px; padding: 0 ${space.x3}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.sm}; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: ${text.bodySize}; cursor: pointer; }
-.bh-part-toolbar > button:disabled { opacity: 0.45; cursor: default; }
+.bh-part-toolbar > button { flex-shrink: 0; }
+.bh-avatar-editor-actions { display: flex; flex-wrap: wrap; gap: ${space.x3}; }
+.bh-part-toolbar > button[aria-pressed='true'], .bh-part-toolbar > button[aria-pressed='true']:hover,
+.bh-part-options button[aria-pressed='true']:not(.bh-part-swatch), .bh-part-options button[aria-pressed='true']:not(.bh-part-swatch):hover { background: ${color.selected}; color: ${color.fg}; box-shadow: inset 0 0 0 ${border.hairline} ${color.borderStrong}; }
 .bh-part-divider { width: 1px; height: 20px; background: var(--dsw-alias-border-l2); }
 .bh-part-options { display: flex; flex-wrap: wrap; align-items: center; gap: ${space.x2} ${space.x4}; font-size: ${text.bodySize}; }
 .bh-part-options > span, .bh-part-options label { display: inline-flex; align-items: center; gap: ${space.x2}; }
 .bh-part-options small { color: var(--dsw-alias-label-secondary); }
-.bh-part-options > span > button:not(.bh-avatar-category):not(.bh-part-swatch) { min-height: 28px; padding: 0 ${space.x3}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.sm}; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; cursor: pointer; }
-.bh-part-options button:disabled { opacity: 0.45; cursor: default; }
 .bh-part-hint { flex-basis: 100%; }
 .bh-part-cursor { position: absolute; box-sizing: border-box; border: ${border.focus} solid var(--dsw-alias-label-primary); box-shadow: 0 0 0 1px var(--dsw-alias-bg-base); pointer-events: none; }
 .bh-part-draw { align-self: stretch; min-width: 88px; padding: 0 ${space.x4}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.sm}; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; touch-action: none; user-select: none; }

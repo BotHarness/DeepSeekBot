@@ -301,6 +301,7 @@ export function BotAvatarModal({
   return (
     <PanelDialog
       size="medium"
+      fill
       onClose={onClose}
       title={t('profile.avatar.section')}
       closeLabel={t('common.close')}

@@ -3,11 +3,13 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) =>
-    createElement('button', props, children),
   IconRefreshOutlineRegular: () => null,
+  IconEditOutlineRegular: () => null,
+  IconSaveOutlineRegular: () => null,
+  IconCloseOutlineRegular: () => null,
 }));
 import { AvatarAppearanceEditor } from '../src/client/avatar-appearance-editor.js';
 import { PersonaBotAvatar } from '../src/client/avatar.js';

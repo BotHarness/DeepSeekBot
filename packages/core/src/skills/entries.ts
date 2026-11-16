@@ -23,6 +23,7 @@ export function parseSkillOwnerKey(value: string): SkillOwner | undefined {
 export function rankSkillEntries<T extends { name: string; description: string }>(
   entries: readonly T[],
   rawQuery: string,
+  ownerNames?: (entry: T) => readonly string[],
 ): T[] {
   const query = rawQuery.trim().toLowerCase();
   if (query.length === 0) return [...entries];
@@ -35,12 +36,13 @@ export function rankSkillEntries<T extends { name: string; description: string }
     const name = entry.name.toLowerCase();
     if (name.startsWith(query)) return 0;
     if (subsequence(name)) return 1;
-    if (entry.description.toLowerCase().includes(query)) return 2;
-    return 3;
+    if (ownerNames?.(entry).some((name) => name.toLowerCase().includes(query))) return 2;
+    if (entry.description.toLowerCase().includes(query)) return 3;
+    return 4;
   };
   return entries
     .map((entry, index) => ({ entry, index, tier: tier(entry) }))
-    .filter((item) => item.tier < 3)
+    .filter((item) => item.tier < 4)
     .sort((a, b) => a.tier - b.tier || a.index - b.index)
     .map((item) => item.entry);
 }
