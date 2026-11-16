@@ -624,7 +624,7 @@ describe('DSH Bot Agent adapter', () => {
     'appends the Session Skill guidance to an Assignment without granting Memory writes (%s)',
     async (mode) => {
       const host = new FakeAgentHost();
-      const guidance = `${defaultPromptText('skill-installation')} Test preset.`;
+      let guidance = `${defaultPromptText('skill-installation')} Test preset.`;
       const adapter = createDshBotAgentAdapter({
         agents: host,
         defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
@@ -652,6 +652,13 @@ describe('DSH Bot Agent adapter', () => {
           .sections.find((section) => section.name === 'botharness:assignment-role')!.text;
         expect(prompt.endsWith(`\n\n${guidance}`)).toBe(true);
         expect(prompt).toContain('only its Orchestrator may write freely');
+        guidance = 'Refreshed after compaction.';
+        expect(
+          host.scopes
+            .get('skill-assignment')!
+            .sections.find((section) => section.name === 'botharness:assignment-role')!
+            .text.endsWith('\n\nRefreshed after compaction.'),
+        ).toBe(true);
       } finally {
         await adapter.close();
       }

@@ -4134,12 +4134,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         const disposeRolePrompt = agentCtx.systemPrompt.section({
           name: 'botharness:assignment-role',
           order: ROLE_PROMPT_ORDER,
-          text: appendSkillInstallation(
-            run.permission.mode === 'danger-full-access'
-              ? DANGER_ASSIGNMENT_PROMPT
-              : ASSIGNMENT_PROMPT,
-            this.#promptText(run.sessionId),
-          ),
+          text: () =>
+            appendSkillInstallation(
+              run.permission.mode === 'danger-full-access'
+                ? DANGER_ASSIGNMENT_PROMPT
+                : ASSIGNMENT_PROMPT,
+              this.#promptText(run.sessionId),
+            ),
         });
         if (borrowed) borrowedDisposers.push(disposeRolePrompt);
         registerTool(
