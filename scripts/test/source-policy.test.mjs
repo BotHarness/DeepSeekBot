@@ -147,6 +147,7 @@ describe('source policy', () => {
       const result = spawnSync(process.execPath, ['scripts/check-source-policy.mjs'], {
         cwd: root,
         encoding: 'utf8',
+        windowsHide: true,
       });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain(`${relativePath}:2:19 comment`);
@@ -167,6 +168,7 @@ describe('source policy', () => {
         spawnSync(process.execPath, ['scripts/check-source-policy.mjs', ...paths], {
           cwd: root,
           encoding: 'utf8',
+          windowsHide: true,
         });
       expect(run(clean).status).toBe(0);
       const result = run(clean, bad);
