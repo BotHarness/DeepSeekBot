@@ -173,7 +173,7 @@ describe('M2 private Bot boundaries', () => {
     expect(scoped.memoryDirFor('bob-bot')).toBeDefined();
   });
 
-  it('clears deleted global preset and template references across private Bots without listing them', () => {
+  it('confirms all shared-template references while keeping private Bot identities hidden', () => {
     const f = fixture();
     const methods = createBridgeMethods(owner, {
       ...f.core,
@@ -196,6 +196,14 @@ describe('M2 private Bot boundaries', () => {
       f.core.registry.setPromptSettings(slug, { preset: id });
       f.core.registry.setApprovalTemplate(slug, template);
     }
+    const member = createBridgeMethods(alice, { ...f.core, team: f.team });
+    expect(member.approvalTemplateDeletePreview({ name: template })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    expect(
+      member.approvalTemplateDelete({ name: template, confirmed: true, revision: 'a'.repeat(64) }),
+    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
     expect(methods.approvalTemplates({})).toMatchObject({
       ok: true,
       value: {
@@ -208,13 +216,27 @@ describe('M2 private Bot boundaries', () => {
       ok: true,
       value: { clearedBots: ['owner-bot'] },
     });
-    expect(methods.approvalTemplateDelete({ name: template })).toMatchObject({
+    const deletion = methods.approvalTemplateDeletePreview({ name: template });
+    if (!deletion.ok) throw new Error(deletion.error.code);
+    expect(deletion.value.preview).toMatchObject({
+      affectedBots: [{ slug: 'owner-bot', source: 'specific' }],
+      hiddenBotCount: 2,
+    });
+    expect(JSON.stringify(deletion)).not.toContain('alice-bot');
+    expect(JSON.stringify(deletion)).not.toContain('bob-bot');
+    expect(
+      methods.approvalTemplateDelete({
+        name: template,
+        confirmed: true,
+        revision: deletion.value.preview.revision,
+      }),
+    ).toMatchObject({
       ok: true,
       value: { clearedBots: ['owner-bot'] },
     });
     for (const slug of ['owner-bot', 'alice-bot', 'bob-bot']) {
       expect(f.core.registry.get(slug)?.promptPreset).toBeUndefined();
-      expect(f.core.registry.get(slug)?.approvalTemplate).toBeUndefined();
+      expect(f.core.registry.get(slug)?.approvalTemplate).toBe('@global');
     }
   });
 

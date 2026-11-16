@@ -1,3 +1,4 @@
+import { createPrivateHostRedactor } from './private-host-redaction.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -6,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { checkBudget, readBudget } from './perf-budget.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
+import { seedTimeline } from './perf-timeline-seed.mjs';
 import { createHeapObservation } from './perf-heap-observation.mjs';
 import { installTimelineActivity, timelineActivityPlan } from './perf-timeline-activity.mjs';
 import {
@@ -101,6 +103,7 @@ const pkg = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
 const puppeteer = createRequire(resolve(store, pkg, 'node_modules/'))('puppeteer');
 assert.ok(process.env.BH_E2E_INSTANCE, 'Set BH_E2E_INSTANCE to the task-owned instance.json');
 const instance = JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE, 'utf8'));
+const redact = createPrivateHostRedactor(instance.url);
 const out = resolve(options.out);
 mkdirSync(out, { recursive: true });
 const seconds = Number(options.seconds);
@@ -186,28 +189,53 @@ await localeSession.send('Emulation.setUserAgentOverride', {
   acceptLanguage: 'en-US,en',
 });
 const errors = [];
-page.on('pageerror', (error) => errors.push(error.message));
+page.on('pageerror', (error) => errors.push(redact(error.message)));
+const setup = { phase: 'browser-ready', rpcCalls: 0, pending: [], recent: [] };
+const saveSetup = () =>
+  writeFileSync(resolve(out, options.label + '.setup.json'), JSON.stringify(setup, null, 2));
+const setupPhase = (phase) => {
+  setup.phase = phase;
+  saveSetup();
+};
 
 async function rpc(method, args = {}) {
-  return page.evaluate(
-    async (method, args) => {
-      const response = await fetch(`/api/botharness/${method}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          type: 'client-request',
-          rpcId: crypto.randomUUID(),
-          method: `botharness/${method}`,
-          payload: { args },
-        }),
-      });
-      const envelope = await response.json();
-      if (!envelope.result?.ok) throw Error(`${method}: ${JSON.stringify(envelope.result)}`);
-      return envelope.result.value;
-    },
-    method,
-    args,
-  );
+  const request = { ordinal: ++setup.rpcCalls, method, startedAt: new Date().toISOString() };
+  setup.pending.push(request);
+  saveSetup();
+  try {
+    const result = await page.evaluate(
+      async (method, args) => {
+        const response = await fetch(`/api/botharness/${method}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            type: 'client-request',
+            rpcId: crypto.randomUUID(),
+            method: `botharness/${method}`,
+            payload: { args },
+          }),
+        });
+        const envelope = await response.json();
+        if (!envelope.result?.ok) throw Error(`${method}: ${JSON.stringify(envelope.result)}`);
+        return envelope.result.value;
+      },
+      method,
+      args,
+    );
+    setup.recent.push({ ...request, outcome: 'completed' });
+    return result;
+  } catch (error) {
+    setup.recent.push({
+      ...request,
+      outcome: 'failed',
+      error: error instanceof Error ? error.name : 'unknown',
+    });
+    throw error;
+  } finally {
+    setup.pending = setup.pending.filter((pending) => pending.ordinal !== request.ordinal);
+    setup.recent = setup.recent.slice(-32);
+    saveSetup();
+  }
 }
 
 async function dismissOverlays() {
@@ -225,55 +253,6 @@ async function dismissOverlays() {
     }
     await sleep(150);
   }
-}
-
-async function seed(count) {
-  const bots = [];
-  for (const name of ['Perf Ada', 'Perf Lin', 'Perf Kai'])
-    bots.push((await rpc('create', { displayName: `${name} ${Date.now() % 100000}` })).bot);
-  const group = (
-    await rpc('channelCreate', {
-      name: `Idle perf ${count}`,
-      members: bots.map((bot) => bot.slug),
-    })
-  ).channel;
-  for (const bot of bots)
-    await rpc('channelGroupWakeSet', {
-      channelId: group.id,
-      botSlug: bot.slug,
-      mode: 'silent',
-      count: 5,
-      intervalSeconds: 30,
-    });
-  const ids = [];
-  let source;
-  for (let index = 0; index < count; index++) {
-    if (index % 5 === 0) {
-      const sent = await rpc('channelSend', {
-        channelId: group.id,
-        body: `Human check-in ${index + 1}: how is it going?`,
-      });
-      source = sent.message?.id ?? sent.messageId ?? sent.id;
-      assert.ok(source, JSON.stringify(sent));
-      ids.push(source);
-      continue;
-    }
-    const bot = bots[index % bots.length];
-    const run = await rpc('botToolRun', {
-      slug: bot.slug,
-      tool: 'bot_send_message',
-      args: {
-        channel_id: group.id,
-        body: bodies[index % bodies.length](index + 1),
-        reply_to: source,
-      },
-    });
-    assert.ok(run.result?.messageId, JSON.stringify(run));
-    ids.push(run.result.messageId);
-    if ((index + 1) % 100 === 0) console.error(`seeded ${index + 1}/${count}`);
-  }
-  await rpc('channelMarkRead', { channelId: group.id, messageId: ids.at(-1) });
-  return { channelId: group.id, messageIds: ids, bots: bots.map((bot) => bot.slug) };
 }
 
 async function startProfile(cdp) {
@@ -304,13 +283,30 @@ const metric = (list, name) => list.metrics.find((item) => item.name === name)?.
 try {
   const startupNativeViewport = options.headed ? await calibrateNativeViewport(page) : undefined;
   if (!options.headed) await page.setViewport({ width: 1440, height: 900 });
+  setupPhase('navigation');
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
+  setupPhase('dismiss-overlays');
   await dismissOverlays();
+  setupPhase('fixture');
 
   const fixture = options.fixture
     ? JSON.parse(readFileSync(options.fixture, 'utf8'))
-    : await seed(Number(options.messages));
+    : await seedTimeline({
+        rpc,
+        count: Number(options.messages),
+        bodies,
+        onMessage: (message) => {
+          setup.message = message;
+          saveSetup();
+        },
+        onToolState: (tool) => {
+          setup.tool = tool;
+          saveSetup();
+        },
+        onProgress: (seeded, count) => console.error('seeded ' + seeded + '/' + count),
+      });
   if (!options.fixture) writeFileSync(resolve(out, 'fixture.json'), JSON.stringify(fixture));
+  setupPhase('fixture-completed');
 
   await page.reload({ waitUntil: 'networkidle2' });
   await dismissOverlays();
@@ -499,10 +495,26 @@ try {
     if (!check.pass) process.exitCode = 1;
   }
 } catch (error) {
+  writeFileSync(
+    resolve(out, options.label + '.failure.json'),
+    JSON.stringify(
+      {
+        setup,
+        seedFailure: error?.timelineSeed,
+        pageErrors: errors.slice(-20).map((message) => redact(message).slice(0, 500)),
+        error:
+          error instanceof Error
+            ? { name: error.name, message: redact(error.message).slice(0, 1000) }
+            : { name: 'unknown' },
+      },
+      null,
+      2,
+    ),
+  );
   const shot = resolve(out, `${options.label}.failure.png`);
   await page.screenshot({ path: shot }).catch(() => {});
   console.error(`perf run failed; page screenshot: ${shot}`);
-  throw error;
+  throw new Error(redact(error instanceof Error ? (error.stack ?? error.message) : error));
 } finally {
   await browser.close();
 }

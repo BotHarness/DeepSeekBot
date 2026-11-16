@@ -131,6 +131,299 @@ it('keeps a missing global template recognizable without silently clearing its n
   expect(trigger().textContent).toContain('不可用');
 });
 
+const customTemplate = {
+  name: 'night-shift',
+  title: 'Night shift',
+  description: '',
+  builtIn: false,
+  usedBy: ['ada'],
+  text: '# Night shift\n\nAsk before sending.\n',
+};
+const deletePreview = {
+  name: 'night-shift',
+  revision: 'a'.repeat(64),
+  globalDefaultBefore: 'cautious',
+  globalDefaultAfter: 'cautious',
+  globalDefaultAvailable: true,
+  hiddenBotCount: 0,
+  affectedBots: [{ slug: 'ada', source: 'specific' }],
+};
+async function openDeletion(call: BridgeCall): Promise<void> {
+  await render(call);
+  const edit = host.querySelector<HTMLButtonElement>(
+    '[data-approval-template="night-shift"] button',
+  );
+  if (!edit) throw new Error('Missing custom template');
+  await act(async () => edit.click());
+  const remove = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === t('autoApproval.library.delete'),
+  );
+  if (!remove) throw new Error('Missing delete action');
+  await act(async () => remove.click());
+}
+function confirmDeletion(): HTMLButtonElement {
+  const button = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+  if (!button) throw new Error('Missing confirmation');
+  return button;
+}
+
+it('discloses global and direct references before enabling explicit deletion confirmation', async () => {
+  const pending: {
+    resolve?: (value: Awaited<ReturnType<BridgeCall>>) => void;
+    promise?: Promise<Awaited<ReturnType<BridgeCall>>>;
+  } = {};
+  pending.promise = new Promise((resolve) => {
+    pending.resolve = resolve;
+  });
+  const writes: Record<string, unknown>[] = [];
+  let deleted = false;
+  const call: BridgeCall = async (endpoint, payload) => {
+    if (endpoint === 'approvalTemplates')
+      return {
+        ok: true,
+        value: {
+          templates: [...templates, ...(deleted ? [] : [customTemplate])],
+          globalDefault: deleted ? null : 'night-shift',
+        },
+      };
+    if (endpoint === 'approvalTemplateDeletePreview') {
+      if (!pending.promise) throw new Error('Missing deferred read');
+      return pending.promise;
+    }
+    if (endpoint === 'approvalTemplateDelete') {
+      writes.push(payload);
+      deleted = true;
+      return { ok: true, value: { inheritedBots: ['ada'] } };
+    }
+    throw new Error('Unexpected endpoint ' + endpoint);
+  };
+  await openDeletion(call);
+  expect(confirmDeletion().disabled).toBe(true);
+  expect(writes).toEqual([]);
+  const resolvePreview = pending.resolve;
+  if (!resolvePreview) throw new Error('Missing preview resolver');
+  await act(async () =>
+    resolvePreview({
+      ok: true,
+      value: {
+        preview: {
+          ...deletePreview,
+          globalDefaultBefore: 'night-shift',
+          globalDefaultAfter: null,
+          globalDefaultAvailable: false,
+          affectedBots: [
+            { slug: 'ada', source: 'specific' },
+            { slug: 'bob', source: 'global' },
+          ],
+        },
+      },
+    }),
+  );
+  expect(document.body.textContent).toContain('ada');
+  expect(document.body.textContent).toContain('bob');
+  expect(document.body.textContent).toContain(t('autoApproval.library.deleteClearsGlobal'));
+  expect(document.body.textContent).toContain(
+    t('autoApproval.library.deleteEffective', { template: t('autoApproval.off') }),
+  );
+  expect(confirmDeletion().disabled).toBe(false);
+  await act(async () => confirmDeletion().click());
+  expect(writes).toEqual([{ name: 'night-shift', confirmed: true, revision: 'a'.repeat(64) }]);
+  expect(host.querySelector('[data-approval-template="night-shift"]')).toBeNull();
+});
+
+it('refreshes changed impact and requires a second confirmation instead of replaying deletion', async () => {
+  let previews = 0;
+  const writes: Record<string, unknown>[] = [];
+  const call: BridgeCall = async (endpoint, payload) => {
+    if (endpoint === 'approvalTemplates')
+      return {
+        ok: true,
+        value: { templates: [...templates, customTemplate], globalDefault: 'cautious' },
+      };
+    if (endpoint === 'approvalTemplateDeletePreview') {
+      previews++;
+      return {
+        ok: true,
+        value: {
+          preview:
+            previews === 1
+              ? deletePreview
+              : { ...deletePreview, revision: 'b'.repeat(64), globalDefaultAfter: 'get-work-done' },
+        },
+      };
+    }
+    if (endpoint === 'approvalTemplateDelete') {
+      writes.push(payload);
+      return writes.length === 1
+        ? {
+            ok: false,
+            error: { code: 'approval-template-delete-changed', message: 'changed', details: {} },
+          }
+        : { ok: true, value: { inheritedBots: ['ada'] } };
+    }
+    throw new Error('Unexpected endpoint ' + endpoint);
+  };
+  await openDeletion(call);
+  await act(async () => confirmDeletion().click());
+  expect(writes).toHaveLength(1);
+  expect(previews).toBe(2);
+  expect(document.body.textContent).toContain(t('autoApproval.library.deleteChanged'));
+  expect(document.body.textContent).toContain(t('autoApproval.template.getWorkDone'));
+  await act(async () => confirmDeletion().click());
+  expect(writes[1]).toEqual({ name: 'night-shift', confirmed: true, revision: 'b'.repeat(64) });
+});
+
+it('uses read-only recovery after an unconfirmed deletion result', async () => {
+  let previews = 0;
+  let writes = 0;
+  const call: BridgeCall = async (endpoint) => {
+    if (endpoint === 'approvalTemplates')
+      return {
+        ok: true,
+        value: { templates: [...templates, customTemplate], globalDefault: 'cautious' },
+      };
+    if (endpoint === 'approvalTemplateDeletePreview') {
+      previews++;
+      return { ok: true, value: { preview: deletePreview } };
+    }
+    if (endpoint === 'approvalTemplateDelete') {
+      writes++;
+      throw new Error('Response unavailable');
+    }
+    throw new Error('Unexpected endpoint ' + endpoint);
+  };
+  await openDeletion(call);
+  await act(async () => confirmDeletion().click());
+  expect(writes).toBe(1);
+  expect(confirmDeletion().disabled).toBe(true);
+  expect(document.body.textContent).toContain(t('autoApproval.library.deleteUnconfirmed'));
+  const reload = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === t('autoApproval.reload'),
+  );
+  if (!reload) throw new Error('Missing read-only recovery');
+  await act(async () => reload.click());
+  expect(previews).toBe(2);
+  expect(writes).toBe(1);
+});
+
+it.each(['invalid', 'wrong-target'])(
+  'keeps confirmation disabled for %s preview data',
+  async (kind) => {
+    let writes = 0;
+    const call: BridgeCall = async (endpoint) => {
+      if (endpoint === 'approvalTemplates')
+        return {
+          ok: true,
+          value: { templates: [...templates, customTemplate], globalDefault: 'cautious' },
+        };
+      if (endpoint === 'approvalTemplateDeletePreview')
+        return {
+          ok: true,
+          value: { preview: kind === 'invalid' ? {} : { ...deletePreview, name: 'other' } },
+        };
+      writes++;
+      throw new Error('Unexpected mutation');
+    };
+    await openDeletion(call);
+    expect(confirmDeletion().disabled).toBe(true);
+    expect(document.body.textContent).toContain(t('autoApproval.library.deletePreviewFailed'));
+    expect(writes).toBe(0);
+  },
+);
+
+it.each(['immediate', 'retry'] as const)(
+  'converges canonical deletion after a lost response with %s readback',
+  async (recovery) => {
+    let deleted = false;
+    let writes = 0;
+    let reads = 0;
+    const call: BridgeCall = async (endpoint) => {
+      if (endpoint === 'approvalTemplates') {
+        reads++;
+        if (recovery === 'retry' && reads === 2) throw new Error('Read unavailable');
+        return {
+          ok: true,
+          value: {
+            templates: [...templates, ...(deleted ? [] : [customTemplate])],
+            globalDefault: deleted ? null : 'night-shift',
+          },
+        };
+      }
+      if (endpoint === 'approvalTemplateDeletePreview')
+        return deleted
+          ? { ok: false, error: { code: 'unknown-template', message: 'removed', details: {} } }
+          : { ok: true, value: { preview: deletePreview } };
+      if (endpoint === 'approvalTemplateDelete') {
+        writes++;
+        deleted = true;
+        throw new Error('Response lost after commit');
+      }
+      throw new Error('Unexpected ' + endpoint);
+    };
+    await openDeletion(call);
+    await act(async () => confirmDeletion().click());
+    expect(writes).toBe(1);
+    if (recovery === 'retry') {
+      expect(trigger().textContent).toContain('读取失败');
+      const retry = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+        (b) => b.textContent === t('autoApproval.reload'),
+      );
+      if (!retry) throw new Error('Missing read recovery');
+      await act(async () => retry.click());
+    }
+    expect(host.querySelector('[data-approval-template="night-shift"]')).toBeNull();
+    expect(trigger().textContent).toContain(t('autoApproval.off'));
+    expect(writes).toBe(1);
+  },
+);
+
+it('reads canonical deletion after the confirmation dialog closes during the write', async () => {
+  let deleted = false;
+  let reads = 0;
+  let writes = 0;
+  let finish: ((value: Awaited<ReturnType<BridgeCall>>) => void) | undefined;
+  const pending = new Promise<Awaited<ReturnType<BridgeCall>>>((resolve) => {
+    finish = resolve;
+  });
+  const call: BridgeCall = async (endpoint) => {
+    if (endpoint === 'approvalTemplates') {
+      reads++;
+      return {
+        ok: true,
+        value: {
+          templates: [...templates, ...(deleted ? [] : [customTemplate])],
+          globalDefault: deleted ? null : 'night-shift',
+        },
+      };
+    }
+    if (endpoint === 'approvalTemplateDeletePreview')
+      return { ok: true, value: { preview: deletePreview } };
+    if (endpoint === 'approvalTemplateDelete') {
+      writes++;
+      return pending;
+    }
+    throw new Error('Unexpected ' + endpoint);
+  };
+  await openDeletion(call);
+  await act(async () => confirmDeletion().click());
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+  if (!dialog) throw new Error('Missing dialog');
+  const dismiss = dialog.querySelector<HTMLButtonElement>(
+    'button[aria-label="' + t('common.close') + '"]',
+  );
+  if (!dismiss) throw new Error('Missing close button');
+  await act(async () => dismiss.click());
+  expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).not.toContain(
+    t('autoApproval.library.deleteTitle', { title: 'Night shift' }),
+  );
+  deleted = true;
+  await act(async () => finish?.({ ok: true, value: { inheritedBots: ['ada'] } }));
+  expect(reads).toBe(2);
+  expect(writes).toBe(1);
+  expect(host.querySelector('[data-approval-template="night-shift"]')).toBeNull();
+  expect(trigger().textContent).toContain(t('autoApproval.off'));
+});
+
 async function clickText(label: string): Promise<void> {
   const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
     (item) => item.textContent === label,
@@ -442,6 +735,33 @@ it('keeps a custom template named off separate from the Off option', async () =>
   expect(writes).toEqual([{ template: 'off' }, { template: null }]);
 });
 
+it('warns when deletion targets unreadable content and still requires explicit confirmation', async () => {
+  const writes: unknown[] = [];
+  const call: BridgeCall = async (endpoint, payload) => {
+    if (endpoint === 'approvalTemplates')
+      return {
+        ok: true,
+        value: {
+          templates: [...templates, customTemplate],
+          globalDefault: 'cautious',
+        },
+      };
+    if (endpoint === 'approvalTemplateDeletePreview')
+      return { ok: true, value: { preview: { ...deletePreview, contentUnavailable: true } } };
+    if (endpoint === 'approvalTemplateDelete') {
+      writes.push(payload);
+      return { ok: true, value: {} };
+    }
+    throw new Error('Unexpected endpoint ' + endpoint);
+  };
+  await openDeletion(call);
+  expect(document.body.textContent).toContain(t('autoApproval.library.deleteContentUnavailable'));
+  expect(writes).toEqual([]);
+  expect(confirmDeletion().disabled).toBe(false);
+  await act(async () => confirmDeletion().click());
+  expect(writes).toHaveLength(1);
+});
+
 it.each([
   { creation: false, readFails: false },
   { creation: false, readFails: true },
@@ -572,5 +892,168 @@ it.each([
     expect(creates).toBe(creation ? 1 : 0);
     expect(updates).toBe(creation ? 0 : 1);
     expect(selections).toBe(2);
+  },
+);
+
+it('retains an unreadable template deletion failure when the readable list omits its file', async () => {
+  let omitted = false;
+  let writes = 0;
+  let previews = 0;
+  const call: BridgeCall = async (endpoint) => {
+    if (endpoint === 'approvalTemplates')
+      return {
+        ok: true,
+        value: {
+          templates: [...templates, ...(omitted ? [] : [customTemplate])],
+          globalDefault: 'cautious',
+        },
+      };
+    if (endpoint === 'approvalTemplateDeletePreview') {
+      previews++;
+      return { ok: true, value: { preview: { ...deletePreview, contentUnavailable: omitted } } };
+    }
+    if (endpoint === 'approvalTemplateDelete') {
+      writes++;
+      omitted = true;
+      return {
+        ok: false,
+        error: {
+          code: 'approval-template-delete-unavailable',
+          message: 'File still exists',
+          details: {},
+        },
+      };
+    }
+    throw new Error('Unexpected ' + endpoint);
+  };
+  await openDeletion(call);
+  await act(async () => confirmDeletion().click());
+  expect(document.body.textContent).toContain(t('autoApproval.library.deleteUnconfirmed'));
+  expect(confirmDeletion().disabled).toBe(true);
+  expect(previews).toBe(2);
+  const reload = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === t('autoApproval.reload'),
+  );
+  if (!reload) throw new Error('Missing recovery');
+  await act(async () => reload.click());
+  expect(document.body.textContent).toContain(t('autoApproval.library.deleteContentUnavailable'));
+  expect(confirmDeletion().disabled).toBe(false);
+  expect(previews).toBe(3);
+  expect(writes).toBe(1);
+});
+
+it.each([false, true])(
+  'refreshes canonical state after a concurrent deletion (read fails: %s)',
+  async (readFails) => {
+    let reads = 0;
+    let writes = 0;
+    const call: BridgeCall = async (endpoint) => {
+      if (endpoint === 'approvalTemplates') {
+        reads++;
+        if (readFails && reads === 2) throw new Error('Canonical read failed');
+        return {
+          ok: true,
+          value: {
+            templates: [...templates, ...(reads === 1 ? [customTemplate] : [])],
+            globalDefault: reads === 1 ? 'night-shift' : null,
+          },
+        };
+      }
+      if (endpoint === 'approvalTemplateDeletePreview')
+        return {
+          ok: false,
+          error: { code: 'unknown-template', message: 'Removed by another client', details: {} },
+        };
+      writes++;
+      throw new Error('No mutation expected');
+    };
+    await openDeletion(call);
+    if (readFails) {
+      expect(document.body.textContent).toContain(t('autoApproval.library.deletePreviewFailed'));
+      expect(confirmDeletion().disabled).toBe(true);
+      const dialog = confirmDeletion().closest('[role="dialog"]');
+      if (!dialog) throw new Error('Missing deletion dialog');
+      const reload = [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent === t('autoApproval.reload'),
+      );
+      if (!reload) throw new Error('Missing read-only retry');
+      await act(async () => reload.click());
+    }
+    expect(host.querySelector('[data-approval-template="night-shift"]')).toBeNull();
+    expect(trigger().textContent).toContain(t('autoApproval.off'));
+    expect(document.body.textContent).not.toContain(
+      t('autoApproval.library.deleteTitle', { title: 'Night shift' }),
+    );
+    expect(writes).toBe(0);
+  },
+);
+
+it.each([false, true])(
+  'keeps the latest library, global choice and editor after an older read finishes (fails: %s)',
+  async (olderFails) => {
+    const pending: ((value: Awaited<ReturnType<BridgeCall>>) => void)[] = [];
+    const latestTemplate = {
+      ...customTemplate,
+      name: 'dawn-shift',
+      title: 'Dawn shift',
+      text: 'Latest guidance',
+    };
+    let reads = 0;
+    let writes = 0;
+    const call: BridgeCall = async (endpoint) => {
+      if (endpoint === 'approvalTemplates') {
+        if (++reads === 1)
+          return {
+            ok: true,
+            value: { templates: [...templates, customTemplate], globalDefault: 'night-shift' },
+          };
+        return new Promise((resolve) => pending.push(resolve));
+      }
+      if (endpoint === 'approvalTemplateDeletePreview')
+        return {
+          ok: false,
+          error: { code: 'unknown-template', message: 'Removed by another client', details: {} },
+        };
+      if (endpoint === 'approvalTemplateGlobalSet') {
+        writes++;
+        return { ok: true, value: {} };
+      }
+      throw new Error('Unexpected ' + endpoint);
+    };
+    await openDeletion(call);
+    expect(pending).toHaveLength(1);
+    await clickText(t('common.cancel'));
+    await clickText(t('common.cancel'));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => trigger().click());
+    await clickText(t('autoApproval.template.getWorkDone'));
+    expect(pending).toHaveLength(2);
+    const later = pending[1];
+    const earlier = pending[0];
+    if (!later || !earlier) throw new Error('Missing concurrent reads');
+    await act(async () =>
+      later({
+        ok: true,
+        value: { templates: [...templates, latestTemplate], globalDefault: 'get-work-done' },
+      }),
+    );
+    const edit = host.querySelector<HTMLButtonElement>(
+      '[data-approval-template="dawn-shift"] button',
+    );
+    if (!edit) throw new Error('Missing latest template');
+    await act(async () => edit.click());
+    expect(document.querySelector('textarea')?.value).toBe('Latest guidance');
+    await act(async () =>
+      earlier(
+        olderFails
+          ? { ok: false, error: { code: 'read-failed', message: 'Older read failed', details: {} } }
+          : { ok: true, value: { templates, globalDefault: null } },
+      ),
+    );
+    expect(host.querySelector('[data-approval-template="dawn-shift"]')).not.toBeNull();
+    expect(trigger().textContent).toContain(t('autoApproval.template.getWorkDone'));
+    expect(document.querySelector('textarea')?.value).toBe('Latest guidance');
+    expect(document.body.textContent).not.toContain('Older read failed');
+    expect(writes).toBe(1);
   },
 );

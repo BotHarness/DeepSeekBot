@@ -1,3 +1,5 @@
+import { toolEffectLabels } from '../../../../packages/core/src/workspaces/tool-effect-labels';
+import { locale } from './strings';
 import { Text } from './primitives/system-text';
 import { useCallback, useRef, useState } from 'react';
 import { Platform, ScrollView, View, type ViewInstance } from 'react-native';
@@ -162,6 +164,9 @@ export function ApprovalView({
         <Text style={{ color: theme.ink, fontSize: 22, fontWeight: '700' }}>
           {t.wantsToRun(botName, request.toolName)}
         </Text>
+        {request.effects === undefined ? null : (
+          <Text>{toolEffectLabels(request.effects, locale).join(' · ')}</Text>
+        )}
         <View style={{ gap: 4 }}>
           <Text style={{ color: theme.inkSoft, fontSize: 13, fontWeight: '600' }}>
             {t.workingFolder}

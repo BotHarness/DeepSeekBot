@@ -1,3 +1,4 @@
+import { createPrivateHostRedactor } from './private-host-redaction.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -18,6 +19,7 @@ import {
   traceGenuiOpening,
 } from './perf-genui-opening-observer.mjs';
 import { openTimelineConversation } from './perf-timeline-navigation.mjs';
+import { runTimelineSeedTool } from './perf-timeline-seed.mjs';
 import { dismissGenuiOpeningOverlays as dismiss } from './perf-genui-opening-overlays.mjs';
 import {
   assertNativeViewportUnchanged,
@@ -57,14 +59,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, maxBuffer: 20e6 
 const budgetPath = resolve(values.budget);
 const budget = readBudget(budgetPath);
 const runId = randomUUID();
-const privateUrl = new URL(instance.url);
-const redact = (error) => {
-  let text = String(error).replaceAll(instance.url, '[private Host URL]');
-  for (const value of [privateUrl.searchParams.get('token'), privateUrl.hash.slice(1)]) {
-    if (value) text = text.replaceAll(value, '[redacted]');
-  }
-  return text;
-};
+const redact = createPrivateHostRedactor(instance.url);
 const manifest = {
   runId,
   startedAt: new Date().toISOString(),
@@ -342,9 +337,13 @@ try {
         assert.deepEqual(target.previewDiagnostics, []);
       }
       const before = performance.now();
-      const sent = await call('botToolRun', {
+      const sent = await runTimelineSeedTool({
+        rpc: call,
         slug: bot.slug,
-        tool: 'bot_send_message',
+        onState: (state) => {
+          target.approval = state;
+          save();
+        },
         args: {
           channel_id: bot.channelId,
           body: 'Synthetic project comparison. Review the projects and their current metrics.',

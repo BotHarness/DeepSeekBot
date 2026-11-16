@@ -434,7 +434,11 @@ export function apply(ctx: ClientContext): void {
         name: 'shell.overlay',
         id: 'botharness-bot-settings',
         locale: LOCALE_NS,
-        inject: () => ({ botSettings, sections: botSettingsSections }),
+        inject: () => ({
+          botSettings,
+          sections: botSettingsSections,
+          environments: member ? undefined : remoteHosts(t),
+        }),
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
       },
       BotSettingsView,

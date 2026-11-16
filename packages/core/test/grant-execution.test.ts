@@ -317,7 +317,7 @@ describe('Workspace Grant execution boundary', () => {
       'group_leave',
     ])
       expect(requiresHumanToolApproval(tool)).toBe(false);
-    expect(requiresHumanToolApproval('bot_send_message')).toBe(false);
+    expect(requiresHumanToolApproval('bot_send_message')).toBe(true);
     for (const tool of [
       'bot_schedule_list',
       'bot_schedule_create',
@@ -337,7 +337,6 @@ describe('Workspace Grant execution boundary', () => {
       'bridge_sender_permissions',
       'bridge_directory',
       'bridge_attachment_save',
-      'bot_send_message',
     ]) {
       expect(requiresHumanToolApproval(tool)).toBe(false);
       expect(isDshGovernedTool(tool)).toBe(false);

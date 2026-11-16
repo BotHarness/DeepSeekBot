@@ -3,17 +3,20 @@ import {
   encodeApprovalTemplateGuidance,
   type ApprovalTemplateGuidance,
 } from '../../../core/src/workspaces/approval-template-guidance.js';
+import type { ApprovalTemplateDeletionPreview } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 import { useClientFields, useStoreSlice } from './use-client-store.js';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 
 import { templateDescription, templateTitle } from './approval-template-entry.js';
 import {
+  BridgeCallError,
   createApprovalTemplate,
   deleteApprovalTemplate,
   errorMessage,
   loadApprovalTemplates,
+  previewApprovalTemplateDeletion,
   setGlobalApprovalTemplate,
   setBotApprovalTemplate,
   updateApprovalTemplate,
@@ -71,9 +74,14 @@ type Editor =
   | { mode: 'edit'; template: ApprovalTemplateView; text: string };
 
 function botNames(store: ClientStore, slugs: readonly string[]): string {
-  const bots = store.getSnapshot().bots;
-  return slugs.map((slug) => bots.find((bot) => bot.slug === slug)?.displayName ?? slug).join(', ');
+  const names = new Map(store.getSnapshot().bots.map((bot) => [bot.slug, bot.displayName]));
+  return slugs.map((slug) => names.get(slug) ?? slug).join(', ');
 }
+
+type Deleting = { template: ApprovalTemplateView } & (
+  | { kind: 'loading' | 'failed' }
+  | { kind: 'ready'; preview: ApprovalTemplateDeletionPreview }
+);
 
 function copyName(name: string, taken: readonly ApprovalTemplateView[]): string {
   const base = (name + '-copy').slice(0, 58);
@@ -183,7 +191,9 @@ export function ApprovalTemplateLibrarySettings({
   const [templates, setTemplates] = useState<ApprovalTemplateView[]>();
   const [loadError, setLoadError] = useState<string>();
   const [editor, setEditor] = useState<Editor>();
-  const [deleting, setDeleting] = useState<ApprovalTemplateView>();
+  const [deleting, setDeleting] = useState<Deleting>();
+  const deletionGeneration = useRef(0);
+  const reloadGeneration = useRef(0);
   const [applyTo, setApplyTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -191,27 +201,37 @@ export function ApprovalTemplateLibrarySettings({
   const currentBotSlug = useStoreSlice(store, currentTemplateBot);
   const currentBot = bots.find((bot) => bot.slug === currentBotSlug);
 
-  const reload = async (): Promise<void> => {
-    const next = await loadApprovalTemplates(call);
+  const reload = async () => {
+    const generation = ++reloadGeneration.current;
+    const result = await loadApprovalTemplates(call).then(
+      (value) => ({ kind: 'loaded' as const, value }),
+      (cause: unknown) => ({ kind: 'failed' as const, cause }),
+    );
+    if (generation !== reloadGeneration.current) return { kind: 'superseded' as const, result };
+    if (result.kind === 'failed') throw result.cause;
+    const next = result.value;
     setTemplates(next.templates);
     setGlobalDefault(next.globalDefault ?? null);
     setGlobalError(false);
     setLoadError(undefined);
+    setEditor((current) =>
+      current !== undefined &&
+      (current.mode === 'view' || current.mode === 'edit') &&
+      !next.templates.some((template) => template.name === current.template.name)
+        ? undefined
+        : current,
+    );
+    return result;
   };
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
-    loadApprovalTemplates(call)
-      .then((next) => {
-        if (live) {
-          setTemplates(next.templates);
-          setGlobalDefault(next.globalDefault ?? null);
-        }
-      })
-      .catch((cause: unknown) => {
-        if (live) setLoadError(errorMessage(cause));
-      });
+    void reload().catch((cause: unknown) => {
+      if (live) setLoadError(errorMessage(cause));
+    });
     return () => {
       live = false;
+      reloadGeneration.current++;
+      deletionGeneration.current++;
     };
   }, [call]);
 
@@ -233,10 +253,15 @@ export function ApprovalTemplateLibrarySettings({
       .finally(() => setBusy(false));
   };
 
+  const cancelDeletion = (): void => {
+    deletionGeneration.current++;
+    setDeleting(undefined);
+    setError(undefined);
+  };
   const close = (): void => {
     setEditor(undefined);
     setApplyTo('');
-    setDeleting(undefined);
+    cancelDeletion();
     setError(undefined);
   };
   const createDraft = (draft: Extract<Editor, { mode: 'create' }>): void => {
@@ -267,6 +292,113 @@ export function ApprovalTemplateLibrarySettings({
       .finally(() => setBusy(false));
   };
 
+  const beginDeletion = (template: ApprovalTemplateView, notice?: string): void => {
+    const generation = ++deletionGeneration.current;
+    setError(notice);
+    setDeleting({ template, kind: 'loading' });
+    void previewApprovalTemplateDeletion(call, template.name).then(
+      (preview) => {
+        if (deletionGeneration.current === generation)
+          setDeleting({ template, kind: 'ready', preview });
+      },
+      async (cause: unknown) => {
+        if (deletionGeneration.current !== generation) return;
+        if (cause instanceof BridgeCallError && cause.code === 'unknown-template') {
+          try {
+            const next = await reload();
+            if (deletionGeneration.current === generation) {
+              if (next.kind === 'loaded') cancelDeletion();
+              else {
+                setDeleting({ template, kind: 'failed' });
+                setError(t('autoApproval.library.deletePreviewFailed'));
+              }
+            }
+          } catch (readCause: unknown) {
+            if (deletionGeneration.current !== generation) return;
+            setTemplates(undefined);
+            setGlobalDefault(undefined);
+            setGlobalError(true);
+            setLoadError(errorMessage(readCause));
+            setEditor(undefined);
+            setDeleting({ template, kind: 'failed' });
+            setError(t('autoApproval.library.deletePreviewFailed'));
+          }
+          return;
+        }
+        setDeleting({ template, kind: 'failed' });
+        setError(t('autoApproval.library.deletePreviewFailed'));
+      },
+    );
+  };
+  const reconcileDeletion = async (name: string, generation: number): Promise<void> => {
+    try {
+      const next = await reload();
+      if (next.kind === 'superseded') return;
+      if (
+        deletionGeneration.current === generation &&
+        !next.value.templates.some((template) => template.name === name)
+      ) {
+        try {
+          await previewApprovalTemplateDeletion(call, name);
+        } catch (cause: unknown) {
+          if (
+            deletionGeneration.current === generation &&
+            cause instanceof BridgeCallError &&
+            cause.code === 'unknown-template'
+          )
+            cancelDeletion();
+        }
+      }
+    } catch {
+      setGlobalDefault(undefined);
+      setGlobalError(true);
+    }
+  };
+  const recoverDeletion = (template: ApprovalTemplateView): void => {
+    if (busy) return;
+    const generation = deletionGeneration.current;
+    setBusy(true);
+    void reload()
+      .then((next) => {
+        if (next.kind === 'loaded' && deletionGeneration.current === generation)
+          beginDeletion(template);
+      })
+      .catch(() => {
+        setGlobalDefault(undefined);
+        setGlobalError(true);
+      })
+      .finally(() => setBusy(false));
+  };
+  const confirmDeletion = (): void => {
+    if (busy || deleting?.kind !== 'ready') return;
+    const selected = deleting;
+    const generation = deletionGeneration.current;
+    setBusy(true);
+    setError(undefined);
+    void deleteApprovalTemplate(call, selected.preview)
+      .then(async () => {
+        setTemplates((current) =>
+          current?.filter((template) => template.name !== selected.preview.name),
+        );
+        if (deletionGeneration.current === generation) close();
+        await reconcileDeletion(selected.preview.name, generation);
+      })
+      .catch(async (cause: unknown) => {
+        if (deletionGeneration.current === generation) {
+          if (cause instanceof BridgeCallError && cause.code === 'approval-template-delete-changed')
+            beginDeletion(selected.template, t('autoApproval.library.deleteChanged'));
+          else {
+            setDeleting({ template: selected.template, kind: 'failed' });
+            setError(t('autoApproval.library.deleteUnconfirmed'));
+          }
+        }
+        setGlobalDefault(undefined);
+        setGlobalError(true);
+        await reconcileDeletion(selected.preview.name, generation);
+      })
+      .finally(() => setBusy(false));
+  };
+
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
   const list = templates ?? [];
   const usedBy = (template: ApprovalTemplateView): string | undefined =>
@@ -274,23 +406,81 @@ export function ApprovalTemplateLibrarySettings({
 
   const dialog = (() => {
     if (deleting !== undefined) {
-      const names = usedBy(deleting);
+      const preview = deleting.kind === 'ready' ? deleting.preview : undefined;
+      const direct =
+        preview?.affectedBots.filter((bot) => bot.source === 'specific').map((bot) => bot.slug) ??
+        [];
+      const inherited =
+        preview?.affectedBots.filter((bot) => bot.source === 'global').map((bot) => bot.slug) ?? [];
+      const after = preview?.globalDefaultAfter;
+      const effective =
+        after === null
+          ? t('autoApproval.off')
+          : after === undefined
+            ? ''
+            : preview?.globalDefaultAvailable
+              ? templateTitle(t, after, list.find((template) => template.name === after)?.title)
+              : t('autoApproval.templateMissing', { name: after });
       return (
         <ConfirmDialog
           title={t('autoApproval.library.deleteTitle', {
-            title: templateTitle(t, deleting.name, deleting.title),
+            title: templateTitle(t, deleting.template.name, deleting.template.title),
           })}
           labels={labels}
           confirmLabel={t('autoApproval.library.delete')}
+          confirmDisabled={preview === undefined}
+          scroll
           busy={busy}
           error={error}
-          onCancel={() => setDeleting(undefined)}
-          onConfirm={() => run(() => deleteApprovalTemplate(call, deleting.name))}
+          onCancel={cancelDeletion}
+          onConfirm={confirmDeletion}
         >
-          <Note>{t('autoApproval.library.deleteBody', { name: deleting.name })}</Note>
-          {names === undefined ? null : (
-            <Callout tone="warning">{t('autoApproval.library.deleteInUse', { names })}</Callout>
+          <Note>{t('autoApproval.library.deleteBody', { name: deleting.template.name })}</Note>
+          {deleting.kind === 'loading' ? <Note>{t('autoApproval.loading')}</Note> : null}
+          {preview === undefined ? null : (
+            <>
+              {preview.contentUnavailable ? (
+                <Callout tone="warning">
+                  {t('autoApproval.library.deleteContentUnavailable')}
+                </Callout>
+              ) : null}
+              {direct.length === 0 ? null : (
+                <Callout tone="warning">
+                  {t('autoApproval.library.deleteDirect', { names: botNames(store, direct) })}
+                </Callout>
+              )}
+              {inherited.length === 0 ? null : (
+                <Callout tone="warning">
+                  {t('autoApproval.library.deleteInherited', { names: botNames(store, inherited) })}
+                </Callout>
+              )}
+              {preview.globalDefaultBefore === preview.name ? (
+                <Note>{t('autoApproval.library.deleteClearsGlobal')}</Note>
+              ) : null}
+              {preview.hiddenBotCount > 0 ? (
+                <Callout tone="warning">
+                  {t('autoApproval.library.deleteHidden', {
+                    count: String(preview.hiddenBotCount),
+                  })}
+                </Callout>
+              ) : null}
+              {preview.affectedBots.length === 0 && preview.hiddenBotCount === 0 ? (
+                <Note>{t('autoApproval.library.deleteUnused')}</Note>
+              ) : (
+                <Note>{t('autoApproval.library.deleteEffective', { template: effective })}</Note>
+              )}
+              <Note>{t('autoApproval.library.deleteRulesUnchanged')}</Note>
+            </>
           )}
+          {deleting.kind === 'failed' ? (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => recoverDeletion(deleting.template)}
+            >
+              {t('autoApproval.reload')}
+            </Button>
+          ) : null}
         </ConfirmDialog>
       );
     }
@@ -479,7 +669,7 @@ export function ApprovalTemplateLibrarySettings({
               disabled={busy}
               onClick={() => {
                 setError(undefined);
-                setDeleting(template);
+                beginDeletion(template);
               }}
             >
               {t('autoApproval.library.delete')}

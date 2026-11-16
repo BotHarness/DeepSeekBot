@@ -587,6 +587,8 @@ deepseekbot private-mcp-set <bot-id> --server <name> --enabled
 deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
 
+审批卡创建的规则也显示在 Bot 权限的「始终允许 · 此 Bot」列表。这与 `tool-approval-rules` 读取的是同一规范规则，使用 `tool-approval-rule-revoke` 撤销。规则保留 Bot、角色和授权范围，不随共享模板及其副本传播。CLI 撤销后重新读取权限列表，下次匹配调用恢复现有审核流程。
+
 `session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止，Bot 的其他 Session 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Session 出现在 `alreadyIdle` 中，命令仍然成功。Bot 不拥有的 Session 以 `unknown-session` 拒绝。带 `--channel` 时，发起停止的 Channel 会收到一行通知（`turnStop.target`，结果中另有 `messageId`），但只在该 Session 属于这个 Channel 时才发：Orchestrator 对应 Bot 所在的 Channel，Assignment 只对应发起它的 Channel。
 
 `session-stop <bot-id> --activity <activity-id>` 停止 Bot 实时活动快照中某一行（`sessions[].id`）对应的 Session，与消息面板顶部弹出框中该行的停止按钮相同。该行已消失表示 Session 已结束，命令返回空的 `stopped` 和 `alreadyIdle` 列表，仍然成功。Session id 和 `--activity` 只能传其中一个。
@@ -835,13 +837,18 @@ deepseekbot approval-template create night-shift --file night-shift.md
 deepseekbot approval-template create my-cautious --from cautious
 deepseekbot approval-template edit night-shift --file night-shift.md
 deepseekbot approval-template delete night-shift
+deepseekbot approval-template delete night-shift --confirm --delete-revision <revision-from-preview>
 ```
+
+删除命令先返回只读 `preview`：`revision` 绑定模板内容、当前全局选择及全部引用。预览包含 `globalDefaultBefore`、`globalDefaultAfter`、`globalDefaultAvailable`、可见 `affectedBots`（`slug` 和 `source`），以及身份不可见引用的 `hiddenBotCount`。加 `--confirm --delete-revision` 才删除；未确认不删除、不改选择。模板内容、引用或全局策略已变时返回 `approval-template-delete-changed`，须重新预览。
+
+确认后，特定引用统一改为 `@global`；删除全局默认会清空默认，原继承者保持继承并关闭 Reviewer。全局仍选另一模板时会使用它；默认不可读时仍显示不可用，未解决调用交给 Human。其他特定选择、关闭、Full Access 及已保存确定性规则不变；已开始的 Review 保留当次版本。结果含 `inheritedBots` 和 `globalDefault`；兼容字段 `clearedBots` 表示已移除特定选择的可见引用。删除失败返回 `approval-template-delete-unavailable`；若恢复选择也失败则为 `approval-template-delete-incomplete`，重试前先读取当前状态。自定义模板内容不可读或超限时，仍可显式删除：预览返回 `contentUnavailable: true`。此时确认版本绑定有界的文件系统身份（设备/inode、大小及时间戳），不对不可读正文做完整哈希；正常模板仍绑定正文。文件身份变化或修复内容后必须重新预览。不可读文件不在模板列表中；恢复时使用已知名称运行 CLI 预览/删除命令。全局选择读取失败仍拒绝删除。
 
 `off`、`inherit` 仍可作为自定义模板名。选择时加 `--literal-template` 即按字面名称选中；不加时继续保留原有关闭和继承别名。
 
 `list` 返回 `templates` 和 `globalDefault`（模板名或 `null`）。加 `--bot` 时还返回 `selected`（`@global`、特定模板名或 `null`）、`source`（`global`、`specific`、`off`）及 `effective`（模板名或 `null`）。全局设置返回 `{template}`，Bot 设置返回 `{bot}`。写入由认证 Host 持有；不存在的模板不能被选中，全局选择读取失败返回 `approval-selection-unavailable`，不冒充空默认。
 
-模板继续使用内置只读内容或 `$DSH_HOME/botharness/approval-templates/` 下的 Markdown 文件；同一文件 owner 在 `.selection.json` 保存全局选择，不新增 schema 迁移。名称使用小写字母、数字和短横线，正文最多 32 KiB。`show` 返回全文；`create --from` 复制内容。编辑器提供 Always ask、Always allow 与 free text，可显式从空白或副本开始，并选择仅保存或保存后应用。详见[三部分模板编写](#三部分审批指导)。统一规则表和确认后的批量删除回退由后续切片交付。
+模板继续使用内置只读内容或 `$DSH_HOME/botharness/approval-templates/` 下的 Markdown 文件；同一文件 owner 在 `.selection.json` 保存全局选择，不新增 schema 迁移。名称使用小写字母、数字和短横线，正文最多 32 KiB。`show` 返回全文；`create --from` 复制内容。编辑器提供 Always ask、Always allow 与 free text，可显式从空白或副本开始，并选择仅保存或保存后应用。详见[三部分模板编写](#三部分审批指导)。
 
 确定性授权先处理，覆盖请求时不调用 Reviewer。其余请求按所选模板进入全新、无工具的 Reviewer Session，只接受本次 `allow` 或 `ask-human`。Always ask 优先于 Always allow，free text 补充两者；旧模板的 Reject 指引表示交给 Human。模型不存规则、不自主拒绝，拒绝熔断不再生效。旧拒绝记录及显式 Human override 保持可读。
 
@@ -2106,6 +2113,24 @@ Bot 默认私有：只有主体（所有者）可以私聊私有 Bot 或把它�
 运行 `deepseekbot approval-template edit my-draft --parts-file guidance.json`，再用 `deepseekbot approval-template show my-draft` 读回；`text` 包含带格式版本的内容。创建／编辑时添加 `--apply-to <bot-id>` 才会在保存后为该 Bot 选用模板。不加时不改变选择。应用仍通过现有 Bot 选择授权；应用失败时已保存的草稿保留，可单独选用。
 
 编辑共享原件影响 `usedBy` 中所有 Bot 的后续 Review，包括全局继承者。需要独立修改时先复制。总是询问优先于总是允许，补充说明不能取消前者。这些是可能被模型误解的自然语言指导，不是确定性 Tool Approval Rules；冲突、未覆盖或不确定均交给 Human。转换时旧 Markdown 完整保留为补充说明，已经开始的 Review 保留捕获的内容和版本。
+
+可信声明的不可撤销外部工具调用在 Full Access 下仍进入统一审批。`bot-tool` 无需模型，沿用同一 Host 准入；有效确定性授权先于 Reviewer。在线 `channel-messages` 的审批消息包含 `toolApprovalRequest.effects` 与中英文 `effectLabels.en` / `effectLabels.zh`。工具输入或结果声称用户已批准不会构成授权。管理操作仍需 ADR-0249 的专用显式授权。
+
+### 命令效果与调用方授权
+
+CLI 与 Tob broker 共用应用定义的命令效果声明；lint 从真实命令注册数组与入口分发检查声明遗漏，不依赖搜索索引。声明不是授权：直接在线命令仍由认证 Host owner 校验；broker 仍保留 Human DM 来源、目标所有权、准确 argv 和 stdin 哈希、确认标志、revision、取消与执行前撤销检查。未知命令保留未声明来源，broker 仍按需审批，CLI 仍返回原有拒绝。混合用途命令保留保守声明及原有审批门槛；未迁移的 Shell 文本识别继续生效。
+
+效果解析复用 CLI 的严格参数解析；`channels send` 与成员设备撤销不会沿用同名读取命令的 broker 直通。`bots` 别名按实际动作解析。任意工具调用及通用 `settings-set` 的 stdin 不在审批提案中公开，故效果保持不透明；stdin 哈希只用于操作身份，不能当成授权或可信效果。
+
+## 无模型的 Tob CLI 请求
+
+已认证的 Host Owner 可将 `{"argv":["approval-templates"],"stdin":""}` 保存为本机私有 JSON 文件，用 `deepseekbot tob-cli start --args-stdin < request.json` 启动；用 `tob-cli status <request-id>` 读取状态和结果，或 `tob-cli cancel <request-id>` 请求取消。
+
+Host 通过 ChannelStore 写入真实 Human DM，再由既有 Source Event/Admission 接纳，在同一存活的 Tob 根 Orchestrator 中，通过 DSH 原生工具执行器调用 `deepseekbot_cli` 和既有 broker；不请求模型。调用方不能指定 actor、Source Event、Session、cwd 或权限覆盖。写入仍显示真实审批卡，可使用既有 `tool-approval-status`、`tool-approval-decide` 或 Tob DM 中的审批操作。
+
+启动返回 `{id,channelId,messageId,state,cancelRequested}`。结束状态为 `completed`（含 `result:{exitCode,stdout,stderr}`），或带错误码的 `failed` / `cancelled`。`completed` 仅表示调用已结束，仍须检查 exitCode 和 JSON stdout 中的命令拒绝。取消须等待结束，不能撤销已提交的效果。模型回合、直接工具或另一请求正在运行时返回 `bot-busy`；权限不可用返回 `tob-authority-required`，运行时关闭返回 `runtime-closed`，请求不存在或过期返回 `cli-request-unavailable`。
+
+最多保留十六条结束结果，结束十分钟后过期，Host 重启即失效；执行期限十分钟。输入最多 256 个 argv、总计 64 KiB，stdin 一 MiB；合并输出一 MiB。stdin 不写入 DM。不要共享私有输入文件。结果不确定时先读取命令 owner 的规范状态，不自动重放历史消息。此路径不增加审批存储或数据库迁移。见 [ADR-0347](adr/0347-model-free-tob-cli-uses-the-accepted-human-dm-turn.md)。
 
 ### Channel 邀请（M14）
 

@@ -7,10 +7,12 @@ export interface TobManagementProposal {
   readonly via?: 'cli';
 }
 
-export interface PreparedTobOperation {
-  readonly proposal?: TobManagementProposal;
+export type PreparedTobOperation = (
+  | { readonly proposal: TobManagementProposal; readonly completed?: never }
+  | { readonly proposal?: undefined; readonly completed?: true }
+) & {
   run(guard: () => void, beforeEffect?: () => void): unknown | Promise<unknown>;
-}
+};
 
 export interface TobCliCapability {
   command: string;

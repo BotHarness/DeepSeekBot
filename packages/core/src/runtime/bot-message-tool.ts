@@ -1,3 +1,4 @@
+import { HarnessError } from '@deepseek-ai/dsh-llm';
 import {
   withInlineMentions,
   mentionPeople,
@@ -22,12 +23,9 @@ function unsupportedVoice(): VoiceAttachOutcome {
   };
 }
 
-export class BotMessageError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
+export class BotMessageError extends HarnessError {
+  constructor(code: string, message: string) {
+    super(message, code);
     this.name = 'BotMessageError';
   }
 }

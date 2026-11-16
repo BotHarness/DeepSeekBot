@@ -26,6 +26,7 @@ import type { HumanAttentionItem } from '../src/host/wire';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
 import { QuestionCard } from '../src/ui/chat/question-card';
 import { t } from '../src/ui/strings';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { played } from './expo-haptics-shim';
 import { FakeHost } from './fake-host';
 import inboxWire from './fixtures/inbox-wire.json';
@@ -204,6 +205,38 @@ describe('Tool approval card in the DM', () => {
     await press(button(view, t.details));
     expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
   });
+
+  it.each([
+    { language: 'en', irreversible: 'Irreversible', external: 'External effect' },
+    { language: 'zh', irreversible: '不可撤销', external: '外部影响' },
+  ] as const)(
+    'keeps validated $language effect labels on the full card after rejection',
+    async ({ language, irreversible, external }) => {
+      const previousLanguage = interfacePreferences.getSnapshot().language;
+      act(() => interfacePreferences.setLanguage(language));
+      try {
+        const fake = host();
+        const timeline = approvalTimeline(true) as {
+          value: { page: { entries: Array<{ toolApprovalRequest: Record<string, unknown> }> } };
+        };
+        timeline.value.page.entries[0]!.toolApprovalRequest['effects'] = {
+          changes: 'irreversible',
+          reach: 'external',
+          personalData: true,
+        };
+        fake.answers.set('channelTimeline', () => timeline);
+        const view = await render(card(connect(fake)));
+        expect(view.textContent).toContain(irreversible);
+        expect(view.textContent).toContain(external);
+        await press(button(view, t.reject));
+        expect(button(view, t.reject).getAttribute('aria-selected')).toBe('true');
+        expect(view.textContent).toContain(irreversible);
+        expect(view.textContent).toContain(external);
+      } finally {
+        act(() => interfacePreferences.setLanguage(previousLanguage));
+      }
+    },
+  );
 
   it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
     'keeps the opened full card and selected disabled choice after %s',

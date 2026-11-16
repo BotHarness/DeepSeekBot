@@ -60,6 +60,33 @@ const update = () => ({
 });
 
 describe('Tob scoped CLI broker', () => {
+  it('refuses a declared external operation whose owner omitted its proposal', async () => {
+    const run = vi.fn();
+    const f = await fixture({ prepareOperation: () => ({ run }) });
+    expect(await f.invoke('voice-provider-test', { id: 'fixture', completed: true })).toMatchObject(
+      {
+        ok: false,
+        error: { code: 'approval-unavailable' },
+      },
+    );
+    expect(run).not.toHaveBeenCalled();
+    expect(f.approve).not.toHaveBeenCalled();
+  });
+
+  it('reads a completed invitation receipt without asking or executing another invitation', async () => {
+    const run = vi.fn((guard: () => void) => {
+      guard();
+      return { operationKey: 'fixture', replayed: true };
+    });
+    const f = await fixture({ prepareOperation: () => ({ completed: true, run }) });
+    expect(await f.invoke('group-invite', { operationKey: 'fixture' })).toMatchObject({
+      ok: true,
+      value: { operationKey: 'fixture', replayed: true },
+    });
+    expect(run).toHaveBeenCalledOnce();
+    expect(f.approve).not.toHaveBeenCalled();
+  });
+
   it.each([
     'operation-key-conflict',
     'stale-channel',

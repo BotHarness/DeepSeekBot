@@ -62,14 +62,19 @@ import {
 import type { ChannelAttachmentRef } from './store.js';
 import { deleteAttachmentReference, insertAttachmentReferences } from './attachment-refs.js';
 import type { ComposerSendKey } from './composer-send-key.js';
-import { rankSkillEntries, skillOwnerKey } from '../../../core/src/skills/entries.js';
+import {
+  rankSkillEntries,
+  skillOwnerKey,
+  type SkillCatalogEntry,
+} from '../../../core/src/skills/entries.js';
 import {
   activeSkillQuery,
   selectSkill,
-  type ComposerSkillOption,
   type SelectedSkill,
   type SkillQuery,
 } from './skill-refs.js';
+
+export type ComposerSkillOption = SkillCatalogEntry & { bot?: BotSummary | undefined };
 
 export interface ChannelComposerActivity {
   presentation?: 'group' | undefined;

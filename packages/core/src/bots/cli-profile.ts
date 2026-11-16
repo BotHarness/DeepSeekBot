@@ -1,28 +1,8 @@
+export { PROFILE_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const PROFILE_OPTIONS = {
-  file: { type: 'string' },
-  'recipe-stdin': { type: 'boolean' },
-  'part-stdin': { type: 'boolean' },
-  color: { type: 'string' },
-  automatic: { type: 'boolean' },
-  'source-class': { type: 'string' },
-  wake: { type: 'string' },
-  delivery: { type: 'string' },
-  'digest-count': { type: 'string' },
-  'digest-interval': { type: 'string' },
-  soul: { type: 'string' },
-  'core-memory': { type: 'string' },
-  section: { type: 'string' },
-  confirm: { type: 'boolean' },
-  slot: { type: 'string' },
-  colors: { type: 'string' },
-  parent: { type: 'string' },
-  'part-id': { type: 'string' },
-} as const;
 
 export const PROFILE_COMMANDS = [
   { command: 'bot-avatar-set', description: "set a Bot's avatar image from a file, or --clear it" },

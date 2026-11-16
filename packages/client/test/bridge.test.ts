@@ -13,6 +13,7 @@ import {
   botExists,
   parseBotSummary,
   parseChannelMessages,
+  parseChannelMessage,
   parseChannelRecord,
   parseChannelRecords,
   parseOwnedSessionSummaries,
@@ -2970,4 +2971,34 @@ it('reads retained WeChat context audits through the actual Client bridge before
     await expect(
       read({ ...source, contextReads: [{ ...source.contextReads[0], ...patch }] }),
     ).rejects.toMatchObject({ code: 'invalid-response' });
+});
+
+it('preserves trusted approval effects for Chat and Activity while dropping malformed metadata', () => {
+  const card = {
+    id: 'approval',
+    at: '2026-11-15T00:00:00Z',
+    body: '',
+    author: { kind: 'bot', slug: 'ada' },
+    toolApprovalRequest: {
+      sessionId: 'session',
+      callId: 'call',
+      toolName: 'bot_send_message',
+      role: 'orchestrator',
+      cwd: '/memory',
+      input: '{}',
+      effects: { changes: 'irreversible', reach: 'external', personalData: true },
+    },
+  };
+  expect(parseChannelMessage(card)?.toolApprovalRequest?.effects).toEqual(
+    card.toolApprovalRequest.effects,
+  );
+  expect(
+    parseChannelMessage({
+      ...card,
+      toolApprovalRequest: {
+        ...card.toolApprovalRequest,
+        effects: { changes: 'approved', reach: 'external', personalData: true },
+      },
+    })?.toolApprovalRequest?.effects,
+  ).toBeUndefined();
 });

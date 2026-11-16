@@ -1,11 +1,7 @@
+export { CALL_TIMELINE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const CALL_TIMELINE_OPTIONS = {
-  'from-ms': { type: 'string' },
-  'to-ms': { type: 'string' },
-} as const;
 
 export const CALL_TIMELINE_COMMANDS = [
   {

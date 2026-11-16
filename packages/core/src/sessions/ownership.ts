@@ -241,6 +241,7 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
           .prepare(
             `SELECT ${COLUMNS} FROM session_ownership
               WHERE bot_slug = ? AND parent_session_id IS NULL
+                AND session_id NOT LIKE 'direct-%'
                 ${rootRole === undefined ? '' : 'AND root_role = ?'}
               ORDER BY created_at DESC, session_id ASC`,
           )

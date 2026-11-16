@@ -275,3 +275,31 @@ describe('Harness Bot tool runner commands', () => {
     expect(live.calls).toEqual([]);
   });
 });
+
+it('starts a model-free typed Tob CLI request without accepting actor or source authority', async () => {
+  const live = await host(() => ({ ok: true, value: { id: 'lease-1', state: 'running' } }));
+  const result = await invoke(
+    ['tob-cli', 'start', '--args-stdin'],
+    live.url,
+    JSON.stringify({ argv: ['approval-templates'], stdin: '' }),
+  );
+  expect(result.code).toBe(0);
+  expect(result.json).toMatchObject({ id: 'lease-1', state: 'running' });
+  expect(live.calls).toEqual([
+    {
+      method: 'tobCli',
+      args: { action: 'start', command: { argv: ['approval-templates'], stdin: '' } },
+    },
+  ]);
+});
+
+it('refuses authority-selection flags on a typed Tob request before connecting', async () => {
+  const live = await host(() => ({ ok: true, value: { state: 'running' } }));
+  const result = await invoke(
+    ['tob-cli', 'start', '--cause-event', 'historical-source', '--args-stdin'],
+    live.url,
+    JSON.stringify({ argv: ['approval-templates'] }),
+  );
+  expect(result.json).toMatchObject({ error: { code: 'agent-scope-denied' } });
+  expect(live.calls).toHaveLength(0);
+});

@@ -7,6 +7,7 @@ import {
   compare,
   countFindings,
   lowered,
+  malformed,
   raised,
   readGuardrails,
   validateGuardrails,
@@ -80,6 +81,15 @@ describe('lint ratchet', () => {
     expect(raised(base, { [rule]: { 'a.ts': 2, 'b.ts': 1 } })).toEqual([
       `a.ts: ${rule} baseline raised from 1 to 2`,
       `b.ts: ${rule} baseline raised from 0 to 1`,
+    ]);
+  });
+
+  it('rejects a baseline count that is not a nonnegative integer', () => {
+    expect(malformed({ [rule]: { 'a.ts': 2 } })).toEqual([]);
+    expect(malformed({ [rule]: { 'a.ts': 'invalid', 'b.ts': -1, 'c.ts': 1.5 } })).toEqual([
+      `a.ts: ${rule} baseline "invalid" is not a count`,
+      `b.ts: ${rule} baseline -1 is not a count`,
+      `c.ts: ${rule} baseline 1.5 is not a count`,
     ]);
   });
 

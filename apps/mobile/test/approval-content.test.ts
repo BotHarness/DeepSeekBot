@@ -9,6 +9,26 @@ describe('approval display content boundary', () => {
     input: '{"command":"echo QA"}',
     allowAlways: true,
   };
+  it('retains only validated display effects, without trusting extra properties', () => {
+    const effects = {
+      changes: 'irreversible',
+      reach: 'external',
+      personalData: true,
+      authority: 'management',
+      secrets: true,
+    };
+    expect(
+      approvalContent({ ...request, effects: { ...effects, outcome: 'allowed-once' } }),
+    ).toEqual({ ...request, effects });
+  });
+  it.each([
+    {},
+    { changes: 'none', reach: 'future', personalData: true },
+    { changes: 'none', reach: 'local', personalData: 'yes' },
+    { changes: 'none', reach: 'local', personalData: true, authority: 'automatic' },
+  ])('omits malformed display effects: %j', (effects) => {
+    expect(approvalContent({ ...request, effects })).toEqual(request);
+  });
   it('retains only display content, never cached decision authority', () => {
     expect(
       approvalContent({

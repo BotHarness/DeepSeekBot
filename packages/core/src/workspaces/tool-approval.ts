@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
-import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
+import type { ApprovalOutcome, ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
 import { dmChannelId, type ChannelMessage } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -41,6 +41,7 @@ export type ToolApprovalReview =
   | { kind: 'review'; template: string; version: string; reason: string; fallback?: string };
 
 export interface ToolApprovalRequestCard {
+  effects?: ToolEffects;
   approvalReview?: ToolApprovalReview;
   opaque?: boolean;
   decidedBy?: ApprovalDecider;
@@ -105,7 +106,7 @@ type TrackedCall = ToolApprovalRequestCard & {
   rememberable?: boolean;
   remembered?: boolean;
   execution: ToolExecution;
-  effects: ToolEffects | undefined;
+
   authorized?: () => boolean;
   device?: 'computer' | 'browser';
 };
@@ -246,6 +247,7 @@ export class ChannelToolApproval {
     const scopeKey = this.#scope(agent, owner);
     if (scopeKey === undefined) return undefined;
     const key = callKey(agent.session.id, execution.callId);
+    const effects = toolEffects(execution.name, execution.arguments);
     const tracked: TrackedCall = {
       agent,
       botSlug: owner.botSlug,
@@ -258,7 +260,7 @@ export class ChannelToolApproval {
       scopeKey,
       ...(options?.authorizationScope ? { authorizationScope: options.authorizationScope } : {}),
       execution,
-      effects: toolEffects(execution.name, execution.arguments),
+      ...(effects === undefined ? {} : { effects }),
       externalDecision,
       ...(options?.requireExplicitApproval ? { requireExplicitApproval: true } : {}),
       ...(rememberable && !options?.requireExplicitApproval ? { rememberable } : {}),
@@ -319,16 +321,22 @@ export class ChannelToolApproval {
     }
     const origin =
       tracked.role === 'orchestrator' ? this.#askChannel?.(tracked.sessionId) : undefined;
+    if (tracked.role === 'orchestrator' && this.#askChannel !== undefined && origin === undefined)
+      return 'unavailable';
     const originChannel = origin === undefined ? undefined : this.#channels.get(origin);
-    const channelId =
-      originChannel?.type === 'group' && originChannel.members.includes(tracked.botSlug)
-        ? originChannel.id
-        : dmChannelId(tracked.botSlug);
     const channel =
-      this.#channels.get(channelId) ??
-      this.#channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, tracked.botSlug);
+      origin === undefined
+        ? (this.#channels.get(dmChannelId(tracked.botSlug)) ??
+          this.#channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, tracked.botSlug))
+        : originChannel;
     if (channel === undefined) return 'unavailable';
-    if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
+    if (
+      channel.type === 'group'
+        ? !channel.members.includes(tracked.botSlug)
+        : channel.botSlug !== tracked.botSlug
+    )
+      return 'unavailable';
+    const channelId = channel.id;
     if (
       this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer' &&
       this.#overrides.delete(overrideKey(tracked))
@@ -375,6 +383,7 @@ export class ChannelToolApproval {
         role: tracked.role,
         cwd: tracked.cwd,
         input: tracked.input,
+        ...(tracked.effects === undefined ? {} : { effects: tracked.effects }),
         ...(tracked.approvalReview === undefined ? {} : { approvalReview: tracked.approvalReview }),
         externalDecision: tracked.externalDecision ?? 'operation',
         allowAlways: policy.rememberable,
@@ -1115,6 +1124,25 @@ export class ChannelToolApproval {
     pending.signal?.removeEventListener('abort', pending.abort);
     pending.resolve(outcome);
   }
+}
+
+export async function requestRequiredToolApproval({
+  approval,
+  channelApproval,
+  ownership,
+  request,
+  forceChannel,
+}: {
+  approval: Pick<ApprovalService, 'request'>;
+  channelApproval: Pick<ChannelToolApproval, 'ask'>;
+  ownership: Pick<SessionOwnership, 'resolve'>;
+  request: Parameters<ApprovalService['request']>[0];
+  forceChannel: boolean;
+}): Promise<ApprovalOutcome> {
+  const owner = ownership.resolve(request.agent.session.id);
+  if (forceChannel && owner !== undefined && owner.parentSessionId === undefined)
+    return (await channelApproval.ask(request)) ?? 'unavailable';
+  return approval.request(request);
 }
 
 export function registerChannelToolApproval(

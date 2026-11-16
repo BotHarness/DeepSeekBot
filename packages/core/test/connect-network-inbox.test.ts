@@ -55,6 +55,24 @@ it.each(['pending', 'started', 'alternate-network', 'lost-ack'] as const)(
     let eligible = true;
     let loseAck = phase === 'lost-ack';
     let entered = 0;
+    let signalEntered: () => void = () => undefined;
+    const runEntered = new Promise<void>((resolve) => {
+      signalEntered = resolve;
+    });
+    const waitForEntered = async () => {
+      const core = cores[1]!;
+      await Promise.race([
+        runEntered,
+        core.runtime.whenIdle().then(() => {
+          if (entered === 0)
+            throw new Error(
+              'Orchestrator ended before the held fixture run entered: ' +
+                JSON.stringify(core.channels.readMessages('dm-bot')),
+            );
+        }),
+      ]);
+      expect(entered).toBe(1);
+    };
     let finished = false;
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -79,6 +97,7 @@ it.each(['pending', 'started', 'alternate-network', 'lost-ack'] as const)(
       adapter.runOrchestrator = async () => {
         if (index !== 1) return;
         entered++;
+        signalEntered();
         await held;
         if (phase === 'started') {
           try {
@@ -197,7 +216,7 @@ it.each(['pending', 'started', 'alternate-network', 'lost-ack'] as const)(
       };
       if (phase !== 'started') {
         await appendHuman(1, 'LOCAL_WORK');
-        await expect.poll(() => entered).toBe(1);
+        await waitForEntered();
       }
       const root = await appendHuman(0, 'ROOT');
       const contacts = await cores[0]!.runtime.runDirectBotTool!(
@@ -218,7 +237,7 @@ it.each(['pending', 'started', 'alternate-network', 'lost-ack'] as const)(
       if (phase === 'lost-ack')
         await expect(sending).rejects.toMatchObject({ code: 'delivery-unknown' });
       else await sending;
-      if (phase === 'started') await expect.poll(() => entered).toBe(1);
+      if (phase === 'started') await waitForEntered();
       expect(inbound()).toMatchObject({ ignored_at: null });
       eligible = false;
       await Promise.all(bridges.map((bridge) => bridge.refresh()));

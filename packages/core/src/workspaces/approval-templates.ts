@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   closeSync,
   existsSync,
@@ -7,6 +8,7 @@ import {
   readSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -140,6 +142,7 @@ export interface ApprovalTemplateLibrary {
   setGlobal(name: string | null): void;
   list(): ApprovalTemplate[];
   get(name: string): ApprovalTemplate | undefined;
+  customFileIdentity(name: string): string | undefined;
   create(name: string, text: string): ApprovalTemplateWriteResult;
   update(name: string, text: string): ApprovalTemplateWriteResult;
   delete(name: string): Exclude<ApprovalTemplateWriteResult, { ok: true }> | { ok: true };
@@ -273,6 +276,29 @@ export function createApprovalTemplateLibrary(dir?: string): ApprovalTemplateLib
     get(name) {
       const builtIn = approvalTemplate(name);
       return builtIn === undefined ? readCustom(name) : { ...builtIn };
+    },
+    customFileIdentity(name) {
+      if (dir === undefined || !isApprovalTemplateName(name) || approvalTemplate(name)) return;
+      try {
+        const state = statSync(file(name), { bigint: true });
+        if (!state.isFile()) return;
+        return createHash('sha256')
+          .update(
+            JSON.stringify(
+              [
+                state.dev,
+                state.ino,
+                state.size,
+                state.mtimeNs,
+                state.ctimeNs,
+                state.birthtimeNs,
+              ].map((value) => value.toString()),
+            ),
+          )
+          .digest('hex');
+      } catch {
+        return undefined;
+      }
     },
     create(name, text) {
       const problem = check(name, text);
