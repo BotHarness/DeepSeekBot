@@ -1,14 +1,18 @@
-name: pr provenance
+name: provenance
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, reopened, labeled, unlabeled]
+  issues:
+    types: [opened, edited]
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 concurrency:
-  group: pr-provenance-${{ github.event.pull_request.number }}
+  group: provenance-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
@@ -23,10 +27,10 @@ jobs:
             .node-version
             scripts/check-pr-provenance.mjs
           sparse-checkout-cone-mode: false
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
       - env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_LABELS: ${{ toJSON(github.event.pull_request.labels) }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/check-pr-provenance.mjs
