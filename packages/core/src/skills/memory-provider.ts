@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
+import { scopeOf, scopeParentOf } from '@deepseek-ai/dsh-scope';
 import { dirname } from 'node:path';
 
 import type { SkillRegistryDefinition } from './catalog.js';
@@ -10,6 +11,7 @@ export const MEMORY_SKILL_SOURCE = 'bot-memory';
 interface LookupOptions {
   readonly cwd?: string | undefined;
   readonly signal?: AbortSignal | undefined;
+  readonly scope?: object | undefined;
 }
 
 interface Candidate {
@@ -73,6 +75,8 @@ export function installMemorySkillProvider(
   const registry = agentSkillRegistry(agentCtx);
   if (registry === undefined || installed.has(agentCtx)) return () => {};
   installed.add(agentCtx);
+  const agentScope = scopeOf(agentCtx);
+  const outerScope = agentScope === undefined ? undefined : scopeParentOf(agentScope);
   const dispose = registry.registerProvider(() => ({
     name: MEMORY_SKILL_PROVIDER,
     async list(options) {
@@ -80,7 +84,7 @@ export function installMemorySkillProvider(
       if (root === undefined) return [];
       const [own, outer] = await Promise.all([
         readWorkspaceSkills(root),
-        registry.list({ cwd: options.cwd, signal: options.signal }),
+        registry.list({ cwd: options.cwd, signal: options.signal, scope: outerScope }),
       ]);
       const project = new Set(
         outer.filter((skill) => skill.source.startsWith('project-')).map((skill) => skill.name),

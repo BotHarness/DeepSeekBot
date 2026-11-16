@@ -38,7 +38,7 @@ function skill(root: string, folder: string, name: string, body: string, extra =
 }
 
 async function withRegistry(
-  run: (registry: Registry, scoped: (key: object) => Context) => Promise<void>,
+  run: (registry: Registry, scoped: (key: object, parent?: object) => Context) => Promise<void>,
 ): Promise<void> {
   const ctx = new Context();
   const dshRequire = createRequire(
@@ -52,7 +52,10 @@ async function withRegistry(
   try {
     await ctx
       .inject(['skills'], async (injected) => {
-        await run(hostSkillRegistry<Registry>(injected)!, (key) => createScope(ctx, key).ctx);
+        await run(
+          hostSkillRegistry<Registry>(injected)!,
+          (key, parent) => createScope(ctx, key, parent === undefined ? {} : { parent }).ctx,
+        );
       })
       .await();
   } finally {
@@ -71,7 +74,8 @@ describe('Memory Skills in Assignment Sessions', () => {
     skill(adaMemory, '.agents', 'quiet', 'Only for Humans.', 'disable-model-invocation: true\n');
     skill(bobMemory, '.agents', 'bob-only', 'Bob knows this.');
     await withRegistry(async (registry, scoped) => {
-      registry.registerProvider(() => ({
+      const preset = {};
+      (scoped(preset).get('skills') as Registry).registerProvider(() => ({
         name: 'workspace-and-user',
         async list(options: { cwd?: string }) {
           return [
@@ -105,8 +109,8 @@ describe('Memory Skills in Assignment Sessions', () => {
       }));
       const ada = {};
       const bob = {};
-      const stopAda = installMemorySkillProvider(scoped(ada), () => adaMemory);
-      installMemorySkillProvider(scoped(bob), () => bobMemory);
+      const stopAda = installMemorySkillProvider(scoped(ada, preset), () => adaMemory);
+      installMemorySkillProvider(scoped(bob, preset), () => bobMemory);
 
       const seen = await registry.list({ cwd: workspace, scope: ada });
       expect(seen.map((entry) => [entry.name, entry.source])).toEqual([
@@ -132,7 +136,7 @@ describe('Memory Skills in Assignment Sessions', () => {
       const bobSees = (await registry.list({ cwd: workspace, scope: bob })).map((e) => e.name);
       expect(bobSees).toContain('bob-only');
       expect(bobSees).not.toContain('release-notes');
-      expect((await registry.list({ cwd: workspace })).map((e) => e.name)).toEqual([
+      expect((await registry.list({ cwd: workspace, scope: preset })).map((e) => e.name)).toEqual([
         'deploy',
         'house-style',
       ]);
