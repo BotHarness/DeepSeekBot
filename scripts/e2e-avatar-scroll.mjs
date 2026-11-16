@@ -103,6 +103,24 @@ try {
   await page.locator('[data-avatar-category="bangs"]').click();
   await click('Draw or edit this piece');
   await page.waitForSelector('[data-part-canvas]');
+  const tools = await page.$$eval('[data-part-tool]', (buttons) =>
+    buttons.map((button) => ({
+      icon: button.querySelector('svg')?.getAttribute('aria-hidden'),
+      label: button.textContent.trim(),
+    })),
+  );
+  assert.equal(tools.length, 9);
+  assert.ok(
+    tools.every((tool) => tool.icon === 'true' && tool.label.length > 0),
+    'drawing tools have decorative icons and visible labels',
+  );
+  await click('Eraser');
+  assert.equal(
+    await page.$eval('[data-part-tool="eraser"]', (button) => button.getAttribute('aria-pressed')),
+    'true',
+  );
+  await click('Pencil');
+  assert.equal(await page.$eval('[data-part-undo]', (button) => button.disabled), true);
   for (const [width, height, theme] of [
     [1024, 667, 'light'],
     [1100, 600, 'dark'],
