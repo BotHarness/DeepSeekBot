@@ -47,6 +47,7 @@ import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
+import { MarketplaceSkills } from './bot-skills-card.js';
 import { MarketPage } from './market-page.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
@@ -504,6 +505,15 @@ function MarketplaceDetailView({
           t={t}
           describeError={(cause) => marketplaceError(cause, t)}
           onBack={() => setReading(undefined)}
+        />
+      ) : null}
+      {state.status === 'ready' && reading === undefined && state.detail.files !== undefined ? (
+        <MarketplaceSkills
+          actions={actions}
+          botId={shown.id}
+          files={state.detail.files}
+          t={t}
+          describeError={(cause) => marketplaceError(cause, t)}
         />
       ) : null}
       {state.status === 'ready' && reading === undefined && state.detail.files !== undefined ? (

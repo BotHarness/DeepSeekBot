@@ -70,7 +70,6 @@ describe('PersonaBot Memory Skills on the profile', () => {
     expect(existsSync(join(root, '.dsh/skills/review'))).toBe(false);
     expect(git(root, 'log', '-1', '--format=%s')).toBe('skills: remove review');
     expect(git(root, 'status', '--porcelain')).toBe('');
-    // The shadowed .agents copy now surfaces, and history can restore the removed one.
     expect((await readBotSkill(root, 'review'))?.path).toBe('.agents/skills/review/SKILL.md');
     git(root, 'checkout', 'HEAD~1', '--', '.dsh/skills/review');
     expect((await readBotSkill(root, 'review'))?.content).toBe('DSH copy wins');

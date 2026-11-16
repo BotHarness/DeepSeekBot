@@ -32,6 +32,7 @@ const symbols: Record<ButtonSymbol, number> = {
   check: require('../../../assets/button/check.xml'),
   'shield-check': require('../../../assets/button/shield-check.xml'),
   x: require('../../../assets/button/x.xml'),
+  trash: require('../../../assets/button/trash.xml'),
   archive: require('../../../assets/button/archive.xml'),
   plus: require('../../../assets/button/plus.xml'),
   'message-square': require('../../../assets/button/message-square.xml'),

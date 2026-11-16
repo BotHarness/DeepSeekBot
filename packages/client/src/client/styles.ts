@@ -1966,6 +1966,69 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
 .bh-market-files i[data-type="data"] { background: var(--dsw-alias-label-tertiary); }
 .bh-market-files i[data-type="image"] { background: ${color.success}; }
 .bh-market-files i[data-type="script"] { background: ${color.warning}; }
+.bh-skill-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bh-skill-row {
+  display: flex;
+  align-items: baseline;
+  gap: ${space.x3};
+  width: 100%;
+  min-width: 0;
+  margin: 0 -${space.x2};
+  padding: ${space.x2};
+  box-sizing: content-box;
+  border: 0;
+  border-radius: ${radius.xs};
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.bh-skill-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.bh-skill-row:focus-visible { outline: ${border.focus} solid ${color.accent}; outline-offset: -2px; }
+.bh-skill-row-name {
+  flex-shrink: 0;
+  font-family: var(--dsw-font-family-mono, monospace);
+  font-weight: ${text.strong};
+  overflow-wrap: anywhere;
+}
+.bh-skill-row-description {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: ${text.metaSize};
+  color: var(--dsw-alias-label-secondary);
+}
+.bh-skill-detail, .bh-skills-card, .bh-market-skills, .bh-skill-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x3};
+  min-width: 0;
+}
+.bh-skill-detail-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: ${space.x2};
+  min-width: 0;
+  margin-left: -${space.x2};
+}
+.bh-skill-detail-path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--dsw-font-family-mono, monospace);
+  font-size: ${text.metaSize};
+  color: var(--dsw-alias-label-tertiary);
+}
+.bh-skill-detail-description { margin: 0; color: var(--dsw-alias-label-secondary); }
 .bh-market-reader {
   display: flex;
   flex-direction: column;

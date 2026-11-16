@@ -4,11 +4,9 @@ import { basename, dirname, isAbsolute, relative, sep } from 'node:path';
 import { commitMemoryPathsAsync } from '../memory/git.js';
 import { readWorkspaceSkills } from './workspace.js';
 
-/** A Project Skill in a PersonaBot's Memory Repository, as its profile shows it. */
 export interface BotSkill {
   name: string;
   description: string;
-  /** Path relative to the Memory Repository, with `/` separators. */
   path: string;
   userInvocable: boolean;
 }
@@ -55,7 +53,6 @@ async function readBotSkills(
   return { root, skills };
 }
 
-/** Lists the Memory Repository's own `.dsh/skills` and `.agents/skills` (root only, DSH precedence). */
 export async function listBotSkills(memoryDir: string): Promise<BotSkill[]> {
   return (await readBotSkills(memoryDir)).skills.map(({ content: _content, ...skill }) => skill);
 }
@@ -67,11 +64,6 @@ export async function readBotSkill(
   return (await readBotSkills(memoryDir)).skills.find((skill) => skill.name === name);
 }
 
-/**
- * Deletes one Skill from the Memory Repository and commits the deletion, so git history can
- * restore it. A `<name>/SKILL.md` Skill removes its whole folder; a flat Markdown Skill removes
- * only its file.
- */
 export async function removeBotSkill(
   memoryDir: string,
   name: string,

@@ -37,6 +37,7 @@ export const ACTION_SF_SYMBOL = {
   check: 'checkmark',
   'shield-check': 'checkmark.shield',
   x: 'xmark',
+  trash: 'trash',
   archive: 'archivebox',
   plus: 'plus',
   'message-square': 'bubble.left',

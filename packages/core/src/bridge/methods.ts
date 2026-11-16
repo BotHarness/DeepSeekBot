@@ -356,7 +356,6 @@ import {
   type BotSkill,
 } from '../skills/bot-skills.js';
 
-/** One Skill's full text for the profile card, marketplace view and `skills-show`. */
 export interface SkillDetail {
   name: string;
   description: string;

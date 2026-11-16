@@ -1,6 +1,7 @@
 import type { ActionSymbol } from '../../../../../packages/client/src/shared/action-presentation';
 import {
   ArchiveIcon,
+  TrashIcon,
   CheckIcon,
   CloseIcon,
   PlusIcon,
@@ -92,6 +93,7 @@ export function Button({
               check: CheckIcon,
               'shield-check': ShieldCheckIcon,
               x: CloseIcon,
+              trash: TrashIcon,
               archive: ArchiveIcon,
               plus: PlusIcon,
               'message-square': MessageIcon,
