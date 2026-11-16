@@ -87,7 +87,11 @@ export function Dialog({
       }}
     >
       <BaseDialog.Portal>
-        <div role="presentation" data-tobs-dialog-viewport="" {...stylex.props(styles.viewport)}>
+        <div
+          role="presentation"
+          data-tobs-dialog-viewport=""
+          className={[APPEARANCE_CLASS, stylex.props(styles.viewport).className].join(' ')}
+        >
           <div
             aria-hidden="true"
             data-tobs-dialog-scrim=""

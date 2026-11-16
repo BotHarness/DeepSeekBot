@@ -46,6 +46,9 @@ it('renders a labelled modal popup inside the Appearance scope', () => {
   expect(popup?.getAttribute('aria-modal')).toBe('true');
   expect(popup?.classList.contains('bh-appearance-scope')).toBe(true);
   expect(popup?.classList.contains('bh-test-dialog')).toBe(true);
+  const viewport = document.querySelector('[data-tobs-dialog-viewport]');
+  expect(viewport?.classList.contains('bh-appearance-scope')).toBe(true);
+  expect(viewport?.contains(document.querySelector('[data-tobs-dialog-scrim]'))).toBe(true);
   expect(popup?.textContent).toBe('Inside');
 });
 
