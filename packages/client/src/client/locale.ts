@@ -304,6 +304,14 @@ export const zh = {
   'connections.stepLink': '链接',
   'connections.stepIdentity': '身份',
   'connections.stepChannels': '频道',
+  'connections.botPrompt.copy': '复制给 Bot 的提示词',
+  'connections.botPrompt.copied': '已复制，发给 Bot 即可',
+  'connections.botPrompt.method':
+    '帮我选手机连接这台电脑的方式：运行 `deepseekbot phone-route` 和 `deepseekbot devices`，告诉我哪些连接方式已就绪、推荐用哪个。需要打开局域网连接时先问我，我同意后再运行 `deepseekbot device-lan enable --confirm`。',
+  'connections.botPrompt.prepare':
+    '帮我生成手机配对邀请：运行 `deepseekbot device-offer --out <新的私有文件绝对路径>`。链接只写进那个文件，不要贴到聊天里。告诉我邀请几点过期，然后用 `deepseekbot device-offer-status <receipt>` 等我在手机上打开。',
+  'connections.botPrompt.approve':
+    '帮我批准手机配对：运行 `deepseekbot device-requests`，把待批准设备的名字和完整指纹发给我。我确认指纹和手机上显示的完全一致后，再运行 `deepseekbot device-approve-key <receipt> <public-key> --confirm`。不要只凭名字或顺序批准。',
   'connections.done': '完成',
   'connections.connected': '已连接 {name}',
   'connections.reading': '正在读取远端频道…',
@@ -6167,6 +6175,14 @@ export const en = {
   'connections.stepLink': 'Link',
   'connections.stepIdentity': 'Identity',
   'connections.stepChannels': 'Channels',
+  'connections.botPrompt.copy': 'Copy prompt for a Bot',
+  'connections.botPrompt.copied': 'Copied. Send it to a Bot',
+  'connections.botPrompt.method':
+    'Help me choose how my phone connects to this computer: run `deepseekbot phone-route` and `deepseekbot devices`, then tell me which connection methods are ready and which you recommend. If the local network connection needs turning on, ask me first, and only after I agree run `deepseekbot device-lan enable --confirm`.',
+  'connections.botPrompt.prepare':
+    'Help me create a phone pairing invitation: run `deepseekbot device-offer --out <absolute path to a new private file>`. The link goes only into that file; do not paste it into the chat. Tell me when the invitation expires, then use `deepseekbot device-offer-status <receipt>` to wait for me to open it on the phone.',
+  'connections.botPrompt.approve':
+    'Help me approve the phone pairing: run `deepseekbot device-requests` and send me the pending device name and its full fingerprint. Only after I confirm it matches the fingerprint on the phone exactly, run `deepseekbot device-approve-key <receipt> <public-key> --confirm`. Never approve by name or list position alone.',
   'connections.done': 'Done',
   'connections.connected': 'Connected to {name}',
   'connections.reading': 'Reading remote channels…',
