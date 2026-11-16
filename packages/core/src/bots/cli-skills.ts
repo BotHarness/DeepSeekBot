@@ -19,7 +19,7 @@ export const SKILL_COMMANDS = [
   {
     command: 'skills-list',
     description:
-      'list the Skills the / menu offers in a conversation (--bot <slug> for its DM, or --channel <id>): Host Skills plus each PersonaBot Memory Repository Project Skill, ranked by --query like the menu',
+      'list the Skills the / menu offers in a conversation (--bot <slug> for its DM, or --channel <id>): Host Skills plus each PersonaBot Memory Repository and Workspace Grant Project Skill, ranked by --query like the menu',
   },
 ] as const;
 
@@ -57,7 +57,11 @@ export async function runSkillCommand(
   return {
     channelId,
     skills: rankSkillEntries(result.skills, values.query ?? '', (entry) =>
-      entry.owner.kind === 'host' ? [] : (names.get(entry.owner.botSlug) ?? [entry.owner.botSlug]),
+      entry.owner.kind === 'host'
+        ? []
+        : entry.owner.kind === 'workspace'
+          ? [entry.owner.name, entry.owner.workspaceId]
+          : (names.get(entry.owner.botSlug) ?? [entry.owner.botSlug]),
     ),
   };
 }
@@ -72,7 +76,7 @@ export function skillInvocationTokens(
     const owner = split <= 0 ? undefined : parseSkillOwnerKey(raw.slice(0, split));
     const name = raw.slice(split + 1);
     if (owner === undefined || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(name))
-      usage('--skill takes <owner>/<name>, where owner is host or bot:<slug>.');
+      usage('--skill takes <owner>/<name>, where owner is host, bot:<slug> or workspace:<id>.');
     const matches = body.matchAll(new RegExp(`(^|\\s)/${name}(?=\\s|$)`, 'gu'));
     let start: number | undefined;
     for (const match of matches) {
