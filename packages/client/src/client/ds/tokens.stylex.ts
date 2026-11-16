@@ -14,18 +14,18 @@ export const text = stylex.defineConsts({
   metaLine: '16px',
   bodySize: '13px',
   bodyLine: '20px',
-  titleSize: '14px',
-  titleLine: '20px',
+  titleSize: '15px',
+  titleLine: '24px',
   regular: '400',
   strong: '500',
 });
 
 export const radius = stylex.defineConsts({
   xs: '4px',
-  sm: '8px',
-  md: '12px',
-  lg: '16px',
-  panel: '28px',
+  sm: '6px',
+  md: '10px',
+  lg: '14px',
+  panel: '20px',
   round: '50%',
 });
 
