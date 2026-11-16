@@ -1,18 +1,7 @@
+export { MESSAGING_OPTIONS } from './cli-option-spec.js';
 import { randomUUID } from 'node:crypto';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const MESSAGING_OPTIONS = {
-  'input-stdin': { type: 'boolean' },
-  'read-mode': { type: 'string' },
-  confirm: { type: 'boolean' },
-  binding: { type: 'string' },
-  source: { type: 'string' },
-  channel: { type: 'string' },
-  pairing: { type: 'string' },
-  delivery: { type: 'string' },
-  'request-id': { type: 'string' },
-} as const;
 
 export const MESSAGING_COMMANDS = [
   {

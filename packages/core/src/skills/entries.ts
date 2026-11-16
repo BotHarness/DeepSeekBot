@@ -1,6 +1,18 @@
 import { isValidSlug } from '../bots/slug.js';
 
-export type SkillOwner = { kind: 'host' } | { kind: 'bot'; botSlug: string };
+export type SkillOwner =
+  | { kind: 'host' }
+  | { kind: 'bot'; botSlug: string }
+  | { kind: 'workspace'; workspaceId: string; name: string };
+
+export function isSkillWorkspaceId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 512 &&
+    !/[\s\p{Cc}]/u.test(value)
+  );
+}
 
 export interface SkillCatalogEntry {
   name: string;
@@ -10,11 +22,21 @@ export interface SkillCatalogEntry {
 }
 
 export function skillOwnerKey(owner: SkillOwner): string {
-  return owner.kind === 'host' ? 'host' : `bot:${owner.botSlug}`;
+  return owner.kind === 'host'
+    ? 'host'
+    : owner.kind === 'bot'
+      ? `bot:${owner.botSlug}`
+      : `workspace:${owner.workspaceId}`;
 }
 
 export function parseSkillOwnerKey(value: string): SkillOwner | undefined {
   if (value === 'host') return { kind: 'host' };
+  if (value.startsWith('workspace:')) {
+    const workspaceId = value.slice(10);
+    return isSkillWorkspaceId(workspaceId)
+      ? { kind: 'workspace', workspaceId, name: workspaceId }
+      : undefined;
+  }
   if (!value.startsWith('bot:')) return undefined;
   const botSlug = value.slice(4);
   return isValidSlug(botSlug) ? { kind: 'bot', botSlug } : undefined;

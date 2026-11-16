@@ -1,3 +1,6 @@
+import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
+
+import type { TobCliCommand, TobCliStatus } from '../tob/cli-request.js';
 import type {
   BotMetadata,
   BotMetadataResult,
@@ -173,6 +176,7 @@ import type {
   OwnedSessionBot,
   ProfileActivity,
   ProfileSessionUsage,
+  SkillDetail,
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
@@ -183,6 +187,7 @@ import type {
   ChannelSkillInvocationToken,
 } from '../channels/channel.js';
 import type { SkillCatalogEntry } from '../skills/catalog.js';
+import type { BotSkill } from '../skills/bot-skills.js';
 import type { ChannelSendStatus, HumanMessageSearchPage } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
@@ -1727,11 +1732,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  approvalTemplateDelete(name: string): {
+  approvalTemplateDeletePreview(name: string): { preview: ApprovalTemplateDeletionPreview } {
+    return unwrap(this.methods.approvalTemplateDeletePreview({ name }));
+  }
+
+  approvalTemplateDelete(
+    name: string,
+    confirmed: boolean,
+    revision: string,
+  ): {
     template: { name: string };
     clearedBots: string[];
+    inheritedBots: string[];
+    globalDefault: string | null;
   } {
-    return unwrap(this.methods.approvalTemplateDelete({ name }));
+    return unwrap(this.methods.approvalTemplateDelete({ name, confirmed, revision }));
   }
 
   approvalTemplateGlobalSet(template: string | null): { template: string | null } {
@@ -2259,9 +2274,28 @@ export class BotharnessBridgeService extends TypertRemoteService {
   async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
     return unwrap(await this.methods.channelSkillCatalog({ channelId }));
   }
+  async botSkills(slug: string): Promise<{ skills: BotSkill[] }> {
+    return unwrap(await this.methods.botSkills({ slug }));
+  }
+  async skillShow(name: string, owner: string): Promise<{ skill: SkillDetail }> {
+    return unwrap(await this.methods.skillShow({ name, owner }));
+  }
+  async botSkillRemove(slug: string, name: string): Promise<{ name: string; removed: string }> {
+    return unwrap(await this.methods.botSkillRemove({ slug, name }));
+  }
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
+  async tobCli(
+    action: 'start' | 'status' | 'cancel',
+    command?: TobCliCommand,
+    id?: string,
+  ): Promise<TobCliStatus> {
+    return unwrap(
+      await this.methods.tobCli(action === 'start' ? { action, command } : { action, id }),
+    );
+  }
+
   channelSendStatus(channelId: string, messageId: string): ChannelSendStatus {
     return unwrap(this.methods.channelSendStatus({ channelId, messageId }));
   }
@@ -3435,7 +3469,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
+  'tobCli',
   'channelSkillCatalog',
+  'botSkills',
+  'skillShow',
+  'botSkillRemove',
   'channelSend',
   'channelSendStatus',
   'channelGenuiView',
@@ -3537,6 +3575,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botPromptSet',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
+  'approvalTemplateDeletePreview',
   'approvalTemplateDelete',
   'approvalTemplateGlobalSet',
   'botApprovalTemplateSet',

@@ -1,6 +1,6 @@
 # Model selection is local; shared Bots stay model-agnostic
 
-> Terms updated by [ADR-0134](0134-soul-and-core-memory-are-session-frozen-system-prompt-files.md): SoulSnapshot is historical. The rule now applies to the shared Memory Git repository (ADR-0131). Profile Backup keeps Model Plans but never credentials (ADR-0093, #505).
+> Terms updated by [ADR-0134](../decisions/memory.md#adr-0134): SoulSnapshot is historical. The rule now applies to the shared Memory Git repository (ADR-0131). Profile Backup keeps Model Plans but never credentials (ADR-0093, #505).
 
 ADR-0093 extends this deployment-local choice into reusable Model Presets and per-PersonaBot applied snapshots. The single-model override described below is the original baseline, not the current target configuration shape; the export boundary remains in force.
 

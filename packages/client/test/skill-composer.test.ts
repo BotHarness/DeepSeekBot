@@ -23,7 +23,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   ImageLightbox: () => null,
 }));
 
-import { ChannelComposer } from '../src/client/channel-composer.js';
+import { ChannelComposer, type ComposerSkillOption } from '../src/client/channel-composer.js';
 import { ComposerDraftStore } from '../src/client/composer-draft-store.js';
 import {
   readRichMentionDraft,
@@ -34,7 +34,6 @@ import {
   activeSkillQuery,
   rebaseSkills,
   selectSkill,
-  type ComposerSkillOption,
   type SelectedSkill,
 } from '../src/client/skill-refs.js';
 
@@ -91,13 +90,39 @@ describe('Skill tokens', () => {
       { name: 'review', owner: { kind: 'bot', botSlug: 'ada' }, start: 9, end: 16 },
     ];
     const mounts = renderRichMentionDraft(editor, value, [], [ada], [], [], skills);
-    expect(mounts.map((mount) => mount.botSlug)).toEqual(['ada']);
+    expect(
+      mounts.map((mount) => (mount.kind === 'workspace' ? mount.workspaceId : mount.botSlug)),
+    ).toEqual(['ada']);
     expect(
       [...editor.querySelectorAll<HTMLElement>('.bh-inline-skill')].map(
         (chip) => chip.dataset['skillOwner'],
       ),
     ).toEqual(['host', 'bot:ada']);
     expect(readRichMentionDraft(editor)).toMatchObject({ value, skills });
+    editor.remove();
+  });
+
+  it('renders a Workspace Skill chip with a folder mount and its stable owner key', () => {
+    const editor = document.createElement('div');
+    document.body.append(editor);
+    const value = '/deploy now';
+    const skills: SelectedSkill[] = [
+      {
+        name: 'deploy',
+        owner: { kind: 'workspace', workspaceId: 'grant-1', name: 'Shop' },
+        start: 0,
+        end: 7,
+      },
+    ];
+    const mounts = renderRichMentionDraft(editor, value, [], [ada], [], [], skills);
+    expect(mounts).toMatchObject([{ kind: 'workspace', workspaceId: 'grant-1', name: 'Shop' }]);
+    const chip = editor.querySelector<HTMLElement>('.bh-inline-skill');
+    expect(chip?.dataset['skillOwner']).toBe('workspace:grant-1');
+    expect(chip?.title).toBe('Shop');
+    expect(readRichMentionDraft(editor).skills[0]?.owner).toMatchObject({
+      kind: 'workspace',
+      workspaceId: 'grant-1',
+    });
     editor.remove();
   });
 

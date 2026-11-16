@@ -10,6 +10,7 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented the downstream model-free Tob CLI journey and pinned native approval audit boundary; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4212](https://github.com/BotHarness/DeepSeekBot/issues/4212)).
 - Added the downstream anonymous Bot token telemetry verification journey and snapshot query contract; stable DSH/Cordis Context, Decision Tree and upstream qualification are unchanged ([#4255](https://github.com/BotHarness/DeepSeekBot/issues/4255)).
 
 - Added the downstream first-Tob settings responsiveness journey; stable DSH/Cordis Context, Decision Tree and upstream qualification are unchanged ([#4226](https://github.com/BotHarness/DeepSeekBot/issues/4226)).

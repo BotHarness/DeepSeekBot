@@ -620,6 +620,7 @@ describe('bridge methods', () => {
         slug: 'ada',
         tool: 'channel_list',
         args: { limit: 1 },
+        humanId: 'untrusted-payload-human',
       }),
     ).toEqual({
       ok: true,
@@ -637,6 +638,7 @@ describe('bridge methods', () => {
       expect.any(AbortSignal),
       undefined,
       undefined,
+      OWNER_HUMAN_CONTEXT,
     );
     await methods.botToolRun({
       slug: 'ada',
@@ -651,6 +653,7 @@ describe('bridge methods', () => {
       expect.any(AbortSignal),
       'assign-1',
       undefined,
+      OWNER_HUMAN_CONTEXT,
     );
     expect(
       await methods.botToolRun({

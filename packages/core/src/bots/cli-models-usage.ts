@@ -1,3 +1,4 @@
+export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelPreset, ModelRoute } from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
@@ -6,19 +7,6 @@ import { CliLiveError } from './cli-live-error.js';
 import { isUsageOverviewPeriod, usageOverviewPeriods } from '../usage/overview.js';
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
-
-export const MODELS_USAGE_OPTIONS = {
-  'expected-revision': { type: 'string' },
-  'plan-stdin': { type: 'boolean' },
-  period: { type: 'string' },
-  after: { type: 'string' },
-  start: { type: 'string' },
-  end: { type: 'string' },
-  model: { type: 'string' },
-  provider: { type: 'string' },
-  purpose: { type: 'string' },
-  weeks: { type: 'string' },
-} as const;
 
 export const MODELS_USAGE_COMMANDS = [
   {

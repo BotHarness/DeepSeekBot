@@ -7,14 +7,17 @@ import { attachmentReferenceRuns, type ComposerAttachmentReference } from './att
 import type { SelectedSkill } from './skill-refs.js';
 import { parseSkillOwnerKey, skillOwnerKey } from '../../../core/src/skills/entries.js';
 
-export interface MentionAvatarMount {
-  target: HTMLElement;
-  botSlug: string;
-  name: string;
-  src?: string | undefined;
-  appearance?: BotSummary['appearance'];
-  avatarSeed?: BotSummary['avatarSeed'];
-}
+export type MentionAvatarMount =
+  | {
+      kind?: 'bot';
+      target: HTMLElement;
+      botSlug: string;
+      name: string;
+      src?: string | undefined;
+      appearance?: BotSummary['appearance'];
+      avatarSeed?: BotSummary['avatarSeed'];
+    }
+  | { kind: 'workspace'; target: HTMLElement; workspaceId: string; name: string };
 export interface RichMentionDraft {
   value: string;
   mentions: SelectedMention[];
@@ -128,6 +131,18 @@ export function renderRichMentionDraft(
           src: bot?.avatar,
           appearance: bot?.appearance,
           avatarSeed: bot?.avatarSeed,
+        });
+      } else if (skill.owner.kind === 'workspace') {
+        const icon = document.createElement('span');
+        icon.className = 'bh-inline-mention-avatar';
+        icon.setAttribute('aria-hidden', 'true');
+        badge.title = skill.owner.name;
+        badge.append(icon, label);
+        mounts.push({
+          kind: 'workspace',
+          target: icon,
+          workspaceId: skill.owner.workspaceId,
+          name: skill.owner.name,
         });
       } else badge.append(label);
       nodes.push(badge);

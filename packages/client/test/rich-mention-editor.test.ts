@@ -334,7 +334,9 @@ describe('rich mention editor', () => {
     ];
     const mounts = renderRichMentionDraft(editor, value, mentions, []);
     expect(editor.textContent).toBe('Ada hi Bea');
-    expect(mounts.map((item) => item.botSlug)).toEqual(['ada', 'bea']);
+    expect(
+      mounts.map((item) => (item.kind === 'workspace' ? item.workspaceId : item.botSlug)),
+    ).toEqual(['ada', 'bea']);
     expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [], skills: [] });
 
     setRichSelection(editor, 4);

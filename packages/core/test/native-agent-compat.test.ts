@@ -228,3 +228,62 @@ describe('native tool API generations', () => {
     );
   });
 });
+
+it('executes a conditional tool only with its real resolved native tool selection', async () => {
+  const root = new Context();
+  const provider = root.plugin({
+    apply(ctx: Context) {
+      ctx.provide('systemPrompt', { tools: () => () => undefined, section: () => () => undefined });
+    },
+  });
+  await provider.await();
+  const runtime = root.plugin(ToolRuntime, {});
+  await runtime.await();
+  const agent = { session: { id: 'conditional-direct' } } as Agent;
+  const scope = createScope(root, agent);
+  try {
+    await scope.ctx
+      .inject(['tools'], async (ctx) => {
+        Object.assign(agent, { ctx });
+        let active = false;
+        ctx.tools.register(
+          defineTool({
+            name: 'write',
+            description: 'Conditional direct tool',
+            parameters: {},
+            output: {
+              schema: { type: 'string' },
+              render: (_args, value) => [{ type: 'text', text: value }],
+            },
+            execute: async () => 'written',
+          }),
+          { when: () => active },
+        );
+        await installAgentNativeTools(ctx, agent);
+        const context = {
+          agent,
+          modelSelection: { provider: 'fixture', model: 'fixture' },
+          signal: new AbortController().signal,
+        };
+        const hidden = await ctx.tools.resolve(context);
+        expect(ctx.tools.schemas(agent, hidden)).toEqual([]);
+        hidden.dispose();
+        expect(await executeNativeTool(ctx, { ...input(), arguments: {}, agent })).toMatchObject({
+          isError: true,
+        });
+        active = true;
+        const selected = await ctx.tools.resolve(context);
+        try {
+          expect(
+            await executeNativeTool(ctx, { ...input(), arguments: {}, agent, toolSet: selected }),
+          ).toMatchObject({ isError: false, value: 'written' });
+        } finally {
+          selected.dispose();
+        }
+      })
+      .await();
+  } finally {
+    await scope.dispose();
+    await root.fiber.dispose();
+  }
+});

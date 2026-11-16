@@ -1,12 +1,7 @@
+export { IM_OPTIONS } from './cli-option-spec.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const IM_OPTIONS = {
-  'credentials-stdin': { type: 'boolean' },
-  'verification-stdin': { type: 'boolean' },
-  wait: { type: 'boolean' },
-} as const;
 
 export const IM_COMMANDS = [
   { command: 'im-apps', description: 'list live Provider IM application authorization flows' },

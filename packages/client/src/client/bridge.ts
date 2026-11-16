@@ -1,3 +1,9 @@
+import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
+import {
+  approvalTemplateDeletionPreviewSchema,
+  type ApprovalTemplateDeletionPreview,
+} from '../../../core/src/workspaces/approval-template-deletion-contract.js';
+
 import {
   skillCatalogChangeSchema,
   type SkillCatalogChange,
@@ -49,7 +55,7 @@ import type {
   ChannelSkillInvocationToken,
   GroupMemberWakePolicy,
 } from '../../../core/src/channels/channel.js';
-import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
+import type { SkillCatalogEntry, SkillOwner } from '../../../core/src/skills/entries.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
@@ -1142,6 +1148,20 @@ export function parseApprovalCard(value: unknown): ApprovalCardView | undefined 
   };
 }
 
+function parseSkillOwner(owner: Record<string, unknown> | undefined): SkillOwner | undefined {
+  if (owner?.['kind'] === 'host') return { kind: 'host' };
+  if (owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string')
+    return { kind: 'bot', botSlug: owner['botSlug'] };
+  if (
+    owner?.['kind'] === 'workspace' &&
+    typeof owner['workspaceId'] === 'string' &&
+    owner['workspaceId'] !== '' &&
+    typeof owner['name'] === 'string'
+  )
+    return { kind: 'workspace', workspaceId: owner['workspaceId'], name: owner['name'] };
+  return undefined;
+}
+
 function parseSkillInvocations(
   value: unknown,
   body: string,
@@ -1164,12 +1184,7 @@ function parseSkillInvocations(
       (path !== undefined && typeof path !== 'string')
     )
       return [];
-    const parsedOwner =
-      owner?.['kind'] === 'host'
-        ? ({ kind: 'host' } as const)
-        : owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string'
-          ? ({ kind: 'bot', botSlug: owner['botSlug'] } as const)
-          : undefined;
+    const parsedOwner = parseSkillOwner(owner);
     if (parsedOwner === undefined) return [];
     return [
       {
@@ -1195,6 +1210,63 @@ export function parseSkillCatalogChange(value: unknown): SkillCatalogChange | un
   }
 }
 
+export interface BotSkillRow {
+  name: string;
+  description: string;
+  path: string;
+  userInvocable: boolean;
+}
+
+export interface SkillDetailView {
+  name: string;
+  description: string;
+  owner: SkillOwner;
+  path?: string;
+  content: string;
+}
+
+export async function loadBotSkills(call: BridgeCall, slug: string): Promise<BotSkillRow[]> {
+  const value = asRecord(await unwrap(call, 'botSkills', { slug }));
+  if (!Array.isArray(value?.['skills'])) throw new Error('invalid botSkills response');
+  return value['skills'].flatMap((entry: unknown): BotSkillRow[] => {
+    const item = asRecord(entry);
+    const name = item?.['name'];
+    const description = item?.['description'];
+    const path = item?.['path'];
+    if (typeof name !== 'string' || typeof description !== 'string' || typeof path !== 'string')
+      return [];
+    return [{ name, description, path, userInvocable: item?.['userInvocable'] !== false }];
+  });
+}
+
+export async function loadSkillDetail(
+  call: BridgeCall,
+  name: string,
+  owner: string,
+): Promise<SkillDetailView> {
+  const skill = asRecord(asRecord(await unwrap(call, 'skillShow', { name, owner }))?.['skill']);
+  const parsedOwner = parseSkillOwner(asRecord(skill?.['owner']));
+  const content = skill?.['content'];
+  if (
+    typeof skill?.['name'] !== 'string' ||
+    typeof content !== 'string' ||
+    parsedOwner === undefined
+  )
+    throw new Error('invalid skillShow response');
+  const path = skill['path'];
+  return {
+    name: skill['name'],
+    description: typeof skill['description'] === 'string' ? skill['description'] : '',
+    owner: parsedOwner,
+    ...(typeof path === 'string' ? { path } : {}),
+    content,
+  };
+}
+
+export async function removeBotSkill(call: BridgeCall, slug: string, name: string): Promise<void> {
+  await unwrap(call, 'botSkillRemove', { slug, name });
+}
+
 export async function loadChannelSkillCatalog(
   call: BridgeCall,
   channelId: string,
@@ -1207,12 +1279,7 @@ export async function loadChannelSkillCatalog(
     const name = item?.['name'];
     const description = item?.['description'];
     if (typeof name !== 'string' || typeof description !== 'string') return [];
-    const parsedOwner =
-      owner?.['kind'] === 'host'
-        ? ({ kind: 'host' } as const)
-        : owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string'
-          ? ({ kind: 'bot', botSlug: owner['botSlug'] } as const)
-          : undefined;
+    const parsedOwner = parseSkillOwner(owner);
     if (parsedOwner === undefined) return [];
     const path = item?.['path'];
     return [
@@ -1332,6 +1399,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
               : {}),
           }
         : undefined;
+    const effects = parseToolEffects(request['effects']);
     const review = asRecord(request['approvalReview']);
     let approvalReview:
       | import('../../../core/src/workspaces/tool-approval.js').ToolApprovalReview
@@ -1352,6 +1420,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
         ...(typeof review['fallback'] === 'string' ? { fallback: review['fallback'] } : {}),
       };
     toolApprovalRequest = {
+      ...(effects === undefined ? {} : { effects }),
       ...(approvalReview === undefined ? {} : { approvalReview }),
       ...(typeof request['allowAlways'] === 'boolean'
         ? { allowAlways: request['allowAlways'] }
@@ -4580,14 +4649,29 @@ export function updateApprovalTemplate(
 ): Promise<ApprovalTemplateView> {
   return writtenApprovalTemplate(call, 'approvalTemplateUpdate', { name, text });
 }
-export async function deleteApprovalTemplate(
+export async function previewApprovalTemplateDeletion(
   call: BridgeCall,
   name: string,
-): Promise<{ clearedBots: string[] }> {
-  const response = asRecord(await unwrap(call, 'approvalTemplateDelete', { name }));
-  if (!Array.isArray(response?.['clearedBots']))
+): Promise<ApprovalTemplateDeletionPreview> {
+  const response = asRecord(await unwrap(call, 'approvalTemplateDeletePreview', { name }));
+  const preview = approvalTemplateDeletionPreviewSchema.parse(response?.['preview']);
+  if (preview.name !== name) throw new Error('invalid approval template deletion target');
+  return preview;
+}
+export async function deleteApprovalTemplate(
+  call: BridgeCall,
+  preview: ApprovalTemplateDeletionPreview,
+): Promise<{ inheritedBots: string[] }> {
+  const response = asRecord(
+    await unwrap(call, 'approvalTemplateDelete', {
+      name: preview.name,
+      confirmed: true,
+      revision: preview.revision,
+    }),
+  );
+  if (!Array.isArray(response?.['inheritedBots']))
     throw new Error('invalid approvalTemplateDelete response');
-  return { clearedBots: stringArray(response['clearedBots']) };
+  return { inheritedBots: stringArray(response['inheritedBots']) };
 }
 export async function setBotApprovalTemplate(
   call: BridgeCall,

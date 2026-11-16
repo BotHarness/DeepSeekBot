@@ -1,3 +1,4 @@
+import { hasCliDeclaration } from './cli-effects.js';
 import { botMetadata, type BotMetadataResult } from '../team/bot-administration.js';
 import { privateBotRegistry, ownsBot } from '../team/bot-access.js';
 import { TeamRoles } from '../team/roles.js';
@@ -80,6 +81,7 @@ import { personaBotAvatarFromBytes, type PersonaBotRecord } from './persona-bot.
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js';
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
+import { canonicalCliCommandName } from './cli-command-names.js';
 import { CliLiveError, LIVE_COMMANDS, runLiveCli } from './cli-live.js';
 import { isActivityCommandName } from './cli-inbox.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
@@ -2629,10 +2631,12 @@ export async function runBotCreateCli(
       out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io, argv), null, 2));
       return 0;
     }
+    if (command !== undefined) command = canonicalCliCommandName(command);
     if (values.help === true || command === undefined || command === 'help') {
       out.stdout(BOT_CREATE_HELP.trimEnd());
       return 0;
     }
+    if (!hasCliDeclaration(command)) throw usageError('Unknown command.');
     if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
     const teamChannels = command === 'channels' && (online || rest.length > 0);

@@ -1,5 +1,13 @@
 import { PointerMenu, type MenuPoint } from './pointer-menu.js';
-import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+import {
+  Fragment,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   IconChevronDownOutlineRegular,
@@ -10,6 +18,7 @@ import { Modal } from '../modal.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const NARROW_QUERY = '(max-width: 648px)';
+const NAV_ICON_SLOT = '20px';
 
 function narrowQuery(): MediaQueryList | undefined {
   return typeof matchMedia === 'function' ? matchMedia(NARROW_QUERY) : undefined;
@@ -102,11 +111,35 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
+  navGroup: {
+    flexShrink: 0,
+    display: 'block',
+    minWidth: 0,
+    paddingTop: space.x3,
+    paddingBottom: space.x1,
+    paddingInlineStart: `calc(${space.x3} + ${NAV_ICON_SLOT} + ${space.x3})`,
+    paddingInlineEnd: space.x3,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontWeight: text.strong,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  navGroupList: {
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+  },
   navIcon: {
     flexShrink: 0,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
+    width: NAV_ICON_SLOT,
+    height: NAV_ICON_SLOT,
   },
   navLabel: {
     flexGrow: 1,
@@ -161,6 +194,24 @@ const styles = stylex.create({
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
     fontWeight: text.strong,
+  },
+  heading: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  scope: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x1,
+    minWidth: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   actions: {
     flexShrink: 0,
@@ -221,6 +272,12 @@ export interface SettingsDialogSection {
   readonly label: string;
   readonly icon?: ReactNode;
   readonly attention?: boolean;
+  readonly group?: string;
+}
+
+export interface SettingsDialogGroup {
+  readonly id: string;
+  readonly label: ReactNode;
 }
 
 export interface SettingsDialogLabels {
@@ -233,14 +290,16 @@ export interface SettingsDialogLabels {
 export interface SettingsDialogProps {
   readonly title: string;
   readonly navTitle?: ReactNode;
-  readonly caption?: ReactNode;
+  readonly caption?: ReactNode | undefined;
   readonly navigationSearch?: ReactNode;
   readonly navigationResults?: ReactNode;
   readonly sections: readonly SettingsDialogSection[];
+  readonly groups?: readonly SettingsDialogGroup[] | undefined;
+  readonly scope?: ReactNode | undefined;
   readonly activeId: string | undefined;
   readonly onSelect: (id: string) => void;
   readonly onClose: () => void;
-  readonly headerAction?: ReactNode;
+  readonly headerAction?: ReactNode | undefined;
   readonly labels: SettingsDialogLabels;
   readonly className?: string;
   readonly children: ReactNode;
@@ -332,6 +391,8 @@ export function SettingsDialog({
   navigationSearch,
   navigationResults,
   sections,
+  groups,
+  scope,
   activeId,
   onSelect,
   onClose,
@@ -341,10 +402,32 @@ export function SettingsDialog({
   children,
 }: SettingsDialogProps): ReactElement {
   const narrow = useNarrowSettings();
+  const groupId = useId();
   const active = sections.find((section) => section.id === activeId);
   const close = (): void => {
     onClose();
   };
+  const navCell = (section: SettingsDialogSection): ReactElement => (
+    <button
+      key={section.id}
+      type="button"
+      data-settings-section={section.id}
+      aria-current={section.id === active?.id ? 'page' : undefined}
+      data-modal-autofocus={section.id === active?.id ? '' : undefined}
+      onClick={() => {
+        onSelect(section.id);
+      }}
+      {...stylex.props(styles.navCell)}
+    >
+      {section.icon === undefined ? null : (
+        <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+          {section.icon}
+        </span>
+      )}
+      <span {...stylex.props(styles.navLabel)}>{section.label}</span>
+      {section.attention === true ? <AttentionDot label={labels.attention} /> : null}
+    </button>
+  );
   const dialogClass = ['bh-settings-dialog', className, stylex.props(styles.dialog).className]
     .filter(Boolean)
     .join(' ');
@@ -360,27 +443,27 @@ export function SettingsDialog({
           {navigationSearch}
           <div {...stylex.props(styles.navList)}>
             {navigationResults ??
-              sections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  data-settings-section={section.id}
-                  aria-current={section.id === active?.id ? 'page' : undefined}
-                  data-modal-autofocus={section.id === active?.id ? '' : undefined}
-                  onClick={() => {
-                    onSelect(section.id);
-                  }}
-                  {...stylex.props(styles.navCell)}
-                >
-                  {section.icon === undefined ? null : (
-                    <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
-                      {section.icon}
-                    </span>
-                  )}
-                  <span {...stylex.props(styles.navLabel)}>{section.label}</span>
-                  {section.attention === true ? <AttentionDot label={labels.attention} /> : null}
-                </button>
-              ))}
+              (groups === undefined
+                ? sections.map(navCell)
+                : groups.map((group) => {
+                    const members = sections.filter((section) => section.group === group.id);
+                    if (members.length === 0) return null;
+                    const headingId = `${groupId}-${group.id}`;
+                    return (
+                      <Fragment key={group.id}>
+                        <div id={headingId} {...stylex.props(styles.navGroup)}>
+                          {group.label}
+                        </div>
+                        <div
+                          role="group"
+                          aria-labelledby={headingId}
+                          {...stylex.props(styles.navGroupList)}
+                        >
+                          {members.map(navCell)}
+                        </div>
+                      </Fragment>
+                    );
+                  }))}
           </div>
         </nav>
       )}
@@ -395,16 +478,23 @@ export function SettingsDialog({
           <div {...stylex.props(styles.captionNarrow)}>{caption}</div>
         ) : null}
         <div {...stylex.props(styles.header, narrow && styles.headerNarrow)}>
-          {narrow ? (
-            <SectionPicker
-              sections={sections}
-              activeId={activeId}
-              labels={labels}
-              onSelect={onSelect}
-            />
-          ) : (
-            <h2 {...stylex.props(styles.title)}>{active?.label}</h2>
-          )}
+          <span {...stylex.props(styles.heading)}>
+            {narrow ? (
+              <SectionPicker
+                sections={sections}
+                activeId={activeId}
+                labels={labels}
+                onSelect={onSelect}
+              />
+            ) : (
+              <h2 {...stylex.props(styles.title)}>{active?.label}</h2>
+            )}
+            {scope === undefined ? null : (
+              <span data-settings-scope="" {...stylex.props(styles.scope)}>
+                {scope}
+              </span>
+            )}
+          </span>
           <span {...stylex.props(styles.actions)}>
             {headerAction}
             <button

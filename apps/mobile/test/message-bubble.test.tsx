@@ -260,9 +260,9 @@ describe('GenUI keyboard interaction', () => {
           />,
         ),
       );
-      act(() =>
-        container.querySelector('input')!.dispatchEvent(new Event('touchstart', { bubbles: true })),
-      );
+      act(() => {
+        container.querySelector('input')!.dispatchEvent(new Event('touchstart', { bubbles: true }));
+      });
       expect(onInteractionStart).toHaveBeenCalledTimes(os === 'ios' ? 1 : 0);
       act(() => root.unmount());
     },
@@ -1038,10 +1038,14 @@ describe('outgoing delivery presentation through Conversation', () => {
     expect(view.container.textContent).not.toContain(t.sending);
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(2_999));
+    act(() => {
+      vi.advanceTimersByTime(2_999);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(1));
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).toContain('…');
     expect(
@@ -1063,11 +1067,15 @@ describe('outgoing delivery presentation through Conversation', () => {
   it('never shows feedback for a fast committed send when its old deadline passes', async () => {
     const view = await open();
     await view.send();
-    act(() => vi.advanceTimersByTime(2_900));
+    act(() => {
+      vi.advanceTimersByTime(2_900);
+    });
     await view.settle();
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(3_100));
+    act(() => {
+      vi.advanceTimersByTime(3_100);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
     expect(view.container.textContent).not.toContain(t.sending);
@@ -1078,7 +1086,9 @@ describe('outgoing delivery presentation through Conversation', () => {
     async (delay) => {
       const view = await open();
       await view.send();
-      act(() => vi.advanceTimersByTime(delay));
+      act(() => {
+        vi.advanceTimersByTime(delay);
+      });
       const originalAt = view.target.getSnapshot().messages[0]!.at;
       await view.settle(true);
       expect(view.container.textContent).toContain('!');
@@ -1093,10 +1103,14 @@ describe('outgoing delivery presentation through Conversation', () => {
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).not.toContain('…');
       expect(view.container.textContent).not.toContain(t.notSent);
-      act(() => vi.advanceTimersByTime(2_999));
+      act(() => {
+        vi.advanceTimersByTime(2_999);
+      });
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).not.toContain('…');
-      act(() => vi.advanceTimersByTime(1));
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).toContain('…');
       await view.settle();
@@ -1116,11 +1130,15 @@ describe('outgoing delivery presentation through Conversation', () => {
   it('keeps elapsed attempt time when the bubble is virtualized and remounted', async () => {
     const view = await open();
     await view.send();
-    act(() => vi.advanceTimersByTime(2_000));
+    act(() => {
+      vi.advanceTimersByTime(2_000);
+    });
     view.remount();
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(1_000));
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).toContain('…');
     view.remount();

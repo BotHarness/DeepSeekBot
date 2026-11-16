@@ -174,7 +174,9 @@ describe('history-reading gesture ownership', () => {
       view.current.listProps.onScrollEndDrag(event(30, 1));
     });
     expect(view.current.away).toBe(true);
-    act(() => vi.advanceTimersByTime(MOMENTUM_WAIT_MS));
+    act(() => {
+      vi.advanceTimersByTime(MOMENTUM_WAIT_MS);
+    });
     expect(view.current.away).toBe(false);
     view.unmount();
     vi.useRealTimers();
@@ -188,7 +190,9 @@ describe('history-reading gesture ownership', () => {
       view.current.listProps.onScrollEndDrag(event(300, 1));
       view.current.listProps.onMomentumScrollBegin();
     });
-    act(() => vi.advanceTimersByTime(MOMENTUM_WAIT_MS * 4));
+    act(() => {
+      vi.advanceTimersByTime(MOMENTUM_WAIT_MS * 4);
+    });
     expect(view.current.away).toBe(true);
     act(() => view.current.listProps.onMomentumScrollEnd(event(10)));
     expect(view.current.away).toBe(false);
@@ -520,7 +524,9 @@ describe('following a growing conversation', () => {
     act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
     flushFrames();
     expect(view.scrollToOffset).not.toHaveBeenCalled();
-    act(() => vi.runAllTimers());
+    act(() => {
+      vi.runAllTimers();
+    });
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     act(() => view.current.listProps.onScroll(event(0)));
@@ -907,7 +913,9 @@ describe('sending a message', () => {
         view.current.listProps.onScroll(event(48, 0, CONTENT + 60));
       });
       expect(view.scrollToOffset).not.toHaveBeenCalled();
-      act(() => vi.advanceTimersByTime(NATIVE_GLIDE_MS));
+      act(() => {
+        vi.advanceTimersByTime(NATIVE_GLIDE_MS);
+      });
       expect(view.scrollToOffset).toHaveBeenLastCalledWith({
         offset: CONTENT + 60 - LAYOUT,
         animated: true,
@@ -930,7 +938,9 @@ describe('sending a message', () => {
         view.current.listProps.onContentSizeChange(0, CONTENT - 20);
         view.current.listProps.onScroll(event(42, 0, CONTENT - 20));
       });
-      act(() => vi.advanceTimersByTime(NATIVE_GLIDE_MS));
+      act(() => {
+        vi.advanceTimersByTime(NATIVE_GLIDE_MS);
+      });
       expect(view.scrollToOffset).toHaveBeenLastCalledWith({
         offset: CONTENT - 20 - LAYOUT,
         animated: true,

@@ -1,3 +1,4 @@
+import { toolApprovalRequired } from '../workspaces/tool-effects.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { TOB_AGENT_COMMAND_USAGE } from '../bots/cli-agent-management.js';
@@ -298,6 +299,12 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
         const prepared = await options.prepareOperation(input.command, args, signal);
         authorize();
         if (!prepared) refuse('unsupported-command');
+        if (
+          !prepared.proposal &&
+          !prepared.completed &&
+          toolApprovalRequired('deepseekbot ' + input.command, { command: input.command }, false)
+        )
+          refuse('approval-unavailable');
         if (prepared.proposal) {
           if (writing) refuse('operation-in-progress');
           writing = true;

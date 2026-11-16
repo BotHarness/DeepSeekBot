@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,13 +11,20 @@ import {
   type ShellExecSpec,
   type ShellExecution,
 } from '@deepseek-ai/dsh-shell';
-import type { ToolExecution } from '@deepseek-ai/dsh-tools';
+import { defineTool, type ToolDefinition, type ToolExecution } from '@deepseek-ai/dsh-tools';
+import { tobCliCommandSchema } from './cli-request.js';
+import { TobError } from './service.js';
 import { startTobCliBroker, type TobCliBrokerOptions } from './cli-broker.js';
 
 export interface TobCliShellOptions {
   capture(execution: ToolExecution): TobCliBrokerOptions | undefined;
 
   cliPath?: string;
+  nativeCli?: {
+    available(): boolean;
+    register(definition: ToolDefinition): () => void;
+    require(execution: ToolExecution): void;
+  };
 }
 const CLI_APPROVAL_WAIT_MS = 10 * 60 * 1000;
 const CLI_COMMAND = /(^|[\s;&|(`])deepseekbot(\s|$)/mu;
@@ -80,7 +88,12 @@ export function installTobCliShell(
   const active = new Set<() => Promise<void>>();
   let shim: ReturnType<typeof makeShim> | undefined;
   ctx.on('tools/execute', async (execution, next) => {
-    if (execution.name !== 'bash' && execution.name !== 'pwsh') return next();
+    if (
+      execution.name !== 'bash' &&
+      execution.name !== 'pwsh' &&
+      execution.name !== 'deepseekbot_cli'
+    )
+      return next();
     const call: Invocation = { execution, active: true, close: new Set() };
     try {
       return await invocation.run(call, next);
@@ -89,6 +102,123 @@ export function installTobCliShell(
       await Promise.all([...call.close].map((close) => close()));
     }
   });
+  const nativeCli = options.nativeCli;
+  if (nativeCli !== undefined) {
+    const definition = defineTool({
+      name: 'deepseekbot_cli',
+      description:
+        'Run one typed deepseekbot command through the scoped Tob broker. Requires the owning live Human DM turn; writes retain their actual approval and execution fences.',
+      parameters: {
+        argv: { type: 'array', items: { type: 'string' }, required: true },
+        stdin: { type: 'string' },
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      async execute(args, execution) {
+        if (!nativeCli.available()) throw new TobError('tob-authority-required');
+        nativeCli.require(execution);
+        const command = tobCliCommandSchema.parse(args);
+        const call = invocation.getStore();
+        if (!call?.active || shutdown.signal.aborted) throw new TobError('agent-context-expired');
+        const captured = options.capture(call.execution);
+        if (!captured) throw new TobError('tob-authority-required');
+        const signal = AbortSignal.any([shutdown.signal, captured.signal, call.execution.signal]);
+        signal.throwIfAborted();
+        captured.authorize();
+        const cwd = call.execution.agent?.session.header.cwd;
+        if (!cwd) throw new TobError('tob-authority-required');
+        const broker = await startTobCliBroker({ ...captured, signal });
+        try {
+          const modulePath = pathToFileURL(options.cliPath ?? cliModulePath()).href;
+          const entry = `import { runBotCreateCli } from ${JSON.stringify(modulePath)};
+process.exitCode = await runBotCreateCli(process.argv.slice(1), {
+  env: process.env,
+  stdout: text => process.stdout.write(text + '\\n'),
+  stderr: text => process.stderr.write(text + '\\n'),
+  readStdin: async () => { const chunks = []; for await (const chunk of process.stdin) chunks.push(chunk); return Buffer.concat(chunks).toString('utf8'); }
+});`;
+          const env = { ...process.env };
+          for (const key of [
+            'DEEPSEEKBOT_HOST',
+            'DEEPSEEKBOT_HOST_TOKEN',
+            'DEEPSEEKBOT_AGENT_ENDPOINT',
+            'DEEPSEEKBOT_AGENT_TOKEN',
+          ])
+            delete env[key];
+          env.DEEPSEEKBOT_AGENT_ENDPOINT = broker.endpoint;
+          env.DEEPSEEKBOT_AGENT_TOKEN = broker.token;
+          const output = await new Promise<import('./cli-request.js').TobCliOutput>(
+            (resolve, reject) => {
+              const child = spawn(
+                process.execPath,
+                ['--input-type=module', '--eval', entry, '--', ...command.argv],
+                {
+                  cwd,
+                  env,
+                  signal,
+                  shell: false,
+                  windowsHide: true,
+                  stdio: ['pipe', 'pipe', 'pipe'],
+                },
+              );
+              let bytes = 0,
+                stdout = '',
+                stderr = '',
+                exceeded = false;
+              let failure: unknown;
+              child.stdout.setEncoding('utf8');
+              child.stderr.setEncoding('utf8');
+              const append = (chunk: string, stream: 'stdout' | 'stderr') => {
+                bytes += Buffer.byteLength(chunk);
+                if (bytes > 1024 * 1024) {
+                  exceeded = true;
+                  child.kill();
+                  return;
+                }
+                if (stream === 'stdout') stdout += chunk;
+                else stderr += chunk;
+              };
+              child.stdout.on('data', (chunk: string) => append(chunk, 'stdout'));
+              child.stderr.on('data', (chunk: string) => append(chunk, 'stderr'));
+              child.once('error', (error) => {
+                failure = error;
+              });
+              child.once('close', (exitCode) => {
+                if (failure !== undefined) {
+                  reject(failure);
+                  return;
+                }
+                if (exceeded) {
+                  reject(new TobError('request-too-large'));
+                  return;
+                }
+                const scrub = (text: string) =>
+                  text
+                    .replaceAll(broker.token, '[redacted]')
+                    .replaceAll(encodeURIComponent(broker.token), '[redacted]')
+                    .replaceAll(broker.endpoint, '[scoped-cli]');
+                resolve({
+                  exitCode: exitCode ?? 1,
+                  stdout: scrub(stdout),
+                  stderr: scrub(stderr),
+                });
+              });
+              child.stdin.on('error', () => {});
+              child.stdin.end(command.stdin);
+            },
+          );
+          signal.throwIfAborted();
+          return JSON.stringify(output);
+        } finally {
+          await broker.close();
+        }
+      },
+    });
+    ctx.tools.register(definition, { when: () => nativeCli.available() });
+    ctx.effect(() => nativeCli.register(definition), 'botharness: trusted typed CLI registration');
+  }
   ctx.effect(
     () => async () => {
       shutdown.abort();

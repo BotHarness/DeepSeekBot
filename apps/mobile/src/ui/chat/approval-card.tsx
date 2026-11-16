@@ -1,3 +1,4 @@
+import { toolEffectLabels } from '../../../../../packages/core/src/workspaces/tool-effect-labels';
 import { useCallback, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
@@ -18,7 +19,7 @@ import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
-import { useStrings, t } from '../strings';
+import { useStrings, t, locale } from '../strings';
 import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './action-card';
 import type { CardLineTone } from './card-line';
 import { FileDiff } from './approval-diff';
@@ -318,6 +319,9 @@ function ApprovalCardContent({
           </>
         }
       >
+        {request.effects === undefined ? null : (
+          <CardNote>{toolEffectLabels(request.effects, locale).join(' · ')}</CardNote>
+        )}
         {running === undefined ? null : <CardNote>{running}</CardNote>}
         {highRisk(request.toolName) ? <CardNote>{riskNote(request.toolName)}</CardNote> : null}
         <CardNote>{alwaysNote(request)}</CardNote>

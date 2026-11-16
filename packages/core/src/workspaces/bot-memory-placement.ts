@@ -79,7 +79,7 @@ export class BotMemoryPlacement {
           db.prepare(`INSERT INTO workspace_spaces VALUES (?,'shared',?,NULL,?)
             ON CONFLICT(space_id) DO UPDATE SET audience_json=excluded.audience_json`).run(
             spaceId,
-            '\u0000' + spaceId,
+            '\u0001' + spaceId,
             JSON.stringify(visibility.audience),
           );
         else {

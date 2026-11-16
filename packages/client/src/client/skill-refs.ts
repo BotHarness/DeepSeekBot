@@ -1,5 +1,8 @@
-import type { SkillCatalogEntry, SkillOwner } from '../../../core/src/skills/entries.js';
-import type { BotSummary } from './store.js';
+import {
+  skillOwnerKey,
+  type SkillCatalogEntry,
+  type SkillOwner,
+} from '../../../core/src/skills/entries.js';
 
 export interface SelectedSkill {
   name: string;
@@ -14,12 +17,8 @@ export interface SkillQuery {
   query: string;
 }
 
-export type ComposerSkillOption = SkillCatalogEntry & { bot?: BotSummary | undefined };
-
 export function sameSkillOwner(left: SkillOwner, right: SkillOwner): boolean {
-  return left.kind === 'host'
-    ? right.kind === 'host'
-    : right.kind === 'bot' && left.botSlug === right.botSlug;
+  return skillOwnerKey(left) === skillOwnerKey(right);
 }
 
 export function activeSkillQuery(
@@ -65,7 +64,7 @@ export function selectSkill(
   value: string,
   skills: readonly SelectedSkill[],
   query: SkillQuery,
-  option: Pick<ComposerSkillOption, 'name' | 'owner'>,
+  option: Pick<SkillCatalogEntry, 'name' | 'owner'>,
 ): { value: string; skills: SelectedSkill[]; caret: number } {
   const token = '/' + option.name;
   const trailing = value[query.end] === ' ' ? '' : ' ';

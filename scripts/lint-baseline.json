@@ -1,0 +1,10 @@
+{
+  "typescript/no-floating-promises": {
+    "deploy/private-relay/server-check.mjs": 4,
+    "packages/browser/test/browser-tools.test.ts": 1,
+    "packages/core/test/assignment-collaboration.test.ts": 1,
+    "packages/core/test/cli-live-activity.test.ts": 1,
+    "packages/core/test/team-approvals.test.ts": 1,
+    "packages/core/test/update-runs.test.ts": 3
+  }
+}

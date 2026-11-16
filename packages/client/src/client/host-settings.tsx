@@ -1,10 +1,7 @@
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useMountedResource } from './mounted-resource.js';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-import { hostSettingsDrafts, type HostDraftChoice } from './host-settings-drafts.js';
-import { FormDialog } from './ds/form-dialog.js';
+import { useHostDraftGuard } from './host-draft-guard.js';
 import * as stylex from '@stylexjs/stylex';
-import { HostGlyph } from './host-glyph.js';
+import { TargetName } from './target-name.js';
 import { HostLookSettings } from './host-look-settings.js';
 import { useHostLook } from './host-looks.js';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
@@ -92,42 +89,8 @@ function EnvironmentSettings({
   const look = useHostLook(hostId);
   const displayName = shownHostName(look, name);
   const [section, setSection] = useState('models');
-  const leaving = useRef(false);
-  const leaveReason = useRef<'switch' | 'leave'>('leave');
-  const leave = async (next: () => void, reason: 'switch' | 'leave' = 'leave') => {
-    if (leaving.current) return;
-    leaving.current = true;
-    leaveReason.current = reason;
-    try {
-      if (await hostSettingsDrafts.prepare(hostId)) next();
-    } finally {
-      leaving.current = false;
-      leaveReason.current = 'leave';
-    }
-  };
-  const [draftPrompt, setDraftPrompt] = useState(false);
-  const choice = useRef<(value: HostDraftChoice) => void>();
-  const settle = (value: HostDraftChoice) => {
-    const resolve = choice.current;
-    choice.current = undefined;
-    setDraftPrompt(false);
-    resolve?.(value);
-  };
-  const mount = useMountedResource<HTMLSpanElement>(() => {
-    const release = hostSettingsDrafts.prompt(
-      hostId,
-      () =>
-        new Promise((resolve) => {
-          choice.current = resolve;
-          setDraftPrompt(true);
-        }),
-    );
-    return () => {
-      release();
-      choice.current?.('cancel');
-      choice.current = undefined;
-    };
-  }, [hostId]);
+  const guard = useHostDraftGuard(hostId, t);
+  const leave = guard.leave;
   const sections = [
     {
       id: 'models',
@@ -250,26 +213,7 @@ function EnvironmentSettings({
         picker: (label) => label,
       }}
     >
-      <span ref={mount} hidden />
-      {draftPrompt ? (
-        <FormDialog
-          title={t('relationships.unsaved')}
-          description={t('relationships.unsavedHint')}
-          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-          submitLabel={t(
-            leaveReason.current === 'switch'
-              ? 'environment.settings.saveAndSwitch'
-              : 'relationships.save',
-          )}
-          onCancel={() => settle('cancel')}
-          onSubmit={() => settle('save')}
-          secondary={
-            <Button variant="outline" onClick={() => settle('discard')}>
-              {t('relationships.discard')}
-            </Button>
-          }
-        />
-      ) : null}
+      {guard.view}
       {section === 'connections' && remote ? (
         <HostDetails key={hostId} remote={remote} t={t} />
       ) : section === 'appearance' ? (
@@ -352,15 +296,6 @@ function EnvironmentSettings({
         />
       )}
     </SettingsDialog>
-  );
-}
-
-function TargetName({ hostId, name }: { hostId: string; name: string }) {
-  const look = useHostLook(hostId);
-  return (
-    <>
-      <HostGlyph look={look} /> {shownHostName(look, name)}
-    </>
   );
 }
 

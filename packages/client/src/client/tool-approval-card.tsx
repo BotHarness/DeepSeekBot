@@ -434,6 +434,12 @@ export function ToolApprovalCard({
             t={t}
           />
         )}
+        {request.effects === undefined ? null : (
+          <div className="bh-note">
+            {t(`approval.effect.changes.${request.effects.changes}`)} ·{' '}
+            {t(`approval.effect.reach.${request.effects.reach}`)}
+          </div>
+        )}
         {request.approvalReview === undefined ? null : (
           <div className="bh-note">
             {request.approvalReview.kind === 'template-unavailable'

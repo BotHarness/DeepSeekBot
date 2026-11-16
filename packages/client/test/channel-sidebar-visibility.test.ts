@@ -80,11 +80,11 @@ function edit() {
   click('编辑侧边栏');
 }
 function key(id: string, value: string) {
-  act(() =>
+  act(() => {
     host
       .querySelector<HTMLElement>('[data-order-handle="' + id + '"]')!
-      .dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true })),
-  );
+      .dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true }));
+  });
 }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -155,7 +155,9 @@ describe('Channel sidebar personal item visibility', () => {
         clientY: y,
       });
       Object.defineProperty(event, 'pointerId', { value: 1 });
-      act(() => target.dispatchEvent(event));
+      act(() => {
+        target.dispatchEvent(event);
+      });
     };
     send('pointerdown', 10, button);
     send('pointermove', 100, document);
@@ -166,7 +168,9 @@ describe('Channel sidebar personal item visibility', () => {
     Object.defineProperty(native, 'dataTransfer', {
       value: { effectAllowed: '', setData: vi.fn() },
     });
-    act(() => button.dispatchEvent(native));
+    act(() => {
+      button.dispatchEvent(native);
+    });
     expect(native.defaultPrevented).toBe(true);
     visibility('memory');
     send('pointerdown', 10, host.querySelector('[data-entry-id="memory"]')!);
