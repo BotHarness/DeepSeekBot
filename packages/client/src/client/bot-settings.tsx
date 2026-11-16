@@ -325,6 +325,7 @@ export function BotSettingsView({
     <TargetName
       hostId={remote?.hostId ?? thisHost.id ?? THIS_HOST}
       name={remote?.hostName ?? hereName}
+      glyph={false}
     />
   ) : (
     hereName
