@@ -349,6 +349,7 @@ import {
   type ResolvedSkill,
 } from '../skills/catalog.js';
 import {
+  BotSkillIgnoredFilesError,
   BotSkillNotFoundError,
   listBotSkills,
   readBotSkill,
@@ -7221,15 +7222,18 @@ function buildBridgeMethods(
       if (memoryDir === undefined) return unknownBot(slug);
       try {
         const result = await removeBotSkill(memoryDir, name);
-        deps.skills?.invalidateMemory(slug);
         return { ok: true, value: result };
       } catch (error) {
         if (error instanceof BotSkillNotFoundError)
           return { ok: false, error: { code: 'skill-not-found', message: error.message } };
+        if (error instanceof BotSkillIgnoredFilesError)
+          return { ok: false, error: { code: 'skill-has-ignored-files', message: error.message } };
         return {
           ok: false,
           error: { code: 'skills-unavailable', message: (error as Error).message },
         };
+      } finally {
+        deps.skills?.invalidateMemory(slug);
       }
     },
     channelAllBotPreview(payload) {

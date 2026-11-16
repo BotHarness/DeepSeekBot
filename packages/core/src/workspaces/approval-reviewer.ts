@@ -1,3 +1,4 @@
+import { approvalTemplateReviewerText } from './approval-template-guidance.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { installNativeTools } from '../runtime/native-agent-compat.js';
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent';
@@ -196,7 +197,7 @@ export function reviewerUserPrompt(request: Omit<ApprovalReviewRequest, 'signal'
   const excerpt = request.excerpt;
   return [
     `<approval-template name="${request.template.name}" version="${request.template.version ?? 'unversioned'}">`,
-    request.template.text.trim(),
+    approvalTemplateReviewerText(request.template.text),
     '</approval-template>',
     '',
     '<pending-call>',

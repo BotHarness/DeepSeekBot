@@ -238,7 +238,7 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 
 `skills-list` 返回该对话 `/` 菜单提供的 Skill，并按 `--query` 以与菜单相同的规则排序（名称前缀、名称子序列、所属 Bot 显示名或 slug、Workspace 名或 ID 子串、描述子串）：包括 Host Skill（`owner.kind` 为 `host`），以及各 PersonaBot Memory Repository 下 `.agents/skills` 或 `.dsh/skills` 中的 Project Skill（`owner.kind` 为 `bot`），以及各 Bot 当前 Workspace Grant 根目录下这两个 Skill 目录中的 Project Skill（`owner.kind` 为 `workspace`，`workspaceId` 是稳定标识，`name` 是显示名）。同一 Workspace 在对话中只列一次，不读取上层仓库的 Skill；最后一个可用 Grant 撤销后即消失。只有发送者可读取的活跃 Bot 提供条目。任意 Channel 可用 `--channel <channel-id>` 代替 `--bot`。`send --skill <owner>/<name>`（owner 为 `host`、`bot:<bot-id>` 或 `workspace:<workspace-id>`，可重复）按参数顺序，为每个参数把正文中第一个尚未选中的 `/name` token 变成 Skill Invocation（token 两端必须为空白或正文边界；没有未用匹配时拒绝发送）：Host 把该 Skill 当前的文本随消息保存，Bot 以 `<skill_invocation>` 块读到它。Workspace ID 取自 `skills-list`，文件夹显示名更改后身份不变。例如 `send --channel <id> --skill workspace:<workspace-id>/review --body '/review'` 保存所选 Skill 的快照，不隐式提及任何 Bot；提及仍须通过常规发送选项指定。没有该 Grant 的接收 Bot 可收到文本，但现有文件守卫会拦截其路径读取。Skill 不决定由谁回复；已不存在的 Skill 会以 `skill-unavailable` 拒绝；Skill 文本超过 64,000 个字符时会以 `skill-too-large` 拒绝，不会截断。见 [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)。
 
-`skills-memory --bot <bot-id>` 列出该 PersonaBot 自己 Memory Repository 中的 Project Skill，与其资料页 **Skills** 卡片相同：根目录 `.dsh/skills` 优先于 `.agents/skills`，包含仅模型调用的 Skill（`userInvocable: false`），不含 Workspace Skill。`skills-show <名称> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` 返回该 Skill 的全文。`skills-remove <名称> --bot <bot-id> --confirm` 从 Memory Repository 删除该 Skill 文件夹（或单个 `.md` 文件）并提交 `skills: remove <名称>`，可从 git 历史恢复；打开中的 `/` 菜单通过实时目录事件同步更新。不带 `--confirm` 会拒绝执行。没有禁用开关。Skill 不存在时以 `skill-not-found` 拒绝。
+`skills-memory --bot <bot-id>` 列出该 PersonaBot 自己 Memory Repository 中的 Project Skill，与其资料页 **Skills** 卡片相同：根目录 `.dsh/skills` 优先于 `.agents/skills`，包含仅模型调用的 Skill（`userInvocable: false`），不含 Workspace Skill。`skills-show <名称> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` 返回该 Skill 的全文。`skills-remove <名称> --bot <bot-id> --confirm` 从 Memory Repository 删除该 Skill 文件夹（或单个 `.md` 文件）并提交 `skills: remove <名称>`，可从 git 历史恢复（未提交的修改会先提交为 `skills: save <名称> before removal`；文件夹中含 git 忽略的文件时以 `skill-has-ignored-files` 拒绝，因为历史无法恢复它们）；打开中的 `/` 菜单通过实时目录事件同步更新。不带 `--confirm` 会拒绝执行。没有禁用开关。Skill 不存在时以 `skill-not-found` 拒绝。
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
 
@@ -841,7 +841,7 @@ deepseekbot approval-template delete night-shift
 
 `list` 返回 `templates` 和 `globalDefault`（模板名或 `null`）。加 `--bot` 时还返回 `selected`（`@global`、特定模板名或 `null`）、`source`（`global`、`specific`、`off`）及 `effective`（模板名或 `null`）。全局设置返回 `{template}`，Bot 设置返回 `{bot}`。写入由认证 Host 持有；不存在的模板不能被选中，全局选择读取失败返回 `approval-selection-unavailable`，不冒充空默认。
 
-模板继续使用内置只读内容或 `$DSH_HOME/botharness/approval-templates/` 下的 Markdown 文件；同一文件 owner 在 `.selection.json` 保存全局选择，不新增 schema 迁移。名称使用小写字母、数字和短横线，正文最多 32 KiB。`show` 返回全文；`create --from` 复制内容。现有编辑和删除流程保持原状；三部分编辑、统一规则表和确认后的批量删除回退由后续切片交付。
+模板继续使用内置只读内容或 `$DSH_HOME/botharness/approval-templates/` 下的 Markdown 文件；同一文件 owner 在 `.selection.json` 保存全局选择，不新增 schema 迁移。名称使用小写字母、数字和短横线，正文最多 32 KiB。`show` 返回全文；`create --from` 复制内容。编辑器提供 Always ask、Always allow 与 free text，可显式从空白或副本开始，并选择仅保存或保存后应用。详见[三部分模板编写](#三部分审批指导)。统一规则表和确认后的批量删除回退由后续切片交付。
 
 确定性授权先处理，覆盖请求时不调用 Reviewer。其余请求按所选模板进入全新、无工具的 Reviewer Session，只接受本次 `allow` 或 `ask-human`。Always ask 优先于 Always allow，free text 补充两者；旧模板的 Reject 指引表示交给 Human。模型不存规则、不自主拒绝，拒绝熔断不再生效。旧拒绝记录及显式 Human override 保持可读。
 
@@ -2088,6 +2088,24 @@ Bot 默认私有：只有主体（所有者）可以私聊私有 Bot 或把它�
 角色策略输入为 JSON 数组 `{ "topic", "text", "effect": "allow" | "deny" }`（最多 100 项），仅供参考：Bot 通过 `speaker-policy` 和 `speaker_policy` 工具读取发言 Human 的角色与匹配条目。同一主题上角色冲突时以 Deny 为准；`roles conflicts <username>` 列出冲突的角色对。
 
 工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
+
+### 三部分审批指导
+
+使用 `deepseekbot approval-template create my-draft --blank` 明确创建空白草稿，或使用 `deepseekbot approval-template create my-copy --from cautious` 创建独立副本。不会自动选取来源，副本不保留来源关联。仍支持 `--file`／`--text-stdin` Markdown 输入。
+
+三部分编辑使用 UTF-8 JSON 文件：
+
+```json
+{
+  "alwaysAsk": ["发送消息或花钱"],
+  "alwaysAllow": ["读取本地项目文件"],
+  "freeText": "不确定时问我。"
+}
+```
+
+运行 `deepseekbot approval-template edit my-draft --parts-file guidance.json`，再用 `deepseekbot approval-template show my-draft` 读回；`text` 包含带格式版本的内容。创建／编辑时添加 `--apply-to <bot-id>` 才会在保存后为该 Bot 选用模板。不加时不改变选择。应用仍通过现有 Bot 选择授权；应用失败时已保存的草稿保留，可单独选用。
+
+编辑共享原件影响 `usedBy` 中所有 Bot 的后续 Review，包括全局继承者。需要独立修改时先复制。总是询问优先于总是允许，补充说明不能取消前者。这些是可能被模型误解的自然语言指导，不是确定性 Tool Approval Rules；冲突、未覆盖或不确定均交给 Human。转换时旧 Markdown 完整保留为补充说明，已经开始的 Review 保留捕获的内容和版本。
 
 ### Channel 邀请（M14）
 

@@ -141,6 +141,40 @@ describe('Skill profile bridge methods and CLI', () => {
     return { core, root, methods, rpc, invalidate };
   }
 
+  it('checkpoints uncommitted Skill edits before removing them, so git history can restore them', async () => {
+    const root = memory();
+    put(root, '.dsh/skills/review/SKILL.md', 'review', '', 'Unsaved edit');
+    writeFileSync(join(root, '.dsh/skills/review/extra.md'), 'untracked helper\n');
+    await removeBotSkill(root, 'review');
+    expect(git(root, 'status', '--porcelain')).toBe('');
+    expect(git(root, 'show', 'HEAD~1:.dsh/skills/review/SKILL.md')).toContain('Unsaved edit');
+    expect(git(root, 'show', 'HEAD~1:.dsh/skills/review/extra.md')).toBe('untracked helper');
+  });
+
+  it('refuses to remove a Skill whose folder holds git-ignored files, which history could not restore', async () => {
+    const root = memory();
+    writeFileSync(join(root, '.gitignore'), '*.secret\n');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '--no-gpg-sign', '-m', 'ignore secrets');
+    writeFileSync(join(root, '.dsh/skills/review/token.secret'), 'private\n');
+    await expect(removeBotSkill(root, 'review')).rejects.toThrow(/token\.secret/);
+    expect(existsSync(join(root, '.dsh/skills/review/SKILL.md'))).toBe(true);
+    expect(git(root, 'log', '-1', '--format=%s')).toBe('ignore secrets');
+  });
+
+  it('removes a flat SKILL.md that sits directly in the skills folder', async () => {
+    const root = memory();
+    put(root, '.agents/skills/SKILL.md', 'loose');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '--no-gpg-sign', '-m', 'add loose');
+    expect((await readBotSkill(root, 'loose'))?.path).toBe('.agents/skills/SKILL.md');
+    expect(await removeBotSkill(root, 'loose')).toEqual({
+      name: 'loose',
+      removed: '.agents/skills/SKILL.md',
+    });
+    expect(existsSync(join(root, '.agents/skills/review/SKILL.md'))).toBe(true);
+  });
+
   it('lists, shows and removes through the same bridge path as the profile card', async () => {
     const f = fixture();
     expect(await runSkillCommand('skills-memory', [], { bot: 'ada' }, async () => f.rpc)).toEqual({

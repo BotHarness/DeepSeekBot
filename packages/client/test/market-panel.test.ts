@@ -1485,15 +1485,19 @@ describe('Uploaded Bots in the Market panel', () => {
   });
 
   it('lists the package Skills with their descriptions and opens SKILL.md', async () => {
-    const file = vi.fn(async (_id: string, path: string) => ({
-      path,
-      size: 60,
-      type: 'markdown',
-      text:
-        path === '.dsh/skills/review/SKILL.md'
-          ? '---\nname: review\ndescription: Review a pull request\n---\nCheck tests.'
-          : '---\nname: notes\ndescription: Keep notes\n---\nWrite notes.',
-    }));
+    let notesFailures = 1;
+    const file = vi.fn(async (_id: string, path: string) => {
+      if (path === '.agents/skills/notes.md' && notesFailures-- > 0) throw new Error('offline');
+      return {
+        path,
+        size: 60,
+        type: 'markdown',
+        text:
+          path === '.dsh/skills/review/SKILL.md'
+            ? '---\nname: review\ndescription: Review a pull request\n---\nCheck tests.'
+            : '---\nname: notes\ndescription: Keep notes\n---\nWrite notes.',
+      };
+    });
     await withPanel(
       async () => ({ bots: [uploaded] }),
       async ({ host }) => {
@@ -1503,7 +1507,7 @@ describe('Uploaded Bots in the Market panel', () => {
         expect(block.getAttribute('data-market-skills')).toBe('2');
         expect(
           [...block.querySelectorAll('[data-skill-row]')].map((row) => row.textContent),
-        ).toEqual(['/notesKeep notes', '/reviewReview a pull request']);
+        ).toEqual(['/notes', '/reviewReview a pull request']);
         await act(async () => {
           block.querySelector<HTMLElement>('[data-skill-row="review"]')!.click();
         });
@@ -1515,6 +1519,14 @@ describe('Uploaded Bots in the Market panel', () => {
         const body = host.querySelector('[data-market-reader-body="markdown"]')!.textContent;
         expect(body).toContain('Check tests.');
         expect(body).not.toContain('description:');
+
+        await click(host, '返回文件列表');
+        await act(async () => {});
+        expect(
+          [...host.querySelectorAll('[data-market-skills] [data-skill-row]')].map(
+            (row) => row.textContent,
+          ),
+        ).toEqual(['/notesKeep notes', '/reviewReview a pull request']);
       },
       {
         marketplaceFile: file,

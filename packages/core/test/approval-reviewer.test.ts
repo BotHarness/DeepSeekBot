@@ -1,3 +1,8 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createApprovalTemplateLibrary } from '../src/workspaces/approval-templates.js';
+import { encodeApprovalTemplateGuidance } from '../src/workspaces/approval-template-guidance.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -224,6 +229,31 @@ describe('Approval Templates', () => {
 });
 
 describe('Approval Reviewer input', () => {
+  it('assembles ask, allow and supplemental guidance in priority order without compiling rules', () => {
+    const prompt = reviewerUserPrompt({
+      botSlug,
+      template: {
+        name: 'three-parts',
+        version: 'captured',
+        text: encodeApprovalTemplateGuidance({
+          alwaysAsk: ['Never send without asking'],
+          alwaysAllow: ['Read local files'],
+          freeText: '# Legacy\nKeep all markup.',
+        }),
+      },
+      call: { toolName: 'read_file', input: '{}', cwd: '/', role: 'orchestrator', channelId },
+      excerpt: { humanMessages: [], toolCalls: [] },
+    });
+    expect(prompt).toContain('Never send without asking');
+    expect(prompt).toContain('Read local files');
+    expect(prompt).toContain('# Legacy');
+    expect(prompt.indexOf('Never send without asking')).toBeLessThan(
+      prompt.indexOf('Read local files'),
+    );
+    expect(prompt.indexOf('Read local files')).toBeLessThan(prompt.indexOf('# Legacy'));
+    expect(prompt).toContain('version="captured"');
+    expect(REVIEWER_SYSTEM_PROMPT).toContain('Never reject a call or save a rule');
+  });
   it('keeps the Human messages and earlier tool calls, and leaves out results and Bot prose', () => {
     const excerpt = approvalSessionExcerpt(events, 'call-1');
     expect(excerpt.humanMessages).toEqual(['Plan the release, but do not send anything yet.']);
@@ -452,6 +482,48 @@ describe('Approval Reviewer input', () => {
 });
 
 describe('Approval Reviewer in the tool approval gate', () => {
+  it('uses saved three-part content for a captured Review and leaves later file edits for the next Review', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'saved-guidance-review-'));
+    try {
+      const library = createApprovalTemplateLibrary(dir);
+      const original = encodeApprovalTemplateGuidance({
+        alwaysAsk: ['Send messages'],
+        alwaysAllow: ['Keep a plan'],
+        freeText: '# Legacy\nAsk if unsure.',
+      });
+      library.create('saved', original);
+      let finish!: (review: ApprovalReview) => void;
+      const state = fixture({
+        lookup: () => library.get('saved'),
+        review: async (request) => {
+          expect(reviewerUserPrompt(request)).toContain('Keep a plan');
+          return new Promise((resolve) => {
+            finish = resolve;
+          });
+        },
+      });
+      state.broker.track(state.execution());
+      const answer = state.ask();
+      await vi.waitFor(() => expect(state.review).toHaveBeenCalledTimes(1));
+      library.update(
+        'saved',
+        encodeApprovalTemplateGuidance({
+          alwaysAsk: ['Everything'],
+          alwaysAllow: [],
+          freeText: '',
+        }),
+      );
+      expect(state.review.mock.calls[0]?.[0].template.text).toBe(original);
+      finish({ outcome: 'allow', reason: 'Planning is covered.' });
+      expect(await answer).toBe('allowed-once');
+      expect(state.messages[0]?.toolAutoApproval?.templateVersion).toBe(
+        state.review.mock.calls[0]?.[0].template.version,
+      );
+      expect(library.get('saved')?.text).not.toBe(original);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it('posts a Human card even when selected-template lookup and diagnostics both fail', async () => {
     const state = fixture({
       lookup: () => {
