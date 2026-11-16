@@ -308,7 +308,7 @@ describe('live Skill catalog', () => {
     expect(f.changed).toHaveBeenCalledWith(['ada', 'bob']);
   });
 
-  it('refreshes only the selected Bot Project view on Agent attach, replacement and detach', async () => {
+  it('reloads only the selected Bot, both catalog portions, on Agent attach, replacement and detach', async () => {
     const root = createTempRoot();
     let selected: object | undefined;
     const first = {};
@@ -378,7 +378,7 @@ describe('live Skill catalog', () => {
       expect((await catalog.list(['ada'])).map((entry) => entry.name)).toEqual([expected, 'host']);
       expect((await catalog.list(['bob'])).map((entry) => entry.name)).toEqual(['preset', 'host']);
       const calls = [...vi.mocked(global.list).mock.calls, ...vi.mocked(scoped.list).mock.calls];
-      expect(calls.map(([options]) => options?.cwd)).toEqual([root]);
+      expect(calls.map(([options]) => options?.cwd).sort()).toEqual([root, undefined].sort());
     }
   });
 

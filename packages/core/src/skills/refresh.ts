@@ -39,7 +39,8 @@ function watchMemorySkills(
       try {
         const stat = statSync(path, { bigint: true });
         identities.set(path, `${stat.dev}:${stat.ino}`);
-      } catch {
+      } catch (error) {
+        if (path === root) throw error;
         paths.delete(path);
       }
     }
@@ -178,7 +179,7 @@ export function watchSkillCatalog(options: {
       const bot = bots.get(slug);
       if (bot?.memoryDir === entry.bot.memoryDir && bot.preset === entry.bot.preset) {
         if (bot.agent !== entry.bot.agent) {
-          options.catalog.invalidateMemory(slug);
+          options.catalog.invalidateBot(slug);
           changed.add(slug);
         }
         entry.bot = bot;
@@ -216,7 +217,14 @@ export function watchSkillCatalog(options: {
       hostRefresh ??= (async () => {
         do {
           hostDirty = false;
-          if (await options.catalog.refreshHost()) {
+          let refreshed: boolean;
+          try {
+            refreshed = await options.catalog.refreshHost();
+          } catch {
+            options.catalog.invalidateHost();
+            refreshed = true;
+          }
+          if (refreshed) {
             if (!closed) options.changed(options.bots().map((bot) => bot.slug));
           }
         } while (hostDirty && !closed);
