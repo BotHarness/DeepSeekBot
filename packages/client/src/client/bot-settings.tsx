@@ -14,6 +14,7 @@ import { useHostDraftGuard } from './host-draft-guard.js';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
 import {
   EnvironmentSwitcher,
+  LocalHostAppearance,
   REMOTE_DEVICE_SECTIONS,
   REMOTE_SECTION_ICONS,
   REMOTE_SETTINGS_SECTIONS,
@@ -105,6 +106,12 @@ export interface BotSettingsSnapshot {
   readonly pairPhone?: boolean;
   readonly target?: BotSettingsTarget | undefined;
   readonly clientOnly?: boolean;
+  readonly host?: BotSettingsHost | undefined;
+}
+
+export interface BotSettingsHost {
+  readonly remote: { readonly hostId: string; readonly hostName: string } | undefined;
+  readonly nonce: number;
 }
 
 export interface BotSettingsSectionSource {
@@ -150,6 +157,18 @@ export class BotSettings {
     });
   };
 
+  readonly openHost = (host?: { hostId: string; hostName: string }): void => {
+    this.#set({
+      open: true,
+      sectionId:
+        host === undefined ? BOT_SETTINGS_SECTIONS.models : REMOTE_SETTINGS_SECTIONS.hostModels,
+      host: {
+        remote: host && { hostId: host.hostId, hostName: host.hostName },
+        nonce: Date.now(),
+      },
+    });
+  };
+
   readonly openClientPreferences = (): void => {
     this.#set({
       open: true,
@@ -172,7 +191,8 @@ export class BotSettings {
       next.sectionId === this.#snapshot.sectionId &&
       next.pairPhone === this.#snapshot.pairPhone &&
       next.target === this.#snapshot.target &&
-      next.clientOnly === this.#snapshot.clientOnly
+      next.clientOnly === this.#snapshot.clientOnly &&
+      next.host === this.#snapshot.host
     )
       return;
     this.#snapshot = next;
@@ -216,6 +236,11 @@ export function BotSettingsView({
     hostId: string;
     hostName: string;
   }>();
+  const [appliedHost, setAppliedHost] = useState(state.host);
+  if (state.host !== appliedHost) {
+    setAppliedHost(state.host);
+    if (state.host !== undefined) setChosenHost(state.host.remote);
+  }
   const grouped = state.clientOnly !== true;
   const localRequest =
     chosenHost !== undefined &&
@@ -279,7 +304,20 @@ export function BotSettingsView({
   const hereName = thisHost.name ?? t('remoteHosts.this');
   const hostRows: readonly BotSettingsSectionRow[] = remote
     ? remoteSettingsRows(t)
-    : rows.filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id));
+    : rows
+        .filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id))
+        .flatMap((row) =>
+          grouped && !member && row.id === BOT_SETTINGS_SECTIONS.models
+            ? [
+                row,
+                {
+                  id: REMOTE_SETTINGS_SECTIONS.hostAppearance,
+                  order: row.order,
+                  label: t('environment.settings.appearance'),
+                },
+              ]
+            : [row],
+        );
   const navRows = grouped ? [...deviceRows, ...hostRows] : rows;
   const active =
     navRows.find((row) => row.id === state.sectionId) ??
@@ -439,6 +477,8 @@ export function BotSettingsView({
             section={active.id}
             t={t}
           />
+        ) : active.id === REMOTE_SETTINGS_SECTIONS.hostAppearance ? (
+          <LocalHostAppearance hostId={thisHost.id} name={hereName} t={t} />
         ) : (
           (renderSlot(
             SECTION_SLOT,

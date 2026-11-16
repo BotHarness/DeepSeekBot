@@ -184,6 +184,19 @@ export function RemoteEnvironmentSection({
   return <RemoteHostData key={hostId} client={client} name={displayName} section={section} t={t} />;
 }
 
+export function LocalHostAppearance({
+  hostId,
+  name,
+  t,
+}: {
+  hostId: string | undefined;
+  name: string;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  if (hostId === undefined) return <Note>{t('environment.settings.loadingIdentity')}</Note>;
+  return <HostLookSettings key={hostId} hostId={hostId} name={name} available t={t} />;
+}
+
 function RemoteHostData({
   client,
   name,

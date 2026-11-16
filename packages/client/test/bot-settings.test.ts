@@ -269,7 +269,7 @@ it('stays closed until opened and lists sections in order', () => {
   const dialog = document.querySelector('[role="dialog"]');
   expect(dialog?.getAttribute('aria-label')).toBe('Bot 设置');
   expect(dialog?.getAttribute('data-headless')).toBe('true');
-  expect(navLabels()).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);
+  expect(navLabels()).toEqual(['通用', '模型与运行', '本应用中的外观', '数据与隐私', '关于']);
   expect(current()).toBe('通用');
   expect(shownSection()).toBe('general');
   expect(document.querySelector('h2')?.textContent).toBe('通用');
@@ -288,7 +288,9 @@ it('leads every sidebar section with its own glyph and keeps the label as the na
   const buttons = [...document.querySelectorAll('nav button')];
   expect(buttons.map((button) => button.textContent)).toEqual([
     ...ids.filter((id) => DEVICE_SETTINGS_SECTIONS.has(id)),
-    ...ids.filter((id) => !DEVICE_SETTINGS_SECTIONS.has(id)),
+    ...ids
+      .filter((id) => !DEVICE_SETTINGS_SECTIONS.has(id))
+      .flatMap((id) => (id === 'models' ? [id, '本应用中的外观'] : [id])),
   ]);
   const glyphs = buttons.map((button) => {
     const icon = button.firstElementChild;
@@ -296,7 +298,7 @@ it('leads every sidebar section with its own glyph and keeps the label as the na
     expect(icon?.querySelector('svg')).not.toBeNull();
     return icon?.innerHTML;
   });
-  expect(new Set(glyphs).size).toBe(ids.length);
+  expect(new Set(glyphs).size).toBe(ids.length + 1);
   expect(current()).toBe('general');
 });
 
@@ -469,7 +471,7 @@ it('renders only a section dropdown in narrow frames and switches sections from 
   );
   expect(
     [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent),
-  ).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);
+  ).toEqual(['通用', '模型与运行', '本应用中的外观', '数据与隐私', '关于']);
   const about = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
     (item) => item.textContent === '关于',
   );
@@ -799,4 +801,18 @@ it('drops an open unsaved-changes prompt when Settings closes from elsewhere', a
   } finally {
     release();
   }
+});
+
+it('opens a chosen Host from outside the dialog and returns to this Host when asked', () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), remoteEnvironments());
+  act(() => settings.openHost({ hostId: 'studio', hostName: 'Studio' }));
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+  expect(document.querySelector('[data-remote-section]')?.getAttribute('data-remote-section')).toBe(
+    'environment-models',
+  );
+  act(() => settings.close());
+  act(() => settings.openHost());
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('local');
+  expect(shownSection()).toBe('models');
 });
