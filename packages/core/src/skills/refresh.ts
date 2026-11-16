@@ -107,7 +107,7 @@ export function watchSkillCatalog(options: {
   const workspacePending = new Map<string, ReturnType<typeof setTimeout>>();
   const workspaceRetries = new Map<
     string,
-    { failures: number; due?: boolean; timer?: ReturnType<typeof setTimeout> }
+    { failures: number; due?: boolean; timer?: ReturnType<typeof setTimeout> | undefined }
   >();
   const retryWorkspace = (id: string): void => {
     const retry = workspaceRetries.get(id) ?? { failures: 0 };
@@ -264,6 +264,7 @@ export function watchSkillCatalog(options: {
       }
       for (const slug of workspace.botSlugs) changed.add(slug);
       const invalidate = (): void => {
+        workspaceRetries.delete(id);
         options.catalog.invalidateWorkspace(id);
         clearTimeout(workspacePending.get(id));
         workspacePending.set(
@@ -296,10 +297,7 @@ export function watchSkillCatalog(options: {
           ),
         };
         workspaceWatchers.set(id, entry);
-        if (retry !== undefined) {
-          workspaceRetries.delete(id);
-          options.catalog.invalidateWorkspace(id);
-        }
+        if (retry !== undefined) options.catalog.invalidateWorkspace(id);
         options.diagnostic('watch-workspace', {
           workspaceId: id,
           count: workspace.botSlugs.length,
