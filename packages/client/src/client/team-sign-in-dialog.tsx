@@ -11,6 +11,7 @@ import { TEAM_PAGE_PASSWORD_MIN_LENGTH } from '@botharness/host-client/shared/te
 import { FormDialog } from './ds/form-dialog.js';
 import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
+import { font } from './ds/tobs.stylex.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -26,7 +27,7 @@ const styles = stylex.create({
     padding: space.x3,
     borderRadius: radius.sm,
     backgroundColor: color.well,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     overflowWrap: 'anywhere',
   },
 });
