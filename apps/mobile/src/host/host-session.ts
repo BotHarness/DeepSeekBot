@@ -666,6 +666,12 @@ export const hostSession = {
         adopt(stored);
         throw error;
       }
+      if (
+        previous &&
+        identitySwitchRequired(previous, host) &&
+        previous.credential !== host.credential
+      )
+        void revokePairing({ host: previous, carrier: nativeCarrier() }).catch(() => undefined);
       void pushSession.enable(stored.hosts);
     });
   },

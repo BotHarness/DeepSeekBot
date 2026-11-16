@@ -6,6 +6,7 @@ import { Platform, View } from 'react-native';
 import { hostSession } from '../../src/host/host-session';
 import type { SavedHost } from '@botharness/host-client/hosts';
 import { nativeCarrier } from '../../src/host/native-carrier';
+import { revokePairing } from '../../src/host/pairing';
 import {
   changeTeamDevicePassword,
   parseTeamInvitation,
@@ -14,7 +15,6 @@ import {
   type TeamInvitation,
 } from '@botharness/host-client/team-client';
 import { space } from '../../src/ui/design/tokens';
-import { showAppDialog } from '../../src/ui/primitives/app-dialog';
 import { Button } from '../../src/ui/primitives/button';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
@@ -26,7 +26,8 @@ const PASSWORD_MIN = 10;
 type Step =
   | { kind: 'link' }
   | { kind: 'sign-in'; invitation: TeamInvitation }
-  | { kind: 'change'; host: SavedHost; current: string };
+  | { kind: 'change'; host: SavedHost; current: string }
+  | { kind: 'switch'; host: SavedHost };
 
 function phoneName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
@@ -61,30 +62,34 @@ export default function TeamSignInScreen() {
   };
 
   const persist = async (host: SavedHost): Promise<boolean> => {
-    let result = await hostSession.pairMember(host);
+    const result = await hostSession.pairMember(host);
     if (!result.ok && result.code === 'identity-switch-required') {
-      const confirmed = await new Promise<boolean>((resolve) =>
-        showAppDialog(
-          t.teamSignIn.switchTitle,
-          t.teamSignIn.switchBody.replace('{name}', host.member?.displayName ?? ''),
-          [
-            { text: t.cancel, style: 'cancel', onPress: () => resolve(false) },
-            {
-              text: t.teamSignIn.switchConfirm,
-              style: 'destructive',
-              onPress: () => resolve(true),
-            },
-          ],
-        ),
-      );
-      if (!confirmed) return false;
-      result = await hostSession.pairMember(host, { confirmedIdentitySwitch: true });
+      setStep({ kind: 'switch', host });
+      return false;
     }
     if (!result.ok) {
       setError(result.code);
       return false;
     }
     return true;
+  };
+
+  const confirmSwitch = async (host: SavedHost): Promise<void> => {
+    setBusy(true);
+    setError(undefined);
+    const result = await hostSession.pairMember(host, { confirmedIdentitySwitch: true });
+    if (result.ok) {
+      router.dismissTo('/');
+      return;
+    }
+    setBusy(false);
+    setError(result.code);
+  };
+
+  const cancelSwitch = (host: SavedHost): void => {
+    void revokePairing({ host, carrier: nativeCarrier() }).catch(() => undefined);
+    setError(undefined);
+    setStep({ kind: 'link' });
   };
 
   const openLink = (): void => {
@@ -120,8 +125,11 @@ export default function TeamSignInScreen() {
     }
     setBusy(true);
     const saved = await persist(result.value);
+    if (saved) {
+      router.dismissTo('/');
+      return;
+    }
     setBusy(false);
-    if (saved) router.dismissTo('/');
   };
 
   const change = async (host: SavedHost, current: string): Promise<void> => {
@@ -143,8 +151,11 @@ export default function TeamSignInScreen() {
       return;
     }
     const saved = await persist(result.value);
+    if (saved) {
+      router.dismissTo('/');
+      return;
+    }
     setBusy(false);
-    if (saved) router.dismissTo('/');
   };
 
   const errorText =
@@ -182,6 +193,34 @@ export default function TeamSignInScreen() {
             on="canvas"
             disabled={link.trim() === ''}
             onPress={openLink}
+          />
+        </>
+      ) : step.kind === 'switch' ? (
+        <>
+          <View style={{ gap: space.x1 }}>
+            <Text variant="title" accessibilityRole="header">
+              {t.teamSignIn.switchTitle}
+            </Text>
+            <Text tone="muted">
+              {t.teamSignIn.switchBody.replace('{name}', step.host.member?.displayName ?? '')}
+            </Text>
+          </View>
+          {errorText}
+          <Button
+            testID="team-switch-confirm"
+            label={t.teamSignIn.switchConfirm}
+            tone="danger"
+            on="canvas"
+            busy={busy}
+            disabled={busy}
+            onPress={() => void confirmSwitch(step.host)}
+          />
+          <Button
+            testID="team-switch-cancel"
+            label={t.cancel}
+            on="canvas"
+            disabled={busy}
+            onPress={() => cancelSwitch(step.host)}
           />
         </>
       ) : step.kind === 'sign-in' ? (

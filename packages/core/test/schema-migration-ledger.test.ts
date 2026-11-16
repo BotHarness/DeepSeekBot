@@ -76,7 +76,7 @@ describe('named schema migration ledger', () => {
         plan.migrations.findIndex((migration) => migration.id === 'member-devices'),
       ),
     );
-    expect(previous.migrations.at(-1)?.id).toBe('channel-membership-basis');
+    expect(previous.migrations.at(-1)?.id).toBe('human-roster-arrangements');
     const old = trackTestOwner(mountOperationalDatabase({ dshHome: home, schemaPlan: previous }));
     expect(old.mode).toBe('ready');
     attachOperationalModule(old, 'team').transaction((db) => {
