@@ -2134,6 +2134,7 @@ describe('bridge methods', () => {
           {
             ownerHumanId: 'local-human',
             owner: true,
+            approvalTemplate: '@global',
             slug: 'ada',
             displayName: 'Ada',
             roles: ['研究'],
@@ -2165,6 +2166,7 @@ describe('bridge methods', () => {
           {
             ownerHumanId: 'local-human',
             owner: true,
+            approvalTemplate: '@global',
             slug: 'plain',
             displayName: 'Plain',
             roles: [],
@@ -2249,6 +2251,7 @@ describe('bridge methods', () => {
         bot: {
           ownerHumanId: 'local-human',
           owner: true,
+          approvalTemplate: '@global',
           slug: 'ada',
           displayName: 'Ada',
           roles: ['研究'],
@@ -2457,6 +2460,7 @@ describe('bridge methods', () => {
         bot: {
           ownerHumanId: 'local-human',
           owner: true,
+          approvalTemplate: '@global',
           slug: 'ada',
           displayName: 'Ada Lovelace',
           roles: [],

@@ -68,7 +68,6 @@ export function OpaqueToolWarning({
   approval: ApprovalCardView | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  if (approval === undefined || approval.masked || !approval.opaque || approval.state !== 'pending')
-    return null;
+  if (approval === undefined || approval.masked || !approval.opaque) return null;
   return <Note tone="warning">{t('approval.opaqueWarning')}</Note>;
 }

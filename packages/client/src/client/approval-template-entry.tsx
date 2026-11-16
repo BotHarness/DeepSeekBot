@@ -1,15 +1,10 @@
 import { useRef, useState, type ReactElement } from 'react';
-import { IconCheckOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
-import * as stylex from '@stylexjs/stylex';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { PersonaBotAvatar } from './avatar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { GroupHeading } from './ds/group-heading.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { space, color } from './ds/tokens.stylex.js';
-import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import type { ApprovalTemplateView } from './bridge.js';
@@ -18,11 +13,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelMessage } from './store.js';
 
 const OFF = 'off';
-
-const pageStyles = stylex.create({
-  page: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
-  check: { display: 'inline-flex', color: color.fg },
-});
+const INHERIT = '@global';
+const UNKNOWN = '@unknown';
 
 export function templateTitle(
   t: BotHarnessTranslate,
@@ -48,15 +40,18 @@ export function templateDescription(
 }
 
 type TemplateActions = {
-  approvalTemplates?(
-    slug: string,
-  ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }>;
+  approvalTemplates?(slug: string): Promise<{
+    templates: ApprovalTemplateView[];
+    selected: string | null;
+    globalDefault?: string | null;
+  }>;
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
 };
 
 function useApprovalTemplates<E extends HTMLElement>(botSlug: string, actions: TemplateActions) {
   const [templates, setTemplates] = useState<ApprovalTemplateView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [globalDefault, setGlobalDefault] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -74,6 +69,7 @@ function useApprovalTemplates<E extends HTMLElement>(botSlug: string, actions: T
         if (current.current !== botSlug) return;
         setTemplates(next.templates);
         setSelected(next.selected);
+        setGlobalDefault(next.globalDefault ?? null);
         setLoaded(true);
       })
       .catch((cause: unknown) => {
@@ -81,16 +77,25 @@ function useApprovalTemplates<E extends HTMLElement>(botSlug: string, actions: T
       });
   }, [actions, botSlug]);
   const choose = (name: string | null): void => {
-    if (actions.setBotApprovalTemplate === undefined || busy) return;
+    if (actions.setBotApprovalTemplate === undefined || !loaded || busy) return;
     const previous = selected;
     setSelected(name);
     setBusy(true);
     setError(undefined);
     void actions
       .setBotApprovalTemplate(botSlug, name)
+      .then(async () => {
+        const next = await actions.approvalTemplates?.(botSlug);
+        if (next === undefined || current.current !== botSlug) return;
+        setSelected(next.selected);
+        setGlobalDefault(next.globalDefault ?? null);
+        setTemplates(next.templates);
+        setLoaded(true);
+      })
       .catch((cause: unknown) => {
         if (current.current !== botSlug) return;
         setSelected(previous);
+        setLoaded(false);
         setError(errorMessage(cause));
       })
       .finally(() => {
@@ -99,7 +104,17 @@ function useApprovalTemplates<E extends HTMLElement>(botSlug: string, actions: T
   };
   const available =
     actions.approvalTemplates !== undefined && actions.setBotApprovalTemplate !== undefined;
-  return { mount, templates, selected, loaded, busy, error, choose, available };
+  return {
+    mount,
+    templates,
+    selected,
+    effective: selected === INHERIT ? globalDefault : selected,
+    loaded,
+    busy,
+    error,
+    choose,
+    available,
+  };
 }
 
 export function ApprovalTemplateEntry({
@@ -115,7 +130,7 @@ export function ApprovalTemplateEntry({
 }): ReactElement | null {
   const state = useApprovalTemplates<HTMLDivElement>(botSlug, actions);
   if (!state.available) return null;
-  const chosen = state.templates.find((template) => template.name === state.selected);
+  const chosen = state.templates.find((template) => template.name === state.effective);
   return (
     <>
       <SettingsSection title={t('autoApproval.section')}>
@@ -124,16 +139,55 @@ export function ApprovalTemplateEntry({
           data={{ 'data-approval-template': '' }}
           title={t('autoApproval.title')}
           description={
-            chosen === undefined
-              ? t('autoApproval.hintOff')
-              : t('autoApproval.hintOn', { description: templateDescription(t, chosen) })
+            !state.loaded
+              ? t(
+                  state.error === undefined
+                    ? 'autoApproval.selectionLoading'
+                    : 'autoApproval.selectionUnreadable',
+                )
+              : state.effective !== null && chosen === undefined
+                ? t('autoApproval.unavailable')
+                : state.selected === INHERIT
+                  ? t('autoApproval.inherited', {
+                      template:
+                        chosen === undefined
+                          ? t('autoApproval.off')
+                          : templateTitle(t, chosen.name, chosen.title),
+                    })
+                  : chosen === undefined
+                    ? t('autoApproval.hintOff')
+                    : t('autoApproval.hintOn', { description: templateDescription(t, chosen) })
           }
           control={
             <Select
               label={t('autoApproval.title')}
-              value={state.selected ?? OFF}
-              disabled={disabled || state.busy || state.templates.length === 0}
+              value={state.loaded ? (state.selected ?? OFF) : UNKNOWN}
+              disabled={disabled || !state.loaded || state.busy || state.templates.length === 0}
               options={[
+                ...(!state.loaded
+                  ? [
+                      {
+                        value: UNKNOWN,
+                        label: t(
+                          state.error === undefined
+                            ? 'autoApproval.loading'
+                            : 'autoApproval.unreadable',
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(state.loaded &&
+                state.selected !== null &&
+                state.selected !== INHERIT &&
+                !state.templates.some((template) => template.name === state.selected)
+                  ? [
+                      {
+                        value: state.selected,
+                        label: t('autoApproval.templateMissing', { name: state.selected }),
+                      },
+                    ]
+                  : []),
+                { value: INHERIT, label: t('autoApproval.inherit') },
                 { value: OFF, label: t('autoApproval.off') },
                 ...state.templates.map((template) => ({
                   value: template.name,
@@ -154,89 +208,24 @@ export function ApprovalTemplateEntry({
   );
 }
 
-type TemplateCard = { name: string | null; title: string; description: string };
-
 export function AutoApprovalSettingsEntry({
   botSlug,
   actions,
   t,
 }: ChannelSidebarEntryProps): ReactElement | null {
-  const state = useApprovalTemplates<HTMLDivElement>(botSlug ?? '', actions);
-  if (botSlug === undefined || !state.available) return null;
-  const cards: TemplateCard[] = [
-    { name: null, title: t('autoApproval.off'), description: t('autoApproval.offHint') },
-    ...state.templates.map((template) => ({
-      name: template.name,
-      title: templateTitle(t, template.name, template.title),
-      description: templateDescription(t, template),
-    })),
-  ];
-  const active = cards.find((card) => card.name === state.selected) ?? cards[0]!;
-  return (
-    <div ref={state.mount} data-auto-approval-settings="" {...stylex.props(pageStyles.page)}>
-      <Note>{t('autoApproval.hintOff')}</Note>
-      {state.loaded ? (
-        <>
-          <section aria-label={t('autoApproval.activeSection')}>
-            <GroupHeading quiet label={t('autoApproval.activeSection')} count="" />
-            <SidebarCardList label={t('autoApproval.activeSection')}>
-              <SidebarCardRow
-                icon="shield-check"
-                title={active.title}
-                badge={<Tag tone="success">{t('autoApproval.activeTag')}</Tag>}
-                meta={active.description}
-                state="active"
-              />
-            </SidebarCardList>
-          </section>
-          <section aria-label={t('autoApproval.templatesSection')}>
-            <GroupHeading
-              quiet
-              label={t('autoApproval.templatesSection')}
-              count={<Tag tone="neutral">{cards.length}</Tag>}
-            />
-            <SidebarCardList label={t('autoApproval.templatesSection')}>
-              {cards.map((card) => {
-                const chosen = card.name === state.selected;
-                return (
-                  <SidebarCardRow
-                    key={card.name ?? OFF}
-                    icon={card.name === null ? 'eye-off' : 'shield-check'}
-                    title={card.title}
-                    meta={card.description}
-                    selection={{ checked: chosen }}
-                    disabled={state.busy}
-                    trailing={
-                      chosen ? (
-                        <span {...stylex.props(pageStyles.check)}>
-                          <IconCheckOutlineRegular size={16} />
-                        </span>
-                      ) : undefined
-                    }
-                    {...(chosen ? {} : { onClick: () => state.choose(card.name) })}
-                  />
-                );
-              })}
-            </SidebarCardList>
-          </section>
-        </>
-      ) : state.error === undefined ? (
-        <LoadingSkeleton kind="sidebar" label={t('autoApproval.title')} />
-      ) : null}
-      {state.error === undefined ? null : <Note tone="danger">{state.error}</Note>}
-    </div>
-  );
+  if (botSlug === undefined) return null;
+  return <ApprovalTemplateEntry botSlug={botSlug} actions={actions} disabled={false} t={t} />;
 }
 
 export function AutoApprovalBadge({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
   const state = useApprovalTemplates<HTMLSpanElement>(botSlug ?? '', actions);
-  const chosen = state.templates.find((template) => template.name === state.selected);
+  const chosen = state.templates.find((template) => template.name === state.effective);
   return (
     <span ref={state.mount} className="bh-channel-sidebar-summary">
       {state.loaded ? (
         <Tag tone="neutral">
           {chosen === undefined
-            ? t('autoApproval.off')
+            ? t(state.effective === null ? 'autoApproval.off' : 'autoApproval.unreadable')
             : templateTitle(t, chosen.name, chosen.title)}
         </Tag>
       ) : null}
@@ -287,9 +276,16 @@ export function AutoApprovalLine({
           <span className="bh-bot-dm-action-name">{name}</span>
         </span>
         <span>
-          {t(record.outcome === 'allowed' ? 'autoApproval.allowed' : 'autoApproval.rejected', {
-            template,
-          })}
+          {t(
+            record.outcome === 'allowed'
+              ? 'autoApproval.allowed'
+              : record.outcome === 'ask-human'
+                ? 'autoApproval.askHuman'
+                : 'autoApproval.rejected',
+            {
+              template,
+            },
+          )}
         </span>
         <span className="bh-memory-commit-subject">{record.reason}</span>
         <span className="bh-memory-commit-files">{record.toolName}</span>

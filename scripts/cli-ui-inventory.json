@@ -238,13 +238,15 @@
         "setting:packages/client/src/client/approval-reviewer-model-setting.tsx:{t('autoApproval.reviewerModel.title')}",
         "setting:packages/client/src/client/approval-template-entry.tsx:{t('autoApproval.title')}",
         "setting:packages/client/src/client/approval-template-library.tsx:{t('autoApproval.library.new')}",
+        "setting:packages/client/src/client/approval-template-library.tsx:{t('autoApproval.globalDefault')}",
         "setting:packages/client/src/client/approval-template-library.tsx:{templateTitle(t, template.name, template.title)}"
       ],
       "commands": [
         "approval-reviewer-model",
         "approval-reviewer-model-set",
         "approval-template",
-        "approval-template-set"
+        "approval-template-set",
+        "approval-template-global-set"
       ]
     },
     {

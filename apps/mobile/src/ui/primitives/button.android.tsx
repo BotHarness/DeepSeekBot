@@ -50,6 +50,7 @@ export function Button({
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   variant = 'filled',
   symbol,
   testID: id,
@@ -67,11 +68,33 @@ export function Button({
       : tone === 'primary' || danger
         ? FilledButton
         : FilledTonalButton;
-  const colors = !danger
-    ? undefined
-    : variant === 'text'
-      ? { contentColor: roles.error }
-      : { containerColor: roles.error, contentColor: roles.onError };
+  const chosenFill = danger
+    ? roles.error
+    : tone === 'primary'
+      ? roles.primary
+      : roles.secondaryContainer;
+  const chosenInk = danger
+    ? roles.onError
+    : tone === 'primary'
+      ? roles.onPrimary
+      : roles.onSecondaryContainer;
+  const colors =
+    variant === 'text'
+      ? danger || selected
+        ? {
+            contentColor: danger ? roles.error : roles.primary,
+            ...(selected ? { disabledContentColor: danger ? roles.error : roles.primary } : {}),
+          }
+        : undefined
+      : danger || selected
+        ? {
+            ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
+            ...(selected
+              ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
+              : {}),
+          }
+        : undefined;
+  const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
     <Control
       enabled={!disabled && !busy}
@@ -81,6 +104,7 @@ export function Button({
         ...(tree?.fill === false || fit ? [] : [fillMaxWidth()]),
         defaultMinSize({ minHeight: theme.touch }),
         ...(id ? [testID(id)] : []),
+        ...(selected ? [semantics({ contentDescription: shownLabel })] : []),
       ]}
     >
       <Row horizontalArrangement={{ spacedBy: materialButton.iconGap }} verticalAlignment="center">
@@ -96,7 +120,7 @@ export function Button({
         ) : symbol ? (
           <Icon source={symbols[symbol]} size={materialButton.icon} />
         ) : null}
-        <Text style={{ textAlign: 'center' }}>{controlCase(label)}</Text>
+        <Text style={{ textAlign: 'center' }}>{controlCase(shownLabel)}</Text>
       </Row>
     </Control>
   );

@@ -55,11 +55,13 @@ const actions = (): BridgeActions =>
 const render = async (
   value: ChannelMessage = message(),
   overrides: Partial<BridgeActions> = {},
+  decision?: Parameters<typeof ToolApprovalCard>[0]['decision'],
 ): Promise<HTMLElement> => {
   await act(async () => {
     root.render(
       createElement(ToolApprovalCard, {
         message: value,
+        ...(decision === undefined ? {} : { decision }),
         actions: { ...actions(), ...overrides },
         t: zhTranslate,
       }),
@@ -94,6 +96,54 @@ afterEach(() => {
 });
 
 describe('Tool approval card layout', () => {
+  it.each([
+    'allowed-once',
+    'allowed-always-tool',
+    'allowed-always-exact',
+    'allowed-always-all',
+    'rejected',
+  ] as const)(
+    'keeps stored %s content and selected controls without resubmitting',
+    async (decision) => {
+      const card = await render(message(), {}, decision);
+      await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
+      expect(card.textContent).toContain('/qa');
+      expect(card.textContent).toContain('echo QA');
+      const choices = [
+        ...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button'),
+      ];
+      expect(choices.every((choice) => choice.disabled)).toBe(true);
+      expect(choices.map((choice) => choice.getAttribute('aria-pressed'))).toEqual([
+        String(decision === 'allowed-once'),
+        String(decision.startsWith('allowed-always')),
+        String(decision === 'rejected'),
+      ]);
+      await press(card, 'y');
+      expect(decisions).toEqual([]);
+    },
+  );
+
+  it.each([
+    { kind: 'template-unavailable', reason: 'The selected approval template could not be read.' },
+    {
+      kind: 'review',
+      template: 'cautious',
+      version: 'version',
+      reason: 'Automatic review unavailable (settings-invalid).',
+      fallback: 'settings-invalid',
+    },
+  ] as const)(
+    'localizes system fallback guidance for $kind without exposing diagnostic codes',
+    async (review) => {
+      const value = message();
+      value.toolApprovalRequest!.approvalReview = review;
+      const card = await render(value);
+      expect(card.textContent).not.toContain(review.reason);
+      expect(card.textContent).toContain('审批');
+      expect(card.textContent).not.toContain('settings-invalid');
+    },
+  );
+
   it('leads with the key phrase and keeps details, extra choices and key hints out of the way', async () => {
     const card = await render(
       message(
@@ -177,16 +227,29 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('[role="dialog"]')).toBeNull();
     expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
   });
-  it('collapses to the category and outcome once decided', async () => {
+  it.each([
+    ['y', 'allowed-once'],
+    ['a', 'allowed-always-tool'],
+    ['n', 'rejected'],
+  ])('retains the full card and opened input after %s', async (key, outcome) => {
     const card = await render();
-    await press(card, 'n');
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(card.querySelector('.bh-tool-approval-sentence')).toBeNull();
-    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
-    expect(card.querySelector('button')).toBeNull();
-    expect(card.textContent).toBe('终端 · 已拒绝');
+    await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
+    await press(card, key);
+    expect(card.querySelector('.bh-tool-approval-sentence')).not.toBeNull();
+    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
+    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('echo QA');
+    expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
+    const choices = [
+      ...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button'),
+    ];
+    expect(choices).toHaveLength(3);
+    expect(choices.every((button) => button.disabled)).toBe(true);
+    expect(choices.map((button) => button.getAttribute('aria-pressed'))).toEqual(
+      ['allowed-once', 'allowed-always-tool', 'rejected'].map((value) => String(value === outcome)),
+    );
+    await press(card, 'y');
+    await act(async () => choices[0]!.click());
+    expect(decisions).toEqual([outcome]);
   });
 });
 
@@ -278,7 +341,7 @@ describe('Tool approval recovery and duplicate clicks', () => {
     expect(readState).toHaveBeenCalledTimes(2);
     expect(card.textContent).toContain(zhTranslate('approval.outcome.expired'));
     expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
-    expect(card.querySelector('button')).toBeNull();
+    expect(card.querySelector('.bh-request-summary')).not.toBeNull();
     await press(card, 'a');
     expect(submit).toHaveBeenCalledTimes(1);
     expect(decisions).toEqual(['allowed-always-tool']);
@@ -311,7 +374,11 @@ describe('Tool approval recovery and duplicate clicks', () => {
       ),
     ).toBe(true);
     await act(async () => finish!());
-    expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
+    expect(
+      [...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button')].every(
+        (button) => button.disabled,
+      ),
+    ).toBe(true);
     expect(submit).toHaveBeenCalledTimes(1);
   });
 });

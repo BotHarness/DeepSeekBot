@@ -138,6 +138,7 @@ export interface BotCreatePreview {
 }
 
 export interface ToolApprovalRequestCard {
+  approvalReview?: import('../../../core/src/workspaces/tool-approval.js').ToolApprovalReview;
   allowAlways?: boolean;
   sessionId: string;
   callId: string;
