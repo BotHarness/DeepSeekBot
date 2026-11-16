@@ -1,5 +1,6 @@
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { ChannelReplyPreviewMedia } from '../../../../packages/core/src/channels/reply-preview';
+import type { SkillOwner } from '../../../../packages/core/src/skills/entries';
 
 export type AggregatedState = 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked';
 
@@ -63,10 +64,18 @@ export interface WireDelivery {
   state: WireDeliveryState;
 }
 
+export interface WireSkillInvocation {
+  name: string;
+  owner: SkillOwner;
+  start: number;
+  end: number;
+}
+
 export interface ChannelWireMessage extends WireMessage {
   contentPurge?: unknown;
   author: WireAuthor;
   mentions?: WireMention[];
+  skillInvocations?: WireSkillInvocation[];
   replyTo?: string;
   replyToPreview?: WireReplyPreview | null;
   reactions?: WireReaction[];
