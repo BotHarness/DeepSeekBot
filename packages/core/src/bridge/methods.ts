@@ -6096,11 +6096,11 @@ function buildBridgeMethods(
             message: 'Channel list changes are unavailable',
           },
         };
-      const listed = await listedChannels();
       const changed = deps.channels.readChangedChannels({
         sinceSeq: sinceSeq as number,
         ...(epoch === undefined ? {} : { epoch }),
       });
+      const listed = await listedChannels();
       if (changed.reset === true) return { ok: true, value: changed };
       const ids = new Set(changed.channelIds);
       const present = new Set(listed.map((channel) => channel.id));
