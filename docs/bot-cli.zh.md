@@ -1273,6 +1273,10 @@ deepseekbot folder-browse 'D:\code' --offset 500
 
 ## Memory
 
+选择在线 Host（`--host` 或 `DEEPSEEKBOT_HOST`）后，`--as <member>` 可管理该成员自己的 Bot Memory，包括读写、Git 历史、检查点、恢复、版本、修复、文件目标和图片导出。Host 每次都检查已认证 Human 的所有权；访问其他主体的 Bot 返回 `bot-not-found`。离线 `--home` Memory 命令不能与 `--as` 合用（`as-online-required`）。关闭再开启团队模式会保留 `spaces/<humanId>/bots/<slug>/memory`，成员需要重新登录。移动 Memory 仍受账号空间路径规则限制。
+
+`memory-image --as <member>` 通过检查所有权的 `memoryImage` 桥接方法读取图片，保留版本检查及 25 MiB 大小上限；Owner 命令继续使用 HTTP。自己的 Bot 提示词、审批模板、访问和来源设置及 Session 历史适配器使用同一成员方法目录。全局配置和 DSH 原生 Session API 仍执行现有权限规则。
+
 `memory-snapshot`、`memory-file --path`、`memory-history [--limit]`、`memory-diff --sha` 读取 Bot 记忆库；`memory-save --path (--body | --body-stdin)` 写一个文件并提交。`--expected-head` 默认取当前 HEAD（要做 compare-and-swap 请显式传）；`--edit-id` 默认生成新的 UUID，重复提交幂等。HEAD 过期或无变化的写入报 `memory-conflict`，不存在的文件读回 `null`，非法 sha 报 `invalid-input`。
 
 选定在线 Host 时，上述命令改为通过 Host 的 Memory 模块执行，而不是读写本地存储，此时 `memory-save` 必须带 `--expected-head`。在线 Host 还提供 Memory 面板的其余功能：
@@ -2047,3 +2051,15 @@ token 或原始响应。
 Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。公网 WebSocket 在验证 Host 身份前将握手消息限制为 1 KiB，并禁用压缩。
 
 公网阶段仅对 DNS、网络、超时及 HTTP 429/5xx 短暂失败重试：最多四次，间隔 1/3/6 秒，仍受同一个 20 秒总时限约束。证书或身份失败不重试。每次自检完成后，界面刷新一次账号电脑列表。
+
+工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
+
+### Channel 邀请（M14）
+
+```sh
+deepseekbot channels member-candidates <channel-id> --query Alice
+deepseekbot --as bob channels member-candidates <channel-id> --query alice
+deepseekbot --as bob channels add-member <channel-id> alice
+```
+
+候选查询最多返回 100 位活跃且未加入该 Channel 的人，包含 `humanId`、`displayName` 和可为空的 `username`，可按显示名或用户名搜索。两个命令都检查调用 Human 的 `addMembers` 权限，包括 Channel owner/admin 和 `channels.manageAll`；缺权返回 `permission-required`，带 `details.permission: 'addMembers'`。姓名邀请对所有可见性立即授予访问，撤销角色后仍保留；浏览后加入的角色成员在角色访问撤销时退出。升级分类见 [M14 运行时说明](architecture/team-mode.zh.md#m14-运行时邀请与成员访问依据)。

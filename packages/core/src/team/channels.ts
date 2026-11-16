@@ -9,6 +9,7 @@ import {
   channelPolicySchema,
   channelBotDmEligibleSql,
   channelRoleEligibleSql,
+  channelRoleMembershipExitSql,
   channelVisibilitySchema,
   type ChannelPolicy,
   type ChannelVisibility,
@@ -49,15 +50,6 @@ export class TeamChannels {
     );
     if (!row) throw new TeamError('channel-not-found');
     return settingsSchema.parse(row);
-  }
-  private qualifies(human: HumanContext, channelId: string): boolean {
-    return !!this.db.read((db) =>
-      db
-        .prepare(`SELECT 1 FROM channel_records c
-      JOIN humans h ON h.human_id = ? WHERE c.channel_id = ?
-      AND ${channelRoleEligibleSql('c', 'h.human_id')}`)
-        .get(human.humanId, channelId),
-    );
   }
   private joined(human: HumanContext, channelId: string): boolean {
     return !!this.db.read((db) =>
@@ -123,6 +115,10 @@ export class TeamChannels {
     if (this.role(human, channelId) === 'member') throw new TeamError('permission-required');
   }
   requirePolicy(human: HumanContext, channelId: string, key: keyof ChannelPolicy): void {
+    if (key === 'addMembers') {
+      this.requireAddMembers(human, channelId);
+      return;
+    }
     if (!this.canRead(human, channelId, true)) throw new TeamError('channel-not-found');
     const channel = this.channels.get(channelId);
     if (channel?.type !== 'group') {
@@ -144,6 +140,36 @@ export class TeamChannels {
       undefined,
       { permission: key },
     );
+  }
+  private requireAddMembers(human: HumanContext, channelId: string): void {
+    const denied = () =>
+      new TeamError('permission-required', undefined, { permission: 'addMembers' });
+    if (!this.active(human)) throw denied();
+    const settings = this.settings(channelId);
+    if (this.roles.permissions(human).includes('channels.manageAll')) return;
+    if (!this.canRead(human, channelId, true)) throw denied();
+    if (settings.policy.addMembers === 'everyone' || this.role(human, channelId) !== 'member')
+      return;
+    throw denied();
+  }
+  memberCandidates(human: HumanContext, channelId: string, query: string) {
+    this.requireAddMembers(human, channelId);
+    return z
+      .array(
+        z.object({ humanId: z.string(), displayName: z.string(), username: z.string().nullable() }),
+      )
+      .parse(
+        this.db.read((db) =>
+          db
+            .prepare(`SELECT h.human_id AS humanId, h.display_name AS displayName, c.username
+        FROM humans h LEFT JOIN member_credentials c ON c.human_id = h.human_id
+        WHERE h.status = 'active'
+          AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = ? AND m.human_id = h.human_id AND m.left_at IS NULL)
+          AND (instr(lower(h.display_name), lower(?)) > 0 OR instr(lower(COALESCE(c.username, '')), lower(?)) > 0)
+        ORDER BY h.display_name, h.human_id LIMIT 100`)
+            .all(channelId, query, query),
+        ),
+      );
   }
   view(human: HumanContext, channelId: string) {
     if (!this.canRead(human, channelId)) throw new TeamError('channel-not-found');
@@ -181,12 +207,15 @@ export class TeamChannels {
     if (JSON.stringify(this.settings(channelId).visibility) === JSON.stringify(visibility))
       return null;
     this.db.transaction(
-      (db) =>
-        db
-          .prepare(
-            'UPDATE channel_records SET visibility_json = ?, public = ? WHERE channel_id = ?',
-          )
-          .run(JSON.stringify(visibility), Number(visibility.kind === 'public'), channelId),
+      (db) => {
+        db.prepare(
+          'UPDATE channel_records SET visibility_json = ?, public = ? WHERE channel_id = ?',
+        ).run(JSON.stringify(visibility), Number(visibility.kind === 'public'), channelId);
+        db.prepare(channelRoleMembershipExitSql('channel')).run(
+          new Date().toISOString(),
+          channelId,
+        );
+      },
       ['channels', 'team'],
     );
     this.changed(true);
@@ -305,7 +334,7 @@ export class TeamChannels {
       (db) =>
         db
           .prepare(
-            `INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at) SELECT ?, human_id, display_name, 1, ? FROM humans WHERE human_id = ? AND status = 'active' ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL`,
+            `INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at, membership_basis) SELECT ?, human_id, display_name, 1, ?, 'role' FROM humans WHERE human_id = ? AND status = 'active' ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL, membership_basis = CASE WHEN channel_human_members.left_at IS NULL THEN channel_human_members.membership_basis ELSE 'role' END`,
           )
           .run(channelId, new Date().toISOString(), human.humanId),
       ['channels', 'team'],
@@ -317,20 +346,11 @@ export class TeamChannels {
     this.requirePolicy(human, channelId, 'addMembers');
     const humanId = this.memberId(reference);
     if (!this.active(humanContext(humanId))) throw new TeamError('member-not-found');
-    if (!this.qualifies(humanContext(humanId), channelId))
-      throw new TeamError('permission-required', undefined, { permission: 'addMembers' });
-    const ceiling = new Set(this.roles.permissions(human));
-    if (
-      !this.roles.isOwner(human) &&
-      (this.roles.isOwner(humanContext(humanId)) ||
-        this.roles.permissions(humanContext(humanId)).some((p) => !ceiling.has(p)))
-    )
-      throw new TeamError('permission-required', undefined, { permission: 'addMembers' });
     this.db.transaction(
       (db) =>
         db
           .prepare(
-            `INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at) SELECT ?,human_id,display_name,1,? FROM humans WHERE human_id = ? ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL`,
+            `INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at) SELECT ?,human_id,display_name,1,? FROM humans WHERE human_id = ? ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL, membership_basis = 'invited'`,
           )
           .run(channelId, new Date().toISOString(), humanId),
       ['channels', 'team'],

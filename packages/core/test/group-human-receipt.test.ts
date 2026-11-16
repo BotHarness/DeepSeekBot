@@ -133,7 +133,10 @@ describe('local Human Group receipts', () => {
         }),
       );
       expect(migrate).not.toHaveBeenCalled();
-      expect(after).toEqual(before);
+      expect(after).toEqual({
+        ...before,
+        members: before.members.map((member) => ({ ...member, membership_basis: 'invited' })),
+      });
     } finally {
       migrate.mockRestore();
     }

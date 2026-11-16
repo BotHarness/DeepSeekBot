@@ -1100,6 +1100,7 @@ function initializeCore(
       if (
         topics.some((topic) =>
           [
+            'channels',
             'bindings',
             'grants',
             'bot-schedules',

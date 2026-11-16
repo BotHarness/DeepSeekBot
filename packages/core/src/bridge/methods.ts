@@ -38,6 +38,7 @@ import {
 } from '../workspaces/grant-requests.js';
 import { notificationAttentionPage } from '../runtime/notification-attention.js';
 import { MemoryImageError } from '../memory/image.js';
+import { inspectImage } from '../media/image-format.js';
 import {
   MIN_IDLE_MS,
   type IdleCompaction,
@@ -1012,6 +1013,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   messageAttachmentTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
   channelMediaTarget(payload: unknown): Promise<BridgeResult<{ target: MemoryFileTarget }>>;
   memoryFileTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
+  memoryImage(payload: unknown): BridgeResult<{ mime: string; dataBase64: string }>;
   memorySnapshot(payload: unknown): BridgeResult<{ snapshot: MemoryAcceptedSnapshot }>;
   memoryFile(payload: unknown): BridgeResult<{
     file?: {
@@ -9555,6 +9557,28 @@ function buildBridgeMethods(
       return memoryCall(() => ({
         target: deps.memory!.fileTarget(slug, path),
       }));
+    },
+    memoryImage(payload) {
+      const input = z
+        .object({
+          slug: z.string().min(1),
+          path: z.string().min(1),
+          source: z.string().min(1),
+          revision: z.string().min(1),
+          reference: z.string().optional(),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return invalidInput('slug, path, source and revision are required');
+      const { slug, path, source, revision, reference } = input.data;
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      return memoryCall(() => {
+        const bytes =
+          reference === undefined
+            ? deps.memory!.imageFile(slug, path, source, revision)
+            : deps.memory!.markdownImageFile(slug, path, source, revision, reference);
+        return { mime: inspectImage(bytes).mime, dataBase64: bytes.toString('base64') };
+      });
     },
     memorySnapshot(payload) {
       const scope = dmMemory(payload);

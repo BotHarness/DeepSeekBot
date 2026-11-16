@@ -555,6 +555,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  channelMemberCandidates(channelId: string, query?: string) {
+    return unwrapAsync(
+      this.methods.channelMemberCandidates({
+        channelId,
+        ...(query === undefined ? {} : { query }),
+      }),
+    );
+  }
   channelHumanAdd(channelId: string, humanId: string) {
     return unwrapAsync(this.methods.channelHumanAdd({ channelId, humanId }));
   }
@@ -2667,6 +2675,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.memoryFileTarget({ slug, path }));
   }
 
+  memoryImage(
+    slug: string,
+    path: string,
+    source: string,
+    revision: string,
+    reference?: string,
+  ): { mime: string; dataBase64: string } {
+    return unwrap(
+      this.methods.memoryImage({
+        slug,
+        path,
+        source,
+        revision,
+        ...(reference === undefined ? {} : { reference }),
+      }),
+    );
+  }
+
   memorySnapshot(channelId: string): { snapshot: MemoryAcceptedSnapshot } {
     return unwrap(this.methods.memorySnapshot({ channelId }));
   }
@@ -3198,6 +3224,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelAdminsSet',
   'channelPolicySet',
   'channelHumanAdd',
+  'channelMemberCandidates',
   'channelDescriptionSet',
   'teamDirectory',
   'humanDm',
@@ -3393,6 +3420,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionOwner',
   'botSessionIds',
   'memoryFileTarget',
+  'memoryImage',
   'memorySnapshot',
   'memoryFile',
   'memoryHistory',
