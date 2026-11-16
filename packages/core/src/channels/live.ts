@@ -1,3 +1,4 @@
+import { SKILL_CATALOG_CHANGED_EVENT, type SkillCatalogChange } from '../skills/events.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
@@ -62,6 +63,7 @@ interface Subscriber {
 
 export type RosterLiveFrame =
   | { type: 'baseline'; placements: PurgedPlacement[] }
+  | { type: 'skills'; change: SkillCatalogChange }
   | { type: 'changed' }
   | { type: 'attention' }
   | { type: 'latest'; channelId: string; message: ChannelMessage }
@@ -193,6 +195,7 @@ export interface ChannelLiveHub {
   publishAttachments(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
+  publishSkillCatalogChanged(change: SkillCatalogChange): void;
   refreshAccess(): void;
   publishContentPurged(): void;
   publishHumanIdentityChanged(): void;
@@ -392,6 +395,7 @@ export function createChannelLiveHub(
   };
   interface RosterSubscriber {
     human: HumanContext;
+    skills(change: SkillCatalogChange): void;
     attention(): void;
     push(): void;
     latest(channelId: string, message: ChannelMessage): void;
@@ -434,6 +438,19 @@ export function createChannelLiveHub(
         };
         subscriber = {
           human,
+          skills(change) {
+            if (ended) return;
+            if ((controller.desiredSize ?? 0) <= -64) return this.close();
+            try {
+              controller.enqueue(
+                encoder.encode(
+                  `event: ${SKILL_CATALOG_CHANGED_EVENT}\ndata: ${JSON.stringify(change)}\n\n`,
+                ),
+              );
+            } catch {
+              this.close();
+            }
+          },
           purge(placements) {
             if (ended) return;
             try {
@@ -532,6 +549,12 @@ export function createChannelLiveHub(
     let wake: (() => void) | undefined;
     const subscriber: RosterSubscriber = {
       human,
+      skills(change) {
+        if (ended) return;
+        queue.push({ type: 'skills', change });
+        if (queue.length > ROSTER_LIVE_QUEUE_LIMIT) this.close();
+        wake?.();
+      },
       attention() {
         if (ended) return;
         if (!queue.some((frame) => frame.type === 'attention')) queue.push({ type: 'attention' });
@@ -583,7 +606,18 @@ export function createChannelLiveHub(
       for (;;) {
         while (!ended && queue.length > 0) {
           const frame = queue.shift()!;
-          if (frame.type === 'latest') {
+          if (frame.type === 'skills') {
+            const channelIds = frame.change.channelIds.filter((id) => visibleChannel(human, id));
+            const members = new Set(channelIds.flatMap((id) => channels.get(id)?.members ?? []));
+            if (channelIds.length > 0)
+              yield {
+                type: 'skills',
+                change: {
+                  channelIds,
+                  botSlugs: frame.change.botSlugs.filter((slug) => members.has(slug)),
+                },
+              };
+          } else if (frame.type === 'latest') {
             if (visibleChannel(human, frame.channelId)) yield project(human, frame);
           } else if (frame.type === 'purged') {
             const placements = visiblePlacements(human, frame.placements);
@@ -1043,6 +1077,17 @@ export function createChannelLiveHub(
       }
       draftRevisions.set(channelId, revision);
       for (const subscriber of subscribers.get(channelId) ?? []) subscriber.pushDraft(published);
+    },
+    publishSkillCatalogChanged(change) {
+      for (const subscriber of rosterSubscribers) {
+        const channelIds = change.channelIds.filter((id) => visibleChannel(subscriber.human, id));
+        if (channelIds.length === 0) continue;
+        const members = new Set(channelIds.flatMap((id) => channels.get(id)?.members ?? []));
+        subscriber.skills({
+          channelIds,
+          botSlugs: change.botSlugs.filter((slug) => members.has(slug)),
+        });
+      }
     },
     publishRosterCommitted() {
       for (const subscriber of rosterSubscribers) subscriber.push();

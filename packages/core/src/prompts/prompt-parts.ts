@@ -126,6 +126,13 @@ export const PROMPT_PARTS = [
     defaultText:
       'The sender is another Bot, not a Human: answer only when it moves the work forward, never just to acknowledge or thank it.',
   },
+  {
+    id: 'skill-installation',
+    kind: 'system',
+    section: 'botharness:orchestrator-role / botharness:assignment-role',
+    defaultText:
+      "Install a Skill by writing .agents/skills/<name>/SKILL.md. Decide from the Human's request where it belongs: a Bot's own capability goes in its Memory Repository, which only its Orchestrator may write freely; a project convention goes in the matching Workspace, through its existing write authorization and approval. Start SKILL.md with YAML frontmatter: required name (kebab-case, equal to the folder name) and description; optional whenToUse (text), user-invocable and disable-model-invocation (booleans). Follow the frontmatter with the instructions body. Use ordinary file tools and commit Memory Skill writes with Git; its history is the record, with no separate install tool or activity entry.",
+  },
 ] as const;
 
 export type PromptPartId = (typeof PROMPT_PARTS)[number]['id'];

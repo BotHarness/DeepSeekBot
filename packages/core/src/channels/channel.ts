@@ -79,6 +79,7 @@ export interface ChannelRecord {
   members: string[];
   botSlug?: string;
   humanParticipants?: string[];
+  dmHumanId?: string;
   description?: string;
   remoteBot?: RemoteBotParticipant;
 
@@ -352,7 +353,8 @@ export interface ChannelToolAutoApproval {
   toolName: string;
   input: string;
   template: string;
-  outcome: 'allowed' | 'rejected';
+  templateVersion?: string;
+  outcome: 'allowed' | 'rejected' | 'ask-human';
   reason: string;
 }
 
@@ -744,6 +746,11 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
       participants[0] === participants[1] ||
       !participants.every((id) => typeof id === 'string' && id.length > 0) ||
       record['botSlug'] !== undefined)
+  )
+    return false;
+  if (
+    record['dmHumanId'] !== undefined &&
+    (record['type'] !== 'dm' || typeof record['dmHumanId'] !== 'string' || !record['dmHumanId'])
   )
     return false;
   const botSlug = record['botSlug'];
@@ -1260,7 +1267,9 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         (key) => typeof record[key] !== 'string' || record[key].length === 0,
       ) ||
       typeof record['input'] !== 'string' ||
-      (record['outcome'] !== 'allowed' && record['outcome'] !== 'rejected')
+      (record['outcome'] !== 'allowed' &&
+        record['outcome'] !== 'rejected' &&
+        record['outcome'] !== 'ask-human')
     )
       return false;
   } else if (message['toolAutoApprovalPause'] !== undefined) {

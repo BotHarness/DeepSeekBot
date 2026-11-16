@@ -857,6 +857,11 @@ const en = {
     unread: 'Other unread conversations',
   },
   activityRow: {
+    review: {
+      allowed: (template: string) => `auto-approved by ${template}`,
+      'ask-human': (template: string) => `${template} sent this to you`,
+      rejected: (template: string) => `auto-rejected by ${template}`,
+    },
     dm: (recipient: string) => `sent a direct message to ${recipient}`,
     actions: 'Activity details',
     actionsHint: 'Long-press for details.',
@@ -1678,6 +1683,7 @@ const en = {
   elsewhere: (state: string) => `${state} on another device`,
   cardLine: (subject: string, state: string) => `${subject} · ${state}`,
   cardLoadFailed: 'Could not read this request.',
+  cardContentUnavailable: 'Request details are unavailable.',
   noBot: 'This Bot is not on your computer anymore.',
   noChannel: 'This Channel is not on your computer anymore.',
   groupUnavailableTitle: 'Group no longer available',
@@ -1741,6 +1747,7 @@ const en = {
     `${author} in ${place}, ${time}: ${snippet}`,
   pinnedSection: 'Pinned',
   loading: 'Loading',
+  selectedChoice: 'Selected',
   rowActions: {
     pin: 'Pin',
     unpin: 'Unpin',
@@ -2476,6 +2483,9 @@ const en = {
     'Full access is on for new Assignments only: they may access any file without asking; the chat Session stays confined.',
   autoApproval: 'Auto approval template',
   autoApprovalOff: 'Off',
+  autoApprovalInherit: 'Inherit global',
+  autoApprovalInherited: (template: string) => `From global: ${template}`,
+  autoApprovalUnavailable: (name: string) => `${name} (unavailable)`,
   autoApprovalOffHint: 'You approve each card',
   autoApprovalFooter:
     "A reviewer answers this Bot's approvals by the template. Anything it is unsure about still comes to you.",
@@ -3407,6 +3417,11 @@ const zh: typeof en = {
     unread: '其他未读会话',
   },
   activityRow: {
+    review: {
+      allowed: (template: string) => `按「${template}」自动批准`,
+      'ask-human': (template: string) => `「${template}」已转交你确认`,
+      rejected: (template: string) => `按「${template}」自动拒绝`,
+    },
     dm: (recipient: string) => `向 ${recipient} 发送了私聊消息`,
     actions: '活动详情',
     actionsHint: '长按查看详情。',
@@ -4180,6 +4195,7 @@ const zh: typeof en = {
   elsewhere: (state: string) => `${state}（在另一台设备上）`,
   cardLine: (subject: string, state: string) => `${subject} · ${state}`,
   cardLoadFailed: '读取这个请求失败。',
+  cardContentUnavailable: '请求详情不可用。',
   noBot: '你的电脑上已经没有这个 Bot。',
   noChannel: '你的电脑上已经没有这个频道。',
   groupUnavailableTitle: '群聊已不存在',
@@ -4241,6 +4257,7 @@ const zh: typeof en = {
     `${author}在${place}，${time}：${snippet}`,
   pinnedSection: '已置顶',
   loading: '正在加载',
+  selectedChoice: '已选择',
   rowActions: {
     pin: '置顶',
     unpin: '取消置顶',
@@ -4938,6 +4955,9 @@ const zh: typeof en = {
     '完全访问已开启（仅新事项）：之后新建的事项可访问任何文件且不再逐次提问；聊天会话仍然受限。',
   autoApproval: '自动审批模板',
   autoApprovalOff: '关闭',
+  autoApprovalInherit: '继承全局',
+  autoApprovalInherited: (template: string) => `来自全局：${template}`,
+  autoApprovalUnavailable: (name: string) => `${name}（不可用）`,
   autoApprovalOffHint: '每张卡片由你批准',
   autoApprovalFooter: '审批员按模板替你处理此 Bot 的审批，拿不准的仍交给你。',
   autoApprovalCautious: '谨慎',

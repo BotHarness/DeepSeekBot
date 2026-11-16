@@ -46,6 +46,40 @@ Deliver as tracer bullets under a dedicated spec and hub, parallel to the Enviro
 
 The design narrative and question log live in [Team mode design](../architecture/team-mode.md).
 
+## Bot access amendment — 2026-11-15
+
+The Human amendment on spec #4137 supersedes the Bot audience-containment rule above. A Bot acts
+for its current principal (`owner_human_id`); group access intersects that principal's current
+membership, roles and active status with Bot restrictions. Reading does not require Bot membership;
+writing does. Private/public visibility determines who may DM or add a Bot, without requiring every
+Channel occupant to belong to its audience. Public audiences may be everyone, roles or named members.
+
+The M7 task explicitly confirms participant authority as the DM exception: each Human's DM with a
+public Bot is readable by that Human and the Bot, while its principal needs Human-only M11 audited
+viewing. The public side of a private-to-public Bot DM uses the private Bot's principal as its
+participant. Public Bots cannot initiate contact with private Bots. Current principal status and
+current participant audience qualification still gate every Bot read/write; former audience members
+retain read-only DM history. No Bot can inherit M11.
+
+Hard permissions remain unioned across roles. Advisory policy uses admin-set topic tags, Deny wins
+and assignment conflicts identify both roles. Speaker context is append-only message metadata, with
+revisioned policy attachments on first role appearance or change and a current-policy Bot tool;
+per-speaker changes never rewrite the cached system prompt. The implementation contract and M6
+shared Memory integration boundary are in [M7 runtime notes](../architecture/team-mode-m7-runtime.md).
+
+M7 public Memory placement uses one dedicated hidden M6 shared space per public Bot, deterministically
+`shared/.bot-<slug>`, with exactly that Bot's current audience. Existing visible folders are not reused.
+This keeps `bots/<slug>/memory` outside grantable `files/` and avoids changing any Human folder's
+meaning. Audience changes retarget the space; private visibility moves Memory to the current
+principal's account. Relocation reuses M6's durable journal, ownership proofs, rollback before commit
+and resumable source retirement. The hidden space is omitted from folder/Workspace APIs and is not
+an independently managed folder. This implements the spec's shared-Memory requirement in M7.
+
+M7 shared discovery uses an explicit metadata projection for non-principals, including the Host
+Owner. Arranging a reachable Bot does not grant management or transcript access. Per-Human roster
+arrangements reuse the existing RosterStore domain schema in independent operational rows; the
+legacy local-Human row remains that Human’s arrangement across Host ownership changes.
+
 ## Shared client implementation seam (#4201)
 
 The Team invitation, pairing and Noise formats belong to the pure `packages/host-protocol` workspace. Desktop and mobile use `packages/host-client` for member requests, saved identities and the fingerprint → sign-in → forced-password-change flow. Native storage, installed version and key-agreement adapters remain application-owned and injected. This avoids package imports of the mobile app and preserves the Host as the sole identity/grant authority. The [desktop UI contract](../architecture/team-mode-desktop-sign-in.md) describes the adapter and its regression limits; visual and native acceptance are separate.

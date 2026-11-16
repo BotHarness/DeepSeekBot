@@ -133,6 +133,52 @@ describe('explicit Human context', () => {
     expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toHaveLength(1);
   });
 
+  it('delivers a shared-Bot DM Assignment report only to its requester', () => {
+    const { database, query, decisions } = fixture();
+    const requester = humanContext('human-test-b');
+    const other = humanContext('human-test-c');
+    const dm = {
+      id: 'dm-member-requester',
+      type: 'dm',
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      dmHumanId: requester.humanId,
+      createdAt: '2026-11-14T00:00:00.000Z',
+      updatedAt: '2026-11-14T00:00:00.000Z',
+    };
+    database.transaction(
+      (db) => {
+        db.prepare('INSERT INTO channel_records(channel_id, record_json) VALUES (?, ?)').run(
+          dm.id,
+          JSON.stringify(dm),
+        );
+        db.prepare(`INSERT INTO session_ownership(session_id, bot_slug, root_role, created_at)
+        VALUES ('assignment', 'ada', 'assignment', '2026-11-14T00:00:00.000Z')`).run();
+        db.prepare(`INSERT INTO source_events(source_event_id, source_kind, bot_slug, channel_id, body, created_at)
+        VALUES ('request', 'human-message', 'ada', ?, 'Please verify', '2026-11-14T00:00:00.000Z')`).run(
+          dm.id,
+        );
+        db.prepare(`INSERT INTO source_events(source_event_id, source_kind, bot_slug, assignment_session_id, body, created_at)
+        VALUES ('report', 'assignment-report', 'ada', 'assignment', 'Completed', '2026-11-14T00:00:00.000Z')`).run();
+        db.prepare(`INSERT INTO assignments(session_id, source_event_id, bot_slug, description, activity,
+        latest_report_state, latest_report_summary, latest_report_at, created_at, updated_at)
+        VALUES ('assignment', 'request', 'ada', 'Verify', 'idle', 'completed', 'Completed',
+        '2026-11-14T00:00:00.000Z', '2026-11-14T00:00:00.000Z', '2026-11-14T00:00:00.000Z')`).run();
+      },
+      ['source-event'],
+    );
+    expect(query.list(requester, { category: 'info' }).items).toMatchObject([
+      { kind: 'assignment-report', sourceEventId: 'report' },
+    ]);
+    expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
+    expect(query.list(other, { category: 'info' }).items).toEqual([]);
+    expect(decisions.ignoreAssignmentReport(OWNER_HUMAN_CONTEXT, 'report')).toBe(false);
+    expect(decisions.ignoreAssignmentReport(other, 'report')).toBe(false);
+    expect(decisions.ignoreAssignmentReport(requester, 'report')).toBe(true);
+    expect(query.list(requester, { category: 'info' }).items).toEqual([]);
+  });
+
   it('records the same speaking Human in Source Event identity and message JSON', async () => {
     const { database, channels } = fixture();
     const human = humanContext('human-test-b');

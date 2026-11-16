@@ -194,7 +194,7 @@ export function ToolApprovalCard({
       | 'allowed-always-all'
       | 'rejected',
   ): void => {
-    if (botSlug === undefined || submitting.current || status !== 'pending') return;
+    if (botSlug === undefined || submitting.current || !actionable) return;
     if (companionTarget && !qualified()) return;
     setBusy(true);
     setBusyChoice(outcome);
@@ -250,7 +250,13 @@ export function ToolApprovalCard({
         if (mounted.current) setBusy(false);
       });
   };
-  const disabled = busy || (companionTarget !== undefined && !qualified());
+  const disabled = busy || !actionable || (companionTarget !== undefined && !qualified());
+  const selectedChoice =
+    effectiveDecision === undefined ||
+    effectiveDecision === 'allowed-once' ||
+    effectiveDecision === 'rejected'
+      ? effectiveDecision
+      : 'allowed-always-tool';
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (surface === 'activity') return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
@@ -357,7 +363,6 @@ export function ToolApprovalCard({
     </div>
   ) : null;
   const onCardClick = (event: MouseEvent<HTMLDivElement>): void => {
-    if (settled !== undefined) return;
     const target = event.target as HTMLElement;
     if (
       target.closest(
@@ -382,10 +387,91 @@ export function ToolApprovalCard({
             : 'Y Enter N Escape'
           : undefined
       }
-      data-open={(settled === undefined && open) || undefined}
+      data-open={open || undefined}
       onKeyDown={onKeyDown}
       onClick={onCardClick}
     >
+      <div className="bh-request-head">
+        <span className="bh-request-category">{category}</span>
+        {actionable ? (
+          <span
+            ref={countdownMount}
+            className="bh-request-pill"
+            data-state="pending"
+            data-urgent={countdown?.urgent || undefined}
+          >
+            {countdown !== undefined && soon ? (
+              <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
+                {t(countdown.key, { count: String(countdown.count) })}
+              </time>
+            ) : (
+              <span
+                title={expiresAt === undefined ? undefined : new Date(expiresAt).toLocaleString()}
+              >
+                {t('approval.outcome.pending')}
+              </span>
+            )}
+          </span>
+        ) : null}
+      </div>
+      <>
+        <button
+          type="button"
+          className="bh-request-summary"
+          aria-expanded={open}
+          aria-controls={open ? detailsId : undefined}
+          title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="bh-tool-approval-sentence">{sentence}</span>
+          {preview}
+        </button>
+        {botCreate === undefined ? null : (
+          <BotCreateApprovalPreview
+            args={botCreate}
+            preview={request.botCreatePreview}
+            compact={compact && !open}
+            t={t}
+          />
+        )}
+        {request.approvalReview === undefined ? null : (
+          <div className="bh-note">
+            {request.approvalReview.kind === 'template-unavailable'
+              ? t('autoApproval.unavailable')
+              : request.approvalReview.fallback === undefined
+                ? request.approvalReview.reason
+                : t('autoApproval.reviewUnavailable')}
+          </div>
+        )}
+        {details}
+      </>
+      {executionState === 'waiting-human' ||
+      executionState === 'waiting-capacity' ||
+      executionState === 'needs-repair' ? (
+        <div role="status" className="bh-note">
+          {t(
+            executionState === 'waiting-human'
+              ? 'approval.waitingHumanCapacity'
+              : executionState === 'waiting-capacity'
+                ? 'approval.waitingCapacity'
+                : 'approval.needsRepair',
+          )}
+        </div>
+      ) : null}
+      {effectiveDecision !== undefined || actionable ? (
+        <div className="bh-note">
+          {canAlwaysAllow
+            ? t(
+                secretCli
+                  ? 'approval.allowKindRisk'
+                  : request.toolName === 'secret_mcp_connect'
+                    ? 'approval.alwaysServiceScope'
+                    : 'approval.alwaysToolScope',
+                { tool: request.toolName },
+              )
+            : t('approval.alwaysUnavailable')}
+        </div>
+      ) : null}
       {settled !== undefined ? (
         <div
           role="status"
@@ -407,83 +493,8 @@ export function ToolApprovalCard({
         >
           {category + ' · ' + t(`approval.outcome.${settled}`)}
         </div>
-      ) : (
-        <div className="bh-request-head">
-          <span className="bh-request-category">{category}</span>
-          {status === 'pending' ? (
-            <span
-              ref={countdownMount}
-              className="bh-request-pill"
-              data-state="pending"
-              data-urgent={countdown?.urgent || undefined}
-            >
-              {countdown !== undefined && soon ? (
-                <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
-                  {t(countdown.key, { count: String(countdown.count) })}
-                </time>
-              ) : (
-                <span
-                  title={expiresAt === undefined ? undefined : new Date(expiresAt).toLocaleString()}
-                >
-                  {t('approval.outcome.pending')}
-                </span>
-              )}
-            </span>
-          ) : null}
-        </div>
-      )}
-      {settled !== undefined ? null : (
-        <>
-          <button
-            type="button"
-            className="bh-request-summary"
-            aria-expanded={open}
-            aria-controls={open ? detailsId : undefined}
-            title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
-            onClick={() => setOpen((current) => !current)}
-          >
-            <span className="bh-tool-approval-sentence">{sentence}</span>
-            {preview}
-          </button>
-          {botCreate === undefined ? null : (
-            <BotCreateApprovalPreview
-              args={botCreate}
-              preview={request.botCreatePreview}
-              compact={compact && !open}
-              t={t}
-            />
-          )}
-          {details}
-        </>
-      )}
-      {executionState === 'waiting-human' ||
-      executionState === 'waiting-capacity' ||
-      executionState === 'needs-repair' ? (
-        <div role="status" className="bh-note">
-          {t(
-            executionState === 'waiting-human'
-              ? 'approval.waitingHumanCapacity'
-              : executionState === 'waiting-capacity'
-                ? 'approval.waitingCapacity'
-                : 'approval.needsRepair',
-          )}
-        </div>
       ) : null}
-      {settled === undefined && status === 'pending' ? (
-        <div className="bh-note">
-          {canAlwaysAllow
-            ? t(
-                secretCli
-                  ? 'approval.allowKindRisk'
-                  : request.toolName === 'secret_mcp_connect'
-                    ? 'approval.alwaysServiceScope'
-                    : 'approval.alwaysToolScope',
-                { tool: request.toolName },
-              )
-            : t('approval.alwaysUnavailable')}
-        </div>
-      ) : null}
-      {settled !== undefined ? null : status === 'pending' ? (
+      {effectiveDecision !== undefined || actionable ? (
         <div
           ref={focusMount}
           className="bh-tool-approval-actions bh-message-card-actions"
@@ -494,6 +505,7 @@ export function ToolApprovalCard({
             tone="primary"
             size={size}
             disabled={disabled}
+            aria-pressed={selectedChoice === 'allowed-once'}
             busy={busy && busyChoice === 'allowed-once'}
             onClick={() => decide('allowed-once')}
           >
@@ -504,6 +516,7 @@ export function ToolApprovalCard({
 
             size={size}
             disabled={disabled || !canAlwaysAllow}
+            aria-pressed={selectedChoice === 'allowed-always-tool'}
             busy={busy && busyChoice === 'allowed-always-tool'}
             onClick={() => decide('allowed-always-tool')}
           >
@@ -515,6 +528,7 @@ export function ToolApprovalCard({
             size={size}
             tone="danger"
             disabled={disabled}
+            aria-pressed={selectedChoice === 'rejected'}
             busy={busy && busyChoice === 'rejected'}
             onClick={() => decide('rejected')}
           >

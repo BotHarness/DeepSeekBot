@@ -26,6 +26,7 @@ export interface StandingLimitsView {
 export type BotBannerView = { recipe: PixelBannerRecipe } | { image: string };
 
 export interface BotSummary {
+  sharedBy?: string;
   lastActivityAt?: number;
   slug: string;
   displayName: string;
@@ -76,6 +77,9 @@ export interface ChannelSummary {
     capabilities: string[];
   };
   ownerBotSlug?: string;
+  readOnly?: boolean;
+  proactiveOptOut?: boolean;
+  memberBots?: Array<{ slug: string; displayName: string; avatar?: string }>;
   wakePolicies?: Record<
     string,
     {
@@ -138,6 +142,7 @@ export interface BotCreatePreview {
 }
 
 export interface ToolApprovalRequestCard {
+  approvalReview?: import('../../../core/src/workspaces/tool-approval.js').ToolApprovalReview;
   allowAlways?: boolean;
   sessionId: string;
   callId: string;

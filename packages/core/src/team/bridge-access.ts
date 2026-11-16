@@ -5,11 +5,6 @@ import {
   administrativeResult,
 } from './bot-administration.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
-import {
-  resolveBotMentionText,
-  AmbiguousBotMentionError,
-  botMentionLabel,
-} from '../channels/bot-mention-text.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import {
@@ -32,10 +27,7 @@ const object = (input: unknown): Record<string, unknown> =>
   typeof input === 'object' && input !== null && !Array.isArray(input)
     ? Object.fromEntries(Object.entries(input))
     : {};
-const refuse = (
-  code: string,
-  details?: { permission: string } | { route: string },
-): BridgeResult<never> => ({
+const refuse = (code: string, details?: Record<string, unknown>): BridgeResult<never> => ({
   ok: false,
   error: { code, message: code, ...(details ? { details } : {}) },
 });
@@ -104,6 +96,87 @@ export function guardHumanBridge(
         }
         const input = object(payload);
         if (
+          deps.team &&
+          [
+            'botVisibility',
+            'botVisibilitySet',
+            'botSwitches',
+            'reachableBots',
+            'botProactiveOptOut',
+            'roleConflicts',
+            'speakerPolicy',
+          ].includes(property)
+        )
+          return Reflect.apply(operation, target, [payload, ...args]);
+        if (
+          deps.team &&
+          property === 'botAttention' &&
+          human.caller !== 'bot' &&
+          typeof input['slug'] === 'string' &&
+          !ownsBot(human, deps.registry.get(input['slug'])) &&
+          deps.team.bots.canReach(human, input['slug'])
+        ) {
+          const sharedSlug = input['slug'];
+          const dm = deps.channels
+            .list()
+            .find(
+              (channel) =>
+                channel.type === 'dm' &&
+                channel.botSlug === sharedSlug &&
+                (channel.dmHumanId ?? deps.registry.get(sharedSlug)?.ownerHumanId) ===
+                  human.humanId,
+            );
+          if (!dm) return { ok: true, value: { items: [] } };
+          admin ??= administration();
+          return admin.botAttention({ ...input, channelId: dm.id });
+        }
+        if (
+          deps.team &&
+          [
+            'pinsSet',
+            'hiddenSet',
+            'topReorder',
+            'channelAssign',
+            'rosterBatch',
+            'channelMuteSet',
+          ].includes(property)
+        ) {
+          const ids: unknown[] = [];
+          for (const key of ['pins', 'hidden', 'channelIds'])
+            if (Array.isArray(input[key])) ids.push(...input[key]);
+          if (Array.isArray(input['order']))
+            for (const entry of input['order'])
+              if (object(entry)['kind'] === 'channel') ids.push(object(entry)['id']);
+          if (typeof input['channelId'] === 'string') ids.push(input['channelId']);
+          if (
+            ids.some(
+              (id) =>
+                typeof id === 'string' &&
+                !deps.team?.bots.canReach(human, id) &&
+                !ownsBot(human, deps.registry.getHistorical(id)) &&
+                !deps.team?.channelAccess.canRead(human, id) &&
+                !deps.team?.bots.hasReadableDm(human, id),
+            )
+          )
+            return refuse('channel-not-found');
+        }
+        if (deps.team && property === 'channelDm' && typeof input['slug'] === 'string') {
+          try {
+            const channel = deps.team.bots.dm(human, input['slug']);
+            return { ok: true, value: { channel } };
+          } catch (error) {
+            if (error instanceof TeamError) return refuse(error.code, error.details);
+            throw error;
+          }
+        }
+        const interaction = [
+          'channelCreate',
+          'channelGroupInvite',
+          'channelSend',
+          'channelAllBotPreview',
+        ].includes(property);
+
+        if (
           botCreationMethods.has(property) &&
           (input['public'] === true ||
             input['visibility'] === 'public' ||
@@ -120,9 +193,14 @@ export function guardHumanBridge(
           return refuse('invalid-input');
         }
         if (property === 'list' && input['administration'] === true) {
-          if (!owner || human.caller === 'bot') return refuse('permission-required');
+          if (
+            (!owner && !deps.team?.roles.permissions(human).includes('bots.manageAll')) ||
+            human.caller === 'bot'
+          )
+            return refuse('permission-required');
           const own = target.list(payload);
           if (!own.ok) return own;
+          const listed = new Set(own.value.bots.map((bot) => bot.slug));
           const query =
             typeof input['query'] === 'string' ? input['query'].trim().toLowerCase() : '';
           return {
@@ -135,6 +213,7 @@ export function guardHumanBridge(
                   .filter(
                     (bot) =>
                       !ownsBot(human, bot) &&
+                      !listed.has(bot.slug) &&
                       (!query ||
                         bot.displayName.toLowerCase().includes(query) ||
                         bot.slug.includes(query)),
@@ -146,7 +225,13 @@ export function guardHumanBridge(
         }
         if (!owner && ['channelCreate', 'channelGroupInvite'].includes(property)) {
           const refs = Array.isArray(input['members']) ? input['members'] : [input['botSlug']];
-          if (refs.some((id) => typeof id === 'string' && !ownsBot(human, deps.registry.get(id))))
+          if (
+            refs.some(
+              (id) =>
+                typeof id === 'string' &&
+                !(deps.team?.bots.canReach(human, id) ?? ownsBot(human, deps.registry.get(id))),
+            )
+          )
             return refuse('bot-not-found');
         }
         if (!owner && !MEMBER_METHODS.has(property)) return refuse('permission-required');
@@ -161,17 +246,48 @@ export function guardHumanBridge(
           )
             return refuse('permission-required');
         }
+        if (property === 'messagingIdentity' && object(input['input'])['kind'] === 'bind') {
+          const target =
+            typeof input['slug'] === 'string' ? deps.registry.get(input['slug']) : undefined;
+          if (!ownsBot(human, target)) return refuse('bot-principal-required');
+          try {
+            deps.team?.roles.require(human, 'im.bind');
+          } catch (error) {
+            if (error instanceof TeamError) return refuse(error.code, error.details);
+            throw error;
+          }
+        }
         const slug = input['slug'];
+        if (
+          typeof slug === 'string' &&
+          deps.team &&
+          ([
+            'sessions',
+            'botAttention',
+            'botToolTrace',
+            'botTurnInput',
+            'botSystemPrompt',
+            'botContextWindow',
+          ].includes(property) ||
+            (property === 'botToolRun' && input['tool'] !== 'speaker_policy')) &&
+          deps.team.bots.hasForeignDms(human, slug)
+        )
+          return refuse('bot-session-private', { slug });
         if (typeof slug === 'string') {
           const bot = deps.registry.getHistorical?.(slug) ?? deps.registry.get(slug);
           if (
             !owner &&
             MEMBER_BOT_METHODS.some((method) => method === property) &&
-            !ownsBot(human, bot)
+            !ownsBot(human, bot) &&
+            !adminSettings.has(property)
           )
             return refuse('bot-not-found');
           if (bot && !ownsBot(human, bot)) {
-            if (!owner || !adminSettings.has(property)) return refuse('bot-not-found');
+            if (
+              (!owner && !deps.team?.roles.permissions(human).includes('bots.manageAll')) ||
+              !adminSettings.has(property)
+            )
+              return refuse('bot-not-found');
             return administrate(property, bot, payload, args);
           }
         }
@@ -192,19 +308,14 @@ export function guardHumanBridge(
           const channel = deps.channels.get(channelId);
           if (
             channel?.type === 'dm' &&
-            channel.members.some((id) => {
-              const bot = deps.registry.getHistorical?.(id) ?? deps.registry.get(id);
-              return (!owner && !bot) || (bot && !ownsBot(human, bot));
-            })
-          ) {
-            if (owner && adminSettings.has(property)) {
-              const foreign = channel.members
-                .map((id) => deps.registry.getHistorical(id))
-                .find((bot) => bot && !ownsBot(human, bot));
-              if (foreign) return administrate(property, foreign, payload, args);
-            }
-            return refuse('bot-not-found');
-          }
+            deps.team &&
+            !deps.team.channelAccess.canRead(human, channelId)
+          )
+            return refuse(
+              channel.dmHumanId || channel.humanParticipants
+                ? 'channel-not-found'
+                : 'bot-not-found',
+            );
           if (
             !owner &&
             channel?.type === 'group' &&
@@ -219,58 +330,6 @@ export function guardHumanBridge(
         }
         if (property === 'channelSend') {
           const channel = typeof channelId === 'string' ? deps.channels.get(channelId) : undefined;
-          if (
-            channel?.type === 'group' &&
-            typeof input['body'] === 'string' &&
-            input['body'].includes('@')
-          ) {
-            const candidates = channel.members.flatMap((id) => {
-              const bot = deps.registry.get(id);
-              return bot
-                ? [{ botSlug: bot.slug, displayName: bot.displayName, eligible: true }]
-                : [];
-            });
-            let body = input['body'];
-            if (Array.isArray(input['mentions']) && input['mentions'].length <= 20)
-              for (const selected of input['mentions']) {
-                const token = object(selected);
-                const bot =
-                  typeof token['botSlug'] === 'string'
-                    ? deps.registry.get(token['botSlug'])
-                    : undefined;
-                const start = token['start'];
-                const end = token['end'];
-                if (
-                  bot &&
-                  ownsBot(human, bot) &&
-                  channel.members.includes(bot.slug) &&
-                  bot.paused !== true &&
-                  typeof start === 'number' &&
-                  typeof end === 'number' &&
-                  Number.isSafeInteger(start) &&
-                  Number.isSafeInteger(end) &&
-                  start >= 0 &&
-                  end > start &&
-                  end <= input['body'].length &&
-                  input['body'].slice(start, end) === '@' + botMentionLabel(bot.displayName)
-                )
-                  body = body.slice(0, start) + ' '.repeat(end - start) + body.slice(end);
-              }
-            try {
-              if (
-                candidates.some(
-                  (candidate) => !ownsBot(human, deps.registry.get(candidate.botSlug)),
-                ) &&
-                resolveBotMentionText(body, candidates).botSlugs.some(
-                  (id) => !ownsBot(human, deps.registry.get(id)),
-                )
-              )
-                return refuse('bot-not-found');
-            } catch (error) {
-              if (error instanceof AmbiguousBotMentionError) return refuse('bot-not-found');
-              throw error;
-            }
-          }
           const refs = input['channelRefs'];
           if (
             Array.isArray(refs) &&
@@ -283,11 +342,6 @@ export function guardHumanBridge(
             })
           )
             return refuse('channel-not-found');
-          if (
-            input['allBotMention'] !== undefined &&
-            channel?.members.some((id) => !ownsBot(human, deps.registry.get(id)))
-          )
-            return refuse('bot-not-found');
         }
         if (
           ['toolApprovalDecide', 'userQuestionAnswer'].includes(property) &&
@@ -326,9 +380,17 @@ export function guardHumanBridge(
         if (
           botIds.some((id) => {
             const bot = deps.registry.get(id);
-            return bot !== undefined
-              ? !ownsBot(human, bot)
-              : !owner && !property.startsWith('humanAttention');
+            if (!bot) return !owner && !property.startsWith('humanAttention');
+            if (!interaction)
+              return property.startsWith('humanAttention')
+                ? !ownsBot(human, bot) && !(deps.team?.bots.canReach(human, id) ?? false)
+                : !ownsBot(human, bot);
+            const reachable = () => deps.team?.bots.canReach(human, id) ?? ownsBot(human, bot);
+            if (property !== 'channelSend' && property !== 'channelAllBotPreview')
+              return !reachable();
+            if (typeof channelId !== 'string') return true;
+            const channel = deps.channels.get(channelId);
+            return channel?.botSlug ? !reachable() : !channel?.members.includes(id);
           })
         )
           return refuse('bot-not-found');
@@ -347,6 +409,7 @@ export function guardHumanBridge(
               'channels',
               'channelListChanges',
               'activitySnapshot',
+              'activityOverview',
               'channelMessages',
               'channelTimeline',
               'channelSearch',

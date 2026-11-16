@@ -399,6 +399,9 @@ export interface CreateChannelGroupInput {
 export interface ChannelStore {
   requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
   bindHumanAccess?(access: {
+    requireBotJoin?(slug: string, channelId: string): void;
+    requireBotPost?(slug: string, channel: ChannelRecord): void;
+    requireDm?(human: HumanContext, slug: string): void;
     searchText?(human: HumanContext, channelId: string, messageId: string, text: string): string;
     canRead(human: HumanContext, id: string): boolean;
     requirePost(human: HumanContext, id: string, all: boolean, message?: ChannelMessage): void;

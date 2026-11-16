@@ -526,6 +526,7 @@ export function ProfileHeader({
   t: BotHarnessTranslate;
   onDelete(): void;
 }): ReactElement {
+  const viewOnly = bot.deleted === true || bot.sharedBy !== undefined;
   const [panel, setPanel] = useState<'edit' | 'avatar' | 'banner'>();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuItems: readonly MenuEntry[] = [
@@ -545,7 +546,7 @@ export function ProfileHeader({
     <header className="bh-profile-header">
       <div className="bh-profile-banner">
         <BotBannerArt banner={bannerOf(bot.banner, bot.displayName)} />
-        {bot.deleted ? null : (
+        {viewOnly ? null : (
           <button
             type="button"
             className="bh-profile-banner-edit"
@@ -562,14 +563,14 @@ export function ProfileHeader({
             side="bottom"
             portal
             delayMs={300}
-            disabled={bot.deleted === true}
+            disabled={viewOnly}
           >
             <button
               type="button"
               className="bh-profile-avatar-button"
               aria-label={t('profile.avatar.change')}
-              data-avatar-editable={bot.deleted ? undefined : ''}
-              disabled={bot.deleted}
+              data-avatar-editable={viewOnly ? undefined : ''}
+              disabled={viewOnly}
               onClick={() => setPanel('avatar')}
             >
               <PersonaBotAvatar
@@ -582,7 +583,7 @@ export function ProfileHeader({
                 size={80}
                 indicator={false}
               />
-              {bot.deleted ? null : (
+              {viewOnly ? null : (
                 <span aria-hidden="true" className="bh-profile-avatar-overlay">
                   <span className="bh-profile-avatar-overlay-icon">
                     <IconEditOutlineRegular size={16} />
@@ -591,7 +592,7 @@ export function ProfileHeader({
               )}
             </button>
           </Tooltip>
-          {bot.deleted ? null : (
+          {viewOnly ? null : (
             <div className="bh-profile-header-actions">
               <BotZipShareButton bot={bot} actions={actions} t={t} />
               <Button size="sm" variant="outline" onClick={() => setPanel('edit')}>
@@ -624,6 +625,9 @@ export function ProfileHeader({
           )}
         </div>
         <h2 className="bh-profile-view-name">{bot.displayName}</h2>
+        {bot.sharedBy === undefined ? null : (
+          <p className="bh-profile-shared-by">{t('team.bots.sharedBy', { name: bot.sharedBy })}</p>
+        )}
         <ProfileTags tags={bot.roles} />
         <ProfileBio text={bot.description} />
       </div>

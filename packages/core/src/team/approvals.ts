@@ -1,3 +1,4 @@
+import type { TeamBots } from './bots.js';
 import { channelRoleEligibleSql } from './channel-contract.js';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -69,6 +70,7 @@ export class TeamApprovals {
     private readonly database: OperationalDatabaseModulePort,
     private readonly channels: ChannelStore,
     private readonly roles: TeamRoles,
+    private readonly bots: Pick<TeamBots, 'privateSessions'>,
   ) {}
 
   botOwner(botSlug: string): string | undefined {
@@ -138,6 +140,7 @@ export class TeamApprovals {
         db
           .prepare(`SELECT 1 FROM channel_records c WHERE c.channel_id = $channelId
       AND (json_extract(c.record_json, '$.type') <> 'group' OR ${channelRoleEligibleSql('c', '$humanId')})
+      AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId')=$humanId)
       AND (json_extract(c.record_json, '$.humanParticipants') IS NULL OR EXISTS (
         SELECT 1 FROM json_each(c.record_json, '$.humanParticipants') participant WHERE participant.value = $humanId))`)
           .get({ channelId, humanId: human.humanId }),
@@ -314,6 +317,7 @@ export class TeamApprovals {
       return (requestId !== undefined && card === undefined) || card?.masked === true;
     };
     const opaqueReaders = new Map<string, boolean>();
+    let privateSessions: ReadonlySet<string> | undefined;
     const visit = (entry: unknown, inherited?: string, inheritedBot?: string): void => {
       if (Array.isArray(entry)) {
         for (const item of entry) visit(item, inherited, inheritedBot);
@@ -322,6 +326,14 @@ export class TeamApprovals {
       if (entry === null || typeof entry !== 'object') return;
       const record = object(entry)!;
       const bot = typeof record['slug'] === 'string' ? record['slug'] : inheritedBot;
+      if (bot && ['sessions', 'activity', 'attention'].some((key) => record[key] !== undefined)) {
+        privateSessions ??= this.bots.privateSessions(human);
+        if (privateSessions.has(bot)) {
+          for (const key of ['activity', 'attention']) Reflect.deleteProperty(entry, key);
+          if (record['sessions'] !== undefined)
+            Reflect.set(entry, 'sessions', Array.isArray(record['sessions']) ? [] : {});
+        }
+      }
       if (
         bot &&
         typeof record['activeToolCount'] === 'number' &&

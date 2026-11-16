@@ -163,13 +163,16 @@ export function CardNote({
   children,
   variant = 'note',
   live = false,
+  testID,
 }: {
   children: string;
   variant?: 'note' | 'body';
   live?: boolean;
+  testID?: string;
 }) {
   return (
     <Text
+      testID={testID}
       {...(variant === 'note' ? { variant: 'meta' as const, tone: 'muted' as const } : {})}
       {...(live ? { accessibilityLiveRegion: 'polite' as const } : {})}
     >

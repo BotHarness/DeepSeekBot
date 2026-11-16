@@ -98,6 +98,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   'im-apps': ['imApps.allApps'],
   advanced: ['developer.row.title', 'git.settings.title'],
   'auto-approval': [
+    'autoApproval.globalDefault',
     'autoApproval.reviewerModel.title',
     'autoApproval.library.title',
     'autoApproval.library.new',
@@ -214,6 +215,7 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'wallpaper.title': 'wallpaper.local',
   'recovery.title': 'recovery.scope',
   'autoApproval.library.title': 'autoApproval.library.description',
+  'autoApproval.globalDefault': 'autoApproval.unavailable',
   'defaults.title': 'defaults.lead',
   'devices.connect.account': 'devices.connect.description',
   'appearance.panels': 'appearance.materialMode',

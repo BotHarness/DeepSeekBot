@@ -1,3 +1,4 @@
+import { attachOperationalModule } from '../src/database/owner.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
@@ -81,7 +82,9 @@ describe('PersonaBot Channel history query', () => {
             .query({ channelId: groupId, text: 'needle', to: '2026-09-01T00:00:05.000Z' })
             .messages.map((view) => view.message.id),
         ).toEqual(['old-5']);
-        expect(() => run.channels.query({ channelId: privateId })).toThrow('not a member');
+        expect(() => run.channels.query({ channelId: privateId })).toThrow(
+          'bot-channel-access-denied',
+        );
         expect(() => Reflect.apply(run.channels.list, undefined, [{ type: 'private' }])).toThrow(
           'type must be group or dm',
         );
@@ -169,6 +172,13 @@ describe('PersonaBot Channel history query', () => {
         author: { kind: 'human' },
         body: 'needle must stay private',
       });
+      attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+        db
+          .prepare(
+            "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+          )
+          .run(privateId),
+      );
       await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask-history',
         at: '2026-09-02T00:00:00.000Z',
@@ -295,6 +305,7 @@ describe('PersonaBot Channel history query', () => {
         body: 'chronology offset backfill',
       });
       const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+
       await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask-order',
         at: '2026-09-03T00:00:00.000Z',

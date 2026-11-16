@@ -1,3 +1,4 @@
+import { attachOperationalModule } from '../src/database/owner.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -53,7 +54,9 @@ describe('Trusted Channel attachment file Tools', () => {
             ).rejects.toThrow(/not attached/);
             await expect(
               call(tools, 'channel_attachment_save', { ...input, channel_id: hiddenId }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
             await expect(
               call(tools, 'channel_attachment_save', {
                 ...input,
@@ -66,13 +69,22 @@ describe('Trusted Channel attachment file Tools', () => {
             expect(saved).toContain('Saved independent working file:');
             expect(readFileSync(join(project, 'working.zip'), 'utf8')).toBe('source bytes');
             await call(tools, 'group_leave', { channel_id: joinedId });
+            attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+              db
+                .prepare(
+                  "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+                )
+                .run(joinedId),
+            );
             await expect(
               call(tools, 'channel_attachment_save', {
                 ...input,
                 channel_id: joinedId,
                 destination_path: 'again.zip',
               }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
             writeFileSync(join(project, 'working.zip'), 'processed result');
             const imported = JSON.parse(
               String(
@@ -102,7 +114,9 @@ describe('Trusted Channel attachment file Tools', () => {
                 channel_id: hiddenId,
                 attachments: [imported],
               }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
             expect(core.channels.readMessages(sourceId)).toHaveLength(before);
             core.grants.revoke('ada', grantId);
             await expect(
@@ -164,6 +178,13 @@ describe('Trusted Channel attachment file Tools', () => {
           attachments: [original],
         });
       }
+      attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+        db
+          .prepare(
+            "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+          )
+          .run(hiddenId),
+      );
       expect(
         core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: sourceId,

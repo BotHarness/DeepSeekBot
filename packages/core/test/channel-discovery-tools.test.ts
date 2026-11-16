@@ -1,3 +1,4 @@
+import { attachOperationalModule } from '../src/database/owner.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import {
   parameterSchemaSpecToJsonSchema,
@@ -113,6 +114,13 @@ async function withTools(
       author: { kind: 'human' },
       body: 'needle secret',
     });
+    attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+      db
+        .prepare(
+          "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+        )
+        .run(privateGroup.id),
+    );
     const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'ADA')!;
     await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'human-check',
@@ -235,7 +243,7 @@ describe('registered Channel discovery/read contracts', () => {
       ).toEqual({ channels: [], outcome: 'no-accessible-match' });
       expect(await call(tools, 'channel_list', { name: 'no-match' })).toEqual({ channels: [] });
       await expect(call(tools, 'channel_read', { channel_id: fixture.privateId })).rejects.toThrow(
-        'not a member',
+        'bot-channel-access-denied',
       );
     });
   });
@@ -305,11 +313,18 @@ describe('registered Channel discovery/read contracts', () => {
         call(tools, 'channel_read', { ...filters, text: 'changed', cursor: first.nextCursor }),
       ).rejects.toThrow('invalid cursor');
       fixture.core.channels.removeGroupMember(fixture.other, 'ada');
+      attachOperationalModule(fixture.core.operationalDatabase, 'team').transaction((db) =>
+        db
+          .prepare(
+            "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+          )
+          .run(fixture.other),
+      );
       await expect(
         call(tools, 'channel_read', { ...filters, cursor: first.nextCursor }),
       ).rejects.toThrow('invalid cursor');
       await expect(call(tools, 'channel_read', { channel_id: fixture.other })).rejects.toThrow(
-        'not a member',
+        'bot-channel-access-denied',
       );
     });
   });

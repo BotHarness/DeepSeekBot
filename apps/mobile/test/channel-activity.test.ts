@@ -213,3 +213,33 @@ describe('Channel activity on mobile', () => {
     expect(activityOf(notice({ scope: 'other' }))).not.toHaveProperty('target');
   });
 });
+
+it.each(['allowed', 'ask-human', 'rejected'] as const)(
+  'projects the canonical %s Reviewer record as a compact activity',
+  (outcome) => {
+    const message: ChannelWireMessage = {
+      id: 'review',
+      at: '2026-11-16T01:00:00Z',
+      author: { kind: 'system' },
+      body: 'Review',
+      toolAutoApproval: {
+        botSlug: 'ada',
+        sessionId: 'session',
+        callId: 'call',
+        toolName: 'bash',
+        input: '{"command":"echo QA"}',
+        template: 'cautious',
+        templateVersion: 'snapshot',
+        outcome,
+        reason: 'Confirm this command.',
+      },
+    };
+    const activity = activityOf(message);
+    expect(activity?.kind).toBe('approval-review');
+    if (activity === undefined) throw new Error('Missing Reviewer activity');
+    expect(activityText(presented(message), activity, roster).detail).toBe('Confirm this command.');
+    expect(activityText(presented(message), activity, roster).verb).toContain('cautious');
+    expect(activityOf({ ...message, contentPurge: {} })).toBeUndefined();
+    expect(activityOf({ ...message, toolAutoApproval: { outcome } })).toBeUndefined();
+  },
+);

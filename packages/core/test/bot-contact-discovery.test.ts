@@ -229,7 +229,9 @@ describe('Orchestrator bounded contact discovery', () => {
         'cannot be combined',
       );
       for (const botId of ['owner', 'paused', 'removed', 'missing'])
-        await expect(run.channels.contacts({ botId })).rejects.toThrow('active colleague');
+        await expect(run.channels.contacts({ botId })).rejects.toThrow(
+          /active colleague|bot-not-found/,
+        );
       checked = true;
     });
     expect(checked).toBe(true);
@@ -316,11 +318,11 @@ describe('Orchestrator bounded contact discovery', () => {
       expect(core.channels.readMessages(group.id)[0]?.mentions?.[0]?.botSlug).toBe(contact.botId);
       core.registry.setPaused(contact.botId, true);
       await expect(run.channels.contacts({ botId: contact.botId })).rejects.toThrow(
-        'active colleague',
+        /active colleague|bot-not-found/,
       );
       await expect(
         run.channels.sendToBot({ botSlug: contact.botId, body: 'Must not commit' }),
-      ).rejects.toThrow('active PersonaBot');
+      ).rejects.toThrow(/active PersonaBot|bot-principal-inactive/);
       expect(core.channels.readMessages(sent.channelId)).toHaveLength(1);
       checked = true;
     });

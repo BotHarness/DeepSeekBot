@@ -13,6 +13,7 @@ vi.mock('react-native-safe-area-context', () => ({
 
 import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
+  approvalContent,
   answerInChat,
   answerQuestion,
   decideApproval,
@@ -153,7 +154,8 @@ async function type(view: HTMLElement, label: string, text: string): Promise<voi
 }
 
 const line = (view: HTMLElement) =>
-  view.querySelector('[data-testid="card-line"]')?.getAttribute('aria-label');
+  view.querySelector('[data-testid="card-line"]')?.getAttribute('aria-label') ??
+  view.querySelector('[data-testid="approval-result"]')?.textContent;
 
 describe('Tool approval card in the DM', () => {
   const card = (target: HostClient, extra: Record<string, unknown> = {}) =>
@@ -162,6 +164,32 @@ describe('Tool approval card in the DM', () => {
       subject: 'bash',
       ...extra,
     });
+
+  it.each([false, true])(
+    'exposes a stable retry target after load failure with cached content %s',
+    async (cached) => {
+      const load = vi.fn(async () => {
+        throw new Error('unavailable');
+      });
+      const content = cached
+        ? approvalContent(
+            inboxWire.rpc['channelTimeline.approvalPending'].result.value.page.entries[0]!
+              .toolApprovalRequest,
+          )
+        : undefined;
+      const view = await render(
+        card(connect(host()), {
+          port: { load, decide: vi.fn() },
+          ...(content === undefined ? {} : { content }),
+        }),
+      );
+      const retry = view.querySelector<HTMLButtonElement>('[data-testid="approval-retry"]');
+      expect(retry).not.toBeNull();
+      expect(retry?.textContent).toContain(t.tryAgain);
+      await press(retry!);
+      expect(load).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it('shows the key action first and keeps the folder in collapsed details', async () => {
     const view = await render(card(connect(host())));
@@ -177,31 +205,109 @@ describe('Tool approval card in the DM', () => {
     expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
   });
 
-  it('collapses to one line once allowed here', async () => {
-    const fake = host();
-    const sent: Array<Record<string, unknown>> = [];
-    fake.answers.set('toolApprovalDecide', (args) => {
-      sent.push(args);
-      return recorded('toolApprovalDecide.accepted');
-    });
-    const view = await render(card(connect(fake)));
-    await press(button(view, t.alwaysAllow));
-    expect(sent[0]?.['outcome']).toBe('allowed-always-tool');
-    expect(played).toEqual(['notification:success']);
-    expect(line(view)).toBe(
-      t.cardLine('ls /tmp/mobile-fixture', t.cardOutcome['allowed-always-tool']),
+  it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
+    'keeps the opened full card and selected disabled choice after %s',
+    async (outcome) => {
+      const chosenLabel =
+        outcome === 'allowed-once'
+          ? t.allowOnce
+          : outcome === 'rejected'
+            ? t.reject
+            : t.alwaysAllow;
+      const fake = host();
+      const sent: Array<Record<string, unknown>> = [];
+      fake.answers.set('toolApprovalDecide', (args) => {
+        sent.push(args);
+        return recorded('toolApprovalDecide.accepted');
+      });
+      const view = await render(card(connect(fake)));
+      await press(button(view, t.details));
+      await press(button(view, chosenLabel));
+      expect(sent[0]?.['outcome']).toBe(outcome);
+      expect(played).toEqual([
+        outcome === 'rejected' ? 'notification:warning' : 'notification:success',
+      ]);
+      expect(line(view)).toBe(t.cardLine('ls /tmp/mobile-fixture', t.cardOutcome[outcome]));
+      expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
+      expect(view.textContent).toContain('ls /tmp/mobile-fixture');
+      expect(button(view, chosenLabel).disabled).toBe(true);
+      expect(button(view, chosenLabel).getAttribute('aria-selected')).toBe('true');
+      expect(button(view, t.allowOnce).disabled).toBe(true);
+      await press(button(view, t.allowOnce));
+      expect(sent).toHaveLength(1);
+    },
+  );
+
+  it('removes retained approval details when canonical content is cleared', async () => {
+    const target = connect(host());
+    const port = approvalPort(target);
+    const view = await render(createElement(ApprovalCard, { port, subject: 'bash' }));
+    await press(button(view, t.details));
+    await press(button(view, t.reject));
+    expect(view.textContent).toContain('ls /tmp/mobile-fixture');
+    await rerender(
+      createElement(ApprovalCard, {
+        port,
+        contentCleared: true,
+        resolution: { kind: 'tool-approval', outcome: 'rejected' },
+      }),
     );
-    expect(view.querySelector('button')).toBeNull();
+    expect(view.textContent).toContain(t.cardContentUnavailable);
+    expect(view.textContent).not.toContain('ls /tmp/mobile-fixture');
+    expect(view.textContent).not.toContain('/home/qa/');
+    expect(view.querySelector('[data-testid="approval-allow-once"]')).toBeNull();
   });
+
+  it.each(['load', 'decide'] as const)(
+    'does not restore cleared approval details after a late %s response',
+    async (operation) => {
+      const target = connect(host());
+      const request = await loadApproval(target, approval);
+      let completeLoad: ((value: typeof request) => void) | undefined;
+      let completeDecision: ((value: 'accepted') => void) | undefined;
+      const load = vi.fn(() =>
+        operation === 'load'
+          ? new Promise<typeof request>((resolve) => {
+              completeLoad = resolve;
+            })
+          : Promise.resolve(request),
+      );
+      const decide = vi.fn(
+        () =>
+          new Promise<'accepted'>((resolve) => {
+            completeDecision = resolve;
+          }),
+      );
+      const onSettled = vi.fn();
+      const port = { load, decide };
+      const view = await render(createElement(ApprovalCard, { port, onSettled, subject: 'bash' }));
+      if (operation === 'decide') await press(button(view, t.reject));
+      await rerender(createElement(ApprovalCard, { port, onSettled, contentCleared: true }));
+      await act(async () => {
+        if (operation === 'load') completeLoad?.(request);
+        else completeDecision?.('accepted');
+      });
+      await settle();
+      expect(view.textContent).toContain(t.cardContentUnavailable);
+      expect(view.textContent).not.toContain('ls /tmp/mobile-fixture');
+      expect(view.textContent).not.toContain('/home/qa/');
+      expect(onSettled).not.toHaveBeenCalled();
+      expect(load).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('says so when another device decided while the card was open', async () => {
     const target = connect(host());
     const view = await render(card(target));
     expect(button(view, t.allowOnce)).toBeDefined();
+    await press(button(view, t.details));
     await rerender(card(target, { resolution: { kind: 'tool-approval', outcome: 'rejected' } }));
     expect(line(view)).toBe(
       t.cardLine('ls /tmp/mobile-fixture', t.elsewhere(t.cardOutcome.rejected)),
     );
+    expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
+    expect(button(view, t.reject).getAttribute('aria-selected')).toBe('true');
+    expect(button(view, t.reject).disabled).toBe(true);
   });
 
   it('does not call a decision from this phone’s Activity list another device', async () => {
@@ -233,12 +339,13 @@ describe('Tool approval card in the DM', () => {
     );
   });
 
-  it('collapses an expired approval without buttons', async () => {
+  it('retains an expired approval without actionable choices', async () => {
     const fake = host();
     fake.answers.set('toolApprovalStatus', () => expired);
     const view = await render(card(connect(fake)));
     expect(line(view)).toBe(t.cardLine('ls /tmp/mobile-fixture', t.cardExpired));
-    expect(view.querySelector('button')).toBeNull();
+    expect(button(view, t.allowOnce).disabled).toBe(true);
+    expect(button(view, t.reject).disabled).toBe(true);
   });
 
   it('shows a decision already in the DM without asking the Host', async () => {
@@ -247,8 +354,42 @@ describe('Tool approval card in the DM', () => {
       card(connect(fake), { resolution: { kind: 'tool-approval', outcome: 'allowed-once' } }),
     );
     expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-once']));
+    expect(view.textContent).toContain(t.cardContentUnavailable);
+    expect(view.textContent).not.toContain('ls /tmp/mobile-fixture');
     expect(fake.requests.filter((request) => request.includes('toolApproval'))).toEqual([]);
   });
+
+  it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
+    'renders stored %s content without a timeline or status read',
+    async (outcome) => {
+      const fake = host();
+      const source =
+        inboxWire.rpc['channelTimeline.approvalPending'].result.value.page.entries[0]!
+          .toolApprovalRequest;
+      const content = approvalContent(source);
+      expect(content).toBeDefined();
+      const view = await render(
+        card(connect(fake), { content, resolution: { kind: 'tool-approval', outcome } }),
+      );
+      await press(button(view, t.details));
+      expect(view.textContent).toContain(source.cwd);
+      expect(view.textContent).toContain('ls /tmp/mobile-fixture');
+      for (const [choice, label] of [
+        ['allowed-once', t.allowOnce],
+        ['allowed-always-tool', t.alwaysAllow],
+        ['rejected', t.reject],
+      ]) {
+        expect(button(view, label!).disabled).toBe(true);
+        expect(button(view, label!).getAttribute('aria-selected')).toBe(String(outcome === choice));
+        await press(button(view, label!));
+      }
+      expect(
+        fake.requests.filter(
+          (request) => request.includes('channelTimeline') || request.includes('toolApproval'),
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it('names a decision already in the DM by its command', async () => {
     const view = await render(

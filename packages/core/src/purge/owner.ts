@@ -699,7 +699,8 @@ export function mountContentPurge(options: {
       const channels = db
         .prepare(`SELECT c.channel_id, c.record_json FROM channel_records c
       WHERE json_extract(c.record_json, '$.type') = 'dm'
-      AND (json_extract(c.record_json, '$.ownerHumanId') = ? OR
+      AND (json_extract(c.record_json,'$.dmHumanId') IS NULL OR json_extract(c.record_json,'$.dmHumanId') = ?)
+      AND (coalesce(json_extract(c.record_json,'$.dmHumanId'),json_extract(c.record_json, '$.ownerHumanId')) = ? OR
         json_extract(c.record_json, '$.botSlug') IN (SELECT slug FROM persona_bots WHERE owner_human_id = ?) OR
         (json_extract(c.record_json, '$.remoteBot') IS NULL AND json_array_length(c.record_json, '$.members') > 0
           AND NOT EXISTS (SELECT 1 FROM json_each(c.record_json, '$.members') m
@@ -708,7 +709,7 @@ export function mountContentPurge(options: {
         AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id <> ?)))
       AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = c.channel_id AND m.human_id <> ?)
       ORDER BY c.channel_id`)
-        .all(humanId, humanId, humanId, humanId, humanId, humanId);
+        .all(humanId, humanId, humanId, humanId, humanId, humanId, humanId);
       const rows = zSourceRows(
         db
           .prepare(`SELECT e.* FROM source_events e

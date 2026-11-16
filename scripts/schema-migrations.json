@@ -616,6 +616,14 @@
     "sha256": "dffb4326af7af1eabc54a536a08b9856b696b56cd56b0c7baa24e125f7d2fd41"
   },
   {
+    "id": "bot-visibility",
+    "sha256": "d793c25b288ffa4e06d0a7bcb9a459faa6d359badaa1b7a3e18e1f9ac52f2559"
+  },
+  {
+    "id": "human-roster-arrangements",
+    "sha256": "921d8b4dae8529ede795ea09dfe582d12f480f8aafdc5ffccd04918bc1094c12"
+  },
+  {
     "id": "member-devices",
     "sha256": "63577e6e969b47333e63638be4a362adaa11961a520b232413c7a85685ba0301"
   }

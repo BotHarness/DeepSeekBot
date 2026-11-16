@@ -419,6 +419,39 @@ describe('Bot workspace from the composer', () => {
     );
   });
 
+  it.each([null, 'cautious', 'missing-template'])(
+    'preserves global default %s for inherited approval selection',
+    async (globalDefault) => {
+      const fake = new FakeHost();
+      fake.methods.set('approvalTemplates', () => ({
+        templates: [],
+        selected: '@global',
+        globalDefault,
+      }));
+      fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug } }));
+      const host = client(fake);
+      expect(await loadApprovalTemplates(host, slug)).toMatchObject({
+        selected: '@global',
+        globalDefault,
+      });
+      await setApprovalTemplate(host, slug, '@global');
+      expect(calls(fake)).toContainEqual(['botApprovalTemplateSet', { slug, template: '@global' }]);
+    },
+  );
+
+  it.each([42, {}, undefined])(
+    'refuses an unreadable inherited global default instead of treating it as Off',
+    async (globalDefault) => {
+      const fake = new FakeHost();
+      fake.methods.set('approvalTemplates', () => ({
+        templates: [],
+        selected: '@global',
+        globalDefault,
+      }));
+      await expect(loadApprovalTemplates(client(fake), slug)).rejects.toBeInstanceOf(Error);
+    },
+  );
+
   it('reads and sets the auto approval template', async () => {
     const fake = new FakeHost();
     fake.methods.set('approvalTemplates', () => ({

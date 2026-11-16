@@ -57,7 +57,7 @@ describe('selected #Group join request', () => {
           expect(run.message).toContain('"joined":false');
           expect(run.message).not.toContain('"members"');
           expect(run.channels.list({ channelId: groupId }).channels).toEqual([]);
-          expect(() => run.channels.query({ channelId: groupId })).toThrow();
+          expect(() => run.channels.query({ channelId: groupId })).not.toThrow();
           requestId = run.channels.requestGroupJoin!({ channelId: groupId }).id;
           expect(run.channels.list({ channelId: groupId }).channels).toEqual([]);
         } else if (run.message.includes('[Bot Inbox: Group join decision]')) {

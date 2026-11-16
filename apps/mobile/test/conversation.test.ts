@@ -275,7 +275,7 @@ describe('DM conversation', () => {
     expect(new Set(ids(target.getSnapshot())).size).toBe(18);
   });
 
-  it.each(['allowed-once', 'allowed-always-tool'] as const)(
+  it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
     'marks request cards and %s history',
     async (outcome) => {
       const host = new FakeHost();
@@ -316,6 +316,13 @@ describe('DM conversation', () => {
         channelId: DM,
         subject: 'bash',
         command: 'ls /w',
+        approvalContent: {
+          toolName: 'bash',
+          role: 'orchestrator',
+          cwd: '/w',
+          input: '{"command":"ls /w"}',
+          allowAlways: false,
+        },
       });
       expect(decided?.resolves).toEqual({
         requestId: 'ask-tool',

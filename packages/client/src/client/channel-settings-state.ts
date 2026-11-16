@@ -1,6 +1,10 @@
 import type { ConversationStateView } from './store.js';
 import { createContext, useContext } from 'react';
-import type { ChannelSidebarEntry, ChannelSidebarScope } from './channel-sidebar.js';
+import {
+  resolveChannelSidebarContext,
+  type ChannelSidebarEntry,
+  type ChannelSidebarScope,
+} from './channel-sidebar.js';
 
 export interface ChannelSettingsSnapshot {
   readonly open: boolean;
@@ -71,7 +75,30 @@ export function channelSettingsSections(
   state: ConversationStateView,
 ): readonly ChannelSidebarEntry[] {
   return entries.filter(
-    (entry) => isChannelSettingsSection(entry) && (entry.visible?.(state) ?? true),
+    (entry) => isChannelSettingsSection(entry) && channelEntryVisible(entry, state),
+  );
+}
+
+const SHARED_BOT_ENTRIES: ReadonlySet<string> = new Set([
+  'bot-access',
+  'human-nickname',
+  'dm-trace',
+]);
+
+export function sharedBotSelected(state: ConversationStateView): boolean {
+  const slug = resolveChannelSidebarContext(state)?.botSlug;
+  return (
+    slug !== undefined && state.bots.some((bot) => bot.slug === slug && bot.sharedBy !== undefined)
+  );
+}
+
+export function channelEntryVisible(
+  entry: ChannelSidebarEntry,
+  state: ConversationStateView,
+): boolean {
+  if (!(entry.visible?.(state) ?? true)) return false;
+  return (
+    entry.scope !== 'personabot' || !sharedBotSelected(state) || SHARED_BOT_ENTRIES.has(entry.id)
   );
 }
 

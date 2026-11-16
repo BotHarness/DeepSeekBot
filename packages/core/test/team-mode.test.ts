@@ -1141,6 +1141,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
             'creation-unavailable',
             'permission-required',
             'storage-unavailable',
+            'member-not-found',
             'invalid-input',
           ]).toContain(code);
         result = { code };
@@ -2384,11 +2385,27 @@ it('uses the member Peer for device mux, refuses native streams and closes the s
     { current: f.initialPassword, next: 'member-password-1' },
     signed.credential,
   );
+  const crossSite = await new Promise<number | undefined>((resolve) => {
+    const ws = new WebSocket(
+      host.origin.replace('http:', 'ws:') + '/botharness-device/api/remote.mux',
+      { headers: { authorization: `Device ${signed.credential}`, origin: 'https://evil.example' } },
+    );
+    ws.on('unexpected-response', (_request, response) => {
+      resolve(response.statusCode);
+      ws.terminate();
+    });
+    ws.on('open', () => {
+      resolve(101);
+      ws.terminate();
+    });
+    ws.on('error', () => {});
+  });
+  expect(crossSite).toBe(403);
   const own = f.channels.createGroup(f.human, { name: 'Own device Channel', members: [] });
   const secret = f.channels.createGroup(owner, { name: 'Owner Channel', members: [] });
   const ws = new WebSocket(
     host.origin.replace('http:', 'ws:') + '/botharness-device/api/remote.mux',
-    { headers: { authorization: `Device ${signed.credential}` } },
+    { headers: { authorization: `Device ${signed.credential}` }, origin: host.origin },
   );
   closes.push(async () => {
     ws.terminate();
@@ -4466,10 +4483,11 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
       author: { kind: 'human', humanId: f.human.humanId, displayName: 'Bob' },
       body: 'shared body',
     });
-    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('member-active');
-    await f.team.deactivate(owner, f.human.humanId);
-    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('transfer-required');
-    await f.team.transfer(owner, f.human.humanId, owner.humanId);
+    f.registry.create({
+      slug: 'private-bot',
+      displayName: 'Private Bot',
+      ownerHumanId: f.human.humanId,
+    });
     const dm = f.channels.getOrCreateDm(f.human, 'private-bot', 'Private Bot');
     if (!dm) throw new Error('DM unavailable');
     f.database.transaction((db) =>
@@ -4485,6 +4503,10 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
       author: { kind: 'human', humanId: f.human.humanId, displayName: 'Bob' },
       body: 'private body',
     });
+    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('member-active');
+    await f.team.deactivate(owner, f.human.humanId);
+    expect(() => f.team.purgePreview(owner, f.human.humanId)).toThrowError('transfer-required');
+    await f.team.transfer(owner, f.human.humanId, owner.humanId);
     const preview = f.team.purgePreview(owner, f.human.humanId);
     expect(preview.counts).toEqual({ channels: 1, bots: 0, messages: 1, files: 0 });
     await expect(

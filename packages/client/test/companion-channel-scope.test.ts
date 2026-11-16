@@ -195,7 +195,7 @@ it('plays newly committed shared Group replies only while the Human enables Grou
   }
 });
 
-it('observes only the selected Bot in a Group without the Human while preserving original timeline access', async () => {
+it('refuses new Bot text when its principal left the Group while preserving own DM observation', async () => {
   const core = createCore({ dshHome: createTempRoot('companion-private-group-') });
   const fixture = attachOperationalModule(core.operationalDatabase, 'companion-membership-fixture');
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
@@ -256,29 +256,27 @@ it('observes only the selected Bot in a Group without the Human while preserving
     companion.select('ada');
     companion.configure({ group: true });
     await receive();
-    await commit(group.id, 'hidden-in-shared');
+    await expect(commit(group.id, 'hidden-in-shared')).rejects.toMatchObject({
+      code: 'bot-channel-access-denied',
+    });
     await commit(own.id, 'owned-sentinel');
     await receive();
     expect(companion.getSnapshot().cards.map((card) => card.messageId)).toEqual(['owned-sentinel']);
     companion.configure({ visibility: 'all-bot' });
     await receive();
-    await commit(group.id, 'Selected Bot summary');
-    await receive();
+    await expect(commit(group.id, 'Selected Bot summary')).rejects.toMatchObject({
+      code: 'bot-channel-access-denied',
+    });
     expect(companion.getSnapshot().cards).toMatchObject([
       { messageId: 'owned-sentinel', source: 'own-dm' },
-      {
-        body: 'Selected Bot summary',
-        source: 'bot-group',
-        channelName: 'Bot workroom',
-        canOpen: false,
-      },
     ]);
-    await commit(group.id, 'Other Bot reply', 'grace');
+    await expect(commit(group.id, 'Other Bot reply', 'grace')).rejects.toMatchObject({
+      code: 'bot-channel-access-denied',
+    });
     await commit(own.id, 'next-owned-sentinel');
     await receive();
     expect(companion.getSnapshot().cards.map((card) => card.messageId)).toEqual([
       'owned-sentinel',
-      'Selected Bot summary',
       'next-owned-sentinel',
     ]);
     expect(core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, group.id)).toBeUndefined();

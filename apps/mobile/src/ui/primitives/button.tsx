@@ -34,6 +34,7 @@ export function Button({
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   on = 'raised',
   variant = 'filled',
   symbol,
@@ -45,6 +46,7 @@ export function Button({
   tone?: ButtonTone;
   disabled?: boolean;
   busy?: boolean;
+  selected?: boolean;
   on?: LayerName;
   variant?: 'filled' | 'text';
   symbol?: ButtonSymbol;
@@ -63,7 +65,7 @@ export function Button({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: disabled || busy, busy }}
+      accessibilityState={{ disabled: disabled || busy, busy, selected }}
       disabled={disabled || busy}
       onPress={onPress}
       android_ripple={{ color: pressTint(labelColor) }}
@@ -79,7 +81,7 @@ export function Button({
         borderRadius: radius.round,
         backgroundColor: pressed ? colors.pressed : filled ? colors.fill : undefined,
         overflow: 'hidden',
-        opacity: disabled ? 0.45 : 1,
+        opacity: disabled && !selected ? 0.45 : 1,
       })}
     >
       {busy ? (

@@ -98,6 +98,8 @@ describe("generated developer reference", () => {
     ).toEqual([
       { name: "agent/assistant-stream", direction: "consumes", operation: "on" },
       { name: "agent/created", direction: "consumes", operation: "on" },
+      { name: "agent/created", direction: "consumes", operation: "on" },
+      { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/inbox/claimed", direction: "consumes", operation: "on" },
@@ -110,6 +112,7 @@ describe("generated developer reference", () => {
       { name: "approval/request", direction: "consumes", operation: "on" },
       { name: "botharness/personabot/activity", direction: "emits", operation: "emit" },
       { name: "session/event", direction: "consumes", operation: "on" },
+      { name: "skills/change", direction: "consumes", operation: "on" },
       { name: "subagent/start", direction: "consumes", operation: "on" },
       { name: "system-prompt/assemble", direction: "consumes", operation: "on" },
       { name: "system-prompt/assemble", direction: "consumes", operation: "on" },

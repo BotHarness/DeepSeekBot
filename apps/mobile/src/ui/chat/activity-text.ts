@@ -64,6 +64,15 @@ export function activityText(
     return kind === 'memory' ? copy.memoryIn(place) : copy.posted(place, count);
   };
   switch (activity.kind) {
+    case 'approval-review': {
+      const review = activity.record;
+      return {
+        botSlug: review.botSlug,
+        name: botName(review.botSlug),
+        verb: copy.review[review.outcome](review.template),
+        detail: review.reason,
+      };
+    }
     case 'dm-action':
       return {
         ...sender,
