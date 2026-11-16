@@ -551,15 +551,12 @@ function familyEffects(
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':
-      if (
-        action === undefined ||
-        ['get', 'roles', 'browse', 'browse-public', 'member-candidates'].includes(action)
-      )
+      if (action === undefined || ['get', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
       if (['visibility', 'admins', 'add-member', 'policy', 'set-public'].includes(action))
         return management;
-      if (['join', 'join-public', 'description'].includes(action)) return write;
+      if (['description'].includes(action)) return write;
       return undefined;
     case 'devices':
       return values.revoke === undefined ? read : destructiveManagement;

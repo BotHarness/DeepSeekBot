@@ -177,7 +177,6 @@ describe('M10 with M2 private ownership, M4 Channels and M9 lifecycle', () => {
       members: [privateBot.slug],
     });
     f.core.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
-    f.core.team.channelAccess.join(recipient, group.id);
     const label = '@' + privateBot.displayName;
     await f.core.channels.appendMessage(recipient, group.id, {
       id: 'member-mention',

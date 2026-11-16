@@ -34,15 +34,6 @@ export interface ChannelAccess {
   readonly policyRevision?: string;
 }
 
-export interface BrowsableChannel {
-  readonly channelId: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly memberCount: number;
-  readonly joined: boolean;
-  readonly visibility: 'public' | 'roles';
-}
-
 export interface DirectoryEntry {
   readonly humanId: string;
   readonly displayName: string;
@@ -138,35 +129,6 @@ export async function setChannelAdmins(
   humanIds: readonly string[],
 ): Promise<void> {
   await unwrap(call, 'channelAdminsSet', { channelId, humanIds: [...humanIds] });
-}
-
-export function parseBrowsableChannel(value: unknown): BrowsableChannel | undefined {
-  const row = record(value);
-  const channelId = row?.['channelId'];
-  const name = row?.['name'];
-  if (row === undefined || typeof channelId !== 'string' || typeof name !== 'string')
-    return undefined;
-  const count = row['memberCount'];
-  const description = row['description'];
-  return {
-    channelId,
-    name,
-    ...(typeof description === 'string' && description.length > 0 ? { description } : {}),
-    memberCount: typeof count === 'number' && Number.isFinite(count) && count >= 0 ? count : 0,
-    joined: row['joined'] === true,
-    visibility: row['visibility'] === 'roles' ? 'roles' : 'public',
-  };
-}
-
-export async function loadBrowsableChannels(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<BrowsableChannel[]> {
-  return list(await unwrap(call, 'browsableChannels', {}, signal), parseBrowsableChannel);
-}
-
-export async function joinChannel(call: BridgeCall, channelId: string): Promise<void> {
-  await unwrap(call, 'channelJoin', { channelId });
 }
 
 export function parseDirectoryEntry(value: unknown): DirectoryEntry | undefined {

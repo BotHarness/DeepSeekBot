@@ -10,9 +10,9 @@ describe('Team New menu gating', () => {
     expect(menuItemAllowed('bot', { kind: 'owner', owner: true, permissions: [] })).toBe(true);
   });
 
-  it('gives a default member only browsing, sections and DMs', () => {
+  it('gives a default member only sections and DMs, with no Browse channels entry', () => {
     const viewer = member(['dm.humans']);
-    expect(menuItemAllowed('public-channels', viewer)).toBe(true);
+    expect(menuItemAllowed('public-channels', viewer)).toBe(false);
     expect(menuItemAllowed('section', viewer)).toBe(true);
     expect(menuItemAllowed('message-person', viewer)).toBe(true);
     expect(menuItemAllowed('bot', viewer)).toBe(false);

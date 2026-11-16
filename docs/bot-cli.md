@@ -2079,8 +2079,7 @@ deepseekbot members list
 deepseekbot members reset-password bob --initial-password-file ./bob-reset.txt
 deepseekbot channels set-public <channel-id> on
 deepseekbot --as bob members password --password-stdin < password-change.json
-deepseekbot --as bob channels browse-public
-deepseekbot --as bob channels join-public <channel-id>
+deepseekbot --as bob channels
 deepseekbot --as bob channels send <channel-id> --body-stdin < message.txt
 deepseekbot --as bob channel-messages <channel-id>
 

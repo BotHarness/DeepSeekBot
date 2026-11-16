@@ -943,7 +943,6 @@ describe('M5 approval projections and decisions', () => {
           .run(f.group.id, alice.humanId),
       );
       f.team.channelAccess.visibilitySet(bob, f.group.id, { kind: 'roles', roleIds: ['member'] });
-      f.team.channelAccess.join(alice, f.group.id);
       const request = await seed(f, kind);
       const project = vi.spyOn(f.team.approvals, 'project');
       expect(await f.invoke(bob, 'channelGet', { channelId: f.group.id })).toMatchObject({
@@ -1645,7 +1644,7 @@ describe('M5 approval projections and decisions', () => {
   });
 
   it.each(['public', 'roles'] as const)(
-    'masks requests for an unjoined administrator in a %s Group',
+    'auto-joins an administrator into a %s Group so its requests are not masked',
     async (visibility) => {
       const f = fixture();
       f.team.channelAccess.visibilitySet(
@@ -1655,27 +1654,18 @@ describe('M5 approval projections and decisions', () => {
           ? { kind: 'public' }
           : { kind: 'roles', roleIds: ['member', 'admin'] },
       );
+      expect(
+        f.database.read((db) =>
+          db
+            .prepare(
+              "SELECT membership_basis AS basis FROM channel_human_members WHERE channel_id = ? AND human_id = 'admin' AND left_at IS NULL",
+            )
+            .get(f.group.id),
+        ),
+      ).toEqual({ basis: 'role' });
       const request = await seed(f, 'question');
-      expect(() => f.team.approvals.requireRequest(admin, f.group.id, request.id)).toThrow(
-        'approval-not-allowed',
-      );
-      expect(f.team.approvals.card(admin, f.group.id, request)?.masked).toBe(true);
-      expect(
-        await f.invoke(admin, 'channelSearch', { channelId: f.group.id, text: 'CONFIDENTIAL' }),
-      ).toMatchObject({ messages: [] });
-      masked(await f.invoke(admin, 'channelMessages', { channelId: f.group.id }), request.id);
-      expect(
-        f.team.approvals.searchText(admin, f.group.id, request.id, request.body),
-      ).not.toContain('CONFIDENTIAL');
       expect(() => f.team.approvals.requireRequest(alice, f.group.id, request.id)).not.toThrow();
       expect(f.team.approvals.card(alice, f.group.id, request)?.masked).toBe(false);
-      f.database.transaction((db) =>
-        db
-          .prepare(
-            `INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at) VALUES (?, 'admin', 'Admin', 0, ?)`,
-          )
-          .run(f.group.id, request.at),
-      );
       expect(() => f.team.approvals.requireRequest(admin, f.group.id, request.id)).not.toThrow();
       expect(f.team.approvals.card(admin, f.group.id, request)?.masked).toBe(false);
     },
