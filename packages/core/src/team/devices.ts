@@ -35,8 +35,9 @@ export function createMemberDevices(options: {
     ...options.pairing.host(),
     fingerprint: (await options.encryption()).fingerprint,
   });
-  const routes = async () => memberUrls(await options.routes(), false);
+  const routes = async () => memberUrls(await options.routes());
   return {
+    routes,
     async invitation(humanId: string): Promise<MemberInvitation> {
       const member = options.team.member(humanId);
       if (!member) throw new TeamError('member-not-found');
