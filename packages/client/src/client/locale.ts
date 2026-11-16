@@ -473,6 +473,7 @@ export const zh = {
   'settings.noResults': '没有找到匹配的设置',
   'settings.home': '常用',
   'settings.home.restore': '恢复默认固定',
+  'settings.home.pairPhone': '连接手机',
   'settings.home.empty': '还没有固定的设置。打开任意设置页，点右上角的星标把它固定到这里。',
   'settings.pin': '固定到常用',
   'settings.unpin': '从常用移除',
@@ -6404,6 +6405,7 @@ export const en = {
   'settings.noResults': 'No matching settings',
   'settings.home': 'Pinned',
   'settings.home.restore': 'Restore default pins',
+  'settings.home.pairPhone': 'Connect phone',
   'settings.home.empty':
     'Nothing is pinned yet. Open any settings page and select the star at the top to pin it here.',
   'settings.pin': 'Pin to Pinned',

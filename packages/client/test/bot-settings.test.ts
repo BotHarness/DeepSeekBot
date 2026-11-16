@@ -915,7 +915,7 @@ it('opens the phone and computer connection steps straight from their Pinned car
   act(() => settings.open());
   expect(
     [...document.querySelectorAll('[data-settings-pin]')].map((card) => card.textContent),
-  ).toEqual(['用手机连接这台电脑', '连接其他电脑']);
+  ).toEqual(['连接手机', '连接其他电脑']);
   await click('[data-settings-pin="join-computer"] button');
   expect(settings.getSnapshot()).toMatchObject({
     sectionId: 'devices',

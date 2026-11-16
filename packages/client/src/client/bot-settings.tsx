@@ -88,7 +88,7 @@ export function botSettingsSectionIcon(id: string): string {
 }
 
 const CONNECT_ACTIONS = [
-  { id: 'pair-phone', label: 'connections.invite', icon: 'smartphone' },
+  { id: 'pair-phone', label: 'settings.home.pairPhone', icon: 'smartphone' },
   { id: 'join-computer', label: 'connections.join', icon: 'laptop' },
 ] as const;
 
