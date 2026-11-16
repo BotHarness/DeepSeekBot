@@ -53,8 +53,9 @@ describe('publishing the phone route', () => {
     });
     const pending = owner.enable();
     await vi.waitFor(() => expect(release).toBeDefined());
-    owner.close();
+    const closing = owner.close();
     release?.();
+    await closing;
     expect((await pending).ok).toBe(false);
     expect(fake.calls.some((args) => args.includes('--bg'))).toBe(false);
   });
