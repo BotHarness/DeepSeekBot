@@ -9,6 +9,7 @@ import {
   type AppearanceSnapshot,
 } from './appearance.js';
 import { NATIVE_LIGHT, NATIVE_DARK } from './appearance-native-tokens.js';
+import { tobsTokens } from './tobs-theme.js';
 export const APPEARANCE_CLASS = 'bh-appearance-scope';
 export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const { config, mode } = snapshot;
@@ -18,6 +19,7 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const tokens: Record<string, string> = {
     ...NATIVE_LIGHT,
     ...(mode === 'dark' ? NATIVE_DARK : {}),
+    ...tobsTokens(mode, selected.preset, selected.primary),
   };
   for (const part of ['header', 'body'] as const) {
     const material = materials[part];

@@ -5,10 +5,9 @@ import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Yoga, { type Node as YogaNode } from 'yoga-layout';
 
-vi.mock('../src/ui/chat/skill-suggestions', () => ({
+vi.mock('../src/ui/chat/skill-owner', () => ({
   SkillOwnerMark: () => null,
   skillOwnerName: () => '',
-  SkillSuggestions: () => null,
 }));
 vi.mock('expo', () => ({ requireOptionalNativeModule: () => null }));
 

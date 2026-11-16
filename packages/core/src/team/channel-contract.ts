@@ -39,7 +39,23 @@ export function channelRoleMembershipExitSql(scope: 'human' | 'channel' | 'all')
   return `UPDATE channel_human_members AS m SET left_at = ?
     WHERE ${filter} left_at IS NULL AND membership_basis = 'role'
       AND EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = m.channel_id
-        AND NOT ${channelRoleEligibleSql('c', 'm.human_id')})`;
+        AND (json_extract(c.visibility_json, '$.kind') = 'private'
+          OR NOT ${channelRoleEligibleSql('c', 'm.human_id')}))`;
+}
+
+export function channelRoleMembershipEntrySql(scope: 'human' | 'channel' | 'all'): string {
+  const filter =
+    scope === 'human' ? 'h.human_id = ? AND' : scope === 'channel' ? 'c.channel_id = ? AND' : '';
+  return `INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at, membership_basis)
+    SELECT c.channel_id, h.human_id, h.display_name, 1, ?1, 'role'
+    FROM channel_records c JOIN humans h ON h.status = 'active'
+    WHERE ${filter.replace('?', '?2')} json_extract(c.record_json, '$.type') = 'group'
+      AND json_extract(c.record_json, '$.deletedAt') IS NULL
+      AND json_extract(c.visibility_json, '$.kind') IN ('public', 'roles')
+      AND ${channelRoleEligibleSql('c', 'h.human_id')}
+      AND NOT EXISTS (SELECT 1 FROM channel_human_members x
+        WHERE x.channel_id = c.channel_id AND x.human_id = h.human_id AND x.left_at IS NULL)
+    ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL, membership_basis = 'role'`;
 }
 
 export function channelBotDmEligibleSql(channel: string, humanId: string): string {

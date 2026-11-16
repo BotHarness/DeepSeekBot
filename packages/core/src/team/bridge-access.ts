@@ -295,8 +295,6 @@ export function guardHumanBridge(
         if (
           typeof channelId === 'string' &&
           ![
-            'publicChannelJoin',
-            'channelJoin',
             'channelPublicSet',
             'channelVisibilitySet',
             'channelPolicySet',

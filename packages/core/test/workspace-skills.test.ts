@@ -476,7 +476,6 @@ describe('Workspace Grant Project Skills', () => {
       members: ['ada', 'alice-bot'],
     });
     f.core.team.channelAccess.visibilitySet(OWNER_HUMAN_CONTEXT, group.id, { kind: 'public' });
-    f.core.team.channelAccess.join(alice, group.id);
     const aliceRoot = join(f.core.team.spaces.ensureAccount(alice.humanId), 'files');
     put(aliceRoot, 'alice-review');
     await f.core.grants.create('alice-bot', 'spaces/alice');
