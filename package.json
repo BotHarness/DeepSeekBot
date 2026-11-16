@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit && pnpm --filter @botharness/mobile typecheck",
-    "lint": "oxlint && node scripts/check-schema-migrations.mjs && node scripts/check-source-policy.mjs && node scripts/check-no-shell-scripts.mjs && node scripts/check-pr-evidence.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && node scripts/check-cli-parity.mjs && node scripts/check-tool-effects.mjs && node scripts/check-host-casts.mjs && node scripts/check-feature-map.mjs && node scripts/sync-bot-preset.mjs --check && node scripts/ci-plan.mjs --check && pnpm install:check",
+    "lint": "node scripts/lint-ratchet.mjs && node scripts/check-schema-migrations.mjs && node scripts/check-source-policy.mjs && node scripts/check-no-shell-scripts.mjs && node scripts/check-pr-evidence.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && node scripts/check-cli-parity.mjs && node scripts/check-tool-effects.mjs && node scripts/check-host-casts.mjs && node scripts/check-feature-map.mjs && node scripts/sync-bot-preset.mjs --check && node scripts/ci-plan.mjs --check && pnpm install:check",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -37,7 +37,8 @@
     "docs:build": "pnpm slides:build && pnpm --filter docs build",
     "docs:deploy": "pnpm --filter docs run deploy",
     "telemetry:plan": "BOTHARNESS_WRITE_TELEMETRY_PLAN=1 vitest run packages/core/test/telemetry-plan.test.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "lint:baseline": "node scripts/lint-ratchet.mjs --update"
   },
   "devDependencies": {
     "@astrojs/compiler": "2.13.1",
@@ -55,6 +56,7 @@
     "lint-staged": "^17.6.0",
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
+    "oxlint-tsgolint": "^7.0.2007",
     "portless": "^0.15.6",
     "postcss": "8.5.28",
     "semver": "^7.8.5",

@@ -1,0 +1,20 @@
+{
+  "guardrails": [
+    {
+      "id": "floating-promise",
+      "layer": "L2 lint",
+      "rule": "typescript/no-floating-promises",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4297",
+      "fix": "await the promise, return it, end it with .catch(...) that records a Developer diagnostics log, or mark a deliberate fire-and-forget with `void`.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "pr-provenance",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893",
+      "fix": "write `Harness: <name>` and `Model: <id>` lines in the PR or issue description (several allowed, comma-separated), or add the harness:<name> and model:<id> labels.",
+      "check": "scripts/check-pr-provenance.mjs"
+    }
+  ]
+}

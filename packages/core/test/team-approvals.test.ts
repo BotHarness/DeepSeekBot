@@ -381,7 +381,7 @@ describe('M5 approval projections and decisions', () => {
     'never matches hidden %s content in any Human search',
     async (kind) => {
       const f = fixture();
-      f.roster.attach(createFakeRosterDomain().facility);
+      await f.roster.attach(createFakeRosterDomain().facility);
       const request = await seed(f, kind);
       for (const text of ['CONFIDENTIAL', 'CONFIDENTIAL_TOOL', 'CONFIDENTIAL_QUESTION', 'CO']) {
         expect(await f.invoke(bob, 'channelSearch', { channelId: f.group.id, text })).toMatchObject(

@@ -19,7 +19,7 @@ type ButtonProps = {
   children: ReactNode;
 };
 
-vi.hoisted(async () => {
+await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
   const { readdirSync } = await import('node:fs');
   const { dirname } = await import('node:path');
