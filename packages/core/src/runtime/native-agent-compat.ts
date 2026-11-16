@@ -131,6 +131,28 @@ export function onHostSkillsChange(ctx: Context, changed: () => void): () => voi
   return ctx.on('skills/change', changed, { global: true });
 }
 
+export function hostSkillAgent(ctx: Context, sessionId: string | undefined): Agent | undefined {
+  return sessionId === undefined
+    ? undefined
+    : ctx.agents.list().find((agent) => agent.session.id === sessionId);
+}
+
+export function onHostSkillAgentsChange(ctx: Context, changed: () => void): () => void {
+  const created = ctx.on(
+    'agent/created',
+    () => {
+      changed();
+      return undefined;
+    },
+    { global: true },
+  );
+  const disposed = ctx.on('agent/disposed', changed, { global: true });
+  return () => {
+    created();
+    disposed();
+  };
+}
+
 export function hostSkillRegistry<Registry>(ctx: Context): Registry | undefined {
   const skills: unknown = Reflect.get(ctx, 'skills');
   return typeof skills === 'object' &&

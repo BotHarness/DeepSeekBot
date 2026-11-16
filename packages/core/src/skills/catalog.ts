@@ -191,7 +191,15 @@ export class SkillCatalog {
     const registry = this.#registry;
     if (registry === undefined) return false;
     const observed = [...this.#cache].filter(([, entry]) => entry.host !== undefined);
-    if (observed.length === 0) return true;
+    if (
+      observed.length === 0 ||
+      [...this.#cache.values()].some(
+        (entry) => entry.host === undefined && entry.loading !== undefined,
+      )
+    ) {
+      this.invalidateHost();
+      return true;
+    }
     for (const [slug, entry] of observed) {
       const version = await this.#withView(slug, registry, async (view, options) =>
         hostVersion(hostEntriesFrom(await view.list(options)), (name) => view.get(name, options)),

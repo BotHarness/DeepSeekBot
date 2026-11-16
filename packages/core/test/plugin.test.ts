@@ -83,6 +83,61 @@ function logsSkill(stubs: { skills: { register: { mock: { calls: unknown[][] } }
 }
 
 describe('plugin entry', () => {
+  it('refreshes the selected Skill view when a live Orchestrator Agent attaches and detaches', async () => {
+    const { ctx, stubs } = createStubContext();
+    const list = vi.fn(async (options?: { cwd?: string; scope?: object }) =>
+      options?.cwd === undefined
+        ? []
+        : [
+            {
+              name: options.scope === agent ? 'live' : 'preset',
+              description: 'Project Skill',
+              source: 'project-agents',
+              path: join(options.cwd, '.agents/skills/qa/SKILL.md'),
+              invocation: { userInvocable: true },
+            },
+          ],
+    );
+    const skills = Object.assign(stubs.skills, {
+      list,
+      async get() {
+        return undefined;
+      },
+      registerProvider: vi.fn(() => () => {}),
+    });
+    ctx.provide('agentPresets', {
+      serviceFor: () => skills,
+      async acquireScope() {
+        return { key: {}, async [Symbol.asyncDispose]() {} };
+      },
+    } as never);
+    const agent = {
+      ctx,
+      session: { id: 'ada-live', header: {}, snapshotEvents: () => [] },
+    };
+    apply(ctx, { enabled: true });
+    const core = ctx.get('botharness');
+    const bridge = ctx.get('botharnessBridge');
+    if (core === undefined || bridge === undefined) throw new Error('Core unavailable');
+    core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    vi.spyOn(core.runtime, 'currentOrchestratorSessionId').mockReturnValue('ada-live');
+    const changed = vi.spyOn(core.live, 'publishSkillCatalogChanged');
+    await vi.waitFor(async () => {
+      expect((await bridge.channelSkillCatalog(dm.id)).skills).toMatchObject([{ name: 'preset' }]);
+    });
+    stubs.agents.list.mockReturnValue([agent]);
+    changed.mockClear();
+    await ctx.serial('agent/created', { agent, source: 'startup' } as never);
+    expect(changed).toHaveBeenCalledExactlyOnceWith({ botSlugs: ['ada'], channelIds: [dm.id] });
+    expect((await bridge.channelSkillCatalog(dm.id)).skills).toMatchObject([{ name: 'live' }]);
+    stubs.agents.list.mockReturnValue([]);
+    changed.mockClear();
+    ctx.emit('agent/disposed', { agent } as never);
+    expect(changed).toHaveBeenCalledExactlyOnceWith({ botSlugs: ['ada'], channelIds: [dm.id] });
+    expect((await bridge.channelSkillCatalog(dm.id)).skills).toMatchObject([{ name: 'preset' }]);
+  });
+
   it('binds a native Subagent activation before a later parent turn can take its usage', () => {
     const { ctx, stubs } = createStubContext();
     apply(ctx, { enabled: true });

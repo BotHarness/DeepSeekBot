@@ -6,6 +6,16 @@ export interface SkillCatalogBot {
   slug: string;
   memoryDir: string;
   preset?: string;
+  agent?: object | undefined;
+}
+
+interface WatchedBot {
+  bot: SkillCatalogBot;
+  failures: number;
+  state:
+    | { kind: 'watching'; close(): void }
+    | { kind: 'retrying'; timer: ReturnType<typeof setTimeout> }
+    | { kind: 'failed' };
 }
 
 function watchMemorySkills(
@@ -59,7 +69,9 @@ function watchMemorySkills(
         }
         changed();
       });
-      watcher.on('error', failed);
+      watcher.on('error', (error) => {
+        if (!closed && watchers.get(path)?.watcher === watcher) failed(error);
+      });
       watchers.set(path, { watcher, identity: identities.get(path)! });
     }
   };
@@ -84,7 +96,7 @@ export function watchSkillCatalog(options: {
   changed(botSlugs: string[]): void;
   diagnostic(phase: string, fields: { botSlug?: string; reason?: string; count?: number }): void;
 }): { reconcile(): void; hostChanged(): Promise<void>; close(): void } {
-  const watched = new Map<string, { bot: SkillCatalogBot; close(): void }>();
+  const watched = new Map<string, WatchedBot>();
   let closed = false;
   let hostDirty = false;
   let hostRefresh: Promise<void> | undefined;
@@ -105,14 +117,74 @@ export function watchSkillCatalog(options: {
       }, 25),
     );
   };
+  const stop = (entry: WatchedBot): void => {
+    if (entry.state.kind === 'watching') entry.state.close();
+    else if (entry.state.kind === 'retrying') clearTimeout(entry.state.timer);
+    entry.state = { kind: 'failed' };
+  };
+  const failed = (entry: WatchedBot, error: unknown): void => {
+    const { slug } = entry.bot;
+    if (closed || watched.get(slug) !== entry) return;
+    stop(entry);
+    cancel(slug);
+    options.catalog.invalidateMemory(slug);
+    options.diagnostic('failed', {
+      botSlug: slug,
+      reason: error instanceof Error ? error.name : 'unknown',
+    });
+    if (entry.failures < 3) {
+      const delay = Math.min(100 * 2 ** entry.failures++, 1000);
+      entry.state = {
+        kind: 'retrying',
+        timer: setTimeout(() => {
+          if (closed || watched.get(slug) !== entry) return;
+          if (start(entry)) {
+            options.catalog.invalidateMemory(slug);
+            options.invalidateNative?.();
+            options.changed([slug]);
+          }
+        }, delay),
+      };
+      options.diagnostic('retry', { botSlug: slug, count: entry.failures });
+    } else options.diagnostic('retry-exhausted', { botSlug: slug, count: entry.failures });
+    options.changed([slug]);
+  };
+  const start = (entry: WatchedBot): boolean => {
+    const { slug, memoryDir } = entry.bot;
+    entry.state = { kind: 'failed' };
+    try {
+      const close = watchMemorySkills(
+        memoryDir,
+        () => {
+          if (closed || watched.get(slug) !== entry || entry.state.kind !== 'watching') return;
+          entry.failures = 0;
+          memoryChanged(slug);
+        },
+        (error) => failed(entry, error),
+      );
+      entry.state = { kind: 'watching', close };
+      options.diagnostic('watch', { botSlug: slug });
+      return true;
+    } catch (error) {
+      failed(entry, error);
+      return false;
+    }
+  };
   const reconcile = (): void => {
     if (closed) return;
     const bots = new Map(options.bots().map((bot) => [bot.slug, bot]));
     const changed = new Set<string>();
     for (const [slug, entry] of watched) {
       const bot = bots.get(slug);
-      if (bot?.memoryDir === entry.bot.memoryDir && bot.preset === entry.bot.preset) continue;
-      entry.close();
+      if (bot?.memoryDir === entry.bot.memoryDir && bot.preset === entry.bot.preset) {
+        if (bot.agent !== entry.bot.agent) {
+          options.catalog.invalidateMemory(slug);
+          changed.add(slug);
+        }
+        entry.bot = bot;
+        continue;
+      }
+      stop(entry);
       cancel(slug);
       watched.delete(slug);
       options.catalog.invalidateBot(slug);
@@ -121,35 +193,9 @@ export function watchSkillCatalog(options: {
     }
     for (const [slug, bot] of bots) {
       if (watched.has(slug)) continue;
-      try {
-        const entry = {
-          bot,
-          close: watchMemorySkills(
-            bot.memoryDir,
-            () => {
-              if (closed || watched.get(slug) !== entry) return;
-              memoryChanged(slug);
-            },
-            (error) => {
-              if (closed || watched.get(slug) !== entry) return;
-              entry.close();
-              cancel(slug);
-              watched.delete(slug);
-              options.catalog.invalidateMemory(slug);
-              options.diagnostic('failed', { botSlug: slug, reason: error.name });
-              options.changed([slug]);
-            },
-          ),
-        };
-        watched.set(slug, entry);
-        options.diagnostic('watch', { botSlug: slug });
-        changed.add(slug);
-      } catch (error) {
-        options.diagnostic('failed', {
-          botSlug: slug,
-          reason: error instanceof Error ? error.name : 'unknown',
-        });
-      }
+      const entry: WatchedBot = { bot, failures: 0, state: { kind: 'failed' } };
+      watched.set(slug, entry);
+      if (start(entry)) changed.add(slug);
     }
     if (changed.size > 0) options.changed([...changed]);
   };
@@ -176,7 +222,7 @@ export function watchSkillCatalog(options: {
       closed = true;
       for (const slug of pending.keys()) cancel(slug);
       for (const [slug, entry] of watched) {
-        entry.close();
+        stop(entry);
         cancel(slug);
         options.catalog.invalidateBot(slug);
       }

@@ -21,6 +21,7 @@ import {
   type SkillRegistryPort,
 } from '../src/skills/catalog.js';
 import { watchSkillCatalog } from '../src/skills/refresh.js';
+import { createSkillViewPort } from '../src/skills/agent-view.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 
@@ -269,6 +270,32 @@ describe('live Skill catalog', () => {
     ]);
   });
 
+  it.each([false, true])(
+    'discards a cold Host observation during a Host change (warm cache: %s)',
+    async (warm) => {
+      const f = fixture();
+      if (warm) await f.catalog.list(['bob']);
+      f.list.mockClear();
+      const old = { ...f.host[0]!, name: 'old' };
+      let release: (skills: SkillRegistryDefinition[]) => void = () => {};
+      const deferred = new Promise<SkillRegistryDefinition[]>((resolve) => {
+        release = resolve;
+      });
+      f.list.mockImplementationOnce(async () => []);
+      f.list.mockImplementationOnce(() => deferred);
+      const pending = f.catalog.list(['ada']);
+      await vi.waitFor(() => expect(f.list).toHaveBeenCalledTimes(2));
+      f.host[0] = { ...old, name: 'new' };
+      await f.refresh.hostChanged();
+      expect(f.changed).toHaveBeenCalledWith(['ada', 'bob']);
+      const notified = f.catalog.list(['ada']);
+      release([old]);
+      expect((await pending).map((entry) => entry.name)).toEqual(['new']);
+      expect((await notified).map((entry) => entry.name)).toEqual(['new']);
+      expect((await f.catalog.list(['ada'])).map((entry) => entry.name)).toEqual(['new']);
+    },
+  );
+
   it('detects Host Skill body changes even when the catalog description is unchanged', async () => {
     const f = fixture();
     const path = join(createTempRoot(), 'SKILL.md');
@@ -279,6 +306,80 @@ describe('live Skill catalog', () => {
     writeFileSync(path, 'after with a different size');
     await f.refresh.hostChanged();
     expect(f.changed).toHaveBeenCalledWith(['ada', 'bob']);
+  });
+
+  it('refreshes only the selected Bot Project view on Agent attach, replacement and detach', async () => {
+    const root = createTempRoot();
+    let selected: object | undefined;
+    const first = {};
+    const replacement = {};
+    const project = (name: string) =>
+      definition(name, join(root, '.agents/skills', name, 'SKILL.md'));
+    const host = { ...definition('host', '/host/SKILL.md'), source: 'runtime' };
+    const global: SkillRegistryPort = {
+      list: vi.fn<SkillRegistryPort['list']>(async (options) =>
+        options?.cwd === undefined ? [host] : [project('preset')],
+      ),
+      async get() {
+        return undefined;
+      },
+    };
+    const scoped: SkillRegistryPort = {
+      list: vi.fn<SkillRegistryPort['list']>(async (options) =>
+        options?.cwd === undefined
+          ? [host]
+          : [project(options.scope === first ? 'live' : 'replacement')],
+      ),
+      async get() {
+        return undefined;
+      },
+    };
+    const catalog = new SkillCatalog({
+      memoryDirFor: () => root,
+      viewFor: createSkillViewPort({
+        agentFor: (slug) => (slug === 'ada' ? selected : undefined),
+        presetFor: () => 'default',
+        agentPresets: () => ({
+          serviceFor: () => scoped,
+          async acquireScope() {
+            return { key: {}, async [Symbol.asyncDispose]() {} };
+          },
+        }),
+      }),
+    });
+    catalog.attach(global);
+    const changed = vi.fn();
+    const refresh = watchSkillCatalog({
+      catalog,
+      bots: () =>
+        ['ada', 'bob'].map((slug) => ({
+          slug,
+          memoryDir: root,
+          agent: slug === 'ada' ? selected : undefined,
+        })),
+      changed,
+      diagnostic: vi.fn(),
+    });
+    stops.push(() => refresh.close());
+    expect((await catalog.list(['ada'])).map((entry) => entry.name)).toEqual(['preset', 'host']);
+    await catalog.list(['bob']);
+    for (const [agent, expected] of [
+      [first, 'live'],
+      [replacement, 'replacement'],
+      [undefined, 'preset'],
+    ] as const) {
+      changed.mockClear();
+      vi.mocked(global.list).mockClear();
+      vi.mocked(scoped.list).mockClear();
+      selected = agent;
+      refresh.reconcile();
+      refresh.reconcile();
+      expect(changed.mock.calls).toEqual([[['ada']]]);
+      expect((await catalog.list(['ada'])).map((entry) => entry.name)).toEqual([expected, 'host']);
+      expect((await catalog.list(['bob'])).map((entry) => entry.name)).toEqual(['preset', 'host']);
+      const calls = [...vi.mocked(global.list).mock.calls, ...vi.mocked(scoped.list).mock.calls];
+      expect(calls.map(([options]) => options?.cwd)).toEqual([root]);
+    }
   });
 
   it('detects pathless runtime Host Skill content changes without broadening Project notifications', async () => {
