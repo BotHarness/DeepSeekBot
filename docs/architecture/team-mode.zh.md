@@ -32,3 +32,15 @@ Human 在 2026-11-13 完成 Q1–Q35 并确认的目标设计，不代表已实�
 ## 交付切片
 
 M0 去硬编码 → **M1 首个端到端 tracer**（开启团队模式、创建成员、内网 HTTPS 登录、加入公开 Channel 互发消息、CLI）→ M2 私有 Bot、Tob 与 Activity（M11 之前 Owner 不能查看成员私有内容）→ M3 角色与成员管理 → M4 Channel 可见性与 Human DM → M5 审批 → M6 Workspace → M7 Bot 可见性与角色策略 → M8 移动端 → M9 密码与离职 → M10 用量 → M11 审计 → M12 Linux 执行隔离（结束试用告知）。依赖关系见[英文版](team-mode.md#delivery)。M1 完成后先取得 Human 反馈，再扩展。
+
+## M14 运行时：邀请与成员访问依据
+
+规格 #4137 在 2026-11-15 的修订取代上文旧的 Bot 受众包含限制：邀请 Human 不因 Channel 里有 Bot 而拒绝；Bot 继承其 principal 访问的实现由 M7 单独交付。
+
+`channel_human_members.membership_basis` 按 Channel/Human 保存访问依据。浏览后通过 `channelJoin`（或旧 `publicChannelJoin`）加入记为 `role`；按姓名通过 `channelHumanAdd` 添加记为 `invited`，也可将已有角色加入提升为姓名邀请。重复 Join 不会降低有效邀请。无论 private、roles 或 public，可添加成员的人都能直接授予访问，不比较被邀请者的角色或 Host 权限高低。撤销角色后，不再符合任何允许角色的 `role` 成员在同一事务中退出，流立即关闭，列表和搜索不再显示；恢复角色只恢复浏览资格，不自动重新加入。可见性变更、删除角色和移交 Owner 时的角色重置沿用此规则。姓名邀请一直有效，直到离开或被移除；创建 Channel 和显式移交所有权也授予姓名访问，移交不自动删除原所有者仍有效的姓名成员关系。
+
+应用定义的 Host 方法从受信任的显式 `HumanContext` 取得调用者。`channelHumanAdd { channelId, humanId }` 接受 Human ID 或用户名，返回 `null`。`channelMemberCandidates { channelId, query?: string }` 按显示名和 Human ID 排序，最多返回 100 条 `{ humanId, displayName, username: string | null }`；搜索默认为空，最多 200 字符，匹配显示名和用户名，排除非活跃者与现有成员。两者允许 Host Owner、`channels.manageAll`、已加入的 Channel owner/admin，或 `addMembers: 'everyone'` 时已加入的普通成员。缺权返回 `permission-required`，带 `details.permission: 'addMembers'`；未知或非群组 Channel 返回 `channel-not-found`，未知或非活跃目标返回 `member-not-found`，无效输入返回 `invalid-input`。
+
+追加的具名迁移为 `channel-membership-basis`（位于 `migration-ledger` 之后）。历史记录无法区分邀请来源，因此 roles 群组的普通成员归为 `role`，已不符合角色的记录标记退出；Host Owner、Channel owner/admin、DM 与 public/private 群组旧成员归为 `invited`。这样保留原角色撤销边界及所有 Owner 数据，但无法还原旧角色群组里哪些普通成员曾按姓名邀请；重新按姓名添加即可建立持久邀请。Channel、消息、已读位置与成员历史不会删除，重启保留分类。
+
+列表、流、搜索和未读统一使用既有 SQL 受众检查。邀请沿用成员变更日志；角色撤销刷新流并使列表游标失效。没有新增缓存、计时器、轮询、依赖或 Bot 执行路径。依据检查使用成员主键，按 Human 查询角色成员使用部分索引。回归守卫保持受众/浏览单次数据库读取、候选查询读取次数及最多 100 条结果，并验证搜索、列表和流关闭。结构守卫不代表端到端性能提升。

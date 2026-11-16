@@ -28,6 +28,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children,
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
+  IconSkillOutlineRegular: () => null,
   IconStopFillRegular: () => null,
   ImageLightbox: () => null,
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),

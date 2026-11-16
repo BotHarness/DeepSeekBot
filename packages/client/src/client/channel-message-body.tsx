@@ -790,6 +790,30 @@ export function ChannelMessageBody({
       </button>
     );
   };
+  const renderSkill = (
+    skill: NonNullable<ChannelMessage['skillInvocations']>[number],
+    key: number,
+  ) => {
+    const owner =
+      skill.owner.kind === 'host'
+        ? t('composer.skillHost')
+        : (store
+            .getSnapshot()
+            .bots.find((bot) => skill.owner.kind === 'bot' && bot.slug === skill.owner.botSlug)
+            ?.displayName ?? skill.owner.botSlug);
+    const preview =
+      skill.content.length > 1500 ? `${skill.content.slice(0, 1500)}…` : skill.content;
+    return (
+      <span
+        key={key}
+        className="bh-inline-mention bh-inline-mention-sent bh-inline-skill"
+        data-skill-owner={skill.owner.kind === 'host' ? 'host' : `bot:${skill.owner.botSlug}`}
+        title={`/${skill.name} · ${owner}\n\n${preview}`}
+      >
+        <span>/{skill.name}</span>
+      </span>
+    );
+  };
   const voice = message.voice;
   const {
     voice: voiceAttachment,
@@ -874,8 +898,17 @@ export function ChannelMessageBody({
             message.mentions ?? [],
             message.channelRefs ?? [],
             message.humanMentions ?? [],
+            message.skillInvocations ?? [],
           ).map((run, index) =>
-            run.mention !== undefined ? (
+            run.skill !== undefined ? (
+              renderSkill(
+                message.skillInvocations?.find((skill) => skill.start === run.skill.start) ?? {
+                  ...run.skill,
+                  content: '',
+                },
+                index,
+              )
+            ) : run.mention !== undefined ? (
               renderMention(run.mention, index)
             ) : run.humanMention !== undefined ? (
               renderMention(run.humanMention, index)

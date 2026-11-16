@@ -183,7 +183,10 @@ describe('named schema migration ledger', () => {
   it('rolls back backfill, body and generation together on a failed staged migration', () => {
     const home = createTempRoot('bh-ledger-rollback-');
     const prefix = defineSchemaPlan(
-      plan.migrations.slice(0, plan.generationOf('migration-ledger') - 2),
+      plan.migrations.slice(
+        0,
+        plan.migrations.findIndex((migration) => migration.id === 'migration-ledger'),
+      ),
     );
     const old = trackTestOwner(mountOperationalDatabase({ dshHome: home, schemaPlan: prefix }));
     old.close();

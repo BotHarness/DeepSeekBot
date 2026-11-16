@@ -32,6 +32,16 @@ The exact import-free member method catalog is [`member-methods.ts`](../../packa
 
 The logic branch does not change Client/mobile components or localized copy. Client activation, rendered UI evidence, installed Desktop/mobile checks and Human acceptance remain independent integration gates. The integration owner supplies the bilingual release fragment and public CLI documentation copy.
 
+## Own-Bot controls (#4200)
+
+The member catalog admits the existing Owner controls for an owned Bot: Memory reads, saves, Git and recovery history, restores, version names, repair and moves; Bot prompts, approval templates/rules, voice/ASR bindings, browser/computer access and source policies; Session metadata, Assignment timelines, tool/input history, Session maintenance and profile usage/activity. Shared prompt/template/voice catalogs are readable, while their global mutations remain unavailable. Workspace options and Grants keep M6's account/shared-space checks; the Host folder browser and native file-opening APIs remain unavailable to members. Channel attachment targets use the existing Channel read policy.
+
+Every call still enters `guardHumanBridge` with M0's authenticated Human and the current private Registry. A Bot slug or its DM resolves to the current principal, including on a cached bridge after ownership changes; another principal's Bot returns `bot-not-found`. An additional `memoryImage(slug, path, source, revision, reference?)` read uses the same ownership guard and Memory Service's revision, jail and 25 MiB image limits. The member HTTP carrier maps only its Memory image GET to that Gateway invocation, preserving sandboxed image response headers; arbitrary `/api` HTTP and DSH-native Session methods remain denied. CLI `memory-image --as` uses this RPC, while the Owner's HTTP route is unchanged.
+
+No Client component changes are required for the shared method catalog: `createBridgeCall` imports it directly. Rendered member controls, native Session presentation and native file opening remain separate integration/acceptance work. `scripts/e2e-team-bot-memory.mjs --name <fresh-instance>` qualifies the packaged Host/local CLI for role-granted private Bot creation, Memory saves/history/versions/restore, cross-member refusals and off/on preservation. It does not qualify the unmerged M7 public-Bot management model or the M15 real-model security suite.
+
+The admission change adds no dependency, subscription or data migration. Regression coverage asserts that authorizing Memory reads never enumerates unrelated Bots. Image transport adds bounded base64 encoding only to member image reads; it is not an end-to-end performance improvement.
+
 ## Performance and verification
 
 The added ownership index bounds Registry materialization to the selected Human. The regression seeds 2,000 unrelated records, verifies they are never decoded, requires `persona_bots_owner` in the query plan and budgets the own-Bot list at two database reads for one Bot. Push reconciliation computes a snapshot once per distinct Human, independently of their device count. Member authorization and Live Activity audience checks use indexed Bot, Channel, Source Event and device keys. Typed-mention checks inspect only the addressed group's members.

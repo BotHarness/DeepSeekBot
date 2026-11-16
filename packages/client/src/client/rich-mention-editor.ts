@@ -4,6 +4,8 @@ import { referenceRuns, type SelectedChannelRef } from './channel-refs.js';
 import type { BotSummary } from './store.js';
 import { botNameSource, paintBotName } from './bot-primary-color.js';
 import { attachmentReferenceRuns, type ComposerAttachmentReference } from './attachment-refs.js';
+import type { SelectedSkill } from './skill-refs.js';
+import { parseSkillOwnerKey, skillOwnerKey } from '../../../core/src/skills/entries.js';
 
 export interface MentionAvatarMount {
   target: HTMLElement;
@@ -17,6 +19,7 @@ export interface RichMentionDraft {
   value: string;
   mentions: SelectedMention[];
   channelRefs: SelectedChannelRef[];
+  skills: SelectedSkill[];
 }
 
 function token(
@@ -25,10 +28,17 @@ function token(
   | { kind: 'all-bots'; preview: AllBotPreview; label: string }
   | { kind: 'bot'; botSlug: string; label: string }
   | { kind: 'channel'; channelId: string; label: string }
+  | { kind: 'skill'; skill: Pick<SelectedSkill, 'name' | 'owner'>; label: string }
   | undefined {
   if (!(node instanceof HTMLElement)) return undefined;
   const label = node.dataset.mentionLabel;
   if (label === undefined) return undefined;
+  if (node.dataset.skillOwner !== undefined) {
+    const owner = parseSkillOwnerKey(node.dataset.skillOwner);
+    return owner === undefined
+      ? undefined
+      : { kind: 'skill', skill: { name: label, owner }, label };
+  }
   if (node.dataset.allBotPreview !== undefined) {
     try {
       return {
@@ -87,12 +97,42 @@ export function renderRichMentionDraft(
   bots: readonly BotSummary[],
   refs: readonly SelectedChannelRef[] = [],
   attachments: readonly ComposerAttachmentReference[] = [],
+  skills: readonly SelectedSkill[] = [],
 ): MentionAvatarMount[] {
   const document = editor.ownerDocument;
   const nodes: Node[] = [];
   const mounts: MentionAvatarMount[] = [];
   const named: Array<[HTMLElement, string | undefined]> = [];
-  for (const run of referenceRuns(value, mentions, refs)) {
+  for (const run of referenceRuns(value, mentions, refs, [], skills)) {
+    if (run.skill !== undefined) {
+      const skill = run.skill;
+      const badge = document.createElement('span');
+      badge.className =
+        'bh-inline-mention bh-inline-mention-sent bh-composer-inline-mention bh-inline-skill';
+      badge.contentEditable = 'false';
+      badge.dataset.skillOwner = skillOwnerKey(skill.owner);
+      badge.dataset.mentionLabel = skill.name;
+      const label = document.createElement('span');
+      label.textContent = '/' + skill.name;
+      if (skill.owner.kind === 'bot') {
+        const botSlug = skill.owner.botSlug;
+        const bot = bots.find((candidate) => candidate.slug === botSlug);
+        const avatar = document.createElement('span');
+        avatar.className = 'bh-inline-mention-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        badge.append(avatar, label);
+        mounts.push({
+          target: avatar,
+          botSlug,
+          name: bot?.displayName ?? botSlug,
+          src: bot?.avatar,
+          appearance: bot?.appearance,
+          avatarSeed: bot?.avatarSeed,
+        });
+      } else badge.append(label);
+      nodes.push(badge);
+      continue;
+    }
     if (run.mention === undefined && run.channelRef === undefined) {
       for (const part of attachmentReferenceRuns(run.text, attachments)) {
         if (part.attachment === undefined) {
@@ -181,12 +221,19 @@ export function readRichMentionDraft(editor: HTMLElement): RichMentionDraft {
   let value = '';
   const mentions: SelectedMention[] = [];
   const channelRefs: SelectedChannelRef[] = [];
+  const skills: SelectedSkill[] = [];
   const append = (node: Node): void => {
     if (node instanceof HTMLElement && node.dataset.attachmentText !== undefined) {
       value += node.dataset.attachmentText;
       return;
     }
     const mention = token(node);
+    if (mention?.kind === 'skill') {
+      const start = value.length;
+      value += '/' + mention.label;
+      skills.push({ ...mention.skill, start, end: value.length });
+      return;
+    }
     if (mention !== undefined) {
       const start = value.length;
       value += (mention.kind === 'channel' ? '#' : '@') + mention.label;
@@ -220,7 +267,7 @@ export function readRichMentionDraft(editor: HTMLElement): RichMentionDraft {
     for (const child of node.childNodes) append(child);
   };
   for (const child of editor.childNodes) append(child);
-  return { value, mentions, channelRefs };
+  return { value, mentions, channelRefs, skills };
 }
 
 export function sameRichMentionDraft(
@@ -228,9 +275,12 @@ export function sameRichMentionDraft(
   value: string,
   mentions: readonly SelectedMention[],
   refs: readonly SelectedChannelRef[],
+  skills: readonly SelectedSkill[] = [],
 ): boolean {
   return (
     left.value === value &&
+    JSON.stringify(left.skills) ===
+      JSON.stringify(skills.map(({ name, owner, start, end }) => ({ name, owner, start, end }))) &&
     left.mentions.length === mentions.length &&
     left.mentions.every(
       (item, index) =>

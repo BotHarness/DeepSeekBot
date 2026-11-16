@@ -288,6 +288,13 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
         if (!target) throw new TeamError('member-not-found');
         return service.channelAccess.dm(human, target.humanId);
       }),
+    channelMemberCandidates: (payload: unknown) =>
+      call((service) => {
+        const { channelId, query } = z
+          .object({ channelId: z.string().min(1), query: z.string().max(200).default('') })
+          .parse(payload);
+        return service.channelAccess.memberCandidates(human, channelId, query);
+      }),
     channelHumanAdd: (payload: unknown) =>
       call((service) => {
         const { channelId, humanId } = z
