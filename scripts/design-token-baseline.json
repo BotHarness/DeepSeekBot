@@ -76,6 +76,9 @@
   "packages/client/src/client/attachment-download-menu.tsx": {
     "dshImport": 1
   },
+  "packages/client/src/client/audience-field.tsx": {
+    "dshImport": 1
+  },
   "packages/client/src/client/avatar-appearance-editor.tsx": {
     "dshImport": 2,
     "rawControl": 13
@@ -83,6 +86,9 @@
   "packages/client/src/client/behavior-permission-settings.tsx": {
     "dshImport": 1,
     "rawControl": 1
+  },
+  "packages/client/src/client/bot-access-entry.tsx": {
+    "dshImport": 1
   },
   "packages/client/src/client/bot-channel-post-line.tsx": {
     "rawControl": 1
@@ -124,6 +130,10 @@
   "packages/client/src/client/bot-sidebar.tsx": {
     "dshImport": 1,
     "rawControl": 13
+  },
+  "packages/client/src/client/bot-skills-card.tsx": {
+    "dshImport": 1,
+    "rawControl": 1
   },
   "packages/client/src/client/bot-zip.tsx": {
     "dshImport": 1,
@@ -231,7 +241,7 @@
     "dshImport": 1
   },
   "packages/client/src/client/composer-context-styles.ts": {
-    "dshToken": 16
+    "dshToken": 17
   },
   "packages/client/src/client/composer-voice.tsx": {
     "dshImport": 1,
@@ -516,6 +526,9 @@
   "packages/client/src/client/message-author-card.tsx": {
     "dshImport": 1
   },
+  "packages/client/src/client/message-bot-dialog.tsx": {
+    "dshImport": 1
+  },
   "packages/client/src/client/message-copy-action.tsx": {
     "dshImport": 1
   },
@@ -710,6 +723,9 @@
   "packages/client/src/client/remote-viewer/tokens.ts": {
     "dshToken": 14
   },
+  "packages/client/src/client/role-policy-field.tsx": {
+    "dshImport": 1
+  },
   "packages/client/src/client/schedules-entry.tsx": {
     "dshToken": 1,
     "dshImport": 1
@@ -745,7 +761,7 @@
     "dshImport": 2
   },
   "packages/client/src/client/styles.ts": {
-    "dshToken": 765
+    "dshToken": 776
   },
   "packages/client/src/client/tag-editor.tsx": {
     "dshImport": 1
