@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, Platform, View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { hostSession } from '../../src/host/host-session';
 import type { SavedHost } from '../../src/host/hosts';
@@ -14,6 +14,7 @@ import {
   type TeamInvitation,
 } from '../../src/host/team-client';
 import { space } from '../../src/ui/design/tokens';
+import { showAppDialog } from '../../src/ui/primitives/app-dialog';
 import { Button } from '../../src/ui/primitives/button';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
@@ -63,7 +64,7 @@ export default function TeamSignInScreen() {
     let result = await hostSession.pairMember(host);
     if (!result.ok && result.code === 'identity-switch-required') {
       const confirmed = await new Promise<boolean>((resolve) =>
-        Alert.alert(
+        showAppDialog(
           t.teamSignIn.switchTitle,
           t.teamSignIn.switchBody.replace('{name}', host.member?.displayName ?? ''),
           [
