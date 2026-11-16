@@ -1,0 +1,727 @@
+[
+  {
+    "baseRefName": "main",
+    "headRefName": "claude/4150-bot-visibility",
+    "headRefOid": "5c2683cfa0d4a8bf1b2311478a7bd9f256f38bfa",
+    "isDraft": false,
+    "mergeStateStatus": "CLEAN",
+    "number": 4258,
+    "reviewDecision": "",
+    "state": "OPEN",
+    "title": "feat(team): Bot visibility, shared Bots and Role Policy (M7)",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4258",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (affected shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      }
+    ]
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "claude/4146-mobile-sign-in",
+    "headRefOid": "70b026bfb54472d8d37ed2c4d4f17d174187642f",
+    "isDraft": true,
+    "mergeStateStatus": "DIRTY",
+    "number": 4165,
+    "reviewDecision": "",
+    "state": "OPEN",
+    "title": "Team mode M8: mobile invitation, sign-in and self-pairing",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4165",
+    "checks": []
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "claude/4188-channel-invitations",
+    "headRefOid": "76197792e47e5b8a30bcee7c1f83710e8a98a1d1",
+    "isDraft": false,
+    "mergeStateStatus": "UNKNOWN",
+    "number": 4262,
+    "reviewDecision": "",
+    "state": "MERGED",
+    "title": "feat(team): Channel invitations grant access (M14)",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4262",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (affected shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      }
+    ]
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "claude/4200-member-memory",
+    "headRefOid": "a63fc439377cded9b946136dbe89b9341ee3c9aa",
+    "isDraft": false,
+    "mergeStateStatus": "UNKNOWN",
+    "number": 4263,
+    "reviewDecision": "",
+    "state": "MERGED",
+    "title": "feat(team): members manage the Memory of their own Bots",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4263",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (affected shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "NEUTRAL"
+      }
+    ]
+  },
+  {
+    "baseRefName": "claude/4146-mobile-sign-in",
+    "headRefName": "claude/4201-desktop-sign-in",
+    "headRefOid": "406e21f15c61b849d823558899fced4c4bfb71ad",
+    "isDraft": false,
+    "mergeStateStatus": "CLEAN",
+    "number": 4265,
+    "reviewDecision": "",
+    "state": "OPEN",
+    "title": "feat(team): desktop member sign-in and shared host-client packages (#4201 H1/H2)",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4265",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      }
+    ]
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "claude/bot-skill-trigger-e16a1f",
+    "headRefOid": "d0d376f3688d8a183e746b106c596bc931d77919",
+    "isDraft": false,
+    "mergeStateStatus": "UNKNOWN",
+    "number": 4252,
+    "reviewDecision": "",
+    "state": "MERGED",
+    "title": "feat: invoke a Bot's Skills from / in a Human DM",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4252",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (affected shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      }
+    ]
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "claude/skills-s2-group",
+    "headRefOid": "deacc67477ae00b7e87f601753762cbaa15c7710",
+    "isDraft": false,
+    "mergeStateStatus": "CLEAN",
+    "number": 4259,
+    "reviewDecision": "",
+    "state": "OPEN",
+    "title": "feat: / Skill Invocation in Group Channels",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4259",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (affected shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "NEUTRAL"
+      }
+    ]
+  },
+  {
+    "baseRefName": "claude/skills-s2-group",
+    "headRefName": "claude/skills-s3-live",
+    "headRefOid": "8098fe893bd4d46a8880ce4f14199aa1b1293663",
+    "isDraft": false,
+    "mergeStateStatus": "CLEAN",
+    "number": 4264,
+    "reviewDecision": "",
+    "state": "OPEN",
+    "title": "feat: refresh the / Skill menu live while a conversation is open",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4264",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (affected shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      }
+    ]
+  },
+  {
+    "baseRefName": "claude/skills-s3-live",
+    "headRefName": "claude/skills-s4-install",
+    "headRefOid": "dbfe8f3d2b8058a73d715057c45f2db0b06cd32d",
+    "isDraft": false,
+    "mergeStateStatus": "CLEAN",
+    "number": 4267,
+    "reviewDecision": "",
+    "state": "OPEN",
+    "title": "feat: PersonaBots install their own Skills by writing SKILL.md",
+    "url": "https://github.com/BotHarness/DeepSeekBot/pull/4267",
+    "checks": [
+      {
+        "name": "real-model scenarios",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "plan tests and run small selections",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "lint, format, typecheck, build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "iOS HardwareSend UIKit tests (manual)",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "mobile verification (iOS and Android)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "Android native module tests",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (shard ${{ matrix.shard }})",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "test (affected shard 1)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 2)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "test (affected shard 3)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "docs site build",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "e2e smoke (isolated DSH Host)",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "timeline performance budget",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      },
+      {
+        "name": "lint, format, typecheck, test, build, docs",
+        "status": "COMPLETED",
+        "result": "SUCCESS"
+      },
+      {
+        "name": "CodeRabbit",
+        "status": "COMPLETED",
+        "result": "SKIPPED"
+      }
+    ]
+  }
+]
