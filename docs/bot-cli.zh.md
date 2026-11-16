@@ -216,6 +216,8 @@ Prompt Preset 用于编辑 System Prompt 和每轮模板里的行为文字；围
 deepseekbot send <bot-id> --body "回复 QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "就这条" --reply-to <消息-id>
+deepseekbot skills-list --bot <bot-id> [--query <文本>]
+deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
@@ -230,6 +232,8 @@ deepseekbot workspace-options
 deepseekbot folder-browse [<文件夹路径>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
+
+`skills-list` 返回该对话 `/` 菜单提供的 Skill，并按 `--query` 以与菜单相同的规则排序（名称前缀、名称子序列、所属 Bot 显示名或 slug 子串、描述子串）：包括 Host Skill（`owner.kind` 为 `host`），以及各 PersonaBot Memory Repository 下 `.agents/skills` 或 `.dsh/skills` 中的 Project Skill（`owner.kind` 为 `bot`）。任意 Channel 可用 `--channel <channel-id>` 代替 `--bot`。`send --skill <owner>/<name>`（owner 为 `host` 或 `bot:<bot-id>`，可重复）按参数顺序，为每个参数把正文中第一个尚未选中的 `/name` token 变成 Skill Invocation（token 两端必须为空白或正文边界；没有未用匹配时拒绝发送）：Host 把该 Skill 当前的文本随消息保存，Bot 以 `<skill_invocation>` 块读到它。Skill 不决定由谁回复；已不存在的 Skill 会以 `skill-unavailable` 拒绝；Skill 文本超过 64,000 个字符时会以 `skill-too-large` 拒绝，不会截断。见 [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)。
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
 
@@ -975,7 +979,11 @@ deepseekbot phone-route-publish --confirm
 deepseekbot phone-route-disable --confirm
 ```
 
-`phone-route` 返回 `{routes}`，包含 Tailscale 可用性、每条路线是否就绪、建议的 `serveCommand`，以及托管启用与归属状态。`phone-route-publish` 明确启用托管发布和重启恢复，返回 `{published, changed, routes}`。重启时原位更新仍属本产品的映射，保持 HTTPS 地址不变；发布失败时保留旧映射。状态的 `staleRoutes` 列出未响应的本地代理地址和目标端口，检查有界且缓存五秒，归属未知的规则不会自动删除。新建发布时 Host 端口不变，发布端口依次从 443、8443–8452 中选取空闲项；已有匹配发布直接复用，不取得其所有权。`phone-route-disable` 关闭恢复，仅删除当前仍匹配的自有映射，保留配对和其他路线。拒绝码为 `confirm-required`、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（候选端口全满或配置已变化）、`serve-needs-enable`（带 Tailscale 后台 `enableUrl`）、`serve-denied` 和 `serve-failed`。权限或 tailnet HTTPS 未启用需要完成对应设置，换端口不能解决。
+`phone-route` 返回 `{routes}`，包含 Tailscale 可用性、每条路线是否就绪、建议的 `serveCommand`，以及托管启用与归属状态。`phone-route-publish` 明确启用托管发布和重启恢复，返回 `{published, changed, routes}`。重启时原位更新仍属本产品的映射，保持 HTTPS 地址不变；发布失败时保留旧映射。状态的 `staleRoutes` 列出未响应的本地代理地址和目标端口，检查有界且缓存五秒，归属未知的规则不会自动删除。新建发布时 Host 端口不变，发布端口依次从 443、8443–8452 中选取空闲项；手动发布保持不变；托管发布选择自己的空闲路线，不接管手动映射。`phone-route-disable` 关闭恢复，仅删除当前仍匹配的自有映射，保留配对和其他路线。拒绝码为 `confirm-required`、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（候选端口全满或配置已变化）、`serve-needs-enable`（带 Tailscale 后台 `enableUrl`）、`serve-denied` 和 `serve-failed`。权限或 tailnet HTTPS 未启用需要完成对应设置，换端口不能解决。
+
+托管发布指向仅绑定 `127.0.0.1` 的专用临时入口，再以流式 HTTP 和 WebSocket 转发到 Host。仅在入口运行、当前自有 Serve 映射仍指向该入口且启用 HTTPS 时，`routes.managed.trustedIngress` 才为 true。每条 Tailscale 路线提供 `memberSignIn: "managed-tls" | "untrusted"`；路线就绪本身不代表接受密码登录。原有自有映射原位更新目标，HTTPS 地址不变；手动映射不受信任。停用还会关闭入口。主 Host 端口上的转发头永远不能建立信任。
+
+`team-mode status`、`members invite` 和成员配对邀请使用相同的可用路线：直接 TLS、Connect 和受信任的托管 Tailscale。即使浏览器启用不安全 HTTP 例外，也不列出回环、明文 HTTP 或非自有 Tailscale 路线。建议 Client 文案：**可供成员登录** / **通过本 Host 发布后，成员才能登录**（英文：**Member sign-in available** / **Publish with this Host to allow member sign-in**）。Client 渲染由独立 UI 改动负责。Host 端口文案应读取回环路线 URL；`serveCommand` 末尾的端口现在是专用入口的目标端口。
 
 ### 已配对设备
 
@@ -1276,6 +1284,10 @@ deepseekbot folder-browse 'D:\code' --offset 500
 `folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, nextOffset?, roots, nativePicker?}`：只有文件夹名称和路径，不含文件，每页最多 500 个。`truncated` 为 true 时，把 `nextOffset` 作为 `--offset` 传回即可取下一页。`roots` 是主目录和各个磁盘（Windows 上读系统盘符表，不打开任何磁盘）或 `/`。`nativePicker: true` 表示 Host 使用系统文件夹对话框，桌面 Client 会改为打开它。Host 在单独的进程里读取文件夹，截止时间 5 秒。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹、无权读取或读取失败分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`、`folder-browse/unreadable`；文件夹没有按时响应（例如网络盘断开）返回 `folder-browse/timeout`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
+
+选择在线 Host（`--host` 或 `DEEPSEEKBOT_HOST`）后，`--as <member>` 可管理该成员自己的 Bot Memory，包括读写、Git 历史、检查点、恢复、版本、修复、文件目标和图片导出。Host 每次都检查已认证 Human 的所有权；访问其他主体的 Bot 返回 `bot-not-found`。离线 `--home` Memory 命令不能与 `--as` 合用（`as-online-required`）。关闭再开启团队模式会保留 `spaces/<humanId>/bots/<slug>/memory`，成员需要重新登录。移动 Memory 仍受账号空间路径规则限制。
+
+`memory-image --as <member>` 通过检查所有权的 `memoryImage` 桥接方法读取图片，保留版本检查及 25 MiB 大小上限；Owner 命令继续使用 HTTP。自己的 Bot 提示词、审批模板、访问和来源设置及 Session 历史适配器使用同一成员方法目录。全局配置和 DSH 原生 Session API 仍执行现有权限规则。
 
 `memory-snapshot`、`memory-file --path`、`memory-history [--limit]`、`memory-diff --sha` 读取 Bot 记忆库；`memory-save --path (--body | --body-stdin)` 写一个文件并提交。`--expected-head` 默认取当前 HEAD（要做 compare-and-swap 请显式传）；`--edit-id` 默认生成新的 UUID，重复提交幂等。HEAD 过期或无变化的写入报 `memory-conflict`，不存在的文件读回 `null`，非法 sha 报 `invalid-input`。
 
@@ -2059,3 +2071,13 @@ Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。
 `members invite <username>` 需要 `members.manage` 并遵循目标角色权限上限，将用户名解析为 Human ID，返回 `{ link, qr: { size, path }, expiresAt }`。邀请内容含 Host 身份指纹、可达的 HTTPS / 加密网关路由和用户名，不含初始密码；初始密码须通过另一路径提供。`--as <username> members pairing-offer` 只为该成员自己创建十分钟内有效、只能使用一次的配对码，并额外返回 `receipt`；首次改密完成前拒绝。兑换后创建同一 Human 的 `paired-device` 成员授权，不会创建 Owner 设备或获取 Owner cookie。
 
 手机以 Host ID 保存一个安全存储身份，切换同一 Host 的成员须确认并清除旧身份的本地内容。手机登录前验证邀请指纹；Host 也拒绝 `fingerprint-mismatch`。首次改密前，其他设备 API 和 mux 均拒绝 `password-change-required`。密码接口保留 `credentials-invalid`、`password-weak`、`password-reused` 和带 `retryAfterSeconds` 的 `rate-limited`；设备密码不能使用浏览器的明文 HTTP 例外。iOS 和 Android 原生验收分别记录。
+
+### Channel 邀请（M14）
+
+```sh
+deepseekbot channels member-candidates <channel-id> --query Alice
+deepseekbot --as bob channels member-candidates <channel-id> --query alice
+deepseekbot --as bob channels add-member <channel-id> alice
+```
+
+候选查询最多返回 100 位活跃且未加入该 Channel 的人，包含 `humanId`、`displayName` 和可为空的 `username`，可按显示名或用户名搜索。两个命令都检查调用 Human 的 `addMembers` 权限，包括 Channel owner/admin 和 `channels.manageAll`；缺权返回 `permission-required`，带 `details.permission: 'addMembers'`。姓名邀请对所有可见性立即授予访问，撤销角色后仍保留；浏览后加入的角色成员在角色访问撤销时退出。升级分类见 [M14 运行时说明](architecture/team-mode.zh.md#m14-运行时邀请与成员访问依据)。

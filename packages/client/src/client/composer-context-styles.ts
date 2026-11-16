@@ -14,6 +14,12 @@ export const COMPOSER_CONTEXT_CSS = `
 .bh-composer-shortcuts small {color:var(--dsw-alias-label-secondary);}
 .bh-composer-shortcut-label {display:flex;align-items:center;gap:${space.x3};}
 .bh-composer-shortcut-label svg {flex-shrink:0;}
+.bh-composer-menu-section {padding:${space.x2} ${space.x3} 0;font-size:${text.metaSize};color:var(--dsw-alias-label-secondary);}
+.bh-composer-shortcuts button.bh-composer-skill-option {justify-content:flex-start;}
+.bh-composer-skill-owner {display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;width:20px;height:20px;color:var(--dsw-alias-label-secondary);}
+.bh-composer-skill-copy {display:flex;flex:1;align-items:baseline;gap:${space.x3};min-width:0;}
+.bh-composer-skill-copy strong {flex-shrink:0;font-weight:${text.strong};}
+.bh-composer-skill-copy small {flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .bh-composer-usage-popover {position:fixed;z-index:1000;max-height:min(70vh,480px);overflow:auto;box-sizing:border-box;padding:${space.x5};border:${border.hairline} solid ${color.border};border-radius:${radius.md};background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);box-shadow:0 8px 32px color-mix(in srgb,var(--dsw-alias-label-primary) 15%,transparent);font-size:${text.bodySize};line-height:1.5;}
 .bh-composer-usage-head,.bh-composer-usage-total,.bh-composer-usage-row {display:flex;gap:${space.x3};align-items:center;justify-content:space-between;}
 .bh-composer-usage-head {margin-bottom:${space.x4};}

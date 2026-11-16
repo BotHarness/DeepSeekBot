@@ -1,5 +1,6 @@
 import { parsePairingLink, redeemPairing, pairHost } from '@botharness/host-client/pairing';
 import { createDevicePairing } from '../src/devices/pairing.js';
+import { memberRoutes } from '../src/team/member-urls.js';
 import { createMemberDevices } from '../src/team/devices.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
@@ -28,6 +29,7 @@ import { createChannelManagement } from '../src/channels/management.js';
 import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { stampConnectRoute } from '../src/devices/route-context.js';
 import { createTeamHttp, passwordTransportAllowed, TEAM_PATH } from '../src/team/http.js';
+import { createManagedTlsIngress } from '../src/devices/managed-tls-ingress.js';
 import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
@@ -67,7 +69,9 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}) {
+function teamFixture(
+  options: { urls?: () => string[]; routes?: () => Promise<string[]>; now?: () => number } = {},
+) {
   const root = createTempRoot('team-mode-');
   const registry = createTestRegistry({ rootDir: root });
   const db = registryDatabase(root);
@@ -150,7 +154,9 @@ function teamFixture(options: { urls?: () => string[]; now?: () => number } = {}
     team,
     pairing,
     encryption: async () => encryption,
-    routes: async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080'],
+    routes:
+      options.routes ??
+      (async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080']),
     ...(options.now ? { now: options.now } : {}),
   });
   const unbindDevices = team.bindDevices(devices);
@@ -1053,6 +1059,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       'channelRename',
       'channelDescriptionSet',
       'channelHumanAdd',
+      'channelMemberCandidates',
       'channelGroupInvite',
       'channelAllBotPreview',
       'composerValidate',
@@ -1121,6 +1128,8 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
             code: 'permission-required',
             details: { permission: 'workspaces.manageShared' },
           });
+        else if (method === 'voiceProviders')
+          expect(error).toMatchObject({ code: 'voice-unavailable' });
         else if (method === 'usageByMember')
           expect(error).toMatchObject({
             code: 'permission-required',
@@ -1288,6 +1297,43 @@ async function memberHttp(
 }
 
 describe('member HTTP carrier', { timeout: 60_000 }, () => {
+  it('routes only Memory images through the authenticated member Gateway', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const http = await memberHttp(f);
+    const cookie = (await http.signIn('bob', 'member-password-1')).headers.get('set-cookie') ?? '';
+    const bytes = Buffer.from('bounded-image');
+    const invoke = vi
+      .spyOn(f.gateway, 'invoke')
+      .mockResolvedValue({ mime: 'image/png', dataBase64: bytes.toString('base64') });
+    const imageUrl = `${http.origin}${TEAM_PATH}/api/botharness/memory/image?slug=own&path=image.png&source=worktree&revision=${'a'.repeat(64)}`;
+    const response = await fetch(imageUrl, { headers: { cookie } });
+    expect(response.status).toBe(200);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect(response.headers.get('content-security-policy')).toContain('sandbox');
+    expect(invoke).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: 'botharness',
+        method: 'memoryImage',
+        args: { slug: 'own', path: 'image.png', source: 'worktree', revision: 'a'.repeat(64) },
+        peer: expect.objectContaining({
+          principal: expect.objectContaining({ humanId: f.human.humanId }),
+        }),
+      }),
+    );
+    invoke.mockRejectedValue(new TeamError('bot-not-found'));
+    const refused = await fetch(imageUrl, { headers: { cookie } });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ code: 'bot-not-found' });
+    invoke.mockClear();
+    expect((await fetch(imageUrl)).status).toBe(401);
+    const native = await fetch(`${http.origin}${TEAM_PATH}/api/dsh-session/read`, {
+      headers: { cookie },
+    });
+    expect(native.status).toBe(403);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it.each(['member', 'admin'])(
     'never exposes Host relationships to an authenticated %s carrier',
     async (role) => {
@@ -1496,7 +1542,15 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
       Object.defineProperty(socket, 'remoteAddress', { value: address });
       const request = new IncomingMessage(socket);
       expect(passwordTransportAllowed(request, { team: f.team, tls: () => false })).toBe(true);
-      for (const name of ['forwarded', 'x-forwarded-for', 'x-real-ip', 'via']) {
+      for (const name of [
+        'forwarded',
+        'x-forwarded-for',
+        'x-forwarded-proto',
+        'x-forwarded-host',
+        'x-forwarded-port',
+        'x-real-ip',
+        'via',
+      ]) {
         request.headers = {
           [name]: '',
           'x-forwarded-proto': 'https',
@@ -1527,6 +1581,38 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
       expect((await plain.signIn('bob', f.initialPassword, headers)).status).toBe(200);
     },
   );
+  it('admits browser sign-in only through the managed listener and uses HTTPS origin and Secure cookies', async () => {
+    const f = await enabledFixture();
+    const main = await memberHttp(f);
+    const ingress = createManagedTlsIngress({ port: Number(new URL(main.origin).port) });
+    closes.push(() => ingress.close());
+    const origin = `http://127.0.0.1:${await ingress.start()}`;
+    const headers = {
+      'x-forwarded-for': '192.0.2.5',
+      'x-forwarded-proto': 'https',
+      'x-botharness-device-route': 'managed-tls',
+    };
+    for (const tag of ['managed-tls', 'connect', 'tailscale']) {
+      const denied = await main.signIn('bob', f.initialPassword, {
+        ...headers,
+        'x-botharness-device-route': tag,
+      });
+      expect(denied.status).toBe(403);
+      expect(await denied.json()).toEqual({ code: 'insecure-transport' });
+    }
+    const result = await fetch(`${origin}${TEAM_PATH}/sign-in`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        origin: origin.replace('http:', 'https:'),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ username: 'bob', password: f.initialPassword }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.headers.get('set-cookie')).toContain('; Secure');
+    expect(await result.json()).toMatchObject({ humanId: f.human.humanId });
+  });
   it('serves the nonce-protected sign-in page and loopback member cookie, then dispatches calls as the member', async () => {
     const f = await enabledFixture();
     const http = await memberHttp(f);
@@ -1752,7 +1838,7 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
 });
 
 describe('member entry addresses', () => {
-  it('offers only non-loopback HTTPS or explicitly allowed LAN HTTP addresses', () => {
+  it('offers only non-loopback HTTPS addresses even with the insecure HTTP opt-in', () => {
     const entry = (origin: string) => `${origin}${TEAM_PATH}/`;
     const https = [
       'https://192.168.1.20:5050',
@@ -1784,7 +1870,7 @@ describe('member entry addresses', () => {
     });
     expect(f.team.mode(owner).memberUrls).toEqual(https);
     f.team.setInsecureHttp(owner, true);
-    expect(f.team.mode(owner).memberUrls).toEqual([...https, ...lan]);
+    expect(f.team.mode(owner).memberUrls).toEqual(https);
     f.team.setInsecureHttp(owner, false);
     expect(f.team.mode(owner).memberUrls).toEqual(https);
     const local = teamFixture({ urls: () => [entry('http://127.0.0.1:5050')] });
@@ -1893,7 +1979,94 @@ async function memberDeviceHost(
   return { origin, post, signIn, mintOwner, carrier };
 }
 
+it('admits M8 device passwords through managed TLS ingress and refuses forged main-port headers', async () => {
+  const f = await enabledFixture();
+  const main = await memberDeviceHost(f, { tls: false });
+  const ingress = createManagedTlsIngress({ port: Number(new URL(main.origin).port) });
+  closes.push(() => ingress.close());
+  const origin = `http://127.0.0.1:${await ingress.start()}`;
+  const headers = {
+    'content-type': 'application/json',
+    'x-forwarded-for': '192.0.2.5',
+    'x-forwarded-proto': 'https',
+    'x-botharness-device-route': 'managed-tls',
+  };
+  const body = JSON.stringify({
+    username: 'bob',
+    password: f.initialPassword,
+    deviceName: 'Phone',
+    fingerprint: f.encryption.fingerprint,
+  });
+  const path = '/botharness-device/team/device-sign-in';
+  for (const tag of ['managed-tls', 'connect', 'tailscale']) {
+    const denied = await fetch(`${main.origin}${path}`, {
+      method: 'POST',
+      headers: { ...headers, 'x-botharness-device-route': tag },
+      body,
+    });
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({ code: 'insecure-transport' });
+  }
+  const allowed = await fetch(`${origin}${path}`, { method: 'POST', headers, body });
+  expect(allowed.status).toBe(200);
+  const signed = await allowed.json();
+  expect(signed).toMatchObject({
+    humanId: f.human.humanId,
+    credential: expect.stringMatching(/^member\./u),
+  });
+  const password = await fetch(`${origin}/botharness-device/team/device-password`, {
+    method: 'POST',
+    headers: { ...headers, authorization: `Device ${signed.credential}` },
+    body: JSON.stringify({ current: f.initialPassword, next: 'new-member-password-1' }),
+  });
+  expect(password.status).toBe(200);
+  expect(main.mintOwner).not.toHaveBeenCalled();
+});
+
 describe('member devices', { timeout: 60_000 }, () => {
+  it('uses the same eligible routes for status, invitations and member pairing offers', async () => {
+    let trusted = false;
+    const f = await enabledFixture({
+      routes: async () =>
+        memberRoutes('http://127.0.0.1:3080', {
+          tailscale: 'running',
+          serveCommand: '',
+          routes: [
+            {
+              url: 'https://fixture.tail.ts.net',
+              kind: 'tailscale',
+              ready: true,
+              memberSignIn: trusted ? 'managed-tls' : 'untrusted',
+            },
+            { url: 'https://habcdefghijkl.deepseekbot.dev', kind: 'connect', ready: true },
+            { url: 'http://192.168.0.2:3080', kind: 'lan', ready: true },
+          ],
+        }),
+    });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    for (const enabled of [false, true, false]) {
+      trusted = enabled;
+      const expected = [
+        ...(trusted ? ['https://fixture.tail.ts.net'] : []),
+        'https://habcdefghijkl.deepseekbot.dev',
+      ];
+      expect(await f.methods(owner).teamMode({})).toMatchObject({
+        ok: true,
+        value: { memberUrls: expected.map((origin) => `${origin}${TEAM_PATH}/`) },
+      });
+      const invitation = await f.team.invitation(owner, f.human.humanId);
+      const encoded = new URL(invitation.link).searchParams.get('i');
+      expect(encoded).toBeTruthy();
+      expect(JSON.parse(Buffer.from(encoded ?? '', 'base64url').toString()).routes).toEqual(
+        expected,
+      );
+      const offer = await f.devices.pairingOffer(f.human.humanId);
+      expect(parsePairingLink(offer.link)).toMatchObject({
+        ok: true,
+        payload: { routes: expected },
+      });
+    }
+  });
   it('issues a secret-free invitation with member-management authority and self-pairing only for the caller', async () => {
     const f = await enabledFixture();
     const invitation = await f.team.invitation(owner, f.human.humanId);
@@ -2397,12 +2570,14 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       'privateAccounts',
       'privateMcpServerRemove',
       'privateMcpServerEnable',
-      'voiceProviders',
       'voiceProviderAdd',
       'voiceProviderRemove',
       'voiceProviderTest',
     ];
     for (const peer of [f.bobLogin.peer, second.peer]) {
+      await expect(f.invoke('voiceProviders', {}, peer)).rejects.toMatchObject({
+        code: 'voice-unavailable',
+      });
       for (const method of sensitive)
         await expect(f.invoke(method, {}, peer), method).rejects.toMatchObject({
           code: 'remote-access/denied',
@@ -3363,8 +3538,13 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         author: { kind: 'human', humanId: owner.humanId },
         body: 'm4-confidential-content',
       });
-      if (kind === 'roles-member')
-        f.team.channelAccess.addMember(owner, secret.id, f.human.humanId);
+      if (kind === 'roles-member') {
+        f.team.channelAccess.visibilitySet(owner, secret.id, {
+          kind: 'roles',
+          roleIds: ['member'],
+        });
+        f.team.channelAccess.join(f.human, secret.id);
+      }
       if (kind !== 'private') {
         const { role } = f.team.roles.create(owner, 'restricted', []);
         f.team.channelAccess.visibilitySet(owner, secret.id, {
@@ -3840,10 +4020,10 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       'member-not-found',
     );
     f.team.channelAccess.adminsSet(owner, group.id, ['bob']);
-    f.team.channelAccess.addMember(owner, group.id, human.humanId);
     const { role } = f.team.roles.create(owner, 'Design', ['channels.create', 'dm.humans']);
     f.team.roles.set(owner, human.humanId, [role.roleId]);
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: [role.roleId] });
+    f.team.channelAccess.join(human, group.id);
     expect(f.team.mode(owner).viewer.roleIds).not.toContain(role.roleId);
     expect(f.team.mode(f.human).viewer.roleIds).not.toContain(role.roleId);
     expect(() => f.team.channelAccess.addMember(owner, group.id, 'bob')).not.toThrow();
@@ -3890,10 +4070,10 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       f.channels.searchAllHumanMessages?.(human, { text: 'design-review-secret', limit: 10 }),
     ).toMatchObject({ hits: [] });
     expect(() => f.team.channelAccess.join(human, group.id)).toThrow('channel-not-found');
-    expect(f.channels.hasHumanMembership?.(human, group.id)).toBe(true);
+    expect(f.channels.hasHumanMembership?.(human, group.id)).toBe(false);
   });
 
-  it('transfers a role-restricted Channel owner through M9 and closes revoked access immediately', async () => {
+  it('transfers a role-restricted Channel owner through M9, closes old streams and retains named access', async () => {
     const f = await enabledFixture();
     const alice = await f.team.createMember(owner, 'transfer-alice', 'Alice');
     const target = humanContext(alice.member.humanId);
@@ -3915,7 +4095,7 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
     await f.team.accessSettled();
     expect(login.peer.signal.aborted).toBe(true);
     expect((await reader.read()).done).toBe(true);
-    expect(f.team.channelAccess.canRead(f.human, group.id)).toBe(false);
+    expect(f.team.channelAccess.canRead(f.human, group.id)).toBe(true);
     expect(f.team.channelAccess.view(target, group.id).role).toBe('owner');
     expect(f.team.transferPreview(owner, target.humanId).channels).toEqual([
       { channelId: group.id, name: 'Transferred Design' },
@@ -4478,7 +4658,7 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
     });
   });
 
-  it('denies opening observed output after role loss despite retained membership', async () => {
+  it('denies opening observed output after role loss removes membership', async () => {
     const f = await enabledFixture();
     const group = f.channels.createGroup(owner, { name: 'Observed output', members: [] });
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
@@ -4498,7 +4678,7 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
     const { role } = f.team.roles.create(owner, 'No output audience', []);
     f.team.roles.set(owner, f.human.humanId, [role.roleId]);
     await f.team.accessSettled();
-    expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(true);
+    expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(false);
     expect(f.channels.observeOutput(f.human, group.id, 'observed-message')).toMatchObject({
       canRead: false,
       humanParticipant: false,
@@ -4623,5 +4803,323 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
     expect(
       f.methods(humanContext(other.member.humanId)).channelGet({ channelId: dm.id }),
     ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+  });
+});
+
+describe('M14 invitation access', { timeout: 60_000 }, () => {
+  it.each(['private', 'roles'] as const)(
+    'invites by name into %s with immediate list, stream and search access',
+    async (kind) => {
+      const f = await enabledFixture();
+      f.registry.create({
+        slug: 'm14-private-bot',
+        displayName: 'Private Bot',
+        ownerHumanId: owner.humanId,
+      });
+      const group = f.channels.createGroup(owner, {
+        name: 'M14 secret',
+        members: ['m14-private-bot'],
+      });
+      if (kind === 'roles')
+        f.team.channelAccess.visibilitySet(owner, group.id, { kind, roleIds: ['admin'] });
+      await f.channels.appendMessage(owner, group.id, {
+        id: 'm14-history',
+        at: '2026-11-16T00:00:00Z',
+        author: { kind: 'human' },
+        body: 'm14-invitation-history',
+      });
+      expect(f.team.channelAccess.canRead(f.human, group.id)).toBe(false);
+      expect(
+        await f.methods(owner).channelHumanAdd({ channelId: group.id, humanId: 'bob' }),
+      ).toEqual({ ok: true, value: null });
+      expect(await f.methods(f.human).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: [expect.objectContaining({ id: group.id })] },
+      });
+      expect(
+        f.channels.searchAllHumanMessages?.(f.human, { text: 'm14-invitation-history', limit: 10 }),
+      ).toMatchObject({ hits: [expect.objectContaining({ channelId: group.id })] });
+      const abort = new AbortController();
+      const stream = f.live
+        .followChannel(f.human, group.id, 10, abort.signal)
+        [Symbol.asyncIterator]();
+      try {
+        expect((await stream.next()).value).toMatchObject({ type: 'opened' });
+      } finally {
+        abort.abort();
+        await stream.return?.();
+      }
+    },
+  );
+
+  it.each(['owner', 'manager', 'channel-owner', 'admin', 'everyone'] as const)(
+    'allows %s to add even a higher-permission target and searches only available active people',
+    async (authority) => {
+      const f = await enabledFixture();
+      const group = f.channels.createGroup(authority === 'channel-owner' ? f.human : owner, {
+        name: 'M14 authority',
+        members: [],
+      });
+      if (authority === 'manager') {
+        const role = f.team.roles.create(owner, 'M14 manager', ['channels.manageAll']).role;
+        f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+      } else if (authority !== 'owner' && authority !== 'channel-owner') {
+        f.team.channelAccess.addMember(owner, group.id, 'bob');
+        if (authority === 'admin') f.team.channelAccess.adminsSet(owner, group.id, ['bob']);
+      }
+      const target = await f.team.createMember(owner, 'm14-target', 'Search Target', ['admin']);
+      const inactive = await f.team.createMember(owner, 'm14-inactive', 'Search Inactive');
+      await f.team.deactivate(owner, inactive.member.humanId);
+      f.team.channelAccess.policySet(owner, group.id, {
+        ...f.team.channelAccess.view(authority === 'channel-owner' ? f.human : owner, group.id)
+          .policy,
+        addMembers: authority === 'everyone' ? 'everyone' : 'admins',
+      });
+      const actor = authority === 'owner' ? owner : f.human;
+      const reads = f.db.diagnostics().metrics.reads;
+      expect(
+        await f.methods(actor).channelMemberCandidates({ channelId: group.id, query: 'Search' }),
+      ).toEqual({
+        ok: true,
+        value: [
+          { humanId: target.member.humanId, displayName: 'Search Target', username: 'm14-target' },
+        ],
+      });
+      expect(f.db.diagnostics().metrics.reads - reads).toBeLessThanOrEqual(12);
+      expect(
+        await f.methods(actor).channelHumanAdd({ channelId: group.id, humanId: 'm14-target' }),
+      ).toEqual({ ok: true, value: null });
+      expect(
+        await f
+          .methods(actor)
+          .channelMemberCandidates({ channelId: group.id, query: 'm14-target' }),
+      ).toEqual({ ok: true, value: [] });
+      expect(
+        f.team.channelAccess.canRead(humanContext(target.member.humanId), group.id, true),
+      ).toBe(true);
+    },
+  );
+
+  it('enforces addMembers through the member Gateway for invitation and candidate search without trusting payload identity', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'm14-target', 'Alice');
+    const group = f.channels.createGroup(owner, { name: 'M14 denied', members: [] });
+    f.team.channelAccess.addMember(owner, group.id, 'bob');
+    f.team.channelAccess.policySet(owner, group.id, {
+      ...f.team.channelAccess.view(owner, group.id).policy,
+      addMembers: 'admins',
+    });
+    await f.team.changePassword(f.human, f.initialPassword, 'm14-password-2', false);
+    const login = await f.team.signIn('bob', 'm14-password-2', 'm14-ip');
+    for (const method of ['channelHumanAdd', 'channelMemberCandidates']) {
+      await expect(
+        f.gateway.invoke({
+          namespace: 'botharness',
+          method,
+          args: {
+            channelId: group.id,
+            ...(method === 'channelHumanAdd' ? { humanId: alice.member.humanId } : {}),
+          },
+          peer: login.peer,
+        }),
+      ).rejects.toMatchObject({
+        code: 'permission-required',
+        details: { permission: 'addMembers' },
+      });
+    }
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelHumanAdd',
+        args: { channelId: group.id, humanId: alice.member.humanId, callerHumanId: owner.humanId },
+        peer: login.peer,
+      }),
+    ).rejects.toMatchObject({ code: 'gateway/arguments-invalid' });
+    expect(f.channels.hasHumanMembership?.(humanContext(alice.member.humanId), group.id)).toBe(
+      false,
+    );
+    f.team.channelAccess.policySet(owner, group.id, {
+      ...f.team.channelAccess.view(owner, group.id).policy,
+      addMembers: 'everyone',
+    });
+    await f.team.accessSettled();
+    const allowed = await f.team.signIn('bob', 'm14-password-2', 'm14-ip-allowed');
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelMemberCandidates',
+        args: { channelId: group.id, query: 'target' },
+        peer: allowed.peer,
+      }),
+    ).resolves.toEqual([
+      { humanId: alice.member.humanId, displayName: 'Alice', username: 'm14-target' },
+    ]);
+    await expect(
+      f.gateway.invoke({
+        namespace: 'botharness',
+        method: 'channelHumanAdd',
+        args: { channelId: group.id, humanId: 'm14-target' },
+        peer: allowed.peer,
+      }),
+    ).resolves.toBe(null);
+    await f.team.deactivate(owner, f.human.humanId);
+    expect(await f.methods(f.human).channelMemberCandidates({ channelId: group.id })).toMatchObject(
+      { ok: false, error: { code: 'member-suspended' } },
+    );
+  });
+
+  it('bounds candidate output and database reads independently of directory size', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'M14 directory budget', members: [] });
+    f.database.transaction((db) => {
+      const insert = db.prepare('INSERT INTO humans VALUES (?, ?, ?, ?)');
+      for (let index = 0; index < 1000; index++)
+        insert.run(
+          `candidate-${String(index).padStart(4, '0')}`,
+          `Candidate ${index}`,
+          'active',
+          'before',
+        );
+    });
+    const reads = f.db.diagnostics().metrics.reads;
+    const candidates = f.team.channelAccess.memberCandidates(owner, group.id, 'Candidate');
+    expect(candidates).toHaveLength(100);
+    expect(f.db.diagnostics().metrics.reads - reads).toBe(4);
+    expect(f.team.channelAccess.memberCandidates(owner, group.id, 'Candidate 999')).toEqual([
+      { humanId: 'candidate-0999', displayName: 'Candidate 999', username: null },
+    ]);
+    expect(
+      await f
+        .methods(owner)
+        .channelMemberCandidates({ channelId: group.id, query: 'x'.repeat(201) }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      await f.methods(owner).channelHumanAdd({ channelId: group.id, humanId: 'missing' }),
+    ).toMatchObject({ ok: false, error: { code: 'member-not-found' } });
+    expect(
+      await f.methods(f.human).channelHumanAdd({ channelId: group.id, humanId: owner.humanId }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'addMembers' } },
+    });
+  });
+
+  it('keeps a role join while another allowed role remains, then removes it when neither remains', async () => {
+    const f = await enabledFixture();
+    const first = f.team.roles.create(owner, 'First audience', []).role;
+    const second = f.team.roles.create(owner, 'Second audience', []).role;
+    f.team.roles.set(owner, f.human.humanId, [first.roleId, second.roleId]);
+    const group = f.channels.createGroup(owner, { name: 'Union of roles', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, {
+      kind: 'roles',
+      roleIds: [first.roleId, second.roleId],
+    });
+    f.team.channelAccess.join(f.human, group.id);
+    f.team.roles.set(owner, f.human.humanId, [second.roleId]);
+    expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(true);
+    f.team.roles.set(owner, f.human.humanId, ['member']);
+    expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(false);
+    expect(f.team.channelAccess.memberCandidates(owner, group.id, 'bob')).toEqual([
+      { humanId: f.human.humanId, displayName: 'Bob', username: 'bob' },
+    ]);
+    f.team.channelAccess.addMember(owner, group.id, 'bob');
+    expect(f.team.channelAccess.canRead(f.human, group.id, true)).toBe(true);
+  });
+
+  it.each(['delete-role', 'transfer-owner'] as const)(
+    'ends role access on %s while preserving named access',
+    async (operation) => {
+      const f = await enabledFixture();
+      const role = f.team.roles.create(owner, 'Removed audience', []).role;
+      f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+      const groups = ['role', 'invited'].map((basis) => {
+        const group = f.channels.createGroup(owner, { name: `M14 ${basis}`, members: [] });
+        f.team.channelAccess.visibilitySet(owner, group.id, {
+          kind: 'roles',
+          roleIds: [role.roleId],
+        });
+        if (basis === 'role') f.team.channelAccess.join(f.human, group.id);
+        else f.team.channelAccess.addMember(owner, group.id, 'bob');
+        return group;
+      });
+      if (operation === 'delete-role') f.team.roles.delete(owner, role.roleId);
+      else {
+        await f.team.changePassword(f.human, f.initialPassword, 'm14-new-owner-password');
+        await f.team.transferOwner(owner, f.human.humanId, 'owner-password-1');
+      }
+      expect(f.channels.hasHumanMembership?.(f.human, groups[0]!.id)).toBe(false);
+      expect(f.team.channelAccess.canRead(f.human, groups[0]!.id, true)).toBe(false);
+      expect(f.channels.hasHumanMembership?.(f.human, groups[1]!.id)).toBe(true);
+      expect(f.team.channelAccess.canRead(f.human, groups[1]!.id, true)).toBe(true);
+    },
+  );
+
+  it('upgrades a role join on a named invitation and never downgrades it on repeated join', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Upgrade invitation', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+    f.team.channelAccess.join(f.human, group.id);
+    f.team.channelAccess.addMember(owner, group.id, 'bob');
+    f.team.channelAccess.join(f.human, group.id);
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    expect(f.team.channelAccess.canRead(f.human, group.id, true)).toBe(true);
+    expect(
+      f.database.read((db) =>
+        db
+          .prepare(
+            'SELECT membership_basis FROM channel_human_members WHERE channel_id = ? AND human_id = ?',
+          )
+          .get(group.id, f.human.humanId),
+      ),
+    ).toEqual({ membership_basis: 'invited' });
+  });
+
+  it('removes role-joined membership and its live stream on role revoke, retaining named invitations', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'm14-alice', 'Alice');
+    const invited = humanContext(alice.member.humanId);
+    const role = f.team.roles.create(owner, 'M14 audience', []).role;
+    f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+    f.team.roles.set(owner, invited.humanId, [role.roleId]);
+    const group = f.channels.createGroup(owner, { name: 'Role basis', members: [] });
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: [role.roleId] });
+    f.team.channelAccess.join(f.human, group.id);
+    f.team.channelAccess.addMember(owner, group.id, invited.humanId);
+    await f.channels.appendMessage(owner, group.id, {
+      id: 'm14-role-history',
+      at: '2026-11-16',
+      author: { kind: 'human' },
+      body: 'm14-role-history',
+    });
+    const abort = new AbortController();
+    const stream = f.live
+      .followChannel(f.human, group.id, 10, abort.signal)
+      [Symbol.asyncIterator]();
+    try {
+      expect((await stream.next()).value).toMatchObject({ type: 'opened' });
+      await stream.next();
+      const next = stream.next();
+      f.team.roles.set(owner, f.human.humanId, ['member']);
+      f.team.roles.set(owner, invited.humanId, ['member']);
+      await f.team.accessSettled();
+      expect((await next).done).toBe(true);
+      expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(false);
+      expect(await f.methods(f.human).channels({})).toMatchObject({
+        ok: true,
+        value: { channels: [] },
+      });
+      expect(
+        f.channels.searchAllHumanMessages?.(f.human, { text: 'm14-role-history', limit: 10 }),
+      ).toMatchObject({ hits: [] });
+      expect(f.team.channelAccess.canRead(invited, group.id, true)).toBe(true);
+      expect(
+        f.channels.searchAllHumanMessages?.(invited, { text: 'm14-role-history', limit: 10 }),
+      ).toMatchObject({ hits: [expect.objectContaining({ channelId: group.id })] });
+      f.team.roles.set(owner, f.human.humanId, [role.roleId]);
+      expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(false);
+    } finally {
+      abort.abort();
+      await stream.return?.();
+    }
   });
 });

@@ -214,3 +214,48 @@ export async function loadChannelRoles(
     return typeof roleId === 'string' && typeof name === 'string' ? { roleId, name } : undefined;
   });
 }
+
+export interface MemberCandidate {
+  readonly humanId: string;
+  readonly displayName: string;
+  readonly username?: string;
+}
+
+function parseMemberCandidate(value: unknown): MemberCandidate | undefined {
+  const row = record(value);
+  const humanId = row?.['humanId'];
+  if (typeof humanId !== 'string' || humanId.length === 0) return undefined;
+  const displayName = row?.['displayName'];
+  const username = row?.['username'];
+  return {
+    humanId,
+    displayName: typeof displayName === 'string' && displayName.length > 0 ? displayName : humanId,
+    ...(typeof username === 'string' && username.length > 0 ? { username } : {}),
+  };
+}
+
+export async function loadMemberCandidates(
+  call: BridgeCall,
+  channelId: string,
+  query: string,
+  signal?: AbortSignal,
+): Promise<MemberCandidate[]> {
+  const trimmed = query.trim();
+  return list(
+    await unwrap(
+      call,
+      'channelMemberCandidates',
+      { channelId, ...(trimmed.length > 0 ? { query: trimmed } : {}) },
+      signal,
+    ),
+    parseMemberCandidate,
+  );
+}
+
+export async function addChannelHuman(
+  call: BridgeCall,
+  channelId: string,
+  humanId: string,
+): Promise<void> {
+  await unwrap(call, 'channelHumanAdd', { channelId, humanId });
+}

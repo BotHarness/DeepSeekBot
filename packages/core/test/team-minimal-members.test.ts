@@ -311,11 +311,9 @@ describe('M13 upgrade', () => {
     const ownerHome = await f.core.tob.ensure(owner);
     f.db.transaction((db) => {
       db.prepare("INSERT INTO tob_identity VALUES ('member', 'legacy-tob')").run();
-      const migration = BOT_HARNESS_SCHEMA_PLAN.migrations.find(
-        (step) => step.id === 'minimal-member',
-      );
-      if (!migration) throw new Error('Missing minimal-member migration');
-      migration.migrate(db);
+      BOT_HARNESS_SCHEMA_PLAN.migrations
+        .find((migration) => migration.id === 'minimal-member')!
+        .migrate(db);
     });
     await closes.pop()!();
     const restarted = fixture(f.dshHome);

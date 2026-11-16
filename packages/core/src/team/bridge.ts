@@ -80,7 +80,7 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .parse(payload);
         return service.spaces.delete(human, spaceId, confirm);
       }),
-    teamMode: (_payload: unknown) => call((service) => service.mode(human)),
+    teamMode: (_payload: unknown) => call((service) => service.modeStatus(human)),
     teamModeSet: (payload: unknown) =>
       call((service) =>
         service.setMode(human, z.object({ enabled: z.boolean() }).parse(payload).enabled),
@@ -287,6 +287,13 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
         const target = service.memberByUsername(username);
         if (!target) throw new TeamError('member-not-found');
         return service.channelAccess.dm(human, target.humanId);
+      }),
+    channelMemberCandidates: (payload: unknown) =>
+      call((service) => {
+        const { channelId, query } = z
+          .object({ channelId: z.string().min(1), query: z.string().max(200).default('') })
+          .parse(payload);
+        return service.channelAccess.memberCandidates(human, channelId, query);
       }),
     channelHumanAdd: (payload: unknown) =>
       call((service) => {

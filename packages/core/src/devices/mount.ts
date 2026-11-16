@@ -1,3 +1,4 @@
+import { memberRoutes as eligibleMemberRoutes } from '../team/member-urls.js';
 import { createMemberDevices } from '../team/devices.js';
 import { createConnectHealth } from './connect-health.js';
 import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
@@ -849,6 +850,7 @@ export function mountDevicePairing(
     const publishKey = credentialKey('botharness-core', 'device-tailscale');
     const publishing = createManagedPhoneRoute({
       port: webServer.port,
+      tls: webServer.getOrigin?.().startsWith('https:') ?? false,
       read: async () => {
         const credentials = options.credentials?.();
         if (!credentials) throw new Error('publishing-storage-unavailable');
@@ -920,12 +922,16 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
-    memberRoutes = async () => [
-      ...(webServer.getOrigin ? [webServer.getOrigin()] : []),
-      ...(await routes()).routes
-        .filter((route) => route.ready && route.kind !== 'private')
-        .map((route) => route.url),
-    ];
+    memberRoutes = async () => {
+      await publishingReady;
+      const status = await publishing.status();
+      const tunnel = connect.route();
+      if (tunnel) status.routes.push(tunnel);
+      return eligibleMemberRoutes(
+        webServer.getOrigin?.() ?? `http://127.0.0.1:${webServer.port}`,
+        status,
+      );
+    };
     webCtx.effect(
       () =>
         connection.fetch.register({

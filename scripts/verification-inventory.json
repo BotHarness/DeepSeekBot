@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "team.own-bot-memory",
+      "label": "Members manage their own Bots Memory through Host and CLI",
+      "source": "packages/core/src/team/member-methods.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-restore.md",
+      "task": 4200,
+      "gap": "Packaged Host and CLI; rendered member UI, M7 public Bots and M15 model-policy acceptance are separate gates."
+    },
+    {
       "id": "bot.context-overflow-recovery",
       "label": "Native compaction and bounded retry after a gateway token-limit rejection",
       "source": "packages/core/src/runtime/context-overflow-recovery.ts",
@@ -758,6 +766,14 @@
       "source": "packages/client/src/client/composer-context-bar.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/composer-footer.md",
       "task": 1958,
+      "gap": null
+    },
+    {
+      "id": "desktop.composer.skill-invocation",
+      "label": "Pick a Skill from / in a Bot DM and deliver its text snapshot",
+      "source": "packages/client/src/client/channel-composer.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/skill-invocation.md",
+      "task": 4232,
       "gap": null
     },
     {
@@ -1554,7 +1570,7 @@
       "behaviors": ["desktop.composer", "desktop.group.manage"],
       "reason": "Task cookie profile; checks draft persistence, composer clearing, invite controls and Client errors across Channel changes.",
       "task": 1967,
-      "sha256": "e770745c5c2f4cd6127c4016b8cc02f12f6183b3ab022cc10c83f22edbfcce3d"
+      "sha256": "05f16e29a66a658faef886484c0a0e2c5154cc7665395fddc8607e0c664712f2"
     },
     {
       "path": "scripts/e2e-client-reads.mjs",
@@ -1730,7 +1746,7 @@
       "behaviors": ["desktop.group.manage"],
       "reason": "Task cookie profile with optional restart/join phases; group name/avatar, membership decisions and refresh persistence.",
       "task": 1967,
-      "sha256": "7bd3d2a01baef1419390ef8b0836ed1d52116de51e8e46e334a85995595d2256"
+      "sha256": "424ca27bf88a299440ca73d7c916eeb1c4444f4616c2d7c86ea4cd14c77dc881"
     },
     {
       "path": "scripts/e2e-group-motion-matrix.mjs",
@@ -1907,6 +1923,14 @@
       "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory.",
       "task": 1975,
       "sha256": "dfe816b10b04620373e7cbbb33926462bc6bf67914a71d2fc23c75d3bf0aaef8"
+    },
+    {
+      "path": "scripts/e2e-team-bot-memory.mjs",
+      "category": "mapped",
+      "behaviors": ["team.own-bot-memory"],
+      "reason": "Fresh named Host; member role, private Bot, saves, history, versions, restores, cross-member refusal and off/on preservation; no model or UI qualification.",
+      "task": 4200,
+      "sha256": "d66dc41124b2f78f70eb10a685f8a4176a67b7a0ad4f3076e90e91b47683856e"
     },
     {
       "path": "scripts/e2e-message-inline-actions.mjs",
@@ -2642,6 +2666,14 @@
       "reason": "Compares live Host Overview with production token snapshot reader and serializer; optional separately marked QA wire send.",
       "task": 4255,
       "sha256": "925304c37a3fd15e198ecdc54fe954e6f888d4b68dc3fd6e6a8760867d61e2ef"
+    },
+    {
+      "path": "scripts/e2e-avatar-scroll.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Real isolated Host pixel-avatar editing: wheel to final palette swatch and drawing footer at three desktop sizes, select color and cancel without changing saved appearance.",
+      "task": 4268,
+      "sha256": "6958575fe6d1aa292c2fe303b6c629a3a923b75fa6fbfed6ec74aec1a4e13ec2"
     }
   ],
   "native": [

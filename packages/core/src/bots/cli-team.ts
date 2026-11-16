@@ -70,6 +70,7 @@ export const TEAM_COMMANDS = [
 ] as const;
 
 type TeamValues = {
+  query?: string;
   after?: string;
   limit?: string;
   kind?: string;
@@ -454,6 +455,11 @@ export async function runTeamCommand(
     }
     if (action === 'admins' && argument && rest.length === 2 && values.set !== undefined)
       return rpc('channelAdminsSet', { channelId: argument, humanIds: ids(values.set) });
+    if (action === 'member-candidates' && argument && rest.length === 2)
+      return rpc('channelMemberCandidates', {
+        channelId: argument,
+        ...(values.query === undefined ? {} : { query: values.query }),
+      });
     if (action === 'add-member' && argument && rest.length === 3)
       return rpc('channelHumanAdd', { channelId: argument, humanId: rest[2] });
     if (action === 'description' && argument && rest.length === 2 && values['body-stdin'])

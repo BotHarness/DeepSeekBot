@@ -17,7 +17,7 @@ import {
 import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 import { keyBytes } from '@botharness/host-client/encrypted-carrier';
 import { checkRoute, isConnectRoute, isLanRoute } from '@botharness/host-protocol/route';
-import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
+import { useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
@@ -129,6 +129,12 @@ const styles = stylex.create({
     backgroundColor: 'white',
   },
   actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
+  memberSignIn: {
+    display: 'block',
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   meta: {
     margin: 0,
     color: color.muted,
@@ -169,7 +175,33 @@ function hasPhoneRoute(routes: RouteStatus): boolean {
 }
 
 function portOf(routes: RouteStatus): string {
+  const loopback = routes.routes.find((route) => route.kind === 'loopback');
+  if (loopback) {
+    const port = new URL(loopback.url).port;
+    if (port) return port;
+  }
   return /(\d+)\s*$/u.exec(routes.serveCommand)?.[1] ?? '';
+}
+
+function tailscaleBody(
+  routes: RouteStatus | undefined,
+  t: PropsLocale<'botharness'>['t'],
+): ReactNode {
+  const route = routes?.routes.find((entry) => entry.kind === 'tailscale');
+  if (!route) return t('devices.tailscale.stopped');
+  if (route.memberSignIn === undefined) return route.url;
+  return (
+    <>
+      {route.url}
+      <span {...stylex.props(styles.memberSignIn)} data-member-sign-in={route.memberSignIn}>
+        {t(
+          route.memberSignIn === 'managed-tls'
+            ? 'devices.tailscale.memberSignIn.trusted'
+            : 'devices.tailscale.memberSignIn.untrusted',
+        )}
+      </span>
+    </>
+  );
 }
 
 function onTailnet(): boolean {
@@ -718,10 +750,7 @@ export function PairedDevicesSettings({
               icon="shield-check"
               tone={tailscaleReady ? 'success' : 'neutral'}
               title="Tailscale"
-              body={
-                routes?.routes.find((route) => route.kind === 'tailscale')?.url ??
-                t('devices.tailscale.stopped')
-              }
+              body={tailscaleBody(routes, t)}
               action={
                 <>
                   {routes?.managed?.enabled || routes?.managed?.owned ? (

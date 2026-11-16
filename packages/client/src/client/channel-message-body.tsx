@@ -790,6 +790,47 @@ export function ChannelMessageBody({
       </button>
     );
   };
+  const renderSkill = (
+    skill: NonNullable<ChannelMessage['skillInvocations']>[number],
+    key: number,
+  ) => {
+    const ownerBot =
+      skill.owner.kind === 'bot'
+        ? [...bots, ...store.getSnapshot().bots].find(
+            (bot) => skill.owner.kind === 'bot' && bot.slug === skill.owner.botSlug,
+          )
+        : undefined;
+    const owner =
+      skill.owner.kind === 'host'
+        ? t('composer.skillHost')
+        : (ownerBot?.displayName ?? skill.owner.botSlug);
+    const preview =
+      skill.content.length > 1500 ? `${skill.content.slice(0, 1500)}…` : skill.content;
+    return (
+      <span
+        key={key}
+        className="bh-inline-mention bh-inline-mention-sent bh-inline-skill"
+        data-skill-owner={skill.owner.kind === 'host' ? 'host' : `bot:${skill.owner.botSlug}`}
+        title={`/${skill.name} · ${owner}\n\n${preview}`}
+      >
+        {skill.owner.kind === 'bot' && host === undefined ? (
+          <span className="bh-inline-mention-avatar" aria-hidden="true">
+            <PersonaBotAvatar
+              personaBotId={skill.owner.botSlug}
+              name={owner}
+              src={ownerBot?.avatar}
+              appearance={ownerBot?.appearance}
+              avatarSeed={ownerBot?.avatarSeed}
+              size={16}
+              indicator={false}
+              t={t}
+            />
+          </span>
+        ) : null}
+        <span>/{skill.name}</span>
+      </span>
+    );
+  };
   const voice = message.voice;
   const {
     voice: voiceAttachment,
@@ -874,8 +915,17 @@ export function ChannelMessageBody({
             message.mentions ?? [],
             message.channelRefs ?? [],
             message.humanMentions ?? [],
+            message.skillInvocations ?? [],
           ).map((run, index) =>
-            run.mention !== undefined ? (
+            run.skill !== undefined ? (
+              renderSkill(
+                message.skillInvocations?.find((skill) => skill.start === run.skill.start) ?? {
+                  ...run.skill,
+                  content: '',
+                },
+                index,
+              )
+            ) : run.mention !== undefined ? (
               renderMention(run.mention, index)
             ) : run.humanMention !== undefined ? (
               renderMention(run.humanMention, index)

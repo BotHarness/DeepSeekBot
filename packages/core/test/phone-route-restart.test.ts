@@ -1,3 +1,4 @@
+import { fixedIngress } from './support/phone-route-ingress.js';
 import { describe, expect, it } from 'vitest';
 import { createServer } from 'node:net';
 import {
@@ -34,6 +35,7 @@ function fixture(fail = false) {
     return '';
   };
   const owner = createManagedPhoneRoute({
+    ingress: fixedIngress(4200),
     port: 4200,
     run,
     read: async () => state,
@@ -69,6 +71,7 @@ describe('managed route restart', () => {
       let target = 4100;
       let failVerification = true;
       const owner = createManagedPhoneRoute({
+        ingress: fixedIngress(4200),
         port: 4200,
         read: async () => state,
         write: async (next) => {

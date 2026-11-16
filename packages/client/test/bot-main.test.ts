@@ -124,6 +124,7 @@ it('keeps settled message groups mounted without rerendering their author cards 
     modelCatalog: async () => ({ models: [] }),
     listWorkspaceGrants: async () => [],
     botSourcePolicies: async () => [],
+    skillCatalog: async () => [],
     allBotPreview: async () => ({ recipients: [], excluded: [] }),
     listWorkspaceOptions: async () => [],
     markRead: async () => undefined,
@@ -331,6 +332,7 @@ describe('Bot main Sessions pane', () => {
           createElement(BotMain, {
             actions: {
               ...inertSubmissionActions,
+              skillCatalog: async () => [],
               allBotPreview: async () => undefined,
             } as unknown as BridgeActions,
             channelSidebar: createChannelSidebarRegistry(),
@@ -1969,6 +1971,7 @@ describe('B2 chat bubbles', () => {
         modelPlanState: async () => ({}),
         listWorkspaceGrants: async () => [],
         botSourcePolicies: async () => [],
+        skillCatalog: async () => [],
         allBotPreview: async () => ({ recipients: [], excluded: [] }),
         listWorkspaceOptions: async () => [],
         markRead: async () => undefined,

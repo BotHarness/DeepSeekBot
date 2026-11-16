@@ -24,6 +24,7 @@ import {
   IconCloseOutlineRegular,
   IconPaperclipOutlineRegular,
   IconSendOutlineRegular,
+  IconSkillOutlineRegular,
   ImageLightbox,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -60,6 +61,14 @@ import {
 import type { ChannelAttachmentRef } from './store.js';
 import { deleteAttachmentReference, insertAttachmentReferences } from './attachment-refs.js';
 import type { ComposerSendKey } from './composer-send-key.js';
+import { rankSkillEntries } from '../../../core/src/skills/entries.js';
+import {
+  activeSkillQuery,
+  selectSkill,
+  type ComposerSkillOption,
+  type SelectedSkill,
+  type SkillQuery,
+} from './skill-refs.js';
 
 export interface ChannelComposerActivity {
   presentation?: 'group' | undefined;
@@ -108,9 +117,16 @@ export interface ChannelComposerProps {
   mentions?: readonly SelectedMention[] | undefined;
   channelCandidates?: readonly ChannelSummary[] | undefined;
   channelRefs?: readonly SelectedChannelRef[] | undefined;
+  skillOptions?: readonly ComposerSkillOption[] | undefined;
+  skills?: readonly SelectedSkill[] | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
   t?: BotHarnessTranslate | undefined;
-  onChange(value: string, mentions?: SelectedMention[], channelRefs?: SelectedChannelRef[]): void;
+  onChange(
+    value: string,
+    mentions?: SelectedMention[],
+    channelRefs?: SelectedChannelRef[],
+    skills?: SelectedSkill[],
+  ): void;
   onCancelReply?(): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
@@ -396,6 +412,8 @@ export function ChannelComposer({
   mentions = [],
   channelCandidates = [],
   channelRefs = [],
+  skillOptions = [],
+  skills = [],
   reply,
   t = zhTranslate,
   onChange,
@@ -443,17 +461,38 @@ export function ChannelComposer({
     mentionCandidates.length > 0 ||
     mentions.length > 0 ||
     channelCandidates.length > 0 ||
-    channelRefs.length > 0;
+    channelRefs.length > 0 ||
+    skillOptions.length > 0 ||
+    skills.length > 0;
   const [mentionQuery, setMentionQuery] = useState<MentionQuery | undefined>();
   const [channelQuery, setChannelQuery] = useState<ChannelRefQuery | undefined>();
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const [slashQuery, setSlashQuery] = useState<ComposerSlashQuery>();
+  const [skillQuery, setSkillQuery] = useState<SkillQuery | undefined>();
   const slashTarget = useRef<string | undefined>(undefined);
   const [shortcutIndex, setShortcutIndex] = useState(0);
   const shortcutOptions = composerShortcutOptions(
     context?.shortcuts ?? [],
     slashTarget.current === context?.target ? slashQuery : undefined,
   );
+  const skillMatches =
+    skillQuery === undefined
+      ? []
+      : rankSkillEntries(skillOptions, skillQuery.query, (option) =>
+          option.owner.kind === 'host'
+            ? []
+            : [option.bot?.displayName ?? option.owner.botSlug, option.owner.botSlug],
+        ).slice(0, 8);
+  const menuLength = shortcutOptions.length + skillMatches.length;
+  const chipBots = [
+    ...mentionCandidates,
+    ...skillOptions.flatMap((option) =>
+      option.bot === undefined ||
+      mentionCandidates.some((candidate) => candidate.slug === option.bot!.slug)
+        ? []
+        : [option.bot],
+    ),
+  ].filter((bot, index, all) => all.findIndex((item) => item.slug === bot.slug) === index);
   const hasShortcutArgument =
     slashTarget.current === context?.target &&
     slashQuery?.argument !== undefined &&
@@ -474,7 +513,28 @@ export function ChannelComposer({
   const chooseShortcut = (shortcut: ComposerShortcut): void => {
     if (locked || shortcut.disabled || voice.active) return;
     clearShortcut();
+    setSkillQuery(undefined);
     shortcut.run();
+  };
+  const chooseSkill = (option: ComposerSkillOption): void => {
+    if (locked || skillQuery === undefined || voice.active) return;
+    const selected = selectSkill(value, skills, skillQuery, option);
+    onChange(
+      selected.value,
+      rebaseMentions(value, selected.value, mentions),
+      rebaseChannelRefs(value, selected.value, channelRefs),
+      selected.skills,
+    );
+    setSkillQuery(undefined);
+    setSlashQuery(undefined);
+    requestedCaret.current = selected.caret;
+    requestAnimationFrame(() => {
+      const editor = richRef.current;
+      if (editor !== null) {
+        editor.focus();
+        setRichSelection(editor, selected.caret);
+      }
+    });
   };
   const botCandidates =
     mentionQuery === undefined
@@ -629,10 +689,13 @@ export function ChannelComposer({
     [syncTextarea],
   );
 
-  const avatarKey = mentions
-    .map((mention) => {
-      const bot = mentionCandidates.find((candidate) => candidate.slug === mention.botSlug);
-      return [mention.botSlug, bot?.displayName, bot?.avatar, botNameSource(bot)].join(':');
+  const avatarKey = [
+    ...mentions.map((mention) => mention.botSlug),
+    ...skills.flatMap((skill) => (skill.owner.kind === 'bot' ? [skill.owner.botSlug] : [])),
+  ]
+    .map((slug) => {
+      const bot = chipBots.find((candidate) => candidate.slug === slug);
+      return [slug, bot?.displayName, bot?.avatar, botNameSource(bot)].join(':');
     })
     .join('|');
   const attachmentKey = attachments
@@ -670,7 +733,7 @@ export function ChannelComposer({
       richRef.current = editor;
       const current = readRichMentionDraft(editor);
       if (
-        sameRichMentionDraft(current, value, mentions, channelRefs) &&
+        sameRichMentionDraft(current, value, mentions, channelRefs, skills) &&
         renderedAvatarKey.current === avatarKey &&
         renderedAttachmentKey.current === attachmentKey
       )
@@ -686,9 +749,10 @@ export function ChannelComposer({
         editor,
         value,
         mentions,
-        mentionCandidates,
+        chipBots,
         channelRefs,
         attachments,
+        skills,
       );
       setAvatarMounts(mounts);
       setAttachmentMounts(
@@ -714,6 +778,7 @@ export function ChannelComposer({
       value,
       mentions,
       channelRefs,
+      skills,
       mentionCandidates,
       channelCandidates,
       avatarKey,
@@ -767,10 +832,19 @@ export function ChannelComposer({
     if (editor.innerHTML === '<br>') editor.replaceChildren();
     const next = readRichMentionDraft(editor);
     scheduleSync(editor);
-    onChange(next.value, next.mentions, next.channelRefs);
+    onChange(next.value, next.mentions, next.channelRefs, next.skills);
     const caret = richSelectionOffsets(editor)?.end ?? next.value.length;
     slashTarget.current = context?.target;
-    setSlashQuery(context === undefined ? undefined : composerSlashQuery(next.value, caret));
+    const command = context === undefined ? undefined : composerSlashQuery(next.value, caret);
+    setSlashQuery(
+      command !== undefined &&
+        next.skills.some((skill) => skill.start < command.end && skill.end > command.start)
+        ? undefined
+        : command,
+    );
+    setSkillQuery(
+      skillOptions.length === 0 ? undefined : activeSkillQuery(next.value, caret, next.skills),
+    );
     setShortcutIndex(0);
     setMentionQuery(activeMentionQuery(next.value, caret, next.mentions));
     setChannelQuery(activeChannelRefQuery(next.value, caret, next.channelRefs));
@@ -792,25 +866,29 @@ export function ChannelComposer({
       event.preventDefault();
       return;
     }
-    if (shortcutOptions.length > 0 && !event.nativeEvent.isComposing) {
+    if (menuLength > 0 && !event.nativeEvent.isComposing) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        clearShortcut();
+        if (shortcutOptions.length > 0) clearShortcut();
+        setSkillQuery(undefined);
         return;
       }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         setShortcutIndex(
-          (current) =>
-            (current + (event.key === 'ArrowDown' ? 1 : -1) + shortcutOptions.length) %
-            shortcutOptions.length,
+          (current) => (current + (event.key === 'ArrowDown' ? 1 : -1) + menuLength) % menuLength,
         );
         return;
       }
       if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault();
-        const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
+        const index = shortcutIndex % menuLength;
+        const shortcut = shortcutOptions[index];
         if (shortcut !== undefined) chooseShortcut(shortcut);
+        else {
+          const option = skillMatches[index - shortcutOptions.length];
+          if (option !== undefined) chooseSkill(option);
+        }
         return;
       }
     }
@@ -1002,7 +1080,7 @@ export function ChannelComposer({
           ))}
         </div>
       ) : null}
-      {shortcutOptions.length === 0 ? null : (
+      {menuLength === 0 ? null : (
         <div
           className="bh-composer-shortcuts"
           role="menu"
@@ -1018,7 +1096,7 @@ export function ChannelComposer({
             <button
               key={shortcut.key ?? shortcut.id}
               ref={(node) => {
-                if (index === shortcutIndex % shortcutOptions.length)
+                if (index === shortcutIndex % menuLength)
                   node?.scrollIntoView?.({ block: 'nearest' });
               }}
               type="button"
@@ -1029,7 +1107,7 @@ export function ChannelComposer({
                   ? shortcut.label
                   : `${shortcut.label} · ${shortcut.reason}`
               }
-              data-active={index === shortcutIndex % shortcutOptions.length ? 'true' : undefined}
+              data-active={index === shortcutIndex % menuLength ? 'true' : undefined}
               data-selected={shortcut.selected ? 'true' : undefined}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => chooseShortcut(shortcut)}
@@ -1046,6 +1124,56 @@ export function ChannelComposer({
               ) : null}
             </button>
           ))}
+          {skillMatches.length === 0 ? null : (
+            <div className="bh-composer-menu-section" role="presentation">
+              {t('composer.skills')}
+            </div>
+          )}
+          {skillMatches.map((option, offset) => {
+            const index = shortcutOptions.length + offset;
+            const owner =
+              option.owner.kind === 'host'
+                ? t('composer.skillHost')
+                : (option.bot?.displayName ?? option.owner.botSlug);
+            return (
+              <button
+                key={`${option.owner.kind === 'host' ? 'host' : option.owner.botSlug}/${option.name}`}
+                ref={(node) => {
+                  if (index === shortcutIndex % menuLength)
+                    node?.scrollIntoView?.({ block: 'nearest' });
+                }}
+                type="button"
+                role="menuitem"
+                className="bh-composer-skill-option"
+                disabled={locked}
+                aria-label={`/${option.name} · ${owner}`}
+                data-active={index === shortcutIndex % menuLength ? 'true' : undefined}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseSkill(option)}
+              >
+                <span className="bh-composer-skill-owner" title={owner}>
+                  {option.owner.kind === 'bot' ? (
+                    <PersonaBotAvatar
+                      personaBotId={option.owner.botSlug}
+                      name={owner}
+                      src={option.bot?.avatar}
+                      appearance={option.bot?.appearance}
+                      avatarSeed={option.bot?.avatarSeed}
+                      size={20}
+                      indicator={false}
+                      t={t}
+                    />
+                  ) : (
+                    <IconSkillOutlineRegular size={20} />
+                  )}
+                </span>
+                <span className="bh-composer-skill-copy">
+                  <strong>/{option.name}</strong>
+                  <small>{option.description}</small>
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
       {mentionQuery !== undefined && candidates.length > 0 ? (

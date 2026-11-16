@@ -8,7 +8,7 @@ import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway';
 import { viewerCarrierScript } from '@deepseek-ai/dsh-experimental-liveshare-protocol';
 import { z } from 'zod';
 import { renderTeamSignInPage } from '@botharness/host-client/shared/team-sign-in-page';
-import { isConnectRequest } from '../devices/route-context.js';
+import { isConnectRequest, isManagedTlsRequest } from '../devices/route-context.js';
 import { TeamError, type TeamService } from './service.js';
 
 export const TEAM_PATH = '/botharness-device/team';
@@ -60,13 +60,14 @@ export function passwordTransportAllowed(
 ): boolean {
   const ip = request.socket.remoteAddress;
   const address = ip?.startsWith('::ffff:') ? ip.slice(7) : ip;
-  const proxy = ['forwarded', 'x-forwarded-for', 'x-real-ip', 'via'].some((name) =>
-    Object.hasOwn(request.headers, name),
+  const proxy = Object.keys(request.headers).some(
+    (name) => ['forwarded', 'x-real-ip', 'via'].includes(name) || name.startsWith('x-forwarded-'),
   );
   return (
     (!proxy && (ip === '::1' || (isIPv4(address ?? '') && address?.startsWith('127.')))) ||
     options.tls() ||
     isConnectRequest(request) ||
+    isManagedTlsRequest(request) ||
     (allowInsecureOptIn && options.team.mode(options.team.ownerContext()).insecureHttpAllowed)
   );
 }
@@ -112,7 +113,8 @@ function sameOrigin(request: IncomingMessage, tls: boolean): boolean {
     const parsed = new URL(origin);
     return (
       parsed.host === header(request, 'host') &&
-      parsed.protocol === (tls || isConnectRequest(request) ? 'https:' : 'http:')
+      parsed.protocol ===
+        (tls || isConnectRequest(request) || isManagedTlsRequest(request) ? 'https:' : 'http:')
     );
   } catch {
     return false;
@@ -303,6 +305,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           const secure =
             options.tls() ||
             isConnectRequest(request) ||
+            isManagedTlsRequest(request) ||
             Boolean('encrypted' in request.socket && request.socket.encrypted);
           response.setHeader(
             'set-cookie',
@@ -396,6 +399,33 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           return;
         }
         if (!peer) throw new TeamError('credentials-invalid');
+        if (path === `${TEAM_PATH}/api/botharness/memory/image` && request.method === 'GET') {
+          options.team.assertCall(peer.principal, 'memoryImage');
+          const image = z.object({ mime: z.string(), dataBase64: z.string() }).parse(
+            await options.gateway
+              .invoke({
+                namespace: 'botharness',
+                method: 'memoryImage',
+                args: Object.fromEntries(url.searchParams),
+                peer,
+                signal: peer.signal,
+              })
+              .catch((error: unknown) => {
+                throw new TeamError(failure(error).code);
+              }),
+          );
+          const bytes = Buffer.from(image.dataBase64, 'base64');
+          response.writeHead(200, {
+            'content-type': image.mime,
+            'content-length': bytes.length,
+            'cache-control': 'no-store',
+            'cross-origin-resource-policy': 'same-origin',
+            'x-content-type-options': 'nosniff',
+            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+          });
+          response.end(bytes);
+          return;
+        }
         if (path === `${TEAM_PATH}/__share/rpc` && request.method === 'POST')
           return teamJson(response, 200, await rpc(request, peer));
         if (path.startsWith(`${TEAM_PATH}/api/`)) {

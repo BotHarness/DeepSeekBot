@@ -41,7 +41,11 @@ import type {
   MessagingDefaults,
   MessagingDefaultsInput,
 } from '../../../core/src/messaging/defaults.js';
-import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
+import type {
+  ChannelSkillInvocationToken,
+  GroupMemberWakePolicy,
+} from '../../../core/src/channels/channel.js';
+import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
@@ -1111,6 +1115,79 @@ export function parseApprovalCard(value: unknown): ApprovalCardView | undefined 
   };
 }
 
+function parseSkillInvocations(
+  value: unknown,
+  body: string,
+): NonNullable<ChannelMessage['skillInvocations']> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const item = asRecord(entry);
+    const owner = asRecord(item?.['owner']);
+    const name = item?.['name'];
+    const start = item?.['start'];
+    const end = item?.['end'];
+    const content = item?.['content'];
+    const path = item?.['path'];
+    if (
+      typeof name !== 'string' ||
+      typeof content !== 'string' ||
+      typeof start !== 'number' ||
+      typeof end !== 'number' ||
+      body.slice(start, end) !== '/' + name ||
+      (path !== undefined && typeof path !== 'string')
+    )
+      return [];
+    const parsedOwner =
+      owner?.['kind'] === 'host'
+        ? ({ kind: 'host' } as const)
+        : owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string'
+          ? ({ kind: 'bot', botSlug: owner['botSlug'] } as const)
+          : undefined;
+    if (parsedOwner === undefined) return [];
+    return [
+      {
+        name,
+        owner: parsedOwner,
+        start,
+        end,
+        content,
+        ...(typeof path === 'string' ? { path } : {}),
+      },
+    ];
+  });
+}
+
+export async function loadChannelSkillCatalog(
+  call: BridgeCall,
+  channelId: string,
+): Promise<SkillCatalogEntry[]> {
+  const value = asRecord(await unwrap(call, 'channelSkillCatalog', { channelId }));
+  if (!Array.isArray(value?.['skills'])) throw new Error('invalid channelSkillCatalog response');
+  return value['skills'].flatMap((entry: unknown): SkillCatalogEntry[] => {
+    const item = asRecord(entry);
+    const owner = asRecord(item?.['owner']);
+    const name = item?.['name'];
+    const description = item?.['description'];
+    if (typeof name !== 'string' || typeof description !== 'string') return [];
+    const parsedOwner =
+      owner?.['kind'] === 'host'
+        ? ({ kind: 'host' } as const)
+        : owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string'
+          ? ({ kind: 'bot', botSlug: owner['botSlug'] } as const)
+          : undefined;
+    if (parsedOwner === undefined) return [];
+    const path = item?.['path'];
+    return [
+      {
+        name,
+        description,
+        owner: parsedOwner,
+        ...(typeof path === 'string' ? { path } : {}),
+      },
+    ];
+  });
+}
+
 export function parseChannelMessage(value: unknown): ChannelMessage | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -1788,6 +1865,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       }))
   )
     return undefined;
+  const skillInvocations = parseSkillInvocations(record['skillInvocations'], body);
   const channelRevision = record['channelRevision'];
   if (
     channelRevision !== undefined &&
@@ -1869,6 +1947,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(channelRefs === undefined
       ? {}
       : { channelRefs: channelRefs as NonNullable<ChannelMessage['channelRefs']> }),
+    ...(skillInvocations.length === 0 || author.kind !== 'human' ? {} : { skillInvocations }),
     ...(deliveries === undefined
       ? {}
       : { deliveries: deliveries as NonNullable<ChannelMessage['deliveries']> }),
@@ -4173,6 +4252,7 @@ export async function sendChannelMessage(
   assignmentReply?: ChannelMessage['assignmentReply'],
   allBotMention?: AllBotMention,
   genuiReply?: GenuiMessageReply,
+  skillInvocations?: ChannelSkillInvocationToken[],
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -4180,6 +4260,9 @@ export async function sendChannelMessage(
     {
       channelId,
       body,
+      ...(skillInvocations === undefined || skillInvocations.length === 0
+        ? {}
+        : { skillInvocations }),
       ...(replyTo === undefined ? {} : { replyTo }),
       ...(attachments === undefined ? {} : { attachments }),
       ...(messageId === undefined ? {} : { messageId }),

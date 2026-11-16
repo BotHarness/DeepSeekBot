@@ -25,6 +25,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children,
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
+  IconSkillOutlineRegular: () => null,
   ImageLightbox: () => null,
   fileSizeText: (size: number) => `${size} B`,
 }));

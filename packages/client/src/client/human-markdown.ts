@@ -41,6 +41,7 @@ export function preserveHumanLineBreaks(text: string): string {
 export function rendersHumanMarkdown(message: ChannelMessage): boolean {
   if (message.author.kind !== 'human' || message.format !== undefined) return false;
   if ((message.channelRefs?.length ?? 0) > 0) return false;
+  if ((message.skillInvocations?.length ?? 0) > 0) return false;
   if (/\]\(attachment:/u.test(message.body)) return false;
   const mentions = [...(message.mentions ?? []), ...(message.humanMentions ?? [])].sort(
     (left, right) => left.start - right.start,

@@ -79,6 +79,94 @@ async function invoke(argv: string[], url?: string, stdin = '', token = 'private
 }
 
 describe('live CLI over the authenticated DSH carrier', () => {
+  it.each(['--bot', '--channel'])(
+    'ranks Skills by owner display name and slug over the live carrier with %s',
+    async (flag) => {
+      const skills = [
+        { name: 'description', description: 'Alice workflow', owner: { kind: 'host' } },
+        { name: 'review', description: '', owner: { kind: 'bot', botSlug: 'reviewer' } },
+        { name: 'alice-report', description: '', owner: { kind: 'host' } },
+        { name: 'pdf', description: '', owner: { kind: 'bot', botSlug: 'reviewer' } },
+        { name: 'bob-notes', description: '', owner: { kind: 'bot', botSlug: 'bob' } },
+      ];
+      const live = await host((method) => ({
+        ok: true,
+        value:
+          method === 'list'
+            ? {
+                bots: [
+                  { slug: 'reviewer', displayName: 'Alice' },
+                  { slug: 'bob', displayName: 'Bob' },
+                ],
+              }
+            : { skills },
+      }));
+      const target = flag === '--bot' ? 'reviewer' : 'group-team';
+      for (const [query, names] of [
+        ['ALICE', ['alice-report', 'review', 'pdf', 'description']],
+        ['viewer', ['review', 'pdf']],
+      ] as const) {
+        const result = await invoke(['skills-list', flag, target, '--query', query], live.url);
+        expect(result.code).toBe(0);
+        expect(result.json.channelId).toBe(flag === '--bot' ? 'dm-reviewer' : target);
+        expect(result.json.skills.map((entry: { name: string }) => entry.name)).toEqual(names);
+      }
+      expect(live.calls.filter((call) => call.method === 'list')).toHaveLength(2);
+    },
+  );
+
+  it('keeps an unfiltered Skill listing to one catalog RPC', async () => {
+    const live = await host(() => ({ ok: true, value: { skills: [] } }));
+    const result = await invoke(['skills-list', '--channel', 'group-team'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json.skills).toEqual([]);
+    expect(live.calls).toEqual([
+      { method: 'channelSkillCatalog', args: { channelId: 'group-team' } },
+    ]);
+  });
+
+  it('sends repeated Skill names with distinct owners and spans', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'get'
+          ? { bot: { displayName: 'Ada' } }
+          : method === 'channelSend'
+            ? { message: { id: 'human-33333333-3333-4333-8333-333333333333' } }
+            : { state: 'handled', replies: [{ id: 'reply', body: 'ok' }] },
+    }));
+    const sent = await invoke(
+      ['send', 'ada', '--body', '/pdf /pdf', '--skill', 'host/pdf', '--skill', 'bot:ada/pdf'],
+      live.url,
+    );
+    expect(sent.code).toBe(0);
+    expect(live.calls.find((call) => call.method === 'channelSend')?.args).toMatchObject({
+      body: '/pdf /pdf',
+      skillInvocations: [
+        { name: 'pdf', owner: { kind: 'host' }, start: 0, end: 4 },
+        { name: 'pdf', owner: { kind: 'bot', botSlug: 'ada' }, start: 5, end: 9 },
+      ],
+    });
+  });
+
+  it('surfaces the Host oversized Skill refusal without retrying the send', async () => {
+    const error = {
+      code: 'skill-too-large',
+      message:
+        'Skill /pdf exceeds the 64000-character invocation limit. Shorten the Skill and try again.',
+    };
+    const live = await host((method) =>
+      method === 'channelSend'
+        ? { ok: false, error }
+        : { ok: true, value: { bot: { displayName: 'Ada' } } },
+    );
+    const sent = await invoke(['send', 'ada', '--body', '/pdf', '--skill', 'host/pdf'], live.url);
+    expect(sent.code).not.toBe(0);
+    expect(sent.json.error).toMatchObject(error);
+    expect(live.calls.filter((call) => call.method === 'channelSend')).toHaveLength(1);
+    expect(live.calls.some((call) => call.method === 'channelSendStatus')).toBe(false);
+  });
+
   it('uses existing commands for v2 document state and continuation without expanding CLI input limits', async () => {
     const live = await host(() => ({ ok: true, value: { version: 0, state: {} } }));
     const state = { version: 1, values: { selected: 'alpha', count: 2, expanded: true } };

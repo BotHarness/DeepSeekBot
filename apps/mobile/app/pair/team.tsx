@@ -1,4 +1,3 @@
-import { showAppDialog } from '../../src/ui/primitives/app-dialog';
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -15,6 +14,7 @@ import {
   type TeamInvitation,
 } from '@botharness/host-client/team-client';
 import { space } from '../../src/ui/design/tokens';
+import { showAppDialog } from '../../src/ui/primitives/app-dialog';
 import { Button } from '../../src/ui/primitives/button';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';

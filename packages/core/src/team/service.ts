@@ -5,6 +5,7 @@ import { TeamApprovals } from './approvals.js';
 import type { UsageProjection } from '../usage/usage.js';
 import type { UsageByMemberResult, UsageOverviewPeriod } from '../usage/overview.js';
 import { TeamChannels } from './channels.js';
+import { channelRoleMembershipExitSql } from './channel-contract.js';
 import type { ContentPurge } from '../purge/contracts.js';
 import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
@@ -204,6 +205,7 @@ export class TeamService {
   private invalidate: () => void = () => {};
   private devices:
     | {
+        routes(): Promise<string[]>;
         invitation(humanId: string): Promise<import('./devices.js').MemberInvitation>;
         pairingOffer(humanId: string): Promise<import('./devices.js').MemberPairingOffer>;
       }
@@ -287,6 +289,17 @@ export class TeamService {
       this.invalidate();
       this.invalidate = () => {};
       this.urls = () => [];
+    };
+  }
+
+  async modeStatus(human: HumanContext): Promise<TeamModeView> {
+    const view = this.mode(human);
+    if (!this.devices) return view;
+    return {
+      ...view,
+      memberUrls: (await this.devices.routes()).map(
+        (origin) => `${origin}/botharness-device/team/`,
+      ),
     };
   }
 
@@ -417,7 +430,7 @@ export class TeamService {
       ),
       insecureHttpAllowed: settings.insecure_http_allowed,
       ownerPasswordSet: this.hasCredential(this.ownerContext().humanId),
-      memberUrls: memberUrls(this.urls(), settings.insecure_http_allowed),
+      memberUrls: memberUrls(this.urls()),
       viewer: {
         humanId: member.humanId,
         kind: member.owner ? 'owner' : 'member',
@@ -1169,7 +1182,7 @@ export class TeamService {
           OR (json_extract(record_json, '$.type') = 'group' AND EXISTS
             (SELECT 1 FROM json_each(record_json, '$.members') m
               WHERE m.value IN (SELECT value FROM json_each(?))))
-        ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL`).run(
+        ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL, membership_basis = 'invited'`).run(
             toHumanId,
             target.displayName,
             new Date(this.now()).toISOString(),
@@ -1336,17 +1349,29 @@ export class TeamService {
       (device) => device.kind === 'paired-device',
     );
     if (oldDevices.length && !this.pairing) throw new TeamError('unavailable');
-    this.db.transaction(
+    const roleAccessEnded = this.db.transaction(
       (db) => {
         db.prepare('DELETE FROM human_roles WHERE human_id IN (?, ?)').run(human.humanId, humanId);
         db.prepare("INSERT INTO human_roles VALUES (?, 'admin')").run(human.humanId);
         db.prepare('UPDATE team_settings SET owner_human_id = ? WHERE singleton = 1').run(humanId);
+        let roleAccessEnded = false;
+        for (const id of [human.humanId, humanId])
+          if (
+            db
+              .prepare(channelRoleMembershipExitSql('human'))
+              .run(new Date(this.now()).toISOString(), id).changes > 0
+          )
+            roleAccessEnded = true;
         db.prepare('DELETE FROM tob_identity WHERE human_id IN (?, ?)').run(human.humanId, humanId);
+        return roleAccessEnded;
       },
       ['team'],
     );
     this.pairing?.clearOffers();
-    this.invalidate();
+    if (roleAccessEnded) {
+      this.accessChanged(true);
+      await this.accessSettled();
+    } else this.invalidate();
     for (const device of oldDevices)
       await this.memberDeviceRevoke(human, human.humanId, device.grantId);
     this.log('owner-transferred', { initiator: 'owner', humanId });
