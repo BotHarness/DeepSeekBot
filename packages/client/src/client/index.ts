@@ -42,6 +42,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types';
 
 import {
   BOT_MODE_NAMESPACE,
+  DEFAULT_SETTINGS_PINS,
   type BotModeSettings,
 } from '@botharness/host-client/shared/bot-mode-settings';
 import {
@@ -55,6 +56,7 @@ import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
 import { BotModePrefs, botModePrefsFace } from './bot-mode-prefs.js';
+import type { SettingsPins } from './settings-home.js';
 import {
   BotSessionFolders,
   mountBotFolderProjection,
@@ -420,6 +422,13 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   const botSettingsSections = botSettingsSectionSource(ctx);
+  const settingsPins: SettingsPins = {
+    getSnapshot: () => prefs.source.getSnapshot().settingsPins ?? DEFAULT_SETTINGS_PINS,
+    subscribe: (listener) => prefs.source.subscribe(listener),
+    set: (pins) => {
+      prefs.setSettingsPins(pins);
+    },
+  };
   const quickSwitcherSettings: QuickSwitcherSettings = {
     search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
     open: (result) => botSettings.open(result.section, result.target),
@@ -435,6 +444,7 @@ export function apply(ctx: ClientContext): void {
           botSettings,
           sections: botSettingsSections,
           environments: member ? undefined : remoteHosts(t),
+          pins: member ? undefined : settingsPins,
         }),
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
       },

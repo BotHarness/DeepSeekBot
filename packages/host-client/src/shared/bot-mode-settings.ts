@@ -18,6 +18,15 @@ export const BOT_MODE_NAMESPACE = 'botharness-client';
 export const BOT_MODE_SORT_FIELD = 'sortMode';
 
 export const BOT_MODE_SORT_MODES_FIELD = 'sortModes';
+export const BOT_MODE_SETTINGS_PINS_FIELD = 'settingsPins';
+export const DEFAULT_SETTINGS_PINS: readonly string[] = [
+  'models',
+  'auto-approval',
+  'im-apps',
+  'appearance',
+  'notifications',
+  'devices',
+];
 
 export const PINNED_SORT_SCOPE_ID = 'pinned';
 
@@ -102,4 +111,5 @@ export interface BotModeSettings {
   streamReplies?: boolean;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
+  settingsPins?: string[];
 }

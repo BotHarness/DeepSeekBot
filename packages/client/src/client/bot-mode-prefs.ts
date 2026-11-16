@@ -18,6 +18,8 @@ import {
   BOT_MODE_STREAM_REPLIES_FIELD,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
+  BOT_MODE_SETTINGS_PINS_FIELD,
+  DEFAULT_SETTINGS_PINS,
   BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD,
   BOT_MODE_SHOW_BOT_SESSIONS_FIELD,
   DEFAULT_BOT_MODE_ICON,
@@ -83,6 +85,7 @@ export interface BotModePrefsSnapshot {
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
+  settingsPins?: readonly string[];
   mode: 'host' | 'memory';
   status: 'loading' | 'ready' | 'unavailable';
 }
@@ -114,12 +117,16 @@ export interface BotModePrefsFace {
   setAutoAcceptGroupInvites: (enabled: boolean) => void;
   setSortMode: (mode: BotModeSortMode) => void;
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
+  setSettingsPins: (pins: readonly string[]) => void;
 }
 
 export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
   return {
     setAssignmentConcurrencyLimit: (limit) => prefs.setAssignmentConcurrencyLimit(limit),
     setBotHopLimit: (limit) => prefs.setBotHopLimit(limit),
+    setSettingsPins: (pins) => {
+      prefs.setSettingsPins(pins);
+    },
     hooks: { botModePrefs: prefs.source },
     setAutoAcceptGroupInvites: (enabled) => prefs.setAutoAcceptGroupInvites(enabled),
     setMotionPreference: (preference) => {
@@ -401,6 +408,16 @@ export class BotModePrefs {
     this.persist(this.host.mutate([op]));
   }
 
+  setSettingsPins(pins: readonly string[]): void {
+    const next = [...new Set(pins)];
+    const current = this.source.getSnapshot().settingsPins ?? DEFAULT_SETTINGS_PINS;
+    if (next.length === current.length && next.every((id, index) => current[index] === id)) return;
+    this.source.update((draft) => {
+      draft.settingsPins = next;
+    });
+    if (this.host !== undefined) this.persist(this.host.set(BOT_MODE_SETTINGS_PINS_FIELD, next));
+  }
+
   async remapSectionSortModes(mapping: ReadonlyMap<string, string>): Promise<boolean> {
     const host = this.host;
     const snapshot = this.source.getSnapshot();
@@ -455,6 +472,9 @@ export class BotModePrefs {
         draft.effectiveMotion = resolveEffectiveMotion(motionPreference, this.systemReduced);
         draft.sortMode = section.sortMode;
         draft.sortModes = { ...section.sortModes };
+        const pins = settingsPins(section.settingsPins);
+        if (pins !== undefined && !samePins(draft.settingsPins ?? DEFAULT_SETTINGS_PINS, pins))
+          draft.settingsPins = pins;
         draft.botIcon = isBotModeIcon(section.botIcon) ? section.botIcon : DEFAULT_BOT_MODE_ICON;
         draft.sendKey = isBotModeSendKey(section.sendKey)
           ? section.sendKey
@@ -521,4 +541,14 @@ export class BotModePrefs {
       },
     );
   }
+}
+
+function settingsPins(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string')
+    : undefined;
+}
+
+function samePins(current: readonly string[], next: readonly string[]): boolean {
+  return next.length === current.length && next.every((id, index) => current[index] === id);
 }

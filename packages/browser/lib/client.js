@@ -990,13 +990,13 @@ window.__ModuleLoader__.load({
 				rx: "2"
 			}]]
 		};
-		function ChannelSidebarIcon({ name = "panels-top-left", size = 16, strokeWidth = 2 }) {
+		function ChannelSidebarIcon({ name = "panels-top-left", size = 16, filled = false, strokeWidth = 2 }) {
 			const nodes = Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 				width: size,
 				height: size,
 				viewBox: "0 0 24 24",
-				fill: "none",
+				fill: filled ? "currentColor" : "none",
 				stroke: "currentColor",
 				strokeWidth,
 				strokeLinecap: "round",

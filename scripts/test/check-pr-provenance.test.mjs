@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { declared, plan } from '../check-pr-provenance.mjs';
+import { declared, isInternal, plan } from '../check-pr-provenance.mjs';
 
 const agentBody = 'Closes #1\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)';
 const existing = [
@@ -65,5 +65,13 @@ describe('PR and issue provenance', () => {
         external: false,
       }).errors,
     ).toEqual([]);
+  });
+
+  it('treats a private org member with write access as internal', () => {
+    expect(isInternal('MEMBER', 'none')).toBe(true);
+    expect(isInternal('CONTRIBUTOR', 'write')).toBe(true);
+    expect(isInternal('NONE', 'admin')).toBe(true);
+    expect(isInternal('CONTRIBUTOR', 'read')).toBe(false);
+    expect(isInternal('FIRST_TIME_CONTRIBUTOR', 'none')).toBe(false);
   });
 });

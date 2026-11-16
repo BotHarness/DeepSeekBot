@@ -14,6 +14,7 @@
     "format:check": "oxfmt --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:changed": "node scripts/ci-plan.mjs --run",
     "changelog:check": "node scripts/check-release-ledger.mjs && node scripts/check-dsh-skill-release-ledger.mjs",
     "changelog:fold": "node scripts/fold-change-fragments.mjs",
     "skill:changelog:check": "node scripts/check-dsh-skill-release-ledger.mjs",

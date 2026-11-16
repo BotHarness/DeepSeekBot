@@ -16,6 +16,7 @@ import {
   REQUIRED_CHECK,
   rulesTable,
   syncGuide,
+  localCommands,
 } from '../ci-plan.mjs';
 
 const repo = {
@@ -481,4 +482,31 @@ it('verifies mobile when a shared workspace package changes', () => {
       }),
     ).toEqual({ run: true, reason: `${path} is imported by mobile` });
   }
+});
+
+describe('local test plan commands', () => {
+  it('runs only the related tests for an affected plan', () => {
+    expect(
+      localCommands({ tests: 'affected', related: ['scripts/a.mjs'], docsSite: false }),
+    ).toEqual([
+      [
+        'vitest',
+        'related',
+        '--run',
+        '--passWithNoTests',
+        '--exclude',
+        DOCS_SITE_TEST,
+        'scripts/a.mjs',
+      ],
+    ]);
+  });
+
+  it('runs the full suite and the docs site test when the plan asks for them', () => {
+    expect(localCommands({ tests: 'full', related: [], docsSite: true })).toEqual([
+      ['vitest', 'run', '--exclude', DOCS_SITE_TEST],
+      ['slides:build'],
+      ['vitest', 'run', DOCS_SITE_TEST],
+    ]);
+    expect(localCommands({ tests: 'none', related: [], docsSite: false })).toEqual([]);
+  });
 });
