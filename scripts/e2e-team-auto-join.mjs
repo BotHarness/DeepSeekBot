@@ -141,25 +141,30 @@ try {
   check('arrangement is per user through --as', null);
 
   const require = createRequire(import.meta.url);
-  const { chromium } = require(
-    require.resolve('playwright', {
-      paths: [
-        root,
-        ...[
-          process.env.npm_config_prefix,
-          process.platform === 'win32'
-            ? dirname(process.execPath)
-            : join(dirname(process.execPath), '..'),
-        ]
-          .filter(Boolean)
-          .map((prefix) =>
-            process.platform === 'win32'
-              ? join(prefix, 'node_modules')
-              : join(prefix, 'lib', 'node_modules'),
-          ),
-      ],
-    }),
-  );
+  const npmRoot = () => {
+    const cli = join(
+      process.platform === 'win32'
+        ? dirname(process.execPath)
+        : join(dirname(process.execPath), '..', 'lib'),
+      'node_modules',
+      'npm',
+      'bin',
+      'npm-cli.js',
+    );
+    const result = spawnSync(process.execPath, [cli, 'root', '-g'], {
+      shell: false,
+      windowsHide: true,
+      encoding: 'utf8',
+    });
+    return result.status === 0 ? [result.stdout.trim()] : [];
+  };
+  let playwright;
+  try {
+    playwright = require.resolve('playwright', { paths: [root] });
+  } catch {
+    playwright = require.resolve('playwright', { paths: npmRoot() });
+  }
+  const { chromium } = require(playwright);
   browser = await chromium.launch();
   const capture = async (label, scheme, cookies, action) => {
     const context = await browser.newContext({
