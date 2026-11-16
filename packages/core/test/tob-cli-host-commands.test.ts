@@ -206,3 +206,13 @@ describe('Tob runs any Human CLI command on the Host', () => {
     }
   });
 });
+
+it('does not admit write-capable read command families as broker reads', () => {
+  expect(
+    classifyTobHostCli(['channels', '--compact', 'send', 'channel', '--body-stdin']).write,
+  ).toBe(true);
+  expect(classifyTobHostCli(['devices', '--member', 'alex', '--revoke', 'grant']).write).toBe(true);
+  expect(classifyTobHostCli(['channels']).write).toBe(false);
+  expect(classifyTobHostCli(['channels', 'not-a-supported-action']).write).toBe(true);
+  expect(classifyTobHostCli(['channels', '--unknown-option']).write).toBe(true);
+});

@@ -1,3 +1,4 @@
+import { HarnessError } from '@deepseek-ai/dsh-llm';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { BotMessageCausation, ChannelMessage } from '../channels/channel.js';
 import type { NetworkBotContact } from './bot-contact-discovery.js';
@@ -24,9 +25,10 @@ export interface BotNetworkPort {
   send(hostId: string, message: NetworkBotMessage): Promise<void>;
 }
 
-export class BotNetworkDeliveryError extends Error {
-  constructor(readonly code: 'unable-to-deliver' | 'delivery-unknown' | 'network-denied') {
-    super(code);
+export class BotNetworkDeliveryError extends HarnessError {
+  constructor(override readonly code: 'unable-to-deliver' | 'delivery-unknown' | 'network-denied') {
+    super(code, code);
+    this.name = 'BotNetworkDeliveryError';
   }
 }
 

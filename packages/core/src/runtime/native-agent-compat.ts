@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { installModelSelection, type Agent, type ModelSelection } from '@deepseek-ai/dsh-agent';
 import type { ToolCallId } from '@deepseek-ai/dsh-llm';
-import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools';
+import type { ResolvedToolSet, ToolExecutionResult } from '@deepseek-ai/dsh-tools';
 import { installedDshVersion } from '../telemetry/service.js';
 
 declare module '@deepseek-ai/cordis' {
@@ -244,6 +244,7 @@ export interface DirectNativeCall {
   name: string;
   arguments: unknown;
   agent?: Agent;
+  toolSet?: ResolvedToolSet;
   signal: AbortSignal;
 }
 
@@ -269,6 +270,7 @@ export async function executeNativeTool(
       },
     ],
     ...(input.agent === undefined ? {} : { agent: input.agent }),
+    ...(input.toolSet === undefined ? {} : { toolSet: input.toolSet }),
     signal: input.signal,
   });
   if (batch.results.length !== 1 || batch.results[0]?.callId !== input.callId)

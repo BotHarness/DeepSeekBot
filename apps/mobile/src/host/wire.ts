@@ -1,3 +1,4 @@
+import type { ToolEffects } from '../../../../packages/core/src/workspaces/tool-effects';
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { ChannelReplyPreviewMedia } from '../../../../packages/core/src/channels/reply-preview';
 
@@ -554,6 +555,7 @@ export interface HumanAttentionPage {
 }
 
 export interface ToolApprovalRequestCard {
+  effects?: ToolEffects;
   toolName: string;
   role: 'orchestrator' | 'assignment';
   cwd: string;

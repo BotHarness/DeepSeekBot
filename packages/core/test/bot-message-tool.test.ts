@@ -17,10 +17,11 @@ function receipt(value: unknown) {
 }
 
 function tools() {
+  const memoryDir = createTempRoot('bot-message-tool-memory-');
   return createDshBotAgentAdapter({
     agents: new FakeAgentHost(),
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
-    orchestratorCwd: () => '/memory',
+    orchestratorCwd: () => memoryDir,
   });
 }
 

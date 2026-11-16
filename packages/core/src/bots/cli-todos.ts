@@ -1,13 +1,9 @@
+export { TODO_OPTIONS } from './cli-option-spec.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import type { connectLiveHost } from './cli-live.js';
 
 type LiveHost = Awaited<ReturnType<typeof connectLiveHost>>;
-
-export const TODO_OPTIONS = {
-  done: { type: 'boolean' },
-  'not-done': { type: 'boolean' },
-} as const;
 
 export const TODO_COMMANDS = [
   { command: 'todos', description: 'list the shared to-do list (needs the to-do plugin)' },

@@ -1,3 +1,4 @@
+import { hasIrreversibleExternalEffect, toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
 import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
 import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
@@ -91,6 +92,7 @@ import {
   TOB_MAINTENANCE_CAPABILITIES,
 } from './tob/cli-maintenance-operations.js';
 import { cliModulePath, installTobCliShell } from './tob/cli-shell.js';
+import { ModelFreeTobCliInvocation } from './tob/cli-invocation.js';
 import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
 import {
   LOCAL_VOICE_SKILL_CONTENT,
@@ -320,13 +322,13 @@ import {
 import {
   ChannelToolApproval,
   registerChannelToolApproval,
+  requestRequiredToolApproval,
   type ToolAutoApproval,
 } from './workspaces/tool-approval.js';
 import {
   changesApprovalPolicy,
   deletesMarketplaceBot,
   publishesBotMemory,
-  requiresHumanDecision,
   createApprovalTemplateLibrary,
 } from './workspaces/approval-templates.js';
 import {
@@ -1740,7 +1742,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   const turnRefusals = new Map<string, string | TeamError>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
+  const tobCliInvocation = new ModelFreeTobCliInvocation();
   const agentAdapter = createDshBotAgentAdapter({
+    tobCliInvocation,
     ...(config.genuiPreviewBrowserPath === undefined
       ? {}
       : { genuiPreviewBrowserPath: config.genuiPreviewBrowserPath }),
@@ -1750,6 +1754,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
+    observeDirectToolCleanupFailure: ({ sessionId, durationMs }) =>
+      ctx.logger.warn(
+        `direct-tool-cleanup phase=dispose outcome=failed session=${sessionId} durationMs=${durationMs}`,
+      ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     subagentTools: (slug) =>
@@ -1793,6 +1801,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         (name, args) => nativeExecutionRoot(core, agent.session, name, args),
         (shellCtx, shell) =>
           installTobCliShell(shellCtx, shell, {
+            nativeCli: {
+              available: () =>
+                core.tob.isTob(core.ownership.resolve(agent.session.id)?.botSlug ?? '') &&
+                agentAdapter.ownsModelFreeTobTurn(agent),
+              register: (definition) =>
+                tobCliInvocation.register(agent, definition, () => {
+                  if (!core.runtime.captureTobCliAuthority)
+                    throw new TobError('tob-authority-required');
+                  return core.runtime.captureTobCliAuthority(agent.session.id);
+                }),
+              require: (execution) => tobCliInvocation.require(execution),
+            },
             capture: (execution) => {
               const actor = execution.agent;
               if (
@@ -2419,7 +2439,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   applyCompactionPolicy();
   ctx.on(
     'agent/pre-step',
-    async ({ agent, signal }, next) => {
+    async ({ agent, signal, messages, modelSelection }, next) => {
       applyCompactionPolicy();
       if (isApprovalReviewSession(agent.session.id))
         return reviewing.has(agent.session.id) ? next() : { kind: 'reject' };
@@ -2464,6 +2484,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'reject' };
       }
       turnRefusals.delete(agent.session.id);
+      if (agentAdapter.ownsModelFreeTobTurn(agent)) {
+        await agentAdapter.runModelFreeTobTurn(agent, messages, signal, modelSelection);
+        return { kind: 'reject' };
+      }
       const contextOwner = core.ownership.resolve(agent.session.id);
       if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
         await compactUnknownContext(
@@ -2747,12 +2771,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'tools/pre-execute',
     async (execution, next) => {
+      const irreversibleExternal = hasIrreversibleExternalEffect(
+        toolEffects(execution.name, execution.arguments),
+      );
       const agent = execution.agent;
       if (agent === undefined || core.ownership.resolve(agent.session.id) === undefined)
         return next();
       if (
         !isDshGovernedTool(execution.name) &&
-        !requiresHumanToolApproval(execution.name, execution.arguments, templateInUse)
+        !requiresHumanToolApproval(execution.name, execution.arguments, templateInUse) &&
+        execution.name !== 'deepseekbot_cli'
       )
         return next();
       const storeDenial = credentialStoreDenial(
@@ -2787,7 +2815,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.session.id,
           sessionHasFullAccess(core, agent.session.id),
         );
-        if (computerAuthorization === 'authorized') return next();
+        if (computerAuthorization === 'authorized' && !irreversibleExternal) return next();
         if (computerAuthorization === 'changed')
           return {
             kind: 'deny',
@@ -2817,12 +2845,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         }
         try {
-          const outcome = await computerApproval.request({
-            agent,
-            toolName: execution.name,
-            callId: execution.callId,
-            reason: "This PersonaBot wants to act on the profile's shared Computer.",
-            signal: execution.signal,
+          const outcome = await requestRequiredToolApproval({
+            approval: computerApproval,
+            channelApproval: toolApproval,
+            ownership: core.ownership,
+            forceChannel: irreversibleExternal,
+            request: {
+              agent,
+              toolName: execution.name,
+              callId: execution.callId,
+              reason: "This PersonaBot wants to act on the profile's shared Computer.",
+              signal: execution.signal,
+            },
           });
           if (outcome !== 'allowed-once') {
             const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
@@ -2887,7 +2921,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.session.id,
           sessionHasFullAccess(core, agent.session.id),
         );
-        if (browserAuthorization === 'authorized') return next();
+        if (browserAuthorization === 'authorized' && !irreversibleExternal) return next();
         if (browserAuthorization === 'changed')
           return {
             kind: 'deny',
@@ -2918,12 +2952,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         }
         try {
-          const outcome = await browserApproval.request({
-            agent,
-            toolName: execution.name,
-            callId: execution.callId,
-            reason: 'This PersonaBot wants to use the Browser authorized by the Human.',
-            signal: AbortSignal.any([execution.signal, browserSignal ?? execution.signal]),
+          const outcome = await requestRequiredToolApproval({
+            approval: browserApproval,
+            channelApproval: toolApproval,
+            ownership: core.ownership,
+            forceChannel: irreversibleExternal,
+            request: {
+              agent,
+              toolName: execution.name,
+              callId: execution.callId,
+              reason: 'This PersonaBot wants to use the Browser authorized by the Human.',
+              signal: AbortSignal.any([execution.signal, browserSignal ?? execution.signal]),
+            },
           });
           if (outcome !== 'allowed-once') {
             const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
@@ -2967,15 +3007,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       const denial = permissionDenial(agent.session);
       if (denial !== undefined) return { kind: 'deny', reason: denial };
+      const cliAdmission = tobCliInvocation.delegate(execution);
+      if (cliAdmission === 'delegated') return next();
+      if (cliAdmission === 'refused')
+        return { kind: 'deny', reason: 'The owned CLI invocation authority is unavailable' };
       if (!requiresHumanToolApproval(execution.name, execution.arguments, templateInUse))
         return next();
       const eachUse = execution.name === 'secret_cli' || execution.name === 'secret_mcp_connect';
-      const fullAccess = sessionHasFullAccess(core, agent.session.id);
-      if (
-        fullAccess &&
-        !requiresHumanDecision(JSON.stringify(execution.arguments) ?? '', templateInUse)
-      )
-        return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const owner = core.ownership.resolve(agent.session.id);
       const untrack = toolApproval.track(
@@ -2994,34 +3032,36 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
       try {
-        const outcome = eachUse
-          ? ((await toolApproval.ask({
-              agent,
-              toolName: execution.name,
-              callId: execution.callId,
-              signal: execution.signal,
-            })) ?? 'unavailable')
-          : await approval.request({
-              agent,
-              toolName: execution.name,
-              callId: execution.callId,
-              reason:
-                execution.name === 'channel_attachment_open'
-                  ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
-                  : execution.name === 'bot_create'
-                    ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
-                    : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
-                      ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
-                      : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
-                        ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
-                        : changesApprovalPolicy(
-                              JSON.stringify(execution.arguments) ?? '',
-                              templateInUse,
-                            )
-                          ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                          : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
-              signal: execution.signal,
-            });
+        const outcome = await requestRequiredToolApproval({
+          approval,
+          channelApproval: toolApproval,
+          ownership: core.ownership,
+          forceChannel:
+            eachUse ||
+            irreversibleExternal ||
+            toolEffects(execution.name, execution.arguments)?.authority === 'management',
+          request: {
+            agent,
+            toolName: execution.name,
+            callId: execution.callId,
+            reason:
+              execution.name === 'channel_attachment_open'
+                ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
+                : execution.name === 'bot_create'
+                  ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
+                  : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
+                    ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
+                    : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
+                      ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
+                      : changesApprovalPolicy(
+                            JSON.stringify(execution.arguments) ?? '',
+                            templateInUse,
+                          )
+                        ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                        : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+            signal: execution.signal,
+          },
+        });
         if (outcome !== 'allowed-once') {
           const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
           return {
@@ -3075,7 +3115,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
 
   installNativeSearchResultGuard(ctx, core, (session) => sessionHasFullAccess(core, session.id));
-  ctx.tools.guard(({ agent, name, arguments: args, token }) => {
+  ctx.tools.guard((execution) => {
+    const invocationDenial = tobCliInvocation.guard(execution);
+    if (invocationDenial) return invocationDenial;
+    const { agent, name, arguments: args, token } = execution;
     const approvalGuard = approvedCalls.get(token);
     if (approvalGuard && !approvalGuard(name, args))
       return 'Approval authority or operation changed before execution';
@@ -3312,6 +3355,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const skillAgentFor = (slug: string) =>
     hostSkillAgent(ctx, core.runtime.currentOrchestratorSessionId?.(slug));
   const skillCatalog = new SkillCatalog({
+    grantsFor: (slug) =>
+      core.grants.list(slug).flatMap((grant) => {
+        try {
+          return [core.grants.requireActive(slug, grant.id)];
+        } catch {
+          return [];
+        }
+      }),
     memoryDirFor: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     viewFor: createSkillViewPort({
@@ -3357,7 +3408,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     const offRegistry = core.operationalDatabase.subscribe(({ topics }) => {
       if (
         topics.some((topic) =>
-          ['bot-registry', 'member-purged', 'session-ownership'].includes(topic),
+          ['bot-registry', 'member-purged', 'session-ownership', 'workspace-grants'].includes(
+            topic,
+          ),
         )
       )
         refresh.reconcile();

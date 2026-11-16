@@ -654,17 +654,21 @@ The application-defined `ConnectionsDialog` presents pairing and device manageme
 
 [ADR-0202](../adr/0202-phone-push-is-a-content-free-projection-of-the-activity-list.md)（[#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)）：应用定义的 Push delivery 模块（`packages/core/src/push/`）是 Activity 的投影，不另设通知权威。Activity 表或 PersonaBot 的审批、提问、私密输入计数变化时（以及每分钟一次的兜底扫描），模块读取 `action` 项与未读的 `replies` 项，对每台已登记的配对设备只发送一次新项，并经 Expo Push Service 投递；推送标题为频道名（`#名称`，私信为 PersonaBot 名称），正文为所需操作加上工具与主要参数、问题或消息的简短预览（折叠空白，最多 140 字符）；私密输入请求不含内容（[ADR-0213](../adr/0213-phone-push-shows-the-channel-and-a-short-preview.md)）。数据字段只含 Host 标识、Activity 项标识、PersonaBot 标识与读取请求所需的 Channel／消息标识，并携带未处理 Human 操作数作为角标。设备经设备网关的 `/botharness-device/push` 登记 Expo push token、切换各类通知、发送测试通知；撤销设备或 Expo 回报 `DeviceNotRegistered` 时删除 token。发送失败有界重试，结果写入不含内容的 `push` 开发者日志。App 保存每台配对的 Host，点按通知先切换到对应 Host，再打开该审批、提问或私信。
 
-## 已确认目标：Bot 级自动审批策略（分片实施）
+## Bot 级自动审批策略：设计与实现边界
 
 #4211 的首片沿用既有模板文件 owner、Bot Registry 与 Channel Tool Approval owner：全局选择保存在模板目录的 `.selection.json`，Bot 的既有 `approvalTemplate` 字段使用非法模板名标记 `@global` 显式继承；缺字段仍为 Off，新建才写入继承。不新增数据库迁移。认证 Host 的 `approvalTemplateGlobalSet`、既有 Bot setter、在线 CLI 和 Client 的 DSH Select 共用此选择；模板库读失败与主动空值分开。全局选择也参与生效模板的管理识别，ADR-0249 的独立管理授权不变。
 
-Channel Tool Approval 先处理确定性授权，之后固定当次模板正文及 SHA-256 内容版本，才调用 Reviewer。模型只允许当前调用或转 Human；原拒绝触发的暂停／恢复不再运行，旧拒绝记录保留读取兼容。Human 请求的 `approvalReview` 与自动放行的 `templateVersion` 保留当次版本，开发日志同样记录版本；失败卡片给出安全原因。快照不替代现有执行 fence。三部分编辑、卡片规则表、确认删除后的批量回退及 E2 外部效果准入仍属于后续切片。
+Channel Tool Approval 先处理确定性授权，之后固定当次模板正文及 SHA-256 内容版本，才调用 Reviewer。模型只允许当前调用或转 Human；原拒绝触发的暂停／恢复不再运行，旧拒绝记录保留读取兼容。Human 请求的 `approvalReview` 与自动放行的 `templateVersion` 保留当次版本，开发日志同样记录版本；失败卡片给出安全原因。快照不替代现有执行 fence。三部分编辑保留既有模板文件 owner 和有界读取；旧 Markdown 完整映射为 free text，结构化内容通过版本标记保存，不新增数据库权威。卡片规则由既有 Tool Approval Rule owner 按 Bot、角色和 scope 展示及撤销，不混入模板内容或副本。
 
 2026-11-15 的设计访谈确认：Bot 在动态继承全局、选择特定模板、关闭 Reviewer 三态中选一，特定模板完整替换全局，不再叠加 Bot 额外行。模板包含自然语言 Always ask、Always allow 与 free text；确定性授权先处理，Reviewer 只批准当前调用或转 Human，不自主拒绝、不创建规则。Full Access 不一概豁免 E2 的外部效果审批目标。自然语言理解不是硬权限边界，卡片保存的规则仍归具体 Bot 并标注来源。
 
 共享模板的创建来源与应用动作均由用户显式选择；删除时二次确认并列出受影响 Bot，特定引用统一回退继承，删除全局默认时同时清空全局。Review 固定开始时的模板版本，后续编辑影响新 Review；模板缺失或 Reviewer 故障转 Human，不静默修改选择。新 Bot 默认继承，旧 Bot 保持原选择；生效中的策略管理仍受 ADR-0249 的独立管理授权及执行检查约束。
 
-完整确认内容、实现事实及与 #4203／E3 的差异见 [Bot 审批策略](https://github.com/BotHarness/BotHarness/blob/main/docs/architecture/bot-approval-policy.md)（[中文](https://github.com/BotHarness/BotHarness/blob/main/docs/architecture/bot-approval-policy.zh.md)）与 [ADR-0342](../adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)。此处是目标设计，不代表下文历史实现记录已经改变；不授权功能实施或 SQLite 迁移，也未改写现有 GitHub 规格。
+确认删除由模板文件 owner 与 Bot Registry 组合：Host 先返回绑定模板、全局选择和引用集合的只读 revision 预览，Human 再显式确认；变化需重新确认，特定引用统一回退继承，删除全局默认时清空全局。失败恢复不能把列表漏项当成删除成功，Client 并发读只提交最新结果，不重放写入。
+
+共享的 ToolEffects 与 CLI 注册表声明进入既有准入函数及审批 owner：不可撤销外部效果在 Full Access 下仍可能需要 Reviewer 或 Human，独立管理授权、Grant、设备目标及实时撤销检查不变。model-free Tob CLI 从认证 Human DM 准入实际 native Turn，固定 argv、cwd、stdin 字节数和哈希并返回 canonical 终态；直接 Bot tool 使用调用者的可信 DM，来源不明时不回退 principal DM。typed CLI 不消费留给模型的 Memory 通知，资源清理错误不覆盖工具结果。Human 决定后，审批卡保留完整内容、详情与禁用的已选结果。
+
+完整确认内容、实现事实及与 #4203／E3 的差异见 [Bot 审批策略](https://github.com/BotHarness/BotHarness/blob/main/docs/architecture/bot-approval-policy.md)（[中文](https://github.com/BotHarness/BotHarness/blob/main/docs/architecture/bot-approval-policy.zh.md)）与 [ADR-0342](../adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)。ADR 保留设计确认时的历史背景，GitHub 实施票和 PR 记录交付状态。源码限定的运行证明与平台验收分开；未完成的 iOS 与匹配性能检查见 [QA #2742](https://github.com/BotHarness/DeepSeekBot/issues/2742#issuecomment-6909957258)。文档不改变权限或推进 SQLite 迁移。
 
 ## 5 · Orchestrator 与 Assignment control plane
 
@@ -1764,3 +1768,23 @@ existing saved-rule/device/Grant tests protect the execution fences. This is not
 latency measurement. Runtime and screenshot qualification are recorded separately in the PR.
 
 E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请求，操作区显示禁用的已选结果，详情的手动开合状态不变。Reviewer 的显式 `ask-human` 紧凑结果先写入同一 ChannelStore，再生成 Human 请求；历史拒绝记录不改变两结果 Reviewer 契约。移动端从既有消息投影已验证的只读内容，历史卡不逐卡查询 Host；缓存内容不能授权，缺失或已清除的内容如实显示不可用。当前契约见[审批策略](bot-approval-policy.zh.md)。
+
+### CLI effect declaration ownership
+
+The application-defined CLI declaration table in `bots/cli-effects.ts` supplies effects to direct command dispatch and Channel Tool Approval for typed and exact-argv Tob operations. Each declaration separately retains the broker's existing read admission; effect metadata does not confer caller authority. The broker continues to own Human DM provenance, target authorization, exact operation identity and live revocation fences. Unknown commands and arbitrary Shell text retain the existing protected path. The dispatch inventory check follows real command-family arrays and entry branches rather than help or search text.
+
+CLI flag declarations live in the data-only `bots/cli-option-spec.ts` module. `cli-options.ts` owns strict parsing for both dispatch and effect resolution without importing runtime handlers; the existing command-family modules re-export their option groups. Effect-contract type consumers therefore do not acquire the Host credential and child-process implementation graph.
+
+### Model-free Tob CLI admission
+
+The authenticated Owner `tob-cli start/status/cancel` interface uses the existing Human DM Source Event/Admission and serialized BotRuntime Orchestrator owner. Its explicit execution variant invokes the application-defined `deepseekbot_cli` through DSH-native Tools.execute in the real live Agent scope, without model followup. The per-invocation broker shares the Shell path’s capture factory and ChannelToolApproval; metadata grants no authority. An exact process-local lease from the owning accepted native turn binds the trusted surviving Tool Registration, argv/stdin, signal, call ID and executor token; native admission, guard and Tool body revalidate it so only this transport delegates its redundant outer review to the broker’s exact-operation card. A bounded transient request/result view supplies cancellation and readback without a second approval store or durable command lifecycle. See [ADR-0347](../adr/0347-model-free-tob-cli-uses-the-accepted-human-dm-turn.md).
+
+已认证 Owner 的 `tob-cli start/status/cancel` 复用真实 Human DM、规范 Source Event/Admission 及 BotRuntime 的串行 Orchestrator owner；执行变体在实际存活的 Agent scope 中通过 DSH 原生 Tools.execute 调用应用定义的 `deepseekbot_cli`，不触发模型。每次调用的 broker 复用 Shell 的权限捕获、真实审批及实时执行 fence；所属原生回合的进程内精确调用 lease 绑定存活的可信 Tool Registration、argv/stdin、signal、call ID 和执行器 token，在准入、guard 与 Tool body 重验，仅让该传输调用委托给 broker 的准确操作审批卡，避免重复卡片及原始 stdin 展示。短期有界结果只用于取消和读取，不建立第二审批权威或持久命令生命周期。
+
+### Workspace Grant Project Skill catalog（#4236）
+
+`SkillOwner` 的 Workspace 分支携带稳定的 `workspaceId` 与独立显示名 `name`，owner key 为 `workspace:<id>`；Channel 消息保存发送时的名称、owner、路径与文本快照，重试意图仅比较稳定 owner key。`SkillCatalog` 按会话中 Human 可读取的活跃 Bot 查询当前有效 Grant，将同一 Workspace 去重后只读取授权根下 `.dsh/skills` 与 `.agents/skills`，不使用 DSH 会向 Git 根回溯的 Project 发现；两目录均按 DSH YAML frontmatter 与 user-invocable 语义解析，重名时 `.dsh` 优先，拒绝逃出授权 Skill 目录的符号链接。Workspace 目录按 ID 与路径缓存，读取快照时重新读取文件并再次核对有效 Grant，保留 64,000 字符上限与既有拒绝码。
+
+S3 的文件监听器同时管理每个去重 Workspace 的两个 Skill 目录；文件事件只使该 Workspace 缓存失效并合并推送到其授权 Bot 的 Channel，`workspace-grants` 提交时重新协调监听与受影响 Channel。最后一个有效 Grant 撤销后不再列出或解析该 Workspace。Skill Invocation 不创建 mention、不修改路由，也不注册 DSH Skill：无 Grant 的接收 Bot 仍可收到快照文本，其路径读取继续由 ADR-0067 守卫执行。模型原生发现仍仅在对应 Assignment 内发生。
+
+性能边界：重复目录读取复用每 Workspace 的缓存；多个 Bot 的重复 Grant 不重复扫描。文件事件按 Workspace 合并 25 ms，Grant 变更后按需重读；发送只读取所选 Workspace 的 Skill 目录，不重新扫描其他 Workspace。回归覆盖重复读取不变、定向失效与跨 Bot 去重；浏览器及原生 UI 验收属于 UI 切片。

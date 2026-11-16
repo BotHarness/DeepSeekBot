@@ -20,6 +20,9 @@ import type {
 } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import { defaultPromptText, promptTextOf } from '../src/prompts/prompt-parts.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createTempRoot } from './helpers.js';
 
 const TOB_GROUP_TOOL_CASES = [
   ['group_create', { name: 'Group' }, 'createGroup'],
@@ -386,6 +389,44 @@ describe('explicit Inbox completion with messaging tools', () => {
   ) {
     const adapter = createDshBotAgentAdapter({
       agents: new FakeAgentHost(),
+      onAgentSetup: (ctx) => {
+        Object.assign(ctx.tools, {
+          execute: async (input: {
+            name: string;
+            arguments: unknown;
+            callId: string;
+            signal: AbortSignal;
+          }) => {
+            const tool = ctx.tools.get(input.name);
+            if (!tool) throw new Error('Missing fixture tool');
+            const native = new Context();
+            const providers = native.plugin({
+              name: 'direct-test-services',
+              apply(c: Context) {
+                c.provide('systemPrompt', {
+                  tools: () => () => undefined,
+                  section: () => () => undefined,
+                  getSectionOrder: () => 1,
+                });
+              },
+            });
+            const runtime = native.plugin(ToolRuntime, {});
+            try {
+              await providers.await();
+              await runtime.await();
+              native.tools.register(tool);
+              await native.inject(['tools'], (c) => installNativeTools(c)).await();
+              return await executeNativeTool(native, {
+                ...input,
+                callId: ToolCallId(input.callId),
+              });
+            } finally {
+              await runtime.dispose();
+              await providers.dispose();
+            }
+          },
+        });
+      },
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       orchestratorCwd: () => '/memory/ada',
       ensureWorkspace: () => undefined,
@@ -696,6 +737,62 @@ describe('DSH Bot Agent adapter', () => {
       }
     },
   );
+  it('lets an Assignment, not the Orchestrator, discover its Bot Memory Skills', async () => {
+    const memory = createTempRoot();
+    mkdirSync(join(memory, '.agents/skills/release-notes'), { recursive: true });
+    writeFileSync(
+      join(memory, '.agents/skills/release-notes/SKILL.md'),
+      '---\nname: release-notes\ndescription: Draft release notes\n---\nGroup merged PRs.\n',
+    );
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => memory,
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await adapter.runAssignment({
+        sessionId: 'memory-skill-assignment',
+        bot: BOT,
+        text: 'Draft the notes',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: vi.fn(),
+      });
+      const [provider] = host.scopes.get('memory-skill-assignment')!.skillProviders;
+      expect(provider?.name).toBe('botharness-bot-memory');
+      expect(
+        ((await provider!.list({ cwd: '/project' })) as { name: string; source: string }[]).map(
+          (skill) => [skill.name, skill.source],
+        ),
+      ).toEqual([['release-notes', 'bot-memory']]);
+    } finally {
+      await adapter.close();
+    }
+    const orchestratorHost = new FakeAgentHost(
+      { kind: 'completed' },
+      { onTurn: async () => undefined },
+    );
+    const orchestrator = createDshBotAgentAdapter({
+      agents: orchestratorHost,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => memory,
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await orchestrator.runOrchestrator(reportRun);
+      expect(orchestratorHost.scopes.get(reportRun.sessionId)!.skillProviders).toEqual([]);
+    } finally {
+      await orchestrator.close();
+    }
+  });
   it.each([true, false])(
     'installs trusted CLI guidance only for Host-resolved Tob identity (%s)',
     async (tobCli) => {
@@ -1487,7 +1584,7 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
-  it.each(['orchestrator', 'assignment'] as const)(
+  it.each(['orchestrator', 'assignment', 'model-free-tob'] as const)(
     'refuses %s input if principal access changes while preparing the native Agent',
     async (role) => {
       let active = true;
@@ -1512,8 +1609,21 @@ describe('DSH Bot Agent adapter', () => {
       };
       try {
         const result =
-          role === 'orchestrator'
-            ? adapter.runOrchestrator({ ...reportRun, requireContent })
+          role !== 'assignment'
+            ? adapter.runOrchestrator({
+                ...reportRun,
+                requireContent,
+                ...(role === 'model-free-tob'
+                  ? {
+                      tobCli: true,
+                      tobCliTurn: {
+                        command: { argv: ['approval-templates'], stdin: '' },
+                        signal: new AbortController().signal,
+                        complete: vi.fn(),
+                      },
+                    }
+                  : {}),
+              })
             : adapter.runAssignment({
                 sessionId: 'm7-preparing-assignment',
                 bot: BOT,
@@ -4252,3 +4362,198 @@ describe('Assignment Directory Tools', () => {
     }
   });
 });
+
+describe('model-free Tob preparation cancellation', () => {
+  it.each([
+    { operation: 'create', cancellation: 'signal' },
+    { operation: 'resume', cancellation: 'signal' },
+    { operation: 'create', cancellation: 'session-stop' },
+    { operation: 'resume', cancellation: 'session-stop' },
+  ] satisfies { operation: 'create' | 'resume'; cancellation: 'signal' | 'session-stop' }[])(
+    'cancels pending native $operation through $cancellation and disposes its late handle before execution',
+    async ({ operation, cancellation }) => {
+      const agents = new FakeAgentHost();
+      let release: (() => void) | undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const originalCreate = agents.create.bind(agents);
+      const originalResume = agents.resume.bind(agents);
+      const pending =
+        operation === 'create'
+          ? vi.spyOn(agents, 'create').mockImplementation(async (options) => {
+              const handle = await originalCreate(options);
+              await gate;
+              return handle;
+            })
+          : vi.spyOn(agents, 'resume').mockImplementation(async (options) => {
+              const handle = await originalResume(options);
+              await gate;
+              return handle;
+            });
+      const adapter = createDshBotAgentAdapter({
+        agents,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      const controller = new AbortController();
+      const complete = vi.fn();
+      let settled = false;
+      const running = adapter
+        .runOrchestrator({
+          ...reportRun,
+          resume: operation === 'resume',
+          tobCli: true,
+          tobCliTurn: {
+            command: { argv: ['approval-templates'], stdin: '' },
+            signal: controller.signal,
+            complete,
+          },
+        })
+        .then(
+          () => {
+            settled = true;
+          },
+          () => {
+            settled = true;
+          },
+        );
+      try {
+        await vi.waitFor(() => expect(pending).toHaveBeenCalledOnce());
+        expect(adapter.steerOrchestrator?.(reportRun.bot.slug, 'interruption')).toBe(false);
+        if (cancellation === 'signal') controller.abort();
+        else expect(adapter.stopOrchestratorTurn?.(reportRun.bot.slug)).toBe(reportRun.sessionId);
+        await vi.waitFor(() => expect(settled).toBe(true), { timeout: 500, interval: 5 });
+        expect(complete).not.toHaveBeenCalled();
+        release?.();
+        await vi.waitFor(() => expect(agents.disposed).toContain(reportRun.sessionId));
+        expect(agents.received.get(reportRun.sessionId) ?? []).toEqual([]);
+      } finally {
+        release?.();
+        await running;
+        await adapter.close();
+      }
+    },
+  );
+});
+
+it('keeps a cancelled native publication reserved until its late handle is cleaned up', async () => {
+  let release: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const agents = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => {} });
+  const original = agents.create.bind(agents);
+  const create = vi.spyOn(agents, 'create').mockImplementation(async (options) => {
+    const handle = await original(options);
+    await gate;
+    return handle;
+  });
+  const adapter = createDshBotAgentAdapter({
+    agents,
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => undefined,
+  });
+  const controller = new AbortController();
+  const cancelled = adapter
+    .runOrchestrator({
+      ...reportRun,
+      tobCli: true,
+      tobCliTurn: {
+        command: { argv: ['approval-templates'], stdin: '' },
+        signal: controller.signal,
+        complete: () => {
+          throw Error('must not execute');
+        },
+      },
+    })
+    .catch(() => undefined);
+  try {
+    await vi.waitFor(() => expect(agents.get(reportRun.sessionId)).toBeDefined());
+    controller.abort();
+    await cancelled;
+    await expect(
+      adapter.runOrchestrator({ ...reportRun, message: 'Must wait for native cleanup' }),
+    ).rejects.toThrow('preparation');
+    expect(agents.received.get(reportRun.sessionId) ?? []).toEqual([]);
+    expect(create.mock.calls[0]?.[0].signal?.aborted).toBe(true);
+    release?.();
+    await vi.waitFor(() => expect(agents.disposed).toContain(reportRun.sessionId));
+    create.mockRestore();
+    await adapter.runOrchestrator({ ...reportRun, message: 'Run safely after cleanup' });
+    expect(agents.received.get(reportRun.sessionId)).toHaveLength(1);
+    expect(agents.get(reportRun.sessionId)).toBeDefined();
+  } finally {
+    release?.();
+    await cancelled;
+    await adapter.close();
+  }
+});
+
+it.each(['create', 'resume'] as const)(
+  'cancels direct effect execution during native %s before running the Tool',
+  async (operation) => {
+    const agents = new FakeAgentHost();
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const originalCreate = agents.create.bind(agents);
+    const originalResume = agents.resume.bind(agents);
+    const native =
+      operation === 'create'
+        ? vi.spyOn(agents, 'create').mockImplementation(async (options) => {
+            const handle = await originalCreate(options);
+            await gate;
+            return handle;
+          })
+        : vi.spyOn(agents, 'resume').mockImplementation(async (options) => {
+            const handle = await originalResume(options);
+            await gate;
+            return handle;
+          });
+    const adapter = createDshBotAgentAdapter({
+      agents,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const controller = new AbortController();
+    let settled = false;
+    const sendToBot = vi.fn(async (): Promise<never> => {
+      throw new Error('must not execute');
+    });
+    const running = adapter.runDirectTool!(
+      {
+        ...reportRun,
+        resume: operation === 'resume',
+        channels: { ...reportRun.channels, sendToBot },
+      },
+      'bot_send_message',
+      { bot_id: 'fixture-missing', message: 'fixture' },
+      controller.signal,
+    ).then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    try {
+      await vi.waitFor(() => expect(native).toHaveBeenCalledOnce());
+      controller.abort();
+      await vi.waitFor(() => expect(settled).toBe(true), { timeout: 500, interval: 5 });
+      expect(native.mock.calls[0]?.[0].signal?.aborted).toBe(true);
+      release?.();
+      await vi.waitFor(() => expect(agents.disposed).toContain(reportRun.sessionId));
+      expect(sendToBot).not.toHaveBeenCalled();
+    } finally {
+      release?.();
+      await running;
+      await adapter.close();
+    }
+  },
+);

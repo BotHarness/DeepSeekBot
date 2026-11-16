@@ -139,6 +139,88 @@ describe('Skill watcher recovery', () => {
   });
 });
 
+describe('Workspace Skill watcher recovery', () => {
+  function workspaceFixture() {
+    vi.useFakeTimers();
+    const memory = createTempRoot();
+    const project = createTempRoot();
+    let granted = true;
+    const invalidateWorkspace = vi.fn();
+    const catalog = {
+      workspaces: () =>
+        granted ? [{ workspaceId: 'grant-1', name: 'Shop', path: project, botSlugs: ['ada'] }] : [],
+      invalidateWorkspace,
+      invalidateMemory: vi.fn(),
+      invalidateBot: vi.fn(),
+      refreshHost: async () => false,
+    } as unknown as SkillCatalog;
+    const changed = vi.fn();
+    const refresh = watchSkillCatalog({
+      catalog,
+      bots: () => [{ slug: 'ada', memoryDir: memory }],
+      changed,
+      diagnostic: () => {},
+    });
+    stops.push(() => refresh.close());
+    const projectWatches = () =>
+      vi.mocked(watch).mock.calls.filter(([path]) => path === project).length;
+    const projectWatcher = () => {
+      const index = vi.mocked(watch).mock.calls.findLastIndex(([path]) => path === project);
+      const result = vi.mocked(watch).mock.results[index];
+      if (result?.type !== 'return') throw new Error('Workspace watcher unavailable');
+      return result.value;
+    };
+    return {
+      refresh,
+      changed,
+      invalidateWorkspace,
+      projectWatches,
+      projectWatcher,
+      revoke: () => {
+        granted = false;
+      },
+    };
+  }
+
+  it('retries a failed Workspace watcher with backoff and resets the budget on explicit reconcile', async () => {
+    const f = workspaceFixture();
+    expect(f.projectWatches()).toBe(1);
+    for (const delay of [100, 200, 400]) {
+      f.projectWatcher().emit('error', new Error('unavailable'));
+      const calls = f.projectWatches();
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(f.projectWatches()).toBe(calls);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(f.projectWatches()).toBe(calls + 1);
+    }
+    f.projectWatcher().emit('error', new Error('still unavailable'));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(f.projectWatches()).toBe(4);
+    expect(vi.getTimerCount()).toBe(0);
+    f.invalidateWorkspace.mockClear();
+    f.refresh.reconcile();
+    expect(f.projectWatches()).toBe(5);
+    expect(f.invalidateWorkspace).toHaveBeenCalledWith('grant-1');
+    f.projectWatcher().emit('error', new Error('again'));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(f.projectWatches()).toBe(6);
+  });
+
+  it.each(['revoke', 'close'] as const)('cancels a Workspace retry on %s', async (action) => {
+    const f = workspaceFixture();
+    f.projectWatcher().emit('error', new Error('temporary failure'));
+    if (action === 'close') f.refresh.close();
+    else {
+      f.revoke();
+      f.refresh.reconcile();
+    }
+    const calls = f.projectWatches();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(f.projectWatches()).toBe(calls);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe('Skill watcher edge recovery', () => {
   function hostFixture(memoryDir: string) {
     vi.useFakeTimers();

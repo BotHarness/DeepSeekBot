@@ -1,3 +1,4 @@
+export { PRESENCE_OPTIONS } from './cli-option-spec.js';
 import { CliLiveError } from './cli-live-error.js';
 export const PRESENCE_COMMANDS = [
   {
@@ -9,10 +10,7 @@ export const PRESENCE_COMMANDS = [
     description: 'report --client-id as --active (90 s lease) or --idle',
   },
 ] as const;
-export const PRESENCE_OPTIONS = {
-  active: { type: 'boolean' },
-  idle: { type: 'boolean' },
-} as const;
+
 export async function runPresenceCommand(
   command: string,
   rest: string[],

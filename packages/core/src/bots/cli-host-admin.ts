@@ -1,3 +1,4 @@
+export { HOST_ADMIN_OPTIONS } from './cli-option-spec.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import { parseChallenge, solveChallenge } from '../marketplace/altcha.js';
 import type { MarketplaceDigestSummary } from '../marketplace/client.js';
@@ -5,25 +6,6 @@ import { pairingCapabilities, type PairingCapability } from '../messaging/pairin
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { imageDataUrl, readBytes } from './cli-profile.js';
-
-export const HOST_ADMIN_OPTIONS = {
-  force: { type: 'boolean' },
-  action: { type: 'string' },
-  query: { type: 'string' },
-  topic: { type: 'string' },
-  sort: { type: 'string' },
-  lang: { type: 'string' },
-  reason: { type: 'string' },
-  decision: { type: 'string' },
-  capability: { type: 'string', multiple: true },
-  confirm: { type: 'boolean' },
-  'accept-terms': { type: 'boolean' },
-  'include-uploads': { type: 'boolean' },
-  review: { type: 'string' },
-  replaces: { type: 'string' },
-  day: { type: 'string' },
-  version: { type: 'string' },
-} as const;
 
 export interface HostAdminValues {
   force?: boolean;

@@ -11,6 +11,9 @@ import { createAssistantMessage, type Message, type UserMessage } from '@deepsee
 import type { TurnEndReason } from '@deepseek-ai/dsh-session';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 
+import { executeFixtureNativeTool } from './fixtures/native-tools.js';
+import type { DirectNativeCall } from '../src/runtime/native-agent-compat.js';
+
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import type { DshAgentHost } from '../src/runtime/dsh-bot-agent-adapter.js';
 
@@ -48,6 +51,7 @@ interface FakeScope {
   restrictions: Array<{ allow?: readonly string[]; deny?: readonly string[] }>;
   guards: Array<(execution: { name: string }) => string | undefined>;
   sections: Array<{ name: string; text: string }>;
+  skillProviders: Array<{ name: string; list(options: { cwd?: string }): Promise<unknown> }>;
   listeners: Map<string, (...args: unknown[]) => unknown>;
 }
 
@@ -127,6 +131,7 @@ export class FakeAgentHost implements DshAgentHost {
       restrictions: [],
       guards: [],
       sections: [],
+      skillProviders: [],
       listeners: new Map(),
     };
     const messages: Message[] = [];
@@ -199,8 +204,17 @@ export class FakeAgentHost implements DshAgentHost {
       },
       whenIdle: () => pending,
     };
+    const skills = {
+      list: async () => [],
+      get: async () => undefined,
+      registerProvider: (create: () => FakeScope['skillProviders'][number]) => {
+        const provider = create();
+        scope.skillProviders.push(provider);
+        return () => void scope.skillProviders.splice(scope.skillProviders.indexOf(provider), 1);
+      },
+    };
     const fakeContext = {
-      get: (_name: string) => undefined,
+      get: (name: string) => (name === 'skills' ? skills : undefined),
       effect: (setup: () => () => void) => {
         const dispose = setup();
         effects.add(dispose);
@@ -213,6 +227,8 @@ export class FakeAgentHost implements DshAgentHost {
         return () => void scope.listeners.delete(event);
       },
       tools: {
+        execute: (input: DirectNativeCall) =>
+          executeFixtureNativeTool(input, scope.tools, scope.guards),
         get: (name: string) => scope.tools.find((tool) => tool.name === name),
         schemas: (viewingAgent: unknown) =>
           viewingAgent === undefined

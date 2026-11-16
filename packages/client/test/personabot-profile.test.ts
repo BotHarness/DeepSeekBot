@@ -334,7 +334,7 @@ describe('PersonaBot Profile surface', () => {
         /\.bh-profile-header-top \.bh-profile-avatar-button \{[^}]*(border|background)/,
       );
       expect(CSS).toContain('.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay');
-      expect(container.querySelectorAll('.bh-profile-card').length).toBe(3);
+      expect(container.querySelectorAll('.bh-profile-card').length).toBe(4);
       const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,
       );

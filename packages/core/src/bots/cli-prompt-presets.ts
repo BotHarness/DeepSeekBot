@@ -1,14 +1,8 @@
+export { PROMPT_PRESET_OPTIONS } from './cli-option-spec.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
 type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown>;
-
-export const PROMPT_PRESET_OPTIONS = {
-  'parts-stdin': { type: 'boolean' },
-  'prompt-limit': { type: 'string', multiple: true },
-  'expected-revision': { type: 'string' },
-  confirm: { type: 'boolean' },
-} as const;
 
 export interface PromptPresetValues {
   name?: string;

@@ -5,21 +5,36 @@ import { CliLiveError } from './cli-live-error.js';
 
 type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown>;
 
-export const SKILL_OPTIONS = {
-  skill: { type: 'string', multiple: true },
-} as const;
+export { SKILL_OPTIONS } from './cli-option-spec.js';
 
 export interface SkillValues {
   bot?: string;
   channel?: string;
   query?: string;
+  owner?: string;
+  confirm?: boolean;
 }
 
 export const SKILL_COMMANDS = [
   {
     command: 'skills-list',
     description:
-      'list the Skills the / menu offers in a conversation (--bot <slug> for its DM, or --channel <id>): Host Skills plus each PersonaBot Memory Repository Project Skill, ranked by --query like the menu',
+      'list the Skills the / menu offers in a conversation (--bot <slug> for its DM, or --channel <id>): Host Skills plus each PersonaBot Memory Repository and Workspace Grant Project Skill, ranked by --query like the menu',
+  },
+  {
+    command: 'skills-memory',
+    description:
+      "list a PersonaBot's own Memory Repository Skills as its profile Skills card shows them (--bot <slug>), including Skills hidden from the / menu",
+  },
+  {
+    command: 'skills-show',
+    description:
+      'print one Skill in full: skills-show <name> --owner <host|bot:slug|workspace:id>, as the profile card and marketplace viewer show it',
+  },
+  {
+    command: 'skills-remove',
+    description:
+      "delete one Skill from a PersonaBot's Memory Repository and commit the deletion (restorable from git history): skills-remove <name> --bot <slug> --confirm",
   },
 ] as const;
 
@@ -34,14 +49,31 @@ function usage(message: string): never {
 }
 
 export async function runSkillCommand(
-  _command: Command,
+  command: Command,
   rest: string[],
   values: SkillValues,
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
+  const bot = values.bot?.trim();
+  if (command === 'skills-memory') {
+    if (rest.length !== 0 || !bot)
+      usage('skills-memory takes --bot <slug> and no positional arguments.');
+    return (await connect())('botSkills', { slug: bot });
+  }
+  if (command === 'skills-show') {
+    const owner = values.owner?.trim();
+    if (rest.length !== 1 || !owner || parseSkillOwnerKey(owner) === undefined)
+      usage('skills-show takes <name> --owner <host|bot:slug|workspace:id>.');
+    return (await connect())('skillShow', { name: rest[0], owner });
+  }
+  if (command === 'skills-remove') {
+    if (rest.length !== 1 || !bot) usage('skills-remove takes <name> --bot <slug> --confirm.');
+    if (values.confirm !== true)
+      usage('skills-remove deletes the Skill from the Memory Repository; repeat with --confirm.');
+    return (await connect())('botSkillRemove', { slug: bot, name: rest[0] });
+  }
   if (rest.length !== 0)
     usage('skills-list takes no positional arguments; use --bot or --channel.');
-  const bot = values.bot?.trim();
   const channel = values.channel?.trim();
   if ((bot ? 1 : 0) + (channel ? 1 : 0) !== 1)
     usage('skills-list requires exactly one of --bot or --channel.');
@@ -57,7 +89,11 @@ export async function runSkillCommand(
   return {
     channelId,
     skills: rankSkillEntries(result.skills, values.query ?? '', (entry) =>
-      entry.owner.kind === 'host' ? [] : (names.get(entry.owner.botSlug) ?? [entry.owner.botSlug]),
+      entry.owner.kind === 'host'
+        ? []
+        : entry.owner.kind === 'workspace'
+          ? [entry.owner.name, entry.owner.workspaceId]
+          : (names.get(entry.owner.botSlug) ?? [entry.owner.botSlug]),
     ),
   };
 }
@@ -72,7 +108,7 @@ export function skillInvocationTokens(
     const owner = split <= 0 ? undefined : parseSkillOwnerKey(raw.slice(0, split));
     const name = raw.slice(split + 1);
     if (owner === undefined || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(name))
-      usage('--skill takes <owner>/<name>, where owner is host or bot:<slug>.');
+      usage('--skill takes <owner>/<name>, where owner is host, bot:<slug> or workspace:<id>.');
     const matches = body.matchAll(new RegExp(`(^|\\s)/${name}(?=\\s|$)`, 'gu'));
     let start: number | undefined;
     for (const match of matches) {

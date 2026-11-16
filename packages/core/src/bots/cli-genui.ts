@@ -1,3 +1,4 @@
+export { GENUI_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, statSync } from 'node:fs';
 import { z } from 'zod';
 import { genuiReplySchema, genuiViewSchema } from '../channels/genui.js';
@@ -5,10 +6,6 @@ import { genuiDocumentReplySchema, genuiDocumentStateSchema } from '../channels/
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
-export const GENUI_OPTIONS = {
-  'genui-file': { type: 'string' },
-  'genui-stdin': { type: 'boolean' },
-} as const;
 export const GENUI_COMMANDS = [
   { command: 'genui-view', description: 'read your private GenUI view from the live Host' },
   {

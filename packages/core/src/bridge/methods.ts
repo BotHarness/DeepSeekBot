@@ -1,3 +1,5 @@
+import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
+import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { requireBotModel, botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team/error.js';
@@ -5,7 +7,7 @@ import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
-import { botOwner, privateBotRegistry } from '../team/bot-access.js';
+import { botOwner, ownsBot, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
@@ -249,6 +251,7 @@ import type { AttachmentStore } from '../attachments/store.js';
 import { randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
+import { tobCliRequestSchema, type TobCliStatus } from '../tob/cli-request.js';
 
 import { TakeoverError, type TakeoverHandoff } from '../takeover/contracts.js';
 import type { TakeoverHandoffs } from '../takeover/handoffs.js';
@@ -341,10 +344,29 @@ import {
 } from '../data-reset/reset.js';
 import {
   SkillContentTooLargeError,
+  parseSkillOwnerKey,
+  skillOwnerKey,
   type SkillCatalog,
   type SkillCatalogEntry,
+  type SkillOwner,
   type ResolvedSkill,
 } from '../skills/catalog.js';
+import {
+  BotSkillIgnoredFilesError,
+  BotSkillNotFoundError,
+  listBotSkills,
+  readBotSkill,
+  removeBotSkill,
+  type BotSkill,
+} from '../skills/bot-skills.js';
+
+export interface SkillDetail {
+  name: string;
+  description: string;
+  owner: SkillOwner;
+  path?: string;
+  content: string;
+}
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -911,7 +933,11 @@ export interface BridgeMethods extends TeamBridgeMethods {
   messageSearch(payload: unknown): BridgeResult<HumanMessageSearchPage>;
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
+  tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
   channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
+  botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
+  skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
+  botSkillRemove(payload: unknown): Promise<BridgeResult<{ name: string; removed: string }>>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
   channelGenuiView(payload: unknown): BridgeResult<GenuiPrivateView>;
@@ -1101,9 +1127,15 @@ export interface BridgeMethods extends TeamBridgeMethods {
   promptGlobalSet(payload: unknown): BridgeResult<{ presetId: string | null }>;
   botPrompt(payload: unknown): BridgeResult<BotPromptView>;
   botPromptSet(payload: unknown): BridgeResult<BotPromptView>;
-  approvalTemplateDelete(
+  approvalTemplateDeletePreview(
     payload: unknown,
-  ): BridgeResult<{ template: { name: string }; clearedBots: string[] }>;
+  ): BridgeResult<{ preview: ApprovalTemplateDeletionPreview }>;
+  approvalTemplateDelete(payload: unknown): BridgeResult<{
+    template: { name: string };
+    clearedBots: string[];
+    inheritedBots: string[];
+    globalDefault: string | null;
+  }>;
   approvalTemplateGlobalSet(payload: unknown): BridgeResult<{ template: string | null }>;
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   voiceProviders: VoiceBridgeMethods['voiceProviders'];
@@ -1701,6 +1733,38 @@ function scheduleFailure(error: unknown): BridgeResult<never> {
   return invalidInput(String(error));
 }
 
+function templateDeletionFailure(
+  name: string,
+  reason: Extract<ReturnType<ApprovalTemplateDeletion['preview']>, { ok: false }>['reason'],
+): BridgeResult<never> {
+  if (reason === 'invalid-name' || reason === 'not-found' || reason === 'built-in')
+    return templateWriteFailure(name, reason);
+  const errors = {
+    'selection-unavailable': [
+      'approval-selection-unavailable',
+      'Approval template selection could not be read.',
+    ],
+    'confirmation-required': [
+      'confirmation-required',
+      'Preview the deletion and confirm its revision before deleting.',
+    ],
+    changed: [
+      'approval-template-delete-changed',
+      'Template references or selection changed. Preview the deletion again.',
+    ],
+    unavailable: [
+      'approval-template-delete-unavailable',
+      'The template could not be deleted. Reload its current references.',
+    ],
+    'rollback-failed': [
+      'approval-template-delete-incomplete',
+      'Deletion did not complete. Reload the current template choices.',
+    ],
+  } as const;
+  const [code, message] = errors[reason];
+  return { ok: false, error: { code, message } };
+}
+
 function templateWriteFailure(
   name: string,
   reason: Extract<ApprovalTemplateWriteResult, { ok: false }>['reason'],
@@ -1768,6 +1832,11 @@ function dmAdmissionFailure(
       };
     case 'blank-body':
       return invalidInput('body is required');
+    case 'cli-request-expired':
+      return {
+        ok: false,
+        error: { code: reason, message: 'Typed CLI requests cannot be replayed.' },
+      };
     case 'runtime-closed':
       return {
         ok: false,
@@ -2323,6 +2392,11 @@ function buildBridgeMethods(
   }
 
   const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
+  const templateDeletion = new ApprovalTemplateDeletion(
+    approvalTemplateLibrary,
+    globalRegistry,
+    (bot) => ownsBot(human, bot),
+  );
   const templateUsers = (name: string, registry = deps.registry): string[] =>
     registry
       .list()
@@ -3268,6 +3342,28 @@ function buildBridgeMethods(
               : await service.send(slug, grantId, requestId, text),
         };
       });
+    },
+    async tobCli(payload) {
+      if (!isHostOwner())
+        return {
+          ok: false,
+          error: { code: 'permission-required', message: 'Host owner authentication is required.' },
+        };
+      const parsed = tobCliRequestSchema.safeParse(payload);
+      if (!parsed.success) return invalidInput('Invalid bounded Tob CLI request');
+      if (!deps.runtime?.tobCli) return unavailable();
+      try {
+        return { ok: true, value: await deps.runtime.tobCli(human, parsed.data) };
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: error instanceof TobError ? error.code : 'operation-failed',
+            message:
+              error instanceof TobError ? error.code : 'The Tob CLI request could not complete.',
+          },
+        };
+      }
     },
     async tobHome() {
       if (!isHostOwner()) return { ok: true, value: { available: false as const } };
@@ -5437,18 +5533,34 @@ function buildBridgeMethods(
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: botPromptView(deps, prompts, slug) };
     },
-    approvalTemplateDelete(payload) {
+    approvalTemplateDeletePreview(payload) {
       const name = asObject(payload)['name'];
       if (typeof name !== 'string') return invalidInput('name is required');
-      const result = approvalTemplateLibrary.delete(name);
-      if (!result.ok) return templateWriteFailure(name, result.reason);
-      const clearedBots = templateUsers(name, globalRegistry);
-      for (const slug of clearedBots) globalRegistry.setApprovalTemplate(slug, undefined);
+      const result = templateDeletion.preview(name);
+      return result.ok
+        ? { ok: true, value: { preview: result.preview } }
+        : templateDeletionFailure(name, result.reason);
+    },
+    approvalTemplateDelete(payload) {
+      const object = asObject(payload);
+      const name = object['name'];
+      if (typeof name !== 'string') return invalidInput('name is required');
+      const revision = object['revision'];
+      const result = templateDeletion.delete(name, {
+        confirmed: object['confirmed'] === true,
+        ...(typeof revision === 'string' ? { revision } : {}),
+      });
+      if (!result.ok) return templateDeletionFailure(name, result.reason);
+      const inheritedBots = result.preview.affectedBots
+        .filter((bot) => bot.source === 'specific')
+        .map((bot) => bot.slug);
       return {
         ok: true,
         value: {
           template: { name },
-          clearedBots: clearedBots.filter((slug) => deps.registry.get(slug) !== undefined),
+          clearedBots: inheritedBots,
+          inheritedBots,
+          globalDefault: result.preview.globalDefaultAfter,
         },
       };
     },
@@ -7105,6 +7217,115 @@ function buildBridgeMethods(
         };
       }
     },
+    async botSkills(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      const memoryDir =
+        deps.registry.get(slug) === undefined ? undefined : deps.registry.memoryDirFor(slug);
+      if (memoryDir === undefined) return unknownBot(slug);
+      try {
+        return { ok: true, value: { skills: await listBotSkills(memoryDir) } };
+      } catch (error) {
+        return {
+          ok: false,
+          error: { code: 'skills-unavailable', message: (error as Error).message },
+        };
+      }
+    },
+    async skillShow(payload) {
+      const source = asObject(payload);
+      const name = asNonBlank(source, 'name');
+      const ownerKey = asNonBlank(source, 'owner');
+      const owner = ownerKey === undefined ? undefined : parseSkillOwnerKey(ownerKey);
+      if (name === undefined || owner === undefined)
+        return invalidInput('name and owner (host, bot:<slug> or workspace:<id>) are required');
+      const missing = (): BridgeResult<never> => ({
+        ok: false,
+        error: { code: 'skill-not-found', message: `Skill not found: ${ownerKey}/${name}` },
+      });
+      try {
+        if (owner.kind === 'bot') {
+          const memoryDir =
+            deps.registry.get(owner.botSlug) === undefined
+              ? undefined
+              : deps.registry.memoryDirFor(owner.botSlug);
+          if (memoryDir === undefined) return unknownBot(owner.botSlug);
+          const skill = await readBotSkill(memoryDir, name);
+          if (skill === undefined) return missing();
+          return {
+            ok: true,
+            value: {
+              skill: {
+                name: skill.name,
+                description: skill.description,
+                owner,
+                path: skill.path,
+                content: skill.content,
+              },
+            },
+          };
+        }
+        if (deps.skills === undefined) return missing();
+        const bots = deps.registry
+          .list()
+          .filter((bot) => bot.paused !== true)
+          .map((bot) => bot.slug);
+        const viewer = bots[0];
+        if (viewer === undefined) return missing();
+        const resolved = await deps.skills.resolve(name, owner, viewer, bots);
+        if (resolved === undefined) return missing();
+        const listed = (await deps.skills.list(bots)).find(
+          (entry) =>
+            entry.name === name && skillOwnerKey(entry.owner) === skillOwnerKey(resolved.owner),
+        );
+        return {
+          ok: true,
+          value: {
+            skill: {
+              name: resolved.name,
+              description: listed?.description ?? '',
+              owner: resolved.owner,
+              ...(resolved.path === undefined ? {} : { path: resolved.path }),
+              content: resolved.content,
+            },
+          },
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error: { code: 'skills-unavailable', message: (error as Error).message },
+        };
+      }
+    },
+    async botSkillRemove(payload) {
+      const slug = asSlug(payload);
+      const name = asNonBlank(asObject(payload), 'name');
+      if (slug === undefined || name === undefined)
+        return invalidInput('slug and name are required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      try {
+        requireOwnedBot(slug);
+      } catch {
+        return unknownBot(slug);
+      }
+      const memoryDir = deps.registry.memoryDirFor(slug);
+      if (memoryDir === undefined) return unknownBot(slug);
+      try {
+        const result = await removeBotSkill(memoryDir, name);
+        return { ok: true, value: result };
+      } catch (error) {
+        if (error instanceof BotSkillNotFoundError)
+          return { ok: false, error: { code: 'skill-not-found', message: error.message } };
+        if (error instanceof BotSkillIgnoredFilesError)
+          return { ok: false, error: { code: 'skill-has-ignored-files', message: error.message } };
+        return {
+          ok: false,
+          error: { code: 'skills-unavailable', message: (error as Error).message },
+        };
+      } finally {
+        deps.skills?.invalidateMemory(slug);
+      }
+    },
     channelAllBotPreview(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
@@ -7293,7 +7514,13 @@ function buildBridgeMethods(
           const owner =
             item.owner.kind === 'host'
               ? ({ kind: 'host' } as const)
-              : ({ kind: 'bot', botSlug: item.owner.botSlug } as const);
+              : item.owner.kind === 'bot'
+                ? ({ kind: 'bot', botSlug: item.owner.botSlug } as const)
+                : ({
+                    kind: 'workspace',
+                    workspaceId: item.owner.workspaceId,
+                    name: item.owner.name,
+                  } as const);
           skillTokens.push({ name: item.name, owner, start: item.start, end: item.end });
         }
         skillTokens.sort((a, b) => a.start - b.start);
@@ -7493,11 +7720,19 @@ function buildBridgeMethods(
           JSON.stringify(
             (existing.skillInvocations ?? []).map(({ name, owner, start, end }) => ({
               name,
-              owner,
+              owner: skillOwnerKey(owner),
               start,
               end,
             })),
-          ) === JSON.stringify(skillTokens) &&
+          ) ===
+            JSON.stringify(
+              skillTokens.map(({ name, owner, start, end }) => ({
+                name,
+                owner: skillOwnerKey(owner),
+                start,
+                end,
+              })),
+            ) &&
           JSON.stringify(existing.grantRequestResolution) ===
             JSON.stringify(grantRequestResolution);
         return same
@@ -7603,7 +7838,7 @@ function buildBridgeMethods(
             skillViewer === undefined ||
             (token.owner.kind === 'bot' && !skillBots.includes(token.owner.botSlug))
               ? undefined
-              : await deps.skills?.resolve(token.name, token.owner, skillViewer);
+              : await deps.skills?.resolve(token.name, token.owner, skillViewer, skillBots);
         } catch (error) {
           if (error instanceof SkillContentTooLargeError)
             return { ok: false, error: { code: error.code, message: error.message } };
@@ -7619,6 +7854,7 @@ function buildBridgeMethods(
           };
         skillInvocations.push({
           ...token,
+          owner: resolved.owner,
           content: resolved.content,
           ...(resolved.path === undefined ? {} : { path: resolved.path }),
         });
@@ -9449,6 +9685,7 @@ function buildBridgeMethods(
           AbortSignal.timeout(DIRECT_TOOL_TIMEOUT_MS),
           session?.trim(),
           sourceEventId,
+          human,
         );
         return { ok: true, value: { slug, ...run } };
       } catch (error) {

@@ -22,6 +22,7 @@ import {
   FileTypeIcon,
   IconCheckOutlineRegular,
   IconCloseOutlineRegular,
+  IconFolderOpenOutlineRegular,
   IconPaperclipOutlineRegular,
   IconSendOutlineRegular,
   IconSkillOutlineRegular,
@@ -61,7 +62,7 @@ import {
 import type { ChannelAttachmentRef } from './store.js';
 import { deleteAttachmentReference, insertAttachmentReferences } from './attachment-refs.js';
 import type { ComposerSendKey } from './composer-send-key.js';
-import { rankSkillEntries } from '../../../core/src/skills/entries.js';
+import { rankSkillEntries, skillOwnerKey } from '../../../core/src/skills/entries.js';
 import {
   activeSkillQuery,
   selectSkill,
@@ -481,7 +482,9 @@ export function ChannelComposer({
       : rankSkillEntries(skillOptions, skillQuery.query, (option) =>
           option.owner.kind === 'host'
             ? []
-            : [option.bot?.displayName ?? option.owner.botSlug, option.owner.botSlug],
+            : option.owner.kind === 'workspace'
+              ? [option.owner.name]
+              : [option.bot?.displayName ?? option.owner.botSlug, option.owner.botSlug],
         ).slice(0, 8);
   const menuLength = shortcutOptions.length + skillMatches.length;
   const chipBots = [
@@ -1134,10 +1137,12 @@ export function ChannelComposer({
             const owner =
               option.owner.kind === 'host'
                 ? t('composer.skillHost')
-                : (option.bot?.displayName ?? option.owner.botSlug);
+                : option.owner.kind === 'workspace'
+                  ? option.owner.name
+                  : (option.bot?.displayName ?? option.owner.botSlug);
             return (
               <button
-                key={`${option.owner.kind === 'host' ? 'host' : option.owner.botSlug}/${option.name}`}
+                key={`${skillOwnerKey(option.owner)}/${option.name}`}
                 ref={(node) => {
                   if (index === shortcutIndex % menuLength)
                     node?.scrollIntoView?.({ block: 'nearest' });
@@ -1163,12 +1168,17 @@ export function ChannelComposer({
                       indicator={false}
                       t={t}
                     />
+                  ) : option.owner.kind === 'workspace' ? (
+                    <IconFolderOpenOutlineRegular size={20} />
                   ) : (
                     <IconSkillOutlineRegular size={20} />
                   )}
                 </span>
                 <span className="bh-composer-skill-copy">
                   <strong>/{option.name}</strong>
+                  {option.owner.kind === 'workspace' ? (
+                    <span className="bh-composer-skill-source">{owner}</span>
+                  ) : null}
                   <small>{option.description}</small>
                 </span>
               </button>
@@ -1384,18 +1394,22 @@ export function ChannelComposer({
         </div>
         {avatarMounts.map((mount, index) =>
           createPortal(
-            <PersonaBotAvatar
-              personaBotId={mount.botSlug}
-              name={mount.name}
-              src={mount.src}
-              appearance={mount.appearance}
-              avatarSeed={mount.avatarSeed}
-              size={16}
-              indicator={false}
-              t={t}
-            />,
+            mount.kind === 'workspace' ? (
+              <IconFolderOpenOutlineRegular size={16} />
+            ) : (
+              <PersonaBotAvatar
+                personaBotId={mount.botSlug}
+                name={mount.name}
+                src={mount.src}
+                appearance={mount.appearance}
+                avatarSeed={mount.avatarSeed}
+                size={16}
+                indicator={false}
+                t={t}
+              />
+            ),
             mount.target,
-            `${mount.botSlug}-${index}`,
+            `${mount.kind === 'workspace' ? `workspace:${mount.workspaceId}` : mount.botSlug}-${index}`,
           ),
         )}
         {attachmentMounts.map((mount, index) =>

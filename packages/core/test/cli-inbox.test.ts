@@ -1,6 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { brokerCliEffects, cliEffects } from '../src/bots/cli-effects.js';
+import { decideToolApproval } from '../src/workspaces/tool-effects.js';
+import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -607,4 +610,54 @@ it('CLI requests Host notification discovery and refuses unsupported Hosts', asy
   await expect(runInboxCommand('inbox', [], { notifications: true }, connect)).rejects.toThrow(
     'Update the Host',
   );
+});
+
+describe('legacy Inbox CLI effect compatibility', () => {
+  it.each([
+    ['inbox', 'activity', 'none', 'local'],
+    ['inbox-watch', 'activity-watch', 'none', 'local'],
+    ['inbox-status', 'activity-status', 'none', 'local'],
+    ['inbox-dismiss', 'activity-dismiss', 'reversible', 'local'],
+    ['inbox-restore', 'activity-restore', 'reversible', 'local'],
+    ['inbox-dismiss-all', 'activity-dismiss-all', 'reversible', 'local'],
+    ['inbox-allow-once', 'activity-allow-once', 'irreversible', 'external'],
+    ['inbox-ignore', 'activity-ignore', 'reversible', 'local'],
+    ['inbox-snooze', 'activity-snooze', 'reversible', 'local'],
+  ] as const)(
+    'keeps %s and %s on the same direct and broker policy',
+    (legacy, current, changes, reach) => {
+      const effects = { changes, reach, personalData: true };
+      expect(classifyTobHostCli([legacy])).toEqual({ command: legacy, write: changes !== 'none' });
+      expect(classifyTobHostCli([current])).toEqual({
+        command: current,
+        write: changes !== 'none',
+      });
+      expect(cliEffects([legacy])).toEqual(effects);
+      expect(cliEffects([current])).toEqual(effects);
+      expect(brokerCliEffects('deepseekbot ' + legacy, { patch: { argv: [legacy] } })).toEqual(
+        effects,
+      );
+      expect(brokerCliEffects('deepseekbot ' + current, { patch: { argv: [current] } })).toEqual(
+        effects,
+      );
+    },
+  );
+
+  it('requires Human review for legacy allow-once even in Full Access', () => {
+    const effects = cliEffects(['inbox-allow-once', 'autoreject:src-1']);
+    expect(effects).toEqual({ changes: 'irreversible', reach: 'external', personalData: true });
+    expect(
+      decideToolApproval(effects, {
+        stage: 'request',
+        fullAccess: true,
+        eachUse: false,
+        explicitApproval: false,
+        legacyProtected: false,
+        device: false,
+        standingRule: 'none',
+        reviewer: false,
+        rememberable: true,
+      }).path,
+    ).toBe('human');
+  });
 });

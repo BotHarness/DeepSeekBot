@@ -141,6 +141,21 @@ export async function initializeMemoryRepositoryAsync(root: string): Promise<{ c
   return { created };
 }
 
+export async function ignoredMemoryPathsAsync(
+  root: string,
+  paths: readonly string[],
+): Promise<string[]> {
+  const output = await runAsync(root, [
+    'ls-files',
+    '--others',
+    '--ignored',
+    '--exclude-standard',
+    '--',
+    ...paths,
+  ]);
+  return output.split('\n').filter((line) => line.length > 0);
+}
+
 export async function commitMemoryPathsAsync(
   root: string,
   paths: readonly string[],

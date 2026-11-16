@@ -1,7 +1,11 @@
+import { toolEffectLabels } from '../workspaces/tool-effect-labels.js';
+import type { ChannelMessage } from '../channels/channel.js';
+
+export { LIVE_OPTIONS } from './cli-option-spec.js';
 import { isLanAddress } from '../devices/lan-address.js';
-import { TEAM_COMMANDS, TEAM_OPTIONS, runTeamCommand } from './cli-team.js';
+import { TEAM_COMMANDS, runTeamCommand } from './cli-team.js';
 import { runDeviceActivity } from './cli-live-activity.js';
-import { GENUI_COMMANDS, GENUI_OPTIONS, runGenuiCommand } from './cli-genui.js';
+import { GENUI_COMMANDS, runGenuiCommand } from './cli-genui.js';
 import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
 import {
   PROFILE_BACKUP_COMMANDS,
@@ -9,20 +13,15 @@ import {
   runProfileBackupCommand,
 } from './cli-profile-backup.js';
 import { runPhoneNotifications } from './cli-phone-notifications.js';
-import {
-  WINDOW_ZOOM_COMMANDS,
-  WINDOW_ZOOM_OPTIONS,
-  runWindowZoomCommand,
-} from './cli-window-zoom.js';
+import { WINDOW_ZOOM_COMMANDS, runWindowZoomCommand } from './cli-window-zoom.js';
 import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-window.js';
-import { PRESENCE_COMMANDS, PRESENCE_OPTIONS, runPresenceCommand } from './cli-presence.js';
+import { PRESENCE_COMMANDS, runPresenceCommand } from './cli-presence.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
 import { RELATIONSHIP_COMMANDS, runRelationshipCommand } from './cli-relationships.js';
 import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
 import {
   DEVICE_NOTIFICATION_COMMANDS,
-  DEVICE_NOTIFICATION_OPTIONS,
   runDeviceNotifications,
 } from './cli-device-notifications.js';
 import {
@@ -33,7 +32,7 @@ import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
 import { DOCTOR_COMMANDS, runDoctor } from './cli-doctor.js';
 import { BUG_REPORT_COMMANDS, runBugReport } from './cli-bug-report.js';
-import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
+import { APPEARANCE_COMMANDS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -44,43 +43,34 @@ import { resolveBotDm } from './cli-bot-dm.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
+import { TOB_CLI_COMMANDS, runTobCli } from './cli-tob.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
 import {
   CALL_TIMELINE_COMMANDS,
-  CALL_TIMELINE_OPTIONS,
   isCallTimelineCommand,
   runCallTimelineCommand,
 } from './cli-call-timeline.js';
-import {
-  TAKEOVER_COMMANDS,
-  TAKEOVER_OPTIONS,
-  isTakeoverCommand,
-  runTakeoverCommand,
-} from './cli-takeover.js';
+import { TAKEOVER_COMMANDS, isTakeoverCommand, runTakeoverCommand } from './cli-takeover.js';
 import {
   channelOperationKey,
   CHANNEL_COMMANDS,
-  CHANNEL_OPTIONS,
   isChannelCommand,
   runChannelCommand,
 } from './cli-channels.js';
 import {
   BROWSER_COMPUTER_COMMANDS,
-  BROWSER_COMPUTER_OPTIONS,
   isBrowserComputerCommand,
   runBrowserComputerCommand,
   type BrowserComputerValues,
 } from './cli-browser-computer.js';
 import {
   IM_COMMANDS,
-  IM_OPTIONS,
   prepareImAuthorization,
   runImAuthorization,
   type ImValues,
 } from './cli-im-authorization.js';
 import {
   MESSAGING_COMMANDS,
-  MESSAGING_OPTIONS,
   prepareMessaging,
   messagingReadMode,
   runMessaging,
@@ -90,26 +80,17 @@ import {
 import {
   isModelsUsageCommand,
   MODELS_USAGE_COMMANDS,
-  MODELS_USAGE_OPTIONS,
   runModelsUsage,
   type ModelsUsageValues,
 } from './cli-models-usage.js';
 import {
   HOST_ADMIN_COMMANDS,
-  HOST_ADMIN_OPTIONS,
   isHostAdminCommand,
   runHostAdminCommand,
   type HostAdminValues,
 } from './cli-host-admin.js';
+import { INBOX_COMMANDS, isInboxCommand, runInboxCommand, type InboxValues } from './cli-inbox.js';
 import {
-  INBOX_COMMANDS,
-  INBOX_OPTIONS,
-  isInboxCommand,
-  runInboxCommand,
-  type InboxValues,
-} from './cli-inbox.js';
-import {
-  SCHEDULE_OPTIONS,
   isScheduleCommand,
   prepareScheduleCommand,
   runScheduleCommand,
@@ -117,60 +98,43 @@ import {
 } from './cli-schedules.js';
 import {
   PROFILE_COMMANDS,
-  PROFILE_OPTIONS,
   isProfileCommand,
   runProfileCommand,
   type ProfileValues,
 } from './cli-profile.js';
-import {
-  TODO_COMMANDS,
-  TODO_OPTIONS,
-  isTodoCommand,
-  runTodoCommand,
-  type TodoValues,
-} from './cli-todos.js';
+import { TODO_COMMANDS, isTodoCommand, runTodoCommand, type TodoValues } from './cli-todos.js';
 import {
   APPROVAL_TEMPLATE_COMMANDS,
-  APPROVAL_TEMPLATE_OPTIONS,
   isApprovalTemplateCommand,
   runApprovalTemplateCommand,
   type ApprovalTemplateValues,
 } from './cli-approval-templates.js';
 import {
   PROMPT_PRESET_COMMANDS,
-  PROMPT_PRESET_OPTIONS,
   isPromptPresetCommand,
   runPromptPresetCommand,
 } from './cli-prompt-presets.js';
 import {
   APPROVAL_REVIEWER_COMMANDS,
-  APPROVAL_REVIEWER_OPTIONS,
   isApprovalReviewerCommand,
   runApprovalReviewerCommand,
   type ApprovalReviewerValues,
 } from './cli-approval-reviewer.js';
-import {
-  VOICE_COMMANDS,
-  VOICE_OPTIONS,
-  isVoiceCommand,
-  runVoiceCommand,
-  type VoiceValues,
-} from './cli-voice.js';
-import { CALL_COMMANDS, CALL_OPTIONS, isCallCommand, runCallCommand } from './cli-call.js';
+import { VOICE_COMMANDS, isVoiceCommand, runVoiceCommand, type VoiceValues } from './cli-voice.js';
+import { CALL_COMMANDS, isCallCommand, runCallCommand } from './cli-call.js';
 import {
   SKILL_COMMANDS,
-  SKILL_OPTIONS,
   isSkillCommand,
   runSkillCommand,
   skillInvocationTokens,
   type SkillValues,
 } from './cli-skills.js';
+
 import { VOICE_CALL_PATH, type VoiceCallResult } from '../voice/call-contract.js';
 import {
   isStorageCommand,
   runStorageCommand,
   STORAGE_COMMANDS,
-  STORAGE_OPTIONS,
   type StorageValues,
 } from './cli-storage.js';
 import {
@@ -178,105 +142,13 @@ import {
   isIdleCompactionCommand,
   runIdleCompactionCommand,
 } from './cli-idle-compaction.js';
-import {
-  CONNECT_COMMANDS,
-  CONNECT_OPTIONS,
-  isConnectCommand,
-  runConnectCommand,
-} from './cli-connect.js';
+import { CONNECT_COMMANDS, isConnectCommand, runConnectCommand } from './cli-connect.js';
 import {
   isShareDraftCommand,
   runShareDraftCommand,
   SHARE_DRAFT_COMMANDS,
-  SHARE_DRAFT_OPTIONS,
 } from './cli-share-draft.js';
 export { CliLiveError } from './cli-live-error.js';
-
-export const LIVE_OPTIONS = {
-  ...TEAM_OPTIONS,
-  ...GENUI_OPTIONS,
-  'new-home': { type: 'string' },
-
-  'connection-id': { type: 'string' },
-  'confirm-disconnect': { type: 'boolean' },
-  handover: { type: 'string' },
-  'connection-route-id': { type: 'string' },
-  fingerprint: { type: 'string' },
-  'link-file': { type: 'string' },
-  'account-file': { type: 'string' },
-  'remote-host-id': { type: 'string' },
-  'host-id': { type: 'string' },
-  ...DEVICE_NOTIFICATION_OPTIONS,
-  'activity-stdin': { type: 'boolean' },
-  ...WINDOW_ZOOM_OPTIONS,
-  ...PRESENCE_OPTIONS,
-  ...CONNECT_OPTIONS,
-  ...APPEARANCE_OPTIONS,
-  ...IM_OPTIONS,
-  ...MESSAGING_OPTIONS,
-  ...MODELS_USAGE_OPTIONS,
-  ...CHANNEL_OPTIONS,
-  ...HOST_ADMIN_OPTIONS,
-  ...SHARE_DRAFT_OPTIONS,
-  ...INBOX_OPTIONS,
-  ...SCHEDULE_OPTIONS,
-  ...TAKEOVER_OPTIONS,
-  ...BROWSER_COMPUTER_OPTIONS,
-  ...PROFILE_OPTIONS,
-  ...TODO_OPTIONS,
-  ...APPROVAL_TEMPLATE_OPTIONS,
-  ...PROMPT_PRESET_OPTIONS,
-  ...APPROVAL_REVIEWER_OPTIONS,
-  ...VOICE_OPTIONS,
-  ...CALL_OPTIONS,
-  ...CALL_TIMELINE_OPTIONS,
-  ...STORAGE_OPTIONS,
-  ...SKILL_OPTIONS,
-  host: { type: 'string' },
-  'token-file': { type: 'string' },
-  'image-source': { type: 'string' },
-  'image-revision': { type: 'string' },
-  'image-reference': { type: 'string' },
-  timeout: { type: 'string' },
-  'message-id': { type: 'string' },
-  'reply-to': { type: 'string' },
-  'failure-message-id': { type: 'string' },
-  'auto-continue-for': { type: 'string' },
-  recovery: { type: 'string' },
-  outcome: { type: 'string' },
-  'answer-stdin': { type: 'boolean' },
-  'values-stdin': { type: 'boolean' },
-  since: { type: 'string' },
-  hours: { type: 'string' },
-  offline: { type: 'boolean' },
-  workspace: { type: 'string' },
-  mode: { type: 'string' },
-  scope: { type: 'string' },
-  'acknowledge-risk': { type: 'boolean' },
-  'patch-stdin': { type: 'boolean' },
-  refresh: { type: 'boolean' },
-  'previous-value': { type: 'string' },
-  member: { type: 'string', multiple: true },
-  attach: { type: 'string', multiple: true },
-  app: { type: 'string' },
-  bot: { type: 'string' },
-  conversation: { type: 'string' },
-  out: { type: 'string' },
-  'route-id': { type: 'string' },
-  'args-stdin': { type: 'boolean' },
-  'cause-event': { type: 'string' },
-  session: { type: 'string' },
-  turns: { type: 'string' },
-  offset: { type: 'string' },
-  kind: { type: 'string' },
-  checkpoint: { type: 'string' },
-  'expected-current': { type: 'string' },
-  'restore-id': { type: 'string' },
-  'repair-id': { type: 'string' },
-  'default-location': { type: 'boolean' },
-  tag: { type: 'string' },
-  target: { type: 'string' },
-} as const;
 
 const DEVICE_COMMANDS = [
   'browser-open',
@@ -366,6 +238,7 @@ export const LIVE_COMMANDS = [
   ...BROWSER_COMPUTER_COMMANDS,
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
+  ...TOB_CLI_COMMANDS,
   ...TAKEOVER_COMMANDS,
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
@@ -1300,6 +1173,10 @@ export async function runLiveCli(
     return runTakeoverCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (command === 'tob-cli')
+    return runTobCli(rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (BOT_TOOL_COMMANDS.some((entry) => entry.command === command))
     return runBotToolCommand(
       command as (typeof BOT_TOOL_COMMANDS)[number]['command'],
@@ -1659,11 +1536,26 @@ export async function runLiveCli(
     const limit = values.limit === undefined ? undefined : Number(values.limit);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200))
       usage('--limit must be 1–200.');
-    return rpc('channelMessages', {
+    const result = await rpc<{ messages: ChannelMessage[]; revision: number }>('channelMessages', {
       channelId: target,
       ...(limit === undefined ? {} : { limit }),
       ...(values.before === undefined ? {} : { before: values.before }),
     });
+    return {
+      ...result,
+      messages: result.messages.map((message) => {
+        const effects = message.toolApprovalRequest?.effects;
+        return effects === undefined
+          ? message
+          : {
+              ...message,
+              effectLabels: {
+                en: toolEffectLabels(effects, 'en'),
+                zh: toolEffectLabels(effects, 'zh'),
+              },
+            };
+      }),
+    };
   }
   if (command === 'tool-approval-status')
     return rpc('toolApprovalStatus', { channelId: target, messageId });

@@ -1,3 +1,7 @@
+import {
+  decodeApprovalTemplateGuidance,
+  encodeApprovalTemplateGuidance,
+} from '../src/workspaces/approval-template-guidance.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -101,6 +105,74 @@ describe('Approval Template library', () => {
     ).toBe(false);
     library.setGlobal(null);
     expect(inUse('night-shift')).toBe(false);
+  });
+
+  it('accepts structured guidance with Windows line endings', () => {
+    const parts = { alwaysAsk: ['Ask'], alwaysAllow: ['Read'], freeText: 'Supplement' };
+    expect(
+      decodeApprovalTemplateGuidance(
+        encodeApprovalTemplateGuidance(parts).replaceAll('\n', '\r\n'),
+      ),
+    ).toEqual(parts);
+  });
+  it.each([
+    '<!-- botharness:approval-guidance:v1 -->',
+    '<!-- botharness:approval-guidance:v1 -->\r\n{}',
+    '<!-- botharness:approval-guidance:v1 -->\r\n{broken',
+    '<!-- botharness:approval-guidance:v2 -->\n{}',
+  ])('refuses malformed marked guidance rather than legacy fallback: %j', (input) => {
+    expect(() => decodeApprovalTemplateGuidance(input)).toThrow();
+    const dir = tempDir();
+    const library = createApprovalTemplateLibrary(dir);
+    expect(library.create('invalid', input)).toEqual({ ok: false, reason: 'invalid-text' });
+    writeFileSync(join(dir, 'external.md'), input);
+    expect(library.get('external')).toBeUndefined();
+    expect(library.update('external', input)).toEqual({ ok: false, reason: 'invalid-text' });
+    expect(readFileSync(join(dir, 'external.md'), 'utf8')).toBe(input);
+    expect(library.update('external', MINE)).toMatchObject({ ok: true });
+    expect(library.get('external')?.text).toBe(MINE);
+  });
+
+  it('round-trips three-part guidance and preserves every byte of legacy Markdown on conversion', () => {
+    const legacy = '# Legacy\r\n\r\n## Allow\r\n- Read.\r\n<!-- custom -->\r\n';
+    const parts = decodeApprovalTemplateGuidance(legacy);
+    expect(parts).toEqual({ alwaysAsk: [], alwaysAllow: [], freeText: legacy });
+    const library = createApprovalTemplateLibrary(tempDir());
+    const text = encodeApprovalTemplateGuidance({
+      ...parts,
+      alwaysAsk: ['发送消息'],
+      alwaysAllow: ['Read files'],
+    });
+    expect(library.create('structured', text)).toMatchObject({ ok: true });
+    expect(decodeApprovalTemplateGuidance(library.get('structured')!.text)).toEqual({
+      ...parts,
+      alwaysAsk: ['发送消息'],
+      alwaysAllow: ['Read files'],
+    });
+    expect(
+      library.create(
+        'too-large',
+        encodeApprovalTemplateGuidance({ ...parts, freeText: '界'.repeat(11000) }),
+      ),
+    ).toEqual({ ok: false, reason: 'invalid-text' });
+    expect(library.create('broken', '<!-- botharness:approval-guidance:v1 -->\n{}')).toEqual({
+      ok: false,
+      reason: 'invalid-text',
+    });
+  });
+  it('refuses oversized structured input before spending work on JSON decoding', () => {
+    const library = createApprovalTemplateLibrary(tempDir());
+    const input =
+      '<!-- botharness:approval-guidance:v1 -->\n' +
+      ' '.repeat(APPROVAL_TEMPLATE_TEXT_LIMIT) +
+      '{}';
+    const parse = vi.spyOn(JSON, 'parse');
+    try {
+      expect(library.create('oversized', input)).toEqual({ ok: false, reason: 'invalid-text' });
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
   });
 
   it('keeps each Human template as one Markdown file next to the read-only built-ins', () => {
@@ -297,10 +369,11 @@ describe('self-escalation guard for Approval Templates', () => {
 });
 
 describe('Approval Template bridge methods', () => {
-  function methods() {
+  function methods(extra: Partial<PersonaBotRecord>[] = []) {
     const registry = fakeRegistry([
       { slug: 'ada', approvalTemplate: 'night-shift' },
       { slug: 'bob' },
+      ...extra,
     ]);
     const dir = join(tempDir(), 'approval-templates');
     const library = createApprovalTemplateLibrary(dir);
@@ -379,6 +452,19 @@ describe('Approval Template bridge methods', () => {
     expect(registry.get('bob')?.approvalTemplate).toBeUndefined();
   });
 
+  it('keeps copies independent and saving alone leaves Bot/global selections intact', () => {
+    const { bridge, library, registry } = methods();
+    library.setGlobal('cautious');
+    registry.setApprovalTemplate('bob', '@global');
+    bridge.approvalTemplateCreate({ name: 'original', text: MINE });
+    bridge.approvalTemplateCreate({ name: 'copy', from: 'original' });
+    bridge.approvalTemplateUpdate({ name: 'original', text: '# Changed' });
+    expect(library.get('copy')?.text).toBe(MINE);
+    expect(library.get('copy')).not.toHaveProperty('from');
+    expect(registry.get('bob')?.approvalTemplate).toBe('@global');
+    expect(library.global()).toEqual({ kind: 'selected', name: 'cautious' });
+  });
+
   it('creates, copies, edits and lists templates with the Bots that use them', () => {
     const { bridge } = methods();
     expect(bridge.approvalTemplateCreate({ name: 'night-shift', text: MINE })).toMatchObject({
@@ -404,14 +490,222 @@ describe('Approval Template bridge methods', () => {
     });
   });
 
-  it('clears the selection of every Bot that used a deleted template', () => {
-    const { bridge, registry } = methods();
+  it('does not delete or change references before explicit confirmation', () => {
+    const { bridge, registry, library } = methods();
     bridge.approvalTemplateCreate({ name: 'night-shift', text: MINE });
-    expect(bridge.approvalTemplateDelete({ name: 'night-shift' })).toEqual({
-      ok: true,
-      value: { template: { name: 'night-shift' }, clearedBots: ['ada'] },
+    expect(bridge.approvalTemplateDelete({ name: 'night-shift' })).toMatchObject({
+      ok: false,
+      error: { code: 'confirmation-required' },
     });
-    expect(registry.get('ada')?.approvalTemplate).toBeUndefined();
+    expect(library.get('night-shift')?.text).toBe(MINE);
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+  });
+
+  it('previews every direct reference and confirms one bulk fallback to another global template', () => {
+    const { bridge, registry, library } = methods([
+      { slug: 'carol', approvalTemplate: '@global' },
+      { slug: 'dave', approvalTemplate: 'get-work-done' },
+    ]);
+    library.create('night-shift', MINE);
+    library.setGlobal('cautious');
+    const initial = registry.bots.map((bot) => ({ ...bot }));
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview).toMatchObject({
+      name: 'night-shift',
+      globalDefaultBefore: 'cautious',
+      globalDefaultAfter: 'cautious',
+      globalDefaultAvailable: true,
+      affectedBots: [{ slug: 'ada', source: 'specific' }],
+    });
+    expect(registry.bots).toEqual(initial);
+    expect(library.get('night-shift')?.text).toBe(MINE);
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { inheritedBots: ['ada'], globalDefault: 'cautious' },
+    });
+    expect(registry.bots).toEqual(
+      initial.map((bot) => (bot.slug === 'ada' ? { ...bot, approvalTemplate: '@global' } : bot)),
+    );
+    expect(library.get('night-shift')).toBeUndefined();
+    expect(bridge.approvalTemplates({ slug: 'ada' })).toMatchObject({
+      value: { selected: '@global', effective: 'cautious' },
+    });
+  });
+
+  it('shows inherited users and clears the default when deleting the global template', () => {
+    const { bridge, registry, library } = methods([
+      { slug: 'carol', approvalTemplate: 'cautious' },
+    ]);
+    library.create('night-shift', MINE);
+    library.setGlobal('night-shift');
+    registry.setApprovalTemplate('bob', '@global');
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview).toMatchObject({
+      globalDefaultBefore: 'night-shift',
+      globalDefaultAfter: null,
+      affectedBots: [
+        { slug: 'ada', source: 'specific' },
+        { slug: 'bob', source: 'global' },
+      ],
+    });
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: true, value: { inheritedBots: ['ada'], globalDefault: null } });
+    expect(library.global()).toEqual({ kind: 'off' });
+    expect(registry.get('carol')?.approvalTemplate).toBe('cautious');
+    for (const slug of ['ada', 'bob'])
+      expect(bridge.approvalTemplates({ slug })).toMatchObject({
+        value: { selected: '@global', effective: null, source: 'global' },
+      });
+  });
+
+  it.each(['global', 'references', 'content', 'global-content'] as const)(
+    'refuses stale confirmation after %s changes without mutating any choices',
+    (change) => {
+      const { bridge, registry, library } = methods();
+      library.create('night-shift', MINE);
+      library.create('other', '# Other\n\nAsk me.\n');
+      library.setGlobal('other');
+      const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+      if (!preview.ok) throw new Error(preview.error.code);
+      if (change === 'global') library.setGlobal('cautious');
+      if (change === 'references') registry.setApprovalTemplate('bob', 'night-shift');
+      if (change === 'content') library.update('night-shift', MINE + 'Changed.\n');
+      if (change === 'global-content') library.update('other', '# Other\n\nDifferent policy.\n');
+      const before = registry.bots.map((bot) => ({ ...bot }));
+      const globalBefore = library.global();
+      expect(
+        bridge.approvalTemplateDelete({
+          name: 'night-shift',
+          confirmed: true,
+          revision: preview.value.preview.revision,
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'approval-template-delete-changed' } });
+      expect(registry.bots).toEqual(before);
+      expect(library.global()).toEqual(globalBefore);
+      expect(library.get('night-shift')).toBeDefined();
+    },
+  );
+
+  it('explicitly deletes oversized custom content and keeps bulk fallback and global clearing', () => {
+    const { bridge, registry, library, dir } = methods();
+    library.create('night-shift', MINE);
+    library.setGlobal('night-shift');
+    registry.setApprovalTemplate('bob', '@global');
+    const file = join(dir, 'night-shift.md');
+    writeFileSync(file, 'x'.repeat(APPROVAL_TEMPLATE_TEXT_LIMIT + 1));
+    expect(library.get('night-shift')).toBeUndefined();
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview).toMatchObject({
+      contentUnavailable: true,
+      globalDefaultAfter: null,
+      affectedBots: [
+        { slug: 'ada', source: 'specific' },
+        { slug: 'bob', source: 'global' },
+      ],
+    });
+    expect(bridge.approvalTemplateDelete({ name: 'night-shift' })).toMatchObject({
+      ok: false,
+      error: { code: 'confirmation-required' },
+    });
+    expect(existsSync(file)).toBe(true);
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: true, value: { inheritedBots: ['ada'], globalDefault: null } });
+    expect(existsSync(file)).toBe(false);
+    expect(registry.get('ada')?.approvalTemplate).toBe('@global');
+    expect(registry.get('bob')?.approvalTemplate).toBe('@global');
+    expect(library.global()).toEqual({ kind: 'off' });
+  });
+
+  it.each(['grow', 'repair'] as const)('refuses stale oversized deletion after %s', (change) => {
+    const { bridge, registry, library, dir } = methods();
+    library.create('night-shift', MINE);
+    const file = join(dir, 'night-shift.md');
+    writeFileSync(file, 'x'.repeat(APPROVAL_TEMPLATE_TEXT_LIMIT + 1));
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    writeFileSync(file, change === 'repair' ? MINE : 'x'.repeat(APPROVAL_TEMPLATE_TEXT_LIMIT + 2));
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'approval-template-delete-changed' } });
+    expect(existsSync(file)).toBe(true);
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+  });
+
+  it('refuses unreadable selection instead of silently choosing a deletion fallback', () => {
+    const { bridge, registry, library, dir } = methods();
+    library.create('night-shift', MINE);
+    writeFileSync(join(dir, '.selection.json'), '{bad');
+    expect(bridge.approvalTemplateDeletePreview({ name: 'night-shift' })).toMatchObject({
+      ok: false,
+      error: { code: 'approval-selection-unavailable' },
+    });
+    expect(
+      bridge.approvalTemplateDelete({ name: 'night-shift', confirmed: true, revision: 'x' }),
+    ).toMatchObject({ ok: false, error: { code: 'approval-selection-unavailable' } });
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+    expect(library.get('night-shift')).toBeDefined();
+    expect(readFileSync(join(dir, '.selection.json'), 'utf8')).toBe('{bad');
+  });
+
+  it('restores the original choices if the final file deletion fails', () => {
+    const { bridge, registry, library } = methods();
+    library.create('night-shift', MINE);
+    library.setGlobal('night-shift');
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    vi.spyOn(library, 'delete').mockReturnValue({ ok: false, reason: 'unavailable' });
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'approval-template-delete-unavailable' } });
+    expect(library.global()).toEqual({ kind: 'selected', name: 'night-shift' });
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+    expect(library.get('night-shift')?.text).toBe(MINE);
+  });
+
+  it('reads the global choice and registry once per preview across a thousand references', () => {
+    const { bridge, registry, library } = methods(
+      Array.from({ length: 1000 }, (_, index) => ({
+        slug: 'ref-' + index,
+        approvalTemplate: 'night-shift',
+      })),
+    );
+    library.create('night-shift', MINE);
+    const globalReads = vi.spyOn(library, 'global');
+    const registryReads = vi.spyOn(registry, 'list');
+    const registryGets = vi.spyOn(registry, 'get');
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview.affectedBots).toHaveLength(1001);
+    expect(globalReads).toHaveBeenCalledTimes(1);
+    expect(registryReads).toHaveBeenCalledTimes(1);
+    expect(registryGets).not.toHaveBeenCalled();
   });
 
   it('refuses with codes', () => {
@@ -515,6 +809,10 @@ describe('deepseekbot approval-template', () => {
     await invoke(['approval-template', 'create', 'mine', '--from', 'cautious'], live.url);
     await invoke(['approval-template', 'edit', 'mine', '--text-stdin'], live.url, MINE);
     await invoke(['approval-template', 'delete', 'mine'], live.url);
+    await invoke(
+      ['approval-template', 'delete', 'mine', '--confirm', '--delete-revision', 'a'.repeat(64)],
+      live.url,
+    );
     await invoke(['approval-template-global-set', 'cautious'], live.url);
     await invoke(['approval-template-global-set', 'off'], live.url);
     await invoke(['approval-template-set', 'ada', 'inherit'], live.url);
@@ -522,11 +820,60 @@ describe('deepseekbot approval-template', () => {
       { method: 'approvalTemplateCreate', args: { name: 'night-shift', text: MINE } },
       { method: 'approvalTemplateCreate', args: { name: 'mine', from: 'cautious' } },
       { method: 'approvalTemplateUpdate', args: { name: 'mine', text: MINE } },
-      { method: 'approvalTemplateDelete', args: { name: 'mine' } },
+      { method: 'approvalTemplateDeletePreview', args: { name: 'mine' } },
+      {
+        method: 'approvalTemplateDelete',
+        args: { name: 'mine', confirmed: true, revision: 'a'.repeat(64) },
+      },
       { method: 'approvalTemplateGlobalSet', args: { template: 'cautious' } },
       { method: 'approvalTemplateGlobalSet', args: { template: null } },
       { method: 'botApprovalTemplateSet', args: { slug: 'ada', template: '@global' } },
     ]);
+  });
+
+  it('creates a blank draft explicitly and applies only with the explicit target flag', async () => {
+    const live = await host();
+    await invoke(['approval-template', 'create', 'blank', '--blank'], live.url);
+    expect(live.calls).toHaveLength(1);
+    expect(live.calls[0]).toMatchObject({ method: 'approvalTemplateCreate' });
+    const partsFile = join(tempDir(), 'parts.json');
+    const parts = {
+      alwaysAsk: ['Send messages'],
+      alwaysAllow: ['Read files'],
+      freeText: 'Ask when unsure.',
+    };
+    writeFileSync(partsFile, JSON.stringify(parts));
+    await invoke(
+      ['approval-template', 'edit', 'blank', '--parts-file', partsFile, '--apply-to', 'ada'],
+      live.url,
+    );
+    expect(live.calls.slice(1)).toEqual([
+      {
+        method: 'approvalTemplateUpdate',
+        args: { name: 'blank', text: encodeApprovalTemplateGuidance(parts) },
+      },
+      { method: 'botApprovalTemplateSet', args: { slug: 'ada', template: 'blank' } },
+    ]);
+    expect(
+      changesApprovalPolicy(
+        'deepseekbot approval-template create blank --blank --apply-to ada',
+        () => false,
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ['--from', 'cautious', '--blank'],
+    ['--from', 'cautious', '--parts-file', 'missing-guidance.json'],
+    ['--from', 'cautious', '--blank', '--apply-to', 'ada'],
+    ['--from', 'cautious', '--parts-file', 'missing-guidance.json', '--apply-to', 'ada'],
+    ['--from', '   ', '--apply-to', 'ada'],
+  ])('refuses ambiguous or empty creation sources before save/apply: %j', async (...options) => {
+    const live = await host();
+    const result = await invoke(['approval-template', 'create', 'copy', ...options], live.url);
+    expect(result).toMatchObject({ json: { error: { code: 'usage' } } });
+    expect(result.code).not.toBe(0);
+    expect(live.calls).toEqual([]);
   });
 
   it('selects literal reserved-looking template names without changing legacy Off or inheritance', async () => {
@@ -558,6 +905,9 @@ describe('deepseekbot approval-template', () => {
       ['approval-template', 'edit'],
       ['approval-template', 'delete', 'a', 'b'],
       ['approval-template', 'list', '--literal-template'],
+      ['approval-template', 'delete', 'a', '--confirm'],
+      ['approval-template', 'delete', 'a', '--delete-revision', 'a'.repeat(64)],
+      ['approval-template', 'delete', 'a', '--confirm', '--delete-revision', 'bad'],
     ]) {
       const result = await invoke(argv, live.url);
       expect(result.code, argv.join(' ')).not.toBe(0);

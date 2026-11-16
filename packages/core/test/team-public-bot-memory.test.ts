@@ -223,8 +223,11 @@ describe('M7 public Bot Memory placement', () => {
   });
   it('publishes more than one Bot without colliding hidden backing-space names', () => {
     const f = fixture();
+    expect(
+      f.core.registry.create({ slug: 'mentor', displayName: 'Mentor', ownerHumanId: 'alice' }).ok,
+    ).toBe(true);
     f.core.team.bots.setVisibility(owner, 'helper', everyone);
-    expect(f.core.team.bots.setVisibility(owner, 'other', everyone).applied).toBe(true);
+    expect(f.core.team.bots.setVisibility(owner, 'mentor', everyone).applied).toBe(true);
     const names = f.db.read((sql) =>
       sql
         .prepare(
@@ -234,7 +237,7 @@ describe('M7 public Bot Memory placement', () => {
     );
     expect(names.map((row) => row['space_id'])).toEqual([
       botMemorySpaceId('helper'),
-      botMemorySpaceId('other'),
+      botMemorySpaceId('mentor'),
     ]);
     expect(new Set(names.map((row) => row['name'])).size).toBe(2);
   });

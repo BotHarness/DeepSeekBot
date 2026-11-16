@@ -129,7 +129,15 @@ it('requires an owned admitted Source Event for a model-free remote Bot send', a
     expect(core.runtime.botContacts?.('caller', { botId: 'remote:remote:ios' }).contacts).toEqual(
       [],
     );
-    expect(host.sessions).toHaveLength(0);
+    expect(host.createOptions).toHaveLength(3);
+    const sessions = host.sessions.map((session) => session.id);
+    expect(new Set(sessions).size).toBe(3);
+    expect(sessions.every((id) => id.startsWith('direct-'))).toBe(true);
+    expect(host.disposed).toEqual(sessions);
+    for (const id of sessions) {
+      expect(host.scopes.get(id)?.tools.map((tool) => tool.name)).toContain('bot_send_message');
+    }
+    expect(host.received.size).toBe(0);
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
