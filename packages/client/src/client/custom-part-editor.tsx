@@ -52,16 +52,15 @@ type Tool =
   | 'noise'
   | 'eyedropper';
 type Layers = Record<PartLayerName, PartLayer>;
-const TOOL_ICONS: Record<Tool, ReactElement> = {
-  pencil: <IconEditOutlineRegular />,
-  eraser: <ChannelSidebarIcon name="eraser" />,
-  fill: <ChannelSidebarIcon name="paint-bucket" />,
-  replace: <ChannelSidebarIcon name="replace" />,
-  line: <ChannelSidebarIcon name="slash" />,
-  rect: <ChannelSidebarIcon name="square" />,
-  gradient: <ChannelSidebarIcon name="blend" />,
-  noise: <ChannelSidebarIcon name="spray-can" />,
-  eyedropper: <ChannelSidebarIcon name="pipette" />,
+const TOOL_ICONS: Record<Exclude<Tool, 'pencil'>, string> = {
+  eraser: 'eraser',
+  fill: 'paint-bucket',
+  replace: 'replace',
+  line: 'slash',
+  rect: 'square',
+  gradient: 'blend',
+  noise: 'spray-can',
+  eyedropper: 'pipette',
 };
 type Point = readonly [number, number];
 interface Gesture {
@@ -426,7 +425,13 @@ export function CustomPartEditor({
           <Button
             size="sm"
             variant="ghost"
-            icon={TOOL_ICONS[value]}
+            icon={
+              value === 'pencil' ? (
+                <IconEditOutlineRegular />
+              ) : (
+                <ChannelSidebarIcon name={TOOL_ICONS[value]} />
+              )
+            }
             key={value}
             type="button"
             data-part-tool={value}
