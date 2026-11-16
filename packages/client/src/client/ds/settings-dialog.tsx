@@ -18,6 +18,7 @@ import { Modal } from '../modal.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const NARROW_QUERY = '(max-width: 648px)';
+const NAV_ICON_SLOT = '20px';
 
 function narrowQuery(): MediaQueryList | undefined {
   return typeof matchMedia === 'function' ? matchMedia(NARROW_QUERY) : undefined;
@@ -112,13 +113,12 @@ const styles = stylex.create({
   },
   navGroup: {
     flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x2,
+    display: 'block',
     minWidth: 0,
     paddingTop: space.x3,
     paddingBottom: space.x1,
-    paddingInline: space.x3,
+    paddingInlineStart: `calc(${space.x3} + ${NAV_ICON_SLOT} + ${space.x3})`,
+    paddingInlineEnd: space.x3,
     color: color.muted,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
@@ -138,6 +138,8 @@ const styles = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
+    width: NAV_ICON_SLOT,
+    height: NAV_ICON_SLOT,
   },
   navLabel: {
     flexGrow: 1,
