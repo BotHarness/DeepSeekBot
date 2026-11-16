@@ -663,6 +663,7 @@ it.each([true, false])(
     const dm = withDm
       ? fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')
       : undefined;
+    if (withDm) fx.core.team.bots.switches(OWNER_HUMAN_CONTEXT, 'ada', { proactiveDms: true });
     const database = attachOperationalModule(fx.core.operationalDatabase, 'test');
     database.transaction(
       (db) => {

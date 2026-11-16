@@ -1,5 +1,16 @@
+import {
+  SKILL_CATALOG_CHANGED_EVENT,
+  type SkillCatalogChange,
+} from '../../../core/src/skills/events.js';
+import { parseSkillCatalogChange } from './bridge.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import { parseContentRedactions } from './content-redactions.js';
+
+const skillListeners = new Map<() => void, string>();
+const skillsChanged = (change?: SkillCatalogChange): void => {
+  for (const [listener, channelId] of [...skillListeners])
+    if (change === undefined || change.channelIds.includes(channelId)) listener();
+};
 
 const listeners = new Set<() => void>();
 const attentionListeners = new Map<() => void, (healthy: boolean) => void>();
@@ -23,6 +34,7 @@ export interface TypedLive {
     baseline(placements: PurgedPlacement[]): void;
     changed(): void;
     attention?(): void;
+    skills?(change: unknown): void;
     latest(value: unknown): void;
     purged(placements: PurgedPlacement[]): void;
     interrupted(): void;
@@ -63,12 +75,16 @@ function publishLatest(value: unknown): void {
 
 function syncTyped(): void {
   if (typed === undefined) return;
-  if ((listeners.size || attentionListeners.size) && stopRoster === undefined)
+  if (
+    (listeners.size || attentionListeners.size || skillListeners.size) &&
+    stopRoster === undefined
+  )
     stopRoster = typed.roster({
       baseline(placements) {
         redactions.clear();
         recordPurged(placements);
         notify();
+        skillsChanged();
         attentionHealth(true);
         attentionChanged();
       },
@@ -77,11 +93,20 @@ function syncTyped(): void {
         attentionChanged();
       },
       attention: attentionChanged,
+      skills: (value) => {
+        const change = parseSkillCatalogChange(value);
+        if (change !== undefined) skillsChanged(change);
+      },
       latest: publishLatest,
       purged: recordPurged,
       interrupted: () => attentionHealth(false),
     });
-  else if (!listeners.size && !attentionListeners.size && stopRoster !== undefined) {
+  else if (
+    !listeners.size &&
+    !attentionListeners.size &&
+    !skillListeners.size &&
+    stopRoster !== undefined
+  ) {
     stopRoster();
     stopRoster = undefined;
     rosterHealthy = false;
@@ -110,7 +135,7 @@ function releaseUnusedSource(): void {
   syncTyped();
   if (
     typed === undefined
-      ? listeners.size || attentionListeners.size || consumers.size
+      ? listeners.size || attentionListeners.size || skillListeners.size || consumers.size
       : channelConsumer !== undefined
   )
     return;
@@ -154,7 +179,7 @@ class SharedSource extends EventTarget implements ActivityEventSource {
     consumers.delete(this);
     if (channelConsumer === this) channelConsumer = undefined;
     releaseUnusedSource();
-    if (listeners.size || attentionListeners.size || consumers.size) {
+    if (listeners.size || attentionListeners.size || skillListeners.size || consumers.size) {
       try {
         ensureSource();
       } catch {
@@ -190,9 +215,15 @@ function ensureSource(): void {
   next.addEventListener('roster/changed', () => {
     if (source === next) notify();
   });
+  next.addEventListener(SKILL_CATALOG_CHANGED_EVENT, (event) => {
+    if (source !== next || !(event instanceof MessageEvent)) return;
+    const change = parseSkillCatalogChange(event.data);
+    if (change !== undefined) skillsChanged(change);
+  });
   next.addEventListener('open', () => {
     if (source === next) {
       notify();
+      skillsChanged();
       attentionHealth(true);
       attentionChanged();
     }
@@ -266,7 +297,8 @@ export function installTypedLive(next: TypedLive): () => void {
     attentionHealth(false);
     activityBaseline = undefined;
     sourceUrl = undefined;
-    if (listeners.size || attentionListeners.size || consumers.size) ensureSource();
+    if (listeners.size || attentionListeners.size || skillListeners.size || consumers.size)
+      ensureSource();
     else releaseUnusedSource();
     for (const consumer of [...consumers]) consumer.publish('error', undefined, 0);
   };
@@ -382,5 +414,20 @@ export function observeHumanAttention(refresh: () => void): () => void {
     clearTimeout(pending);
     clearInterval(recovery);
     stop();
+  };
+}
+
+export function subscribeSkillCatalog(channelId: string, listener: () => void): () => void {
+  skillListeners.set(listener, channelId);
+  try {
+    ensureSource();
+  } catch (error) {
+    skillListeners.delete(listener);
+    releaseUnusedSource();
+    throw error;
+  }
+  return () => {
+    skillListeners.delete(listener);
+    releaseUnusedSource();
   };
 }

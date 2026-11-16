@@ -1,3 +1,4 @@
+import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
 import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
 import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
 import { WorkspaceSpaces } from './workspaces/spaces.js';
@@ -247,12 +248,17 @@ import { createMediaVersions, type MediaVersions } from './attachments/media-ver
 import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
+import { watchSkillCatalog } from './skills/refresh.js';
 import { SkillCatalog, type SkillRegistryPort } from './skills/catalog.js';
 import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-view.js';
 import {
   degradeHostCapability,
   hostAgentPresets,
   hostSkillRegistry,
+  installHostSkillInvalidation,
+  onHostSkillsChange,
+  hostSkillAgent,
+  onHostSkillAgentsChange,
 } from './runtime/native-agent-compat.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
@@ -763,6 +769,11 @@ function initializeCore(
         attachOperationalModule(operationalDatabase, 'workspace-spaces'),
         realpathSync(dshHome),
       );
+    if (operationalDatabase.mode === 'ready')
+      reconcilePublicBotMemories(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
     startup.enter('bot-registry', 'initialize');
     registry = createPersonaBotRegistry({
       rootDir,
@@ -1047,6 +1058,12 @@ function initializeCore(
   const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
     purge: contentPurge,
     spaces: () => spaces,
+    replaceBotMemory: async (slug, action) => {
+      if (!runtime?.replaceOrchestrator) throw new TeamError('unavailable');
+      const result = await runtime.replaceOrchestrator(slug, action);
+      if (result.outcome === 'refused') throw new TeamError(result.code, undefined, { slug });
+      return result.value;
+    },
     settleBotPreparations: (humanId) => registry.settled(humanId),
     stopBots: async (slugs) => {
       if (!slugs.length) return;
@@ -1063,9 +1080,9 @@ function initializeCore(
     options.activeQuestionMessageIds,
     options.activeToolApprovalMessageIds,
     options.activePrivateInputMessageIds,
-    () => {
+    (human) => {
       try {
-        return roster.snapshot().muted;
+        return roster.forHuman(human.humanId).snapshot().muted;
       } catch {
         return [];
       }
@@ -1340,6 +1357,7 @@ function initializeCore(
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
+    ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
       zoom: (input) =>
@@ -1461,7 +1479,10 @@ function initializeCore(
       await externalMessaging.disableBot(slug);
       await options.erasePrivateAccounts?.(slug);
     },
-    changed: () => live?.publishRosterCommitted(),
+    changed: (slug) => {
+      spaces.botMemory.cleanupErased(slug);
+      live?.publishRosterCommitted();
+    },
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
   contentPurge.bindMemberBots(deletions);
@@ -2541,12 +2562,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     reviewLogs = undefined;
   }
   ctx.effect(() => () => reviewLogs?.close(), 'botharness: approval review logs');
-  const templateInUse = approvalTemplateInUse(core.registry);
+  const templateInUse = approvalTemplateInUse(core.registry, approvalTemplates);
   const autoApproval: ToolAutoApproval = {
     template: (slug) => {
-      const name = core.registry.get(slug)?.approvalTemplate;
-      const template = name === undefined ? undefined : approvalTemplates.get(name);
-      return template === undefined ? undefined : { name: template.name, text: template.text };
+      const selection = core.registry.get(slug)?.approvalTemplate;
+      if (selection === undefined) return undefined;
+      const global = selection === '@global' ? approvalTemplates.global() : undefined;
+      if (global?.kind === 'invalid') throw new Error('global-template-unreadable');
+      const name =
+        global === undefined ? selection : global.kind === 'selected' ? global.name : undefined;
+      if (name === undefined) return undefined;
+      const template = approvalTemplates.get(name);
+      if (template === undefined) throw new Error('selected-template-unavailable');
+      return { name: template.name, text: template.text };
     },
     templateInUse,
     excerptLimits: (slug) => {
@@ -2593,11 +2621,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (entry) => {
       const detail =
         `approval-review bot=${entry.botSlug} template=${entry.template} tool=${entry.toolName}` +
+        (entry.templateVersion === undefined ? '' : ` templateVersion=${entry.templateVersion}`) +
         (entry.model === undefined ? '' : ` model=${entry.model}`) +
         (entry.reviewSession === undefined ? '' : ` reviewSession=${entry.reviewSession}`) +
         ` outcome=${entry.outcome} latencyMs=${entry.latencyMs}` +
-        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`) +
-        (entry.detail === undefined ? '' : ` detail=${JSON.stringify(entry.detail)}`);
+        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`);
       ctx.logger.info(detail);
       try {
         reviewLogs?.write({
@@ -3056,6 +3084,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           name,
           args,
           allowedOnce,
+          templateInUse,
         );
   });
   ctx.on(
@@ -3091,6 +3120,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               execution.name,
               execution.arguments,
               approvalGuard !== undefined,
+              templateInUse,
             );
             if (denial !== undefined) throw new Error(denial);
             return next();
@@ -3272,19 +3302,69 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     drafts: shareDrafts,
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
+  let invalidateNativeSkills: (() => void) | undefined;
+  const skillAgentFor = (slug: string) =>
+    hostSkillAgent(ctx, core.runtime.currentOrchestratorSessionId?.(slug));
   const skillCatalog = new SkillCatalog({
     memoryDirFor: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     viewFor: createSkillViewPort({
-      agentFor: (slug) => {
-        const sessionId = core.runtime.currentOrchestratorSessionId?.(slug);
-        return sessionId == null ? undefined : liveAgent(sessionId);
-      },
+      agentFor: skillAgentFor,
       presetFor: (slug) =>
         core.registry.get(slug)?.preset ?? config.agentPreset ?? DEFAULT_AGENT_PRESET,
       agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
     }),
   });
+  ctx.effect(() => {
+    if (core.operationalDatabase.mode !== 'ready') return () => undefined;
+    const refresh = watchSkillCatalog({
+      catalog: skillCatalog,
+      invalidateNative: () => invalidateNativeSkills?.(),
+      bots: () =>
+        core.registry.list().flatMap((bot) => {
+          const memoryDir = core.registry.memoryDirFor(bot.slug);
+          return memoryDir === undefined
+            ? []
+            : [
+                {
+                  slug: bot.slug,
+                  memoryDir,
+                  agent: skillAgentFor(bot.slug),
+                  ...(bot.preset === undefined ? {} : { preset: bot.preset }),
+                },
+              ];
+        }),
+      changed: (botSlugs) =>
+        core.live.publishSkillCatalogChanged({
+          botSlugs,
+          channelIds: core.channels
+            .list()
+            .filter(
+              (channel) =>
+                channel.deletedAt === undefined &&
+                channel.members.some((slug) => botSlugs.includes(slug)),
+            )
+            .map((channel) => channel.id),
+        }),
+      diagnostic: (phase, fields) => diagnosticEvents.record('skills', phase, fields),
+    });
+    const offRegistry = core.operationalDatabase.subscribe(({ topics }) => {
+      if (
+        topics.some((topic) =>
+          ['bot-registry', 'member-purged', 'session-ownership'].includes(topic),
+        )
+      )
+        refresh.reconcile();
+    });
+    const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
+    const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
+    return () => {
+      offAgents();
+      offHost();
+      offRegistry();
+      refresh.close();
+    };
+  }, 'botharness: live skill catalog');
   const bridgeDeps: BridgeMethodsDeps = {
     team,
     skills: skillCatalog,
@@ -3863,9 +3943,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     developerModeTarget.gate = gate;
     skillsCtx.effect(() => {
       const registry = hostSkillRegistry<SkillRegistryPort>(skillsCtx);
-      return registry === undefined
-        ? degradeHostCapability(skillsCtx, 'skills.list')
-        : skillCatalog.attach(registry);
+      if (registry === undefined) return degradeHostCapability(skillsCtx, 'skills.list');
+      const detach = skillCatalog.attach(registry);
+      const stop = installHostSkillInvalidation(skillsCtx, (invalidate) => {
+        invalidateNativeSkills = invalidate;
+        return () => {
+          if (invalidateNativeSkills === invalidate) invalidateNativeSkills = undefined;
+        };
+      });
+      return () => {
+        stop();
+        detach();
+      };
     }, 'botharness: skill catalog');
     skillsCtx.effect(
       () =>

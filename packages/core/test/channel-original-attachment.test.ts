@@ -117,15 +117,22 @@ async function scenario(missing: boolean) {
               access: 'edit-original',
             });
             await call(tools, 'group_leave', { channel_id: groupId });
-            expect(native('read')).toMatch(/not a member/);
-            expect(native('write')).toMatch(/not a member/);
+            attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+              db
+                .prepare(
+                  "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+                )
+                .run(groupId),
+            );
+            expect(native('read')).toMatch(/bot-channel-access-denied/);
+            expect(native('write')).toMatch(/bot-channel-access-denied/);
             await expect(
               call(tools, 'channel_attachment_open', {
                 ...input,
                 channel_id: groupId,
                 access: 'edit-original',
               }),
-            ).rejects.toThrow(/not a member/);
+            ).rejects.toThrow(/bot-channel-access-denied/);
           }
         } catch (error) {
           errors.push(error);

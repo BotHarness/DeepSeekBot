@@ -10,6 +10,7 @@ import {
   VStack,
 } from '@expo/ui/swift-ui';
 import {
+  accessibilityAddTraits,
   accessibilityHidden,
   accessibilityLabel,
   accessibilityValue,
@@ -63,6 +64,7 @@ export function Button({
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   variant = 'filled',
   symbol,
   testID,
@@ -93,6 +95,7 @@ export function Button({
           tint(tone === 'danger' ? theme.color.danger : theme.color.accent),
           controlDisabled(disabled || busy),
           accessibilityLabel(label),
+          ...(selected ? [accessibilityAddTraits(['isSelected'])] : []),
           ...(busy ? [accessibilityValue(t.loading)] : []),
         ]}
       >
@@ -117,7 +120,7 @@ export function Button({
               multilineTextAlignment('center'),
             ]}
           >
-            {controlCase(label)}
+            {controlCase(selected ? label + ' · ' + t.selectedChoice : label)}
           </Text>
         </Stack>
       </NativeButton>

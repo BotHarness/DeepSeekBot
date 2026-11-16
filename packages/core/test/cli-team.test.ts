@@ -997,3 +997,105 @@ describe('M2 CLI member Bot and Activity dispatch', () => {
     ]);
   });
 });
+
+describe('M7 CLI parity', () => {
+  it.each(['members:alice:ignored', 'roles:staff:ignored', 'everyone:ignored'])(
+    'refuses a malformed audience %s before calling the Host',
+    async (audience) => {
+      const f = await host();
+      const result = await run(f.url, ['bots', 'visibility-set', 'helper', '--public', audience]);
+      expect(result.status).not.toBe(0);
+      expect(result.output).toMatchObject({ error: { code: 'usage' } });
+      expect(f.calls).toEqual([]);
+    },
+  );
+  const cases = [
+    {
+      args: ['bots', 'visibility-set', 'helper', '--public', 'everyone', '--preview'],
+      method: 'botVisibilitySet',
+      payload: {
+        slug: 'helper',
+        visibility: { kind: 'public', audience: { kind: 'everyone' } },
+        confirm: false,
+      },
+    },
+    {
+      args: ['bots', 'visibility', 'helper'],
+      method: 'botVisibility',
+      payload: { slug: 'helper' },
+    },
+    {
+      args: ['bots', 'visibility-set', 'helper', '--private', '--confirm'],
+      method: 'botVisibilitySet',
+      payload: { slug: 'helper', visibility: { kind: 'private' }, confirm: true },
+    },
+    {
+      args: ['bots', 'visibility-set', 'helper', '--public', 'everyone'],
+      method: 'botVisibilitySet',
+      payload: { slug: 'helper', visibility: { kind: 'public', audience: { kind: 'everyone' } } },
+    },
+    {
+      args: ['bots', 'visibility-set', 'helper', '--public', 'roles:finance,staff'],
+      method: 'botVisibilitySet',
+      payload: {
+        slug: 'helper',
+        visibility: { kind: 'public', audience: { kind: 'roles', roleIds: ['finance', 'staff'] } },
+      },
+    },
+    {
+      args: ['bots', 'visibility-set', 'helper', '--public', 'members:alice,bob'],
+      method: 'botVisibilitySet',
+      payload: {
+        slug: 'helper',
+        visibility: { kind: 'public', audience: { kind: 'members', humanIds: ['alice', 'bob'] } },
+      },
+    },
+    {
+      args: [
+        'bots',
+        'switches',
+        'helper',
+        '--proactive-dms',
+        'on',
+        '--join-channels',
+        'off',
+        '--speaker-context',
+        'off',
+      ],
+      method: 'botSwitches',
+      payload: {
+        slug: 'helper',
+        proactiveDms: true,
+        joinPrincipalChannels: false,
+        speakerContext: false,
+      },
+    },
+    { args: ['bots', 'switches', 'helper'], method: 'botSwitches', payload: { slug: 'helper' } },
+    { args: ['bots', 'reachable'], method: 'reachableBots', payload: {} },
+    {
+      args: ['bots', 'proactive-opt-out', 'helper', 'on'],
+      method: 'botProactiveOptOut',
+      payload: { slug: 'helper', optOut: true },
+    },
+    { args: ['roles', 'conflicts', 'bob'], method: 'roleConflicts', payload: { username: 'bob' } },
+    {
+      args: ['speaker-policy', '--human-id', 'bob', '--topic', 'finance'],
+      method: 'speakerPolicy',
+      payload: { humanId: 'bob', topic: 'finance' },
+    },
+  ];
+  it.each(cases)(
+    'dispatches $method as the member without Owner fallback',
+    async ({ args, method, payload }) => {
+      const f = await host(undefined, undefined, undefined, { done: true });
+      const result = await run(f.url, ['--as', 'bob', ...args]);
+      expect(result.status).toBe(0);
+      expect(f.calls).toEqual([
+        {
+          path: '/api/botharness/team-as',
+          input: { username: 'bob', namespace: 'botharness', method, args: payload },
+        },
+      ]);
+    },
+  );
+});

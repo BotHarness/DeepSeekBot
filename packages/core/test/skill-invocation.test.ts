@@ -177,6 +177,7 @@ describe('SkillCatalog', () => {
       'lookup failed',
     );
     expect(active).toBe(0);
+    catalog.invalidateBot('ada');
     vi.spyOn(port, 'list').mockRejectedValueOnce(new Error('list failed'));
     await expect(catalog.list(['ada'])).rejects.toThrow('list failed');
     expect(active).toBe(0);

@@ -4,6 +4,7 @@ import type {
   ChannelMemberDeparture,
   ChannelMemoryCommit,
   ChannelTurnStop,
+  ChannelToolAutoApproval,
 } from '../../../../packages/core/src/channels/channel';
 import { isChannelTurnStopTarget } from '../../../../packages/core/src/channels/turn-stop';
 import {
@@ -13,6 +14,7 @@ import {
 import type { ChannelWireMessage } from './wire';
 
 export type ChannelActivity =
+  | { kind: 'approval-review'; record: ChannelToolAutoApproval }
   | ({ kind: 'dm-action' } & BotDmAction)
   | { kind: 'channel-post'; channelId: string; messageId: string; preview: string | null }
   | { kind: 'memory'; commit: ChannelMemoryCommit; noticeOrigin?: { channelId: string } }
@@ -58,6 +60,20 @@ function memoryCommit(value: unknown): value is ChannelMemoryCommit {
   );
 }
 
+function approvalReview(value: unknown): value is ChannelToolAutoApproval {
+  const review = record(value);
+  return (
+    ['botSlug', 'sessionId', 'callId', 'toolName', 'template', 'reason'].every((key) =>
+      text(review[key]),
+    ) &&
+    typeof review['input'] === 'string' &&
+    (review['templateVersion'] === undefined || text(review['templateVersion'])) &&
+    (review['outcome'] === 'allowed' ||
+      review['outcome'] === 'ask-human' ||
+      review['outcome'] === 'rejected')
+  );
+}
+
 export function activityOf(message: ChannelWireMessage): ChannelActivity | undefined {
   if (message.author.kind === 'bot') {
     const dm = record(message.botDmAction);
@@ -81,7 +97,9 @@ export function activityOf(message: ChannelWireMessage): ChannelActivity | undef
   const created = record(message.botCreateAction);
   if (message.author.kind === 'bot' && text(created['botSlug']) && text(created['displayName']))
     return { kind: 'bot-create', botSlug: created['botSlug'], displayName: created['displayName'] };
-  if (message.author.kind !== 'system') return undefined;
+  if (message.author.kind !== 'system' || message.contentPurge !== undefined) return undefined;
+  if (approvalReview(message.toolAutoApproval))
+    return { kind: 'approval-review', record: message.toolAutoApproval };
   if (isChannelVoiceCallRecord(message.voiceCallRecord))
     return { kind: 'voice-call', record: message.voiceCallRecord };
   if (memoryCommit(message.memoryCommit)) {

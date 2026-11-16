@@ -1,4 +1,4 @@
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelPreset, ModelRoute } from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -247,17 +247,18 @@ export async function runModelsUsage(
   }
   if (command === 'group-activity')
     return (await connect())('groupProfileActivity', { channelId: target });
-  if (command === 'bot-session-usage')
-    return (await connect())('profileSessionUsage', {
-      channelId: dmChannelId(target),
-    });
+  if (command === 'bot-session-usage') {
+    const rpc = await connect();
+    return rpc('profileSessionUsage', { channelId: await resolveBotDm(rpc, target) });
+  }
   if (command === 'bot-activity-history') {
     const before = day(values.before, 'before');
     const weeks = values.weeks === undefined ? undefined : Number(values.weeks);
     if (weeks !== undefined && (!Number.isInteger(weeks) || weeks < 1 || weeks > 104))
       usage('--weeks must be an integer from 1 to 104.');
-    return (await connect())('profileActivity', {
-      channelId: dmChannelId(target),
+    const rpc = await connect();
+    return rpc('profileActivity', {
+      channelId: await resolveBotDm(rpc, target),
       ...(before === undefined ? {} : { before }),
       ...(weeks === undefined ? {} : { weeks }),
     });
@@ -273,8 +274,9 @@ export async function runModelsUsage(
       ...(values.provider === undefined ? {} : { provider: values.provider }),
       ...(values.purpose === undefined ? {} : { purpose: values.purpose }),
     };
-    return (await connect())('profileUsage', {
-      channelId: dmChannelId(target),
+    const rpc = await connect();
+    return rpc('profileUsage', {
+      channelId: await resolveBotDm(rpc, target),
       filter,
     });
   }

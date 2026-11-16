@@ -41,6 +41,29 @@ export interface ApprovalRequest extends RequestRef {
   execution?: ApprovalExecution;
 }
 
+export type ApprovalContent = Pick<
+  ApprovalRequest,
+  'toolName' | 'role' | 'cwd' | 'input' | 'allowAlways'
+>;
+
+export function approvalContent(value: unknown): ApprovalContent | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  if (!('toolName' in value) || typeof value.toolName !== 'string' || !value.toolName.trim())
+    return undefined;
+  if (!('role' in value) || (value.role !== 'orchestrator' && value.role !== 'assignment'))
+    return undefined;
+  if (!('cwd' in value) || typeof value.cwd !== 'string') return undefined;
+  if (!('input' in value) || typeof value.input !== 'string') return undefined;
+  if ('allowAlways' in value && typeof value.allowAlways !== 'boolean') return undefined;
+  return {
+    toolName: value.toolName,
+    role: value.role,
+    cwd: value.cwd,
+    input: value.input,
+    allowAlways: 'allowAlways' in value && value.allowAlways === true,
+  };
+}
+
 export type ApprovalExecution =
   | 'waiting-human'
   | 'waiting-capacity'
@@ -99,7 +122,8 @@ export async function loadApproval(client: HostClient, ref: RequestRef): Promise
       messageId: ref.messageId,
     }),
   ]);
-  const card = request.toolApprovalRequest;
+  const card =
+    request.contentPurge === undefined ? approvalContent(request.toolApprovalRequest) : undefined;
   if (card === undefined) throw new Error('This message is not a Tool approval.');
   const decision = later.find(
     (entry) => entry.toolApprovalDecision?.requestMessageId === ref.messageId,

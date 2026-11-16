@@ -52,7 +52,10 @@ async function host(
       JSON.stringify({
         type: 'server-response',
         rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
+        result:
+          method === 'channelDm'
+            ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+            : handler(method, body.payload.args),
       }),
     );
   });

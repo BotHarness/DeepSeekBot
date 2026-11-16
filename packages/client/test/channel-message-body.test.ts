@@ -950,7 +950,11 @@ describe('Tool approval card', () => {
       );
       expect(container.textContent).toContain('终端 · 已允许');
       expect(container.textContent).toContain('等待运行名额');
-      expect(container.textContent).not.toContain('允许这次');
+      const selected = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent === '允许这次',
+      )!;
+      expect(selected.disabled).toBe(true);
+      expect(selected.getAttribute('aria-pressed')).toBe('true');
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1000);
       });

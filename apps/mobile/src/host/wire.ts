@@ -86,6 +86,7 @@ export interface ChannelWireMessage extends WireMessage {
   };
   bridgeOrigin?: { sourceEventId: string };
   toolApprovalRequest?: unknown;
+  toolAutoApproval?: unknown;
   userQuestionRequest?: unknown;
   privateInputRequest?: unknown;
   takeoverRequest?: unknown;
@@ -402,6 +403,7 @@ export interface WireGroupJoinRequest {
 }
 
 export type RosterLiveFrame =
+  | { type: 'skills'; change: { botSlugs: string[]; channelIds: string[] } }
   | { type: 'attention' }
   | { type: 'baseline'; placements: unknown[] }
   | { type: 'changed' }
@@ -591,6 +593,7 @@ export interface QuestionAnswer {
 }
 
 export interface TimelineMessage {
+  contentPurge?: unknown;
   id: string;
   body: string;
   toolApprovalRequest?: ToolApprovalRequestCard;

@@ -58,6 +58,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
         'data-tint': find('tint'),
         'aria-label': find('label'),
         'aria-valuetext': find('value'),
+        'data-traits': JSON.stringify(find('traits')),
         disabled: find('disabled'),
         onClick: onPress,
       },
@@ -95,6 +96,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
     createElement('span', { 'data-font': JSON.stringify(modifiers[0]!.font) }, children),
 }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  accessibilityAddTraits: (traits: string[]) => ({ traits }),
   accessibilityHidden: () => ({ hidden: true }),
   accessibilityLabel: (label: string) => ({ label }),
   accessibilityValue: (value: string) => ({ value }),
@@ -263,3 +265,14 @@ it.each([
     expect(content.querySelector('i')?.dataset.symbol).toBe('arrow.clockwise');
   },
 );
+
+it('keeps a disabled selected result visible and exposes the native selected trait', async () => {
+  const onPress = vi.fn();
+  const host = await render(<Button label="Reject" selected disabled onPress={onPress} />);
+  const button = host.querySelector('button')!;
+  expect(button.disabled).toBe(true);
+  expect(button.textContent).toBe('Reject · Selected');
+  expect(JSON.parse(button.getAttribute('data-traits')!)).toEqual(['isSelected']);
+  await act(async () => button.click());
+  expect(onPress).not.toHaveBeenCalled();
+});

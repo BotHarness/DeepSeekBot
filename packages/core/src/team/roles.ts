@@ -1,3 +1,4 @@
+import { rolePolicySchema, type RolePolicy } from './bot-contract.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -14,7 +15,7 @@ import {
   roleModelsSchema,
 } from './permissions.js';
 
-const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.models_json AS models,
+const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;
 
 type RoleAuthority = { kind: 'owner' } | { kind: 'member'; permissions: ReadonlySet<string> };
@@ -194,6 +195,7 @@ export class TeamRoles {
     name: string,
     permissions: string[],
     models: RoleModels = { kind: 'all' },
+    policy: RolePolicy = [],
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const normalized = this.name(name);
@@ -205,14 +207,21 @@ export class TeamRoles {
       authority.kind === 'owner' ? { all: true } : this.modelsAllowed(human),
       modelPolicy,
     );
+    const items = rolePolicySchema.parse(policy);
     const id = randomUUID();
     this.db.transaction(
       (db) =>
         db
           .prepare(
-            'INSERT INTO host_roles (role_id, name, builtin, permissions_json, models_json) VALUES (?, ?, NULL, ?, ?)',
+            'INSERT INTO host_roles (role_id, name, builtin, permissions_json, models_json, policy_json) VALUES (?, ?, NULL, ?, ?, ?)',
           )
-          .run(id, normalized, JSON.stringify(grants), JSON.stringify(modelPolicy)),
+          .run(
+            id,
+            normalized,
+            JSON.stringify(grants),
+            JSON.stringify(modelPolicy),
+            JSON.stringify(items),
+          ),
       ['team'],
     );
     this.invalidate();
@@ -222,10 +231,11 @@ export class TeamRoles {
   update(
     human: HumanContext,
     roleId: string,
-    patch: { name?: string; permissions?: string[]; models?: RoleModels },
+    patch: { name?: string; permissions?: string[]; models?: RoleModels; policy?: RolePolicy },
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const role = this.role(roleId);
+    const policy = patch.policy === undefined ? role.policy : rolePolicySchema.parse(patch.policy);
     const authority = this.authority(human);
     this.checkPermissions(authority, role.permissions, 'manage');
     const models = patch.models === undefined ? role.models : roleModelsSchema.parse(patch.models);
@@ -249,9 +259,16 @@ export class TeamRoles {
       (db) =>
         db
           .prepare(
-            'UPDATE host_roles SET name = ?, permissions_json = ?, models_json = ? WHERE role_id = ?',
+            'UPDATE host_roles SET name = ?, permissions_json = ?, models_json = ?, policy_json = ?, policy_revision = policy_revision + ? WHERE role_id = ?',
           )
-          .run(name, JSON.stringify(grants), JSON.stringify(models), roleId),
+          .run(
+            name,
+            JSON.stringify(grants),
+            JSON.stringify(models),
+            JSON.stringify(policy),
+            Number(JSON.stringify(policy) !== JSON.stringify(role.policy)),
+            roleId,
+          ),
       ['team'],
     );
     this.invalidate(role.permissions.some((permission) => !grants.includes(permission)));

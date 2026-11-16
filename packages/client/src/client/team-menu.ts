@@ -16,6 +16,7 @@ export const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set([
   'section',
   'public-channels',
   'message-person',
+  'message-bot',
 ]);
 
 export function menuItemAllowed(id: string, viewer: MenuViewer | undefined): boolean {

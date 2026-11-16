@@ -18,6 +18,7 @@ import {
   PhoneIcon,
   PlusIcon,
   StopCircleIcon,
+  ShieldCheckIcon,
 } from '../shell/icons';
 import { useStrings } from '../strings';
 import { activityPeer, activityText, type ActivityTarget } from './activity-text';
@@ -59,19 +60,21 @@ export function ActivityRow({
   const summary =
     dmSlug !== undefined && line.botSlug === dmSlug ? detail : `${line.name} ${detail}`;
   const Icon =
-    activity.kind === 'memory'
-      ? GitCommitIcon
-      : activity.kind === 'dm-action'
-        ? MessageIcon
-        : activity.kind === 'channel-post'
-          ? ChatsIcon
-          : activity.kind === 'bot-create'
-            ? PlusIcon
-            : activity.kind === 'departure'
-              ? PersonIcon
-              : activity.kind === 'voice-call'
-                ? PhoneIcon
-                : StopCircleIcon;
+    activity.kind === 'approval-review'
+      ? ShieldCheckIcon
+      : activity.kind === 'memory'
+        ? GitCommitIcon
+        : activity.kind === 'dm-action'
+          ? MessageIcon
+          : activity.kind === 'channel-post'
+            ? ChatsIcon
+            : activity.kind === 'bot-create'
+              ? PlusIcon
+              : activity.kind === 'departure'
+                ? PersonIcon
+                : activity.kind === 'voice-call'
+                  ? PhoneIcon
+                  : StopCircleIcon;
   const size = theme.type.meta.line * theme.fontScale;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {

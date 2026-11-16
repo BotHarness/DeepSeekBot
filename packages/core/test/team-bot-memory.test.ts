@@ -51,6 +51,45 @@ function fixture() {
 }
 
 describe('members manage their own Bot Memory', () => {
+  it('keeps public Bot Memory management principal-only after another member opens a DM', () => {
+    const f = fixture();
+    f.core.team.bots.setVisibility(owner, 'alice-bot', {
+      kind: 'public',
+      audience: { kind: 'everyone' },
+    });
+    const participantDm = f.core.team.bots.dm(bob, 'alice-bot')!;
+    const scope = { channelId: f.channelId };
+    const snapshot = f.member.memorySnapshot(scope);
+    if (!snapshot.ok || !snapshot.value.snapshot.head) throw new Error('missing-head');
+    expect(
+      f.member.memorySave({
+        ...scope,
+        path: 'public.md',
+        body: 'principal edit',
+        expectedHead: snapshot.value.snapshot.head,
+        editId: randomUUID(),
+      }),
+    ).toMatchObject({ ok: true });
+    expect(f.member.memoryFile({ ...scope, path: 'public.md' })).toMatchObject({
+      ok: true,
+      value: { file: { body: 'principal edit' } },
+    });
+    expect(
+      f.bridge(bob).memoryFile({ channelId: participantDm.id, path: 'public.md' }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'not-found' },
+    });
+    expect(f.bridge(bob).memoryFileTarget({ slug: 'alice-bot', path: 'public.md' })).toMatchObject({
+      ok: false,
+      error: { code: 'bot-not-found' },
+    });
+    expect(f.bridge(owner).memoryFile({ ...scope, path: 'public.md' })).toMatchObject({
+      ok: false,
+      error: { code: 'channel-not-found' },
+    });
+  });
+
   it('lists configured voice choices without credentials and binds only an owned Bot', async () => {
     const f = fixture();
     const ctx = new Context();
