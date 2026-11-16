@@ -10,8 +10,6 @@
     "apps/mobile/test/pairing-verification.test.tsx": 1,
     "apps/mobile/test/segmented-native.test.tsx": 1,
     "apps/mobile/test/workspace-controls-android.test.tsx": 1,
-    "deploy/private-relay/server-check.mjs": 4,
-    "packages/browser/test/browser-tools.test.ts": 1,
     "packages/client/test/appearance-nested.test.tsx": 1,
     "packages/client/test/bot-mode-sidebar.test.ts": 2,
     "packages/client/test/channel-dock.test.tsx": 11,
@@ -22,10 +20,6 @@
     "packages/client/test/composer-draft-recovery.test.ts": 1,
     "packages/client/test/genui-document-runtime-loader.test.ts": 1,
     "packages/client/test/message-delivery.test.tsx": 3,
-    "packages/client/test/shortcut-help.test.tsx": 2,
-    "packages/core/test/assignment-collaboration.test.ts": 1,
-    "packages/core/test/cli-live-activity.test.ts": 1,
-    "packages/core/test/team-approvals.test.ts": 1,
-    "packages/core/test/update-runs.test.ts": 3
+    "packages/client/test/shortcut-help.test.tsx": 2
   }
 }
