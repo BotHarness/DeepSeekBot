@@ -550,10 +550,11 @@ it('keeps own Bot reads and mutations unchanged without cross-member audit entri
   const f = await fixture();
   f.core.channels.getOrCreateDm(owner, 'owner-bot');
   const run = await cli(f);
-  expect((await run(['memory-snapshot', 'owner-bot'])).status).toBe(0);
-  expect((await run(['--as', 'owner', 'memory-snapshot', 'owner-bot'])).output).toMatchObject({
-    error: { code: 'remote-access/denied' },
-  });
+  const direct = await run(['memory-snapshot', 'owner-bot']);
+  const carrier = await run(['--as', 'owner', 'memory-snapshot', 'owner-bot']);
+  expect(direct.status).toBe(0);
+  expect(carrier.status).toBe(0);
+  expect(carrier.output).toEqual(direct.output);
   expect(await f.invoke('get', { slug: 'owner-bot' })).toHaveProperty('profileFingerprint');
   expect(await f.invoke('pause', { slug: 'owner-bot' })).not.toHaveProperty('metadataOnly');
   expect(f.records()).toHaveLength(0);
@@ -598,7 +599,9 @@ it.each([
     const run = await cli(f);
     const denied = await run(['--as', 'owner', ...argv]);
     expect(denied.status).not.toBe(0);
-    expect(denied.output).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(denied.output).toMatchObject({
+      error: { code: method === 'channelMessages' ? 'remote-access/denied' : 'bot-not-found' },
+    });
     expect(JSON.stringify(denied.output)).not.toContain(SECRET);
     expect(f.records()).toHaveLength(0);
   },

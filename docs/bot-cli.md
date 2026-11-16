@@ -479,13 +479,21 @@ printf '{"token":"…"}' | deepseekbot im-app-add discord --credentials-stdin
 deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
+deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot messaging-grants <bot-id> --read-mode status
+deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
 deepseekbot channel-connect <channel> --bot <bot-id> --conversation <external-id>
+deepseekbot im-reconnect <bot-id> --app <app-id>
 deepseekbot im-unbind <bot-id> --app <app-id>
 deepseekbot im-app-remove discord --app <app-id>
 ```
 
 `im-app-add` covers token-based platforms (Discord, Slack, QQ, DingTalk, WeCom, Matrix); Feishu and WeChat keep `im-authorize`. Credentials arrive only on stdin and are never printed; output lists each app's id, name, connection state and error code. `im-bind` binds a connected app (the `id` from `im-app-status`, also the `ref` in `im-status`) to a Bot, and `im-status` shows each binding's `reception`. `channel-connect` attaches an external group conversation to a Channel as context through that Bot's binding; the conversation must already be known to the binding, so mention the app there once and pick the id from the `candidates` in `channel-ingests`. Otherwise the Host refuses with `conversation-unavailable`.
+
+`im-status` and `messaging-grants` include process-local `recovery` metadata: `retrying` with `reason`, `attempt`, `nextRetryAt`, or `action-required` with `reason`. Temporary provider readiness failures retry exponentially from 250 ms to a 30 s cap until recovery. Host restart reconstructs receivers from enabled bindings and grants. `im-reconnect` uses the existing Owner and current revision without changing conversation access. Failed mutations are reported, never automatically replayed.
+
+`im-status`, `messaging-grants` and `channel-bridges` support `--read-mode saved|status`. `saved` returns local configuration promptly with `checks: pending`; capability/availability fields are not verified permissions. `status` checks only bound accounts and grants with `checks: complete`, sharing account inspections only within the current request. Omitting the flag retains full app/setup discovery. Mutations reject this flag and keep their fresh Owner checks. See [ADR-0343](adr/0343-im-settings-project-saved-configuration-before-live-checks.md).
 
 ### IM messaging, approvals and failure alerts from the CLI
 
@@ -1302,6 +1310,10 @@ deepseekbot folder-browse 'D:\code' --offset 500
 
 ## Memory
 
+With an online Host (`--host` or `DEEPSEEKBOT_HOST`), `--as <member>` supports the same Memory reads, edits, Git history, checkpoints, restore, versions, repair, file targets and image exports for that member's own Bots. Every call resolves the authenticated Human on the Host; another principal's Bot returns `bot-not-found`. Offline `--home` Memory commands cannot be combined with `--as` (`as-online-required`). Memory stays in `spaces/<humanId>/bots/<slug>/memory` when Team mode is turned off and on; members must sign in again. Memory moves remain subject to the account-space path rules.
+
+`memory-image --as <member>` uses the ownership-checked `memoryImage` bridge method; images keep the existing revision checks and 25 MiB size limit. The Owner image command retains its HTTP transport. Own-Bot prompt, approval-template, access/source settings and Session history adapters use the same member catalog. Global configuration and native DSH Session APIs remain subject to their existing permissions.
+
 `memory-snapshot`, `memory-file --path`, `memory-history [--limit]`, and `memory-diff --sha` read the Bot memory store; `memory-save --path (--body | --body-stdin)` writes one file and commits it. `--expected-head` defaults to the current HEAD (pass it explicitly for compare-and-swap); `--edit-id` defaults to a fresh UUID and makes repeat submissions idempotent. A stale head or a no-change write fails with `memory-conflict`, a missing file reads back `null`, and malformed shas fail `invalid-input`.
 
 With a live Host selected, the same commands go through the Host's Memory owner instead of the local store, and `memory-save` then requires `--expected-head`. The live Host also offers the rest of the Memory panel:
@@ -2106,3 +2118,15 @@ deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
 deepseekbot models allowed [--as <username>]
 ```
+
+Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
+
+### Channel invitations (M14)
+
+```sh
+deepseekbot channels member-candidates <channel-id> --query Alice
+deepseekbot --as bob channels member-candidates <channel-id> --query alice
+deepseekbot --as bob channels add-member <channel-id> alice
+```
+
+Candidate listing returns up to 100 active people outside the Channel, with `humanId`, `displayName` and nullable `username`. Search matches names and usernames. Both commands enforce the calling Human's `addMembers` right, including Channel owner/admin and `channels.manageAll`; refusal is `permission-required` with `details.permission: 'addMembers'`. Invitations grant access immediately for every visibility and survive role revocation. Browse-and-join memberships depend on allowed roles and leave when that access is revoked. See [M14 runtime notes](architecture/team-mode.md#m14-runtime-invitations-and-membership-basis) for upgrade classification.

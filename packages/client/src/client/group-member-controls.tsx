@@ -26,11 +26,14 @@ import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { humanLabel } from './actor-names.js';
+import { OWNER_HUMAN_ID, useSelfHumanId } from './self-human.js';
+import type { ChannelHumanMember } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { personaBotActivity } from './persona-activity.js';
 import { store, type BotSummary, type ChannelSummary } from './store.js';
 import { useSubmission } from './submission.js';
 import { IconButton } from './ds/icon-button.js';
+import { AddPeopleAction } from './channel-add-people.js';
 
 const styles = stylex.create({
   attentionHeading: {
@@ -386,6 +389,7 @@ function MembersHeaderActionForChannel({
     (group.joinRequests?.filter((item) => item.status === 'pending').length ?? 0);
   return (
     <>
+      <AddPeopleAction channelId={channelId} actions={actions} t={t} />
       <Tooltip label={t('group.invite')} side="bottom" delayMs={500}>
         <IconButton
           size="row"
@@ -536,6 +540,17 @@ export function MemberWakePolicyModal({
   );
 }
 
+export function memberHumanName(
+  member: Pick<ChannelHumanMember, 'humanId' | 'displayName'>,
+  self: string,
+  t: BotHarnessTranslate,
+): string {
+  if (member.humanId === self) return humanLabel(member.displayName, t);
+  if (member.humanId === OWNER_HUMAN_ID && member.displayName === 'Human')
+    return t('team.members.owner');
+  return member.displayName;
+}
+
 export function MembersEntry(props: ChannelSidebarEntryProps): ReactElement {
   return <MembersEntryForChannel key={props.channelId} {...props} />;
 }
@@ -554,6 +569,8 @@ function MembersEntryForChannel({
   const removal = useSubmission();
   const proxy = useRef<HTMLSpanElement | null>(null);
   const members = group?.members ?? [];
+  const humans = group?.humanMembers ?? [];
+  const self = useSelfHumanId();
   const selectedMember = menu?.slug;
   const canMention =
     onMentionBot !== undefined &&
@@ -571,25 +588,30 @@ function MembersEntryForChannel({
   ];
   return (
     <>
-      {group?.ownerBotSlug === undefined && group !== undefined ? (
+      {group?.ownerBotSlug === undefined && group !== undefined && self === OWNER_HUMAN_ID ? (
         <div className="bh-note">{t('members.humanManaged')}</div>
       ) : null}
-      {members.length === 0 ? <div className="bh-note">{t('members.empty')}</div> : null}
-      {(group?.humanMembers ?? []).map((member) => (
-        <div
-          className="bh-member-row"
-          key={'human:' + member.humanId}
-          data-human-id={member.humanId}
-        >
-          <span className="bh-delivery-human-avatar" aria-hidden="true">
-            {humanLabel(member.displayName, t).slice(0, 1)}
-          </span>
-          <span className="bh-name">{humanLabel(member.displayName, t)}</span>
-          {member.displayName === 'Human' ? null : (
-            <Tag tone="neutral">{t('message.mention.humanType')}</Tag>
-          )}
-        </div>
-      ))}
+      {members.length === 0 && humans.length === 0 ? (
+        <div className="bh-note">{t('members.empty')}</div>
+      ) : null}
+      {humans.map((member) => {
+        const name = memberHumanName(member, self, t);
+        return (
+          <div
+            className="bh-member-row"
+            key={'human:' + member.humanId}
+            data-human-id={member.humanId}
+          >
+            <span className="bh-delivery-human-avatar" aria-hidden="true">
+              {name.slice(0, 1)}
+            </span>
+            <span className="bh-name">{name}</span>
+            {member.humanId === self && name !== t('channelActivity.human') ? (
+              <Tag tone="neutral">{t('message.mention.humanType')}</Tag>
+            ) : null}
+          </div>
+        );
+      })}
       {members.map((slug) => {
         const member = bots.find((candidate) => candidate.slug === slug);
         return (

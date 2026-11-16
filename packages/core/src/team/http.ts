@@ -385,6 +385,33 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           return;
         }
         if (!peer) throw new TeamError('credentials-invalid');
+        if (path === `${TEAM_PATH}/api/botharness/memory/image` && request.method === 'GET') {
+          options.team.assertCall(peer.principal, 'memoryImage');
+          const image = z.object({ mime: z.string(), dataBase64: z.string() }).parse(
+            await options.gateway
+              .invoke({
+                namespace: 'botharness',
+                method: 'memoryImage',
+                args: Object.fromEntries(url.searchParams),
+                peer,
+                signal: peer.signal,
+              })
+              .catch((error: unknown) => {
+                throw new TeamError(failure(error).code);
+              }),
+          );
+          const bytes = Buffer.from(image.dataBase64, 'base64');
+          response.writeHead(200, {
+            'content-type': image.mime,
+            'content-length': bytes.length,
+            'cache-control': 'no-store',
+            'cross-origin-resource-policy': 'same-origin',
+            'x-content-type-options': 'nosniff',
+            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+          });
+          response.end(bytes);
+          return;
+        }
         if (path === `${TEAM_PATH}/__share/rpc` && request.method === 'POST')
           return json(response, 200, await rpc(request, peer));
         if (path.startsWith(`${TEAM_PATH}/api/`)) {

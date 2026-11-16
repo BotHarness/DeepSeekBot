@@ -256,6 +256,8 @@ import {
   hostSkillRegistry,
   installHostSkillInvalidation,
   onHostSkillsChange,
+  hostSkillAgent,
+  onHostSkillAgentsChange,
 } from './runtime/native-agent-compat.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
@@ -1103,6 +1105,7 @@ function initializeCore(
       if (
         topics.some((topic) =>
           [
+            'channels',
             'bindings',
             'grants',
             'bot-schedules',
@@ -3275,14 +3278,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   let invalidateNativeSkills: (() => void) | undefined;
+  const skillAgentFor = (slug: string) =>
+    hostSkillAgent(ctx, core.runtime.currentOrchestratorSessionId?.(slug));
   const skillCatalog = new SkillCatalog({
     memoryDirFor: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     viewFor: createSkillViewPort({
-      agentFor: (slug) => {
-        const sessionId = core.runtime.currentOrchestratorSessionId?.(slug);
-        return sessionId == null ? undefined : liveAgent(sessionId);
-      },
+      agentFor: skillAgentFor,
       presetFor: (slug) =>
         core.registry.get(slug)?.preset ?? config.agentPreset ?? DEFAULT_AGENT_PRESET,
       agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
@@ -3302,6 +3304,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                 {
                   slug: bot.slug,
                   memoryDir,
+                  agent: skillAgentFor(bot.slug),
                   ...(bot.preset === undefined ? {} : { preset: bot.preset }),
                 },
               ];
@@ -3321,11 +3324,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       diagnostic: (phase, fields) => diagnosticEvents.record('skills', phase, fields),
     });
     const offRegistry = core.operationalDatabase.subscribe(({ topics }) => {
-      if (topics.some((topic) => ['bot-registry', 'member-purged'].includes(topic)))
+      if (
+        topics.some((topic) =>
+          ['bot-registry', 'member-purged', 'session-ownership'].includes(topic),
+        )
+      )
         refresh.reconcile();
     });
     const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
+    const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
     return () => {
+      offAgents();
       offHost();
       offRegistry();
       refresh.close();

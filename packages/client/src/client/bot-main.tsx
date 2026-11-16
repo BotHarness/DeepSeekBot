@@ -1,4 +1,4 @@
-import { useTeamMember } from './team-state.js';
+import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { humanIdOf, useSelfHumanId, SelfHumanContext } from './self-human.js';
@@ -1280,6 +1280,7 @@ function ConversationView({
   const sidebar = useChannelSidebar(state);
   const docked = useChannelDockActive();
   const workspaceEnabled = useContext(WorkspaceContext) !== undefined;
+  const teamMode = useTeamMode(actions.teamCall)?.enabled === true;
   const [detail, setDetail] = useScopedState<'files' | 'inbox' | undefined>(
     scopeKey,
     state.selection?.kind === 'bot' && state.selection.inboxRequest ? 'inbox' : undefined,
@@ -2814,10 +2815,15 @@ function ConversationView({
         if (!failedEcho) {
           if (attempt !== undefined && submittedFor !== undefined)
             actions.submissions.cancel(submittedFor, attempt.id);
-          setDraft((current) => current || body);
+          let draftRestored = false;
+          setDraft((current) => {
+            draftRestored = current.length === 0;
+            return current || body;
+          });
           setMentionTokens((current) => (current.length > 0 ? current : submittedMentions));
           setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
-          setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
+          if (draftRestored)
+            setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
           setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
         }
       }
@@ -2835,7 +2841,11 @@ function ConversationView({
         store.setConversation({ error: undefined });
         setAllBotNotice(t('composer.allBotsChanged'));
         setAllBotPreview(preview);
-        setDraft((current) => current || body);
+        let draftRestored = false;
+        setDraft((current) => {
+          draftRestored = current.length === 0;
+          return current || body;
+        });
         setMentionTokens((current) =>
           current.length > 0
             ? current
@@ -2844,7 +2854,8 @@ function ConversationView({
               ),
         );
         setChannelRefTokens((current) => (current.length > 0 ? current : submittedRefs));
-        setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
+        if (draftRestored)
+          setSkillTokens((current) => (current.length > 0 ? current : submittedSkills));
         setUploadItems((current) => (current.length > 0 ? current : submittedUploads));
       } else throw error;
     } finally {
@@ -3988,7 +3999,7 @@ function ConversationView({
                 (hasChannelBots(channel) ||
                   (entry.scope !== 'personabot' &&
                     entry.id !== 'sessions' &&
-                    entry.id !== 'members')) &&
+                    (entry.id !== 'members' || teamMode))) &&
                 (entry.scope === 'both' || entry.scope === settingsScope) &&
                 (entry.visible?.(state) ?? true)
               }

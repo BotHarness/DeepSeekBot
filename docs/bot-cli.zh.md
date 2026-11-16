@@ -463,13 +463,21 @@ printf '{"token":"…"}' | deepseekbot im-app-add discord --credentials-stdin
 deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
+deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot messaging-grants <bot-id> --read-mode status
+deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
 deepseekbot channel-connect <channel> --bot <bot-id> --conversation <external-id>
+deepseekbot im-reconnect <bot-id> --app <app-id>
 deepseekbot im-unbind <bot-id> --app <app-id>
 deepseekbot im-app-remove discord --app <app-id>
 ```
 
 `im-app-add` 适用于基于 token 的平台（Discord、Slack、QQ、钉钉、企业微信、Matrix）；飞书和微信仍用 `im-authorize`。凭证只从标准输入读取，绝不打印；输出列出每个应用的 id、名称、连接状态和错误码。`im-bind` 把已连接的应用（`im-app-status` 里的 `id`，即 `im-status` 里的 `ref`）绑定到 Bot，`im-status` 显示每个绑定的 `reception`。`channel-connect` 通过该 Bot 的绑定，把外部群聊作为上下文接入 Channel；这个会话必须已被该绑定知晓，所以先在那里 @ 一次应用，再从 `channel-ingests` 的 `candidates` 里选 id。否则 Host 会以 `conversation-unavailable` 拒绝。
+
+`im-status` 和 `messaging-grants` 返回进程内的 `recovery` 状态：`retrying` 包含 `reason`、`attempt`、`nextRetryAt`；`action-required` 包含 `reason`。Provider 暂未就绪时从 250 毫秒开始指数退避，上限 30 秒，持续重试直至恢复。Host 重启后从启用的绑定和授权重建接收器。`im-reconnect` 通过现有 Owner 和当前修订号重连，不改变会话权限。失败的修改会返回错误，不会自动重放。
+
+`im-status`、`messaging-grants` 和 `channel-bridges` 支持 `--read-mode saved|status`。`saved` 快速返回本地配置，标记 `checks: pending`；其中能力和可用性字段不代表已验证的权限。`status` 只检查绑定的账号和会话，返回 `checks: complete`，账号检查仅在本次请求内共享。不传此参数时仍进行完整应用和接入方式发现。修改操作拒绝此参数，并保留实时 Owner 检查。见 [ADR-0343](adr/0343-im-settings-project-saved-configuration-before-live-checks.md)。
 
 ### 用命令行管理 IM 消息、审批和失败提醒
 
@@ -1273,6 +1281,10 @@ deepseekbot folder-browse 'D:\code' --offset 500
 
 ## Memory
 
+选择在线 Host（`--host` 或 `DEEPSEEKBOT_HOST`）后，`--as <member>` 可管理该成员自己的 Bot Memory，包括读写、Git 历史、检查点、恢复、版本、修复、文件目标和图片导出。Host 每次都检查已认证 Human 的所有权；访问其他主体的 Bot 返回 `bot-not-found`。离线 `--home` Memory 命令不能与 `--as` 合用（`as-online-required`）。关闭再开启团队模式会保留 `spaces/<humanId>/bots/<slug>/memory`，成员需要重新登录。移动 Memory 仍受账号空间路径规则限制。
+
+`memory-image --as <member>` 通过检查所有权的 `memoryImage` 桥接方法读取图片，保留版本检查及 25 MiB 大小上限；Owner 命令继续使用 HTTP。自己的 Bot 提示词、审批模板、访问和来源设置及 Session 历史适配器使用同一成员方法目录。全局配置和 DSH 原生 Session API 仍执行现有权限规则。
+
 `memory-snapshot`、`memory-file --path`、`memory-history [--limit]`、`memory-diff --sha` 读取 Bot 记忆库；`memory-save --path (--body | --body-stdin)` 写一个文件并提交。`--expected-head` 默认取当前 HEAD（要做 compare-and-swap 请显式传）；`--edit-id` 默认生成新的 UUID，重复提交幂等。HEAD 过期或无变化的写入报 `memory-conflict`，不存在的文件读回 `null`，非法 sha 报 `invalid-input`。
 
 选定在线 Host 时，上述命令改为通过 Host 的 Memory 模块执行，而不是读写本地存储，此时 `memory-save` 必须带 `--expected-head`。在线 Host 还提供 Memory 面板的其余功能：
@@ -2047,3 +2059,15 @@ token 或原始响应。
 Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。公网 WebSocket 在验证 Host 身份前将握手消息限制为 1 KiB，并禁用压缩。
 
 公网阶段仅对 DNS、网络、超时及 HTTP 429/5xx 短暂失败重试：最多四次，间隔 1/3/6 秒，仍受同一个 20 秒总时限约束。证书或身份失败不重试。每次自检完成后，界面刷新一次账号电脑列表。
+
+工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
+
+### Channel 邀请（M14）
+
+```sh
+deepseekbot channels member-candidates <channel-id> --query Alice
+deepseekbot --as bob channels member-candidates <channel-id> --query alice
+deepseekbot --as bob channels add-member <channel-id> alice
+```
+
+候选查询最多返回 100 位活跃且未加入该 Channel 的人，包含 `humanId`、`displayName` 和可为空的 `username`，可按显示名或用户名搜索。两个命令都检查调用 Human 的 `addMembers` 权限，包括 Channel owner/admin 和 `channels.manageAll`；缺权返回 `permission-required`，带 `details.permission: 'addMembers'`。姓名邀请对所有可见性立即授予访问，撤销角色后仍保留；浏览后加入的角色成员在角色访问撤销时退出。升级分类见 [M14 运行时说明](architecture/team-mode.zh.md#m14-运行时邀请与成员访问依据)。
