@@ -30,8 +30,16 @@ export function channelRoleEligibleSql(channel: string, humanId: string): string
       WHERE ar.human_id = ${humanId})
     OR EXISTS (SELECT 1 FROM channel_human_members cm
       WHERE cm.channel_id = ${channel}.channel_id AND cm.human_id = ${humanId} AND cm.left_at IS NULL
-      AND (${channel}.owner_human_id = ${humanId} OR EXISTS (SELECT 1 FROM channel_admins ca
-        WHERE ca.channel_id = ${channel}.channel_id AND ca.human_id = ${humanId}))))`;
+      AND cm.membership_basis = 'invited'))`;
+}
+
+export function channelRoleMembershipExitSql(scope: 'human' | 'channel' | 'all'): string {
+  const filter =
+    scope === 'human' ? 'm.human_id = ? AND' : scope === 'channel' ? 'm.channel_id = ? AND' : '';
+  return `UPDATE channel_human_members AS m SET left_at = ?
+    WHERE ${filter} left_at IS NULL AND membership_basis = 'role'
+      AND EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = m.channel_id
+        AND NOT ${channelRoleEligibleSql('c', 'm.human_id')})`;
 }
 
 export function channelBotDmEligibleSql(channel: string, humanId: string): string {

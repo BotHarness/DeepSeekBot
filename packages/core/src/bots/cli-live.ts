@@ -2248,6 +2248,26 @@ async function runMemoryCommand(
         AbortSignal.timeout(timeoutMs(values.timeout)),
       );
       const reference = values['image-reference'];
+      if (values.as !== undefined) {
+        const image = await host.rpc<{ mime: string; dataBase64: string }>('memoryImage', {
+          slug,
+          path,
+          source,
+          revision,
+          ...(reference === undefined ? {} : { reference }),
+        });
+        const bytes = Buffer.from(image.dataBase64, 'base64');
+        writeFileSync(out, bytes, { flag: 'wx' });
+        return {
+          path,
+          source,
+          revision,
+          ...(reference === undefined ? {} : { reference }),
+          mime: image.mime,
+          bytes: bytes.length,
+          out,
+        };
+      }
       const { bytes, response } = await host.http(
         '/api/botharness/memory/image?' +
           new URLSearchParams({
