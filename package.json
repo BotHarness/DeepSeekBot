@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit && pnpm --filter @botharness/mobile typecheck",
-    "lint": "oxlint && node scripts/check-schema-migrations.mjs && node scripts/check-source-policy.mjs && node scripts/check-no-shell-scripts.mjs && node scripts/check-pr-evidence.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && node scripts/check-cli-parity.mjs && node scripts/check-tool-effects.mjs && node scripts/check-host-casts.mjs && node scripts/check-feature-map.mjs && node scripts/sync-bot-preset.mjs --check && node scripts/ci-plan.mjs --check && pnpm install:check",
+    "tokens": "node scripts/generate-tokens.mjs",
+    "lint": "oxlint && node scripts/check-schema-migrations.mjs && node scripts/check-source-policy.mjs && node scripts/check-no-shell-scripts.mjs && node scripts/check-pr-evidence.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && node scripts/check-cli-parity.mjs && node scripts/generate-tokens.mjs --check && node scripts/check-design-tokens.mjs && node scripts/check-tool-effects.mjs && node scripts/check-host-casts.mjs && node scripts/check-feature-map.mjs && node scripts/sync-bot-preset.mjs --check && node scripts/ci-plan.mjs --check && pnpm install:check",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",

@@ -21,6 +21,8 @@ Before designing or reviewing a changed surface, apply the shared [UI design sta
 
 ## Rules
 
+- **Tobs tokens replace DSH tokens** (ADR-0347, #4282): new or touched Bot-mode code reads `ds/tobs.stylex.ts` (generated from `design/tokens/tobs.tokens.json` by `pnpm tokens`) and composes `ds/` components such as `NavItem`; `scripts/check-design-tokens.mjs` rejects new `--dsw-*`, DSH UI imports and styled raw controls outside `ds/`. Where this rule and the DSH-native guidance below disagree, this rule wins.
+
 - **Native lookups beat intuition**: extract the shipped CSS from the installed packages before adding spacing or a control (`references/native-contract.md` has the recipe).
 - **One authority per concept**: one mode entry, one projection of state; a second entry point reads as a second feature.
 - **Tokens over literals**; `design-system-tokens.test.ts` enforces it. StyleX styles and the plain CSS stylesheets (`styles.ts`, `*-styles.ts`, the Browser and Computer sheets) read spacing, type, radius, size, edge width and colour from `ds/tokens.stylex.ts`, interpolating the constants into CSS strings; no feature-local alias tables. The scale is small on purpose: three type sizes (12/16, 13/20, 14/20) at weights 400 and 500, radii `xs`/`sm`/`md`/`lg`/`panel` that read `--dsw-radius-*`, edges `hairline` and `focus`, and three edge colours (`divider` inside a surface, `border` for outer edges and inputs, `borderStrong` for hover and emphasis). Separate with spacing and background before reaching for a border. A value off the scale either snaps to it (≤2px) or gets a named allowlist entry with a reason in that test; content-fixed colours (video letterbox) live in a separate delimited block with rationale.

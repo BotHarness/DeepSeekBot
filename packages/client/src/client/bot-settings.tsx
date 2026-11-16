@@ -7,7 +7,7 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from './bot-settings-slot.js';
 import { MEMBER_SETTINGS_SECTIONS } from './member-settings.js';
 import { useTeamMember } from './team-state.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Icon } from './ds/icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
 import { HostSettings } from './host-settings.js';
@@ -369,11 +369,7 @@ export function BotSettingsView({
         id: row.id,
         label: row.label,
         group: DEVICE_SETTINGS_SECTIONS.has(row.id) ? DEVICE_GROUP : HOST_GROUP,
-        icon: (
-          <ChannelSidebarIcon
-            name={REMOTE_SECTION_ICONS[row.id] ?? botSettingsSectionIcon(row.id)}
-          />
-        ),
+        icon: <Icon name={REMOTE_SECTION_ICONS[row.id] ?? botSettingsSectionIcon(row.id)} />,
       }))}
       groups={
         grouped
