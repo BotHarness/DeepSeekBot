@@ -32,6 +32,7 @@ const styles = stylex.create({
     backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
     color: color.fg,
   },
+  selected: { opacity: { default: 1, ':disabled': 1 } },
   primary: { backgroundColor: color.fg, color: color.base },
   danger: { backgroundColor: actionColor.danger, color: actionColor.dangerLabel },
   icon: { display: 'inline-flex', flexShrink: 0, width: space.x5, height: space.x5 },
@@ -63,7 +64,11 @@ export function ActionButton({
       size={buttonSize}
       disabled={disabled || busy}
       aria-busy={busy || rest['aria-busy']}
-      {...stylex.props(styles.button, styles[tone])}
+      {...stylex.props(
+        styles.button,
+        styles[tone],
+        rest['aria-pressed'] === true && styles.selected,
+      )}
     >
       <span aria-hidden="true" {...stylex.props(styles.icon, busy && styles.busy)}>
         {busy || icon === 'refresh' ? (

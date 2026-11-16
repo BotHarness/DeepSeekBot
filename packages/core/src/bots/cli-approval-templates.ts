@@ -8,6 +8,7 @@ type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown
 export const APPROVAL_TEMPLATE_OPTIONS = {
   from: { type: 'string' },
   'text-stdin': { type: 'boolean' },
+  'literal-template': { type: 'boolean' },
 } as const;
 
 export interface ApprovalTemplateValues {
@@ -15,6 +16,7 @@ export interface ApprovalTemplateValues {
   file?: string;
   from?: string;
   'text-stdin'?: boolean;
+  'literal-template'?: boolean;
 }
 
 export const APPROVAL_TEMPLATE_COMMANDS = [
@@ -31,6 +33,10 @@ export const APPROVAL_TEMPLATE_COMMANDS = [
   {
     command: 'approval-template-show',
     description: 'print the full text of one Approval Template',
+  },
+  {
+    command: 'approval-template-global-set',
+    description: 'select the global Approval Template default, or off',
   },
   {
     command: 'approval-template-set',
@@ -93,6 +99,20 @@ export async function runApprovalTemplateCommand(
   io: Pick<BotCreateCliIo, 'readStdin'>,
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
+  if (
+    values['literal-template'] &&
+    command !== 'approval-template-global-set' &&
+    command !== 'approval-template-set'
+  )
+    usage('--literal-template is only supported by template selection commands.');
+  if (command === 'approval-template-global-set') {
+    if (rest.length !== 1 || !rest[0]?.trim())
+      usage('approval-template-global-set needs a template name or off.');
+    const rpc = await connect();
+    return rpc('approvalTemplateGlobalSet', {
+      template: !values['literal-template'] && rest[0] === 'off' ? null : rest[0],
+    });
+  }
   if (command === 'approval-template-set') {
     if (rest.length !== 2 || rest.some((value) => !value.trim()))
       usage('approval-template-set needs a bot id and a template name (or off).');
@@ -100,7 +120,13 @@ export async function runApprovalTemplateCommand(
     const template = rest[1]!.trim();
     return rpc('botApprovalTemplateSet', {
       slug: rest[0]!.trim(),
-      template: template === 'off' ? null : template,
+      template: values['literal-template']
+        ? template
+        : template === 'off'
+          ? null
+          : template === 'inherit'
+            ? '@global'
+            : template,
     });
   }
   const { subcommand, args } = normalize(command, rest);
@@ -137,6 +163,9 @@ export async function runApprovalTemplateCommand(
   const listed = (await rpc('approvalTemplates', bot ? { slug: bot } : {})) as {
     templates?: unknown;
     selected?: unknown;
+    globalDefault?: unknown;
+    effective?: unknown;
+    source?: unknown;
   };
   const templates = Array.isArray(listed?.templates)
     ? (listed.templates as { name: string; text: string }[])
@@ -144,7 +173,16 @@ export async function runApprovalTemplateCommand(
   if (subcommand === 'list')
     return {
       templates: templates.map(({ text: _text, ...summary }) => summary),
-      ...(bot ? { bot, selected: listed.selected ?? null } : {}),
+      ...(listed.globalDefault === undefined ? {} : { globalDefault: listed.globalDefault }),
+      ...(bot
+        ? {
+            bot,
+            selected: listed.selected ?? null,
+            ...(listed.source === undefined
+              ? {}
+              : { effective: listed.effective, source: listed.source }),
+          }
+        : {}),
     };
   const found = templates.find((template) => template.name === name);
   if (found === undefined)

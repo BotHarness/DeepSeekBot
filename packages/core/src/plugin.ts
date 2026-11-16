@@ -2546,12 +2546,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     reviewLogs = undefined;
   }
   ctx.effect(() => () => reviewLogs?.close(), 'botharness: approval review logs');
-  const templateInUse = approvalTemplateInUse(core.registry);
+  const templateInUse = approvalTemplateInUse(core.registry, approvalTemplates);
   const autoApproval: ToolAutoApproval = {
     template: (slug) => {
-      const name = core.registry.get(slug)?.approvalTemplate;
-      const template = name === undefined ? undefined : approvalTemplates.get(name);
-      return template === undefined ? undefined : { name: template.name, text: template.text };
+      const selection = core.registry.get(slug)?.approvalTemplate;
+      if (selection === undefined) return undefined;
+      const global = selection === '@global' ? approvalTemplates.global() : undefined;
+      if (global?.kind === 'invalid') throw new Error('global-template-unreadable');
+      const name =
+        global === undefined ? selection : global.kind === 'selected' ? global.name : undefined;
+      if (name === undefined) return undefined;
+      const template = approvalTemplates.get(name);
+      if (template === undefined) throw new Error('selected-template-unavailable');
+      return { name: template.name, text: template.text };
     },
     templateInUse,
     excerptLimits: (slug) => {
@@ -2598,11 +2605,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (entry) => {
       const detail =
         `approval-review bot=${entry.botSlug} template=${entry.template} tool=${entry.toolName}` +
+        (entry.templateVersion === undefined ? '' : ` templateVersion=${entry.templateVersion}`) +
         (entry.model === undefined ? '' : ` model=${entry.model}`) +
         (entry.reviewSession === undefined ? '' : ` reviewSession=${entry.reviewSession}`) +
         ` outcome=${entry.outcome} latencyMs=${entry.latencyMs}` +
-        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`) +
-        (entry.detail === undefined ? '' : ` detail=${JSON.stringify(entry.detail)}`);
+        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`);
       ctx.logger.info(detail);
       try {
         reviewLogs?.write({
@@ -3061,6 +3068,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           name,
           args,
           allowedOnce,
+          templateInUse,
         );
   });
   ctx.on(
@@ -3096,6 +3104,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               execution.name,
               execution.arguments,
               approvalGuard !== undefined,
+              templateInUse,
             );
             if (denial !== undefined) throw new Error(denial);
             return next();

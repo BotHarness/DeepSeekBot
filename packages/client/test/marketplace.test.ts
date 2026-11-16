@@ -16,6 +16,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Input: (props: Record<string, unknown>) => createElement('input', props),
   IconChevronDownOutlineRegular: () => null,
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
+  Tooltip: (props: { children?: ReactNode }) => props.children,
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
   SegmentedControl: (props: {
@@ -612,10 +613,9 @@ describe('Bot Marketplace modal', () => {
           '# Helper\n\nReads your notes.',
         );
         expect(host.textContent).toContain('★ 9');
-        expect(
-          [...host.querySelectorAll('a')].find((link) => link.textContent === '在 GitHub 查看')
-            ?.href,
-        ).toBe('https://github.com/alice/helper');
+        expect(host.querySelector<HTMLAnchorElement>('a[aria-label="在 GitHub 查看"]')?.href).toBe(
+          'https://github.com/alice/helper',
+        );
 
         await click(host, '安装');
         expect(host.querySelector('[data-market-commit]')?.textContent).toBe(

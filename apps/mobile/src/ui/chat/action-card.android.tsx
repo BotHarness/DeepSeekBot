@@ -111,14 +111,16 @@ export function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function CardNote({ children, variant = 'note' }: Props<typeof SharedCardNote>) {
+export function CardNote({ children, variant = 'note', testID }: Props<typeof SharedCardNote>) {
   const roles = useMaterialRoles();
-  return variant === 'note' ? (
-    <Text color={roles.onSurfaceVariant} style={{ typography: materialType.meta }}>
+  return (
+    <Text
+      {...(variant === 'note' ? { color: roles.onSurfaceVariant } : {})}
+      style={{ typography: variant === 'note' ? materialType.meta : materialType.body }}
+      modifiers={testID ? [composeTestID(testID)] : []}
+    >
       {children}
     </Text>
-  ) : (
-    <Text style={{ typography: materialType.body }}>{children}</Text>
   );
 }
 

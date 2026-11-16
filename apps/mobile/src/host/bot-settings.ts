@@ -101,9 +101,12 @@ export interface ApprovalTemplate {
   description: string;
 }
 
+export const INHERIT_APPROVAL_TEMPLATE = '@global';
+
 export interface ApprovalTemplates {
   templates: ApprovalTemplate[];
   selected: string | null;
+  globalDefault?: string | null;
 }
 
 export class HostAnswerInvalid extends Error {}
@@ -544,6 +547,12 @@ export async function loadApprovalTemplates(
 ): Promise<ApprovalTemplates> {
   const value = record(await client.call<unknown>('approvalTemplates', { slug }));
   const selected = value?.['selected'];
+  const globalDefault = value?.['globalDefault'];
+  if (
+    (globalDefault !== undefined && globalDefault !== null && !text(globalDefault)) ||
+    (selected === INHERIT_APPROVAL_TEMPLATE && globalDefault === undefined)
+  )
+    throw new HostAnswerInvalid('approvalTemplates returned no readable global selection.');
   if (!Array.isArray(value?.['templates']) || (selected !== null && !text(selected)))
     throw new HostAnswerInvalid('approvalTemplates returned no templates.');
   return {
@@ -554,6 +563,7 @@ export async function loadApprovalTemplates(
         : undefined;
     }),
     selected,
+    ...(globalDefault === undefined ? {} : { globalDefault }),
   };
 }
 

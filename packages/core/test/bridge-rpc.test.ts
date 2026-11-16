@@ -979,6 +979,7 @@ describe('bridge typert service', () => {
       'approvalTemplateCreate',
       'approvalTemplateUpdate',
       'approvalTemplateDelete',
+      'approvalTemplateGlobalSet',
       'botApprovalTemplateSet',
       'approvalReviewerModel',
       'approvalReviewerModelSet',
