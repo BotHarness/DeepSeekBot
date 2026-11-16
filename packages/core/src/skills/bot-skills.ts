@@ -1,7 +1,7 @@
 import { realpath, rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, sep } from 'node:path';
 
-import { commitMemoryPathsAsync } from '../memory/git.js';
+import { commitMemoryPathsAsync, ignoredMemoryPathsAsync } from '../memory/git.js';
 import { readWorkspaceSkills } from './workspace.js';
 
 export interface BotSkill {
@@ -19,6 +19,18 @@ export class BotSkillNotFoundError extends Error {
   constructor(name: string) {
     super(`Skill not found in this Bot's Memory Repository: ${name}`);
     this.name = 'BotSkillNotFoundError';
+  }
+}
+
+export class BotSkillIgnoredFilesError extends Error {
+  constructor(
+    name: string,
+    readonly files: readonly string[],
+  ) {
+    super(
+      `Skill ${name} has files git ignores, so removing it could not be undone: ${files.join(', ')}`,
+    );
+    this.name = 'BotSkillIgnoredFilesError';
   }
 }
 
@@ -78,6 +90,8 @@ export async function removeBotSkill(
   if (!inside(root, target) || basename(skillsRoot) !== 'skills')
     throw new BotSkillNotFoundError(name);
   const removed = relative(root, target).split(sep).join('/');
+  const ignored = await ignoredMemoryPathsAsync(root, [removed]);
+  if (ignored.length > 0) throw new BotSkillIgnoredFilesError(name, ignored);
   await commitMemoryPathsAsync(root, [removed], `skills: save ${name} before removal`);
   await rm(target, { recursive: true, force: true });
   await commitMemoryPathsAsync(root, [removed], `skills: remove ${name}`);

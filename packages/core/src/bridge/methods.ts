@@ -349,6 +349,7 @@ import {
   type ResolvedSkill,
 } from '../skills/catalog.js';
 import {
+  BotSkillIgnoredFilesError,
   BotSkillNotFoundError,
   listBotSkills,
   readBotSkill,
@@ -7225,6 +7226,8 @@ function buildBridgeMethods(
       } catch (error) {
         if (error instanceof BotSkillNotFoundError)
           return { ok: false, error: { code: 'skill-not-found', message: error.message } };
+        if (error instanceof BotSkillIgnoredFilesError)
+          return { ok: false, error: { code: 'skill-has-ignored-files', message: error.message } };
         return {
           ok: false,
           error: { code: 'skills-unavailable', message: (error as Error).message },
