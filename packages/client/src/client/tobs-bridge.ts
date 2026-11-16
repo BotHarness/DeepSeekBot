@@ -36,6 +36,9 @@ const DSH_ROLE = {
   '--tobs-status-info-base': 'alias-state-business-primary',
   '--tobs-status-info-tint': 'alias-state-business-tertiary',
   '--tobs-status-info-ink': 'alias-link',
+  '--tobs-elevation-1': 'elevation-soft',
+  '--tobs-elevation-2': 'elevation-prominent',
+  '--tobs-elevation-3': 'elevation-panel',
 } as const;
 
 export const TOBS_DSH_BRIDGE: Readonly<Record<string, string>> = Object.fromEntries(

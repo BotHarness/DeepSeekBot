@@ -33,8 +33,7 @@ export const COMBOBOX_CSS = `
 .bh-combobox-list {
   position: fixed; z-index: 1100; box-sizing: border-box;
   background: var(--tobs-layer-canvas);
-  --dsw-elevation-stroke-color: var(--tobs-line-divider);
-  box-shadow: var(--dsw-elevation-prominent);
+  box-shadow: var(--tobs-elevation-2);
 }
 .bh-combobox-scroll > button {
   display: flex; align-items: baseline; justify-content: space-between; gap: ${space.x4};

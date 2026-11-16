@@ -48,6 +48,7 @@ import {
   type TeamRole,
 } from './team-roles-bridge.js';
 import { setTeamModeSnapshot } from './team-state.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   members: { display: 'flex', flexDirection: 'column', minWidth: 0 },
@@ -58,7 +59,7 @@ const styles = stylex.create({
   },
   urls: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
   url: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     color: color.fg,
@@ -75,7 +76,7 @@ const styles = stylex.create({
   secretValue: {
     flex: 1,
     minWidth: 0,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     color: color.fg,

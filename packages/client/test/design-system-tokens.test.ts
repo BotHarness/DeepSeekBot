@@ -386,16 +386,16 @@ describe('design-system tokens', () => {
       strong: '500',
     });
     expect(entries('radius')).toEqual({
-      xs: 'var(--dsw-radius-xs, 4px)',
-      sm: 'var(--dsw-radius-sm, 8px)',
-      md: 'var(--dsw-radius-md, 12px)',
-      lg: 'var(--dsw-radius-lg, 16px)',
-      panel: 'var(--dsw-radius-panel)',
+      xs: '4px',
+      sm: '8px',
+      md: '12px',
+      lg: '16px',
+      panel: '28px',
       round: '50%',
     });
     expect(entries('border')).toEqual({
       hairline: '1px',
-      focus: 'var(--dsw-focus-ring-width, 2px)',
+      focus: '2px',
     });
     const edges = Object.entries(entries('color')).filter(([name]) =>
       /^(divider|border\w*)$/.test(name),

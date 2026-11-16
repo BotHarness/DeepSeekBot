@@ -8,6 +8,7 @@ import { StepProgress } from './ds/step-progress.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { failureReason } from './release-notes-view.js';
+import { font } from './ds/tobs.stylex.js';
 import {
   updateRunActive,
   type UpdateRunKind,
@@ -65,7 +66,7 @@ const styles = stylex.create({
     borderRadius: radius.sm,
     backgroundColor: color.surface,
     color: color.muted,
-    fontFamily: 'var(--dsw-font-family-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',

@@ -2,7 +2,7 @@ export const BH = {
   labelSecondary: 'var(--tobs-ink-secondary)',
   hoverFill: 'var(--tobs-state-hover)',
   errorPrimary: 'var(--tobs-status-danger-base)',
-  radiusMd: 'var(--dsw-radius-md)',
+  radiusMd: '12px',
   labelPrimary: 'var(--tobs-ink-primary, #0f1115)',
   labelPrimaryForeground: 'var(--tobs-ink-on-accent, #ffffff)',
   borderL2: 'var(--tobs-line-edge, #0000001a)',

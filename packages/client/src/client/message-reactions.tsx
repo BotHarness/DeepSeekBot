@@ -22,8 +22,7 @@ const styles = stylex.create({
     display: 'flex',
     gap: space.x1,
     padding: space.x2,
-    '--dsw-elevation-stroke-color': color.divider,
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   pick: {
     display: 'grid',

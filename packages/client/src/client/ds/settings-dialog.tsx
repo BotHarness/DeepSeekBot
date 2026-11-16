@@ -58,8 +58,8 @@ const styles = stylex.create({
     width: 'min(760px, 100%)',
     height: 'min(640px, 100%)',
     padding: 0,
-    '--dsh-scrollbar-thumb': 'var(--dsw-alias-scrollbar-bg-l2)',
-    '--dsh-scrollbar-thumb-hover': 'var(--dsw-alias-scrollbar-hover-l2)',
+    '--dsh-scrollbar-thumb': 'var(--tobs-line-strong)',
+    '--dsh-scrollbar-thumb-hover': 'var(--tobs-ink-tertiary)',
   },
   nav: {
     flexShrink: 0,

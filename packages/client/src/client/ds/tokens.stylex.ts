@@ -21,17 +21,17 @@ export const text = stylex.defineConsts({
 });
 
 export const radius = stylex.defineConsts({
-  xs: 'var(--dsw-radius-xs, 4px)',
-  sm: 'var(--dsw-radius-sm, 8px)',
-  md: 'var(--dsw-radius-md, 12px)',
-  lg: 'var(--dsw-radius-lg, 16px)',
-  panel: 'var(--dsw-radius-panel)',
+  xs: '4px',
+  sm: '8px',
+  md: '12px',
+  lg: '16px',
+  panel: '28px',
   round: '50%',
 });
 
 export const border = stylex.defineConsts({
   hairline: '1px',
-  focus: 'var(--dsw-focus-ring-width, 2px)',
+  focus: '2px',
 });
 
 export const size = stylex.defineConsts({
