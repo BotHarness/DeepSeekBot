@@ -2119,6 +2119,29 @@ deepseekbot roles update <roleId> --models provider/model,provider/model [--as <
 deepseekbot models allowed [--as <username>]
 ```
 
+### Bot access and Role Policy (M7)
+
+```sh
+deepseekbot bots visibility <bot-id>
+deepseekbot bots visibility-set <bot-id> --private --confirm
+deepseekbot bots visibility-set <bot-id> --public everyone
+deepseekbot bots visibility-set <bot-id> --public roles:<roleId>,<roleId> [--preview | --confirm]
+deepseekbot bots visibility-set <bot-id> --public members:<humanId>,<humanId> [--preview | --confirm]
+deepseekbot bots switches <bot-id> [--proactive-dms on|off] [--join-channels on|off] [--speaker-context on|off]
+deepseekbot --as alice bots reachable
+deepseekbot --as alice bots proactive-opt-out <bot-id> on|off
+deepseekbot roles create --name finance --permissions "" --policy-stdin < policy.json
+deepseekbot roles update <roleId> --policy-stdin < policy.json
+deepseekbot roles conflicts <username>
+deepseekbot speaker-policy [--human-id <humanId>] [--topic <topic>]
+```
+
+Bots are private by default: only the principal (the owner) can DM a private Bot or add it to a Channel. `--public` opens it to everyone, to roles or to listed people, and needs the **create public Bots** permission; widening an audience without it refuses `permission-required`. Narrowing an audience without `--confirm` returns `applied: false` with a `preview` that lists `dmsBecomingReadOnly` and the Channels the Bot will leave; `--confirm` applies it. After narrowing, an outsider's DM stays listed and readable but sends refuse `bot-dm-read-only`; roster arrangement (pin, unpin, hide, move) still accepts that Bot's id. Each Human gets their own DM with a public Bot; the principal cannot read it except through audited private viewing.
+
+`bots reachable` lists the Bots the caller can DM, with only public metadata and `principalDisplayName`. A Bot the caller cannot reach refuses `bot-not-found`, also as an `@` mention inside a DM. `switches` changes only the flags given; `proactive-opt-out` lets an audience member stop proactive DMs from one Bot.
+
+Role Policy input is a JSON array of `{ "topic", "text", "effect": "allow" | "deny" }` (at most 100 items). It is advisory: the Bot reads the speaking Human's roles and matching items through `speaker-policy` and the `speaker_policy` tool. When roles conflict on a topic, Deny applies; `roles conflicts <username>` lists the conflicting role pairs.
+
 Tool effect declarations (E1) preserve the existing tool commands and approval outcomes. Full Access, saved rules, Secrets, device targets and Workspace Grants retain their existing checks; no new route or CLI authority is introduced.
 
 ### Channel invitations (M14)
