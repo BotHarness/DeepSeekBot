@@ -268,6 +268,64 @@ function MarkdownImage({
   );
 }
 
+export function MarkdownDocument({
+  body,
+  image,
+}: {
+  body: string;
+  image: (src: string, alt: string) => ReactElement;
+}): ReactElement {
+  return (
+    <div
+      {...stylex.props(styles.document)}
+      className={`bh-memory-markdown ${stylex.props(styles.document).className}`}
+    >
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        urlTransform={(url, key) => (key === 'src' ? url : defaultUrlTransform(url))}
+        components={{
+          img: ({ src, alt }) => image(src ?? '', alt ?? ''),
+          a: ({ href, children, node }) =>
+            href &&
+            /^https?:\/\//iu.test(href) &&
+            !node?.children.some((c) => c.type === 'element' && c.tagName === 'img') ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                {...stylex.props(styles.link)}
+              >
+                {children}
+              </a>
+            ) : (
+              <span>{children}</span>
+            ),
+          h1: ({ children }) => <h1 {...stylex.props(styles.heading)}>{children}</h1>,
+          h2: ({ children }) => <h2 {...stylex.props(styles.heading)}>{children}</h2>,
+          h3: ({ children }) => <h3 {...stylex.props(styles.heading)}>{children}</h3>,
+          h4: ({ children }) => <h4 {...stylex.props(styles.heading)}>{children}</h4>,
+          h5: ({ children }) => <h5 {...stylex.props(styles.heading)}>{children}</h5>,
+          h6: ({ children }) => <h6 {...stylex.props(styles.heading)}>{children}</h6>,
+          p: ({ children }) => <p {...stylex.props(styles.paragraph)}>{children}</p>,
+          pre: ({ children }) => <pre {...stylex.props(styles.code)}>{children}</pre>,
+          blockquote: ({ children }) => (
+            <blockquote {...stylex.props(styles.quote)}>{children}</blockquote>
+          ),
+          table: ({ children }) => <table {...stylex.props(styles.table)}>{children}</table>,
+          td: ({ children }) => <td {...stylex.props(styles.cell)}>{children}</td>,
+          th: ({ children }) => <th {...stylex.props(styles.cell)}>{children}</th>,
+        }}
+      >
+        {body}
+      </Markdown>
+    </div>
+  );
+}
+
+export function MarkdownImageLabel({ src, alt }: { src: string; alt: string }): ReactElement {
+  return <span {...stylex.props(styles.muted)}>{alt || src}</span>;
+}
+
 export function MemoryMarkdownView({
   slug,
   path,
@@ -287,59 +345,20 @@ export function MemoryMarkdownView({
         </div>
       );
     return (
-      <div
-        {...stylex.props(styles.document)}
-        className={`bh-memory-markdown ${stylex.props(styles.document).className}`}
-      >
-        <Markdown
-          remarkPlugins={[remarkGfm]}
-          urlTransform={(url, key) => (key === 'src' ? url : defaultUrlTransform(url))}
-          components={{
-            img: ({ src, alt }) => (
-              <MarkdownImage
-                key={`${slug}:${path}:${document.source}:${document.revision}:${src}`}
-                slug={slug}
-                path={path}
-                document={document}
-                reference={src ?? ''}
-                alt={alt ?? ''}
-                t={t}
-              />
-            ),
-            a: ({ href, children, node }) =>
-              href &&
-              /^https?:\/\//iu.test(href) &&
-              !node?.children.some((c) => c.type === 'element' && c.tagName === 'img') ? (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  {...stylex.props(styles.link)}
-                >
-                  {children}
-                </a>
-              ) : (
-                <span>{children}</span>
-              ),
-            h1: ({ children }) => <h1 {...stylex.props(styles.heading)}>{children}</h1>,
-            h2: ({ children }) => <h2 {...stylex.props(styles.heading)}>{children}</h2>,
-            h3: ({ children }) => <h3 {...stylex.props(styles.heading)}>{children}</h3>,
-            h4: ({ children }) => <h4 {...stylex.props(styles.heading)}>{children}</h4>,
-            h5: ({ children }) => <h5 {...stylex.props(styles.heading)}>{children}</h5>,
-            h6: ({ children }) => <h6 {...stylex.props(styles.heading)}>{children}</h6>,
-            p: ({ children }) => <p {...stylex.props(styles.paragraph)}>{children}</p>,
-            pre: ({ children }) => <pre {...stylex.props(styles.code)}>{children}</pre>,
-            blockquote: ({ children }) => (
-              <blockquote {...stylex.props(styles.quote)}>{children}</blockquote>
-            ),
-            table: ({ children }) => <table {...stylex.props(styles.table)}>{children}</table>,
-            td: ({ children }) => <td {...stylex.props(styles.cell)}>{children}</td>,
-            th: ({ children }) => <th {...stylex.props(styles.cell)}>{children}</th>,
-          }}
-        >
-          {document.body}
-        </Markdown>
-      </div>
+      <MarkdownDocument
+        body={document.body}
+        image={(src, alt) => (
+          <MarkdownImage
+            key={`${slug}:${path}:${document.source}:${document.revision}:${src}`}
+            slug={slug}
+            path={path}
+            document={document}
+            reference={src}
+            alt={alt}
+            t={t}
+          />
+        )}
+      />
     );
   }, [slug, path, document.source, document.revision, document.status, document.body, t]);
 }

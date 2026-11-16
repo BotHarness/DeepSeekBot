@@ -44,6 +44,8 @@ import { BotBannerArt } from './bot-banner.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { Note } from './ds/note.js';
+import { Tooltip } from './ds/tooltip.js';
+import { CommunityIcon } from './community-icons.js';
 import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
@@ -473,14 +475,22 @@ function MarketplaceDetailView({
         <MarketplaceBanner bot={shown} className="bh-market-banner" />
         <div className="bh-market-row-head">
           <MarketplaceAvatar bot={shown} size={64} t={t} />
-          <span className="bh-market-copy">
-            <MarketplaceName bot={shown} />
-          </span>
           {shown.source === 'upload' ? null : (
-            <a className="bh-market-github" href={shown.htmlUrl} target="_blank" rel="noreferrer">
-              {t('market.detail.github')}
-            </a>
+            <Tooltip label={t('market.detail.github')} side="bottom" delayMs={500}>
+              <a
+                className="bh-market-github"
+                href={shown.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={t('market.detail.github')}
+              >
+                <CommunityIcon name="github" size={18} />
+              </a>
+            </Tooltip>
           )}
+        </div>
+        <div className="bh-market-hero-name">
+          <MarketplaceName bot={shown} />
         </div>
         {shown.description === null ? null : <MarketplaceDescription bot={shown} t={t} />}
         <MarketplaceMeta bot={shown} t={t} />
@@ -501,7 +511,6 @@ function MarketplaceDetailView({
           actions={actions}
           botId={shown.id}
           file={reading}
-          labels={labels}
           t={t}
           describeError={(cause) => marketplaceError(cause, t)}
           onBack={() => setReading(undefined)}

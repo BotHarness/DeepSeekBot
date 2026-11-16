@@ -1231,11 +1231,7 @@ export async function loadSkillDetail(
   };
 }
 
-export async function removeBotSkill(
-  call: BridgeCall,
-  slug: string,
-  name: string,
-): Promise<void> {
+export async function removeBotSkill(call: BridgeCall, slug: string, name: string): Promise<void> {
   await unwrap(call, 'botSkillRemove', { slug, name });
 }
 
