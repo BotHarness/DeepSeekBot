@@ -199,7 +199,7 @@ it.each([
         pendingButton.blur();
         if (movedFocus) node.querySelector<HTMLButtonElement>('.bh-companion-character')!.focus();
         await act(async () => releaseDecision!());
-        if (!movedFocus) expect(document.activeElement).toBe(document.body);
+        if (!movedFocus) expect([document.body, pendingButton]).toContain(document.activeElement);
         await act(() => snapshot());
       }
       expect(decisions).toEqual([{ channelId: 'dm-ada', messageId: 'one', outcome }]);

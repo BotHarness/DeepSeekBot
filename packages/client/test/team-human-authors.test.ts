@@ -61,7 +61,7 @@ describe('member page bridge calls', () => {
     try {
       const call = createBridgeCall(ctx as never);
       expect((await call('channelSend', { channelId: 'c', body: 'hi' })).ok).toBe(true);
-      const refused = await call('topReorder', {});
+      const refused = await call('releaseInstall', {});
       expect(refused.ok).toBe(false);
       expect(refused.ok ? undefined : refused.error.code).toBe('member-unavailable');
       expect(sent).toEqual(['botharness/channelSend']);

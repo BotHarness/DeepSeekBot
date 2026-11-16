@@ -77,6 +77,8 @@ export function buildStamp(env: NodeJS.ProcessEnv = process.env): { sha: string;
     try {
       sha = execFileSync('git', ['rev-parse', '--short=9', 'HEAD'], {
         cwd: ROOT_DIR,
+        shell: false,
+        windowsHide: true,
         stdio: ['ignore', 'pipe', 'ignore'],
       })
         .toString()

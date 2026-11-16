@@ -98,10 +98,11 @@ export function discoverBotContacts(
   ownerBotId: string,
   input: BotContactQuery = {},
   networkContacts: readonly NetworkBotContact[] = [],
+  reachable?: (bot: PersonaBotRecord) => boolean,
 ): BotContactPage {
   const owner = registry.get(ownerBotId);
   const visible = (bot: PersonaBotRecord) =>
-    owner !== undefined && botOwner(bot) === botOwner(owner);
+    owner !== undefined && (reachable ? reachable(bot) : botOwner(bot) === botOwner(owner));
   if (owner && botOwner(owner) !== 'local-human') networkContacts = [];
   if (input.botId !== undefined) {
     if (input.query !== undefined || input.cursor !== undefined || input.limit !== undefined)

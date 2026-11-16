@@ -4,7 +4,7 @@ import { forgetGenuiDocumentViews } from '../genui/view';
 import { forgetMedia } from './media-cache';
 import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
-import { approvalCommand } from './requests';
+import { approvalCommand, approvalContent, type ApprovalContent } from './requests';
 import { replyPreviewOf } from '../../../../packages/core/src/channels/reply-preview';
 import type {
   AttachmentRef,
@@ -33,6 +33,7 @@ export interface MessageCard {
   channelId: string;
   subject?: string;
   command?: string;
+  approvalContent?: ApprovalContent;
   resolved?: true;
   takeover?: { target: 'computer' | 'browser'; title: string; expiresAt: string };
 }
@@ -368,6 +369,8 @@ function field(value: unknown, key: string): unknown {
 
 function cardOf(channelId: string, message: ChannelWireMessage): MessageCard | undefined {
   if (message.toolApprovalRequest !== undefined) {
+    if (message.contentPurge !== undefined) return { kind: 'tool-approval', channelId };
+    const content = approvalContent(message.toolApprovalRequest);
     const subject = text(field(message.toolApprovalRequest, 'toolName'));
     const input = text(field(message.toolApprovalRequest, 'input'));
     const command =
@@ -375,6 +378,7 @@ function cardOf(channelId: string, message: ChannelWireMessage): MessageCard | u
     return {
       kind: 'tool-approval',
       channelId,
+      ...(content === undefined ? {} : { approvalContent: content }),
       ...(subject === undefined ? {} : { subject }),
       ...(command === undefined ? {} : { command }),
     };

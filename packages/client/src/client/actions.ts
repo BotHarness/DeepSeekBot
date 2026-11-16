@@ -935,9 +935,11 @@ export interface BridgeActions {
     scope?: 'chat' | 'assignments',
   ): Promise<AssignmentAccessPresetView>;
   listToolApprovalRules(slug: string): Promise<ToolApprovalRuleView[]>;
-  approvalTemplates?(
-    slug: string,
-  ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }>;
+  approvalTemplates?(slug: string): Promise<{
+    templates: ApprovalTemplateView[];
+    selected: string | null;
+    globalDefault?: string | null;
+  }>;
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
   voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
@@ -1979,7 +1981,17 @@ export function createActions(
       await actions.load();
       await openChannelById(channelId);
     },
-    onboarding: (slug, action) => invoke('onboarding', { slug, action }),
+    onboarding: (slug, action) =>
+      invoke('onboarding', {
+        slug:
+          slug !== undefined &&
+          clientStore
+            .getSnapshot()
+            .bots.some((bot) => bot.slug === slug && bot.sharedBy !== undefined)
+            ? undefined
+            : slug,
+        action,
+      }),
     onboardingModel: async (slug, expectedRevision, route, globalDefault) => {
       const result = await invoke<{ revision: number }>('onboardingModel', {
         slug,
@@ -2378,7 +2390,8 @@ export function createActions(
           clientStore.setConversation({ channel, error: undefined });
           await actions.refreshChannelMessages(channel.id);
           await refreshUnreadDivider(channel.id, active);
-          await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+          if (bot.sharedBy === undefined)
+            await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
           return;
         }
         if (cached) {
@@ -2435,7 +2448,8 @@ export function createActions(
           sending: false,
         });
       }
-      await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+      if (bot.sharedBy === undefined)
+        await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
     },
     refreshBotInbox(slug) {
       const selection = currentSelection();

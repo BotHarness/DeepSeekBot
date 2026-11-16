@@ -551,6 +551,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     const model = input.model?.trim();
     const preset = input.preset?.trim();
     const record: PersonaBotRecord = {
+      approvalTemplate: '@global',
       ownerHumanId: input.ownerHumanId ?? 'local-human',
       slug: input.slug,
       displayName: displayName.length > 0 ? displayName : input.slug,

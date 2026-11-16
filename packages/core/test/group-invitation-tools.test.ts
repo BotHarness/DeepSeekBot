@@ -95,12 +95,12 @@ async function roundTrip(accept: boolean, resolveOnInvite = false) {
           }
           if (actor !== 'bea') throw new Error(`Unexpected actor ${actor}`);
           if (!resolveOnInvite) {
-            await expect(call('channel_read', { channel_id: groupId })).rejects.toThrow(
-              'not a member',
-            );
+            await expect(call('channel_read', { channel_id: groupId })).resolves.toBeDefined();
             await expect(
               call('bot_send_message', { channel_id: groupId, body: 'too early' }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
           }
           results.decided = await call('group_invite_respond', { invite_id: inviteId, accept });
           results.repeated = await call('group_invite_respond', { invite_id: inviteId, accept });
@@ -113,12 +113,12 @@ async function roundTrip(accept: boolean, resolveOnInvite = false) {
               body: 'Joined through real Tool',
             });
           } else {
-            await expect(call('channel_read', { channel_id: groupId })).rejects.toThrow(
-              'not a member',
-            );
+            await expect(call('channel_read', { channel_id: groupId })).resolves.toBeDefined();
             await expect(
               call('bot_send_message', { channel_id: groupId, body: 'forbidden' }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
           }
         } catch (error) {
           failures.push(error);

@@ -694,6 +694,9 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
     ...(typeof record['lastActivityAt'] === 'number' && Number.isFinite(record['lastActivityAt'])
       ? { lastActivityAt: record['lastActivityAt'] }
       : {}),
+    ...(typeof asRecord(record['sharedBy'])?.['displayName'] === 'string'
+      ? { sharedBy: asRecord(record['sharedBy'])?.['displayName'] as string }
+      : {}),
     aggregateState: typeof aggregateState === 'string' ? aggregateState : 'idle',
     workspaces: stringArray(record['workspaces']),
     createdAt: typeof createdAt === 'string' ? createdAt : '',
@@ -929,6 +932,26 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
     ...(remoteContact === undefined ? {} : { remoteContact }),
     ...(remoteBot === undefined ? {} : { remoteAvailability }),
     ...(typeof record['ownerBotSlug'] === 'string' ? { ownerBotSlug: record['ownerBotSlug'] } : {}),
+    ...(type === 'dm' && record['readOnly'] === true ? { readOnly: true } : {}),
+    ...(type === 'dm' && typeof record['proactiveOptOut'] === 'boolean'
+      ? { proactiveOptOut: record['proactiveOptOut'] }
+      : {}),
+    ...(type === 'group' && Array.isArray(record['memberBots'])
+      ? {
+          memberBots: record['memberBots'].flatMap((raw: unknown) => {
+            const bot = asRecord(raw);
+            return typeof bot?.['slug'] === 'string' && typeof bot['displayName'] === 'string'
+              ? [
+                  {
+                    slug: bot['slug'],
+                    displayName: bot['displayName'],
+                    ...(typeof bot['avatar'] === 'string' ? { avatar: bot['avatar'] } : {}),
+                  },
+                ]
+              : [];
+          }),
+        }
+      : {}),
     ...(invitations === undefined ? {} : { invitations }),
     ...(joinRequests === undefined ? {} : { joinRequests }),
     ...(wakePolicies === undefined ? {} : { wakePolicies }),
@@ -1306,7 +1329,27 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
               : {}),
           }
         : undefined;
+    const review = asRecord(request['approvalReview']);
+    let approvalReview:
+      | import('../../../core/src/workspaces/tool-approval.js').ToolApprovalReview
+      | undefined;
+    if (review?.['kind'] === 'template-unavailable' && typeof review['reason'] === 'string')
+      approvalReview = { kind: 'template-unavailable', reason: review['reason'] };
+    else if (
+      review?.['kind'] === 'review' &&
+      typeof review['reason'] === 'string' &&
+      typeof review['template'] === 'string' &&
+      typeof review['version'] === 'string'
+    )
+      approvalReview = {
+        kind: 'review',
+        template: review['template'],
+        version: review['version'],
+        reason: review['reason'],
+        ...(typeof review['fallback'] === 'string' ? { fallback: review['fallback'] } : {}),
+      };
     toolApprovalRequest = {
+      ...(approvalReview === undefined ? {} : { approvalReview }),
       ...(typeof request['allowAlways'] === 'boolean'
         ? { allowAlways: request['allowAlways'] }
         : {}),
@@ -1441,7 +1484,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
         (key) => typeof auto[key] !== 'string' || (auto[key] as string).length === 0,
       ) ||
       typeof auto['input'] !== 'string' ||
-      (auto['outcome'] !== 'allowed' && auto['outcome'] !== 'rejected')
+      (auto['outcome'] !== 'allowed' &&
+        auto['outcome'] !== 'rejected' &&
+        auto['outcome'] !== 'ask-human')
     )
       return undefined;
     toolAutoApproval = {
@@ -1451,6 +1496,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       toolName: auto['toolName'] as string,
       input: auto['input'],
       template: auto['template'] as string,
+      ...(typeof auto['templateVersion'] === 'string'
+        ? { templateVersion: auto['templateVersion'] }
+        : {}),
       outcome: auto['outcome'],
       reason: auto['reason'] as string,
     };
@@ -4474,12 +4522,19 @@ function parseApprovalTemplate(item: unknown): ApprovalTemplateView | undefined 
 export async function loadApprovalTemplates(
   call: BridgeCall,
   slug?: string,
-): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }> {
+): Promise<{
+  templates: ApprovalTemplateView[];
+  selected: string | null;
+  globalDefault?: string | null;
+}> {
   const response = asRecord(
     await unwrap(call, 'approvalTemplates', slug === undefined ? {} : { slug }),
   );
   const templates = response?.['templates'];
   const selected = response?.['selected'] ?? null;
+  const globalDefault = response?.['globalDefault'];
+  if (globalDefault !== undefined && globalDefault !== null && typeof globalDefault !== 'string')
+    throw new Error('invalid global approval selection');
   if (!Array.isArray(templates) || (selected !== null && typeof selected !== 'string'))
     throw new Error('invalid approvalTemplates response');
   return {
@@ -4488,7 +4543,14 @@ export async function loadApprovalTemplates(
       return template === undefined ? [] : [template];
     }),
     selected,
+    ...(globalDefault === undefined ? {} : { globalDefault }),
   };
+}
+export async function setGlobalApprovalTemplate(
+  call: BridgeCall,
+  template: string | null,
+): Promise<void> {
+  await unwrap(call, 'approvalTemplateGlobalSet', { template });
 }
 async function writtenApprovalTemplate(
   call: BridgeCall,

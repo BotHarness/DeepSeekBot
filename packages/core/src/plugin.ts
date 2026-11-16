@@ -1,3 +1,4 @@
+import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
 import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
 import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
 import { WorkspaceSpaces } from './workspaces/spaces.js';
@@ -769,6 +770,11 @@ function initializeCore(
         attachOperationalModule(operationalDatabase, 'workspace-spaces'),
         realpathSync(dshHome),
       );
+    if (operationalDatabase.mode === 'ready')
+      reconcilePublicBotMemories(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
     startup.enter('bot-registry', 'initialize');
     registry = createPersonaBotRegistry({
       rootDir,
@@ -1053,6 +1059,12 @@ function initializeCore(
   const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
     purge: contentPurge,
     spaces: () => spaces,
+    replaceBotMemory: async (slug, action) => {
+      if (!runtime?.replaceOrchestrator) throw new TeamError('unavailable');
+      const result = await runtime.replaceOrchestrator(slug, action);
+      if (result.outcome === 'refused') throw new TeamError(result.code, undefined, { slug });
+      return result.value;
+    },
     settleBotPreparations: (humanId) => registry.settled(humanId),
     stopBots: async (slugs) => {
       if (!slugs.length) return;
@@ -1069,9 +1081,9 @@ function initializeCore(
     options.activeQuestionMessageIds,
     options.activeToolApprovalMessageIds,
     options.activePrivateInputMessageIds,
-    () => {
+    (human) => {
       try {
-        return roster.snapshot().muted;
+        return roster.forHuman(human.humanId).snapshot().muted;
       } catch {
         return [];
       }
@@ -1346,6 +1358,7 @@ function initializeCore(
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
+    ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
       zoom: (input) =>
@@ -1467,7 +1480,10 @@ function initializeCore(
       await externalMessaging.disableBot(slug);
       await options.erasePrivateAccounts?.(slug);
     },
-    changed: () => live?.publishRosterCommitted(),
+    changed: (slug) => {
+      spaces.botMemory.cleanupErased(slug);
+      live?.publishRosterCommitted();
+    },
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
   contentPurge.bindMemberBots(deletions);
@@ -2552,12 +2568,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     reviewLogs = undefined;
   }
   ctx.effect(() => () => reviewLogs?.close(), 'botharness: approval review logs');
-  const templateInUse = approvalTemplateInUse(core.registry);
+  const templateInUse = approvalTemplateInUse(core.registry, approvalTemplates);
   const autoApproval: ToolAutoApproval = {
     template: (slug) => {
-      const name = core.registry.get(slug)?.approvalTemplate;
-      const template = name === undefined ? undefined : approvalTemplates.get(name);
-      return template === undefined ? undefined : { name: template.name, text: template.text };
+      const selection = core.registry.get(slug)?.approvalTemplate;
+      if (selection === undefined) return undefined;
+      const global = selection === '@global' ? approvalTemplates.global() : undefined;
+      if (global?.kind === 'invalid') throw new Error('global-template-unreadable');
+      const name =
+        global === undefined ? selection : global.kind === 'selected' ? global.name : undefined;
+      if (name === undefined) return undefined;
+      const template = approvalTemplates.get(name);
+      if (template === undefined) throw new Error('selected-template-unavailable');
+      return { name: template.name, text: template.text };
     },
     templateInUse,
     excerptLimits: (slug) => {
@@ -2604,11 +2627,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (entry) => {
       const detail =
         `approval-review bot=${entry.botSlug} template=${entry.template} tool=${entry.toolName}` +
+        (entry.templateVersion === undefined ? '' : ` templateVersion=${entry.templateVersion}`) +
         (entry.model === undefined ? '' : ` model=${entry.model}`) +
         (entry.reviewSession === undefined ? '' : ` reviewSession=${entry.reviewSession}`) +
         ` outcome=${entry.outcome} latencyMs=${entry.latencyMs}` +
-        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`) +
-        (entry.detail === undefined ? '' : ` detail=${JSON.stringify(entry.detail)}`);
+        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`);
       ctx.logger.info(detail);
       try {
         reviewLogs?.write({
@@ -3067,6 +3090,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           name,
           args,
           allowedOnce,
+          templateInUse,
         );
   });
   ctx.on(
@@ -3102,6 +3126,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               execution.name,
               execution.arguments,
               approvalGuard !== undefined,
+              templateInUse,
             );
             if (denial !== undefined) throw new Error(denial);
             return next();

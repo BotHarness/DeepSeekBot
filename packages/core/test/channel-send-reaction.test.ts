@@ -105,7 +105,7 @@ describe('channel_action reactions', () => {
       );
       await expect(
         send({ body: '', channel_id: other!.id, react_to: 'x', reaction: '👍' }),
-      ).rejects.toThrow('not a member');
+      ).rejects.toThrow('bot-channel-access-denied');
     } finally {
       await state.close();
     }

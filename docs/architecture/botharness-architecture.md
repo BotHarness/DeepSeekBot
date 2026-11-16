@@ -654,7 +654,11 @@ The application-defined `ConnectionsDialog` presents pairing and device manageme
 
 [ADR-0202](../adr/0202-phone-push-is-a-content-free-projection-of-the-activity-list.md)（[#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)）：应用定义的 Push delivery 模块（`packages/core/src/push/`）是 Activity 的投影，不另设通知权威。Activity 表或 PersonaBot 的审批、提问、私密输入计数变化时（以及每分钟一次的兜底扫描），模块读取 `action` 项与未读的 `replies` 项，对每台已登记的配对设备只发送一次新项，并经 Expo Push Service 投递；推送标题为频道名（`#名称`，私信为 PersonaBot 名称），正文为所需操作加上工具与主要参数、问题或消息的简短预览（折叠空白，最多 140 字符）；私密输入请求不含内容（[ADR-0213](../adr/0213-phone-push-shows-the-channel-and-a-short-preview.md)）。数据字段只含 Host 标识、Activity 项标识、PersonaBot 标识与读取请求所需的 Channel／消息标识，并携带未处理 Human 操作数作为角标。设备经设备网关的 `/botharness-device/push` 登记 Expo push token、切换各类通知、发送测试通知；撤销设备或 Expo 回报 `DeviceNotRegistered` 时删除 token。发送失败有界重试，结果写入不含内容的 `push` 开发者日志。App 保存每台配对的 Host，点按通知先切换到对应 Host，再打开该审批、提问或私信。
 
-## 已确认目标：Bot 级自动审批策略（尚未实施）
+## 已确认目标：Bot 级自动审批策略（分片实施）
+
+#4211 的首片沿用既有模板文件 owner、Bot Registry 与 Channel Tool Approval owner：全局选择保存在模板目录的 `.selection.json`，Bot 的既有 `approvalTemplate` 字段使用非法模板名标记 `@global` 显式继承；缺字段仍为 Off，新建才写入继承。不新增数据库迁移。认证 Host 的 `approvalTemplateGlobalSet`、既有 Bot setter、在线 CLI 和 Client 的 DSH Select 共用此选择；模板库读失败与主动空值分开。全局选择也参与生效模板的管理识别，ADR-0249 的独立管理授权不变。
+
+Channel Tool Approval 先处理确定性授权，之后固定当次模板正文及 SHA-256 内容版本，才调用 Reviewer。模型只允许当前调用或转 Human；原拒绝触发的暂停／恢复不再运行，旧拒绝记录保留读取兼容。Human 请求的 `approvalReview` 与自动放行的 `templateVersion` 保留当次版本，开发日志同样记录版本；失败卡片给出安全原因。快照不替代现有执行 fence。三部分编辑、卡片规则表、确认删除后的批量回退及 E2 外部效果准入仍属于后续切片。
 
 2026-11-15 的设计访谈确认：Bot 在动态继承全局、选择特定模板、关闭 Reviewer 三态中选一，特定模板完整替换全局，不再叠加 Bot 额外行。模板包含自然语言 Always ask、Always allow 与 free text；确定性授权先处理，Reviewer 只批准当前调用或转 Human，不自主拒绝、不创建规则。Full Access 不一概豁免 E2 的外部效果审批目标。自然语言理解不是硬权限边界，卡片保存的规则仍归具体 Bot 并标注来源。
 
@@ -1713,6 +1717,25 @@ The Team usage and Role model policy runtime is described in [M10 Host and CLI l
 
 The [M5 approval logic](team-mode-m5-runtime.md) adds caller-scoped masking across Channel projections, Activity and push, Human decision attribution and unattended routing to the Bot owner. Member-owned Sessions refuse full access, suppressed asks and escalation. Team status and invitation responses identify the current isolation as `trial`; M12 owns enforcement qualification.
 
+### Team mode M7 runtime access
+
+The application-defined Bot visibility/principal checks and append-only speaker policy are
+specified in [M7 runtime boundaries](team-mode-m7-runtime.md). Group Channels intersect current
+principal access with Bot restrictions. A Bot's own Human–Bot and established private-to-public
+Bot DMs explicitly use participant authority; this does not give the principal private DM
+content or delegate M11 audited viewing to Bots. M6 remains the shared Memory placement authority: public Bots use audience-matched, hidden
+`shared/.bot-<slug>/bots/<slug>/memory` repositories, with journaled relocation on publication or
+return to private and atomic audience retargeting. These spaces are never grantable folders.
+
+M7 shared discovery projects reachable non-owned public Bots as metadata-only roster entries;
+full Bot records remain principal-scoped. Per-Human arrangements persist independently in the
+operational database, and shared Bot attention is restricted to the participating Human DM.
+See [M7 runtime](team-mode-m7-runtime.md#shared-discovery-and-participant-arrangement).
+
+M7 participant DM history keeps metadata-only, read-only Bot entries after audience loss; these
+entries grant no reach or management. Online CLI Bot-DM commands resolve the caller’s actual
+Channel through the Host and preserve that ID in send receipts and lookups.
+
 ## Tool effect declarations (E1)
 
 The public application-defined `ToolEffects` model describes `changes` (`none`, `reversible`,
@@ -1739,3 +1762,5 @@ is constant-time; input-sensitive resolution and legacy text checks remain local
 assert zero Reviewer calls for deterministic Full Access hits and retained management prompting;
 existing saved-rule/device/Grant tests protect the execution fences. This is not an end-to-end
 latency measurement. Runtime and screenshot qualification are recorded separately in the PR.
+
+E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请求，操作区显示禁用的已选结果，详情的手动开合状态不变。Reviewer 的显式 `ask-human` 紧凑结果先写入同一 ChannelStore，再生成 Human 请求；历史拒绝记录不改变两结果 Reviewer 契约。移动端从既有消息投影已验证的只读内容，历史卡不逐卡查询 Host；缓存内容不能授权，缺失或已清除的内容如实显示不可用。当前契约见[审批策略](bot-approval-policy.zh.md)。

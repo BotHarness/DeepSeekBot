@@ -1,3 +1,4 @@
+import { botVisibilitySchema, rolePolicySchema } from '../team/bot-contract.js';
 import { privateKindSchema } from '../team/private-contract.js';
 import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import {
@@ -11,6 +12,13 @@ import { CliLiveError } from './cli-live-error.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 
 export const TEAM_OPTIONS = {
+  private: { type: 'boolean' },
+  public: { type: 'string' },
+  'proactive-dms': { type: 'string' },
+  'join-channels': { type: 'string' },
+  'speaker-context': { type: 'string' },
+  'policy-stdin': { type: 'boolean' },
+  topic: { type: 'string' },
   as: { type: 'string' },
   after: { type: 'string' },
   reason: { type: 'string' },
@@ -36,6 +44,11 @@ export const TEAM_OPTIONS = {
   'password-stdin': { type: 'boolean' },
 } as const;
 export const TEAM_COMMANDS = [
+  {
+    command: 'bot-access',
+    description: 'bots visibility|visibility-set|switches|reachable|proactive-opt-out',
+  },
+  { command: 'speaker-policy', description: '[--human-id] [--topic]' },
   { command: 'audit', description: 'list [--after] [--limit] | verify' },
   {
     command: 'private',
@@ -70,6 +83,13 @@ export const TEAM_COMMANDS = [
 ] as const;
 
 type TeamValues = {
+  private?: boolean;
+  public?: string;
+  'proactive-dms'?: string;
+  'join-channels'?: string;
+  'speaker-context'?: string;
+  'policy-stdin'?: boolean;
+  topic?: string;
   query?: string;
   after?: string;
   limit?: string;
@@ -175,6 +195,59 @@ export async function runTeamCommand(
   rpc: Rpc,
 ): Promise<unknown> {
   const [action, argument] = rest;
+  if (command === 'speaker-policy' && !rest.length)
+    return rpc('speakerPolicy', {
+      ...(values['human-id'] === undefined ? {} : { humanId: values['human-id'] }),
+      ...(values.topic === undefined ? {} : { topic: values.topic }),
+    });
+  if (command === 'bot-access') {
+    if (action === 'reachable' && rest.length === 1) return rpc('reachableBots', {});
+    if (!argument) return usage();
+    if (action === 'visibility' && rest.length === 2)
+      return rpc('botVisibility', { slug: argument });
+    if (action === 'visibility-set' && rest.length === 2) {
+      if (Boolean(values.private) === (values.public !== undefined)) return usage();
+      const [kind, ...parts] = (values.public ?? '').split(':');
+      if (
+        !values.private &&
+        (!['everyone', 'roles', 'members'].includes(kind!) ||
+          parts.length !== (kind === 'everyone' ? 0 : 1))
+      )
+        return usage();
+      const audience =
+        kind === 'everyone' && !parts.length
+          ? { kind }
+          : kind === 'roles' && parts.length === 1
+            ? { kind, roleIds: ids(parts[0]!) }
+            : { kind, humanIds: ids(parts[0] ?? '') };
+      const visibility = botVisibilitySchema.safeParse(
+        values.private ? { kind: 'private' } : { kind: 'public', audience },
+      );
+      if (!visibility.success) return usage();
+      return rpc('botVisibilitySet', {
+        slug: argument,
+        visibility: visibility.data,
+        ...(values.preview ? { confirm: false } : values.confirm ? { confirm: true } : {}),
+      });
+    }
+    if (action === 'switches' && rest.length === 2) {
+      const patch: Record<string, boolean> = {};
+      for (const [flag, key] of [
+        ['proactive-dms', 'proactiveDms'],
+        ['join-channels', 'joinPrincipalChannels'],
+        ['speaker-context', 'speakerContext'],
+      ] as const) {
+        const v = values[flag];
+        if (v === undefined) continue;
+        if (v !== 'on' && v !== 'off') return usage();
+        patch[key] = v === 'on';
+      }
+      return rpc('botSwitches', { slug: argument, ...patch });
+    }
+    if (action === 'proactive-opt-out' && rest.length === 3 && ['on', 'off'].includes(rest[2]!))
+      return rpc('botProactiveOptOut', { slug: argument, optOut: rest[2] === 'on' });
+    return usage();
+  }
   if (command === 'spaces') {
     const audience = () => {
       const value = values.audience;
@@ -251,12 +324,17 @@ export async function runTeamCommand(
     return usage();
   }
   if (command === 'roles') {
+    if (action === 'conflicts' && argument && rest.length === 2)
+      return rpc('roleConflicts', { username: argument });
     if (action === 'list' && rest.length === 1) return rpc('roles', {});
     if (action === 'catalog' && rest.length === 1) return rpc('permissionCatalog', {});
     if (action === 'create' && rest.length === 1 && values.name && values.permissions !== undefined)
       return rpc('roleCreate', {
         name: values.name,
         permissions: ids(values.permissions),
+        ...(values['policy-stdin']
+          ? { policy: secretJson(rolePolicySchema, await secret(io)) }
+          : {}),
         ...(values.models === undefined
           ? {}
           : {
@@ -270,10 +348,16 @@ export async function runTeamCommand(
       action === 'update' &&
       argument &&
       rest.length === 2 &&
-      (values.name !== undefined || values.permissions !== undefined || values.models !== undefined)
+      (values.name !== undefined ||
+        values.permissions !== undefined ||
+        values.models !== undefined ||
+        values['policy-stdin'])
     )
       return rpc('roleUpdate', {
         roleId: argument,
+        ...(values['policy-stdin']
+          ? { policy: secretJson(rolePolicySchema, await secret(io)) }
+          : {}),
         ...(values.models === undefined
           ? {}
           : {

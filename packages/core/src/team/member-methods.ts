@@ -12,6 +12,14 @@ export const MEMBER_BOT_IMPORT_METHODS = [
 ] as const;
 
 export const MEMBER_GLOBAL_METHODS = [
+  'botVisibility',
+  'botVisibilitySet',
+  'botSwitches',
+  'reachableBots',
+  'botProactiveOptOut',
+  'roleConflicts',
+  'speakerPolicy',
+  'botTools',
   'privateObjects',
   'privateContentOpen',
   'privateContentPage',
@@ -70,6 +78,16 @@ export const MEMBER_GLOBAL_METHODS = [
   'channelUnreadCounts',
   'list',
   'rosterGet',
+  'pinsSet',
+  'hiddenSet',
+  'sectionCreate',
+  'sectionRename',
+  'sectionRemove',
+  'sectionReorder',
+  'topReorder',
+  'channelAssign',
+  'rosterBatch',
+  'channelMuteSet',
   'followRoster',
   'humanIdentity',
   'composerIdentity',
@@ -157,6 +175,9 @@ export const MEMBER_MEMORY_METHODS = [
 ] as const;
 
 export const MEMBER_BOT_METHODS = [
+  'messagingIdentity',
+  'botToolRun',
+  'botToolTrace',
   ...MEMBER_MEMORY_METHODS,
   'grantRequestApprove',
   'grants',

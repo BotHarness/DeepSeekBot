@@ -1637,6 +1637,7 @@ function ConversationView({
     channel?.type === 'dm' &&
     state.bots.find((candidate) => candidate.slug === channel.botSlug)?.deleted === true;
   const readOnlyDm = isHumanReadOnlyDmChannel(channel) || deletedBotDm;
+  const mutationLocked = readOnlyDm || channel?.readOnly === true;
   const profileBot =
     channel?.type === 'dm' && channel.botSlug !== undefined
       ? state.bots.find((candidate) => candidate.slug === channel.botSlug)
@@ -1654,9 +1655,23 @@ function ConversationView({
   const botActivity = bot === undefined ? undefined : personaBotActivity(state, bot);
   const channelBots =
     channel !== undefined && (channel.type === 'group' || botDm)
-      ? channel.members.flatMap((slug) => {
+      ? channel.members.flatMap((slug): BotSummary[] => {
           const member = state.bots.find((candidate) => candidate.slug === slug);
-          return member === undefined ? [] : [member];
+          if (member !== undefined) return [member];
+          const shared = channel.memberBots?.find((candidate) => candidate.slug === slug);
+          return shared === undefined
+            ? []
+            : [
+                {
+                  slug: shared.slug,
+                  displayName: shared.displayName,
+                  ...(shared.avatar === undefined ? {} : { avatar: shared.avatar }),
+                  roles: [],
+                  aggregateState: 'idle',
+                  workspaces: [],
+                  createdAt: '',
+                },
+              ];
         })
       : [];
   const channelFacepile: PersonaBotFacepileItem[] = channelBots.map((member) => ({
@@ -1738,7 +1753,7 @@ function ConversationView({
   const dmWorking = channel?.type !== 'group' && workingRows.items.length > 0;
   const channelId = channel?.id;
   const reactToMessage =
-    readOnlyDm || channelId === undefined || actions.reactToMessage === undefined
+    mutationLocked || channelId === undefined || actions.reactToMessage === undefined
       ? undefined
       : (message: ChannelMessage, emoji: string, active: boolean) =>
           void actions
@@ -2066,7 +2081,10 @@ function ConversationView({
   );
   const dmComposerContext = useDmComposerContext({
     scopeKey,
-    bot: channel?.type === 'dm' && !readOnlyDm ? profileBot : undefined,
+    bot:
+      channel?.type === 'dm' && !readOnlyDm && profileBot?.sharedBy === undefined
+        ? profileBot
+        : undefined,
     channelId,
     actions,
     companion,
@@ -2637,7 +2655,7 @@ function ConversationView({
   };
 
   const toggleGeneratedFile = (ref: ChannelAttachmentRef): void => {
-    if (readOnlyDm || conversation.sending || recovery.blocked) return;
+    if (mutationLocked || conversation.sending || recovery.blocked) return;
     const existing = uploadItems.find(
       (item) => item.ref !== undefined && attachmentIdentity(item.ref) === attachmentIdentity(ref),
     );
@@ -2671,7 +2689,7 @@ function ConversationView({
   };
 
   const addFiles = (files: File[], selection?: { start: number; end: number }): number | void => {
-    if (recovery.blocked || unavailable) return;
+    if (recovery.blocked || unavailable || mutationLocked) return;
     const available = Math.max(0, 10 - uploadItems.length);
     const added = files
       .slice(0, available)
@@ -2690,7 +2708,7 @@ function ConversationView({
 
   const dictating = useRef(false);
   const fileDrop = useConversationFileDrop(
-    !readOnlyDm &&
+    !mutationLocked &&
       !unavailable &&
       !conversation.sending &&
       !recovery.blocked &&
@@ -3459,13 +3477,13 @@ function ConversationView({
                                 channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
                               }
                               onOpenInbox={timelineCallbacks.openInbox}
-                              onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
+                              onReply={mutationLocked ? undefined : timelineCallbacks.reply}
                               onReact={
                                 reactToMessage === undefined ? undefined : timelineCallbacks.react
                               }
                               onJumpReply={timelineCallbacks.jumpReply}
                               onRestoreFailed={
-                                readOnlyDm ? undefined : timelineCallbacks.restoreFailed
+                                mutationLocked ? undefined : timelineCallbacks.restoreFailed
                               }
                               t={t}
                             />
@@ -3686,12 +3704,16 @@ function ConversationView({
                             )
                           : []
                     }
-                    placeholder={t('composer.placeholder', { name: title })}
+                    placeholder={
+                      channel?.readOnly === true
+                        ? t('composer.readOnly')
+                        : t('composer.placeholder', { name: title })
+                    }
                     holdPlaceholder={t('composer.holdToTalk', { name: title })}
                     dictation={dictationPort}
                     dictating={dictating}
                     sending={conversation.sending || recovery.blocked}
-                    disabled={unavailable}
+                    disabled={unavailable || channel?.readOnly === true}
                     focusSignal={restoreFocusSignal}
                     attachments={uploadItems}
                     onAddFiles={addFiles}
@@ -3853,7 +3875,7 @@ function ConversationView({
           value={{
             attachments: uploadItems.flatMap((item) => (item.ref === undefined ? [] : [item.ref])),
             full: uploadItems.length >= 10,
-            disabled: readOnlyDm || conversation.sending || recovery.blocked,
+            disabled: mutationLocked || conversation.sending || recovery.blocked,
             toggle: toggleGeneratedFile,
           }}
         >

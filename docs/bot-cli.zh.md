@@ -814,36 +814,35 @@ printf '{"title":"给植物浇水"}' | deepseekbot todo-tool <bot-id> todos_add 
 
 ### 自动审批（审批模板）
 
-PersonaBot 可以选择一个审批模板（[ADR-0207](adr/0207-an-approval-template-lets-a-reviewer-session-answer-tool-approvals.md)）。选中后，审批员会先按模板回答此 Bot 的审批，再决定是否发卡片：越出沙箱的 Shell 命令、文件工具、打开附件、`secret_cli` 和 `secret_mcp_connect` 调用，以及电脑和浏览器授权。对密钥工具，审批员只看到程序、参数、账号和占位符名称，看不到任何密钥值或环境变量值；对授权，它看到设备和 Session。`cautious` 把密钥工具和两种授权都交给 Human；`get-work-done` 允许已知程序配合它自己服务的账号，并在任务需要时允许浏览器授权。任何修改审批策略的调用仍然以卡片交给 Human。
-
-模板是整个 Profile 共用的模板库。内置两个只读模板：`cautious` 和 `get-work-done`。其余每个模板都是一个 Markdown 文件 `$DSH_HOME/botharness/approval-templates/<name>.md`，设置页（设置 → 自动审批）和下面的命令读写的是同一个文件。名称只用小写字母、数字和短横线；内容最多 32 KiB，第一个 `#` 标题和第一行正文分别作为标题和简介。
+每个 Bot 动态继承可选全局默认、选择一份共享模板完整替换全局，或关闭 Reviewer（[ADR-0342](adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)）。新 Bot 默认继承；旧 Bot 保留特定选择，旧缺字段仍为关闭。关闭不撤销 Tool Approval Rule，也不改变 Full Access。
 
 ```bash
 deepseekbot approval-template list [--bot <bot-id>]
+deepseekbot approval-template-global-set cautious
+deepseekbot approval-template-global-set off
+deepseekbot approval-template-set <bot-id> inherit
+deepseekbot approval-template-set <bot-id> cautious
+deepseekbot approval-template-set <bot-id> off
+deepseekbot approval-template-global-set off --literal-template
+deepseekbot approval-template-set <bot-id> inherit --literal-template
 deepseekbot approval-template show cautious
 deepseekbot approval-template create night-shift --file night-shift.md
-cat night-shift.md | deepseekbot approval-template create night-shift --text-stdin
 deepseekbot approval-template create my-cautious --from cautious
 deepseekbot approval-template edit night-shift --file night-shift.md
 deepseekbot approval-template delete night-shift
-deepseekbot approval-template-set <bot-id> night-shift
-deepseekbot approval-template-set <bot-id> off
 ```
 
-`list` 返回 `{templates}`，每个模板含 `name`、`title`、`description`、`builtIn` 和 `usedBy`（选用它的 Bot）；加 `--bot` 时还返回该 Bot 当前选中的 `selected`，未选为 `null`。`show` 返回 `{template}`，含完整 Markdown `text`。`create` 和 `edit` 返回 `{template}`；`create --from` 复制另一个模板的内容，内置模板就是这样改的。`delete` 返回 `{template, clearedBots}`：所有选用了它的 Bot 都会清空选择，审批改回卡片。`approval-template-set` 返回 `{bot}`，其中是新的 `approvalTemplate`。`approval-templates` 和 `approval-template-show` 仍可用，分别等同于 `list` 和 `show`。
+`off`、`inherit` 仍可作为自定义模板名。选择时加 `--literal-template` 即按字面名称选中；不加时继续保留原有关闭和继承别名。
 
-Bot 在自己的 Shell 里运行这些命令时，新建模板、或编辑没有任何 Bot 在用的模板，都不需要卡片，所以 Bot 可以替你起草模板。选择模板，以及编辑或删除某个 Bot 正在使用的模板，需要 Human 决定，或在独立管理范围中显式保存的授权规则；模型审批员不能代答。你拒绝后，文件保持不变。拒绝时带错误码：`invalid-input`（名称不合法、内容为空或过大、要选择的模板不存在）、`template-exists`、`template-read-only`（内置模板）、`unknown-template` 和 `unknown-bot`。
+`list` 返回 `templates` 和 `globalDefault`（模板名或 `null`）。加 `--bot` 时还返回 `selected`（`@global`、特定模板名或 `null`）、`source`（`global`、`specific`、`off`）及 `effective`（模板名或 `null`）。全局设置返回 `{template}`，Bot 设置返回 `{bot}`。写入由认证 Host 持有；不存在的模板不能被选中，全局选择读取失败返回 `approval-selection-unavailable`，不冒充空默认。
 
-审批员拒绝的每次调用都会成为 Activity 里的一条 `auto-rejection`。它的 `autoRejection` 含会话、工具、参数、模板和理由。`activity-allow-once` 就是收件箱里的“仍然允许这一次”：只放行那一次完全相同的调用。Bot 会收到通知并可以重试，同一会话里同一工具、参数完全相同的下一次调用不经审核直接运行。之后的调用仍按模板审核。
+模板继续使用内置只读内容或 `$DSH_HOME/botharness/approval-templates/` 下的 Markdown 文件；同一文件 owner 在 `.selection.json` 保存全局选择，不新增 schema 迁移。名称使用小写字母、数字和短横线，正文最多 32 KiB。`show` 返回全文；`create --from` 复制内容。现有编辑和删除流程保持原状；三部分编辑、统一规则表和确认后的批量删除回退由后续切片交付。
 
-```bash
-deepseekbot activity --category action --kind auto-rejection
-deepseekbot activity-allow-once autoreject:<source-event-id>
-```
+确定性授权先处理，覆盖请求时不调用 Reviewer。其余请求按所选模板进入全新、无工具的 Reviewer Session，只接受本次 `allow` 或 `ask-human`。Always ask 优先于 Always allow，free text 补充两者；旧模板的 Reject 指引表示交给 Human。模型不存规则、不自主拒绝，拒绝熔断不再生效。旧拒绝记录及显式 Human override 保持可读。
 
-`activity-allow-once` 返回 `{accepted, channelId, messageId}`，其中 `messageId` 是 Human 在 Channel 里的放行消息。已经放行过的条目，或 Bot 已不在该 Channel 时，返回错误码 `auto-rejection-unavailable`。
+Review 开始时固定模板名称、正文及 SHA-256 内容版本；编辑、切换影响后续 Review。自动放行记录保存 `templateVersion`；Human 卡片保存 `approvalReview`，包含理由及可用的模板身份、版本。模板缺失／不可读、模型故障、超时和格式错误都将本次请求交给 Human，不换模板、不改选择。开发日志保留版本及安全故障码；执行前仍检查当前所有权、Workspace 和授权。
 
-**熔断。** 同一会话连续 3 次被拒绝，或累计 20 次被拒绝后，此会话的自动审批暂停：之后每个请求都发卡片，Channel 里会出现一条提示。Human 在此会话里给出的下一次批准（卡片上或收件箱里）会恢复自动审批并重新计数。阈值固定。熔断状态和尚未使用的“允许这一次”只保存在 Host 内存里，所以 Host 重启后自动审批会重新计数并恢复，Bot 还没用掉的放行会失效，收件箱条目仍算已处理。
+生效策略管理跳过 Full Access 与模型 Reviewer。切换 Bot／全局模板、修改生效模板须由 Human 决定，或使用 ADR-0249 独立管理范围中的显式保存授权。未使用草稿的创建、编辑保留既有路径。错误码包括 `invalid-input`、`template-exists`、`template-read-only`、`unknown-template`、`unknown-bot` 和 `unavailable`。
 
 ### 语音消息（TTS Provider）
 
@@ -2059,6 +2058,29 @@ token 或原始响应。
 Web 手动检查请求最多等待 25 秒，关闭自检卡片会取消请求。公网 WebSocket 在验证 Host 身份前将握手消息限制为 1 KiB，并禁用压缩。
 
 公网阶段仅对 DNS、网络、超时及 HTTP 429/5xx 短暂失败重试：最多四次，间隔 1/3/6 秒，仍受同一个 20 秒总时限约束。证书或身份失败不重试。每次自检完成后，界面刷新一次账号电脑列表。
+
+### Bot 访问与角色策略（M7）
+
+```sh
+deepseekbot bots visibility <bot-id>
+deepseekbot bots visibility-set <bot-id> --private --confirm
+deepseekbot bots visibility-set <bot-id> --public everyone
+deepseekbot bots visibility-set <bot-id> --public roles:<roleId>,<roleId> [--preview | --confirm]
+deepseekbot bots visibility-set <bot-id> --public members:<humanId>,<humanId> [--preview | --confirm]
+deepseekbot bots switches <bot-id> [--proactive-dms on|off] [--join-channels on|off] [--speaker-context on|off]
+deepseekbot --as alice bots reachable
+deepseekbot --as alice bots proactive-opt-out <bot-id> on|off
+deepseekbot roles create --name finance --permissions "" --policy-stdin < policy.json
+deepseekbot roles update <roleId> --policy-stdin < policy.json
+deepseekbot roles conflicts <username>
+deepseekbot speaker-policy [--human-id <humanId>] [--topic <topic>]
+```
+
+Bot 默认私有：只有主体（所有者）可以私聊私有 Bot 或把它加入 Channel。`--public` 向所有人、指定角色或指定的人开放，需要“创建公开 Bot”权限；缺权时扩大受众返回 `permission-required`。缩小受众时如不带 `--confirm`，返回 `applied: false` 和 `preview`，列出 `dmsBecomingReadOnly` 以及 Bot 将退出的 Channel；带 `--confirm` 才生效。缩小后，范围外成员的私聊仍在列表中且可阅读，但发送返回 `bot-dm-read-only`；排列操作（置顶、取消置顶、隐藏、移动）仍接受该 Bot 的 id。每个 Human 与公开 Bot 有各自的私聊；主体只能通过受审计的私密查看读取。
+
+`bots reachable` 列出调用者可以私聊的 Bot，只含公开元数据和 `principalDisplayName`。调用者无法访问的 Bot 返回 `bot-not-found`，在私聊里 `@` 它也一样。`switches` 只修改给出的开关；`proactive-opt-out` 让受众成员停止某个 Bot 的主动私聊。
+
+角色策略输入为 JSON 数组 `{ "topic", "text", "effect": "allow" | "deny" }`（最多 100 项），仅供参考：Bot 通过 `speaker-policy` 和 `speaker_policy` 工具读取发言 Human 的角色与匹配条目。同一主题上角色冲突时以 Deny 为准；`roles conflicts <username>` 列出冲突的角色对。
 
 工具效果声明（E1）保持既有工具命令与审批结果。Full Access、保存规则、Secrets、设备目标和 Workspace Grant 仍使用原检查；不新增 route 或 CLI 权限。
 

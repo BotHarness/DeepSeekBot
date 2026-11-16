@@ -264,7 +264,7 @@ describe('trusted Orchestrator attachment forwarding', () => {
           channel_id: unjoined.id,
           attachments: [f.image],
         }),
-      ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+      ).rejects.toThrow(/not a member|authorized Channel is unavailable|bot-channel-access-denied/);
       expect(f.core.channels.readMessages(unjoined.id)).toEqual([]);
     });
   });

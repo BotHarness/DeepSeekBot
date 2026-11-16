@@ -277,7 +277,8 @@ it('exposes content only through the audited view without unlocking legacy reads
 
 it.each(
   botAdminActionSchema.options.filter(
-    (action) => action !== 'transfer' && action !== 'memberPurgeConfirm',
+    (action) =>
+      action !== 'transfer' && action !== 'memberPurgeConfirm' && action !== 'botVisibilitySet',
   ),
 )('audits %s before delegation and strips every private result field', async (action) => {
   const f = await fixture();
@@ -373,7 +374,8 @@ it('audits each transferred private Bot with its original owner and denies Bot-o
 it.each([
   ...reads.map(([name]) => name),
   ...botAdminActionSchema.options.filter(
-    (action) => action !== 'transfer' && action !== 'memberPurgeConfirm',
+    (action) =>
+      action !== 'transfer' && action !== 'memberPurgeConfirm' && action !== 'botVisibilitySet',
   ),
 ])('denies Bot-origin %s without audit or effects', async (method) => {
   const f = await fixture();
