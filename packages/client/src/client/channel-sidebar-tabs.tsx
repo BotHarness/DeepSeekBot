@@ -83,8 +83,7 @@ const styles = stylex.create({
     zIndex: 1101,
     width: '232px',
     padding: space.x2,
-    '--dsw-elevation-stroke-color': color.divider,
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   menuLabel: {
     paddingTop: space.x3,

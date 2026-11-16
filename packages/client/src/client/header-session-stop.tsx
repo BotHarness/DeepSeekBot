@@ -80,8 +80,7 @@ const styles = stylex.create({
     maxHeight: 'min(60vh, 480px)',
     overflowY: 'auto',
     padding: space.x2,
-    '--dsw-elevation-stroke-color': color.divider,
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   heading: {
     display: 'flex',

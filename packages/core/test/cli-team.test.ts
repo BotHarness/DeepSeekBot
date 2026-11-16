@@ -413,8 +413,6 @@ describe('Team CLI', () => {
       { roleId: 'reviewers', name: 'Operators' },
     ],
     [['roles', 'delete', 'reviewers', '--confirm'], 'roleDelete', { roleId: 'reviewers' }],
-    [['channels', 'browse-public'], 'publicChannels', {}],
-    [['channels', 'join-public', 'group-1'], 'publicChannelJoin', { channelId: 'group-1' }],
     [
       ['channels', 'set-public', 'group-1', 'on'],
       'channelPublicSet',
@@ -509,15 +507,31 @@ describe('Team CLI', () => {
     expect(existsSync(path)).toBe(true);
   });
 
+  it.each([
+    ['channels', 'browse'],
+    ['channels', 'join', 'group-1'],
+    ['channels', 'browse-public'],
+    ['channels', 'join-public', 'group-1'],
+  ])('refuses the removed %s %s form without calling the Host', async (...args) => {
+    const f = await host();
+    const result = await run(f.url, args);
+    expect(result.status).not.toBe(0);
+    expect(f.calls).toEqual([]);
+  });
   it('dispatches --as through the Owner-only member endpoint and propagates the refusal without falling back', async () => {
     const f = await host();
-    const result = await run(f.url, ['--as', 'bob', 'channels', 'browse-public']);
+    const result = await run(f.url, ['--as', 'bob', 'channels', 'get', 'group-1']);
     expect(result.status).not.toBe(0);
     expect(result.output).toMatchObject({ error: { code: 'remote-access/denied' } });
     expect(f.calls).toEqual([
       {
         path: '/api/botharness/team-as',
-        input: { username: 'bob', namespace: 'botharness', method: 'publicChannels', args: {} },
+        input: {
+          username: 'bob',
+          namespace: 'botharness',
+          method: 'channelGet',
+          args: { channelId: 'group-1' },
+        },
       },
     ]);
   });
@@ -643,7 +657,6 @@ describe('Team CLI', () => {
 
 describe('M4 CLI parity', () => {
   const cases = [
-    { args: ['channels', 'browse'], method: 'browsableChannels', payload: {} },
     {
       args: ['channels', 'member-candidates', 'group-1'],
       method: 'channelMemberCandidates',
@@ -663,11 +676,6 @@ describe('M4 CLI parity', () => {
       args: ['channels', 'add-member', 'group-1', 'alice'],
       method: 'channelHumanAdd',
       payload: { channelId: 'group-1', humanId: 'alice' },
-    },
-    {
-      args: ['channels', 'join', 'group-1'],
-      method: 'channelJoin',
-      payload: { channelId: 'group-1' },
     },
     {
       args: ['channels', 'visibility', 'group-1', 'public'],

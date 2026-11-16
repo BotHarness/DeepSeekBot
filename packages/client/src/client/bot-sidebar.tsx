@@ -1,7 +1,6 @@
 import { MessageBotDialog } from './message-bot-dialog.js';
 import { BotCreateSourceModal } from './bot-create-source.js';
 import { MEMBER_MENU_ITEMS, menuItemAllowed } from './team-menu.js';
-import { PublicChannelsDialog } from './public-channels-dialog.js';
 import { isHumanDmChannel } from './channel-kind.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
 import { useTeamMode } from './team-state.js';
@@ -1057,7 +1056,6 @@ type CreateRequest =
     }
   | { kind: 'channel'; sectionId?: string }
   | { kind: 'marketplace' }
-  | { kind: 'public-channels' }
   | { kind: 'message-person' }
   | { kind: 'message-bot' };
 
@@ -1610,7 +1608,6 @@ export function BotSidebar({
       else if (!hostTabs || remoteHostsState.tab === 'local') setCreateRequest({ kind: 'section' });
     }
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
-    if (id === 'public-channels') setCreateRequest({ kind: 'public-channels' });
     if (id === 'message-person') setCreateRequest({ kind: 'message-person' });
     if (id === 'message-bot') setCreateRequest({ kind: 'message-bot' });
   };
@@ -2508,13 +2505,6 @@ export function BotSidebar({
         <PanelEmptyState icon="hash">
           {t('team.firstRun.empty')}
           <span className="bh-empty-actions">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setCreateRequest({ kind: 'public-channels' })}
-            >
-              {t('team.firstRun.browse')}
-            </Button>
             {menuItemAllowed('message-person', teamMode.viewer) ? (
               <Button
                 variant="outline"
@@ -3230,20 +3220,6 @@ export function BotSidebar({
             setCreateRequest(undefined);
             openLocalConversation();
             void actions.refreshRoster().then(() => actions.openBot(bot.slug));
-          }}
-        />
-      ) : null}
-      {createRequest?.kind === 'public-channels' && actions.teamCall !== undefined ? (
-        <PublicChannelsDialog
-          call={actions.teamCall}
-          t={t}
-          onClose={() => {
-            setCreateRequest(undefined);
-          }}
-          onJoined={(channelId) => {
-            setCreateRequest(undefined);
-            openLocalConversation();
-            void actions.refreshRoster().then(() => actions.openChannel(channelId));
           }}
         />
       ) : null}
@@ -4191,15 +4167,6 @@ function menuItems(
       label: t('roster.menu.createChannel'),
       icon: <IconNewChatOutlineRegular size={16} />,
     },
-    ...(team
-      ? [
-          {
-            id: 'public-channels',
-            label: t('team.channels.browse'),
-            icon: <ChannelSidebarIcon name="hash" size={16} />,
-          },
-        ]
-      : []),
     ...(people
       ? [
           {

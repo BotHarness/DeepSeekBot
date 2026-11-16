@@ -14,7 +14,6 @@ export const MEMBER_MENU_ITEMS: ReadonlySet<string> = new Set([
   'bot',
   'channel',
   'section',
-  'public-channels',
   'message-person',
   'message-bot',
 ]);

@@ -74,7 +74,16 @@ function canonicalRoot(root: string): string | undefined {
 }
 
 export function currentRoots(core: GrantCore, session: Session, kind: AccessKind): string[] {
-  let owner = core.ownership.resolve(session.id);
+  return sessionRoots(core, session.id, kind, session.header.cwd);
+}
+
+export function sessionRoots(
+  core: GrantCore,
+  sessionId: string,
+  kind: AccessKind,
+  cwd: string | undefined,
+): string[] {
+  let owner = core.ownership.resolve(sessionId);
   if (owner === undefined) return [];
   const seen = new Set<string>();
   while (owner.parentSessionId !== undefined) {
@@ -104,7 +113,7 @@ export function currentRoots(core: GrantCore, session: Session, kind: AccessKind
   }
   if (owner.rootRole !== 'assignment') return [];
   const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
-  if (permission === undefined || permission.primaryCwd !== session.header.cwd) return [];
+  if (permission === undefined || (cwd !== undefined && permission.primaryCwd !== cwd)) return [];
   try {
     const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
     return (kind === 'read' || grant.orchestratorWrite === true) &&

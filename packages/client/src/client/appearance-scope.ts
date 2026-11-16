@@ -9,6 +9,8 @@ import {
   type AppearanceSnapshot,
 } from './appearance.js';
 import { NATIVE_LIGHT, NATIVE_DARK } from './appearance-native-tokens.js';
+import { tobsBridgeCss } from './tobs-bridge.js';
+import { tobsTokens } from './tobs-theme.js';
 export const APPEARANCE_CLASS = 'bh-appearance-scope';
 export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const { config, mode } = snapshot;
@@ -18,6 +20,7 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const tokens: Record<string, string> = {
     ...NATIVE_LIGHT,
     ...(mode === 'dark' ? NATIVE_DARK : {}),
+    ...tobsTokens(mode, selected.preset, selected.primary),
   };
   for (const part of ['header', 'body'] as const) {
     const material = materials[part];
@@ -32,7 +35,7 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
   tokens['--dsw-alias-state-business-tertiary'] = `color-mix(in srgb, ${primary} 14%, transparent)`;
   tokens['--dsw-specific-sidebar-nav-item-active'] =
     `color-mix(in srgb, ${primary} 14%, transparent)`;
-  return `.bh-root,.bh-workspace-mount[data-workspace-enabled],.${APPEARANCE_CLASS},[data-bh-appearance-owned]{color:var(--dsw-alias-label-primary);color-scheme:${mode};${Object.entries(
+  return `${tobsBridgeCss()}.bh-root,.bh-workspace-mount[data-workspace-enabled],.${APPEARANCE_CLASS},[data-bh-appearance-owned]{color:var(--dsw-alias-label-primary);color-scheme:${mode};${Object.entries(
     tokens,
   )
     .map(([k, v]) => `${k}:${v}`)

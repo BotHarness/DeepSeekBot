@@ -13,6 +13,7 @@ import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { font } from './ds/tobs.stylex.js';
 
 export type DiagnosticLogFilter = 'all' | 'error' | 'perf' | 'action';
 
@@ -90,7 +91,7 @@ const styles = stylex.create({
   },
   time: {
     color: color.muted,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
   },
@@ -109,7 +110,7 @@ const styles = stylex.create({
   fields: {
     display: 'block',
     color: color.muted,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     overflowWrap: 'anywhere',
   },
   status: { color: color.muted, padding: space.x4 },

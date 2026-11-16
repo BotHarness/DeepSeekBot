@@ -137,6 +137,10 @@ export const RULES = [
   none('.github/{ISSUE_TEMPLATE,DISCUSSION_TEMPLATE}/**', 'Issue and discussion templates'),
   none('.github/pull_request_template.md', 'PR template'),
   none('.github/workflows/*.yml', 'Release workflows'),
+  related(
+    'design/tokens/**',
+    'Tobs design token source, generated into the client and checked by lint',
+  ),
   none('{prototype,dsh_research,design}/**', 'Prototypes and research notes'),
   none('*.md', 'Root prose'),
   none(

@@ -19,7 +19,7 @@ import {
   mentionMarkdownBody,
 } from './message-mentions';
 import { messageSkillRuns } from './skill-draft';
-import { SkillOwnerMark, skillOwnerName } from './skill-suggestions';
+import { SkillOwnerMark, skillOwnerName } from './skill-owner';
 
 function Skill({ skill, color }: { skill: WireSkillInvocation; color: string }) {
   const t = useStrings();
