@@ -1176,6 +1176,9 @@ export function ChannelComposer({
                 </span>
                 <span className="bh-composer-skill-copy">
                   <strong>/{option.name}</strong>
+                  {option.owner.kind === 'workspace' ? (
+                    <span className="bh-composer-skill-source">{owner}</span>
+                  ) : null}
                   <small>{option.description}</small>
                 </span>
               </button>

@@ -46,7 +46,7 @@ import type {
   ChannelSkillInvocationToken,
   GroupMemberWakePolicy,
 } from '../../../core/src/channels/channel.js';
-import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
+import type { SkillCatalogEntry, SkillOwner } from '../../../core/src/skills/entries.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
@@ -1116,6 +1116,20 @@ export function parseApprovalCard(value: unknown): ApprovalCardView | undefined 
   };
 }
 
+function parseSkillOwner(owner: Record<string, unknown> | undefined): SkillOwner | undefined {
+  if (owner?.['kind'] === 'host') return { kind: 'host' };
+  if (owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string')
+    return { kind: 'bot', botSlug: owner['botSlug'] };
+  if (
+    owner?.['kind'] === 'workspace' &&
+    typeof owner['workspaceId'] === 'string' &&
+    owner['workspaceId'] !== '' &&
+    typeof owner['name'] === 'string'
+  )
+    return { kind: 'workspace', workspaceId: owner['workspaceId'], name: owner['name'] };
+  return undefined;
+}
+
 function parseSkillInvocations(
   value: unknown,
   body: string,
@@ -1138,12 +1152,7 @@ function parseSkillInvocations(
       (path !== undefined && typeof path !== 'string')
     )
       return [];
-    const parsedOwner =
-      owner?.['kind'] === 'host'
-        ? ({ kind: 'host' } as const)
-        : owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string'
-          ? ({ kind: 'bot', botSlug: owner['botSlug'] } as const)
-          : undefined;
+    const parsedOwner = parseSkillOwner(owner);
     if (parsedOwner === undefined) return [];
     return [
       {
@@ -1181,12 +1190,7 @@ export async function loadChannelSkillCatalog(
     const name = item?.['name'];
     const description = item?.['description'];
     if (typeof name !== 'string' || typeof description !== 'string') return [];
-    const parsedOwner =
-      owner?.['kind'] === 'host'
-        ? ({ kind: 'host' } as const)
-        : owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string'
-          ? ({ kind: 'bot', botSlug: owner['botSlug'] } as const)
-          : undefined;
+    const parsedOwner = parseSkillOwner(owner);
     if (parsedOwner === undefined) return [];
     const path = item?.['path'];
     return [
