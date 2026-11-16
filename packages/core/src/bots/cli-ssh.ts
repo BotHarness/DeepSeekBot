@@ -1,3 +1,4 @@
+export { SSH_OPTIONS } from './cli-option-spec.js';
 import { closeSync, fstatSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { noiseFingerprint, NOISE_PROTOCOL } from '../devices/noise/xk.js';
@@ -12,13 +13,6 @@ export const SSH_COMMANDS = [
     description: 'keep an SSH tunnel to an existing Linux Host open for this computer’s browser',
   },
 ] as const;
-
-export const SSH_OPTIONS = {
-  'pairing-file': { type: 'string' },
-  'local-port': { type: 'string' },
-  'remote-port': { type: 'string' },
-  'ssh-config': { type: 'string' },
-} as const;
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)

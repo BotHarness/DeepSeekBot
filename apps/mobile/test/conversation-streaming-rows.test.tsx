@@ -20,6 +20,11 @@ import type { ActivityTarget } from '../src/host/live-activity-session';
 import type { DialogAction } from '../src/ui/primitives/dialog-state';
 import { pickFiles, type PickedFile } from '../src/host/pick-files';
 
+vi.mock('../src/ui/chat/skill-suggestions', () => ({
+  SkillOwnerMark: () => null,
+  skillOwnerName: () => '',
+  SkillSuggestions: () => null,
+}));
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));

@@ -1,3 +1,4 @@
+import { parseToolEffects } from '../../../../packages/core/src/workspaces/tool-effects-contract';
 import { approvalShellCommand } from '../../../../packages/client/src/client/approval-diff';
 import {
   approveWorkspaceRequest,
@@ -16,6 +17,7 @@ import type {
   TimelineMessage,
   TimelinePage,
   ToolApprovalOutcome,
+  ToolApprovalRequestCard,
   ToolApprovalStatus,
   UserQuestionStatus,
 } from './wire';
@@ -30,6 +32,7 @@ export interface RequestRef {
 }
 
 export interface ApprovalRequest extends RequestRef {
+  effects?: ToolApprovalRequestCard['effects'];
   toolName: string;
   role: 'orchestrator' | 'assignment';
   cwd: string;
@@ -43,7 +46,7 @@ export interface ApprovalRequest extends RequestRef {
 
 export type ApprovalContent = Pick<
   ApprovalRequest,
-  'toolName' | 'role' | 'cwd' | 'input' | 'allowAlways'
+  'toolName' | 'role' | 'cwd' | 'input' | 'allowAlways' | 'effects'
 >;
 
 export function approvalContent(value: unknown): ApprovalContent | undefined {
@@ -55,8 +58,10 @@ export function approvalContent(value: unknown): ApprovalContent | undefined {
   if (!('cwd' in value) || typeof value.cwd !== 'string') return undefined;
   if (!('input' in value) || typeof value.input !== 'string') return undefined;
   if ('allowAlways' in value && typeof value.allowAlways !== 'boolean') return undefined;
+  const effects = parseToolEffects('effects' in value ? value.effects : undefined);
   return {
     toolName: value.toolName,
+    ...(effects === undefined ? {} : { effects }),
     role: value.role,
     cwd: value.cwd,
     input: value.input,
@@ -131,6 +136,7 @@ export async function loadApproval(client: HostClient, ref: RequestRef): Promise
   return {
     ...ref,
     toolName: card.toolName,
+    ...(card.effects === undefined ? {} : { effects: card.effects }),
     role: card.role,
     cwd: card.cwd,
     input: card.input,

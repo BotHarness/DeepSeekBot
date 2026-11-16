@@ -1,0 +1,6 @@
+{
+  "maxColdCliMs": 2000,
+  "maxAddedMedianCliMs": 250,
+  "maxRssKiB": 262144,
+  "maxClassificationP99Ms": 5
+}

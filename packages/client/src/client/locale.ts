@@ -4,6 +4,14 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'approval.effect.changes.none': '只读',
+  'approval.effect.changes.reversible': '可撤销更改',
+  'approval.effect.changes.irreversible': '不可撤销',
+  'approval.effect.reach.local': '本机',
+  'approval.effect.reach.memory': '记忆',
+  'approval.effect.reach.workspace': '工作区',
+  'approval.effect.reach.external': '外部影响',
+
   'environment.title': '环境',
   'environment.create.target': '创建到环境',
   'environment.create.choose': '选择环境',
@@ -32,8 +40,10 @@ export const zh = {
   'environment.settings.appPicker': '本应用偏好：{section}',
   'environment.settings.moreHost': '更多设置',
   'environment.settings.device': '当前设备',
+  'environment.settings.deviceGroup': '此设备',
+  'environment.settings.deviceScope': '只保存在这台设备',
+  'environment.settings.hostScope': '保存在 {name}',
   'environment.settings.clientScope': '偏好只保存在当前设备。',
-  'environment.settings.legacyScope': '主机选项只作用于本机 Host；设备偏好只保存在当前设备。',
   'environment.settings.appearance': '本应用中的外观',
   'environment.settings.unsupported': '此环境暂不支持这项设置。',
   'environment.settings.defaultLocked': '此环境的默认模型由启动设置固定。',
@@ -4400,7 +4410,10 @@ export const zh = {
   'approval.confirmAll': '确认始终允许',
   'approval.cancel': '取消',
   'approval.ruleSaved': '已允许本次，并保存你的选择',
-  'approval.rulesTitle': '自动批准规则',
+  'approval.rulesTitle': '始终允许 · 此 Bot',
+  'approval.ruleFromCard': '来自审批卡',
+  'approval.rulesHint':
+    '已保存的确定性授权，命中时不调用审批员。模板文字仅指导审批员；撤销规则后重新审核。',
   'approval.ruleScope': '规则范围：执行角色、目录及 Grant ID／写入版本',
   'approval.ruleActive': '有效',
   'approval.ruleInactive': '已停用',
@@ -4486,7 +4499,18 @@ export const zh = {
   'autoApproval.library.readOnly': '内置模板只读。复制一份后可以随意修改。',
   'autoApproval.library.inUse': '{names} 正在使用这个共享模板。保存仅影响后续审批。',
   'autoApproval.library.deleteTitle': '删除“{title}”？',
-  'autoApproval.library.deleteBody': '会删除 approval-templates/{name}.md。',
+  'autoApproval.library.deleteBody': '将永久删除模板“{name}”。',
+  'autoApproval.library.deleteContentUnavailable': '无法读取模板内容。确认后仍会删除此文件。',
+  'autoApproval.library.deletePreviewFailed': '删除影响读取失败。重新读取后再确认。',
+  'autoApproval.library.deleteChanged': '引用或全局选择已变化。核对最新结果后再确认。',
+  'autoApproval.library.deleteUnconfirmed': '删除结果尚未确认。重新读取当前状态后再决定。',
+  'autoApproval.library.deleteDirect': '这些 Bot 将改为继承全局：{names}',
+  'autoApproval.library.deleteInherited': '这些 Bot 保持继承全局：{names}',
+  'autoApproval.library.deleteClearsGlobal': '全局默认将清空。',
+  'autoApproval.library.deleteUnused': '没有 Bot 引用此模板。',
+  'autoApproval.library.deleteHidden': '另外 {count} 个私有 Bot 也受影响。',
+  'autoApproval.library.deleteEffective': '删除后，受影响 Bot 的自动审核：{template}',
+  'autoApproval.library.deleteRulesUnchanged': '已保存授权和完全访问不变。',
   'autoApproval.library.deleteInUse':
     '{names} 正在使用它。删除后这些 Bot 的自动审批会关闭，工具审批改回由你在卡片上批准。',
   'access.section': '权限',
@@ -5815,6 +5839,14 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'approval.effect.changes.none': 'Read only',
+  'approval.effect.changes.reversible': 'Reversible changes',
+  'approval.effect.changes.irreversible': 'Irreversible',
+  'approval.effect.reach.local': 'Local',
+  'approval.effect.reach.memory': 'Memory',
+  'approval.effect.reach.workspace': 'Workspace',
+  'approval.effect.reach.external': 'External effect',
+
   'environment.title': 'Environments',
   'environment.create.target': 'Create in environment',
   'environment.create.choose': 'Choose an environment',
@@ -5847,9 +5879,10 @@ export const en = {
   'environment.settings.appPicker': 'App preferences: {section}',
   'environment.settings.moreHost': 'More settings',
   'environment.settings.device': 'This device',
+  'environment.settings.deviceGroup': 'This device',
+  'environment.settings.deviceScope': 'Saved on this device only',
+  'environment.settings.hostScope': 'Saved on {name}',
   'environment.settings.clientScope': 'Preferences stay on this device.',
-  'environment.settings.legacyScope':
-    'Host controls use This Host. Device preferences stay on this device.',
   'environment.settings.appearance': 'Appearance in this app',
   'environment.settings.unsupported': 'This setting is unavailable for this environment.',
   'environment.settings.defaultLocked':
@@ -10483,7 +10516,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'approval.confirmAll': 'Confirm always allow',
   'approval.cancel': 'Cancel',
   'approval.ruleSaved': 'Allowed this time and saved your choice',
-  'approval.rulesTitle': 'Automatic approval rules',
+  'approval.rulesTitle': 'Always allow · this Bot',
+  'approval.ruleFromCard': 'From approval card',
+  'approval.rulesHint':
+    'Saved deterministic authorizations skip the Reviewer. Template text guides the Reviewer. Revoke a rule to review future requests again.',
   'approval.ruleScope': 'Rule scope: execution role, directory and Grant IDs/write revisions',
   'approval.ruleActive': 'Active',
   'approval.ruleInactive': 'Disabled',
@@ -10574,7 +10610,24 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'autoApproval.library.readOnly': 'Built-in templates are read-only. Copy one to change it.',
   'autoApproval.library.inUse': 'Used by {names}. Saves affect their future Reviews.',
   'autoApproval.library.deleteTitle': 'Delete “{title}”?',
-  'autoApproval.library.deleteBody': 'This removes approval-templates/{name}.md.',
+  'autoApproval.library.deleteBody': 'Permanently delete template “{name}”.',
+  'autoApproval.library.deleteContentUnavailable':
+    'The template content cannot be read. Confirming still deletes this file.',
+  'autoApproval.library.deletePreviewFailed':
+    'Could not read deletion effects. Reload before confirming.',
+  'autoApproval.library.deleteChanged':
+    'References or the global choice changed. Check the updated effects before confirming.',
+  'autoApproval.library.deleteUnconfirmed':
+    'The deletion result is unconfirmed. Reload the current state before deciding.',
+  'autoApproval.library.deleteDirect': 'These Bots will inherit the global choice: {names}',
+  'autoApproval.library.deleteInherited':
+    'These Bots will keep inheriting the global choice: {names}',
+  'autoApproval.library.deleteClearsGlobal': 'The global default will be cleared.',
+  'autoApproval.library.deleteUnused': 'No Bots reference this template.',
+  'autoApproval.library.deleteHidden': '{count} additional private Bots are also affected.',
+  'autoApproval.library.deleteEffective': 'After deletion, affected Bots use: {template}',
+  'autoApproval.library.deleteRulesUnchanged':
+    'Saved authorizations and Full Access stay the same.',
   'autoApproval.library.deleteInUse':
     'Used by {names}. Their auto approval turns off, and their tool approvals come to you as cards again.',
   'access.section': 'Access',

@@ -181,6 +181,8 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
   busy = false,
+  confirmDisabled = false,
+  scroll = false,
   danger = true,
   error,
   children,
@@ -192,6 +194,8 @@ export function ConfirmDialog({
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
   readonly busy?: boolean;
+  readonly confirmDisabled?: boolean;
+  readonly scroll?: boolean;
   readonly danger?: boolean;
   readonly error?: ReactNode;
   readonly children?: ReactNode;
@@ -205,6 +209,8 @@ export function ConfirmDialog({
       onCancel={onCancel}
       onSubmit={onConfirm}
       busy={busy}
+      submitDisabled={confirmDisabled}
+      scroll={scroll}
       danger={danger}
       error={error}
     >

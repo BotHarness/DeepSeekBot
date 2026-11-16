@@ -1,31 +1,7 @@
+export { INBOX_OPTIONS } from './cli-option-spec.js';
+import { canonicalCliCommandName, legacyActivityCommandName } from './cli-command-names.js';
 import { watchInbox } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const INBOX_OPTIONS = {
-  notifications: { type: 'boolean' },
-  category: { type: 'string' },
-  'watch-seconds': { type: 'string' },
-  channel: { type: 'string' },
-  request: { type: 'string' },
-  sort: { type: 'string' },
-  search: { type: 'string' },
-  unread: { type: 'boolean' },
-  'source-key': { type: 'string' },
-  source: { type: 'string' },
-  section: { type: 'string' },
-  unsectioned: { type: 'boolean' },
-  index: { type: 'string' },
-  archived: { type: 'boolean' },
-  unarchived: { type: 'boolean' },
-  rule: { type: 'string' },
-  server: { type: 'string' },
-  confirm: { type: 'boolean' },
-  until: { type: 'string' },
-  snoozed: { type: 'boolean' },
-  dismissed: { type: 'boolean' },
-  activity: { type: 'string' },
-  'include-archived': { type: 'boolean' },
-} as const;
 
 export const INBOX_COMMANDS = [
   {
@@ -155,32 +131,17 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
-const ACTIVITY_COMMAND_NAMES: Readonly<Record<string, string>> = {
-  activity: 'inbox',
-  'activity-watch': 'inbox-watch',
-  'activity-status': 'inbox-status',
-  'activity-dismiss': 'inbox-dismiss',
-  'activity-restore': 'inbox-restore',
-  'activity-dismiss-all': 'inbox-dismiss-all',
-  'activity-allow-once': 'inbox-allow-once',
-  'activity-ignore': 'inbox-ignore',
-  'activity-snooze': 'inbox-snooze',
-};
-const LEGACY_INBOX_COMMANDS: ReadonlySet<string> = new Set(Object.values(ACTIVITY_COMMAND_NAMES));
-
-export function isActivityCommandName(command: string): boolean {
-  return LEGACY_INBOX_COMMANDS.has(command) || ACTIVITY_COMMAND_NAMES[command] !== undefined;
-}
+export { isActivityCliCommand as isActivityCommandName } from './cli-command-names.js';
 
 function inboxCommandName(command: string): string {
-  return ACTIVITY_COMMAND_NAMES[command] ?? command;
+  return legacyActivityCommandName(command);
 }
 
 export function isInboxCommand(command: string): boolean {
+  const canonical = canonicalCliCommandName(command);
   return (
-    LEGACY_INBOX_COMMANDS.has(command) ||
-    INBOX_COMMANDS.some((entry) => entry.command === command) ||
-    INBOX_HOST_COMMANDS.some((entry) => entry === command)
+    INBOX_COMMANDS.some((entry) => entry.command === canonical) ||
+    INBOX_HOST_COMMANDS.some((entry) => entry === canonical)
   );
 }
 

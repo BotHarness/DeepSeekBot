@@ -14,7 +14,7 @@ export const TOB_VOICE_CAPABILITIES = [
     'Add a keyless TTS or ASR Provider such as the local speech service',
     true,
   ],
-  ['voice-provider-test', 'Health-check a TTS or ASR Provider', false],
+  ['voice-provider-test', 'Health-check a TTS or ASR Provider', true],
   ['voice-provider-remove', 'Remove a voice Provider and the Bot bindings that use it', true],
   ['voice-set', 'Bind or clear a Bot voice', true],
   ['voice-asr-set', "Bind or clear a Bot's speech recognition", true],
@@ -131,12 +131,16 @@ export function createTobVoiceOperations(deps: {
       keys(args, ['id', 'voiceId']);
       const id = text(args['id'], 64);
       const voiceId = optional(args['voiceId'], 200);
+      const previous = current(id);
+      if (previous === null) throw new TobError('unknown-provider');
+      const patch = { id, ...(voiceId === undefined ? {} : { voiceId }) };
       return {
-        run: async (guard) => {
+        proposal: proposal(command, id, previous, patch),
+        run: async (guard, beforeEffect) => {
           guard();
-          return unwrap(
-            await bridge().voiceProviderTest({ id, ...(voiceId === undefined ? {} : { voiceId }) }),
-          );
+          same(current(id), previous);
+          beforeEffect?.();
+          return unwrap(await bridge().voiceProviderTest(patch));
         },
       };
     }

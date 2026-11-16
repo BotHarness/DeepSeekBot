@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { DEEPSEEKBOT_RECIPE } from '../src/onboarding/service.js';
 import { describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -600,4 +600,233 @@ describe('Tob canonical identity and settings', () => {
       await f.close();
     }
   });
+});
+
+describe('authenticated model-free Tob CLI DM admission', () => {
+  it('preserves pending Memory notifications for the next model turn', async () => {
+    const modelInboxes: string[] = [];
+    const f = fixture(async (run) => {
+      if (run.tobCliTurn)
+        run.tobCliTurn.complete({ exitCode: 0, stdout: '{"templates":[]}', stderr: '' });
+      else modelInboxes.push(run.inbox);
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const home = await f.core.tob.ensure(OWNER_HUMAN_CONTEXT);
+      const db = attachOperationalModule(
+        f.core.operationalDatabase,
+        'tob-cli-memory-notification-test',
+      );
+      db.transaction((sql) => {
+        sql
+          .prepare(
+            "INSERT INTO source_events(source_event_id,source_kind,bot_slug,body,created_at,payload_json) VALUES('pending-tob-memory','memory-change',?,'PENDING_MEMORY_NOTIFICATION',?, '{}')",
+          )
+          .run(home.botSlug, new Date().toISOString());
+        sql
+          .prepare(
+            "INSERT INTO inbox_admissions(source_event_id,bot_slug,reason) VALUES('pending-tob-memory',?,'memory-change')",
+          )
+          .run(home.botSlug);
+      });
+      const state = () =>
+        db.read((sql) =>
+          sql
+            .prepare(
+              'SELECT e.observed_at AS sourceObserved,e.handled_at AS sourceHandled,a.attempt_state AS state,a.observed_at AS admissionObserved FROM source_events e JOIN inbox_admissions a USING(source_event_id) WHERE e.source_event_id=? AND a.bot_slug=?',
+            )
+            .get('pending-tob-memory', home.botSlug),
+        );
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      expect(started.ok).toBe(true);
+      await f.core.runtime.whenIdle();
+      expect(modelInboxes).toEqual([]);
+      expect(state()).toMatchObject({
+        sourceObserved: null,
+        sourceHandled: null,
+        state: 'pending',
+        admissionObserved: null,
+      });
+      const sent = await bridge.channelSend({
+        channelId: home.channelId,
+        body: 'Read pending Memory notices.',
+      });
+      expect(sent.ok).toBe(true);
+      await f.core.runtime.whenIdle();
+      expect(modelInboxes.some((inbox) => inbox.includes('PENDING_MEMORY_NOTIFICATION'))).toBe(
+        true,
+      );
+      expect(state()).toMatchObject({ state: 'handled' });
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('owns the accepted Human DM turn, exposes the result, and expires captured authority on completion', async () => {
+    let captured!: () => void;
+    const f = fixture(async (run) => {
+      if (!run.tobCliTurn) throw new Error('Unexpected model turn');
+      captured = f.core.runtime.captureTobCliAuthority!(run.sessionId);
+      expect(captured).not.toThrow();
+      expect(run.tobCliTurn.command).toEqual({
+        argv: ['approval-templates'],
+        stdin: 'private-stdin',
+      });
+      run.tobCliTurn.complete({ exitCode: 0, stdout: '{"templates":[]}', stderr: '' });
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'], stdin: 'private-stdin' },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      await f.core.runtime.whenIdle();
+      const messages = f.core.channels.readMessages(started.value.channelId);
+      expect(
+        messages.find((message) => message.id === started.value.messageId)?.author,
+      ).toMatchObject({ kind: 'human' });
+      expect(JSON.stringify(messages)).not.toContain('private-stdin');
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'completed', result: { exitCode: 0, stdout: '{"templates":[]}' } },
+      });
+      expect(
+        f.core.channels.humanSendStatus?.(started.value.channelId, started.value.messageId)
+          ?.progress,
+      ).toMatchObject({ state: 'completed', terminal: true });
+      expect(captured).toThrow('human-dm-required');
+      expect(
+        f.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: started.value.channelId,
+          messageId: started.value.messageId,
+          body: 'replay',
+        }),
+      ).toMatchObject({ admitted: false, reason: 'cli-request-expired' });
+    } finally {
+      await f.close();
+    }
+  });
+  it.each(['session', 'all'] as const)(
+    'stops a running model-free CLI lease through %s Session Stop',
+    async (scope) => {
+      let entered!: (run: OrchestratorAgentRun) => void;
+      const running = new Promise<OrchestratorAgentRun>((resolve) => {
+        entered = resolve;
+      });
+      const f = fixture(async (run) => {
+        const cli = run.tobCliTurn;
+        if (!cli) throw new Error('Unexpected model turn');
+        entered(run);
+        await new Promise<void>((resolve) =>
+          cli.signal.addEventListener('abort', () => resolve(), { once: true }),
+        );
+        cli.signal.throwIfAborted();
+      });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+      try {
+        const started = await bridge.tobCli({
+          action: 'start',
+          command: { argv: ['approval-templates'] },
+        });
+        if (!started.ok) throw new Error(started.error.message);
+        const run = await running;
+        if (!f.core.runtime.stopSession || !f.core.runtime.stopAllSessions)
+          throw new Error('Session Stop is unavailable');
+        expect(await f.core.runtime.stopSession(run.bot.slug, 'unrelated-session')).toMatchObject({
+          outcome: 'refused',
+          code: 'unknown-session',
+        });
+        expect(run.tobCliTurn?.signal.aborted).toBe(false);
+        const outcome =
+          scope === 'session'
+            ? await f.core.runtime.stopSession(run.bot.slug, run.sessionId)
+            : await f.core.runtime.stopAllSessions(run.bot.slug);
+        expect(outcome).toMatchObject({
+          stopped: [{ botSlug: run.bot.slug, sessionId: run.sessionId, role: 'orchestrator' }],
+          alreadyIdle: [],
+        });
+        expect(run.tobCliTurn?.signal.aborted).toBe(true);
+        await f.core.runtime.whenIdle();
+        expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+          ok: true,
+          value: { state: 'cancelled', cancelRequested: true },
+        });
+      } finally {
+        await f.close();
+      }
+    },
+  );
+
+  it('rejects a second lease, cancels the active turn, and refuses supplied authority', async () => {
+    let ready!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const f = fixture(async (run) => {
+      if (!run.tobCliTurn) throw new Error('Unexpected model turn');
+      ready();
+      await new Promise<void>((resolve) =>
+        run.tobCliTurn!.signal.addEventListener('abort', () => resolve(), { once: true }),
+      );
+      run.tobCliTurn.signal.throwIfAborted();
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      await entered;
+      expect(
+        await bridge.tobCli({ action: 'start', command: { argv: ['approval-templates'] } }),
+      ).toMatchObject({ ok: false, error: { code: 'bot-busy' } });
+      expect(
+        await bridge.tobCli({
+          action: 'start',
+          command: { argv: ['list'], sourceEventId: 'forged' },
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+      expect(await bridge.tobCli({ action: 'cancel', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { cancelRequested: true },
+      });
+      await f.core.runtime.whenIdle();
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'cancelled' },
+      });
+    } finally {
+      await f.close();
+    }
+  });
+});
+
+it('refuses foreign Human and closed-runtime CLI access before allocating a Tob', async () => {
+  const f = fixture();
+  try {
+    await f.core.team.setOwnerPassword(OWNER_HUMAN_CONTEXT, 'test-owner-password-4212');
+    await f.core.team.setMode(OWNER_HUMAN_CONTEXT, true);
+    const member = await f.core.team.createMember(OWNER_HUMAN_CONTEXT, 'e4-member', 'E4 Member');
+    const foreign = createBridgeMethods(humanContext(member.member.humanId), { ...f.core });
+    expect(
+      await foreign.tobCli({ action: 'start', command: { argv: ['approval-templates'] } }),
+    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    expect(f.core.registry.list()).toHaveLength(0);
+    await f.core.runtime.close();
+    const owner = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    expect(
+      await owner.tobCli({ action: 'status', id: '00000000-0000-4000-8000-000000000000' }),
+    ).toMatchObject({ ok: false, error: { code: 'runtime-closed' } });
+    expect(
+      await owner.tobCli({ action: 'start', command: { argv: ['approval-templates'] } }),
+    ).toMatchObject({ ok: false, error: { code: 'runtime-closed' } });
+    expect(f.core.registry.list()).toHaveLength(0);
+  } finally {
+    await f.close();
+  }
 });

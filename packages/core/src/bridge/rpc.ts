@@ -1,3 +1,6 @@
+import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
+
+import type { TobCliCommand, TobCliStatus } from '../tob/cli-request.js';
 import type {
   BotMetadata,
   BotMetadataResult,
@@ -1723,11 +1726,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  approvalTemplateDelete(name: string): {
+  approvalTemplateDeletePreview(name: string): { preview: ApprovalTemplateDeletionPreview } {
+    return unwrap(this.methods.approvalTemplateDeletePreview({ name }));
+  }
+
+  approvalTemplateDelete(
+    name: string,
+    confirmed: boolean,
+    revision: string,
+  ): {
     template: { name: string };
     clearedBots: string[];
+    inheritedBots: string[];
+    globalDefault: string | null;
   } {
-    return unwrap(this.methods.approvalTemplateDelete({ name }));
+    return unwrap(this.methods.approvalTemplateDelete({ name, confirmed, revision }));
   }
 
   approvalTemplateGlobalSet(template: string | null): { template: string | null } {
@@ -2267,6 +2280,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
+  async tobCli(
+    action: 'start' | 'status' | 'cancel',
+    command?: TobCliCommand,
+    id?: string,
+  ): Promise<TobCliStatus> {
+    return unwrap(
+      await this.methods.tobCli(action === 'start' ? { action, command } : { action, id }),
+    );
+  }
+
   channelSendStatus(channelId: string, messageId: string): ChannelSendStatus {
     return unwrap(this.methods.channelSendStatus({ channelId, messageId }));
   }
@@ -3438,6 +3461,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
+  'tobCli',
   'channelSkillCatalog',
   'botSkills',
   'skillShow',
@@ -3543,6 +3567,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botPromptSet',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
+  'approvalTemplateDeletePreview',
   'approvalTemplateDelete',
   'approvalTemplateGlobalSet',
   'botApprovalTemplateSet',

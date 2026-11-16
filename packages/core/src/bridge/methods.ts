@@ -1,3 +1,5 @@
+import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
+import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { requireBotModel, botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team/error.js';
@@ -5,7 +7,7 @@ import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
-import { botOwner, privateBotRegistry } from '../team/bot-access.js';
+import { botOwner, ownsBot, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
@@ -249,6 +251,7 @@ import type { AttachmentStore } from '../attachments/store.js';
 import { randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
+import { tobCliRequestSchema, type TobCliStatus } from '../tob/cli-request.js';
 
 import { TakeoverError, type TakeoverHandoff } from '../takeover/contracts.js';
 import type { TakeoverHandoffs } from '../takeover/handoffs.js';
@@ -930,6 +933,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   messageSearch(payload: unknown): BridgeResult<HumanMessageSearchPage>;
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
+  tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
   channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
   botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
   skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
@@ -1123,9 +1127,15 @@ export interface BridgeMethods extends TeamBridgeMethods {
   promptGlobalSet(payload: unknown): BridgeResult<{ presetId: string | null }>;
   botPrompt(payload: unknown): BridgeResult<BotPromptView>;
   botPromptSet(payload: unknown): BridgeResult<BotPromptView>;
-  approvalTemplateDelete(
+  approvalTemplateDeletePreview(
     payload: unknown,
-  ): BridgeResult<{ template: { name: string }; clearedBots: string[] }>;
+  ): BridgeResult<{ preview: ApprovalTemplateDeletionPreview }>;
+  approvalTemplateDelete(payload: unknown): BridgeResult<{
+    template: { name: string };
+    clearedBots: string[];
+    inheritedBots: string[];
+    globalDefault: string | null;
+  }>;
   approvalTemplateGlobalSet(payload: unknown): BridgeResult<{ template: string | null }>;
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   voiceProviders: VoiceBridgeMethods['voiceProviders'];
@@ -1723,6 +1733,38 @@ function scheduleFailure(error: unknown): BridgeResult<never> {
   return invalidInput(String(error));
 }
 
+function templateDeletionFailure(
+  name: string,
+  reason: Extract<ReturnType<ApprovalTemplateDeletion['preview']>, { ok: false }>['reason'],
+): BridgeResult<never> {
+  if (reason === 'invalid-name' || reason === 'not-found' || reason === 'built-in')
+    return templateWriteFailure(name, reason);
+  const errors = {
+    'selection-unavailable': [
+      'approval-selection-unavailable',
+      'Approval template selection could not be read.',
+    ],
+    'confirmation-required': [
+      'confirmation-required',
+      'Preview the deletion and confirm its revision before deleting.',
+    ],
+    changed: [
+      'approval-template-delete-changed',
+      'Template references or selection changed. Preview the deletion again.',
+    ],
+    unavailable: [
+      'approval-template-delete-unavailable',
+      'The template could not be deleted. Reload its current references.',
+    ],
+    'rollback-failed': [
+      'approval-template-delete-incomplete',
+      'Deletion did not complete. Reload the current template choices.',
+    ],
+  } as const;
+  const [code, message] = errors[reason];
+  return { ok: false, error: { code, message } };
+}
+
 function templateWriteFailure(
   name: string,
   reason: Extract<ApprovalTemplateWriteResult, { ok: false }>['reason'],
@@ -1790,6 +1832,11 @@ function dmAdmissionFailure(
       };
     case 'blank-body':
       return invalidInput('body is required');
+    case 'cli-request-expired':
+      return {
+        ok: false,
+        error: { code: reason, message: 'Typed CLI requests cannot be replayed.' },
+      };
     case 'runtime-closed':
       return {
         ok: false,
@@ -2345,6 +2392,11 @@ function buildBridgeMethods(
   }
 
   const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
+  const templateDeletion = new ApprovalTemplateDeletion(
+    approvalTemplateLibrary,
+    globalRegistry,
+    (bot) => ownsBot(human, bot),
+  );
   const templateUsers = (name: string, registry = deps.registry): string[] =>
     registry
       .list()
@@ -3290,6 +3342,28 @@ function buildBridgeMethods(
               : await service.send(slug, grantId, requestId, text),
         };
       });
+    },
+    async tobCli(payload) {
+      if (!isHostOwner())
+        return {
+          ok: false,
+          error: { code: 'permission-required', message: 'Host owner authentication is required.' },
+        };
+      const parsed = tobCliRequestSchema.safeParse(payload);
+      if (!parsed.success) return invalidInput('Invalid bounded Tob CLI request');
+      if (!deps.runtime?.tobCli) return unavailable();
+      try {
+        return { ok: true, value: await deps.runtime.tobCli(human, parsed.data) };
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: error instanceof TobError ? error.code : 'operation-failed',
+            message:
+              error instanceof TobError ? error.code : 'The Tob CLI request could not complete.',
+          },
+        };
+      }
     },
     async tobHome() {
       if (!isHostOwner()) return { ok: true, value: { available: false as const } };
@@ -5459,18 +5533,34 @@ function buildBridgeMethods(
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: botPromptView(deps, prompts, slug) };
     },
-    approvalTemplateDelete(payload) {
+    approvalTemplateDeletePreview(payload) {
       const name = asObject(payload)['name'];
       if (typeof name !== 'string') return invalidInput('name is required');
-      const result = approvalTemplateLibrary.delete(name);
-      if (!result.ok) return templateWriteFailure(name, result.reason);
-      const clearedBots = templateUsers(name, globalRegistry);
-      for (const slug of clearedBots) globalRegistry.setApprovalTemplate(slug, undefined);
+      const result = templateDeletion.preview(name);
+      return result.ok
+        ? { ok: true, value: { preview: result.preview } }
+        : templateDeletionFailure(name, result.reason);
+    },
+    approvalTemplateDelete(payload) {
+      const object = asObject(payload);
+      const name = object['name'];
+      if (typeof name !== 'string') return invalidInput('name is required');
+      const revision = object['revision'];
+      const result = templateDeletion.delete(name, {
+        confirmed: object['confirmed'] === true,
+        ...(typeof revision === 'string' ? { revision } : {}),
+      });
+      if (!result.ok) return templateDeletionFailure(name, result.reason);
+      const inheritedBots = result.preview.affectedBots
+        .filter((bot) => bot.source === 'specific')
+        .map((bot) => bot.slug);
       return {
         ok: true,
         value: {
           template: { name },
-          clearedBots: clearedBots.filter((slug) => deps.registry.get(slug) !== undefined),
+          clearedBots: inheritedBots,
+          inheritedBots,
+          globalDefault: result.preview.globalDefaultAfter,
         },
       };
     },
@@ -9595,6 +9685,7 @@ function buildBridgeMethods(
           AbortSignal.timeout(DIRECT_TOOL_TIMEOUT_MS),
           session?.trim(),
           sourceEventId,
+          human,
         );
         return { ok: true, value: { slug, ...run } };
       } catch (error) {

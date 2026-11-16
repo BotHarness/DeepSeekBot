@@ -31,6 +31,26 @@ function setup(): { home: string; owner: OperationalDatabaseOwner; ownership: Se
 const AT = '2026-09-21T00:00:00.000Z';
 
 describe('Session ownership', () => {
+  it('resolves direct execution ownership without selecting it as a persistent Bot root', () => {
+    const { owner, ownership } = setup();
+    try {
+      const direct = ownership.claim({
+        sessionId: 'direct-call-1',
+        botSlug: 'ada',
+        rootRole: 'orchestrator',
+        at: AT,
+      });
+      expect(ownership.resolve(direct.sessionId)).toEqual(direct);
+      expect(ownership.rootsFor('ada')).toEqual([]);
+      ownership.claim({ sessionId: 'chat-1', botSlug: 'ada', rootRole: 'orchestrator', at: AT });
+      expect(ownership.rootsFor('ada', 'orchestrator').map((root) => root.sessionId)).toEqual([
+        'chat-1',
+      ]);
+    } finally {
+      owner.close();
+    }
+  });
+
   it('claims and resolves a root Session with its explicit run configuration', () => {
     const { owner, ownership } = setup();
 

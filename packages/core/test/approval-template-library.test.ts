@@ -369,10 +369,11 @@ describe('self-escalation guard for Approval Templates', () => {
 });
 
 describe('Approval Template bridge methods', () => {
-  function methods() {
+  function methods(extra: Partial<PersonaBotRecord>[] = []) {
     const registry = fakeRegistry([
       { slug: 'ada', approvalTemplate: 'night-shift' },
       { slug: 'bob' },
+      ...extra,
     ]);
     const dir = join(tempDir(), 'approval-templates');
     const library = createApprovalTemplateLibrary(dir);
@@ -489,14 +490,222 @@ describe('Approval Template bridge methods', () => {
     });
   });
 
-  it('clears the selection of every Bot that used a deleted template', () => {
-    const { bridge, registry } = methods();
+  it('does not delete or change references before explicit confirmation', () => {
+    const { bridge, registry, library } = methods();
     bridge.approvalTemplateCreate({ name: 'night-shift', text: MINE });
-    expect(bridge.approvalTemplateDelete({ name: 'night-shift' })).toEqual({
-      ok: true,
-      value: { template: { name: 'night-shift' }, clearedBots: ['ada'] },
+    expect(bridge.approvalTemplateDelete({ name: 'night-shift' })).toMatchObject({
+      ok: false,
+      error: { code: 'confirmation-required' },
     });
-    expect(registry.get('ada')?.approvalTemplate).toBeUndefined();
+    expect(library.get('night-shift')?.text).toBe(MINE);
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+  });
+
+  it('previews every direct reference and confirms one bulk fallback to another global template', () => {
+    const { bridge, registry, library } = methods([
+      { slug: 'carol', approvalTemplate: '@global' },
+      { slug: 'dave', approvalTemplate: 'get-work-done' },
+    ]);
+    library.create('night-shift', MINE);
+    library.setGlobal('cautious');
+    const initial = registry.bots.map((bot) => ({ ...bot }));
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview).toMatchObject({
+      name: 'night-shift',
+      globalDefaultBefore: 'cautious',
+      globalDefaultAfter: 'cautious',
+      globalDefaultAvailable: true,
+      affectedBots: [{ slug: 'ada', source: 'specific' }],
+    });
+    expect(registry.bots).toEqual(initial);
+    expect(library.get('night-shift')?.text).toBe(MINE);
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { inheritedBots: ['ada'], globalDefault: 'cautious' },
+    });
+    expect(registry.bots).toEqual(
+      initial.map((bot) => (bot.slug === 'ada' ? { ...bot, approvalTemplate: '@global' } : bot)),
+    );
+    expect(library.get('night-shift')).toBeUndefined();
+    expect(bridge.approvalTemplates({ slug: 'ada' })).toMatchObject({
+      value: { selected: '@global', effective: 'cautious' },
+    });
+  });
+
+  it('shows inherited users and clears the default when deleting the global template', () => {
+    const { bridge, registry, library } = methods([
+      { slug: 'carol', approvalTemplate: 'cautious' },
+    ]);
+    library.create('night-shift', MINE);
+    library.setGlobal('night-shift');
+    registry.setApprovalTemplate('bob', '@global');
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview).toMatchObject({
+      globalDefaultBefore: 'night-shift',
+      globalDefaultAfter: null,
+      affectedBots: [
+        { slug: 'ada', source: 'specific' },
+        { slug: 'bob', source: 'global' },
+      ],
+    });
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: true, value: { inheritedBots: ['ada'], globalDefault: null } });
+    expect(library.global()).toEqual({ kind: 'off' });
+    expect(registry.get('carol')?.approvalTemplate).toBe('cautious');
+    for (const slug of ['ada', 'bob'])
+      expect(bridge.approvalTemplates({ slug })).toMatchObject({
+        value: { selected: '@global', effective: null, source: 'global' },
+      });
+  });
+
+  it.each(['global', 'references', 'content', 'global-content'] as const)(
+    'refuses stale confirmation after %s changes without mutating any choices',
+    (change) => {
+      const { bridge, registry, library } = methods();
+      library.create('night-shift', MINE);
+      library.create('other', '# Other\n\nAsk me.\n');
+      library.setGlobal('other');
+      const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+      if (!preview.ok) throw new Error(preview.error.code);
+      if (change === 'global') library.setGlobal('cautious');
+      if (change === 'references') registry.setApprovalTemplate('bob', 'night-shift');
+      if (change === 'content') library.update('night-shift', MINE + 'Changed.\n');
+      if (change === 'global-content') library.update('other', '# Other\n\nDifferent policy.\n');
+      const before = registry.bots.map((bot) => ({ ...bot }));
+      const globalBefore = library.global();
+      expect(
+        bridge.approvalTemplateDelete({
+          name: 'night-shift',
+          confirmed: true,
+          revision: preview.value.preview.revision,
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'approval-template-delete-changed' } });
+      expect(registry.bots).toEqual(before);
+      expect(library.global()).toEqual(globalBefore);
+      expect(library.get('night-shift')).toBeDefined();
+    },
+  );
+
+  it('explicitly deletes oversized custom content and keeps bulk fallback and global clearing', () => {
+    const { bridge, registry, library, dir } = methods();
+    library.create('night-shift', MINE);
+    library.setGlobal('night-shift');
+    registry.setApprovalTemplate('bob', '@global');
+    const file = join(dir, 'night-shift.md');
+    writeFileSync(file, 'x'.repeat(APPROVAL_TEMPLATE_TEXT_LIMIT + 1));
+    expect(library.get('night-shift')).toBeUndefined();
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview).toMatchObject({
+      contentUnavailable: true,
+      globalDefaultAfter: null,
+      affectedBots: [
+        { slug: 'ada', source: 'specific' },
+        { slug: 'bob', source: 'global' },
+      ],
+    });
+    expect(bridge.approvalTemplateDelete({ name: 'night-shift' })).toMatchObject({
+      ok: false,
+      error: { code: 'confirmation-required' },
+    });
+    expect(existsSync(file)).toBe(true);
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: true, value: { inheritedBots: ['ada'], globalDefault: null } });
+    expect(existsSync(file)).toBe(false);
+    expect(registry.get('ada')?.approvalTemplate).toBe('@global');
+    expect(registry.get('bob')?.approvalTemplate).toBe('@global');
+    expect(library.global()).toEqual({ kind: 'off' });
+  });
+
+  it.each(['grow', 'repair'] as const)('refuses stale oversized deletion after %s', (change) => {
+    const { bridge, registry, library, dir } = methods();
+    library.create('night-shift', MINE);
+    const file = join(dir, 'night-shift.md');
+    writeFileSync(file, 'x'.repeat(APPROVAL_TEMPLATE_TEXT_LIMIT + 1));
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    writeFileSync(file, change === 'repair' ? MINE : 'x'.repeat(APPROVAL_TEMPLATE_TEXT_LIMIT + 2));
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'approval-template-delete-changed' } });
+    expect(existsSync(file)).toBe(true);
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+  });
+
+  it('refuses unreadable selection instead of silently choosing a deletion fallback', () => {
+    const { bridge, registry, library, dir } = methods();
+    library.create('night-shift', MINE);
+    writeFileSync(join(dir, '.selection.json'), '{bad');
+    expect(bridge.approvalTemplateDeletePreview({ name: 'night-shift' })).toMatchObject({
+      ok: false,
+      error: { code: 'approval-selection-unavailable' },
+    });
+    expect(
+      bridge.approvalTemplateDelete({ name: 'night-shift', confirmed: true, revision: 'x' }),
+    ).toMatchObject({ ok: false, error: { code: 'approval-selection-unavailable' } });
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+    expect(library.get('night-shift')).toBeDefined();
+    expect(readFileSync(join(dir, '.selection.json'), 'utf8')).toBe('{bad');
+  });
+
+  it('restores the original choices if the final file deletion fails', () => {
+    const { bridge, registry, library } = methods();
+    library.create('night-shift', MINE);
+    library.setGlobal('night-shift');
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    vi.spyOn(library, 'delete').mockReturnValue({ ok: false, reason: 'unavailable' });
+    expect(
+      bridge.approvalTemplateDelete({
+        name: 'night-shift',
+        confirmed: true,
+        revision: preview.value.preview.revision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'approval-template-delete-unavailable' } });
+    expect(library.global()).toEqual({ kind: 'selected', name: 'night-shift' });
+    expect(registry.get('ada')?.approvalTemplate).toBe('night-shift');
+    expect(library.get('night-shift')?.text).toBe(MINE);
+  });
+
+  it('reads the global choice and registry once per preview across a thousand references', () => {
+    const { bridge, registry, library } = methods(
+      Array.from({ length: 1000 }, (_, index) => ({
+        slug: 'ref-' + index,
+        approvalTemplate: 'night-shift',
+      })),
+    );
+    library.create('night-shift', MINE);
+    const globalReads = vi.spyOn(library, 'global');
+    const registryReads = vi.spyOn(registry, 'list');
+    const registryGets = vi.spyOn(registry, 'get');
+    const preview = bridge.approvalTemplateDeletePreview({ name: 'night-shift' });
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.preview.affectedBots).toHaveLength(1001);
+    expect(globalReads).toHaveBeenCalledTimes(1);
+    expect(registryReads).toHaveBeenCalledTimes(1);
+    expect(registryGets).not.toHaveBeenCalled();
   });
 
   it('refuses with codes', () => {
@@ -600,6 +809,10 @@ describe('deepseekbot approval-template', () => {
     await invoke(['approval-template', 'create', 'mine', '--from', 'cautious'], live.url);
     await invoke(['approval-template', 'edit', 'mine', '--text-stdin'], live.url, MINE);
     await invoke(['approval-template', 'delete', 'mine'], live.url);
+    await invoke(
+      ['approval-template', 'delete', 'mine', '--confirm', '--delete-revision', 'a'.repeat(64)],
+      live.url,
+    );
     await invoke(['approval-template-global-set', 'cautious'], live.url);
     await invoke(['approval-template-global-set', 'off'], live.url);
     await invoke(['approval-template-set', 'ada', 'inherit'], live.url);
@@ -607,7 +820,11 @@ describe('deepseekbot approval-template', () => {
       { method: 'approvalTemplateCreate', args: { name: 'night-shift', text: MINE } },
       { method: 'approvalTemplateCreate', args: { name: 'mine', from: 'cautious' } },
       { method: 'approvalTemplateUpdate', args: { name: 'mine', text: MINE } },
-      { method: 'approvalTemplateDelete', args: { name: 'mine' } },
+      { method: 'approvalTemplateDeletePreview', args: { name: 'mine' } },
+      {
+        method: 'approvalTemplateDelete',
+        args: { name: 'mine', confirmed: true, revision: 'a'.repeat(64) },
+      },
       { method: 'approvalTemplateGlobalSet', args: { template: 'cautious' } },
       { method: 'approvalTemplateGlobalSet', args: { template: null } },
       { method: 'botApprovalTemplateSet', args: { slug: 'ada', template: '@global' } },
@@ -688,6 +905,9 @@ describe('deepseekbot approval-template', () => {
       ['approval-template', 'edit'],
       ['approval-template', 'delete', 'a', 'b'],
       ['approval-template', 'list', '--literal-template'],
+      ['approval-template', 'delete', 'a', '--confirm'],
+      ['approval-template', 'delete', 'a', '--delete-revision', 'a'.repeat(64)],
+      ['approval-template', 'delete', 'a', '--confirm', '--delete-revision', 'bad'],
     ]) {
       const result = await invoke(argv, live.url);
       expect(result.code, argv.join(' ')).not.toBe(0);

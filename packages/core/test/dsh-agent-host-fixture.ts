@@ -11,6 +11,9 @@ import { createAssistantMessage, type Message, type UserMessage } from '@deepsee
 import type { TurnEndReason } from '@deepseek-ai/dsh-session';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 
+import { executeFixtureNativeTool } from './fixtures/native-tools.js';
+import type { DirectNativeCall } from '../src/runtime/native-agent-compat.js';
+
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import type { DshAgentHost } from '../src/runtime/dsh-bot-agent-adapter.js';
 
@@ -224,6 +227,8 @@ export class FakeAgentHost implements DshAgentHost {
         return () => void scope.listeners.delete(event);
       },
       tools: {
+        execute: (input: DirectNativeCall) =>
+          executeFixtureNativeTool(input, scope.tools, scope.guards),
         get: (name: string) => scope.tools.find((tool) => tool.name === name),
         schemas: (viewingAgent: unknown) =>
           viewingAgent === undefined

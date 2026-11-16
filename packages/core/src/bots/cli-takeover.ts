@@ -1,9 +1,5 @@
+export { TAKEOVER_OPTIONS } from './cli-option-spec.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const TAKEOVER_OPTIONS = {
-  minutes: { type: 'string' },
-  pending: { type: 'boolean' },
-} as const;
 
 export const TAKEOVER_COMMANDS = [
   {

@@ -1,3 +1,8 @@
+import { HarnessError } from '@deepseek-ai/dsh-llm';
+import { hasIrreversibleExternalEffect, toolEffects } from '../workspaces/tool-effects.js';
+
+import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../tob/cli-request.js';
+
 import { skillOwnerKey } from '../skills/entries.js';
 import type { TeamService } from '../team/service.js';
 import { TeamError } from '../team/error.js';
@@ -364,6 +369,7 @@ export interface OrchestratorAgentRun {
     sourceEventId: string,
   ): { kind: 'external' } | { kind: 'channel'; channelId: string; messageId: string };
   tobCli?: boolean;
+  tobCliTurn?: TobCliTurn;
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
   triage?: OrchestratorInboxTriage;
   acceptNativeInput?: () => boolean;
@@ -782,12 +788,9 @@ export function skillInvocationPrompt(
   return `\n\n[The Human invoked ${invocations.length === 1 ? 'this Skill' : 'these Skills'} with /. Each block is the Skill text as it was when the message was sent; follow it for this message. owner names whose Skill it is, not who should act.]\n${blocks.join('\n')}`;
 }
 
-export class DirectBotToolError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
+export class DirectBotToolError extends HarnessError {
+  constructor(code: string, message: string) {
+    super(message, code);
     this.name = 'DirectBotToolError';
   }
 }
@@ -828,11 +831,20 @@ export type DmAdmissionFailure =
   | 'not-dm'
   | 'unknown-bot'
   | 'archived-bot'
-  | 'blank-body';
+  | 'blank-body'
+  | 'cli-request-expired';
 
 export type DmMessageAdmission =
   | { admitted: true; settled: Promise<void> }
   | { admitted: false; reason: DmAdmissionFailure };
+
+interface TobCliRequestLease {
+  humanId: string;
+  botSlug: string;
+  controller: AbortController;
+  status: TobCliStatus;
+  finishedAt: number | undefined;
+}
 
 export interface TobCliAuthority {
   (): void;
@@ -936,6 +948,7 @@ export interface BotRuntime {
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning?(botSlug: string): boolean;
   hasPendingInbox?(botSlug: string): boolean;
+  tobCli?(human: HumanContext, input: TobCliRequest): Promise<TobCliStatus>;
   directBotTools?(): DirectBotToolSpec[];
   directBotToolCalls?(botSlug: string): readonly DirectBotToolCall[];
   runDirectBotTool?(
@@ -945,6 +958,7 @@ export interface BotRuntime {
     signal: AbortSignal,
     parentSessionId?: string,
     sourceEventId?: string,
+    human?: HumanContext,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }>;
   triageOpenCount?(botSlug: string): number | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
@@ -1780,6 +1794,8 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #assignmentNotices = new Set<Promise<void>>();
   readonly #waitLifetime = new AbortController();
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
+  readonly #activeDirectTools = new Map<string, { botSlug: string; approvalChannelId?: string }>();
+  readonly #tobCliRequests = new Map<string, TobCliRequestLease>();
   #closed = false;
   readonly #tob: TobService | undefined;
   readonly #onTobDelegation: () => void;
@@ -2133,6 +2149,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const message = this.#channels.message(channelId, messageId);
     if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
       throw new Error('Retry requires the original Human DM message');
+    if (message.tobCliRequestId !== undefined) throw new TobError('cli-request-expired');
     const safe = this.#database.read((database) =>
       database
         .prepare(
@@ -2151,6 +2168,8 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #continuableDmEvent(channelId: string, messageId: string): string | undefined {
+    if (this.#channels.message(channelId, messageId)?.tobCliRequestId !== undefined)
+      return undefined;
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
     if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
@@ -2445,7 +2464,137 @@ class BotRuntimeImplementation implements BotRuntime {
     return result.value;
   }
 
+  async tobCli(human: HumanContext, input: TobCliRequest): Promise<TobCliStatus> {
+    if (this.#closed) throw new TobError('runtime-closed');
+    for (const [id, request] of this.#tobCliRequests) {
+      if (request.finishedAt !== undefined && Date.now() - request.finishedAt > 10 * 60 * 1000)
+        this.#tobCliRequests.delete(id);
+    }
+    if (input.action !== 'start') {
+      const request = this.#tobCliRequests.get(input.id);
+      if (!request || request.humanId !== human.humanId)
+        throw new TobError('cli-request-unavailable');
+      if (input.action === 'cancel' && request.status.state === 'running') {
+        request.status = { ...request.status, cancelRequested: true };
+        request.controller.abort();
+      }
+      return structuredClone(request.status);
+    }
+    if (!this.#tob) throw new TobError('tob-authority-required');
+    await this.#tob.ensure(human);
+    if (this.#closed) throw new TobError('runtime-closed');
+    const bot = this.#registry
+      .list()
+      .find(
+        (candidate) => this.#tob?.isTob(candidate.slug) && botOwner(candidate) === human.humanId,
+      );
+    if (!bot || bot.paused || !this.#memberBotEnabled(bot))
+      throw new TobError('tob-authority-required');
+    if (
+      this.#tails.has(bot.slug) ||
+      [...this.#activeDirectTools.values()].some((call) => call.botSlug === bot.slug) ||
+      [...this.#tobCliRequests.values()].some((request) => request.status.state === 'running')
+    )
+      throw new TobError('bot-busy');
+    if (this.#tobCliRequests.size >= 16) {
+      const completed = [...this.#tobCliRequests].find(
+        ([, request]) => request.finishedAt !== undefined,
+      );
+      if (completed) this.#tobCliRequests.delete(completed[0]);
+      else throw new TobError('bot-busy');
+    }
+    const channel = this.#channels.getOrCreateDm(human, bot.slug, bot.displayName);
+    if (!channel) throw new TobError('human-dm-required');
+    const channelId = channel.id;
+    const id = randomUUID();
+    const messageId = 'human-' + randomUUID();
+    const controller = new AbortController();
+    const request: TobCliRequestLease = {
+      humanId: human.humanId,
+      botSlug: bot.slug,
+      controller,
+      status: {
+        id,
+        channelId,
+        messageId,
+        state: 'running',
+        cancelRequested: false,
+      },
+      finishedAt: undefined,
+    };
+    this.#tobCliRequests.set(id, request);
+    const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+    timer.unref?.();
+    let result: import('../tob/cli-request.js').TobCliOutput | undefined;
+    const finish = (error?: unknown) => {
+      clearTimeout(timer);
+      request.finishedAt = Date.now();
+      request.status = controller.signal.aborted
+        ? {
+            id,
+            channelId,
+            messageId,
+            state: 'cancelled',
+            cancelRequested: true,
+            code: 'operation-cancelled',
+          }
+        : error !== undefined || result === undefined
+          ? {
+              id,
+              channelId,
+              messageId,
+              state: 'failed',
+              cancelRequested: false,
+              code:
+                error instanceof TobError ||
+                error instanceof DirectBotToolError ||
+                error instanceof TeamError
+                  ? error.code
+                  : 'operation-failed',
+            }
+          : { id, channelId, messageId, state: 'completed', cancelRequested: false, result };
+    };
+    try {
+      this.#requireExecution?.(bot.slug);
+      const body = 'Run a typed CLI command without a model: ' + input.command.argv[0];
+      const appended = await this.#channels.appendMessageOnce(human, channelId, {
+        id: messageId,
+        at: this.#now().toISOString(),
+        author: { kind: 'human', humanId: human.humanId },
+        tobCliRequestId: id,
+        body,
+      });
+      if (appended.status !== 'appended') throw new TobError('human-dm-required');
+      controller.signal.throwIfAborted();
+      const admission = this.#admitDmMessage(
+        human,
+        { channelId, messageId, body },
+        {
+          command: { argv: [...input.command.argv], stdin: input.command.stdin },
+          signal: controller.signal,
+          complete: (output) => {
+            result = output;
+          },
+        },
+      );
+      if (!admission.admitted) throw new TobError(admission.reason);
+      void admission.settled.then(() => finish(), finish);
+      return structuredClone(request.status);
+    } catch (error) {
+      finish(error);
+      throw error;
+    }
+  }
+
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission {
+    return this.#admitDmMessage(human, input);
+  }
+
+  #admitDmMessage(
+    human: HumanContext,
+    input: HandleDmMessageInput,
+    tobCliTurn?: TobCliTurn,
+  ): DmMessageAdmission {
     if (this.#closed) return { admitted: false, reason: 'runtime-closed' };
     const channel = this.#channels.get(input.channelId);
     if (channel === undefined) return { admitted: false, reason: 'unknown-channel' };
@@ -2464,7 +2613,10 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!this.#memberBotEnabled(bot)) return { admitted: false, reason: 'archived-bot' };
     if (bot.paused === true) return { admitted: false, reason: 'archived-bot' };
 
-    const persistedBody = this.#channels.message(channel.id, input.messageId)?.body;
+    const persistedMessage = this.#channels.message(channel.id, input.messageId);
+    if (persistedMessage?.tobCliRequestId !== undefined && tobCliTurn === undefined)
+      return { admitted: false, reason: 'cli-request-expired' };
+    const persistedBody = persistedMessage?.body;
     const body = persistedBody?.trim() ? persistedBody : input.body;
     if (body.trim().length === 0) return { admitted: false, reason: 'blank-body' };
     if (this.#autoContinues.get(bot.slug)?.messageId !== input.messageId)
@@ -2482,6 +2634,10 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     const steered =
       claim.shouldRun &&
+      tobCliTurn === undefined &&
+      ![...this.#tobCliRequests.values()].some(
+        (request) => request.botSlug === bot.slug && request.status.state === 'running',
+      ) &&
       this.#delivery(bot.slug, 'human-dm') === 'steer' &&
       this.#steerDmAdmission(
         bot.slug,
@@ -2502,7 +2658,15 @@ class BotRuntimeImplementation implements BotRuntime {
       settled: steered
         ? Promise.resolve()
         : this.#enqueue(bot.slug, () =>
-            this.#runHumanDmTurn(bot, channel.id, body, claim, input.messageId),
+            this.#runHumanDmTurn(
+              bot,
+              channel.id,
+              body,
+              claim,
+              input.messageId,
+              undefined,
+              tobCliTurn,
+            ),
           ),
     };
   }
@@ -4438,6 +4602,14 @@ class BotRuntimeImplementation implements BotRuntime {
   askChannel(sessionId: string): string | undefined {
     const owner = this.#ownership.resolve(sessionId);
     if (this.#closed || owner?.rootRole !== 'orchestrator') return undefined;
+    const direct = this.#activeDirectTools.get(sessionId);
+    if (direct?.botSlug === owner.botSlug) {
+      const channel =
+        direct.approvalChannelId === undefined
+          ? undefined
+          : this.#channels.get(direct.approvalChannelId);
+      return channel?.type === 'dm' && channel.botSlug === owner.botSlug ? channel.id : undefined;
+    }
     const turn = this.#turnSources.get(owner.botSlug);
     if (
       turn?.sessionId !== sessionId ||
@@ -5031,11 +5203,21 @@ class BotRuntimeImplementation implements BotRuntime {
     signal: AbortSignal,
     parentSessionId?: string,
     sourceEventId?: string,
+    human?: HumanContext,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }> {
     if (this.#closed) throw new DirectBotToolError('runtime-closed', 'BotRuntime is closed');
     this.#team?.bots.requireActive(botSlug);
     const bot = this.#registry.get(botSlug);
     if (bot === undefined) throw new DirectBotToolError('unknown-bot', `Unknown bot: ${botSlug}`);
+    if (
+      [...this.#tobCliRequests.values()].some(
+        (request) => request.botSlug === botSlug && request.status.state === 'running',
+      )
+    )
+      throw new DirectBotToolError(
+        'bot-busy',
+        'Wait for the active Tob CLI request or cancel it first',
+      );
     if (bot.paused === true)
       throw new DirectBotToolError('bot-paused', `PersonaBot ${botSlug} is paused`);
     const runDirect = this.#agents.runDirectTool?.bind(this.#agents);
@@ -5130,6 +5312,21 @@ class BotRuntimeImplementation implements BotRuntime {
         observeReads: false,
       }),
     };
+    let approvalChannelId: string | undefined;
+    if (
+      hasIrreversibleExternalEffect(toolEffects(tool, args)) ||
+      toolEffects(tool, args)?.authority === 'management'
+    ) {
+      if (human !== undefined)
+        approvalChannelId = this.#channels.getOrCreateDm(human, botSlug, bot.displayName)?.id;
+      this.#ownership.claim({
+        sessionId,
+        botSlug,
+        rootRole: 'orchestrator',
+        provenance: 'created',
+        at: this.#now().toISOString(),
+      });
+    }
     const started = this.#now();
     const record = (outcome: 'ok' | 'error', result: string) => {
       const calls = this.#directToolCalls.get(bot.slug) ?? [];
@@ -5144,6 +5341,10 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };
+    this.#activeDirectTools.set(sessionId, {
+      botSlug: bot.slug,
+      ...(approvalChannelId === undefined ? {} : { approvalChannelId }),
+    });
     try {
       const result = await runDirect(
         run,
@@ -5166,6 +5367,8 @@ class BotRuntimeImplementation implements BotRuntime {
     } catch (error) {
       record('error', error instanceof Error ? error.message : String(error));
       throw error;
+    } finally {
+      this.#activeDirectTools.delete(sessionId);
     }
   }
 
@@ -5741,7 +5944,24 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
+  #cancelTobCli(botSlug: string): boolean {
+    let cancelled = false;
+    for (const request of this.#tobCliRequests.values()) {
+      if (
+        request.botSlug !== botSlug ||
+        request.status.state !== 'running' ||
+        request.controller.signal.aborted
+      )
+        continue;
+      request.status = { ...request.status, cancelRequested: true };
+      request.controller.abort();
+      cancelled = true;
+    }
+    return cancelled;
+  }
+
   async stopBot(botSlug: string): Promise<void> {
+    this.#cancelTobCli(botSlug);
     const owned = () =>
       this.#ownership
         .rootsFor(botSlug)
@@ -5800,6 +6020,7 @@ class BotRuntimeImplementation implements BotRuntime {
         };
       const ref: StoppedSessionRef = { botSlug, sessionId, role: 'orchestrator' };
       const current = this.currentOrchestratorSessionId(botSlug);
+      const cliStopped = current === sessionId && this.#cancelTobCli(botSlug);
       const stopped =
         (current === undefined || current === sessionId) &&
         (await this.#humanStopOrchestrator(
@@ -5813,10 +6034,10 @@ class BotRuntimeImplementation implements BotRuntime {
           role: 'orchestrator',
           botSlug,
           sessionId,
-          stopped,
+          stopped: stopped || cliStopped,
         }),
       );
-      return stopped
+      return stopped || cliStopped
         ? { outcome: 'settled', stopped: [ref], alreadyIdle: [] }
         : { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
     }
@@ -5854,6 +6075,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async stopAllSessions(botSlug: string): Promise<BotStopOutcome> {
+    const cliStopped = this.#cancelTobCli(botSlug);
     const bot = this.#registry.get(botSlug);
     if (bot === undefined) return { stopped: [], alreadyIdle: [] };
     const orchestratorId = this.currentOrchestratorSessionId(botSlug);
@@ -5866,7 +6088,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const alreadyIdle: StoppedSessionRef[] = [];
     const orchestratorSession = turn?.sessionId ?? orchestratorId;
     if (orchestratorSession !== undefined)
-      (turn !== undefined ? stopped : alreadyIdle).push({
+      (turn !== undefined || cliStopped ? stopped : alreadyIdle).push({
         botSlug,
         sessionId: orchestratorSession,
         role: 'orchestrator',
@@ -6191,6 +6413,7 @@ class BotRuntimeImplementation implements BotRuntime {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
+    for (const request of this.#tobCliRequests.values()) request.controller.abort();
     this.#inboxHistory.clear();
     this.#approvalCapacity.close();
     this.#waitLifetime.abort(new Error('Bot Runtime closed'));
@@ -6244,6 +6467,7 @@ class BotRuntimeImplementation implements BotRuntime {
     claim: SourceEventClaim,
     messageId: string,
     continuation?: DmContinuation,
+    tobCliTurn?: TobCliTurn,
   ): Promise<void> {
     if (claim.reconciliationRequired === true) {
       throw new Error(`Source Event ${claim.sourceEventId} requires reconciliation before replay`);
@@ -6256,9 +6480,11 @@ class BotRuntimeImplementation implements BotRuntime {
     const timestamp = this.#now().toISOString();
     let orchestrator = this.#ensureOrchestrator(bot, timestamp);
 
-    const collected = this.#collectInbox(bot.slug);
+    const collected =
+      tobCliTurn === undefined ? this.#collectInbox(bot.slug) : { units: [], eventIds: [] };
     this.#setObserved(collected.eventIds, timestamp, bot.slug);
     try {
+      tobCliTurn?.signal.throwIfAborted();
       this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId);
       await this.#runOnLiveOrchestrator(bot, orchestrator, (session) => {
         orchestrator = session;
@@ -6273,6 +6499,11 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
           undefined,
           collected.eventIds,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          tobCliTurn,
         );
       });
     } catch (error) {
@@ -6282,6 +6513,7 @@ class BotRuntimeImplementation implements BotRuntime {
       const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
       const autoContinue =
+        tobCliTurn === undefined &&
         code !== undefined &&
         TRANSIENT_FAILURE_CODES.has(code) &&
         delayMs !== undefined &&
@@ -6364,6 +6596,7 @@ class BotRuntimeImplementation implements BotRuntime {
     acceptNativeInput?: () => boolean,
     nativeSourceIds: readonly string[] = [],
     memoryObservation: 'source-event' | 'recovered-question' = 'source-event',
+    tobCliTurn?: TobCliTurn,
   ): Promise<void> {
     if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
@@ -6404,6 +6637,7 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(bot.slug, sourceEventId ?? null),
     );
     const observeMemory =
+      tobCliTurn === undefined &&
       memoryObservation === 'source-event' &&
       sourceEventId !== undefined &&
       memorySource?.source_kind !== 'bridge-message' &&
@@ -6512,7 +6746,8 @@ class BotRuntimeImplementation implements BotRuntime {
         ['usage'],
       );
       const envelope = this.#speakerInput(bot.slug, orchestrator.sessionId, [...turnSources], body);
-      await this.#agents.runOrchestrator({
+      const run: OrchestratorAgentRun & { triage: OrchestratorInboxTriage } = {
+        ...(tobCliTurn === undefined ? {} : { tobCliTurn }),
         setExecutionReady: (ready) => {
           if (ready) {
             this.#preparedOrchestrators.add(orchestrator.sessionId);
@@ -6573,9 +6808,12 @@ class BotRuntimeImplementation implements BotRuntime {
           observeReads: true,
           modelContent: body + '\n' + inbox,
         }),
-      });
+      };
+      await this.#agents.runOrchestrator(run);
       this.#requireTurnAccess(bot.slug, turnSources);
       if (acceptNativeInput === undefined) envelope?.commit();
+      if (tobCliTurn !== undefined && sourceEventId !== undefined)
+        run.triage.resolve({ ids: [sourceEventId], outcome: 'done' });
       if (observeMemory) {
         await this.#settleSteerMemoryScan(bot.slug);
         this.#memoryTurnOperations.add(bot.slug);
@@ -6591,7 +6829,8 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#settleHarvestHandled(bot.slug, [...readAdmissions]);
       this.#notifyReadAdmissions(readAdmissions);
       if (!this.#triageRunning.has(bot.slug)) this.#triageBaseline.delete(bot.slug);
-      if (!this.#stoppedTurns.has(bot.slug)) this.#queueTriage(bot.slug);
+      if (tobCliTurn === undefined && !this.#stoppedTurns.has(bot.slug))
+        this.#queueTriage(bot.slug);
     } catch (error) {
       this.#setObserved(memoryEventIds, null);
       this.#settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
@@ -6625,7 +6864,7 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Omit<
     OrchestratorAgentRun,
     'sessionId' | 'resume' | 'bot' | 'message' | 'inbox' | 'inboundChannelId'
-  > {
+  > & { triage: OrchestratorInboxTriage } {
     const channels = this.#channelAccess(
       bot.slug,
       turn.channelId,

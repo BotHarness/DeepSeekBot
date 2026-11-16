@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import { botNameColor } from '../../../../../packages/client/src/client/bot-name-color';
 import type { ConversationMessage } from '../../host/conversation';
-import type { WireMention } from '../../host/wire';
+import type { WireMention, WireSkillInvocation } from '../../host/wire';
 import { BotAvatar } from '../bot-avatar';
 import { botColor } from '../bot-color';
 import { useDesignTheme } from '../design/theme';
@@ -18,6 +18,57 @@ import {
   mentionIdentity,
   mentionMarkdownBody,
 } from './message-mentions';
+import { messageSkillRuns } from './skill-draft';
+import { SkillOwnerMark, skillOwnerName } from './skill-suggestions';
+
+function Skill({ skill, color }: { skill: WireSkillInvocation; color: string }) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const { bots } = useContext(MessageIdentities);
+  const owner = skill.owner;
+  const bot =
+    owner.kind === 'bot' ? bots.find((candidate) => candidate.slug === owner.botSlug) : undefined;
+  const option = {
+    name: skill.name,
+    description: '',
+    owner,
+    ...(bot === undefined ? {} : { bot }),
+  };
+  const name = skillOwnerName(option, t.skillOwnerHost);
+  const size = theme.type.body.size * theme.fontScale;
+  const offset = ((theme.type.body.line - theme.type.body.size) * theme.fontScale) / 2;
+  return (
+    <InlineText
+      accessibilityLabel={t.skillChip(skill.name, name)}
+      style={{ color, fontWeight: theme.weight.strong }}
+    >
+      <View style={{ width: size, height: size, transform: [{ translateY: offset }] }}>
+        <SkillOwnerMark option={option} size={size} />
+      </View>
+      {'\u00a0'}/{skill.name}
+    </InlineText>
+  );
+}
+
+type BodyToken =
+  | { start: number; end: number; mention: WireMention }
+  | { start: number; end: number; skill: WireSkillInvocation };
+
+function humanRuns(message: ConversationMessage) {
+  const tokens: BodyToken[] = [
+    ...messageMentionRuns(message.body, message.mentions).flatMap((run) =>
+      run.mention === undefined
+        ? []
+        : [{ start: run.mention.start, end: run.mention.end, mention: run.mention }],
+    ),
+    ...(message.skillInvocations ?? []).map((skill) => ({
+      start: skill.start,
+      end: skill.end,
+      skill,
+    })),
+  ];
+  return messageSkillRuns(message.body, tokens);
+}
 
 function Mention({ mention, background }: { mention: WireMention; background: string }) {
   const t = useStrings();
@@ -74,11 +125,13 @@ export function MessageBody({
   if (human)
     return (
       <Text testID="message-text" tone={ink}>
-        {messageMentionRuns(message.body, message.mentions).map((run, index) =>
-          run.mention === undefined ? (
+        {humanRuns(message).map((run, index) =>
+          run.token === undefined ? (
             run.text
+          ) : 'mention' in run.token ? (
+            <Mention key={index} mention={run.token.mention} background={background} />
           ) : (
-            <Mention key={index} mention={run.mention} background={background} />
+            <Skill key={index} skill={run.token.skill} color={theme.color[ink]} />
           ),
         )}
         {trail}

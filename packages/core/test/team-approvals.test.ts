@@ -1107,6 +1107,153 @@ describe('M5 approval projections and decisions', () => {
     });
   });
 
+  it.each(['no-template', 'ask-human', 'allow'] as const)(
+    'keeps shared-Bot approval and %s Reviewer records in the requesting participant DM',
+    async (mode) => {
+      const f = fixture();
+      f.team.bots.setVisibility(owner, 'alice-bot', {
+        kind: 'public',
+        audience: { kind: 'everyone' },
+      });
+      const principalDm = f.channels.getOrCreateDm(alice, 'alice-bot', 'Alice Bot')!;
+      const memberDm = f.channels.getOrCreateDm(bob, 'alice-bot', 'Alice Bot')!;
+      expect(memberDm.id).not.toBe(principalDm.id);
+      const sessionId = 'participant-approval-' + mode;
+      f.ownership.claim({
+        sessionId,
+        botSlug: 'alice-bot',
+        rootRole: 'orchestrator',
+        at: new Date().toISOString(),
+      });
+      const agent: Agent = Object.assign(Object.create(null), {
+        session: { id: sessionId, header: { cwd: '/' }, snapshotEvents: () => [] },
+      });
+      const review = vi.fn(async () => ({
+        outcome: mode === 'allow' ? ('allow' as const) : ('ask-human' as const),
+        reason: 'PARTICIPANT_REVIEW_REASON',
+      }));
+      const broker = new ChannelToolApproval(
+        f.channels,
+        f.ownership,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        () => memberDm.id,
+        {
+          template: () =>
+            mode === 'no-template' ? undefined : { name: 'qa', text: 'Ask when uncertain.' },
+          review,
+          log() {},
+        },
+        () => true,
+        f.team.approvals,
+      );
+      const callId = ToolCallId('participant-call');
+      broker.track({
+        agent,
+        name: 'bot_send_message',
+        callId,
+        rootCallId: callId,
+        arguments: { body: 'PARTICIPANT_PRIVATE_INPUT' },
+        token: Object.assign(Object.create(null), Symbol('approval')),
+        signal: new AbortController().signal,
+      });
+      const pending = broker.ask({ agent, toolName: 'bot_send_message', callId });
+      try {
+        if (mode === 'allow') {
+          expect(await pending).toBe('allowed-once');
+        } else {
+          await vi.waitFor(() => expect(broker.requests('alice-bot')).toHaveLength(1));
+          const request = broker.requests('alice-bot')[0]!;
+          expect(request.channelId).toBe(memberDm.id);
+          expect(() =>
+            f.team.approvals.requireRequest(alice, memberDm.id, request.messageId),
+          ).toThrow();
+          expect(() =>
+            f.team.approvals.requireRequest(bob, memberDm.id, request.messageId),
+          ).toThrow();
+          masked(
+            f.team.approvals.project(bob, {
+              channelId: memberDm.id,
+              message: f.channels.message(memberDm.id, request.messageId),
+            }),
+          );
+        }
+        expect(JSON.stringify(f.channels.readMessages(principalDm.id))).not.toContain(
+          'PARTICIPANT_',
+        );
+        const memberMessages = f.channels.readMessages(memberDm.id);
+        expect(JSON.stringify(memberMessages)).toContain('PARTICIPANT_PRIVATE_INPUT');
+        if (mode !== 'no-template') {
+          expect(review).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ call: expect.objectContaining({ channelId: memberDm.id }) }),
+          );
+          expect(memberMessages.some((message) => message.toolAutoApproval !== undefined)).toBe(
+            true,
+          );
+        } else expect(review).not.toHaveBeenCalled();
+        await expect(
+          f.invoke(alice, 'channelMessages', { channelId: memberDm.id }),
+        ).rejects.toMatchObject({ code: 'remote-access/denied' });
+      } finally {
+        broker.close();
+        await pending;
+      }
+    },
+  );
+
+  it.each([undefined, 'missing-origin', 'dm-owner-bot'])(
+    'refuses unavailable or mismatched approval origin %s without falling back to the principal DM',
+    async (origin) => {
+      const f = fixture();
+      const sessionId = 'invalid-origin';
+      f.ownership.claim({
+        sessionId,
+        botSlug: 'alice-bot',
+        rootRole: 'orchestrator',
+        at: new Date().toISOString(),
+      });
+      const agent: Agent = Object.assign(Object.create(null), {
+        session: { id: sessionId, header: { cwd: '/' } },
+      });
+      const review = vi.fn();
+      const broker = new ChannelToolApproval(
+        f.channels,
+        f.ownership,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        () => origin,
+        { template: () => ({ name: 'qa', text: 'Review.' }), review, log() {} },
+      );
+      const callId = ToolCallId('invalid-origin-call');
+      broker.track({
+        agent,
+        name: 'bash',
+        callId,
+        rootCallId: callId,
+        arguments: { command: 'PARTICIPANT_PRIVATE_INPUT' },
+        token: Object.assign(Object.create(null), Symbol('approval')),
+        signal: new AbortController().signal,
+      });
+      try {
+        expect(await broker.ask({ agent, toolName: 'bash', callId })).toBe('unavailable');
+        expect(review).not.toHaveBeenCalled();
+        expect(broker.requests('alice-bot')).toEqual([]);
+        expect(JSON.stringify(f.channels.readMessages('dm-alice-bot'))).not.toContain(
+          'PARTICIPANT_',
+        );
+        expect(JSON.stringify(f.channels.readMessages('dm-owner-bot'))).not.toContain(
+          'PARTICIPANT_',
+        );
+      } finally {
+        broker.close();
+      }
+    },
+  );
+
   it('commits a real tool decision once with the authenticated Human ID', async () => {
     const f = fixture();
     const sessionId = 'm5-real-tool';

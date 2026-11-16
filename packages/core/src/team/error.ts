@@ -1,9 +1,11 @@
-export class TeamError extends Error {
+import { HarnessError } from '@deepseek-ai/dsh-llm';
+
+export class TeamError extends HarnessError {
   constructor(
-    readonly code: string,
+    code: string,
     readonly retryAfterSeconds?: number,
     readonly details?: Record<string, unknown>,
   ) {
-    super(code);
+    super(code, code);
   }
 }

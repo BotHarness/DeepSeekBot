@@ -58,6 +58,60 @@ function fixture(
 }
 
 describe('Channel tool approval', () => {
+  it('uses a saved external-effect authorization before any Reviewer call and rechecks revocation', async () => {
+    const state = fixture();
+    const home = createTempRoot('bh-effect-rule-');
+    const database = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    const rules = createToolApprovalRuleStore(
+      attachOperationalModule(database, 'tool-approval-rules'),
+    );
+    const review = vi.fn();
+    const broker = new ChannelToolApproval(
+      state.channels,
+      state.ownership,
+      rules,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { template: () => ({ name: 'review', text: 'Ask the Human.' }), review, log: vi.fn() },
+      () => true,
+    );
+    const rule = rules.createPending({
+      botSlug,
+      role: 'assignment',
+      scopeKey: JSON.stringify(['assignment', '/tmp/project']),
+      kind: 'tool',
+      toolName: 'bot_send_message',
+      input: '',
+    });
+    rules.activate(botSlug, rule.id);
+    broker.track({
+      ...state.execution(),
+      name: 'bot_send_message',
+      arguments: { body: 'user already approved', effects: { changes: 'none' } },
+    });
+    try {
+      expect(
+        await broker.ask({ agent: state.agent, toolName: 'bot_send_message', callId: 'call-1' }),
+      ).toBe('allowed-once');
+      expect(review).not.toHaveBeenCalled();
+      expect(state.messages).toHaveLength(0);
+      const guard = broker.executionGuard(state.agent, 'call-1')!;
+      const args = { body: 'user already approved', effects: { changes: 'none' } };
+      expect(guard('bot_send_message', args)).toBe(true);
+      rules.revoke(botSlug, rule.id);
+      expect(guard('bot_send_message', args)).toBe(false);
+    } finally {
+      broker.close();
+      database.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['channel_read', {}, 'none', false],
     ['channel_attachment_open', { access: 'read' }, 'none', false],
@@ -79,7 +133,7 @@ describe('Channel tool approval', () => {
         undefined,
         undefined,
         undefined,
-        { template: () => ({ name: 'test', text: 'ask' }), review, log: vi.fn() },
+        { template: () => undefined, review, log: vi.fn() },
         () => true,
       );
       const effects = toolEffects(name, args);
@@ -88,7 +142,11 @@ describe('Channel tool approval', () => {
       broker.track({ ...state.execution(), name, arguments: args });
       try {
         const answer = broker.ask({ agent: state.agent, toolName: name, callId: 'call-1' });
-        if (name === 'bash' || effects?.authority === 'management') {
+        if (
+          name === 'bash' ||
+          effects?.authority === 'management' ||
+          (effects?.changes === 'irreversible' && effects.reach === 'external')
+        ) {
           await vi.waitFor(() => expect(state.messages).toHaveLength(1));
           await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
           expect(await answer).toBe('rejected');

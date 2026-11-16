@@ -5,7 +5,11 @@ import { ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { registerChannelToolApproval } from '../src/workspaces/tool-approval.js';
+import {
+  registerChannelToolApproval,
+  requestRequiredToolApproval,
+} from '../src/workspaces/tool-approval.js';
+import { createTestOwnership } from './helpers.js';
 
 const contexts: Context[] = [];
 afterEach(async () => {
@@ -91,4 +95,60 @@ describe('Channel approval routing through the native policy boundary', () => {
     expect(state.answer).not.toHaveBeenCalled();
     expect(state.native).not.toHaveBeenCalled();
   });
+});
+
+it.each(['secret_cli', 'computer_click', 'browser_open', 'deepseekbot approval-template-set'])(
+  'keeps delegated native never ahead of the forced channel path for %s',
+  async (toolName) => {
+    const state = await fixture('never');
+    const ownership = createTestOwnership();
+    ownership.claim({
+      sessionId: 'parent',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: new Date().toISOString(),
+    });
+    ownership.claim({
+      sessionId: state.agent.session.id,
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      parentSessionId: 'parent',
+      provenance: 'subagent',
+      at: new Date().toISOString(),
+    });
+    expect(
+      await requestRequiredToolApproval({
+        approval: state.service,
+        channelApproval: { ask: state.answer },
+        ownership,
+        forceChannel: true,
+        request: { agent: state.agent, toolName, callId: ToolCallId('owned') },
+      }),
+    ).toBe('rejected');
+    expect(state.answer).not.toHaveBeenCalled();
+    expect(state.native).not.toHaveBeenCalled();
+    expect(state.agent.session.snapshotEvents().map((event) => event.type)).toContain(
+      'approval/decided',
+    );
+  },
+);
+it('keeps mandatory root approval separate from the native delegated policy', async () => {
+  const state = await fixture('never');
+  const ownership = createTestOwnership();
+  ownership.claim({
+    sessionId: state.agent.session.id,
+    botSlug: 'ada',
+    rootRole: 'orchestrator',
+    at: new Date().toISOString(),
+  });
+  expect(
+    await requestRequiredToolApproval({
+      approval: state.service,
+      channelApproval: { ask: state.answer },
+      ownership,
+      forceChannel: true,
+      request: { agent: state.agent, toolName: 'secret_cli', callId: ToolCallId('owned') },
+    }),
+  ).toBe('allowed-once');
+  expect(state.answer).toHaveBeenCalledOnce();
 });
