@@ -172,8 +172,11 @@ export function DevicesSection({
   t,
   close,
   pairPhone,
+  joinComputer,
 }: PropsLocale<'botharness'> & BotSettingsSectionOwnerProps): ReactElement {
-  return <ConnectionsDialog t={t} onClose={close} pairPhone={pairPhone} />;
+  return (
+    <ConnectionsDialog t={t} onClose={close} pairPhone={pairPhone} joinComputer={joinComputer} />
+  );
 }
 
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {

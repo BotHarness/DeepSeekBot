@@ -87,8 +87,15 @@ export function botSettingsSectionIcon(id: string): string {
   return Object.hasOwn(SECTION_ICONS, id) ? SECTION_ICONS[id]! : 'settings-2';
 }
 
+const CONNECT_ACTIONS = [
+  { id: 'pair-phone', label: 'connections.invite', icon: 'smartphone' },
+  { id: 'join-computer', label: 'connections.join', icon: 'laptop' },
+] as const;
+
 function rowIcon(id: string): string {
   if (id === SETTINGS_HOME) return 'house';
+  const action = CONNECT_ACTIONS.find((candidate) => candidate.id === id);
+  if (action !== undefined) return action.icon;
   return isRemoteSettingsSection(id) ? REMOTE_SECTION_ICONS[id] : botSettingsSectionIcon(id);
 }
 
@@ -111,6 +118,7 @@ export interface BotSettingsSnapshot {
   readonly open: boolean;
   readonly sectionId: string | undefined;
   readonly pairPhone?: boolean;
+  readonly joinComputer?: boolean;
   readonly target?: BotSettingsTarget | undefined;
   readonly clientOnly?: boolean;
   readonly host?: BotSettingsHost | undefined;
@@ -143,13 +151,14 @@ export class BotSettings {
     this.#set({
       open: true,
       sectionId:
-        sectionId === 'connect' || sectionId === 'pair-phone'
+        sectionId === 'connect' || sectionId === 'pair-phone' || sectionId === 'join-computer'
           ? BOT_SETTINGS_SECTIONS.devices
           : (sectionId ??
             (this.#snapshot.sectionId === BOT_SETTINGS_SECTIONS.devices
               ? BOT_SETTINGS_SECTIONS.general
               : this.#snapshot.sectionId)),
       pairPhone: sectionId === 'pair-phone',
+      joinComputer: sectionId === 'join-computer',
       target: this.#target(target),
     });
   };
@@ -160,6 +169,7 @@ export class BotSettings {
       ...this.#snapshot,
       sectionId,
       pairPhone: false,
+      joinComputer: false,
       target: this.#target(target),
     });
   };
@@ -197,6 +207,7 @@ export class BotSettings {
       next.open === this.#snapshot.open &&
       next.sectionId === this.#snapshot.sectionId &&
       next.pairPhone === this.#snapshot.pairPhone &&
+      next.joinComputer === this.#snapshot.joinComputer &&
       next.target === this.#snapshot.target &&
       next.clientOnly === this.#snapshot.clientOnly &&
       next.host === this.#snapshot.host
@@ -393,7 +404,7 @@ export function BotSettingsView({
         {
           renderSlot(
             SECTION_SLOT,
-            { close, pairPhone: state.pairPhone },
+            { close, pairPhone: state.pairPhone, joinComputer: state.joinComputer },
             { only: active.id },
           ) as ReactNode
         }
@@ -494,16 +505,23 @@ export function BotSettingsView({
       <div ref={locate} data-settings-content={active?.id}>
         {active === undefined ? null : pins !== undefined && active.id === SETTINGS_HOME ? (
           <SettingsHome
-            rows={navRows
-              .filter((row) => row.id !== SETTINGS_HOME)
-              .map((row) => ({
-                id: row.id,
-                label: row.label,
-                icon: <Icon name={rowIcon(row.id)} large />,
-              }))}
+            rows={[
+              ...navRows.filter((row) => row.id !== SETTINGS_HOME),
+              ...(rows.some((row) => row.id === BOT_SETTINGS_SECTIONS.devices)
+                ? CONNECT_ACTIONS.map((action) => ({ id: action.id, label: t(action.label) }))
+                : []),
+            ].map((row) => ({
+              id: row.id,
+              label: row.label,
+              icon: <Icon name={rowIcon(row.id)} large />,
+            }))}
             pins={pins}
             onOpen={(id) => {
-              select(id);
+              if (CONNECT_ACTIONS.some((action) => action.id === id))
+                void guard.leave(() => {
+                  botSettings.open(id);
+                });
+              else select(id);
             }}
             t={t}
           />

@@ -21,11 +21,12 @@ export const BOT_MODE_SORT_MODES_FIELD = 'sortModes';
 export const BOT_MODE_SETTINGS_PINS_FIELD = 'settingsPins';
 export const DEFAULT_SETTINGS_PINS: readonly string[] = [
   'models',
-  'auto-approval',
-  'im-apps',
   'appearance',
+  'pair-phone',
+  'join-computer',
+  'auto-approval',
   'notifications',
-  'devices',
+  'im-apps',
 ];
 
 export const PINNED_SORT_SCOPE_ID = 'pinned';

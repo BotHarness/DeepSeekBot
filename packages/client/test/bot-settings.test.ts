@@ -907,3 +907,24 @@ it('keeps App preferences free of Pinned', () => {
   expect(navLabels()).not.toContain('常用');
   expect(document.querySelector('[data-settings-pin-toggle]')).toBeNull();
 });
+
+it('opens the phone and computer connection steps straight from their Pinned cards', async () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), undefined, memoryPins(['pair-phone', 'join-computer']));
+  act(() => settings.open());
+  expect(
+    [...document.querySelectorAll('[data-settings-pin]')].map((card) => card.textContent),
+  ).toEqual(['用手机连接这台电脑', '连接其他电脑']);
+  await click('[data-settings-pin="join-computer"] button');
+  expect(settings.getSnapshot()).toMatchObject({
+    sectionId: 'devices',
+    joinComputer: true,
+    pairPhone: false,
+  });
+  expect(shownSection()).toBe('devices');
+  act(() => settings.close());
+  act(() => settings.open());
+  await click('[data-settings-section="home"]');
+  await click('[data-settings-pin="pair-phone"] button');
+  expect(settings.getSnapshot()).toMatchObject({ pairPhone: true, joinComputer: false });
+});
