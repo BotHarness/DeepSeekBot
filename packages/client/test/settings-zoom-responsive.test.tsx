@@ -4,8 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SettingsDialog } from '../src/client/ds/settings-dialog.js';
 
-vi.mock('../src/client/modal.js', () => ({
-  Modal: ({ children, className }: { children: ReactNode; className: string }) => (
+vi.mock('../src/client/ds/dialog.js', () => ({
+  Dialog: ({ children, className }: { children: ReactNode; className: string }) => (
     <div role="dialog" className={className}>
       {children}
     </div>

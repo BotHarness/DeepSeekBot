@@ -3,6 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  useModalLayer: () => undefined,
   Modal: ({
     open,
     title,
@@ -167,7 +168,7 @@ describe('Channel settings', () => {
         }),
       ),
     );
-    expect(host.querySelector('[aria-label="Channel sidebar 设置"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Channel sidebar 设置"]')).toBeNull();
   });
 
   it('switches sections and remembers the last one per scope', () => {
@@ -190,9 +191,9 @@ describe('Channel settings', () => {
         ),
       );
     render();
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     act(() => controller.open());
-    const dialog = host.querySelector('[role="dialog"]')!;
+    const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog.getAttribute('aria-label')).toBe('Ada 的设置');
     const caption = dialog.querySelector('.bh-channel-settings-caption')!;
     expect(caption.getAttribute('aria-label')).toBe('Ada 的设置');
@@ -208,18 +209,18 @@ describe('Channel settings', () => {
         .querySelector<HTMLButtonElement>('[data-settings-section="external-identities"]')!
         .click(),
     );
-    expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
+    expect(document.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
       'external-identities',
     );
-    expect(host.querySelector('[data-body="sessions"]')).toBeNull();
+    expect(document.querySelector('[data-body="sessions"]')).toBeNull();
     act(() => controller.close());
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     act(() => controller.open());
-    expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
+    expect(document.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
       'external-identities',
     );
     act(() => controller.open('wake-policy'));
-    expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe('wake-policy');
+    expect(document.querySelector('[data-body]')?.getAttribute('data-body')).toBe('wake-policy');
   });
 
   it('stays closed for a deleted Bot', () => {
@@ -255,9 +256,9 @@ describe('Channel settings', () => {
       );
     render(false);
     act(() => controller.open('model'));
-    expect(host.querySelector('[data-body="model"]')).not.toBeNull();
+    expect(document.querySelector('[data-body="model"]')).not.toBeNull();
     render(true);
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('marks the sections that report attention and clears them when the channel goes away', () => {
@@ -313,10 +314,10 @@ describe('Channel settings', () => {
       ),
     ).toEqual(['external-connectors']);
     act(() => controller.open('external-connectors'));
-    const marked = host.querySelector('[data-settings-section="external-connectors"]')!;
+    const marked = document.querySelector('[data-settings-section="external-connectors"]')!;
     expect(marked.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('需要处理');
-    expect(host.querySelector('[data-settings-section="wake-policy"] [role="img"]')).toBeNull();
-    expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
+    expect(document.querySelector('[data-settings-section="wake-policy"] [role="img"]')).toBeNull();
+    expect(document.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
       'external-connectors',
     );
     failing = false;

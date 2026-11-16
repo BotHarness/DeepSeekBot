@@ -15,6 +15,7 @@ export const RULES = {
   dshImport: {
     pattern: /from\s+['"]@deepseek-ai\/dsh-client-ui[\w-]*['"]/g,
     fix: 'use a ds/ component instead of a DSH UI import',
+    exempt: ['packages/client/src/client/ds/shell-layer.ts'],
   },
   rawControl: {
     pattern: /<(?:button|input|select|textarea)\b(?:=>|[^>])*?(?:stylex\.props|className=)/gs,
@@ -37,8 +38,8 @@ export function scan(dir = SOURCE) {
     const name = relative(root, path).replaceAll('\\', '/');
     const source = readFileSync(path, 'utf8');
     const inDs = name.includes('/client/ds/');
-    for (const [rule, { pattern, outsideDs }] of Object.entries(RULES)) {
-      if (outsideDs && inDs) continue;
+    for (const [rule, { pattern, outsideDs, exempt }] of Object.entries(RULES)) {
+      if ((outsideDs && inDs) || exempt?.includes(name)) continue;
       const found = source.match(pattern)?.length ?? 0;
       if (found === 0) continue;
       counts[name] ??= {};

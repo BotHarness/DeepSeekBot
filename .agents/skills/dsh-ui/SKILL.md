@@ -22,6 +22,7 @@ Before designing or reviewing a changed surface, apply the shared [UI design sta
 ## Rules
 
 - **Tobs tokens replace DSH tokens** (ADR-0348, #4282): new or touched Bot-mode code reads `ds/tobs.stylex.ts` (generated from `design/tokens/tobs.tokens.json` by `pnpm tokens`) and composes `ds/` components such as `NavItem`; `scripts/check-design-tokens.mjs` rejects new `--dsw-*`, DSH UI imports and styled raw controls outside `ds/`. Where this rule and the DSH-native guidance below disagree, this rule wins.
+- **Overlays are Tobs components on Base UI** (ADR-0349, #4285): use `ds/Dialog` (and the Menu, Popover, Tooltip, Select and Toast that follow) instead of DSH overlays. Only `ds/shell-layer.ts` talks to DSH's overlay stack.
 
 - **Native lookups beat intuition**: extract the shipped CSS from the installed packages before adding spacing or a control (`references/native-contract.md` has the recipe).
 - **One authority per concept**: one mode entry, one projection of state; a second entry point reads as a second feature.

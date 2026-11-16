@@ -14,7 +14,7 @@ import {
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { Modal } from '../modal.js';
+import { Dialog } from './dialog.js';
 import { NavGroupHeading, NavItem } from './nav-item.js';
 import { layer, line, ink, type as tobsType } from './tobs.stylex.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
@@ -46,7 +46,7 @@ export function useNarrowSettings(): boolean {
   return useSyncExternalStore(subscribeNarrow, isNarrow, () => false);
 }
 
-const VIEWPORT_CSS = `body > :has(> .bh-settings-dialog) {
+const VIEWPORT_CSS = `[data-tobs-dialog-viewport]:has(> .bh-settings-dialog) {
   padding: max(calc(${space.x6} / var(--bh-window-zoom, 1)), calc(var(--dsh-frame-overlay-top, ${space.x6}) / var(--bh-window-zoom, 1))) calc(${space.x6} / var(--bh-window-zoom, 1));
 }
 .bh-settings-dialog input[type="file"] { min-width: 0; max-width: 100%; }`;
@@ -371,11 +371,9 @@ export function SettingsDialog({
       }}
     />
   );
-  const dialogClass = ['bh-settings-dialog', className, stylex.props(styles.dialog).className]
-    .filter(Boolean)
-    .join(' ');
+  const dialogClass = ['bh-settings-dialog', className].filter(Boolean).join(' ');
   return (
-    <Modal open headless onClose={close} title={title} className={dialogClass}>
+    <Dialog open onClose={close} title={title} className={dialogClass} xstyle={styles.dialog}>
       <style data-plugin="@botharness/ui" data-plugin-css="@botharness/ui/settings-viewport">
         {VIEWPORT_CSS}
       </style>
@@ -452,6 +450,6 @@ export function SettingsDialog({
           {children}
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }
