@@ -43,6 +43,8 @@ Colour roles, spacing, font families, motion, breakpoints and z-order are shared
 
 **Mobile.** The Expo app has no style switch. It uses the platform's current native controls (iOS 27 on iOS, Material 3 Expressive on Android) and shares only the colour tokens, including accent and status colours. Narrow Web layouts use the same styles as desktop.
 
+**Golden examples.** Each style has prototype screenshots in light and dark, linked from its tracer-bullet issue (#4325 for A, #4326 for B, #4327 for C). A PR that builds or changes a style shows its own screenshot of the same settings state beside the golden one and explains any difference.
+
 **Order.** (1) Rebuild the token source and resolver with no visual change to A beyond the colour rules above. (2) Build the shared primitives and move every panel onto them. (3) Add B. (4) Add C. Each step merges when CI is green.
 
 ## Considered Options
