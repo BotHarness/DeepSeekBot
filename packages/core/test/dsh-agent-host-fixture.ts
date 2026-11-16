@@ -201,8 +201,17 @@ export class FakeAgentHost implements DshAgentHost {
       },
       whenIdle: () => pending,
     };
+    const skills = {
+      list: async () => [],
+      get: async () => undefined,
+      registerProvider: (create: () => FakeScope['skillProviders'][number]) => {
+        const provider = create();
+        scope.skillProviders.push(provider);
+        return () => void scope.skillProviders.splice(scope.skillProviders.indexOf(provider), 1);
+      },
+    };
     const fakeContext = {
-      get: (_name: string) => undefined,
+      get: (name: string) => (name === 'skills' ? skills : undefined),
       effect: (setup: () => () => void) => {
         const dispose = setup();
         effects.add(dispose);
@@ -241,15 +250,6 @@ export class FakeAgentHost implements DshAgentHost {
         register: (tool: ToolDefinition) => {
           scope.tools.push(tool);
           return () => void scope.tools.splice(scope.tools.indexOf(tool), 1);
-        },
-      },
-      skills: {
-        list: async () => [],
-        get: async () => undefined,
-        registerProvider: (create: () => FakeScope['skillProviders'][number]) => {
-          const provider = create();
-          scope.skillProviders.push(provider);
-          return () => void scope.skillProviders.splice(scope.skillProviders.indexOf(provider), 1);
         },
       },
       systemPrompt: {

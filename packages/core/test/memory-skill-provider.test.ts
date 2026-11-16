@@ -52,7 +52,7 @@ async function withRegistry(
   try {
     await ctx
       .inject(['skills'], async (injected) => {
-        await run(hostSkillRegistry<Registry>(injected)!, (key) => createScope(injected, key).ctx);
+        await run(hostSkillRegistry<Registry>(injected)!, (key) => createScope(ctx, key).ctx);
       })
       .await();
   } finally {

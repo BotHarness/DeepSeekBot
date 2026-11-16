@@ -1,7 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { dirname } from 'node:path';
 
-import { hostSkillRegistry } from '../runtime/native-agent-compat.js';
 import type { SkillRegistryDefinition } from './catalog.js';
 import { readWorkspaceSkills } from './workspace.js';
 
@@ -57,12 +56,22 @@ function candidate(skill: SkillRegistryDefinition & { path: string }): Candidate
 
 const installed = new WeakSet<Context>();
 
+function agentSkillRegistry(agentCtx: Context): MemorySkillRegistry | undefined {
+  const registry: unknown = Reflect.get(agentCtx, 'get')?.call(agentCtx, 'skills');
+  return typeof registry === 'object' &&
+    registry !== null &&
+    typeof Reflect.get(registry, 'list') === 'function' &&
+    typeof Reflect.get(registry, 'registerProvider') === 'function'
+    ? (registry as MemorySkillRegistry)
+    : undefined;
+}
+
 export function installMemorySkillProvider(
   agentCtx: Context,
   memoryDir: () => string | undefined,
 ): () => void {
-  const registry = hostSkillRegistry<MemorySkillRegistry>(agentCtx);
-  if (typeof registry?.registerProvider !== 'function' || installed.has(agentCtx)) return () => {};
+  const registry = agentSkillRegistry(agentCtx);
+  if (registry === undefined || installed.has(agentCtx)) return () => {};
   installed.add(agentCtx);
   const dispose = registry.registerProvider(() => ({
     name: MEMORY_SKILL_PROVIDER,
