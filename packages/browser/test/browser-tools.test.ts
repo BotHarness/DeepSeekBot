@@ -1016,10 +1016,11 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
               .execute({ url: 'https://example.org' }, execution('browser_open'));
       await Promise.resolve();
       await Promise.resolve();
+      let reconciled: Promise<void> | undefined;
       if (guard === 'pause') h.provider.setTakeover('bot-a', true);
       else {
         h.setAccess(false);
-        h.provider.reconcileBot('bot-a');
+        reconciled = h.provider.reconcileBot('bot-a');
       }
       const refused = expect(queued).rejects.toThrow(
         guard === 'pause' ? /Browser Pause is active/ : /Browser Access is off/,
@@ -1029,6 +1030,7 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
       release();
       await settledFirst;
       await refused;
+      await reconciled;
       expect(h.runtime.click).toHaveBeenCalledTimes(1);
       expect(h.audits).toHaveLength(3);
       expect(h.audits.filter((event) => event.outcome === 'error')).toHaveLength(
