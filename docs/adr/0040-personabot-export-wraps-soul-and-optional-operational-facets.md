@@ -5,7 +5,7 @@ Date: 2026-09-20
 
 # PersonaBot Export wraps Soul and selected operational facets
 
-> Retired by [ADR-0134](0134-soul-and-core-memory-are-session-frozen-system-prompt-files.md): with SoulSnapshot superseded by Memory Git repository sharing (ADR-0131) and whole-Profile moves owned by Profile Backup (ADR-0042), there is no per-Bot export package. "Soul" below means the old shareable-Memory concept, not today's `SOUL.md`.
+> Retired by [ADR-0134](../decisions/memory.md#adr-0134): with SoulSnapshot superseded by Memory Git repository sharing (ADR-0131) and whole-Profile moves owned by Profile Backup (ADR-0042), there is no per-Bot export package. "Soul" below means the old shareable-Memory concept, not today's `SOUL.md`.
 
 A **PersonaBot Export** is an immutable, schema-versioned transfer package that always contains one SoulSnapshot and may contain explicitly selected operational **Export Facets**. Its default selection is Persona plus Human-selected Memory only. SoulSnapshot remains the content-addressed sharing and registry unit; the outer package exists for backup, handoff, and clone workflows that need more than identity content without redefining a Soul.
 
