@@ -37,7 +37,7 @@ export interface SkillRegistrySummary {
   readonly description: string;
   readonly source: string;
   readonly path?: string;
-  readonly invocation: { readonly userInvocable: boolean };
+  readonly invocation: { readonly userInvocable: boolean; readonly modelInvocable?: boolean };
 }
 
 export interface SkillRegistryDefinition extends SkillRegistrySummary {

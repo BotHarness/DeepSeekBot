@@ -48,6 +48,7 @@ interface FakeScope {
   restrictions: Array<{ allow?: readonly string[]; deny?: readonly string[] }>;
   guards: Array<(execution: { name: string }) => string | undefined>;
   sections: Array<{ name: string; text: string }>;
+  skillProviders: Array<{ name: string; list(options: { cwd?: string }): Promise<unknown> }>;
   listeners: Map<string, (...args: unknown[]) => unknown>;
 }
 
@@ -127,6 +128,7 @@ export class FakeAgentHost implements DshAgentHost {
       restrictions: [],
       guards: [],
       sections: [],
+      skillProviders: [],
       listeners: new Map(),
     };
     const messages: Message[] = [];
@@ -199,8 +201,17 @@ export class FakeAgentHost implements DshAgentHost {
       },
       whenIdle: () => pending,
     };
+    const skills = {
+      list: async () => [],
+      get: async () => undefined,
+      registerProvider: (create: () => FakeScope['skillProviders'][number]) => {
+        const provider = create();
+        scope.skillProviders.push(provider);
+        return () => void scope.skillProviders.splice(scope.skillProviders.indexOf(provider), 1);
+      },
+    };
     const fakeContext = {
-      get: (_name: string) => undefined,
+      get: (name: string) => (name === 'skills' ? skills : undefined),
       effect: (setup: () => () => void) => {
         const dispose = setup();
         effects.add(dispose);

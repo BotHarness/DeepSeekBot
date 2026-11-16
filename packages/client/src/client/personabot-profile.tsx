@@ -1,9 +1,10 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 
 import { IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import type { ProfileActivity } from './bridge.js';
+import type { BotSkillsSource } from './bot-skills-card.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
 import { ProfileHeader } from './profile-header.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -50,6 +51,21 @@ export function ProfileView({
   const [deleting, setDeleting] = useState(false);
   const visibleCards =
     bot.sharedBy === undefined ? cards.list().filter((card) => card.visible?.(bot) ?? true) : [];
+  const { botSkills, skillDetail, botSkillRemove, subscribeSkillCatalog } = actions;
+  const skills = useMemo<BotSkillsSource | undefined>(
+    () =>
+      botSkills === undefined || skillDetail === undefined || botSkillRemove === undefined
+        ? undefined
+        : {
+            list: () => botSkills(bot.slug),
+            read: (name) => skillDetail(name, `bot:${bot.slug}`),
+            remove: (name) => botSkillRemove(bot.slug, name),
+            ...(subscribeSkillCatalog === undefined
+              ? {}
+              : { subscribe: (listener) => subscribeSkillCatalog(channel.id, listener) }),
+          },
+    [botSkills, skillDetail, botSkillRemove, subscribeSkillCatalog, bot.slug, channel.id],
+  );
   return (
     <div className="bh-profile-view">
       <button type="button" className="bh-profile-back" onClick={onClose}>
@@ -90,6 +106,7 @@ export function ProfileView({
                     compact: false,
                     loadUsage: (filter) => actions.profileUsage(channel.id, filter),
                     loadActivity: (window) => actions.profileActivity(channel.id, window),
+                    ...(skills === undefined ? {} : { skills }),
                   })}
                 </section>
               );

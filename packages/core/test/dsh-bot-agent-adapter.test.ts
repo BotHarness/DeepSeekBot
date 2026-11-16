@@ -20,6 +20,9 @@ import type {
 } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import { defaultPromptText, promptTextOf } from '../src/prompts/prompt-parts.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createTempRoot } from './helpers.js';
 
 const TOB_GROUP_TOOL_CASES = [
   ['group_create', { name: 'Group' }, 'createGroup'],
@@ -696,6 +699,62 @@ describe('DSH Bot Agent adapter', () => {
       }
     },
   );
+  it('lets an Assignment, not the Orchestrator, discover its Bot Memory Skills', async () => {
+    const memory = createTempRoot();
+    mkdirSync(join(memory, '.agents/skills/release-notes'), { recursive: true });
+    writeFileSync(
+      join(memory, '.agents/skills/release-notes/SKILL.md'),
+      '---\nname: release-notes\ndescription: Draft release notes\n---\nGroup merged PRs.\n',
+    );
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => memory,
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await adapter.runAssignment({
+        sessionId: 'memory-skill-assignment',
+        bot: BOT,
+        text: 'Draft the notes',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: vi.fn(),
+      });
+      const [provider] = host.scopes.get('memory-skill-assignment')!.skillProviders;
+      expect(provider?.name).toBe('botharness-bot-memory');
+      expect(
+        ((await provider!.list({ cwd: '/project' })) as { name: string; source: string }[]).map(
+          (skill) => [skill.name, skill.source],
+        ),
+      ).toEqual([['release-notes', 'bot-memory']]);
+    } finally {
+      await adapter.close();
+    }
+    const orchestratorHost = new FakeAgentHost(
+      { kind: 'completed' },
+      { onTurn: async () => undefined },
+    );
+    const orchestrator = createDshBotAgentAdapter({
+      agents: orchestratorHost,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => memory,
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await orchestrator.runOrchestrator(reportRun);
+      expect(orchestratorHost.scopes.get(reportRun.sessionId)!.skillProviders).toEqual([]);
+    } finally {
+      await orchestrator.close();
+    }
+  });
   it.each([true, false])(
     'installs trusted CLI guidance only for Host-resolved Tob identity (%s)',
     async (tobCli) => {

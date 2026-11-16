@@ -563,7 +563,12 @@ describe('Market panel', () => {
           entry: 'rising',
           step: 'detail',
         });
-        expect(host.querySelector('[data-market-page="bot"]')).not.toBeNull();
+        const botPage = host.querySelector<HTMLElement>('[data-market-page="bot"]')!;
+        const github = botPage.querySelector<HTMLAnchorElement>('a[aria-label="在 GitHub 查看"]')!;
+        expect(github.getAttribute('href')).toBe('https://github.com/alice/sprinter');
+        expect(github.textContent).toBe('');
+        expect(botPage.querySelector('.bh-market-row-head .bh-market-name')).toBeNull();
+        expect(botPage.querySelector('.bh-market-hero-name')?.textContent).toContain('sprinter');
         expect(page.getAttribute('aria-hidden')).toBe('true');
         await act(async () =>
           button(host.querySelector<HTMLElement>('[data-market-page="bot"]')!, '返回').click(),
@@ -1450,7 +1455,8 @@ describe('Uploaded Bots in the Market panel', () => {
         await act(async () => {});
         const markdown = host.querySelector('[data-market-reader-body="markdown"]')!;
         expect(markdown.tagName).toBe('DIV');
-        expect(markdown.textContent).toBe('# Soul\n\nI help.');
+        expect(markdown.querySelector('.bh-memory-markdown h1')?.textContent).toBe('Soul');
+        expect(markdown.querySelector('.bh-memory-markdown p')?.textContent).toBe('I help.');
       },
       {
         marketplaceFile: file,
@@ -1473,6 +1479,68 @@ describe('Uploaded Bots in the Market panel', () => {
               { type: 'script', count: 1, size: 8 },
             ],
           },
+        })),
+      },
+    );
+  });
+
+  it('lists the package Skills with their descriptions and opens SKILL.md', async () => {
+    let notesFailures = 1;
+    const file = vi.fn(async (_id: string, path: string) => {
+      if (path === '.agents/skills/notes.md' && notesFailures-- > 0) throw new Error('offline');
+      return {
+        path,
+        size: 60,
+        type: 'markdown',
+        text:
+          path === '.dsh/skills/review/SKILL.md'
+            ? '---\nname: review\ndescription: Review a pull request\n---\nCheck tests.'
+            : '---\nname: notes\ndescription: Keep notes\n---\nWrite notes.',
+      };
+    });
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host }) => {
+        await click(host, '查看 Alice/Helper 详情');
+        await act(async () => {});
+        const block = host.querySelector('[data-market-skills]')!;
+        expect(block.getAttribute('data-market-skills')).toBe('2');
+        expect(
+          [...block.querySelectorAll('[data-skill-row]')].map((row) => row.textContent),
+        ).toEqual(['/notes', '/reviewReview a pull request']);
+        await act(async () => {
+          block.querySelector<HTMLElement>('[data-skill-row="review"]')!.click();
+        });
+        await act(async () => {});
+        expect(file).toHaveBeenCalledWith('U_helper', '.dsh/skills/review/SKILL.md');
+        expect(host.querySelector('[data-market-reader]')?.getAttribute('data-market-reader')).toBe(
+          '.dsh/skills/review/SKILL.md',
+        );
+        const body = host.querySelector('[data-market-reader-body="markdown"]')!.textContent;
+        expect(body).toContain('Check tests.');
+        expect(body).not.toContain('description:');
+
+        await click(host, '返回文件列表');
+        await act(async () => {});
+        expect(
+          [...host.querySelectorAll('[data-market-skills] [data-skill-row]')].map(
+            (row) => row.textContent,
+          ),
+        ).toEqual(['/notesKeep notes', '/reviewReview a pull request']);
+      },
+      {
+        marketplaceFile: file,
+        marketplaceDetail: vi.fn(async () => ({
+          bot: uploaded,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [
+            { path: 'SOUL.md', size: 20, kind: 'text' },
+            { path: '.agents/skills/review/SKILL.md', size: 60, kind: 'text' },
+            { path: '.dsh/skills/review/SKILL.md', size: 60, kind: 'text' },
+            { path: '.agents/skills/notes.md', size: 60, kind: 'text' },
+          ],
         })),
       },
     );

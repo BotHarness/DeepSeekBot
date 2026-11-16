@@ -1,3 +1,4 @@
+import { installMemorySkillProvider } from '../skills/memory-provider.js';
 import { TeamError } from '../team/error.js';
 import { createChannelActionTool } from './channel-action-tool.js';
 import {
@@ -4170,6 +4171,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ),
         });
         if (borrowed) borrowedDisposers.push(disposeRolePrompt);
+        const disposeMemorySkills = installMemorySkillProvider(agentCtx, () =>
+          this.#orchestratorCwd?.(run.bot),
+        );
+        if (borrowed) borrowedDisposers.push(disposeMemorySkills);
         registerTool(
           defineTool({
             name: 'report_to_orchestrator',

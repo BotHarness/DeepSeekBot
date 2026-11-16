@@ -173,6 +173,7 @@ import type {
   OwnedSessionBot,
   ProfileActivity,
   ProfileSessionUsage,
+  SkillDetail,
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
@@ -183,6 +184,7 @@ import type {
   ChannelSkillInvocationToken,
 } from '../channels/channel.js';
 import type { SkillCatalogEntry } from '../skills/catalog.js';
+import type { BotSkill } from '../skills/bot-skills.js';
 import type { ChannelSendStatus, HumanMessageSearchPage } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
@@ -2253,6 +2255,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
   async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
     return unwrap(await this.methods.channelSkillCatalog({ channelId }));
   }
+  async botSkills(slug: string): Promise<{ skills: BotSkill[] }> {
+    return unwrap(await this.methods.botSkills({ slug }));
+  }
+  async skillShow(name: string, owner: string): Promise<{ skill: SkillDetail }> {
+    return unwrap(await this.methods.skillShow({ name, owner }));
+  }
+  async botSkillRemove(slug: string, name: string): Promise<{ name: string; removed: string }> {
+    return unwrap(await this.methods.botSkillRemove({ slug, name }));
+  }
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
@@ -3428,6 +3439,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelUnreadCounts',
   'channelAllBotPreview',
   'channelSkillCatalog',
+  'botSkills',
+  'skillShow',
+  'botSkillRemove',
   'channelSend',
   'channelSendStatus',
   'channelGenuiView',
