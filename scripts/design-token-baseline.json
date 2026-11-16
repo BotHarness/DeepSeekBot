@@ -706,9 +706,6 @@
     "dshImport": 1,
     "rawControl": 1
   },
-  "packages/client/src/client/public-channels-dialog.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/question-notifications.tsx": {
     "dshImport": 1
   },
