@@ -1744,6 +1744,8 @@ assert zero Reviewer calls for deterministic Full Access hits and retained manag
 existing saved-rule/device/Grant tests protect the execution fences. This is not an end-to-end
 latency measurement. Runtime and screenshot qualification are recorded separately in the PR.
 
+E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请求，操作区显示禁用的已选结果，详情的手动开合状态不变。Reviewer 的显式 `ask-human` 紧凑结果先写入同一 ChannelStore，再生成 Human 请求；历史拒绝记录不改变两结果 Reviewer 契约。移动端从既有消息投影已验证的只读内容，历史卡不逐卡查询 Host；缓存内容不能授权，缺失或已清除的内容如实显示不可用。当前契约见[审批策略](bot-approval-policy.zh.md)。
+
 ### Workspace Grant Project Skill catalog（#4236）
 
 `SkillOwner` 的 Workspace 分支携带稳定的 `workspaceId` 与独立显示名 `name`，owner key 为 `workspace:<id>`；Channel 消息保存发送时的名称、owner、路径与文本快照，重试意图仅比较稳定 owner key。`SkillCatalog` 按会话中 Human 可读取的活跃 Bot 查询当前有效 Grant，将同一 Workspace 去重后只读取授权根下 `.dsh/skills` 与 `.agents/skills`，不使用 DSH 会向 Git 根回溯的 Project 发现；两目录均按 DSH YAML frontmatter 与 user-invocable 语义解析，重名时 `.dsh` 优先，拒绝逃出授权 Skill 目录的符号链接。Workspace 目录按 ID 与路径缓存，读取快照时重新读取文件并再次核对有效 Grant，保留 64,000 字符上限与既有拒绝码。
@@ -1751,5 +1753,3 @@ latency measurement. Runtime and screenshot qualification are recorded separatel
 S3 的文件监听器同时管理每个去重 Workspace 的两个 Skill 目录；文件事件只使该 Workspace 缓存失效并合并推送到其授权 Bot 的 Channel，`workspace-grants` 提交时重新协调监听与受影响 Channel。最后一个有效 Grant 撤销后不再列出或解析该 Workspace。Skill Invocation 不创建 mention、不修改路由，也不注册 DSH Skill：无 Grant 的接收 Bot 仍可收到快照文本，其路径读取继续由 ADR-0067 守卫执行。模型原生发现仍仅在对应 Assignment 内发生。
 
 性能边界：重复目录读取复用每 Workspace 的缓存；多个 Bot 的重复 Grant 不重复扫描。文件事件按 Workspace 合并 25 ms，Grant 变更后按需重读；发送只读取所选 Workspace 的 Skill 目录，不重新扫描其他 Workspace。回归覆盖重复读取不变、定向失效与跨 Bot 去重；浏览器及原生 UI 验收属于 UI 切片。
-
-E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请求，操作区显示禁用的已选结果，详情的手动开合状态不变。Reviewer 的显式 `ask-human` 紧凑结果先写入同一 ChannelStore，再生成 Human 请求；历史拒绝记录不改变两结果 Reviewer 契约。移动端从既有消息投影已验证的只读内容，历史卡不逐卡查询 Host；缓存内容不能授权，缺失或已清除的内容如实显示不可用。当前契约见[审批策略](bot-approval-policy.zh.md)。
