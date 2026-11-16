@@ -93,3 +93,35 @@ it('retries preferences for the Host that connected and stops syncing a refused 
   await vi.waitFor(() => expect(preferenceRetry).toHaveBeenCalled());
   expect(preferenceRetry.mock.calls.map(([host]) => host?.hostId)).toEqual(['a']);
 });
+
+it('revokes the replaced member grant on the Host after a confirmed identity switch', async () => {
+  const host = new FakeHost('m');
+  remotes.set('m.tailnet.ts.net', host);
+  const member = (humanId: string, credential: string) => ({
+    hostId: 'm',
+    hostName: 'm',
+    routes: ['https://m.tailnet.ts.net'],
+    deviceId: `device-${humanId}`,
+    credential,
+    member: {
+      humanId,
+      displayName: humanId,
+      username: humanId,
+      fingerprint: 'a'.repeat(64),
+      mustChangePassword: false,
+    },
+  });
+  session = (await import('../src/host/host-session')).hostSession;
+  expect(await session.pairMember(member('alice', host.credential))).toMatchObject({ ok: true });
+  expect(session.getState().saved?.member?.humanId).toBe('alice');
+  const bob = member('bob', 'member.bob');
+  expect(await session.pairMember(bob)).toEqual({ ok: false, code: 'identity-switch-required' });
+  expect(host.requests.some((r) => r.endsWith('/botharness-device/unpair'))).toBe(false);
+  expect(await session.pairMember(bob, { confirmedIdentitySwitch: true })).toMatchObject({
+    ok: true,
+  });
+  expect(session.getState().saved?.member?.humanId).toBe('bob');
+  await vi.waitFor(() =>
+    expect(host.requests).toContain('POST https://m.tailnet.ts.net/botharness-device/unpair'),
+  );
+});
