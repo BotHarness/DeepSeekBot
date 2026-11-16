@@ -91,6 +91,17 @@ export function compare({ counts, spots = {}, baseline, guardrails, files }) {
   return { errors, stale };
 }
 
+export function raised(base, next) {
+  const errors = [];
+  for (const [rule, files] of Object.entries(next))
+    for (const [file, count] of Object.entries(files)) {
+      const allowed = base[rule]?.[file] ?? 0;
+      if (count > allowed)
+        errors.push(`${file}: ${rule} baseline raised from ${allowed} to ${count}`);
+    }
+  return errors;
+}
+
 export function lowered(baseline, counts, guardrails) {
   const next = {};
   for (const guardrail of guardrails) {
@@ -120,11 +131,50 @@ function runOxlint(paths) {
   });
   if (result.error) throw result.error;
   const start = result.stdout.indexOf('{');
-  if (start === -1) throw new Error(`oxlint produced no JSON report:\n${result.stderr}`);
+  if (start === -1)
+    throw new Error(`oxlint produced no JSON report:\n${result.stdout}\n${result.stderr}`);
   return JSON.parse(result.stdout.slice(start)).diagnostics;
 }
 
+const git = (args) => {
+  const result = spawnSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
+  if (result.error) throw result.error;
+  return result;
+};
+
+function baselineAt(revision) {
+  if (git(['cat-file', '-e', `${revision}^{commit}`]).status !== 0)
+    throw new Error(`cannot read revision ${revision}; fetch it first`);
+  const result = git(['show', `${revision}:scripts/lint-baseline.json`]);
+  return result.status === 0 ? JSON.parse(result.stdout) : undefined;
+}
+
+function checkBase(revision) {
+  const current = JSON.parse(readFileSync(join(root, 'scripts/lint-baseline.json'), 'utf8'));
+  const previous = baselineAt(revision);
+  if (previous === undefined) {
+    console.log(`lint ratchet: ${revision} has no baseline yet`);
+    return 0;
+  }
+  const errors = raised(previous, current);
+  if (errors.length) {
+    console.error(
+      `lint ratchet: the baseline only shrinks. Fix the new findings instead of raising it:\n  ${errors.join('\n  ')}`,
+    );
+    return 1;
+  }
+  console.log(`lint ratchet: baseline not raised since ${revision}`);
+  return 0;
+}
+
 function main(argv) {
+  const base = argv.find((arg) => arg.startsWith('--base='));
+  if (base) return checkBase(base.slice('--base='.length));
   const update = argv.includes('--update');
   const paths = argv
     .filter((arg) => !arg.startsWith('--'))
