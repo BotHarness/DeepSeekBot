@@ -65,7 +65,11 @@ async function withRegistry(
 
 describe('Memory Skills in Assignment Sessions', () => {
   it('shows only the Assignment Bot its Memory Skills, loadable by name, with Workspace Project Skills winning a clash', async () => {
-    const workspace = createTempRoot();
+    const repository = createTempRoot();
+    mkdirSync(join(repository, '.git'));
+    skill(repository, '.agents', 'deploy', 'Project deploy.');
+    const workspace = join(repository, 'packages', 'shop');
+    mkdirSync(workspace, { recursive: true });
     const adaMemory = createTempRoot();
     const bobMemory = createTempRoot();
     skill(adaMemory, '.agents', 'release-notes', 'Group merged PRs.');
@@ -111,6 +115,12 @@ describe('Memory Skills in Assignment Sessions', () => {
       const bob = {};
       const stopAda = installMemorySkillProvider(scoped(ada), () => adaMemory);
       installMemorySkillProvider(scoped(bob), () => bobMemory);
+      expect(
+        (await registry.list({ cwd: workspace, scope: ada })).map((entry) => [
+          entry.name,
+          entry.source,
+        ]),
+      ).not.toContainEqual(['deploy', 'bot-memory']);
       bindScopeParent(ada, preset);
       bindScopeParent(bob, preset);
 

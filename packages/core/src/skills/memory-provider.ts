@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
-import { scopeOf, scopeParentOf } from '@deepseek-ai/dsh-scope';
-import { dirname } from 'node:path';
+import { stat } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 
 import type { SkillRegistryDefinition } from './catalog.js';
 import { readWorkspaceSkills } from './workspace.js';
@@ -11,7 +11,6 @@ export const MEMORY_SKILL_SOURCE = 'bot-memory';
 interface LookupOptions {
   readonly cwd?: string | undefined;
   readonly signal?: AbortSignal | undefined;
-  readonly scope?: object | undefined;
 }
 
 interface Candidate {
@@ -27,7 +26,6 @@ interface Candidate {
 }
 
 interface MemorySkillRegistry {
-  list(options?: LookupOptions): Promise<readonly { name: string; source: string }[]>;
   registerProvider(
     create: () => {
       name: string;
@@ -58,11 +56,29 @@ function candidate(skill: SkillRegistryDefinition & { path: string }): Candidate
 
 const installed = new WeakSet<Context>();
 
+async function projectRoot(cwd: string): Promise<string> {
+  const start = resolve(cwd);
+  for (let current = start; ; current = dirname(current)) {
+    if (
+      await stat(join(current, '.git')).then(
+        () => true,
+        () => false,
+      )
+    )
+      return current;
+    if (dirname(current) === current) return start;
+  }
+}
+
+async function projectSkillNames(cwd: string | undefined): Promise<ReadonlySet<string>> {
+  if (cwd === undefined) return new Set();
+  return new Set((await readWorkspaceSkills(await projectRoot(cwd))).map((skill) => skill.name));
+}
+
 function agentSkillRegistry(agentCtx: Context): MemorySkillRegistry | undefined {
   const registry: unknown = Reflect.get(agentCtx, 'get')?.call(agentCtx, 'skills');
   return typeof registry === 'object' &&
     registry !== null &&
-    typeof Reflect.get(registry, 'list') === 'function' &&
     typeof Reflect.get(registry, 'registerProvider') === 'function'
     ? (registry as MemorySkillRegistry)
     : undefined;
@@ -75,23 +91,15 @@ export function installMemorySkillProvider(
   const registry = agentSkillRegistry(agentCtx);
   if (registry === undefined || installed.has(agentCtx)) return () => {};
   installed.add(agentCtx);
-  const agentScope = scopeOf(agentCtx);
   const dispose = registry.registerProvider(() => ({
     name: MEMORY_SKILL_PROVIDER,
     async list(options) {
       const root = memoryDir();
       if (root === undefined) return [];
-      const [own, outer] = await Promise.all([
+      const [own, project] = await Promise.all([
         readWorkspaceSkills(root),
-        registry.list({
-          cwd: options.cwd,
-          signal: options.signal,
-          scope: agentScope === undefined ? undefined : scopeParentOf(agentScope),
-        }),
+        projectSkillNames(options.cwd),
       ]);
-      const project = new Set(
-        outer.filter((skill) => skill.source.startsWith('project-')).map((skill) => skill.name),
-      );
       return own
         .filter(
           (skill): skill is SkillRegistryDefinition & { path: string } =>
