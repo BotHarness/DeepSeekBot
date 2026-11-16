@@ -1,3 +1,4 @@
 {
-  "*": "oxfmt --write --no-error-on-unmatched-pattern"
+  "*": "oxfmt --write --no-error-on-unmatched-pattern",
+  "*.{ts,tsx,mts,cts,js,mjs,cjs}": "node scripts/lint-ratchet.mjs"
 }
