@@ -180,6 +180,19 @@ import {
   type SelectedMention,
 } from './mention-draft';
 import { MentionSuggestions } from './mention-suggestions';
+import {
+  activeSkillQuery,
+  deleteSkillBackward,
+  rebaseSkills,
+  selectSkill,
+  skillMatches,
+  skillOptions,
+  submittedSkills,
+  type SelectedSkill,
+  type SkillOption,
+} from './skill-draft';
+import { SkillSuggestions } from './skill-suggestions';
+import { useSkillCatalog } from './use-skill-catalog';
 import { PlaybackBubble, replyable, type Speaker } from './message-bubble';
 import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
@@ -558,6 +571,7 @@ function ChatConversation({
     }
   };
   const [mentions, setMentions] = useState<SelectedMention[]>([]);
+  const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
   const [allPreview, setAllPreview] = useState<{
@@ -966,6 +980,12 @@ function ChatConversation({
   }, [focused, focus, focusRequest, jump]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
+  const skillCatalog = useSkillCatalog(client, activeChannel);
+  const skillQuery = skillCatalog.length === 0 ? undefined : activeSkillQuery(draft, caret, skills);
+  const skillChoices = skillMatches(
+    skillOptions(skillCatalog, host.roster?.bots ?? []),
+    skillQuery,
+  );
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);
   const candidates = mentionCandidates(members, mentionQuery, mentions, {
     label: t.mentionAll,
@@ -982,7 +1002,14 @@ function ChatConversation({
       .catch(() => undefined);
   };
 
-  const edit = (next: string) => {
+  const edit = (typed: string) => {
+    const atomic = deleteSkillBackward(draft, typed, skills);
+    const next = atomic?.value ?? typed;
+    setSkills(atomic?.skills ?? rebaseSkills(draft, next, skills));
+    if (atomic !== undefined) {
+      setCaret(atomic.caret);
+      setSelection({ start: atomic.caret, end: atomic.caret });
+    }
     setMentions((current) => rebaseMentions(draft, next, current));
     setDraft(next);
     if (!dm && next.includes('@')) loadAllPreview();
@@ -997,6 +1024,16 @@ function ChatConversation({
     setSelection({ start: chosen.caret, end: chosen.caret });
   };
 
+  const chooseSkill = (option: SkillOption) => {
+    if (skillQuery === undefined) return;
+    const chosen = selectSkill(draft, skills, skillQuery, option);
+    setMentions((current) => rebaseMentions(draft, chosen.value, current));
+    setDraft(chosen.value);
+    setSkills(chosen.skills);
+    setCaret(chosen.caret);
+    setSelection({ start: chosen.caret, end: chosen.caret });
+  };
+
   const send = () => {
     if (host.connection.status !== 'connected') return;
     if (!draftPersistence.loaded || draftPersistence.failed) return;
@@ -1004,14 +1041,17 @@ function ChatConversation({
     const submitted = submittedMessage(live, mentions);
     const body = submitted.body;
     const attached = files === sentFiles.current ? [] : files;
-    const tags =
-      replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
+    const invoked = submittedSkills(live, skills);
+    const tagged =
+      invoked.length === 0 ? submitted.tags : { ...submitted.tags, skillInvocations: invoked };
+    const tags = replyTarget === undefined ? tagged : { ...tagged, replyTo: replyTarget.id };
     if ((body === '' && attached.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
     draftPersistence.take(live);
     sentFiles.current = files;
     setMentions([]);
+    setSkills([]);
     setFiles([]);
     setReplying(undefined);
     const flight = latest.send(sendJumpPreferences.getSnapshot().enabled) ? launchFly() : undefined;
@@ -2029,7 +2069,9 @@ function ChatConversation({
                                 onRetry={() => void retryDraft()}
                               />
                             ) : null}
-                            {candidates.length > 0 ? (
+                            {skillChoices.length > 0 ? (
+                              <SkillSuggestions options={skillChoices} onChoose={chooseSkill} />
+                            ) : candidates.length > 0 ? (
                               <MentionSuggestions candidates={candidates} onChoose={mention} />
                             ) : clipboard.offered ? (
                               <ClipboardImageOffer

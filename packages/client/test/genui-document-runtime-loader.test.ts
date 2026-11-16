@@ -47,7 +47,7 @@ describe('GenUI document runtime loader', () => {
     process.on('unhandledRejection', unhandled);
     try {
       const { load } = await loader(() => Promise.reject(new Error('discarded')));
-      load();
+      void load();
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(unhandled).not.toHaveBeenCalled();
     } finally {

@@ -483,9 +483,6 @@ export async function runTeamCommand(
     }
     if (action === 'roles' && argument && rest.length === 2)
       return rpc('channelRoleDirectory', { channelId: argument });
-    if (action === 'browse' && rest.length === 1) return rpc('browsableChannels', {});
-    if (action === 'join' && argument && rest.length === 2)
-      return rpc('channelJoin', { channelId: argument });
     if (action === 'get' && argument && rest.length === 2)
       return rpc('channelGet', { channelId: argument });
     if (action === 'visibility' && argument && rest.length === 3) {
@@ -531,9 +528,6 @@ export async function runTeamCommand(
         expectedRevision: snapshot.policyRevision,
       });
     }
-    if (action === 'browse-public' && rest.length === 1) return rpc('publicChannels', {});
-    if (action === 'join-public' && argument && rest.length === 2)
-      return rpc('publicChannelJoin', { channelId: argument });
     if (
       action === 'set-public' &&
       argument &&

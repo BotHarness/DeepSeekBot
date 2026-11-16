@@ -578,9 +578,9 @@ it('opens group members inside Messages and preserves the split preference acros
   expect(host.querySelector('[data-dock-panel="members"]')).toBeNull();
   expect(registry.isOpen('members')).toBe(true);
   const divider = host.querySelector('[role="separator"][aria-label="成员"]')!;
-  act(() =>
-    divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
-  );
+  act(() => {
+    divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  });
   await settle();
   expect(readChannelDock(storage)?.members?.ratio).toBeCloseTo(0.32);
   act(() => root.render(null));
@@ -683,11 +683,11 @@ it('persists hidden rail controls, closes only the hidden Panel and supports hea
   act(() => registry.open(WORKSPACE_CHANNELS));
   await settle();
   const header = host.querySelector<HTMLElement>(`[data-dock-header="${WORKSPACE_CHANNELS}"]`)!;
-  act(() =>
+  act(() => {
     header.dispatchEvent(
       new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
-    ),
-  );
+    );
+  });
   act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="close"]')!.click());
   await settle();
   expect(registry.isOpen(WORKSPACE_CHANNELS)).toBe(false);
@@ -947,14 +947,20 @@ it('updates the Messages Channel title and trailing actions without replacing it
     header.closest('.dv-tabs-and-actions-container')!,
   ]) {
     const drag = new Event('dragstart', { bubbles: true, cancelable: true });
-    act(() => target.dispatchEvent(drag));
+    act(() => {
+      target.dispatchEvent(drag);
+    });
     expect(drag.defaultPrevented).toBe(true);
   }
 
   const titleDrag = new Event('dragstart', { bubbles: true, cancelable: true });
-  act(() => titleHandle.dispatchEvent(titleDrag));
+  act(() => {
+    titleHandle.dispatchEvent(titleDrag);
+  });
   expect(titleDrag.defaultPrevented).toBe(false);
-  act(() => titleHandle.dispatchEvent(new Event('dragend', { bubbles: true })));
+  act(() => {
+    titleHandle.dispatchEvent(new Event('dragend', { bubbles: true }));
+  });
 
   await act(async () =>
     header.querySelector<HTMLButtonElement>('[aria-label="Channel settings"]')!.click(),
@@ -1144,9 +1150,9 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
   const draft = host.querySelector('[data-message-draft]');
   const session = host.querySelector('[data-body="sessions"]');
   const separator = host.querySelector('[role="separator"][aria-label="会话"]')!;
-  act(() =>
-    separator.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
-  );
+  act(() => {
+    separator.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  });
   await settle();
   expect(host.querySelector('[data-message-draft]')).toBe(draft);
   expect(host.querySelector('[data-body="sessions"]')).toBe(session);
@@ -1204,11 +1210,11 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
   expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
   expect(registry.isOpen('sessions')).toBe(true);
   const context = () => host.querySelector('[data-dock-header="bh:channel-body"]')!;
-  act(() =>
+  act(() => {
     context().dispatchEvent(
       new MouseEvent('contextmenu', { bubbles: true, clientX: 40, clientY: 30 }),
-    ),
-  );
+    );
+  });
   await settle();
   const item = document.querySelector<HTMLButtonElement>('[data-menu-item="control:sessions"]')!;
   expect(item).not.toBeNull();
@@ -1222,11 +1228,11 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
   act(() => root.render(view('ada')));
   await settle();
   expect(context().querySelector('button[aria-label="会话"]')).toBeNull();
-  act(() =>
+  act(() => {
     context().dispatchEvent(
       new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }),
-    ),
-  );
+    );
+  });
   await settle();
   act(() =>
     document.querySelector<HTMLButtonElement>('[data-menu-item="control:sessions"]')!.click(),
@@ -1247,9 +1253,9 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
       .querySelector(`[data-channel-leaf="${id}"]`)!
       .closest('.bh-channel-branch')!
       .parentElement!.querySelector(':scope > [role="separator"]')!;
-    act(() =>
-      divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
-    );
+    act(() => {
+      divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    });
     await settle();
     expect(host.querySelector(`[data-body="${id}"]`)).toBe(body);
     const savedTree = readChannelDock(storage)?.channelSplits?.ada;
@@ -1749,20 +1755,20 @@ it('shows Channel subpanels as one Simple column with global collapse state', as
   const resize = host.querySelector<HTMLElement>(
     '[data-subpanel-entry="sessions"] .bh-subpanel-entry-resize',
   )!;
-  act(() =>
-    resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
-  );
+  act(() => {
+    resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  });
   await settle();
   expect(readLayoutMode(storage).column.heights['sessions']).toBe(336);
 
   const header = host.querySelector<HTMLElement>(
     '[data-subpanel-entry="schedules"] .bh-subpanel-entry-header',
   )!;
-  act(() =>
+  act(() => {
     header.dispatchEvent(
       new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
-    ),
-  );
+    );
+  });
   act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="hide"]')!.click());
   await settle();
   expect(entries()).not.toContain('schedules');

@@ -9,7 +9,7 @@ import { TeamApprovals } from './approvals.js';
 import type { UsageProjection } from '../usage/usage.js';
 import type { UsageByMemberResult, UsageOverviewPeriod } from '../usage/overview.js';
 import { TeamChannels } from './channels.js';
-import { channelRoleMembershipExitSql } from './channel-contract.js';
+import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import type { ContentPurge } from '../purge/contracts.js';
 import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
@@ -479,6 +479,7 @@ export class TeamService {
             ownerId,
           );
           db.prepare('DELETE FROM team_mode_suspensions').run();
+          db.prepare(channelRoleMembershipEntrySql('all')).run(new Date(this.now()).toISOString());
         }
       },
       ['team'],
@@ -577,6 +578,10 @@ export class TeamService {
         );
         db.prepare('INSERT INTO local_human_names VALUES (?, ?)').run(humanId, displayName.trim());
         for (const id of ids) db.prepare('INSERT INTO human_roles VALUES (?, ?)').run(humanId, id);
+        db.prepare(channelRoleMembershipEntrySql('human')).run(
+          new Date(this.now()).toISOString(),
+          humanId,
+        );
       },
       ['team', 'human-identity'],
     );
@@ -962,6 +967,10 @@ export class TeamService {
       (db) => {
         db.prepare("UPDATE humans SET status = 'active' WHERE human_id = ?").run(humanId);
         db.prepare('DELETE FROM team_mode_suspensions WHERE human_id = ?').run(humanId);
+        db.prepare(channelRoleMembershipEntrySql('human')).run(
+          new Date(this.now()).toISOString(),
+          humanId,
+        );
       },
       ['team'],
     );
@@ -1178,12 +1187,6 @@ export class TeamService {
     return null;
   }
 
-  publicChannels(human: HumanContext) {
-    return this.channelAccess.browse(human);
-  }
-  joinPublic(human: HumanContext, channelId: string): null {
-    return this.channelAccess.join(human, channelId);
-  }
   setPublic(human: HumanContext, channelId: string, value: boolean): null {
     return this.channelAccess.visibilitySet(human, channelId, {
       kind: value ? 'public' : 'private',
@@ -1258,13 +1261,12 @@ export class TeamService {
         db.prepare("INSERT INTO human_roles VALUES (?, 'admin')").run(human.humanId);
         db.prepare('UPDATE team_settings SET owner_human_id = ? WHERE singleton = 1').run(humanId);
         let roleAccessEnded = false;
-        for (const id of [human.humanId, humanId])
-          if (
-            db
-              .prepare(channelRoleMembershipExitSql('human'))
-              .run(new Date(this.now()).toISOString(), id).changes > 0
-          )
+        const at = new Date(this.now()).toISOString();
+        for (const id of [human.humanId, humanId]) {
+          if (db.prepare(channelRoleMembershipExitSql('human')).run(at, id).changes > 0)
             roleAccessEnded = true;
+          db.prepare(channelRoleMembershipEntrySql('human')).run(at, id);
+        }
         db.prepare('DELETE FROM tob_identity WHERE human_id IN (?, ?)').run(human.humanId, humanId);
         return roleAccessEnded;
       },

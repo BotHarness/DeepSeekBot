@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { TOBS_DSH_BRIDGE } from '../src/client/tobs-bridge.js';
+
 const dsDir = fileURLToPath(new URL('../src/client/ds/', import.meta.url));
 const clientDir = fileURLToPath(new URL('../src/client/', import.meta.url));
 const LITERAL_COLOUR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;
@@ -314,11 +316,13 @@ const SCALED =
   /\b(fontSize|lineHeight|fontWeight|gap|rowGap|columnGap|padding\w*|margin\w*|borderRadius)\s*:\s*(['"])(?!0\2)/;
 
 describe('design-system tokens', () => {
-  it('keeps every StyleX colour on a DSH token', () => {
+  it('keeps every StyleX colour on a Tobs token', () => {
     const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
     const colours = tokens.slice(tokens.indexOf('export const color'));
     for (const value of colours.matchAll(/:\s*'([^']+)'/g))
-      expect(value[1]).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
+      expect(value[1]).toMatch(
+        /^(?:var\(--tobs-[a-z0-9-]+\)|color-mix\(in srgb, var\(--tobs-[a-z0-9-]+\) \d+%, transparent\))$/,
+      );
   });
 
   it('guards the Computer and Browser bundle StyleX sources too', () => {
@@ -397,22 +401,20 @@ describe('design-system tokens', () => {
       /^(divider|border\w*)$/.test(name),
     );
     expect(edges).toEqual([
-      ['divider', 'var(--dsw-alias-border-l1)'],
-      ['border', 'var(--dsw-alias-border-l2)'],
-      ['borderStrong', 'var(--dsw-alias-border-l3)'],
+      ['divider', 'var(--tobs-line-divider)'],
+      ['border', 'var(--tobs-line-edge)'],
+      ['borderStrong', 'var(--tobs-line-strong)'],
     ]);
     const widths = [...block('dialog').matchAll(/min\((\d+)px/g)].map((match) => Number(match[1]));
     expect(widths).toEqual([440, 760, 1060]);
   });
 });
 
-it('keeps derived action fills usable in portaled settings without Bot-mode variables', () => {
+it('keeps ds colours usable in portaled settings without Bot-mode variables', () => {
   const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
-  const actions = tokens.slice(
-    tokens.indexOf('export const actionColor'),
-    tokens.indexOf('export const color'),
-  );
-  expect(actions).not.toContain('--bh-');
-  expect(actions.match(/color-mix\(in srgb/g)).toHaveLength(4);
-  expect(actions).toContain('--dsw-alias-bg-module-platform');
+  const colours = tokens.slice(tokens.indexOf('export const actionColor'));
+  expect(colours).not.toContain('--bh-');
+  expect(colours).not.toContain('--dsw-');
+  for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g))
+    expect(TOBS_DSH_BRIDGE[name], name).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
 });

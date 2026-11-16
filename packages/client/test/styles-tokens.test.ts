@@ -29,7 +29,7 @@ function aliasBounds(): { start: number; end: number } {
 describe('client styles', () => {
   it('keeps the working indicators static while Bots stream', () => {
     expect(source).toContain(
-      ".bh-row-glyph[data-status='working'] { color: var(--dsw-alias-state-success-primary); }",
+      ".bh-row-glyph[data-status='working'] { color: var(--tobs-status-success-base); }",
     );
     expect(source).not.toMatch(
       /bh-row-glyph-spin|bh-timeline-working-dot|bh-header-working-ellipsis|bh-reading-dots/,
@@ -84,7 +84,7 @@ describe('client styles', () => {
   it('fades only timeline alpha while keeping the channel island and composer outside the mask', () => {
     expect(source).toMatch(/\.bh-topbar \{[^}]*position: absolute/);
     expect(source).toMatch(
-      /\.bh-channel-island:hover \{[^}]*background: color-mix\([^;]*var\(--dsw-alias-bg-module-platform\)/,
+      /\.bh-channel-island:hover \{[^}]*background: color-mix\([^;]*var\(--tobs-layer-raised\)/,
     );
     expect(source).toMatch(/\.bh-channel-island-wrap \{[^}]*align-items: center/);
     expect(source).toContain(".bh-topbar[data-channel-detail='true'] { display: none; }");
@@ -103,16 +103,14 @@ describe('client styles', () => {
   it('keeps the glyph-free section header muted with a 12px block break', () => {
     expect(source).not.toContain('bh-arrow');
     expect(source).not.toContain('bh-row-slot');
-    expect(source).toMatch(/\.bh-section-name \{[^}]*color: var\(--dsw-alias-label-tertiary\)/);
+    expect(source).toMatch(/\.bh-section-name \{[^}]*color: var\(--tobs-ink-tertiary\)/);
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
   });
 
   it('brightens the Discord header on hover instead of filling it', () => {
     expect(source).not.toMatch(/\.bh-section-head:hover[^}]*background/);
     expect(source).toMatch(/\.bh-section-head:hover \.bh-section-name/);
-    expect(source).toMatch(
-      /\.bh-section-chevron \{\s*[^}]*color: var\(--dsw-alias-label-tertiary\)/,
-    );
+    expect(source).toMatch(/\.bh-section-chevron \{\s*[^}]*color: var\(--tobs-ink-tertiary\)/);
     expect(source).toMatch(
       /\.bh-section-chevron\.bh-chevron-collapsed \{\s*transform: rotate\(-90deg\)/,
     );
@@ -153,11 +151,11 @@ describe('client styles', () => {
     );
     expect(source).toMatch(/\.bh-pin-zone \{[^}]*height 150ms var\(--ds-ease-in-out\)/);
     expect(source).toMatch(
-      /\.bh-pin-zone-empty \{[^}]*border: 1px dashed var\(--dsw-alias-border-l3\)/,
+      /\.bh-pin-zone-empty \{[^}]*border: 1px dashed var\(--tobs-line-strong\)/,
     );
     expect(source).toMatch(/\.bh-pin-zone-active \{[^}]*background: var\(--bh-hover\)/);
     expect(source).toMatch(
-      /\.bh-unpin-zone \{[^}]*height: 72px;[^}]*border: 1px dashed var\(--dsw-alias-border-l3\)/,
+      /\.bh-unpin-zone \{[^}]*height: 72px;[^}]*border: 1px dashed var\(--tobs-line-strong\)/,
     );
     expect(source).toMatch(
       /\.bh-unpin-zone-hidden \{[^}]*height: 0;[^}]*opacity: 0;[^}]*pointer-events: none/,
@@ -193,15 +191,13 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-rail-group \{[^}]*width: 36px/);
     expect(source).toMatch(/\.bh-rail-channel \{[^}]*width: 36px;[^}]*height: 36px/);
     expect(source).toMatch(
-      /\.bh-rail-divider \{[^}]*border-top: 0\.5px solid var\(--dsw-alias-border-l3\)/,
+      /\.bh-rail-divider \{[^}]*border-top: 0\.5px solid var\(--tobs-line-strong\)/,
     );
     expect(source).toMatch(/\.bh-rail-preview \{[^}]*display: flex/);
     expect(source).toMatch(
-      /\.bh-rail-preview-meta,[^{]*\.bh-rail-preview-description \{[^}]*color: var\(--dsw-alias-label-tertiary\)/,
+      /\.bh-rail-preview-meta,[^{]*\.bh-rail-preview-description \{[^}]*color: var\(--tobs-ink-tertiary\)/,
     );
-    expect(source).toMatch(
-      /\.bh-rail-preview-summary \{[^}]*color: var\(--dsw-alias-label-secondary\)/,
-    );
+    expect(source).toMatch(/\.bh-rail-preview-summary \{[^}]*color: var\(--tobs-ink-secondary\)/);
   });
 
   it('keeps hidden-channel rows inside the shared dialog body', () => {
@@ -236,9 +232,7 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-composer-expanded \{[^}]*padding-bottom: 48px/);
     expect(source).toMatch(/\.bh-composer-expanded \{[^}]*border-radius: 20px/);
     expect(source).toMatch(/\.bh-composer-with-footer \{[^}]*padding: 10px 12px 48px/);
-    expect(source).toMatch(
-      /\.bh-composer \{[^}]*background: var\(--dsw-alias-bg-module-platform\)/,
-    );
+    expect(source).toMatch(/\.bh-composer \{[^}]*background: var\(--tobs-layer-raised\)/);
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);
     expect(source).not.toContain('.bh-composer-activity');
     expect(source).toMatch(/\.bh-composer-input \{[^}]*max-height: 144px/);

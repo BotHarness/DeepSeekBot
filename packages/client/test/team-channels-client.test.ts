@@ -7,7 +7,6 @@ import {
 } from '../src/client/channel-access.js';
 import {
   DEFAULT_POLICY,
-  loadBrowsableChannels,
   loadTeamDirectory,
   openHumanDm,
   parseChannelAccess,
@@ -19,22 +18,6 @@ const t = (key: string, values?: Record<string, string>): string =>
   values === undefined ? key : `${key}:${JSON.stringify(values)}`;
 
 describe('Team Channel access client', () => {
-  it('keeps only well-formed browsable Channels and marks role-restricted ones', async () => {
-    const call = vi.fn(async () => ({
-      ok: true as const,
-      value: [
-        { channelId: 'c1', name: 'General', memberCount: 3, joined: false, visibility: 'public' },
-        { channelId: 'c2' },
-        { channelId: 'c3', name: 'Ops', memberCount: -1, joined: true, visibility: 'roles' },
-      ],
-    }));
-    expect(await loadBrowsableChannels(call)).toEqual([
-      { channelId: 'c1', name: 'General', memberCount: 3, joined: false, visibility: 'public' },
-      { channelId: 'c3', name: 'Ops', memberCount: 0, joined: true, visibility: 'roles' },
-    ]);
-    expect(call).toHaveBeenCalledWith('browsableChannels', {}, undefined);
-  });
-
   it('reads Channel access with safe defaults and rejects unknown roles', () => {
     expect(parseChannelAccess({ role: 'stranger' })).toBeUndefined();
     expect(

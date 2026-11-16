@@ -79,30 +79,32 @@ function edit() {
   click('编辑侧边栏');
 }
 function key(id: string, value: string) {
-  act(() =>
+  act(() => {
     host
       .querySelector<HTMLElement>('[data-order-handle="' + id + '"]')!
-      .dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true })),
-  );
+      .dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true }));
+  });
 }
 function startDrag(id: string) {
   const event = new Event('dragstart', { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'dataTransfer', { value: { effectAllowed: '', setData: vi.fn() } });
-  act(() => host.querySelector('[data-order-handle="' + id + '"]')!.dispatchEvent(event));
+  act(() => {
+    host.querySelector('[data-order-handle="' + id + '"]')!.dispatchEvent(event);
+  });
 }
 function hover(y: number) {
-  act(() =>
+  act(() => {
     host
       .querySelector('[data-sidebar-entries]')!
-      .dispatchEvent(new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: y })),
-  );
+      .dispatchEvent(new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: y }));
+  });
 }
 function releaseDrag(id: string) {
-  act(() =>
+  act(() => {
     host
       .querySelector('[data-order-handle="' + id + '"]')!
-      .dispatchEvent(new Event('dragend', { bubbles: true })),
-  );
+      .dispatchEvent(new Event('dragend', { bubbles: true }));
+  });
 }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -149,17 +151,19 @@ describe('Channel sidebar personal order editor', () => {
           clientY: y,
         });
         Object.defineProperty(event, 'pointerId', { value: 1 });
-        act(() => target.dispatchEvent(event));
+        act(() => {
+          target.dispatchEvent(event);
+        });
       };
       send('pointerdown', 150, 40, host.querySelector('[data-entry-id="memory"]')!);
       send('pointermove', 150, 100, document);
       expect(order()).toEqual(['sessions', 'inbox', 'memory']);
       if (method === 'Escape')
-        act(() =>
+        act(() => {
           document.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
-          ),
-        );
+          );
+        });
       else if (method === 'pointercancel') send('pointercancel', 150, 100, document);
       else send('pointerup', 400, 100, document);
       send('pointerup', 150, 100, document);
@@ -180,7 +184,9 @@ describe('Channel sidebar personal order editor', () => {
         clientY: y,
       });
       Object.defineProperty(event, 'pointerId', { value: 1 });
-      act(() => target.dispatchEvent(event));
+      act(() => {
+        target.dispatchEvent(event);
+      });
     };
     send('pointerdown', 10, host.querySelector('[data-entry-id="memory"]')!);
     send('pointermove', 12, document);
@@ -202,7 +208,7 @@ describe('Channel sidebar personal order editor', () => {
     startDrag('memory');
     hover(100);
     expect(order()).toEqual(['sessions', 'inbox', 'memory']);
-    act(() =>
+    act(() => {
       host.querySelector('[data-entry-id="memory"]')!.dispatchEvent(
         new MouseEvent('dragleave', {
           bubbles: true,
@@ -210,11 +216,11 @@ describe('Channel sidebar personal order editor', () => {
           clientY: 100,
           relatedTarget: null,
         }),
-      ),
-    );
+      );
+    });
     expect(order()).toEqual(['sessions', 'inbox', 'memory']);
     expect(host.querySelector('[data-drop-indicator]')).not.toBeNull();
-    act(() =>
+    act(() => {
       surface.dispatchEvent(
         new MouseEvent('dragleave', {
           bubbles: true,
@@ -222,8 +228,8 @@ describe('Channel sidebar personal order editor', () => {
           clientY: 100,
           relatedTarget: null,
         }),
-      ),
-    );
+      );
+    });
     expect(order()).toEqual(['memory', 'sessions', 'inbox']);
     expect(host.querySelector('[data-drop-indicator]')).toBeNull();
   });
@@ -243,7 +249,9 @@ describe('Channel sidebar personal order editor', () => {
         clientY: y,
       });
       Object.defineProperty(event, 'pointerId', { value: 1 });
-      act(() => target.dispatchEvent(event));
+      act(() => {
+        target.dispatchEvent(event);
+      });
     };
     pointer('pointerdown', 10, row);
     pointer('pointermove', 100, document);
@@ -261,7 +269,9 @@ describe('Channel sidebar personal order editor', () => {
     startDrag('memory');
     hover(100);
     const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-    act(() => document.dispatchEvent(escape));
+    act(() => {
+      document.dispatchEvent(escape);
+    });
     expect(order()).toEqual(['sessions', 'memory', 'inbox']);
     expect(escape.defaultPrevented).toBe(true);
     startDrag('memory');
@@ -304,11 +314,11 @@ describe('Channel sidebar personal order editor', () => {
     hover(150);
     expect(order()).toEqual(['memory', 'sessions', 'inbox']);
     expect(host.querySelector('[data-drop-indicator]')).toBeNull();
-    act(() =>
+    act(() => {
       host
         .querySelector('[data-sidebar-entries]')!
-        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
-    );
+        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    });
     expect(order()).toEqual(['memory', 'sessions', 'inbox']);
     expect(prefs.getSnapshot().entryOrders.personabot).toEqual([]);
   });
@@ -319,14 +329,16 @@ describe('Channel sidebar personal order editor', () => {
     hover(100);
     const leave = new Event('dragleave', { bubbles: true });
     Object.defineProperty(leave, 'relatedTarget', { value: document.body });
-    act(() => host.querySelector('[data-sidebar-entries]')!.dispatchEvent(leave));
+    act(() => {
+      host.querySelector('[data-sidebar-entries]')!.dispatchEvent(leave);
+    });
     expect(order()).toEqual(['memory', 'sessions', 'inbox']);
     hover(100);
-    act(() =>
+    act(() => {
       host
         .querySelector('[data-entry-id="inbox"] [data-panel-label]')!
-        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
-    );
+        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    });
     releaseDrag('memory');
     expect(order()).toEqual(['sessions', 'inbox', 'memory']);
     click('取消');
@@ -340,11 +352,11 @@ describe('Channel sidebar personal order editor', () => {
     entries = entries.filter((e) => e.id !== 'memory');
     registered = entries;
     render();
-    act(() =>
+    act(() => {
       host
         .querySelector('[data-sidebar-entries]')!
-        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
-    );
+        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    });
     click('完成');
     expect(order()).toEqual(['sessions', 'inbox']);
     expect(host.querySelector('[data-drop-indicator]')).toBeNull();
@@ -356,21 +368,23 @@ describe('Channel sidebar personal order editor', () => {
     const transfer = { effectAllowed: '', setData: vi.fn() };
     const start = new Event('dragstart', { bubbles: true, cancelable: true });
     Object.defineProperty(start, 'dataTransfer', { value: transfer });
-    act(() => host.querySelector('[data-order-handle="memory"]')!.dispatchEvent(start));
+    act(() => {
+      host.querySelector('[data-order-handle="memory"]')!.dispatchEvent(start);
+    });
     const target = host.querySelector<HTMLElement>('[data-entry-id="inbox"]')!;
-    act(() =>
+    act(() => {
       target.dispatchEvent(
         new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: 100 }),
-      ),
-    );
+      );
+    });
     expect(order()).toEqual(['sessions', 'inbox', 'memory']);
     expect(host.querySelector('[data-drop-indicator]')).not.toBeNull();
     expect(prefs.getSnapshot().entryOrders.personabot).toEqual([]);
-    act(() =>
+    act(() => {
       host
         .querySelector('[data-entry-id="inbox"]')!
-        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
-    );
+        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    });
     expect(order()).toEqual(['sessions', 'inbox', 'memory']);
     expect(host.querySelector('[data-drop-indicator]')).toBeNull();
   });
@@ -382,13 +396,15 @@ describe('Channel sidebar personal order editor', () => {
     Object.defineProperty(start, 'dataTransfer', {
       value: { effectAllowed: '', setData: vi.fn() },
     });
-    act(() => host.querySelector('[data-order-handle="inbox"]')!.dispatchEvent(start));
+    act(() => {
+      host.querySelector('[data-order-handle="inbox"]')!.dispatchEvent(start);
+    });
     const target = host.querySelector<HTMLElement>('[data-entry-id="memory"]')!;
-    act(() =>
+    act(() => {
       target.dispatchEvent(
         new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: 2 }),
-      ),
-    );
+      );
+    });
     expect(host.querySelector('[data-drop-indicator]')).not.toBeNull();
     expect(order()).toEqual(['inbox', 'memory', 'sessions']);
   });
@@ -451,19 +467,21 @@ describe('Channel sidebar personal order editor', () => {
     const transfer = { effectAllowed: '', setData: vi.fn() };
     const start = new Event('dragstart', { bubbles: true, cancelable: true });
     Object.defineProperty(start, 'dataTransfer', { value: transfer });
-    act(() => host.querySelector('[data-order-handle="memory"]')!.dispatchEvent(start));
-    act(() =>
+    act(() => {
+      host.querySelector('[data-order-handle="memory"]')!.dispatchEvent(start);
+    });
+    act(() => {
       host
         .querySelector('[data-entry-id="inbox"]')!
         .dispatchEvent(
           new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: 100 }),
-        ),
-    );
-    act(() =>
+        );
+    });
+    act(() => {
       host
         .querySelector('[data-entry-id="inbox"]')!
-        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
-    );
+        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    });
     expect(order()).toEqual(keyboard);
     expect(prefs.getSnapshot().entryOrders.personabot).toEqual([]);
     click('完成');
@@ -559,11 +577,11 @@ describe('Channel sidebar personal order editor', () => {
     prefs.setSidebarCollapsed('channel:team', true);
     render();
     edit();
-    act(() =>
+    act(() => {
       host
         .querySelector('[data-entry-id="inbox"]')!
-        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
-    );
+        .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    });
     expect(order()).toEqual(['memory', 'sessions', 'inbox']);
     key('memory', 'ArrowDown');
     click('完成');

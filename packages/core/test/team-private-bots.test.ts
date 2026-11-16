@@ -475,13 +475,11 @@ describe('M2 private Bot boundaries', () => {
       members: ['owner-bot', 'bob-bot'],
     });
     f.team.setPublic(owner, group.id, true);
-    f.team.joinPublic(bob, group.id);
     f.core.channels.setGroupWakePolicy(group.id, 'owner-bot', {
       mode: 'digest',
       count: 17,
       intervalSeconds: 43,
     });
-    f.team.channelAccess.join(alice, group.id);
     const invited = f.core.registry.get('alice-bot')!;
     const invitation = f.core.channels.inviteGroupBot({
       channelId: group.id,
@@ -532,14 +530,7 @@ describe('M2 private Bot boundaries', () => {
     ]);
     for (const key of ['invitations', 'joinRequests', 'wakePolicies', 'ownerBotSlug'])
       expect(visible.value.channel).not.toHaveProperty(key);
-    for (const marker of [
-      'alice-bot',
-      'carol-bot',
-      invitation.id,
-      request.id,
-      'digest',
-      '"humanId":"carol"',
-    ])
+    for (const marker of ['alice-bot', 'carol-bot', invitation.id, request.id, 'digest'])
       expect(JSON.stringify(visible.value)).not.toContain(marker);
     expect(visible.value.channel).toHaveProperty(
       'humanMembers',
@@ -920,7 +911,6 @@ describe('M2 private Bot boundaries', () => {
       members: ['owner-bot'],
     });
     f.team.setPublic(owner, group.id, true);
-    f.team.joinPublic(bob, group.id);
     await f.core.channels.appendMessage(bob, group.id, {
       id: 'bob-group-request',
       at: new Date().toISOString(),

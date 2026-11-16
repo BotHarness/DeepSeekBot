@@ -62,7 +62,7 @@ const styles = stylex.create({
     paddingInline: `calc(${space.x3} + ${space.x1})`,
     borderWidth: border.focus,
     borderStyle: 'solid',
-    borderColor: 'var(--dsw-alias-bg-base)',
+    borderColor: 'var(--tobs-layer-canvas)',
     borderRadius: radius.lg,
     backgroundColor: color.surface,
     backgroundImage: {

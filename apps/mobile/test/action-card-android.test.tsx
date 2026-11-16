@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.hoisted(async () => {
+await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
   const { readdirSync } = await import('node:fs');
   const { dirname } = await import('node:path');
