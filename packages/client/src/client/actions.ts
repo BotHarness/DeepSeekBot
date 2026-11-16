@@ -1459,11 +1459,14 @@ export function createActions(
       clientStore.setRoster(botResult.value, clientStore.getSnapshot().channels);
     if (channelResult.status === 'fulfilled') {
       const channels = channelResult.value;
-      const current = clientStore.getSnapshot().conversation.channel;
-      clientStore.setRoster(clientStore.getSnapshot().bots, channels);
+      const before = clientStore.getSnapshot();
+      const current = before.conversation.channel;
+      clientStore.setRoster(before.bots, channels);
       if (current !== undefined) {
         const updated = channels.find((item) => item.id === current.id);
         if (updated !== undefined) clientStore.setConversation({ channel: updated });
+        else if (before.channels.some((item) => item.id === current.id))
+          clientStore.select(undefined);
       }
     } else {
       console.warn('botharness: channel refresh failed', channelResult.reason);

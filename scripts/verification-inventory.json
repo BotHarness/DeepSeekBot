@@ -44,6 +44,14 @@
       "gap": "Two-Host Web and direct CLI qualification is separate from installed Desktop, native mobile and Human acceptance."
     },
     {
+      "id": "team.channel-auto-join",
+      "label": "Members join every Channel they can see and leave it as soon as they no longer can",
+      "source": "packages/core/src/team/channel-contract.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
+      "task": 4222,
+      "gap": "Packaged Host, CLI member carrier and rendered member Web Client; native mobile and Human acceptance are separate."
+    },
+    {
       "id": "team.member-sign-in",
       "label": "Host member sign-in, public Channels and local CLI member dispatch",
       "source": "packages/core/src/team/http.ts",
@@ -1923,6 +1931,14 @@
       "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory.",
       "task": 1975,
       "sha256": "dfe816b10b04620373e7cbbb33926462bc6bf67914a71d2fc23c75d3bf0aaef8"
+    },
+    {
+      "path": "scripts/e2e-team-auto-join.mjs",
+      "category": "mapped",
+      "behaviors": ["team.channel-auto-join"],
+      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification.",
+      "task": 4222,
+      "sha256": "e129beefafbfea762f9c66bc2528b00a4dde7f8dd4e274af35a69df3932ac13f"
     },
     {
       "path": "scripts/e2e-team-bot-memory.mjs",

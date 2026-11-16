@@ -372,7 +372,6 @@ describe('M10 member usage and role models', () => {
     });
     const group = f.channels.createGroup(owner, { name: 'Shared requests', members: ['ada'] });
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
-    f.team.channelAccess.join(f.member, group.id);
     const ask = async (human: typeof owner, id: string) => {
       await f.channels.appendMessage(human, group.id, {
         id,

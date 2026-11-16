@@ -2313,6 +2313,24 @@ describe('bridge actions', () => {
     }
   });
 
+  it('closes the open Channel when a refresh no longer lists it, but keeps one not yet listed', async () => {
+    let channels = [GROUP, DM];
+    const { clientStore, actions } = setup({ channels: () => ({ channels }) });
+    await actions.load();
+    clientStore.select({ kind: 'channel', channelId: GROUP.id });
+    clientStore.setConversation({ channel: GROUP });
+    channels = [DM];
+    await actions.refreshRoster();
+    expect(clientStore.getSnapshot().selection).toBeUndefined();
+    expect(clientStore.getSnapshot().conversation.channel).toBeUndefined();
+
+    const fresh = { ...GROUP, id: 'group-fresh', name: 'Fresh' };
+    clientStore.select({ kind: 'channel', channelId: fresh.id });
+    clientStore.setConversation({ channel: fresh });
+    await actions.refreshRoster();
+    expect(clientStore.getSnapshot().selection).toEqual({ kind: 'channel', channelId: fresh.id });
+  });
+
   it('mirrors the host arrangement into the roster state', async () => {
     const { clientStore, actions } = setup({
       rosterGet: () => ({

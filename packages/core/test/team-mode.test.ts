@@ -474,7 +474,7 @@ describe('Host members', { timeout: 60_000 }, () => {
     await expect(invoke('teamMode')).resolves.toMatchObject({
       viewer: { kind: 'member', mustChangePassword: true },
     });
-    await expect(invoke('publicChannels')).rejects.toMatchObject({
+    await expect(invoke('channels')).rejects.toMatchObject({
       code: 'remote-access/denied',
       details: { reason: 'password-change-required' },
     });
@@ -488,7 +488,7 @@ describe('Host members', { timeout: 60_000 }, () => {
     await expect(
       invoke('memberPasswordChange', { current: 'member-password-1', next: f.initialPassword }),
     ).rejects.toMatchObject({ code: 'password-reused' });
-    await expect(invoke('publicChannels')).resolves.toEqual([]);
+    await expect(invoke('channels')).resolves.toMatchObject({ channels: [] });
     await expect(
       f.gateway.invoke({ namespace: 'session', method: 'list', args: {}, peer: login.peer }),
     ).rejects.toMatchObject({ code: 'remote-access/denied', details: { reason: 'no-allow' } });
@@ -498,25 +498,50 @@ describe('Host members', { timeout: 60_000 }, () => {
     ).resolves.toEqual({ sessions: ['owner-session'] });
   });
 
-  it('joins only public groups, isolates reads and records each message author and Source Event Human', async () => {
+  it('auto-joins every viewable Channel on create, grant and re-enable and leaves at once on revoke', async () => {
+    const f = await enabledFixture();
+    const members = (id: string) =>
+      f.channels
+        .listHumanMembers(owner, id)
+        .map((member) => member.humanId)
+        .sort();
+    const finance = f.team.roles.create(owner, 'Finance', []).role;
+    const lobby = f.channels.createGroup(owner, { name: 'Lobby', members: [] });
+    const books = f.channels.createGroup(owner, { name: 'Books', members: [] });
+    const secret = f.channels.createGroup(owner, { name: 'Secret', members: [] });
+    f.team.setPublic(owner, lobby.id, true);
+    f.team.channelAccess.visibilitySet(owner, books.id, {
+      kind: 'roles',
+      roleIds: [finance.roleId],
+    });
+    const ownerId = f.team.ownerContext().humanId;
+    expect(members(lobby.id)).toEqual([ownerId, f.human.humanId].sort());
+    expect(members(books.id)).toEqual([ownerId]);
+    expect(members(secret.id)).toEqual([ownerId]);
+    const carol = await f.team.createMember(owner, 'carol', 'Carol', [finance.roleId]);
+    expect(members(lobby.id)).toContain(carol.member.humanId);
+    expect(members(books.id)).toContain(carol.member.humanId);
+    f.team.roles.set(owner, f.human.humanId, ['member', finance.roleId]);
+    expect(members(books.id)).toContain(f.human.humanId);
+    expect(f.team.channelAccess.visibleIds(f.human)).toEqual(new Set([lobby.id, books.id]));
+    f.team.roles.set(owner, f.human.humanId, ['member']);
+    expect(members(books.id)).not.toContain(f.human.humanId);
+    expect(f.team.channelAccess.canRead(f.human, books.id)).toBe(false);
+    await f.team.setMode(owner, false);
+    const later = f.channels.createGroup(owner, { name: 'Later', members: [] });
+    f.team.setPublic(owner, later.id, true);
+    await f.team.setMode(owner, true);
+    expect(members(later.id)).toEqual([ownerId, f.human.humanId, carol.member.humanId].sort());
+    f.team.setPublic(owner, lobby.id, false);
+    expect(members(lobby.id)).toEqual([ownerId]);
+    expect(f.team.channelAccess.canRead(f.human, lobby.id)).toBe(false);
+  });
+  it('auto-joins only public groups, isolates reads and records each message author and Source Event Human', async () => {
     const f = await enabledFixture();
     const group = f.channels.createGroup(owner, { name: 'Public', members: [] });
     const privateGroup = f.channels.createGroup(owner, { name: 'Private', members: [] });
-    expect(() => f.team.joinPublic(f.human, 'missing')).toThrow('channel-not-found');
-    expect(() => f.team.joinPublic(f.human, group.id)).toThrow('channel-not-found');
+    expect(f.channels.listHumanMembers(owner, group.id)).toHaveLength(1);
     f.team.setPublic(owner, group.id, true);
-    expect(f.team.publicChannels(f.human)).toEqual([
-      {
-        channelId: group.id,
-        name: 'Public',
-        memberCount: 1,
-        joined: false,
-        visibility: 'public',
-        description: undefined,
-      },
-    ]);
-    f.team.joinPublic(f.human, group.id);
-    f.team.joinPublic(f.human, group.id);
     expect(f.channels.listHumanMembers(owner, group.id)).toHaveLength(2);
     await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
     const login = await f.team.signIn('bob', 'member-password-1', 'ip');
@@ -539,10 +564,7 @@ describe('Host members', { timeout: 60_000 }, () => {
       humanId: f.human.humanId,
       displayName: 'Bob',
     });
-    expect(f.team.publicChannels(f.human)[0]).toMatchObject({ joined: true, memberCount: 2 });
-    const reads = f.db.diagnostics().metrics.reads;
-    f.team.publicChannels(f.human);
-    expect(f.db.diagnostics().metrics.reads - reads).toBe(1);
+    expect(f.channels.listHumanMembers(owner, privateGroup.id)).toHaveLength(1);
   });
 
   it('revokes only one signed-out grant and disposes all member Peers on suspension or Team mode off', async () => {
@@ -616,7 +638,6 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     const joined = f.channels.createGroup(owner, { name: 'Deleted joined', members: [] });
     const privateGroup = f.channels.createGroup(owner, { name: 'Deleted private', members: [] });
     f.team.setPublic(owner, joined.id, true);
-    f.team.joinPublic(f.human, joined.id);
     const controller = new AbortController();
     const frames = f.live.followRoster(f.human, controller.signal)[Symbol.asyncIterator]();
     await frames.next();
@@ -769,7 +790,6 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     const dm = f.channels.getOrCreateDm(owner, 'secret-bot', 'Owner secret DM')!;
     const group = f.channels.createGroup(owner, { name: 'Shared public', members: [] });
     f.team.setPublic(owner, group.id, true);
-    f.team.joinPublic(f.human, group.id);
     const privatePlacement = {
       sourceEventId: 'private-source',
       channelId: dm.id,
@@ -960,7 +980,6 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       memberPasswordChange: { current: 'member-password-1', next: 'member-password-2' },
       privateContentOpen: { kind: 'bot', objectId: 'owner-secret-bot' },
       privateContentPage: { viewId: 'missing', before: 'missing' },
-      publicChannelJoin: { channelId: memberGroup.id },
       channelListChanges: { sinceSeq: start.seq, epoch: start.epoch },
       channelSearch: { text: 'text' },
       channelMarkRead: { messageId: `message-${memberGroup.id}` },
@@ -986,8 +1005,6 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
     const streams = new Set(['followRoster', 'followChannel', 'followActivity']);
     const m4 = new Set([
       'channelRoleDirectory',
-      'browsableChannels',
-      'channelJoin',
       'channelVisibilitySet',
       'channelAdminsSet',
       'channelPolicySet',
@@ -1569,13 +1586,13 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
     expect(await rpc('teamMode')).toMatchObject({
       result: { ok: true, value: { viewer: { humanId: f.human.humanId, kind: 'member' } } },
     });
-    expect(await rpc('publicChannels')).toMatchObject({
+    expect(await rpc('channels')).toMatchObject({
       result: { ok: false, error: { code: 'password-change-required' } },
     });
     expect(
       await rpc('memberPasswordChange', { current: f.initialPassword, next: 'member-password-1' }),
     ).toMatchObject({ result: { ok: true } });
-    expect(await rpc('publicChannels')).toMatchObject({ result: { ok: true, value: [] } });
+    expect(await rpc('channels')).toMatchObject({ result: { ok: true, value: { channels: [] } } });
     const shell = await fetch(`${http.origin}${TEAM_PATH}/`, { headers: { cookie } });
     expect(await shell.text()).toContain('__DSH_TRANSPORT__');
     const ownerHttp = await fetch(`${http.origin}${TEAM_PATH}/api/botharness/appearance-control`, {
@@ -1980,7 +1997,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       permissions: [...role.permissions, 'channels.manageAll'],
     });
     await f.invoke('channelPublicSet', { channelId: group.id, public: true });
-    expect(f.team.publicChannels(f.human).map((c) => c.channelId)).toContain(group.id);
+    expect(f.team.channelAccess.visibleIds(f.human).has(group.id)).toBe(true);
     await expect(f.invoke('members')).rejects.toMatchObject({ code: 'permission-required' });
     await expect(
       f.invoke('teamOwnerPasswordSet', { password: 'replacement-password' }),
@@ -2837,7 +2854,6 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
           kind: 'roles',
           roleIds: ['member'],
         });
-        f.team.channelAccess.join(f.human, secret.id);
       }
       if (kind !== 'private') {
         const { role } = f.team.roles.create(owner, 'restricted', []);
@@ -2853,7 +2869,6 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
       ]);
       const results = [
         await methods.channels({}),
-        await methods.browsableChannels({}),
         await methods.messageSearch({ text: 'm4-confidential' }),
         await methods.channelListChanges({ sinceSeq: 0, epoch: cursor.epoch }),
         methods.channelUnreadCounts({}),
@@ -2871,10 +2886,6 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         const result = await methods[method]({ channelId: secret.id, text: 'm4-confidential' });
         expect(result, method).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
       }
-      expect(await methods.channelJoin({ channelId: secret.id })).toMatchObject({
-        ok: false,
-        error: { code: 'channel-not-found' },
-      });
       expect(
         f.channels.readHumanJournalPage(f.human, secret.id, { through: 10, limit: 10 }),
       ).toBeUndefined();
@@ -2917,7 +2928,7 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
     },
   );
 
-  it('browses, previews and explicitly joins public and eligible role Channels', async () => {
+  it('auto-joins public and eligible role Channels so the member can post at once', async () => {
     const f = await enabledFixture();
     const group = f.channels.createGroup(owner, { name: 'Public preview', members: [] });
     for (const visibility of [
@@ -2931,23 +2942,16 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
           ? visibility
           : { kind: 'roles', roleIds: [...visibility.roleIds] },
       );
-      expect(f.team.channelAccess.browse(f.human)).toContainEqual(
-        expect.objectContaining({ channelId: group.id, visibility: visibility.kind }),
-      );
+      expect(f.team.channelAccess.visibleIds(f.human).has(group.id)).toBe(true);
       expect(await f.methods(f.human).channelGet({ channelId: group.id })).toMatchObject({
         ok: true,
         value: { role: 'member', visibility },
       });
+      expect(f.channels.listHumanMembers(f.human, group.id)).toHaveLength(2);
       expect(
-        await f.methods(f.human).channelSend({ channelId: group.id, body: 'not joined' }),
-      ).toMatchObject({ ok: false, error: { code: 'channel-not-found' } });
+        await f.methods(f.human).channelSend({ channelId: group.id, body: visibility.kind }),
+      ).toMatchObject({ ok: true });
     }
-    f.team.channelAccess.join(f.human, group.id);
-    f.team.channelAccess.join(f.human, group.id);
-    expect(f.channels.listHumanMembers(f.human, group.id)).toHaveLength(2);
-    expect(
-      await f.methods(f.human).channelSend({ channelId: group.id, body: 'joined' }),
-    ).toMatchObject({ ok: true });
   });
 
   it('enforces each policy, owner-only admins and exact member metadata', async () => {
@@ -3055,11 +3059,9 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
     expect(f.team.channelAccess.view(f.human, group.id).role).toBe('owner');
     expect(f.team.channelAccess.canRead(owner, group.id)).toBe(false);
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
-    expect(f.team.channelAccess.browse(owner)).toContainEqual(
-      expect.objectContaining({ channelId: group.id }),
-    );
+    expect(f.team.channelAccess.visibleIds(owner).has(group.id)).toBe(true);
     expect(() => f.team.channelAccess.adminsSet(f.human, group.id, [owner.humanId])).toThrow(
-      'member-not-found',
+      'permission-required',
     );
     const { role } = f.team.roles.create(owner, 'no channel creation', []);
     f.team.roles.set(owner, f.human.humanId, [role.roleId]);
@@ -3145,7 +3147,6 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
       await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
       const group = f.channels.createGroup(owner, { name: 'Revoked', members: [] });
       f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
-      f.team.channelAccess.join(f.human, group.id);
       const first = await f.team.signIn('bob', 'member-password-1', 'one');
       const second = await f.team.signIn('bob', 'member-password-1', 'two');
       const pairing = createDevicePairing({
@@ -3268,9 +3269,6 @@ describe('M4 migration and query budgets', () => {
     expect(f.team.channelAccess.visibleIds(f.human, false).size).toBe(1000);
     expect(f.db.diagnostics().metrics.reads - before).toBe(1);
     before = f.db.diagnostics().metrics.reads;
-    expect(f.team.channelAccess.browse(f.human)).toHaveLength(1000);
-    expect(f.db.diagnostics().metrics.reads - before).toBe(1);
-    before = f.db.diagnostics().metrics.reads;
     expect(f.team.channelAccess.canRead(f.human, 'scale-group-999')).toBe(true);
     expect(f.db.diagnostics().metrics.reads - before).toBe(1);
   });
@@ -3317,7 +3315,6 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
     const { role } = f.team.roles.create(owner, 'Design', ['channels.create', 'dm.humans']);
     f.team.roles.set(owner, human.humanId, [role.roleId]);
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: [role.roleId] });
-    f.team.channelAccess.join(human, group.id);
     expect(f.team.mode(owner).viewer.roleIds).not.toContain(role.roleId);
     expect(f.team.mode(f.human).viewer.roleIds).not.toContain(role.roleId);
     expect(() => f.team.channelAccess.addMember(owner, group.id, 'bob')).not.toThrow();
@@ -3329,9 +3326,7 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
     await f.team.accessSettled();
     for (const manager of [owner, f.human]) {
       expect(f.team.channelAccess.canRead(manager, group.id, true)).toBe(true);
-      expect(f.team.channelAccess.browse(manager)).toContainEqual(
-        expect.objectContaining({ channelId: group.id, joined: true }),
-      );
+      expect(f.team.channelAccess.visibleIds(manager).has(group.id)).toBe(true);
       expect(await f.methods(manager).channels({})).toMatchObject({
         ok: true,
         value: { channels: expect.arrayContaining([expect.objectContaining({ id: group.id })]) },
@@ -3355,7 +3350,7 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       }
     }
     expect(f.team.channelAccess.canRead(human, group.id)).toBe(false);
-    expect(f.team.channelAccess.browse(human)).toEqual([]);
+    expect(f.team.channelAccess.visibleIds(human, false).has(group.id)).toBe(false);
     expect(await f.methods(human).channels({})).toMatchObject({
       ok: true,
       value: { channels: [] },
@@ -3363,7 +3358,6 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
     expect(
       f.channels.searchAllHumanMessages?.(human, { text: 'design-review-secret', limit: 10 }),
     ).toMatchObject({ hits: [] });
-    expect(() => f.team.channelAccess.join(human, group.id)).toThrow('channel-not-found');
     expect(f.channels.hasHumanMembership?.(human, group.id)).toBe(false);
   });
 
@@ -3434,7 +3428,6 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       f.team.channelAccess.visibilitySet(human, group.id, { kind: 'public' });
       const actor = kind === 'owner' ? owner : f.human;
       if (kind === 'admin') f.team.roles.set(owner, actor.humanId, ['admin']);
-      f.team.channelAccess.join(actor, group.id);
       f.team.channelAccess.policySet(human, group.id, restrictedPolicy);
       expect(f.team.channelAccess.view(actor, group.id).role).toBe('member');
       for (const key of Object.keys(restrictedPolicy)) {
@@ -3753,7 +3746,6 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
     const f = await enabledFixture();
     const channel = f.channels.createGroup(f.human, { name: 'Shared', members: [] });
     f.team.setPublic(owner, channel.id, true);
-    f.team.joinPublic(owner, channel.id);
     await f.channels.appendMessage(f.human, channel.id, {
       id: 'shared-message',
       at: '2026-11-14T00:00:00.000Z',
@@ -3909,7 +3901,6 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
       const f = await enabledFixture();
       const group = f.channels.createGroup(owner, { name: 'Revoked cached Channel', members: [] });
       f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
-      f.team.channelAccess.join(f.human, group.id);
       expect(await f.methods(f.human).channels({})).toMatchObject({
         ok: true,
         value: { channels: [{ id: group.id }] },
@@ -3961,7 +3952,6 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
     const f = await enabledFixture();
     const group = f.channels.createGroup(owner, { name: 'Observed output', members: [] });
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
-    f.team.channelAccess.join(f.human, group.id);
     await f.channels.appendMessage(owner, group.id, {
       id: 'observed-message',
       at: '2026-11-14',
@@ -4313,7 +4303,6 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
       kind: 'roles',
       roleIds: [first.roleId, second.roleId],
     });
-    f.team.channelAccess.join(f.human, group.id);
     f.team.roles.set(owner, f.human.humanId, [second.roleId]);
     expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(true);
     f.team.roles.set(owner, f.human.humanId, ['member']);
@@ -4337,8 +4326,7 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
           kind: 'roles',
           roleIds: [role.roleId],
         });
-        if (basis === 'role') f.team.channelAccess.join(f.human, group.id);
-        else f.team.channelAccess.addMember(owner, group.id, 'bob');
+        if (basis === 'invited') f.team.channelAccess.addMember(owner, group.id, 'bob');
         return group;
       });
       if (operation === 'delete-role') f.team.roles.delete(owner, role.roleId);
@@ -4353,13 +4341,11 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
     },
   );
 
-  it('upgrades a role join on a named invitation and never downgrades it on repeated join', async () => {
+  it('upgrades an automatic role join on a named invitation and never downgrades it on role change', async () => {
     const f = await enabledFixture();
     const group = f.channels.createGroup(owner, { name: 'Upgrade invitation', members: [] });
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
-    f.team.channelAccess.join(f.human, group.id);
     f.team.channelAccess.addMember(owner, group.id, 'bob');
-    f.team.channelAccess.join(f.human, group.id);
     f.team.roles.set(owner, f.human.humanId, ['admin']);
     expect(f.team.channelAccess.canRead(f.human, group.id, true)).toBe(true);
     expect(
@@ -4382,7 +4368,6 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
     f.team.roles.set(owner, invited.humanId, [role.roleId]);
     const group = f.channels.createGroup(owner, { name: 'Role basis', members: [] });
     f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: [role.roleId] });
-    f.team.channelAccess.join(f.human, group.id);
     f.team.channelAccess.addMember(owner, group.id, invited.humanId);
     await f.channels.appendMessage(owner, group.id, {
       id: 'm14-role-history',
@@ -4415,7 +4400,7 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
         f.channels.searchAllHumanMessages?.(invited, { text: 'm14-role-history', limit: 10 }),
       ).toMatchObject({ hits: [expect.objectContaining({ channelId: group.id })] });
       f.team.roles.set(owner, f.human.humanId, [role.roleId]);
-      expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(false);
+      expect(f.channels.hasHumanMembership?.(f.human, group.id)).toBe(true);
     } finally {
       abort.abort();
       await stream.return?.();
