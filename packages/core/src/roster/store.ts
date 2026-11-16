@@ -533,7 +533,8 @@ export class RosterStore {
         }
         return this.snapshot();
       }
-      const nextPins = pins.filter((id) => !selected.has(id));
+      const unpinned = new Set([...ids, ...ids.map(resolvePin)]);
+      const nextPins = pins.filter((id) => !unpinned.has(id));
       if (change.action === 'unpin') {
         if (!sameIds(nextPins, state.pins)) {
           global.set(nextGlobalState(state, { pins: nextPins }));

@@ -1969,7 +1969,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (!isValidSlug(botSlug)) return undefined;
       const paired = humanBotDm(botSlug, human.humanId);
       if (paired) return paired;
-      const legacy = readRecord(dmChannelId(botSlug));
+      const legacyRecord = readRecord(dmChannelId(botSlug));
+      const legacy =
+        legacyRecord?.type === 'dm' && legacyRecord.botSlug === botSlug ? legacyRecord : undefined;
       const bot = hasChannelAccessSchema()
         ? database.read((db) =>
             db.prepare('SELECT owner_human_id FROM persona_bots WHERE slug = ?').get(botSlug),
@@ -1979,14 +1981,31 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         typeof bot?.['owner_human_id'] === 'string' &&
         (bot['owner_human_id'] !== human.humanId ||
           (legacy?.dmHumanId !== undefined && legacy.dmHumanId !== human.humanId));
-      const id = participant
+      const base = participant
         ? `dm-member-${createHash('sha256')
             .update(JSON.stringify([human.humanId, botSlug]))
             .digest('hex')
             .slice(0, 32)}`
         : dmChannelId(botSlug);
-      const existing = readRecord(id);
-      if (existing !== undefined) return existing;
+      const ownsRecord = (record: ChannelRecord): boolean =>
+        record.type === 'dm' &&
+        record.botSlug === botSlug &&
+        (participant
+          ? record.dmHumanId === human.humanId
+          : record.dmHumanId === undefined || record.dmHumanId === human.humanId);
+      let id = base;
+      for (let attempt = 2; ; attempt += 1) {
+        const existing = readRecord(id);
+        if (existing !== undefined && ownsRecord(existing)) return existing;
+        if (existing === undefined) {
+          const row = database.read((db) =>
+            db.prepare('SELECT record_json FROM channel_records WHERE channel_id = ?').get(id),
+          ) as { record_json: string } | undefined;
+          const tombstone = row === undefined ? undefined : parseRecord(row.record_json, id);
+          if (row === undefined || (tombstone !== undefined && ownsRecord(tombstone))) break;
+        }
+        id = `${base}-${attempt}`;
+      }
       const displayName = botName ?? options.botDisplayName?.(botSlug);
       if (displayName === undefined) return undefined;
       const timestamp = now().toISOString();

@@ -7485,7 +7485,8 @@ function buildBridgeMethods(
         if (
           (channel.type === 'group'
             ? !channel.members.includes(mention.botSlug)
-            : mention.botSlug === channel.botSlug) ||
+            : mention.botSlug === channel.botSlug ||
+              deps.team?.bots.canReach(human, mention.botSlug) === false) ||
           target === undefined ||
           target.paused === true
         )
@@ -10234,6 +10235,9 @@ function buildBridgeMethods(
         ...channels.map((channel) => channel.id),
         ...deps.registry.list().map((bot) => bot.slug),
         ...(deps.team?.bots.reachable(human).map((bot) => bot.slug) ?? []),
+        ...channels.flatMap((channel) =>
+          channel.type === 'dm' && channel.botSlug !== undefined ? [channel.botSlug] : [],
+        ),
       ]);
       if (channelIds.some((id) => !known.has(id))) {
         return invalidInput('rosterBatch contains an unknown Channel');

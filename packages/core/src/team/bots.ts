@@ -429,18 +429,25 @@ export class TeamBots {
     )
       throw new TeamError('bot-proactive-denied', undefined, { slug, humanId });
   }
-  dm(human: HumanContext, slug: string) {
-    if (human.caller !== 'bot') {
-      const row = this.db.read((db) =>
-        db
-          .prepare(`SELECT channel_id FROM channel_records
+  private participantDmId(human: HumanContext, slug: string): string | undefined {
+    const row = this.db.read((db) =>
+      db
+        .prepare(`SELECT channel_id FROM channel_records
         WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=?
         AND json_extract(record_json,'$.dmHumanId')=? LIMIT 1`)
-          .get(slug, human.humanId),
-      );
-      const channel = this.channels.get(
-        typeof row?.channel_id === 'string' ? row.channel_id : dmChannelId(slug),
-      );
+        .get(slug, human.humanId),
+    );
+    return typeof row?.channel_id === 'string' ? row.channel_id : undefined;
+  }
+  hasReadableDm(human: HumanContext, slug: string): boolean {
+    if (human.caller === 'bot') return false;
+    const id = this.participantDmId(human, slug);
+    return id !== undefined && this.channelAccess.canRead(human, id);
+  }
+  dm(human: HumanContext, slug: string) {
+    if (human.caller !== 'bot') {
+      const participantDm = this.participantDmId(human, slug);
+      const channel = this.channels.get(participantDm ?? dmChannelId(slug));
       if (channel?.botSlug === slug && this.channelAccess.canRead(human, channel.id))
         return { ...channel, ...(!this.canReach(human, slug) ? { readOnly: true as const } : {}) };
     }

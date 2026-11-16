@@ -154,6 +154,21 @@ const attentionBotOwner = (slug: string): string =>
   `coalesce((SELECT b.owner_human_id FROM persona_bots b WHERE b.slug = ${slug}), 'local-human') = $humanId`;
 const attentionDmOwner = (channel: string): string =>
   `(coalesce(json_extract(${channel}.record_json,'$.dmHumanId'), (SELECT b.owner_human_id FROM persona_bots b WHERE b.slug=json_extract(${channel}.record_json,'$.botSlug')), 'local-human') = $humanId)`;
+const assignmentDmRequester = (sessionId: string): string => `EXISTS (
+  SELECT 1 FROM assignments requested
+    JOIN source_events request ON request.source_event_id = requested.source_event_id
+    JOIN channel_records requester_dm ON requester_dm.channel_id = request.channel_id
+   WHERE requested.session_id = ${sessionId}
+     AND json_extract(requester_dm.record_json, '$.type') = 'dm'
+     AND json_extract(requester_dm.record_json, '$.deletedAt') IS NULL
+     AND json_extract(requester_dm.record_json, '$.dmHumanId') = $humanId)`;
+const assignmentForeignDm = (sessionId: string): string => `EXISTS (
+  SELECT 1 FROM assignments requested
+    JOIN source_events request ON request.source_event_id = requested.source_event_id
+    JOIN channel_records requester_dm ON requester_dm.channel_id = request.channel_id
+   WHERE requested.session_id = ${sessionId}
+     AND json_extract(requester_dm.record_json, '$.dmHumanId') IS NOT NULL
+     AND json_extract(requester_dm.record_json, '$.dmHumanId') <> $humanId)`;
 const assignmentPrincipal = `coalesce((SELECT owner_human_id FROM persona_bots WHERE slug = a.bot_slug), 'local-human')`;
 const assignmentRequester = `coalesce(
   (SELECT human_id FROM source_events WHERE source_event_id = a.source_event_id),
@@ -441,6 +456,7 @@ const ACTION_ATTENTION_CTE = `WITH all_attention AS (
             OR (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input') AND (
               EXISTS (SELECT 1 FROM channel_records dm WHERE dm.channel_id = candidate.channel_id
                 AND json_extract(dm.record_json, '$.type') = 'dm' AND ${attentionDmOwner('dm')})
+              OR (candidate.kind = 'assignment-report' AND ${assignmentDmRequester('candidate.assignment_session_id')})
               OR (${attentionBotOwner('candidate.bot_slug')}
               AND NOT EXISTS (SELECT 1 FROM channel_records dm WHERE dm.channel_id = candidate.channel_id
                 AND json_extract(dm.record_json, '$.type') = 'dm')
@@ -1469,7 +1485,8 @@ export function createHumanAttentionDecisions(
               FROM source_events e
               JOIN assignments a ON a.session_id = e.assignment_session_id
              WHERE e.source_event_id = ?
-               AND ${attentionBotOwner('e.bot_slug')}
+               AND ((${attentionBotOwner('e.bot_slug')} AND NOT ${assignmentForeignDm('a.session_id')})
+                 OR ${assignmentDmRequester('a.session_id')})
                AND e.source_kind = 'assignment-report'
                AND a.latest_report_state = 'completed'
                AND e.source_event_id = (

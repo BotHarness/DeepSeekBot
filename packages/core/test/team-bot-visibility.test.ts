@@ -505,6 +505,44 @@ describe('M7 Bot principal and participant authority', () => {
     },
   );
 
+  it('refuses DM mentions of Bots the speaking Human cannot reach', async () => {
+    const f = fixture();
+    publicBot(f);
+    const dm = f.team.bots.dm(bob, 'alice-bot')!;
+    const mention = (slug: string) =>
+      f.bridge(bob).channelSend({
+        channelId: dm.id,
+        body: `@${slug} hello`,
+        mentions: [{ botSlug: slug, label: slug, start: 0, end: slug.length + 1 }],
+      });
+    expect(f.team.bots.canReach(bob, 'owner-bot')).toBe(false);
+    expect(await mention('owner-bot')).toMatchObject({ ok: false });
+    expect((await f.bridge(bob).channelMessages({ channelId: dm.id })) as unknown).toMatchObject({
+      ok: true,
+      value: { messages: [] },
+    });
+    expect(await mention('bob-bot')).toMatchObject({ ok: true });
+  });
+  it('never reuses another Human/Bot pair when a Bot slug matches a participant DM id', () => {
+    const f = fixture();
+    publicBot(f);
+    const participant = f.team.bots.dm(bob, 'alice-bot')!;
+    expect(participant.id).toMatch(/^dm-member-/);
+    const collidingSlug = participant.id.slice('dm-'.length);
+    expect(
+      f.registry.create({ slug: collidingSlug, displayName: 'Collider', ownerHumanId: 'bob' }).ok,
+    ).toBe(true);
+    const own = f.channels.getOrCreateDm(bob, collidingSlug, 'Collider')!;
+    expect(own.id).not.toBe(participant.id);
+    expect(own).toMatchObject({ type: 'dm', botSlug: collidingSlug });
+    expect(f.channels.get(participant.id)).toMatchObject({
+      botSlug: 'alice-bot',
+      dmHumanId: 'bob',
+    });
+    expect(f.channels.getOrCreateDm(bob, collidingSlug, 'Collider')!.id).toBe(own.id);
+    expect(f.team.bots.dm(bob, 'alice-bot')!.id).toBe(participant.id);
+    expect(f.team.bots.dm(bob, collidingSlug)!.id).toBe(own.id);
+  });
   it('keeps Human DM identity and privacy across a public Bot principal transfer', () => {
     const f = fixture();
     publicBot(f);

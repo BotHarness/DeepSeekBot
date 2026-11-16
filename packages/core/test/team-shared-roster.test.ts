@@ -568,3 +568,30 @@ it('shows handled shared-DM questions only to the recorded participant', async (
   for (const human of [alice, owner, manager])
     expect(f.core.humanAttention.list(human, { category: 'handled' }).items).toEqual([]);
 });
+
+it('keeps batch arrangement for a retained read-only DM without restoring Bot access', async () => {
+  const f = await fixture(),
+    methods = f.bridge(bob);
+  const dm = f.core.team.bots.dm(bob, 'public')!;
+  expect(await methods.rosterBatch({ action: 'pin', channelIds: ['public'] })).toMatchObject({
+    ok: true,
+  });
+  f.core.team.bots.setVisibility(alice, 'public', { kind: 'private' }, true);
+  expect(f.core.team.bots.canReach(bob, 'public')).toBe(false);
+  expect(f.core.team.bots.dm(bob, 'public')).toMatchObject({ id: dm.id, readOnly: true });
+  const unpinned = await methods.rosterBatch({ action: 'unpin', channelIds: ['public'] });
+  expect(unpinned, JSON.stringify(unpinned)).toMatchObject({ ok: true });
+  expect(methods.rosterGet({})).toMatchObject({ ok: true, value: { pins: [] } });
+  expect(await methods.rosterBatch({ action: 'pin', channelIds: ['private'] })).toMatchObject({
+    ok: false,
+  });
+  expect(f.core.team.bots.canReach(bob, 'public')).toBe(false);
+  await expect(
+    f.core.channels.appendMessage(bob, dm.id, {
+      id: 'after-unpin',
+      at: '2026-11-16T00:00:00Z',
+      author: { kind: 'human' },
+      body: 'still read-only',
+    }),
+  ).rejects.toMatchObject({ code: 'bot-dm-read-only' });
+});

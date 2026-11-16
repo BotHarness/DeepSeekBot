@@ -154,7 +154,8 @@ export function guardHumanBridge(
                 typeof id === 'string' &&
                 !deps.team?.bots.canReach(human, id) &&
                 !ownsBot(human, deps.registry.getHistorical(id)) &&
-                !deps.team?.channelAccess.canRead(human, id),
+                !deps.team?.channelAccess.canRead(human, id) &&
+                !deps.team?.bots.hasReadableDm(human, id),
             )
           )
             return refuse('channel-not-found');
