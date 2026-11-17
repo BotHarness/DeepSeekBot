@@ -370,6 +370,7 @@ export function BotSessionsVisibilitySetting({
     <SettingsRow
       title={t('botSessions.row.title')}
       description={t('botSessions.row.description')}
+      info={{ label: t('botSessions.row.title'), text: t('botSessions.row.info') }}
       control={
         <Switch
           checked={prefs.showBotSessions}
@@ -391,6 +392,10 @@ export function ApprovalReviewSessionsVisibilitySetting({
     <SettingsRow
       title={t('approvalReviewSessions.row.title')}
       description={t('approvalReviewSessions.row.description')}
+      info={{
+        label: t('approvalReviewSessions.row.title'),
+        text: t('approvalReviewSessions.row.info'),
+      }}
       control={
         <Switch
           checked={shown}

@@ -8,45 +8,30 @@ import {
   type BridgeCall,
   type CompactionThreshold,
 } from './bridge.js';
-import { FieldStack, TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
+import { NumberField } from './ds/number-field.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export type CompactionThresholdSettingProps = PropsLocale<'botharness'> &
   InjectFace<{ call: BridgeCall }>;
 
-interface Draft {
-  percent: string;
-  headroom: string;
-}
-
-function draftOf(threshold: CompactionThreshold): Draft {
-  return {
-    percent: String(Number((threshold.ratio * 100).toFixed(2))),
-    headroom: String(threshold.headroomTokens),
-  };
-}
+const percentOf = (ratio: number): number => Number((ratio * 100).toFixed(2));
 
 export function CompactionThresholdSetting({
   call,
   t,
 }: CompactionThresholdSettingProps): ReactElement {
   const [threshold, setThreshold] = useState<CompactionThreshold>();
-  const [draft, setDraft] = useState<Draft>({ percent: '', headroom: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const mounted = useRef(false);
-  const accept = (value: CompactionThreshold | undefined): void => {
-    setThreshold(value);
-    if (value !== undefined) setDraft(draftOf(value));
-  };
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     const controller = new AbortController();
     loadIdleCompaction(call, controller.signal)
       .then((value) => {
-        if (!controller.signal.aborted) accept(value.threshold);
+        if (!controller.signal.aborted) setThreshold(value.threshold);
       })
       .catch(() => {
         if (!controller.signal.aborted) setError(true);
@@ -56,24 +41,6 @@ export function CompactionThresholdSetting({
       controller.abort();
     };
   }, [call]);
-  const percent = Number(draft.percent);
-  const headroom = Number(draft.headroom);
-  const percentMin = Math.round((threshold?.ratioRange.min ?? 0) * 100);
-  const percentMax = Math.round((threshold?.ratioRange.max ?? 1) * 100);
-  const percentInvalid =
-    threshold !== undefined &&
-    (draft.percent === '' ||
-      !Number.isFinite(percent) ||
-      percent < percentMin ||
-      percent > percentMax);
-  const headroomInvalid =
-    threshold !== undefined &&
-    (!Number.isInteger(headroom) ||
-      headroom < threshold.headroomRange.min ||
-      headroom > threshold.headroomRange.max);
-  const changed =
-    threshold !== undefined &&
-    (percent / 100 !== threshold.ratio || headroom !== threshold.headroomTokens);
   const save = async (next: {
     thresholdRatio?: number | null;
     headroomTokens?: number | null;
@@ -82,90 +49,90 @@ export function CompactionThresholdSetting({
     setError(false);
     try {
       const value = await setCompactionThreshold(call, next);
-      if (mounted.current) accept(value.threshold);
+      if (mounted.current) setThreshold(value.threshold);
     } catch {
       if (mounted.current) setError(true);
     } finally {
       if (mounted.current) setBusy(false);
     }
   };
+  const percentMin = Math.round((threshold?.ratioRange.min ?? 0) * 100);
+  const percentMax = Math.round((threshold?.ratioRange.max ?? 1) * 100);
   return (
-    <SettingsRow
-      rootRef={mount}
-      title={t('compactionThreshold.row.title')}
-      description={t('compactionThreshold.row.description')}
-      data={{ 'data-compaction-threshold-setting': '' }}
-    >
+    <>
+      <SettingsRow
+        rootRef={mount}
+        title={t('compactionThreshold.ratio')}
+        description={
+          threshold === undefined
+            ? undefined
+            : t('compactionThreshold.ratio.hint', {
+                min: percentMin,
+                max: percentMax,
+                value: Math.round(threshold.ratioRange.defaultValue * 100),
+              })
+        }
+        info={{
+          label: t('compactionThreshold.row.title'),
+          text: t('compactionThreshold.row.description'),
+        }}
+        data={{ 'data-compaction-threshold-setting': '' }}
+        control={
+          threshold === undefined ? undefined : (
+            <NumberField
+              label={t('compactionThreshold.ratio')}
+              value={percentOf(threshold.ratio)}
+              min={percentMin}
+              max={percentMax}
+              integer={false}
+              unit="%"
+              disabled={busy}
+              onCommit={(percent) => void save({ thresholdRatio: percent / 100 })}
+              data={{ 'data-compaction-threshold-ratio': '' }}
+            />
+          )
+        }
+      >
+        {error ? <Note tone="danger">{t('compactionThreshold.error')}</Note> : null}
+      </SettingsRow>
       {threshold === undefined ? null : (
-        <FieldStack>
-          <TextField
-            label={t('compactionThreshold.ratio')}
-            hint={t('compactionThreshold.ratio.hint', {
-              min: percentMin,
-              max: percentMax,
-              value: Math.round(threshold.ratioRange.defaultValue * 100),
-            })}
-            error={
-              percentInvalid
-                ? t('compactionThreshold.ratio.invalid', {
-                    min: percentMin,
-                    max: percentMax,
-                  })
-                : undefined
-            }
-            inputMode="numeric"
-            value={draft.percent}
-            onChange={(percent) => setDraft({ ...draft, percent: percent.trim() })}
-            data-compaction-threshold-ratio=""
-          />
-          <TextField
-            label={t('compactionThreshold.headroom')}
-            hint={t('compactionThreshold.headroom.hint', {
-              min: threshold.headroomRange.min,
-              max: threshold.headroomRange.max,
-              value: threshold.headroomRange.defaultValue,
-            })}
-            error={
-              headroomInvalid
-                ? t('compactionThreshold.invalid', {
-                    min: threshold.headroomRange.min,
-                    max: threshold.headroomRange.max,
-                  })
-                : undefined
-            }
-            inputMode="numeric"
-            value={draft.headroom}
-            onChange={(headroom) => setDraft({ ...draft, headroom: headroom.trim() })}
-            data-compaction-threshold-headroom=""
-          />
-          <div>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy || !changed || percentInvalid || headroomInvalid}
-              onClick={() =>
-                void save({
-                  ...(percent / 100 === threshold.ratio ? {} : { thresholdRatio: percent / 100 }),
-                  ...(headroom === threshold.headroomTokens ? {} : { headroomTokens: headroom }),
-                })
-              }
-            >
-              {t('compactionThreshold.save')}
-            </Button>
-            {threshold.ratioSet || threshold.headroomSet ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() => void save({ thresholdRatio: null, headroomTokens: null })}
-              >
-                {t('compactionThreshold.reset')}
-              </Button>
-            ) : null}
-          </div>
-        </FieldStack>
+        <SettingsRow
+          title={t('compactionThreshold.headroom')}
+          description={t('compactionThreshold.headroom.hint', {
+            min: threshold.headroomRange.min,
+            max: threshold.headroomRange.max,
+            value: threshold.headroomRange.defaultValue,
+          })}
+          control={
+            <NumberField
+              label={t('compactionThreshold.headroom')}
+              value={threshold.headroomTokens}
+              min={threshold.headroomRange.min}
+              max={threshold.headroomRange.max}
+              unit="token"
+              disabled={busy}
+              onCommit={(headroomTokens) => void save({ headroomTokens })}
+              data={{ 'data-compaction-threshold-headroom': '' }}
+            />
+          }
+        />
       )}
-      {error ? <Note tone="danger">{t('compactionThreshold.error')}</Note> : null}
-    </SettingsRow>
+      {threshold?.ratioSet || threshold?.headroomSet ? (
+        <SettingsRow
+          title={t('compactionThreshold.reset.title')}
+          control={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void save({ thresholdRatio: null, headroomTokens: null })}
+            >
+              {t('compactionThreshold.reset')}
+            </Button>
+          }
+        />
+      ) : null}
+    </>
   );
 }

@@ -105,7 +105,8 @@ export function AssignmentConcurrencySetting({
     <SettingsRow
       rootRef={mount}
       title={t('assignmentLimit.title')}
-      description={t('assignmentLimit.description')}
+      description={t('assignmentLimit.summary')}
+      info={{ label: t('assignmentLimit.title'), text: t('assignmentLimit.description') }}
       control={stepper}
     >
       {notes}

@@ -96,12 +96,20 @@ export function ModelsSection(
 ): ReactElement {
   return (
     <Rows>
-      <DefaultModelSettings actions={props.actions} t={props.t} />
-      <IdleCompactionSetting call={props.call} t={props.t} />
-      <CompactionThresholdSetting call={props.call} t={props.t} />
-      <AssignmentConcurrencyRow {...props} />
-      <BotSessionsVisibilitySetting {...props} />
-      <ApprovalReviewSessionsVisibilitySetting {...props} />
+      <SettingsSection title={props.t('models.section.default')}>
+        <DefaultModelSettings actions={props.actions} t={props.t} />
+      </SettingsSection>
+      <SettingsSection title={props.t('models.section.context')}>
+        <IdleCompactionSetting call={props.call} t={props.t} />
+        <CompactionThresholdSetting call={props.call} t={props.t} />
+      </SettingsSection>
+      <SettingsSection title={props.t('models.section.run')}>
+        <AssignmentConcurrencyRow {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('models.section.sessions')}>
+        <BotSessionsVisibilitySetting {...props} />
+        <ApprovalReviewSessionsVisibilitySetting {...props} />
+      </SettingsSection>
     </Rows>
   );
 }

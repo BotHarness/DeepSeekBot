@@ -1136,7 +1136,7 @@ export const zh = {
   'onboarding.fixed': '单独指定模型',
   'onboarding.retryMessage': '重试这条消息',
   'onboarding.defaultTitle': '全局默认模型',
-  'onboarding.defaultDescription': '新对话和选择继承全局的 Bot 使用此模型。',
+  'onboarding.defaultDescription': '新对话和继承全局的 Bot 使用此模型',
 
   'companion.show': '显示为窗口伙伴',
   'companion.remove': '移除窗口伙伴',
@@ -1658,6 +1658,7 @@ export const zh = {
   'assignmentLimit.title': 'Assignment 并发上限',
   'assignmentLimit.description':
     '所有 Bot 共用，限制同时执行的任务数量（1–32），不限制历史会话。降低上限不会中止正在执行的任务。',
+  'assignmentLimit.summary': '所有 Bot 共用，同时执行的任务数',
   'assignmentLimit.save': '保存',
   'assignmentLimit.saving': '保存中…',
   'assignmentLimit.saved': '已保存，对后续任务生效。',
@@ -1675,25 +1676,30 @@ export const zh = {
   'compactionThreshold.row.title': '自动压缩阈值',
   'compactionThreshold.row.description':
     '对话上下文达到“窗口 × 比例”或“窗口 − 输出上限 − 余量”中较小的一个时自动压缩。对本机所有 Bot 生效，下一步即应用。',
-  'compactionThreshold.ratio': '窗口比例（%）',
+  'compactionThreshold.ratio': '窗口比例',
   'compactionThreshold.ratio.hint': '{min}–{max}，默认 {value}',
-  'compactionThreshold.headroom': '余量（token）',
+  'compactionThreshold.headroom': '余量',
   'compactionThreshold.headroom.hint': '{min}–{max}，默认 {value}',
-  'compactionThreshold.invalid': '请输入 {min}–{max} 之间的整数。',
-  'compactionThreshold.ratio.invalid': '请输入 {min}–{max} 之间的数。',
-  'compactionThreshold.save': '保存',
-  'compactionThreshold.reset': '恢复默认',
+  'compactionThreshold.reset': '恢复',
+  'compactionThreshold.reset.title': '恢复默认压缩阈值',
   'compactionThreshold.error': '保存失败，请重试。',
+  'models.section.default': '默认模型',
+  'models.section.context': '上下文',
+  'models.section.run': '运行',
+  'models.section.sessions': '会话列表',
   'idleCompaction.row.title': '空闲时提前压缩上下文',
-  'idleCompaction.row.description':
+  'idleCompaction.row.description': 'Bot 空闲时，趁缓存还在先压缩上下文',
+  'idleCompaction.row.info':
     'Bot 空闲一段时间后，趁模型的提示缓存还在，先压缩它的主会话。之后再聊时要重读的上下文更短、更便宜。聊天里不会显示，记录在 Bot 活动里。',
   'idleCompaction.row.unreadable': '设置文件无法读取，空闲压缩已暂停。',
   'idleCompaction.row.error': '保存失败，请重试。',
   'botSessions.row.title': '在会话列表显示 Bot 会话',
-  'botSessions.row.description':
+  'botSessions.row.description': '显示 Orchestrator 和 Assignment 会话',
+  'botSessions.row.info':
     'Bot 的 Orchestrator 和 Assignment 会话默认不出现在 DeepSeek Harness 的会话列表中。打开后会显示出来。',
   'approvalReviewSessions.row.title': '在会话列表显示审批复核会话',
-  'approvalReviewSessions.row.description':
+  'approvalReviewSessions.row.description': '显示每次自动审批的复核会话',
+  'approvalReviewSessions.row.info':
     '自动审批每次复核都会开一个短会话。默认不显示，打开后可以在 DeepSeek Harness 里查看它是怎么判断的。',
   'sendKey.row.title': '发送消息',
   'sendKey.row.description': '选择发送消息的按键，另一种组合用于换行',
@@ -7118,7 +7124,7 @@ export const en = {
   'onboarding.retryMessage': 'Retry this message',
   'onboarding.defaultTitle': 'Global default model',
   'onboarding.defaultDescription':
-    'Used by new conversations and Bots that inherit the global model.',
+    'Used by new conversations and Bots that inherit the global model',
 
   'companion.show': 'Show as Window Companion',
   'companion.remove': 'Remove Window Companion',
@@ -7661,6 +7667,7 @@ export const en = {
   'assignmentLimit.title': 'Assignment concurrency limit',
   'assignmentLimit.description':
     'Shared by all Bots. Limits concurrently executing tasks (1–32), not Session history. Lowering it does not stop running work.',
+  'assignmentLimit.summary': 'Tasks all Bots may run at once',
   'assignmentLimit.save': 'Save',
   'assignmentLimit.saving': 'Saving…',
   'assignmentLimit.saved': 'Saved. Applies to subsequent work.',
@@ -7678,25 +7685,30 @@ export const en = {
   'compactionThreshold.row.title': 'Automatic compaction threshold',
   'compactionThreshold.row.description':
     'Compacts a conversation when its context reaches the smaller of window × ratio and window − output limit − headroom. Applies to every Bot on this computer from the next step.',
-  'compactionThreshold.ratio': 'Window ratio (%)',
+  'compactionThreshold.ratio': 'Window ratio',
   'compactionThreshold.ratio.hint': '{min}–{max}, default {value}',
-  'compactionThreshold.headroom': 'Headroom (tokens)',
+  'compactionThreshold.headroom': 'Headroom',
   'compactionThreshold.headroom.hint': '{min}–{max}, default {value}',
-  'compactionThreshold.invalid': 'Enter a whole number from {min} to {max}.',
-  'compactionThreshold.ratio.invalid': 'Enter a number from {min} to {max}.',
-  'compactionThreshold.save': 'Save',
-  'compactionThreshold.reset': 'Restore defaults',
+  'compactionThreshold.reset': 'Restore',
+  'compactionThreshold.reset.title': 'Restore default thresholds',
   'compactionThreshold.error': 'Could not save. Try again.',
+  'models.section.default': 'Default model',
+  'models.section.context': 'Context',
+  'models.section.run': 'Running',
+  'models.section.sessions': 'Session list',
   'idleCompaction.row.title': 'Compact idle conversations early',
-  'idleCompaction.row.description':
+  'idleCompaction.row.description': 'Compact an idle Bot while its cache is warm',
+  'idleCompaction.row.info':
     "When a Bot goes quiet, compact its main session while the model's prompt cache is still warm, so the next message re-reads a shorter, cheaper context. Nothing shows in the chat; each compaction is recorded in the Bot's activity.",
   'idleCompaction.row.unreadable': 'The setting file cannot be read, so idle compaction is paused.',
   'idleCompaction.row.error': 'Could not save. Try again.',
   'botSessions.row.title': 'Show Bot sessions in the session list',
-  'botSessions.row.description':
+  'botSessions.row.description': 'Show Orchestrator and Assignment sessions',
+  'botSessions.row.info':
     "Bot Orchestrator and Assignment sessions stay out of DeepSeek Harness's session list by default. Turn this on to show them.",
   'approvalReviewSessions.row.title': 'Show Approval Review Sessions in the session list',
-  'approvalReviewSessions.row.description':
+  'approvalReviewSessions.row.description': 'Show the review session of each auto approval',
+  'approvalReviewSessions.row.info':
     'Auto approval opens a short session for each review. They stay hidden by default. Turn this on to see how each call was judged in DeepSeek Harness.',
   'sendKey.row.title': 'Send messages',
   'sendKey.row.description': 'Choose the key that sends a message; the other inserts a new line',

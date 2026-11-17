@@ -59,9 +59,16 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'dock.reset',
   ],
   models: [
+    'models.section.default',
+    'models.section.context',
+    'models.section.run',
+    'models.section.sessions',
     'onboarding.defaultTitle',
     'idleCompaction.row.title',
     'compactionThreshold.row.title',
+    'compactionThreshold.ratio',
+    'compactionThreshold.headroom',
+    'compactionThreshold.reset.title',
     'assignmentLimit.title',
     'botSessions.row.title',
     'approvalReviewSessions.row.title',
@@ -199,6 +206,14 @@ export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessK
   companions: ['companion.speechSound', 'companion.retention'],
 };
 
+export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'idleCompaction.row.title': 'idleCompaction.row.info',
+  'compactionThreshold.ratio': 'compactionThreshold.row.description',
+  'assignmentLimit.title': 'assignmentLimit.description',
+  'botSessions.row.title': 'botSessions.row.info',
+  'approvalReviewSessions.row.title': 'approvalReviewSessions.row.info',
+};
+
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'relationships.prepareReturn': 'relationships.prepareReturnHint',
   'connections.methods': 'connections.hosts.local',
@@ -226,8 +241,9 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'icon.row.title': 'icon.row.description',
   'onboarding.defaultTitle': 'onboarding.defaultDescription',
   'idleCompaction.row.title': 'idleCompaction.row.description',
-  'compactionThreshold.row.title': 'compactionThreshold.row.description',
-  'assignmentLimit.title': 'assignmentLimit.description',
+  'compactionThreshold.ratio': 'compactionThreshold.ratio.hint',
+  'compactionThreshold.headroom': 'compactionThreshold.headroom.hint',
+  'assignmentLimit.title': 'assignmentLimit.summary',
   'botSessions.row.title': 'botSessions.row.description',
   'approvalReviewSessions.row.title': 'approvalReviewSessions.row.description',
   'autoApproval.reviewerModel.title': 'autoApproval.reviewerModel.description',
@@ -378,6 +394,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'icon.row.title': 'avatar 图标 头像',
   'onboarding.defaultTitle': '模型 默认模型 model default model',
   'idleCompaction.row.title': 'compaction context 上下文 压缩',
+  'compactionThreshold.ratio': 'compaction context 上下文 压缩 阈值 threshold',
   'compactionThreshold.row.title': 'compaction context 上下文 压缩 阈值 threshold',
   'assignmentLimit.title': '并发 任务 concurrency tasks parallel',
   'autoApproval.reviewerModel.title': '审批 复核 approval reviewer',
@@ -458,8 +475,10 @@ export function searchSettings(
       const titles = [t(key), en[key], zh[key]];
       const synonyms = (SEARCH_ALIASES[key] ?? '').split(' ').filter(Boolean);
       const descriptionKey = SETTINGS_DESCRIPTIONS[key];
-      const descriptions =
-        descriptionKey === undefined ? [] : [en[descriptionKey], zh[descriptionKey]];
+      const infoKey = SETTINGS_INFO[key];
+      const descriptions = [descriptionKey, infoKey].flatMap((note) =>
+        note === undefined ? [] : [en[note], zh[note]],
+      );
       const own = (term: string) =>
         [...titles, ...synonyms].some((text) => searchTextMatches(text, term)) ||
         descriptions.some((text) => describes(text, term));
