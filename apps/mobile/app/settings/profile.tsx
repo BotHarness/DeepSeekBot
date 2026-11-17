@@ -31,6 +31,7 @@ export default function AccountProfileScreen() {
       actions={{
         onRetry: () => void accountProfile.refresh(),
         onEditName: () => router.push('/settings/profile-name'),
+        onOpenUploads: () => router.push('/settings/uploaded-bots'),
         onSignIn: () => {
           setSigningIn(true);
           void connectAccount
