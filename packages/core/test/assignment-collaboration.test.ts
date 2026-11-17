@@ -42,12 +42,16 @@ class ManualAgents implements BotAgentAdapter {
   failNextStop = false;
   failInbox: 'before-side-effect' | 'after-side-effect' | undefined;
   factoryUnavailableCount = 0;
+  onMessage: ((run: OrchestratorAgentRun) => Promise<void>) | undefined;
   readonly #finish = new Map<string, () => void>();
 
   async runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.access = run.assignments;
     this.allInboxTurns.push(run.inbox);
-    if (run.message.trim().length > 0) return;
+    if (run.message.trim().length > 0) {
+      await this.onMessage?.(run);
+      return;
+    }
     if (this.factoryUnavailableCount > 0) {
       this.factoryUnavailableCount -= 1;
       throw new Error('no agent factory registered (load an agent-loop plugin)');
@@ -717,6 +721,35 @@ describe('Assignment collaboration', () => {
           .list({ botSlug: 'ada' })
           .items.find((i) => i.id === notice.id)?.state,
       ).toBe('open');
+    } finally {
+      await close();
+    }
+  });
+
+  it('does not wake for a paired completion notice once a wait took its Report', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        const created = run.assignments.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Complete',
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment missing');
+        const assignment = agents.started.at(-1)!.run;
+        const waiting = run.assignments.wait!(
+          created.assignment.sessionId,
+          new AbortController().signal,
+        );
+        await assignment.report({ state: 'completed', summary: 'Done' }, { turn: 1 });
+        const waited = await waiting;
+        expect(waited.inboxIds).toHaveLength(1);
+        assignment.completedTurn!({ turn: 1, endSeq: 10 });
+        agents.finish(created.assignment.sessionId);
+      };
+      await admit('Do it and wait', 'wait-start');
+      await runtime.whenIdle();
+      expect(agents.inboxTurns).toHaveLength(0);
     } finally {
       await close();
     }

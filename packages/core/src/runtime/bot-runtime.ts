@@ -1399,6 +1399,14 @@ export function queryAssignmentDirectory(
   };
 }
 
+function onlyPairedLifecycle(unit: InboxUnit): boolean {
+  return (
+    unit.sourceKind === 'assignment-lifecycle' &&
+    (unit.lifecycleNotices ?? []).length > 0 &&
+    (unit.lifecycleNotices ?? []).every((notice) => notice.reportSourceEventId !== undefined)
+  );
+}
+
 function keptLifecycleNotice(
   row: InboxReportRow,
 ): NonNullable<InboxUnit['lifecycleNotices']>[number] | undefined {
@@ -3724,7 +3732,8 @@ class BotRuntimeImplementation implements BotRuntime {
     if (
       claimed.items.length === 0 &&
       claimed.digests.length === 0 &&
-      collected.eventIds.length === 0
+      (collected.eventIds.length === 0 ||
+        (claimed.contexts.length === 0 && collected.units.every(onlyPairedLifecycle)))
     )
       return;
     const externalChannelId = collected.units.find((unit) => unit.external?.localChannelId)
