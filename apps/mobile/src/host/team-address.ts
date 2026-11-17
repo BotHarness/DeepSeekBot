@@ -23,5 +23,10 @@ export function pinnedFingerprint(hosts: readonly SavedHost[], hostId: string): 
 }
 
 export function fingerprintGroups(fingerprint: string): string {
-  return fingerprint.match(/.{1,4}/gu)?.join(' ') ?? fingerprint;
+  return (
+    fingerprint
+      .replace(/\s+/gu, '')
+      .match(/.{1,4}/gu)
+      ?.join(' ') ?? fingerprint
+  );
 }

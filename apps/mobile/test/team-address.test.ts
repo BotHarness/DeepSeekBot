@@ -28,4 +28,5 @@ it('pins a saved member fingerprint and groups fingerprints for reading aloud', 
   expect(pinnedFingerprint([host], 'h')).toBe('f'.repeat(64));
   expect(pinnedFingerprint([host], 'other')).toBeUndefined();
   expect(fingerprintGroups('abcdef012345')).toBe('abcd ef01 2345');
+  expect(fingerprintGroups('4c36 bf9e c059 2d')).toBe('4c36 bf9e c059 2d');
 });
