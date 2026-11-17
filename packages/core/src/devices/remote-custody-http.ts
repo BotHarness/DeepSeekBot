@@ -118,6 +118,7 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
           const finish = () => {
             if (ended) return;
             ended = true;
+            request.signal.removeEventListener('abort', finish);
             if (heartbeat !== undefined) clearInterval(heartbeat);
             custody.closeSocket(id);
             release?.();
@@ -153,7 +154,8 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
               finish();
             }
           }, 15_000);
-          request.signal.addEventListener('abort', finish, { once: true });
+          if (request.signal.aborted) finish();
+          else request.signal.addEventListener('abort', finish, { once: true });
         },
         cancel() {
           ended = true;
