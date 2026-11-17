@@ -1,0 +1,1371 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Question: how should a Bot's Sessions sub panel show status, goal and
+  to-do progress, and how should one Session open in a detail sub panel inside the message panel
+  instead of jumping to DeepSeek Harness?
+  Three variants on one page, switchable with ?variant=A|B|C and ?theme=light|dark.
+  Colours, radii, type sizes and spacing come from packages/client/src/client/ds/tobs-tokens.generated.ts
+  (style "a") and ds/tokens.stylex.ts. Data is fixture data shaped after the real sources:
+  OwnedSessionSummary + AssignmentWork (Host), and the DSH `goal` / `todos` session projections.
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Session panel prototype</title>
+    <style>
+      :root,
+      [data-theme='light'] {
+        --tobs-layer-canvas: #ffffff;
+        --tobs-layer-raised: #f4f5f7;
+        --tobs-layer-well: #eceef1;
+        --tobs-layer-field: #ffffff;
+        --tobs-layer-nav: #f8f9fa;
+        --tobs-layer-sheet: #ffffff;
+        --tobs-layer-elevated: #ffffff;
+        --tobs-ink-primary: #111318;
+        --tobs-ink-secondary: #5c626a;
+        --tobs-ink-tertiary: #676c74;
+        --tobs-ink-quiet: #80858d;
+        --tobs-ink-disabled: #b4b8be;
+        --tobs-line-divider: #00000012;
+        --tobs-line-edge: #0000001c;
+        --tobs-line-strong: #0000002e;
+        --tobs-state-hover: #1d27380d;
+        --tobs-state-pressed: #1d273817;
+        --tobs-state-selected: #e6e9ee;
+        --tobs-status-danger-base: #d0302c;
+        --tobs-status-danger-tint: #fdeeed;
+        --tobs-status-danger-ink: #b0241f;
+        --tobs-status-warning-base: #d98a00;
+        --tobs-status-warning-tint: #fff4e0;
+        --tobs-status-warning-ink: #8a5300;
+        --tobs-status-success-base: #1f9d55;
+        --tobs-status-success-tint: #e6f6ec;
+        --tobs-status-success-ink: #157a41;
+        --tobs-status-info-base: #3466db;
+        --tobs-status-info-tint: #ebf0fb;
+        --tobs-status-info-ink: #3061d6;
+        --tobs-accent-solid: #3466db;
+        --tobs-accent-on-solid: #ffffff;
+        --tobs-accent-tint: #ebf0fb;
+        --tobs-accent-ink: #3061d6;
+        --tobs-elevation-2: 0 1px 2px #0000000f, 0 6px 16px -4px #00000024;
+        --bot: #c2410c;
+      }
+      [data-theme='dark'] {
+        --tobs-layer-canvas: #1b1c1f;
+        --tobs-layer-raised: #242529;
+        --tobs-layer-well: #2c2d32;
+        --tobs-layer-field: #16171a;
+        --tobs-layer-nav: #17181a;
+        --tobs-layer-sheet: #1f2023;
+        --tobs-layer-elevated: #303237;
+        --tobs-ink-primary: #f2f3f5;
+        --tobs-ink-secondary: #a8adb5;
+        --tobs-ink-tertiary: #979ca5;
+        --tobs-ink-quiet: #868b94;
+        --tobs-ink-disabled: #5a5e65;
+        --tobs-line-divider: #ffffff10;
+        --tobs-line-edge: #ffffff1f;
+        --tobs-line-strong: #ffffff30;
+        --tobs-state-hover: #ffffff0d;
+        --tobs-state-pressed: #ffffff17;
+        --tobs-state-selected: #2f3136;
+        --tobs-status-danger-base: #ff7a72;
+        --tobs-status-danger-tint: #3b2120;
+        --tobs-status-danger-ink: #ff9b94;
+        --tobs-status-warning-base: #f2b33d;
+        --tobs-status-warning-tint: #3a2d14;
+        --tobs-status-warning-ink: #f6c770;
+        --tobs-status-success-base: #45c97c;
+        --tobs-status-success-tint: #173324;
+        --tobs-status-success-ink: #7ad9a1;
+        --tobs-status-info-base: #78a0ff;
+        --tobs-status-info-tint: #2c3447;
+        --tobs-status-info-ink: #78a0ff;
+        --tobs-accent-solid: #78a0ff;
+        --tobs-accent-on-solid: #0d1220;
+        --tobs-accent-tint: #2c3447;
+        --tobs-accent-ink: #78a0ff;
+        --tobs-elevation-2: 0 0 0 1px #ffffff12, 0 8px 20px -4px #00000080;
+        --bot: #fb923c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        font:
+          13px/20px -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'PingFang SC',
+          'Noto Sans SC',
+          'Noto Sans CJK SC',
+          sans-serif;
+        color: var(--tobs-ink-primary);
+        background: var(--tobs-layer-nav);
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        grid-template-rows: 100%;
+        height: 100vh;
+        gap: 0;
+      }
+      /* left channel rail (context only) */
+      .rail {
+        padding: 12px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .rail h4 {
+        margin: 8px 8px 4px;
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 500;
+        color: var(--tobs-ink-tertiary);
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 6px;
+        color: var(--tobs-ink-secondary);
+      }
+      .nav.sel {
+        background: var(--tobs-state-selected);
+        color: var(--tobs-ink-primary);
+        font-weight: 500;
+      }
+      .ava {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        background: var(--bot);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        flex: none;
+      }
+      /* workspace */
+      .ws {
+        display: flex;
+        gap: 8px;
+        padding: 8px 8px 8px 0;
+        min-width: 0;
+        min-height: 0;
+      }
+      .panel {
+        background: var(--tobs-layer-canvas);
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .panel.msg {
+        flex: 1 1 0;
+      }
+      .panel.sessions {
+        flex: 0 0 340px;
+      }
+      .ph {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0 12px 0 16px;
+        flex: none;
+      }
+      .ph .t {
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .ph .sp {
+        flex: 1;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        background: var(--tobs-layer-raised);
+        color: var(--tobs-ink-secondary);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .ib {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: inline-grid;
+        place-items: center;
+        color: var(--tobs-ink-secondary);
+        flex: none;
+      }
+      .ib:hover {
+        background: var(--tobs-state-hover);
+      }
+      .ib.sm {
+        width: 24px;
+        height: 24px;
+      }
+      svg.i {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex: none;
+      }
+      svg.i.s14 {
+        width: 14px;
+        height: 14px;
+      }
+      /* message split (same shape as .bh-message-split with the members/inbox aside) */
+      .split {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+      .conv {
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .msgs {
+        flex: 1;
+        overflow: auto;
+        padding: 8px 20px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .m {
+        display: flex;
+        gap: 10px;
+        max-width: 640px;
+      }
+      .m.me {
+        align-self: flex-end;
+      }
+      .bubble {
+        padding: 8px 12px;
+        border-radius: 14px;
+        background: var(--tobs-layer-raised);
+      }
+      .m.me .bubble {
+        background: var(--tobs-accent-tint);
+      }
+      .m .who {
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--tobs-ink-tertiary);
+        margin-bottom: 2px;
+      }
+      .composer {
+        margin: 0 16px 16px;
+        border-radius: 14px;
+        background: var(--tobs-layer-raised);
+        padding: 10px 12px;
+        color: var(--tobs-ink-quiet);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .divider {
+        width: 8px;
+        flex: none;
+        cursor: col-resize;
+        position: relative;
+      }
+      .divider::after {
+        content: '';
+        position: absolute;
+        inset: 12px 3px;
+        border-radius: 2px;
+        background: var(--tobs-line-divider);
+      }
+      .aside {
+        flex: 0 0 48%;
+        max-width: 560px;
+        min-width: 360px;
+        display: flex;
+        flex-direction: column;
+        background: var(--tobs-layer-canvas);
+        min-height: 0;
+      }
+      .body {
+        flex: 1;
+        overflow: auto;
+        min-height: 0;
+      }
+      /* group headings */
+      .gh {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 28px;
+        padding: 0 16px;
+        margin-top: 8px;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--tobs-ink-tertiary);
+        font-weight: 500;
+      }
+      .gh .n {
+        color: var(--tobs-ink-quiet);
+        font-weight: 400;
+      }
+      .gh svg {
+        width: 12px;
+        height: 12px;
+      }
+      /* ---------- status glyph (shape + colour, never colour alone) ---------- */
+      .glyph {
+        width: 18px;
+        height: 18px;
+        flex: none;
+        display: inline-grid;
+        place-items: center;
+      }
+      .glyph svg {
+        width: 18px;
+        height: 18px;
+      }
+      .g-working {
+        color: var(--tobs-status-info-base);
+      }
+      .g-working .spin {
+        transform-origin: 50% 50%;
+        animation: spin 1.6s linear infinite;
+      }
+      .g-needs {
+        color: var(--tobs-status-warning-base);
+      }
+      .g-error {
+        color: var(--tobs-status-danger-base);
+      }
+      .g-stuck {
+        color: var(--tobs-status-warning-base);
+      }
+      .g-idle {
+        color: var(--tobs-ink-quiet);
+      }
+      .g-done {
+        color: var(--tobs-status-success-base);
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .g-working .spin {
+          animation: none;
+        }
+      }
+      /* tags */
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 16px;
+        white-space: nowrap;
+        font-weight: 500;
+      }
+      .tag.warning {
+        background: var(--tobs-status-warning-tint);
+        color: var(--tobs-status-warning-ink);
+      }
+      .tag.danger {
+        background: var(--tobs-status-danger-tint);
+        color: var(--tobs-status-danger-ink);
+      }
+      .tag.info {
+        background: var(--tobs-status-info-tint);
+        color: var(--tobs-status-info-ink);
+      }
+      .tag.success {
+        background: var(--tobs-status-success-tint);
+        color: var(--tobs-status-success-ink);
+      }
+      .tag.quiet {
+        background: var(--tobs-layer-raised);
+        color: var(--tobs-ink-secondary);
+        font-weight: 400;
+      }
+      /* ---------- Variant A rows: Claude-like thread rows ---------- */
+      .rowA {
+        display: grid;
+        grid-template-columns: 18px 1fr auto;
+        column-gap: 10px;
+        row-gap: 2px;
+        padding: 8px 16px;
+        cursor: pointer;
+        position: relative;
+        border-radius: 0;
+      }
+      .rowA:hover {
+        background: var(--tobs-state-hover);
+      }
+      .rowA.sel {
+        background: var(--tobs-state-selected);
+      }
+      .rowA .glyph {
+        grid-row: 1;
+        margin-top: 3px;
+      }
+      .rowA .rail-line {
+        grid-column: 1;
+        grid-row: 2 / span 2;
+        justify-self: center;
+        width: 1px;
+        background: var(--tobs-line-edge);
+        margin: 2px 0;
+      }
+      .rowA .title {
+        grid-column: 2;
+        font-weight: 500;
+        font-size: 14px;
+        line-height: 22px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .rowA .time {
+        grid-column: 3;
+        font-size: 12px;
+        color: var(--tobs-ink-quiet);
+        line-height: 22px;
+      }
+      .rowA .line {
+        grid-column: 2 / span 2;
+        color: var(--tobs-ink-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .rowA .chips {
+        grid-column: 2 / span 2;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .prog {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        background: var(--tobs-layer-raised);
+        font-size: 12px;
+        color: var(--tobs-ink-secondary);
+      }
+      .ring {
+        width: 14px;
+        height: 14px;
+      }
+      .goalchip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        background: var(--tobs-layer-raised);
+        font-size: 12px;
+        color: var(--tobs-ink-secondary);
+        max-width: 100%;
+        overflow: hidden;
+      }
+      .goalchip span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      /* ---------- Variant B rows: cards with goal + progress bar ---------- */
+      .listB {
+        padding: 4px 12px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .cardB {
+        background: var(--tobs-layer-raised);
+        border-radius: 10px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        cursor: pointer;
+      }
+      .cardB:hover {
+        background: color-mix(in srgb, var(--tobs-ink-primary) 6%, var(--tobs-layer-raised));
+      }
+      .cardB.sel {
+        box-shadow: inset 0 0 0 2px var(--tobs-accent-solid);
+      }
+      .cardB .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .cardB .title {
+        flex: 1;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .cardB .goal {
+        color: var(--tobs-ink-secondary);
+        display: flex;
+        gap: 6px;
+        align-items: flex-start;
+      }
+      .cardB .goal span {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .cardB .now {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        color: var(--tobs-ink-tertiary);
+        font-size: 12px;
+        line-height: 16px;
+        min-width: 0;
+      }
+      .cardB .now span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .bar {
+        height: 4px;
+        border-radius: 2px;
+        background: var(--tobs-layer-well);
+        overflow: hidden;
+        flex: 1;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        background: var(--tobs-accent-solid);
+        border-radius: 2px;
+      }
+      .bar.done i {
+        background: var(--tobs-status-success-base);
+      }
+      .barrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--tobs-ink-secondary);
+        font-variant-numeric: tabular-nums;
+      }
+      /* orchestrator strip */
+      .orch {
+        margin: 4px 12px 4px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--tobs-layer-raised);
+        display: grid;
+        grid-template-columns: 20px 1fr auto;
+        gap: 2px 10px;
+        cursor: pointer;
+      }
+      .orch.sel {
+        box-shadow: inset 0 0 0 2px var(--tobs-accent-solid);
+      }
+      .orch .ava {
+        grid-row: span 2;
+        margin-top: 1px;
+      }
+      .orch .title {
+        font-weight: 500;
+      }
+      .orch .line {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        grid-column: 2 / span 2;
+        color: var(--tobs-ink-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        line-height: 16px;
+      }
+      .cap {
+        font-size: 12px;
+        color: var(--tobs-ink-quiet);
+        font-variant-numeric: tabular-nums;
+      }
+      /* ---------- detail ---------- */
+      .dh {
+        padding: 4px 16px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .dh h2 {
+        margin: 0;
+        font-size: 15px;
+        line-height: 24px;
+        font-weight: 500;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        color: var(--tobs-ink-tertiary);
+        font-size: 12px;
+        line-height: 16px;
+        align-items: center;
+      }
+      .meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .sec {
+        margin: 0 12px 12px;
+        border-radius: 10px;
+        background: var(--tobs-layer-raised);
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .sec h3 {
+        margin: 0;
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 500;
+        color: var(--tobs-ink-tertiary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .sec h3 .sp {
+        flex: 1;
+      }
+      .sec.attn {
+        background: var(--tobs-status-warning-tint);
+      }
+      .sec.attn h3 {
+        color: var(--tobs-status-warning-ink);
+      }
+      .objective {
+        font-size: 14px;
+        line-height: 22px;
+      }
+      .todos {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .todos li {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        padding: 3px 0;
+      }
+      .todos li .ck {
+        width: 16px;
+        height: 16px;
+        margin-top: 2px;
+        flex: none;
+      }
+      .todos li.completed {
+        color: var(--tobs-ink-tertiary);
+      }
+      .todos li.completed .txt {
+        text-decoration: line-through;
+        text-decoration-color: var(--tobs-ink-quiet);
+      }
+      .todos li.in_progress .txt {
+        font-weight: 500;
+      }
+      .ck-done {
+        color: var(--tobs-status-success-base);
+      }
+      .ck-run {
+        color: var(--tobs-status-info-base);
+      }
+      .ck-pend {
+        color: var(--tobs-ink-quiet);
+      }
+      .btns {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised));
+        font-weight: 500;
+      }
+      .btn.primary {
+        background: var(--tobs-accent-solid);
+        color: var(--tobs-accent-on-solid);
+      }
+      .sec.attn .btn:not(.primary) {
+        background: color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-status-warning-tint));
+      }
+      .report {
+        white-space: pre-wrap;
+      }
+      .tl {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .tl li {
+        display: grid;
+        grid-template-columns: 16px 1fr auto;
+        gap: 8px;
+        padding: 4px 0;
+        align-items: start;
+      }
+      .tl .tool {
+        font-size: 12px;
+        color: var(--tobs-ink-quiet);
+      }
+      .tl time {
+        font-size: 12px;
+        color: var(--tobs-ink-quiet);
+        font-variant-numeric: tabular-nums;
+      }
+      .instr {
+        margin: 0;
+        padding: 8px 12px;
+        border-left: 2px solid var(--tobs-accent-solid);
+        border-radius: 4px;
+        background: var(--tobs-layer-canvas);
+        white-space: pre-wrap;
+      }
+      .instr b {
+        display: block;
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 400;
+        color: var(--tobs-ink-tertiary);
+      }
+      .foot {
+        display: flex;
+        gap: 8px;
+        padding: 10px 12px;
+        align-items: center;
+        flex: none;
+      }
+      .foot .sp {
+        flex: 1;
+      }
+      .linkbtn {
+        color: var(--tobs-ink-secondary);
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 6px;
+      }
+      .linkbtn:hover {
+        background: var(--tobs-state-hover);
+      }
+      .subrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+      }
+      .subrow .t {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .empty {
+        color: var(--tobs-ink-tertiary);
+        padding: 40px 24px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+      }
+      /* variant C: drill-in inside the sessions panel */
+      .crumb {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      /* switcher */
+      .switch {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 12px;
+        background: var(--tobs-layer-elevated);
+        box-shadow: var(--tobs-elevation-2);
+        z-index: 10;
+        align-items: center;
+      }
+      .switch button {
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 8px;
+        color: var(--tobs-ink-secondary);
+      }
+      .switch button.on {
+        background: var(--tobs-state-selected);
+        color: var(--tobs-ink-primary);
+        font-weight: 500;
+      }
+      .switch .sepv {
+        width: 1px;
+        height: 18px;
+        background: var(--tobs-line-edge);
+        margin: 0 4px;
+      }
+      .shot .switch {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      let variant = params.get('variant') || 'A';
+      let theme = params.get('theme') || 'light';
+      let selected = params.get('open') || 'a1';
+      if (selected === 'none') selected = null;
+      if (params.has('shot')) document.body.classList.add('shot');
+
+      /* ---------- icons (lucide paths) ---------- */
+      const P = {
+        x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        ext: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+        back: '<path d="m15 18-6-6 6-6"/>',
+        chev: '<path d="m6 9 6 6 6-6"/>',
+        target:
+          '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+        list: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+        folder:
+          '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+        cpu: '<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/>',
+        clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+        stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+        archive:
+          '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+        shield:
+          '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+        msg: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+        menu: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+        check: '<path d="M20 6 9 17l-5-5"/>',
+        users:
+          '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+        sessions:
+          '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+        send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+      };
+      const ic = (n, cls = '') =>
+        `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+
+      /* status glyphs: distinct shapes, colour reinforces */
+      const GLYPH = {
+        working:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><g class="spin"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3.3" /></g><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
+        needs:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg>',
+        error:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>',
+        stuck:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M10 9v6M14 9v6"/></svg>',
+        idle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/></svg>',
+        done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>',
+      };
+      const glyph = (s, label) =>
+        `<span class="glyph g-${s}" role="img" aria-label="${label}" title="${label}">${GLYPH[s]}</span>`;
+      const ring = (done, total) => {
+        const r = 5.5,
+          c = 2 * Math.PI * r,
+          f = total ? done / total : 0;
+        return `<svg class="ring" viewBox="0 0 14 14"><circle cx="7" cy="7" r="${r}" fill="none" stroke="var(--tobs-layer-well)" stroke-width="2.5"/><circle cx="7" cy="7" r="${r}" fill="none" stroke="${f === 1 ? 'var(--tobs-status-success-base)' : 'var(--tobs-accent-solid)'}" stroke-width="2.5" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 7 7)" stroke-linecap="round"/></svg>`;
+      };
+
+      /* ---------- fixture data ---------- */
+      const STATE = {
+        needs: { label: '需要你', tone: 'warning' },
+        working: { label: '进行中', tone: 'info' },
+        stuck: { label: '卡住了', tone: 'warning' },
+        idle: { label: '等待中', tone: 'quiet' },
+        done: { label: '已完成', tone: 'success' },
+      };
+      const NEED = {
+        approval: '等待审批',
+        question: '等你回复',
+        blocked: '受阻',
+        failed: '失败',
+        error: '出错',
+      };
+      const SESSIONS = [
+        {
+          id: 'orch',
+          role: 'orchestrator',
+          title: 'Tobs · 主会话',
+          state: 'working',
+          time: '刚刚',
+          line: '正在分派：给 #4381 的 review 修改开一个 Assignment',
+          goal: null,
+          todos: [
+            { content: '回复 Vain 关于 Expo CI 的问题', status: 'completed' },
+            { content: '分派 review 修改给移动端 Assignment', status: 'in_progress' },
+            { content: '汇总今天三个 Assignment 的报告', status: 'pending' },
+          ],
+          workspace: 'DeepSeekBot',
+          model: 'deepseek-v4.1 · high',
+        },
+        {
+          id: 'a1',
+          role: 'assignment',
+          title: '修复 Safari 导出按钮',
+          state: 'needs',
+          need: 'approval',
+          time: '2 分钟',
+          line: '要运行 pnpm e2e:safari，需要你批准命令执行',
+          description: '定位 Safari 上导出按钮无响应的原因并修复，交付一个带回归测试的 PR。',
+          goal: {
+            objective: '让导出按钮在 Safari 17+ 上能正常下载 CSV，并有 e2e 回归测试覆盖',
+            phase: 'active',
+            rounds: 7,
+            max: 256,
+          },
+          todos: [
+            { content: '复现 Safari 导出无响应', status: 'completed' },
+            { content: '定位 Blob URL 被 popup 拦截的原因', status: 'completed' },
+            { content: '改用 a[download] + 同步 click', status: 'completed' },
+            { content: '补 Safari e2e 回归用例', status: 'in_progress' },
+            { content: '跑 e2e:safari 并截图', status: 'pending' },
+            { content: '开 PR 并附截图', status: 'pending' },
+          ],
+          approval: { tool: 'bash', command: 'pnpm e2e:safari --project=webkit export.spec.ts' },
+          workspace: 'tobs-web',
+          model: 'deepseek-v4.1-flash · medium',
+          report: null,
+          rounds: [
+            {
+              index: 1,
+              kind: '创建',
+              at: '13:02',
+              instruction: 'Safari 上导出按钮点了没反应，查一下并修好，带回归测试。',
+              steps: [
+                ['done', '读取 export-button.tsx', 'read_file', '13:03'],
+                ['done', '搜索 createObjectURL 用法', 'grep', '13:03'],
+                ['done', '修改 export-button.tsx', 'str_replace', '13:09'],
+                ['done', '新增 export.spec.ts', 'write_file', '13:12'],
+                [
+                  'running',
+                  'pnpm e2e:safari --project=webkit export.spec.ts',
+                  'bash · 等待审批',
+                  '13:14',
+                ],
+              ],
+            },
+          ],
+          subagents: [],
+        },
+        {
+          id: 'a2',
+          role: 'assignment',
+          title: '整理 1.7.0 发布说明',
+          state: 'needs',
+          need: 'question',
+          time: '9 分钟',
+          line: '问你：「语音输入」要不要算这次的亮点？',
+          goal: null,
+          todos: [
+            { content: '收集 1.6.1 以来合并的 PR', status: 'completed' },
+            { content: '按用户可见程度分类', status: 'completed' },
+            { content: '写中英文草稿', status: 'in_progress' },
+            { content: '确认亮点排序', status: 'pending' },
+          ],
+          workspace: 'DeepSeekBot',
+          model: 'deepseek-v4.1 · high',
+        },
+        {
+          id: 'a3',
+          role: 'assignment',
+          title: '迁移会话列表到虚拟滚动',
+          state: 'working',
+          time: '刚刚',
+          line: '正在跑 pnpm test:changed（3/5 个包通过）',
+          goal: {
+            objective: '会话列表 1000 条时滚动保持 60fps，并通过 timeline 性能预算',
+            phase: 'active',
+            rounds: 14,
+            max: 256,
+          },
+          todos: [
+            { content: '测基线帧率', status: 'completed' },
+            { content: '接入虚拟列表', status: 'completed' },
+            { content: '保持 FLIP 动画', status: 'completed' },
+            { content: '修复分组标题吸顶', status: 'completed' },
+            { content: '处理键盘导航', status: 'completed' },
+            { content: '跑相关测试', status: 'completed' },
+            { content: '前后对比录屏', status: 'in_progress' },
+            { content: '更新性能预算文件', status: 'pending' },
+          ],
+          workspace: 'DeepSeekBot',
+          model: 'deepseek-v4.1 · high',
+          subagents: [{ title: '测量 120Hz 帧率', state: 'running' }],
+        },
+        {
+          id: 'a4',
+          role: 'assignment',
+          title: '补全 bot-cli 的 todo 命令',
+          state: 'stuck',
+          time: '18 分钟',
+          line: '18 分钟没有新进展 · 最后一步：等待 pnpm build',
+          goal: null,
+          todos: [
+            { content: '对齐 todo 插件的 Host 路由', status: 'completed' },
+            { content: '实现 todos list/add/done', status: 'completed' },
+            { content: '写测试', status: 'in_progress' },
+            { content: '更新 docs/bot-cli.md', status: 'pending' },
+            { content: '对真实 Host 跑一遍', status: 'pending' },
+          ],
+          workspace: 'DeepSeekBot',
+          model: 'deepseek-v4.1-flash · low',
+        },
+        {
+          id: 'a5',
+          role: 'assignment',
+          title: '调研 Lark 卡片回调签名',
+          state: 'idle',
+          time: '1 小时',
+          line: '已交报告，等待 Tobs 的下一步指示',
+          goal: {
+            objective: '确认 Lark 卡片回调 v2 的签名校验方式并给出迁移建议',
+            phase: 'complete',
+            rounds: 5,
+            max: 256,
+          },
+          todos: [],
+          workspace: 'dsh-im',
+          model: 'deepseek-v4.1 · medium',
+        },
+        {
+          id: 'a6',
+          role: 'assignment',
+          title: '修复 Expo 依赖导致的移动端 CI',
+          state: 'done',
+          time: '3 小时',
+          line: 'PR #4381 已合并',
+          goal: {
+            objective: 'Expo patch 漂移不再让 PR 的 CI 失败',
+            phase: 'complete',
+            rounds: 9,
+            max: 256,
+          },
+          todos: [
+            { content: '定位失败的 doctor 检查', status: 'completed' },
+            { content: '改成 warning', status: 'completed' },
+            { content: '开 PR', status: 'completed' },
+          ],
+          workspace: 'DeepSeekBot',
+          model: 'deepseek-v4.1-flash · medium',
+        },
+        {
+          id: 'a7',
+          role: 'assignment',
+          title: '更新官网定价页',
+          state: 'done',
+          time: '昨天',
+          line: '已归档',
+          goal: null,
+          todos: [
+            { content: '改价格表', status: 'completed' },
+            { content: '改 FAQ', status: 'completed' },
+          ],
+          workspace: 'deepseekbot-site',
+          model: 'deepseek-v4.1-flash · low',
+        },
+      ];
+      const GROUPS = ['needs', 'working', 'stuck', 'idle', 'done'];
+      const GROUP_LABEL = {
+        needs: '需要你',
+        working: '进行中',
+        stuck: '卡住了',
+        idle: '等待中',
+        done: '已完成',
+      };
+      const byId = Object.fromEntries(SESSIONS.map((s) => [s.id, s]));
+      const count = (s) => ({
+        done: s.todos.filter((t) => t.status === 'completed').length,
+        total: s.todos.length,
+      });
+      const stateLabel = (s) => (s.state === 'needs' ? NEED[s.need] : STATE[s.state].label);
+
+      /* ---------- list renderers ---------- */
+      function progChip(s) {
+        const { done, total } = count(s);
+        if (!total) return '';
+        return `<span class="prog" title="任务 ${done}/${total}">${ring(done, total)}<span>${done}/${total}</span></span>`;
+      }
+      function goalChip(s) {
+        if (!s.goal) return '';
+        const tone = s.goal.phase === 'complete' ? '（已达成）' : '';
+        return `<span class="goalchip" title="目标：${s.goal.objective}">${ic('target', 's14')}<span>${s.goal.objective}${tone}</span></span>`;
+      }
+      function rowA(s) {
+        const tag = s.state === 'needs' ? `<span class="tag warning">${NEED[s.need]}</span>` : '';
+        return `<div class="rowA ${selected === s.id ? 'sel' : ''}" data-open="${s.id}" role="button" tabindex="0">
+    ${glyph(s.state, stateLabel(s))}
+    <span class="title">${s.title}</span><span class="time">${s.time}</span>
+    <span class="rail-line"></span>
+    <span class="line">${s.line}</span>
+    <span class="chips">${tag}${progChip(s)}${goalChip(s)}</span>
+  </div>`;
+      }
+      function cardB(s) {
+        const { done, total } = count(s);
+        const current = s.todos.find((t) => t.status === 'in_progress');
+        const tag = `<span class="tag ${s.state === 'needs' ? 'warning' : STATE[s.state].tone}">${stateLabel(s)}</span>`;
+        return `<div class="cardB ${selected === s.id ? 'sel' : ''}" data-open="${s.id}" role="button" tabindex="0">
+    <div class="top">${glyph(s.state, stateLabel(s))}<span class="title">${s.title}</span>${tag}</div>
+    ${s.goal ? `<div class="goal">${ic('target', 's14')}<span>${s.goal.objective}</span></div>` : ''}
+    ${total ? `<div class="barrow"><span class="bar ${done === total ? 'done' : ''}"><i style="width:${(done / total) * 100}%"></i></span><span>${done}/${total}</span></div>` : ''}
+    <div class="now">${current && s.state !== 'needs' && s.state !== 'stuck' ? `${ic('list', 's14')}<span>${current.content}</span>` : `<span>${s.line}</span>`}<span style="flex:1"></span><span>${s.time}</span></div>
+  </div>`;
+      }
+      function orchStrip(s) {
+        const { done, total } = count(s);
+        return `<div class="orch ${selected === s.id ? 'sel' : ''}" data-open="${s.id}" role="button" tabindex="0">
+    <span class="ava">T</span><span class="title">${s.title}</span><span class="cap">${total ? `${done}/${total}` : ''}</span>
+    <span class="line"><span class="glyph g-working" style="width:12px;height:12px">${GLYPH.working.replace('<svg', '<svg style="width:12px;height:12px"')}</span><span style="overflow:hidden;text-overflow:ellipsis">${s.line}</span></span>
+  </div>`;
+      }
+      function sessionsList() {
+        const orch = SESSIONS.find((s) => s.role === 'orchestrator');
+        const assignments = SESSIONS.filter((s) => s.role === 'assignment');
+        const running = assignments.filter(
+          (s) => s.state === 'working' || s.state === 'stuck',
+        ).length;
+        let html = orchStrip(orch);
+        for (const g of GROUPS) {
+          const rows = assignments.filter((s) => s.state === g);
+          if (!rows.length) continue;
+          const n = g === 'working' ? `${running} / 4` : rows.length;
+          html += `<div class="gh" data-group="${g}">${ic('chev')}<span>${GROUP_LABEL[g]}</span><span class="n">${n}</span></div>`;
+          html +=
+            variant === 'B'
+              ? `<div class="listB">${rows.map(cardB).join('')}</div>`
+              : rows.map(rowA).join('');
+        }
+        return html;
+      }
+
+      /* ---------- detail ---------- */
+      const CK = {
+        completed: ['done', 'check'],
+        in_progress: ['working', null],
+        pending: ['idle', null],
+      };
+      function todoList(s) {
+        return `<ul class="todos">${s.todos
+          .map((t) => {
+            const cls =
+              t.status === 'completed'
+                ? 'ck-done'
+                : t.status === 'in_progress'
+                  ? 'ck-run'
+                  : 'ck-pend';
+            const g =
+              t.status === 'completed'
+                ? GLYPH.done
+                : t.status === 'in_progress'
+                  ? GLYPH.working
+                  : GLYPH.idle;
+            const lab = { completed: '已完成', in_progress: '进行中', pending: '未开始' }[t.status];
+            return `<li class="${t.status}"><span class="ck ${cls} ${t.status === 'in_progress' ? 'g-working' : ''}" role="img" aria-label="${lab}">${g.replace('<svg', '<svg width="16" height="16"')}</span><span class="txt">${t.content}</span></li>`;
+          })
+          .join('')}</ul>`;
+      }
+      function detail(s, { drill = false } = {}) {
+        if (!s) return '';
+        const { done, total } = count(s);
+        const stateTag = `<span class="tag ${s.state === 'needs' ? 'warning' : STATE[s.state].tone}">${stateLabel(s)}</span>`;
+        const head = `<div class="ph">
+      ${drill ? `<button class="ib" aria-label="返回会话列表" data-back>${ic('back')}</button>` : ''}
+      <span class="t">${s.role === 'orchestrator' ? 'Orchestrator' : 'Assignment'}</span><span class="sp"></span>
+      <button class="ib" aria-label="在 DeepSeek Harness 中打开" title="在 DeepSeek Harness 中打开">${ic('ext')}</button>
+      <button class="ib" aria-label="更多">${ic('menu')}</button>
+      ${drill ? '' : `<button class="ib" aria-label="关闭" data-close>${ic('x')}</button>`}
+    </div>`;
+        const header = `<div class="dh">
+      <div style="display:flex;gap:8px;align-items:center">${glyph(s.state, stateLabel(s))}<h2>${s.title}</h2></div>
+      <div class="meta">${stateTag}<span>${ic('folder', 's14')}${s.workspace}</span><span>${ic('cpu', 's14')}${s.model}</span><span>${ic('clock', 's14')}${s.time}</span></div>
+      ${s.description ? `<div style="color:var(--tobs-ink-secondary)">${s.description}</div>` : ''}
+    </div>`;
+        let attn = '';
+        if (s.state === 'needs' && s.need === 'approval')
+          attn = `<div class="sec attn"><h3>${ic('shield', 's14')}等待你审批 · ${s.approval.tool}</h3>
+      <code style="font:12px/18px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap">${s.approval.command}</code>
+      <div class="btns"><button class="btn primary">${ic('check', 's14')}允许</button><button class="btn">本会话都允许</button><button class="btn">拒绝</button></div></div>`;
+        if (s.state === 'needs' && s.need === 'question')
+          attn = `<div class="sec attn"><h3>${ic('msg', 's14')}等你回复</h3><div>「语音输入」要不要算这次的亮点？还是放到「其他改进」里？</div>
+      <div class="btns"><button class="btn primary">算亮点</button><button class="btn">放到其他改进</button><button class="btn">回复…</button></div></div>`;
+        if (s.state === 'stuck')
+          attn = `<div class="sec attn"><h3>${ic('clock', 's14')}18 分钟没有新进展</h3><div>最后一步是 <code>pnpm build</code>，还在运行。</div>
+      <div class="btns"><button class="btn">让 Tobs 去问一下</button><button class="btn">${ic('stop', 's14')}停止</button></div></div>`;
+        const goal = s.goal
+          ? `<div class="sec"><h3>${ic('target', 's14')}目标<span class="sp"></span><span class="tag ${s.goal.phase === 'complete' ? 'success' : 'info'}">${s.goal.phase === 'complete' ? '已达成' : '进行中'}</span></h3>
+      <div class="objective">${s.goal.objective}</div>
+      <div class="meta"><span>第 ${s.goal.rounds} 轮 · 上限 ${s.goal.max}</span></div></div>`
+          : '';
+        const todos = total
+          ? `<div class="sec"><h3>${ic('list', 's14')}任务<span class="sp"></span><span style="font-variant-numeric:tabular-nums">${done}/${total}</span></h3>
+      <div class="bar ${done === total ? 'done' : ''}" style="flex:none"><i style="width:${(done / total) * 100}%"></i></div>
+      ${todoList(s)}</div>`
+          : '';
+        const subs =
+          s.subagents && s.subagents.length
+            ? `<div class="sec"><h3>${ic('users', 's14')}Subagents</h3>${s.subagents.map((a) => `<div class="subrow">${glyph('working', '运行中')}<span class="t">${a.title}</span><span class="tag info">运行中</span></div>`).join('')}</div>`
+            : '';
+        let activity = '';
+        if (s.rounds)
+          activity = s.rounds
+            .map(
+              (r) => `<div class="sec"><h3>第 ${r.index} 轮 · ${r.kind} · ${r.at}</h3>
+      <blockquote class="instr"><b>Tobs 的指示</b>${r.instruction}</blockquote>
+      <ul class="tl">${r.steps.map(([st, d, tool, at]) => `<li>${st === 'done' ? `<span class="ck-done">${ic('check', 's14')}</span>` : `<span class="g-working glyph" style="width:14px;height:14px">${GLYPH.working}</span>`}<span><div>${d}</div><div class="tool">${tool}</div></span><time>${at}</time></li>`).join('')}</ul></div>`,
+            )
+            .join('');
+        else if (s.role === 'orchestrator') {
+          const a = SESSIONS.filter((x) => x.role === 'assignment' && x.state !== 'done');
+          activity = `<div class="sec"><h3>${ic('sessions', 's14')}正在管理的 Assignment · ${a.length}</h3>${a
+            .map((x) => {
+              const c = count(x);
+              return `<div class="subrow" data-open="${x.id}" style="cursor:pointer">${glyph(x.state, stateLabel(x))}<span class="t">${x.title}</span>${c.total ? `<span class="cap">${c.done}/${c.total}</span>` : ''}</div>`;
+            })
+            .join('')}</div>`;
+        } else activity = `<div class="sec"><h3>最新动态</h3><div>${s.line}</div></div>`;
+        const foot = `<div class="foot">
+      ${s.state === 'working' || s.state === 'stuck' ? `<button class="btn">${ic('stop', 's14')}停止</button>` : ''}
+      ${s.state === 'done' || s.state === 'idle' ? `<button class="btn">${ic('archive', 's14')}${s.state === 'done' ? '取消归档' : '归档'}</button>` : ''}
+      <span class="sp"></span>
+      <button class="linkbtn">${ic('ext', 's14')}在 DeepSeek Harness 中打开</button></div>`;
+        return `${head}<div class="body">${header}${attn}${goal}${todos}${subs}${activity}</div>${foot}`;
+      }
+
+      /* ---------- page ---------- */
+      function chat() {
+        return `<div class="msgs">
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:01</div><div class="bubble">收到。我开了一个 Assignment 去修 Safari 的导出按钮，另外两个还在跑：虚拟滚动和 bot-cli 的 todo 命令。</div></div></div>
+    <div class="m me"><div><div class="bubble">好，导出那个修好记得附截图。发布说明那边呢？</div></div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:10</div><div class="bubble">发布说明的 Assignment 在问你一个问题：「语音输入」要不要算亮点。你可以在右边「会话」里直接回答它。</div></div></div>
+  </div>
+  <div class="composer">给 Tobs 发消息…<span style="flex:1"></span>${ic('send')}</div>`;
+      }
+      function render() {
+        document.documentElement.dataset.theme = theme;
+        const s = selected ? byId[selected] : null;
+        const drill = variant === 'C';
+        const asideOpen = !drill && s;
+        const sessionsPanel =
+          drill && s
+            ? `<section class="panel sessions" aria-label="会话详情">${detail(s, { drill: true })}</section>`
+            : `<section class="panel sessions" aria-label="会话"><div class="ph"><span class="t">会话</span><span class="chip">Tobs</span><span class="sp"></span><button class="ib" aria-label="视图">${ic('menu')}</button><button class="ib" aria-label="隐藏">${ic('x')}</button></div><div class="body">${sessionsList()}</div></section>`;
+        document.getElementById('root').innerHTML = `
+  <div class="app">
+    <nav class="rail"><h4>私聊</h4>
+      <div class="nav sel"><span class="ava">T</span>Tobs</div>
+      <div class="nav"><span class="ava" style="background:#7c3aed">R</span>Reviewer</div>
+      <h4>群组</h4><div class="nav"># 发布小组</div><div class="nav"># 官网</div></nav>
+    <div class="ws">
+      <section class="panel msg" aria-label="消息">
+        <div class="ph"><span class="ava">T</span><span class="t">Tobs</span><span class="chip">${ic('sessions', 's14')}3 个进行中 · 2 个需要你</span><span class="sp"></span><button class="ib" aria-label="成员">${ic('users')}</button></div>
+        <div class="split">
+          <div class="conv">${chat()}</div>
+          ${asideOpen ? `<div class="divider" role="separator" aria-orientation="vertical"></div><aside class="aside" aria-label="会话详情">${detail(s)}</aside>` : ''}
+        </div>
+      </section>
+      ${sessionsPanel}
+    </div>
+  </div>
+  <div class="switch" role="toolbar" aria-label="Prototype">
+    ${['A', 'B', 'C'].map((v) => `<button class="${v === variant ? 'on' : ''}" data-variant="${v}">${{ A: 'A 列表行 + 消息内详情', B: 'B 卡片 + 进度条', C: 'C 面板内下钻' }[v]}</button>`).join('')}
+    <span class="sepv"></span>
+    <button data-theme-toggle>${theme === 'light' ? '深色' : '浅色'}</button>
+  </div>`;
+      }
+      document.addEventListener('click', (e) => {
+        const t = e.target.closest(
+          '[data-open],[data-close],[data-back],[data-variant],[data-theme-toggle]',
+        );
+        if (!t) return;
+        if (t.dataset.open) selected = t.dataset.open;
+        if (t.hasAttribute('data-close') || t.hasAttribute('data-back')) selected = null;
+        if (t.dataset.variant) variant = t.dataset.variant;
+        if (t.hasAttribute('data-theme-toggle')) theme = theme === 'light' ? 'dark' : 'light';
+        const q = new URLSearchParams({ variant, theme, open: selected || 'none' });
+        history.replaceState(null, '', '?' + q);
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>
