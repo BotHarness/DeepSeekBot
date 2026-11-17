@@ -137,6 +137,7 @@ export const RULES = [
   none('.github/pr-assets/**', 'PR evidence assets'),
   none('.github/{ISSUE_TEMPLATE,DISCUSSION_TEMPLATE}/**', 'Issue and discussion templates'),
   none('.github/pull_request_template.md', 'PR template'),
+  none('.coderabbit.yaml', 'CodeRabbit review config'),
   none('.github/workflows/*.yml', 'Release workflows'),
   related(
     'design/tokens/**',
