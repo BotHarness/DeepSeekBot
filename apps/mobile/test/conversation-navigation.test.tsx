@@ -5,6 +5,9 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
 const visibility = vi.hoisted(() => ({ recent: vi.fn(), read: vi.fn() }));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+}));
 vi.mock('../src/ui/chat/skill-suggestions', () => ({ SkillSuggestions: () => null }));
 vi.mock('../src/ui/chat/mark-read', () => ({ useMarkRead: () => visibility.read }));
 import type { ChannelListItem } from '@botharness/host-protocol/wire';

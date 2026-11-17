@@ -1,5 +1,22 @@
 # Team mode: members sign in and share public channels
 
+## Sources
+
+- `packages/core/src/team/**`
+- `packages/client/src/client/team-*`
+- `packages/host-client/src/team-*.ts`
+- `packages/host-client/src/shared/team-sign-in-page.ts`
+- `apps/mobile/src/team/**`
+
+## Terms
+
+- Team mode
+- Host Owner
+- Host Member
+- Member Credential
+- Host Role
+- Host Permission
+
 ## Sub-features
 
 - S1: Owner turns on Team mode in Bot settings › Team; with no Owner password the switch first asks for one ("Save and turn on"). The Owner can allow plain HTTP only through a warned confirmation.

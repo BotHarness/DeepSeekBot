@@ -35,8 +35,46 @@
       "id": "tobs-token-outputs",
       "layer": "L2 lint",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",
-      "fix": "edit design/tokens/tobs.tokens.json and run pnpm tokens; never edit ds/tobs-tokens.generated.ts or ds/tobs.stylex.ts by hand.",
+      "fix": "edit the set files under design/tokens/ (wired by tobs.resolver.json) and run pnpm tokens; never edit ds/tobs-tokens.generated.ts or ds/tobs.stylex.ts by hand.",
       "check": "scripts/generate-tokens.mjs"
+    },
+    {
+      "id": "regression-proof",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "a fix(...) PR adds or changes a vitest test that fails when the fix is removed and passes with it; run node scripts/check-regression-proof.mjs --base origin/main --title \"<PR title>\" locally. If no automated test can show the bug, write `No regression test: <why>` in the PR description.",
+      "check": "scripts/check-regression-proof.mjs"
+    },
+    {
+      "id": "file-length",
+      "layer": "L1 health",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "keep a source file at or under 1000 lines: split it by responsibility into modules that each own one concern. Files already over 1000 are baselined; CI warns when a change makes one longer. After a file drops to 1000 lines or fewer, run node scripts/health.mjs --update.",
+      "check": "scripts/health.mjs",
+      "baseline": "scripts/health-baseline.json"
+    },
+    {
+      "id": "tsc-exclude",
+      "layer": "L1 health",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "make the file typecheck instead of adding it to the tsconfig.json exclude list; after removing an entry, run node scripts/health.mjs --update.",
+      "check": "scripts/health.mjs",
+      "baseline": "scripts/health-baseline.json"
+    },
+    {
+      "id": "agent-prose",
+      "layer": "L1 health",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "keep always-loaded agent prose (AGENTS.md, CLAUDE.md, apps/mobile/AGENTS.md) short: move a runbook into an on-demand doc or skill behind a one-line pointer, or turn the rule into a check. CI warns when a change makes them longer.",
+      "check": "scripts/health.mjs"
+    },
+    {
+      "id": "feature-sources",
+      "layer": "L4 feature map",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "give the feature file a \"## Sources\" list of globs for the code it covers and a \"## Terms\" list of GLOSSARY.md entries it uses; fix a glob that matches nothing or a term the glossary lacks; when a feature gets mapped, remove it from the baseline. Find the features a change touches with node scripts/feature-impact.mjs --base=origin/main.",
+      "check": "scripts/check-feature-map.mjs",
+      "baseline": "scripts/feature-map-baseline.json"
     }
   ]
 }

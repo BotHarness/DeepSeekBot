@@ -120,7 +120,7 @@ children have exited, its port is free and the evidence files still exist after 
 
 ## Feature map
 
-[`features/README.md`](features/README.md) indexes the mapped features. Before you verify a change, read the file for each feature the change touches and drive every entry point it lists. When the app no longer matches a file, fix the file in the same change, or report the product regression. A journey that cannot pass keeps its failure and records the reason in `Gotchas`.
+[`features/README.md`](features/README.md) indexes the mapped features. Find the features a change touches with `node scripts/feature-impact.mjs --base=origin/main` (or `--paths <file>...`), and the likely features of a bug report with `--terms="<bug text>"`; it matches each feature's `## Sources` globs and `## Terms` (GLOSSARY.md entries). Before you verify a change, read the file for each feature the change touches and drive every entry point it lists. A new feature file lists its `## Sources` and `## Terms`; `pnpm lint` fails when a glob matches nothing or a term is not in GLOSSARY.md, and `scripts/feature-map-baseline.json` lists the features not mapped yet (it only shrinks). When the app no longer matches a file, fix the file in the same change, or report the product regression. A journey that cannot pass keeps its failure and records the reason in `Gotchas`.
 
 When changing a user entry point, add or update its feature file and index row in the same PR.
 Name every changed sub-feature and its visible/canonical proof. Run

@@ -4,14 +4,14 @@ export const BH = {
   errorPrimary: 'var(--tobs-status-danger-base)',
   radiusMd: '12px',
   labelPrimary: 'var(--tobs-ink-primary, #0f1115)',
-  labelPrimaryForeground: 'var(--tobs-ink-on-accent, #ffffff)',
+  labelPrimaryForeground: 'var(--tobs-accent-on-solid, #ffffff)',
   borderL2: 'var(--tobs-line-edge, #0000001a)',
   borderL3: 'var(--tobs-line-strong, #0000001f)',
   borderL4: 'var(--tobs-line-strong, #00000029)',
   bgBase: 'var(--tobs-layer-canvas, #ffffff)',
-  buttonPrimaryFill: 'var(--tobs-accent-base, #0f1115)',
+  buttonPrimaryFill: 'var(--tobs-accent-solid, #0f1115)',
   buttonElevatedFill: 'var(--tobs-layer-elevated, transparent)',
-  businessPrimary: 'var(--tobs-accent-base, #4176e6)',
+  businessPrimary: 'var(--tobs-accent-solid, #4176e6)',
   hoverScrim: 'color-mix(in srgb, var(--tobs-layer-canvas) 35%, transparent)',
 } as const;
 

@@ -1,0 +1,138 @@
+{
+  "$description": "Style A, quiet: dense flat lists, neutral selection, small radii. Every value aliases a shared scale or colour role.",
+  "web": {
+    "style": {
+      "text": {
+        "ui": {
+          "size": {
+            "$type": "dimension",
+            "$value": "{web.type.body.size}"
+          },
+          "line": {
+            "$type": "dimension",
+            "$value": "{web.type.body.line}"
+          }
+        },
+        "message": {
+          "size": {
+            "$type": "dimension",
+            "$value": "{web.type.body.size}"
+          },
+          "line": {
+            "$type": "dimension",
+            "$value": "{web.type.body.line}"
+          }
+        }
+      },
+      "control": {
+        "height": {
+          "$type": "dimension",
+          "$value": "{web.size.control}"
+        },
+        "height-small": {
+          "$type": "dimension",
+          "$value": "{web.size.control-small}"
+        },
+        "height-large": {
+          "$type": "dimension",
+          "$value": "{web.size.control-large}"
+        }
+      },
+      "row": {
+        "nav": {
+          "$type": "dimension",
+          "$value": "{web.size.row}"
+        },
+        "list": {
+          "$type": "dimension",
+          "$value": "{web.size.row-medium}"
+        }
+      },
+      "icon": {
+        "size": {
+          "$type": "dimension",
+          "$value": "{web.size.icon}"
+        },
+        "slot": {
+          "$type": "dimension",
+          "$value": "{web.size.icon-slot}"
+        }
+      },
+      "list": {
+        "gap": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "group-radius": {
+          "$type": "dimension",
+          "$value": "{core.radius.0}"
+        },
+        "item-radius": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        }
+      },
+      "radius": {
+        "control": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "field": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "container": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        },
+        "menu": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        },
+        "dialog": {
+          "$type": "dimension",
+          "$value": "{core.radius.14}"
+        },
+        "nav-selected": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "chip": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "segmented": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "composer": {
+          "$type": "dimension",
+          "$value": "{core.radius.14}"
+        },
+        "bubble": {
+          "$type": "dimension",
+          "$value": "{core.radius.14}"
+        }
+      },
+      "chip": {
+        "height": {
+          "$type": "dimension",
+          "$value": "{web.size.control-small}"
+        }
+      },
+      "nav": {
+        "selected-fill": {
+          "$type": "color",
+          "$value": "{web.color.state.selected}"
+        },
+        "selected-ink": {
+          "$type": "color",
+          "$value": "{web.color.state.selected-ink}"
+        }
+      }
+    }
+  }
+}

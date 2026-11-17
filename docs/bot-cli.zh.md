@@ -2124,7 +2124,7 @@ Bot 默认私有：只有主体（所有者）可以私聊私有 Bot 或把它�
 
 编辑共享原件影响 `usedBy` 中所有 Bot 的后续 Review，包括全局继承者。需要独立修改时先复制。总是询问优先于总是允许，补充说明不能取消前者。这些是可能被模型误解的自然语言指导，不是确定性 Tool Approval Rules；冲突、未覆盖或不确定均交给 Human。转换时旧 Markdown 完整保留为补充说明，已经开始的 Review 保留捕获的内容和版本。
 
-可信声明的不可撤销外部工具调用在 Full Access 下仍进入统一审批。`bot-tool` 无需模型，沿用同一 Host 准入；有效确定性授权先于 Reviewer。在线 `channel-messages` 的审批消息包含 `toolApprovalRequest.effects` 与中英文 `effectLabels.en` / `effectLabels.zh`。工具输入或结果声称用户已批准不会构成授权。管理操作仍需 ADR-0249 的专用显式授权。
+可信效果声明用于在审批卡上描述工具调用，本身不要求审批，也不改变 Full Access。`bot-tool` 无需模型，沿用同一 Host 准入；有效确定性授权先于 Reviewer。在线 `channel-messages` 的审批消息包含 `toolApprovalRequest.effects` 与中英文 `effectLabels.en` / `effectLabels.zh`。工具输入或结果声称用户已批准不会构成授权。管理操作仍需 ADR-0249 的专用显式授权。
 
 ### 命令效果与调用方授权
 

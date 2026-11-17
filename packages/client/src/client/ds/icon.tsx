@@ -10,11 +10,12 @@ export function Icon({
   readonly name: string;
   readonly large?: boolean;
 }): ReactElement {
+  const box = large ? size.iconLarge : size.icon;
   return (
     <ChannelSidebarIcon
       name={name}
-      size={large ? size.iconLarge : size.icon}
-      strokeWidth={Number(size.iconStroke)}
+      size={box}
+      strokeWidth={(Number.parseFloat(size.iconStroke) * 24) / Number.parseFloat(box)}
     />
   );
 }

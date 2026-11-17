@@ -643,7 +643,7 @@ describe('legacy Inbox CLI effect compatibility', () => {
     },
   );
 
-  it('requires Human review for legacy allow-once even in Full Access', () => {
+  it('lets Full Access admit legacy allow-once like other existing effects', () => {
     const effects = cliEffects(['inbox-allow-once', 'autoreject:src-1']);
     expect(effects).toEqual({ changes: 'irreversible', reach: 'external', personalData: true });
     expect(
@@ -658,6 +658,6 @@ describe('legacy Inbox CLI effect compatibility', () => {
         reviewer: false,
         rememberable: true,
       }).path,
-    ).toBe('human');
+    ).toBe('full-access');
   });
 });

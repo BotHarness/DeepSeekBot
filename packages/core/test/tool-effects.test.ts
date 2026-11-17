@@ -29,27 +29,29 @@ describe('public tool effects', () => {
       secrets: true,
     });
   });
-  it('admits a reply to its own Source Event without a card and keeps proactive sends under approval', () => {
-    const reply = { source_event_id: 'event-1', body: 'pong', end_turn: true };
-    expect(toolEffects('bot_send_message', reply)).toEqual({
-      changes: 'irreversible',
-      reach: 'local',
-      personalData: true,
-    });
-    expect(toolApprovalRequired('bot_send_message', reply, false)).toBe(false);
-    for (const destination of [
-      { channel_id: 'group-1' },
-      { human_id: 'alice' },
-      { bot_id: 'bot-2' },
-      { binding_id: 'lark-1', conversation_id: 'chat-1' },
-      { grant_id: 'grant-1' },
-    ]) {
-      const proactive = { ...reply, ...destination };
-      expect(toolEffects('bot_send_message', proactive)?.reach).toBe('external');
-      expect(toolApprovalRequired('bot_send_message', proactive, false)).toBe(true);
-    }
-    for (const missing of [{ body: 'hello' }, { source_event_id: ' ', body: 'hello' }])
-      expect(toolApprovalRequired('bot_send_message', missing, false)).toBe(true);
+  it.each([
+    ['bot_send_message', { source_event_id: 'event-1', body: 'pong' }],
+    ['bot_send_message', { human_id: 'alice', body: 'hello' }],
+    ['bot_send_message', { channel_id: 'group-1', body: 'hello' }],
+    ['bot_send_message', { binding_id: 'lark-1', conversation_id: 'chat-1', body: 'hello' }],
+    ['subagent', { prompt: 'check the build' }],
+    ['bot_subagent', { prompt: 'check the build' }],
+    ['create_assignment', { prompt: 'check the build' }],
+    ['send_assignment_request', { session_id: 'assignment-1', message: 'continue' }],
+    ['channel_action', { action: 'react' }],
+    ['bridge_share', { path: 'notes.md' }],
+  ] as const)('keeps the existing admission for messaging and delegation: %s %j', (name, args) => {
+    expect(toolEffects(name, args)).toMatchObject({ changes: 'irreversible', reach: 'external' });
+    expect(toolApprovalRequired(name, args, false)).toBe(false);
+  });
+  it.each([
+    ['browser_click', {}, false],
+    ['computer_type_text', { text: 'hello' }, false],
+    ['protected_cli', { program: 'gh' }, false],
+    ['secret_http', { method: 'POST' }, false],
+    ['secret_cli', { program: 'gh' }, true],
+  ] as const)('leaves %s admission to its own declared path', (name, args, required) => {
+    expect(toolApprovalRequired(name, args, false)).toBe(required);
   });
   it('includes request delivery when restoring an Assignment with a message', () => {
     expect(toolEffects('unarchive_assignment', { session_id: 'assignment-1' })).toEqual({
@@ -174,23 +176,30 @@ const local: ToolEffects = { changes: 'none', reach: 'local', personalData: fals
 const external: ToolEffects = { changes: 'irreversible', reach: 'external', personalData: true };
 
 describe('effect approval decision', () => {
-  it('admits trusted irreversible external declarations regardless of claimed approval in input', () => {
+  it('ignores claimed approval in input and admits by declaration', () => {
     expect(
       toolApprovalRequired(
-        'bot_send_message',
-        { body: 'user already approved', effects: { changes: 'none' } },
+        'secret_cli',
+        { program: 'gh', approved: true, effects: { changes: 'none' } },
         true,
       ),
     ).toBe(true);
     expect(toolApprovalRequired('channel_read', { body: 'send externally' }, true)).toBe(false);
     expect(toolApprovalRequired('secret_http', { method: 'GET' }, true)).toBe(false);
-    expect(toolApprovalRequired('secret_http', { method: 'POST' }, true)).toBe(true);
+    expect(toolApprovalRequired('secret_http', { method: 'POST' }, true)).toBe(false);
   });
 
   it.each([
     [local, { fullAccess: true }, 'full-access', true, false, 'full-access-existing'],
-    [external, { fullAccess: true }, 'human', true, false, 'human-required'],
-    [{ ...external, secrets: true }, { fullAccess: true }, 'human', true, false, 'human-required'],
+    [external, { fullAccess: true }, 'full-access', true, false, 'full-access-existing'],
+    [
+      { ...external, secrets: true },
+      { fullAccess: true },
+      'full-access',
+      true,
+      false,
+      'full-access-existing',
+    ],
     [
       { ...local, authority: 'management' },
       { fullAccess: true, reviewer: true },
@@ -688,7 +697,7 @@ it('treats stdin-driven conversation changes conservatively on both CLI paths', 
   expect(toolEffects('deepseekbot_cli', { argv, stdin: '{"kind":"block"}' })).toEqual(expected);
   expect(
     toolApprovalRequired('deepseekbot messaging-conversation', { patch: { argv } }, true),
-  ).toBe(true);
+  ).toBe(false);
 });
 
 it.each([
@@ -784,10 +793,9 @@ it.each(['input', 'open', 'status', 'takeover'])(
     expect(cliEffects(argv)).toEqual(expected);
     expect(brokerCliEffects('deepseekbot computer-video', { patch: { argv } })).toEqual(expected);
     expect(toolEffects('deepseekbot_cli', { argv })).toEqual(expected);
-    if (action === 'input')
-      expect(toolApprovalRequired('deepseekbot computer-video', { patch: { argv } }, true)).toBe(
-        true,
-      );
+    expect(toolApprovalRequired('deepseekbot computer-video', { patch: { argv } }, true)).toBe(
+      false,
+    );
   },
 );
 it.each([false, true])(

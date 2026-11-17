@@ -141,24 +141,6 @@ function inputText(args: unknown): string {
   }
 }
 
-const PROACTIVE_DESTINATIONS = [
-  'channel_id',
-  'human_id',
-  'bot_id',
-  'binding_id',
-  'conversation_id',
-  'grant_id',
-] as const;
-
-function repliesToSource(operation: object): boolean {
-  return (
-    'source_event_id' in operation &&
-    typeof operation.source_event_id === 'string' &&
-    operation.source_event_id.trim() !== '' &&
-    PROACTIVE_DESTINATIONS.every((key) => !(key in operation))
-  );
-}
-
 export function toolEffects(name: string, args: unknown): ToolEffects | undefined {
   if (name === 'deepseekbot_cli') {
     if (
@@ -199,8 +181,6 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
     operation.method.toUpperCase() === 'GET'
   )
     return { ...effects, changes: 'none' };
-  if (name === 'bot_send_message' && operation && repliesToSource(operation))
-    return { ...effects, reach: 'local' };
   if (name === 'browser_tabs' && operation && 'action' in operation && operation.action === 'close')
     return { ...effects, reach: 'local' };
   if (
@@ -283,7 +263,6 @@ export function decideToolApproval(
   if (context.stage === 'admission') {
     const management = context.legacyProtected || effects?.authority === 'management';
     const required =
-      hasIrreversibleExternalEffect(effects) ||
       effects?.authority === 'management' ||
       context.admission === 'always' ||
       (context.admission === 'attachment' && effects?.changes !== 'none') ||
@@ -305,12 +284,7 @@ export function decideToolApproval(
     context.legacyProtected || context.explicitApproval || effects?.authority === 'management';
   const explicitRule = explicit || context.device;
   const rememberable = !context.eachUse || context.rememberable;
-  if (
-    !explicit &&
-    !hasIrreversibleExternalEffect(effects) &&
-    !context.eachUse &&
-    context.fullAccess
-  )
+  if (!explicit && !context.eachUse && context.fullAccess)
     return { path: 'full-access', rememberable, explicitRule, reason: 'full-access-existing' };
   if (
     !context.eachUse &&

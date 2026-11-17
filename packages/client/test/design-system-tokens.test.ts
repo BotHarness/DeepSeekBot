@@ -380,19 +380,24 @@ describe('design-system tokens', () => {
       metaLine: '16px',
       bodySize: '13px',
       bodyLine: '20px',
-      titleSize: '14px',
-      titleLine: '20px',
+      titleSize: '15px',
+      titleLine: '24px',
       regular: '400',
       strong: '500',
     });
     expect(entries('radius')).toEqual({
       xs: '4px',
-      sm: '8px',
-      md: '12px',
-      lg: '16px',
-      panel: '28px',
+      sm: '6px',
+      md: '10px',
+      lg: '14px',
+      panel: '20px',
       round: '50%',
     });
+    const tobs = readFileSync(new URL('../src/client/ds/tobs.stylex.ts', import.meta.url), 'utf8');
+    const tobsRadius =
+      /export const radius = stylex\.defineConsts\(\{([^}]*)\}/.exec(tobs)?.[1] ?? '';
+    for (const value of ['4px', '6px', '10px', '14px', '20px'])
+      expect(tobsRadius, `radius ${value} is on the Tobs scale`).toContain(`'${value}'`);
     expect(entries('border')).toEqual({
       hairline: '1px',
       focus: '2px',

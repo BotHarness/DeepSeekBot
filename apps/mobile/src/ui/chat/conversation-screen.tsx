@@ -196,6 +196,8 @@ import { useSkillCatalog } from './use-skill-catalog';
 import { PlaybackBubble, replyable, type Speaker } from './message-bubble';
 import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
+import { useHostLook } from '../../host/native-host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
@@ -262,9 +264,11 @@ export function ConversationScreen({
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
   const identityBots = useIdentityBots(roster?.bots);
+  const hostLook = useHostLook(saved?.hostId);
   const identities = useMemo(
     () => ({
       bots: identityBots ?? [],
+      ...(saved ? { host: { name: shownHostName(hostLook, saved.hostName), look: hostLook } } : {}),
       openBot: (slug: string) =>
         saved &&
         navigateChannel(navigation, {
@@ -272,7 +276,7 @@ export function ConversationScreen({
           params: { slug, hostId: saved.hostId },
         }),
     }),
-    [identityBots, navigation, saved],
+    [identityBots, hostLook, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;

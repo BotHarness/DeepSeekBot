@@ -2,6 +2,22 @@
 
 A paired phone runs, pauses, resumes, deletes, creates and edits a PersonaBot's routines (Bot Schedules) from the Bot profile. Every change is a Host bridge call as the Human, so the desktop Schedules entry shows the same state.
 
+## Sources
+
+- `packages/core/src/schedules/**`
+- `packages/core/src/bots/cli-schedules.ts`
+- `packages/client/src/client/schedules-entry.tsx`
+- `apps/mobile/src/host/routines.ts`
+- `apps/mobile/src/ui/chat/{profile-routines,routine-*}.{ts,tsx}`
+- `apps/mobile/app/bot/*/routine*`
+- `apps/mobile/app/bot/*/routine*/*`
+
+## Terms
+
+- Bot Schedule
+- PersonaBot Profile
+- Paired Device
+
 ## Sub-features
 
 - `detail` pushes a page inside the profile drawer from its Routines section: its trigger in plain words, the next run (or Off) and the last five firings from `scheduleHistory`.

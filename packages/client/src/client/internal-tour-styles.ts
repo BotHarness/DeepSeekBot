@@ -11,7 +11,7 @@ export const INTERNAL_TOUR_CSS =
  max-width: min(300px, calc(100vw - 32px));
  font: inherit;
 }
-.bh-internal-tour :focus-visible { outline: ${border.focus} solid var(--tobs-accent-base); outline-offset: 2px; }
+.bh-internal-tour :focus-visible { outline: ${border.focus} solid var(--tobs-accent-solid); outline-offset: 2px; }
 .bh-internal-tour .driver-popover-footer { gap: ${space.x3}; }
 .bh-internal-tour .driver-popover-progress-text { flex: 0 0 auto; white-space: nowrap; }
 .bh-internal-tour .driver-popover-navigation-btns { align-items: center; gap: ${space.x2}; min-width: 0; }

@@ -24,7 +24,7 @@ import { SkillOwnerMark, skillOwnerName } from './skill-owner';
 function Skill({ skill, color }: { skill: WireSkillInvocation; color: string }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const { bots } = useContext(MessageIdentities);
+  const { bots, host } = useContext(MessageIdentities);
   const owner = skill.owner;
   const bot =
     owner.kind === 'bot' ? bots.find((candidate) => candidate.slug === owner.botSlug) : undefined;
@@ -34,7 +34,7 @@ function Skill({ skill, color }: { skill: WireSkillInvocation; color: string }) 
     owner,
     ...(bot === undefined ? {} : { bot }),
   };
-  const name = skillOwnerName(option, t.skillOwnerHost);
+  const name = skillOwnerName(option, host?.name ?? t.skillOwnerHost);
   const size = theme.type.body.size * theme.fontScale;
   const offset = ((theme.type.body.line - theme.type.body.size) * theme.fontScale) / 2;
   return (
@@ -43,7 +43,7 @@ function Skill({ skill, color }: { skill: WireSkillInvocation; color: string }) 
       style={{ color, fontWeight: theme.weight.strong }}
     >
       <View style={{ width: size, height: size, transform: [{ translateY: offset }] }}>
-        <SkillOwnerMark option={option} size={size} />
+        <SkillOwnerMark option={option} size={size} ink={color} />
       </View>
       {'\u00a0'}/{skill.name}
     </InlineText>
