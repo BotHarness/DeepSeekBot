@@ -140,13 +140,13 @@ it('has no composer for the Orchestrator conversation', async () => {
   expect(host.querySelector('[data-session-composer]')).toBeNull();
 });
 
-it('says when the conversation cannot be read', async () => {
+it('says when the Session cannot be read', async () => {
   const host = await render({
     sessionTranscript: vi.fn(async () => {
       throw new Error('offline');
     }),
   });
-  expect(host.textContent).toContain('读取对话失败');
+  expect(host.textContent).toContain('读取会话失败');
 });
 
 it('sends a direct request into the Assignment and reports a refusal', async () => {
