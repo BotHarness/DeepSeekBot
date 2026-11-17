@@ -11,6 +11,7 @@ import { useSyncExternalStore } from 'react';
 import type { ViewInstance } from 'react-native';
 
 import { useMounted } from '../ui/mounted';
+import { followConnection } from './follow-connection';
 
 const caches = new WeakMap<HostClient, HumanAvatarCache>();
 
@@ -69,35 +70,6 @@ export async function loadHumanIdentity(client: HostClient): Promise<HumanIdenti
   return (writes.get(client) ?? 0) !== issued && newer !== undefined
     ? newer
     : remember(client, identity);
-}
-
-export function followConnection(client: HostClient, run: () => Promise<unknown>): () => void {
-  let loaded = false;
-  let pending = false;
-  let again = false;
-  const load = (): void => {
-    if (loaded) return;
-    if (pending) {
-      again = true;
-      return;
-    }
-    pending = true;
-    again = false;
-    run().then(
-      () => {
-        loaded = true;
-        pending = false;
-      },
-      () => {
-        pending = false;
-        if (again) load();
-      },
-    );
-  };
-  load();
-  return client.subscribe(() => {
-    if (client.getSnapshot().connection.status === 'connected') load();
-  });
 }
 
 export function followHumanIdentity(client: HostClient): () => void {

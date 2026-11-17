@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import type { HostClient } from '@botharness/host-client/client';
-import { followConnection } from '../src/host/human-profile';
+import { followConnection } from '../src/host/follow-connection';
 
 const fakeClient = () => {
   const listeners = new Set<() => void>();

@@ -5,8 +5,8 @@ import { View, type ViewInstance } from 'react-native';
 import { groupActions, groupInfo, loadGroupAssignments } from '../../host/group-channel';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
+import { followConnection } from '../../host/follow-connection';
 import {
-  followConnection,
   loadChannelNickname,
   saveChannelNickname,
   useHumanIdentity,
