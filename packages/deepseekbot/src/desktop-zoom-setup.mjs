@@ -68,7 +68,8 @@ function configureProfileZoom({
   desktopApp,
   platform = process.platform,
   run = (executable, args, options) => execFileSync(executable, args, options),
-  processes = () => execFileSync('/bin/ps', ['-axo', 'command='], { encoding: 'utf8' }),
+  processes = () =>
+    execFileSync('/bin/ps', ['-axo', 'command='], { windowsHide: true, encoding: 'utf8' }),
   windowsProcesses = () => desktopZoomWindowsProcesses(),
 }) {
   if (!['enable', 'disable'].includes(action)) refuse('desktop-zoom-setup-action-required');
@@ -239,7 +240,7 @@ function writeState(path, value) {
 }
 function otherProcesses(pid) {
   return () =>
-    execFileSync('/bin/ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+    execFileSync('/bin/ps', ['-axo', 'pid=,command='], { windowsHide: true, encoding: 'utf8' })
       .split('\n')
       .map((line) => /^\s*(\d+)\s(.*)$/.exec(line))
       .filter((match) => match && Number(match[1]) !== pid)

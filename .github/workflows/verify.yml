@@ -158,7 +158,19 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Upstream Expo patch releases must not turn every pull request red:
+      # outside the nightly run, doctor skips its version check and
+      # check-expo-versions fails only on an SDK mismatch, warning on drift.
       - run: pnpm --filter @botharness/mobile expo:doctor
+        env:
+          EXPO_DOCTOR_SKIP_DEPENDENCY_VERSION_CHECK: ${{ github.event_name == 'schedule' && 'false' || 'true' }}
+      - if: github.event_name != 'schedule'
+        working-directory: apps/mobile
+        run: |
+          set +e
+          npx expo install --check --json > "$RUNNER_TEMP/expo-check.json"
+          set -e
+          node scripts/check-expo-versions.mjs < "$RUNNER_TEMP/expo-check.json"
       - run: pnpm --filter @botharness/mobile export
         env:
           CI: '1'

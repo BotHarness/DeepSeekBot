@@ -1,0 +1,7 @@
+{
+  "jsPlugins": ["../../lint-rules/botharness.mjs"],
+  "rules": {
+    "botharness/spawn-options": "error",
+    "botharness/no-api-intercept": "error"
+  }
+}

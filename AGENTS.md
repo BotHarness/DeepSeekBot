@@ -21,7 +21,7 @@ pnpm build
 
 `pnpm test:changed` runs the tests CI selects for your diff against `origin/main` (`scripts/ci-plan.mjs`); it falls back to the full suite only when CI would. Run `pnpm test` only when asked for a full run.
 
-Lint rules with an existing backlog run through `scripts/lint-ratchet.mjs` (type-aware oxlint, registered in `scripts/guardrails.json`): new findings fail at edit (Claude Code hook), commit and CI; fixing old ones means running `pnpm lint:baseline`, which only lowers `scripts/lint-baseline.json`.
+Lint rules with an existing backlog run through `scripts/lint-ratchet.mjs` (type-aware oxlint, registered in `scripts/guardrails.json`): new findings fail at edit (Claude Code hook), commit and CI; fixing old ones means running `pnpm lint:baseline`, which only lowers `scripts/lint-baseline.json`. A rule added to the registry seeds its backlog once with `node scripts/lint-ratchet.mjs --seed=<rule>`; repo-specific rules live in `scripts/lint-rules/botharness.mjs`.
 
 Toolchain: pnpm 12.4.2 · Node ≥22 (`.node-version` = v24.21.0) · TypeScript 7 · oxlint · oxfmt · vitest · tsdown.
 In WSL, use the fnm node and `corepack pnpm` — Windows pnpm cannot create symlinks on WSL paths.

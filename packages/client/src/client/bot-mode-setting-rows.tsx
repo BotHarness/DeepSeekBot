@@ -297,6 +297,48 @@ export function AutoCollapseMessagesSetting({
   );
 }
 
+export function DmAvatarSetting({
+  t,
+  useBotModePrefs,
+  setShowDmAvatar,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showDmAvatar);
+  return (
+    <SettingsRow
+      title={t('message.avatar.dm.row.title')}
+      description={t('message.avatar.dm.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowDmAvatar}
+          label={t('message.avatar.dm.row.title')}
+        />
+      }
+    />
+  );
+}
+
+export function OwnAvatarSetting({
+  t,
+  useBotModePrefs,
+  setShowOwnAvatar,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showOwnAvatar);
+  return (
+    <SettingsRow
+      title={t('message.avatar.own.row.title')}
+      description={t('message.avatar.own.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowOwnAvatar}
+          label={t('message.avatar.own.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function DeliveryReceiptsSetting({
   t,
   useBotModePrefs,

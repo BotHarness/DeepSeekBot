@@ -398,6 +398,7 @@ describe('design-system tokens', () => {
     expect(entries('radius')).toEqual({
       xs: '4px',
       sm: '6px',
+      control: '6px',
       md: '10px',
       lg: '10px',
       panel: '14px',

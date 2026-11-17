@@ -22,7 +22,8 @@ export const text = stylex.defineConsts({
 
 export const radius = stylex.defineConsts({
   xs: '4px',
-  sm: 'var(--tobs-style-radius-control)',
+  sm: 'var(--tobs-style-radius-small)',
+  control: 'var(--tobs-style-radius-control)',
   md: 'var(--tobs-style-radius-container)',
   lg: 'var(--tobs-style-radius-card)',
   panel: 'var(--tobs-style-radius-sheet)',

@@ -165,6 +165,7 @@ export const style = stylex.defineConsts({
   radiusBubble: 'var(--tobs-style-radius-bubble)',
   radiusCard: 'var(--tobs-style-radius-card)',
   radiusSheet: 'var(--tobs-style-radius-sheet)',
+  radiusSmall: 'var(--tobs-style-radius-small)',
   chipHeight: 'var(--tobs-style-chip-height)',
   navSelectedFill: 'var(--tobs-style-nav-selected-fill)',
   navSelectedInk: 'var(--tobs-style-nav-selected-ink)',
@@ -184,10 +185,19 @@ export const style = stylex.defineConsts({
   onCardSecondaryEdge: 'var(--tobs-style-on-card-secondary-edge)',
   switchWidth: 'var(--tobs-style-switch-width)',
   switchHeight: 'var(--tobs-style-switch-height)',
+  switchThumbOn: 'var(--tobs-style-switch-thumb-on)',
+  switchThumbOff: 'var(--tobs-style-switch-thumb-off)',
+  switchThumbOffFill: 'var(--tobs-style-switch-thumb-off-fill)',
+  switchThumbOffShadow: 'var(--tobs-style-switch-thumb-off-shadow)',
   segmentedSelectedFill: 'var(--tobs-style-segmented-selected-fill)',
   segmentedSelectedInk: 'var(--tobs-style-segmented-selected-ink)',
   segmentedEdge: 'var(--tobs-style-segmented-edge)',
   buttonSecondaryInk: 'var(--tobs-style-button-secondary-ink)',
+  choiceFill: 'var(--tobs-style-choice-fill)',
+  choiceSelectedFill: 'var(--tobs-style-choice-selected-fill)',
+  choiceSelectedRing: 'var(--tobs-style-choice-selected-ring)',
+  choiceSelectedInk: 'var(--tobs-style-choice-selected-ink)',
+  choicePadding: 'var(--tobs-style-choice-padding)',
 });
 
 export const accent = stylex.defineConsts({

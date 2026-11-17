@@ -13,7 +13,7 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.sm,
+    borderRadius: radius.control,
     backgroundColor: {
       default: 'transparent',
       ':hover': color.hover,
@@ -38,7 +38,7 @@ const styles = stylex.create({
       ':is([aria-expanded=true])': color.fg,
     },
   },
-  inline: { width: sizes.inlineIcon, height: sizes.inlineIcon, borderRadius: radius.sm },
+  inline: { width: sizes.inlineIcon, height: sizes.inlineIcon, borderRadius: radius.control },
   icon: { width: sizes.icon, height: sizes.icon },
   row: { width: sizes.row, height: sizes.row },
 });
