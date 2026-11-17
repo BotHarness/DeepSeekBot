@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { isChannelMessage, type ChannelMessage } from '../src/channels/channel.js';
 import { CHANNEL_NOTICE_FIELDS } from '../src/channels/channel-notice.js';
-import { createChannelLiveHub } from '../src/channels/live.js';
+import { createChannelLiveHub, type ChannelLiveFrame } from '../src/channels/live.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { pageChannelTimeline, type ChannelTimelineRequest } from '../src/channels/timeline.js';
 import {
@@ -368,7 +368,7 @@ describe('SQLite bounded timeline hydration', () => {
     ]);
     const reopened = new AbortController();
     const baselineHub = createChannelLiveHub(current.channels);
-    const opened = (
+    const opened: ChannelLiveFrame | void = (
       await baselineHub
         .followChannel(OWNER_HUMAN_CONTEXT, current.channel.id, 1, reopened.signal)
         [Symbol.asyncIterator]()
@@ -377,7 +377,7 @@ describe('SQLite bounded timeline hydration', () => {
     reopened.abort();
     baselineHub.close();
     expect(opened).toMatchObject({ type: 'opened' });
-    const baseline = opened!.type === 'opened' ? opened!.page?.entries : undefined;
+    const baseline = opened?.type === 'opened' ? opened.page?.entries : undefined;
     expect(baseline?.map((entry) => entry.message.id)).toEqual(['late-quote']);
     expect(baseline?.[0]?.message.replyToPreview).toBeNull();
     expect(baseline?.[0]?.message.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);

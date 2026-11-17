@@ -363,7 +363,7 @@ describe('owning Content Purge tracer', () => {
       .sources.find((item) => item.messageId === 'target')!;
     const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [source.sourceEventId]);
     core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, preview.sourceEventIds, preview.token);
-    expect(core.channels.message(channel.id, 'target')?.contentPurge).toBeDefined();
+    expect(core.channels.message(channel.id, 'target')).toHaveProperty('contentPurge');
     const quoting = core.channels.message(channel.id, 'quoting');
     expect(quoting?.body).toBe('Still on?');
     expect(quoting?.quotes).toEqual([{ messageId: 'target', note: 'Is it?', preview: null }]);
