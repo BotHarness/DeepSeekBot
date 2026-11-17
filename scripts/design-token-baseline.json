@@ -275,8 +275,8 @@
     "dshImport": 1
   },
   "packages/client/src/client/composer-context-styles.ts": {
-    "legacyCss": 17,
-    "lineBorder": 5
+    "legacyCss": 25,
+    "lineBorder": 6
   },
   "packages/client/src/client/composer-voice.tsx": {
     "dshImport": 1,
