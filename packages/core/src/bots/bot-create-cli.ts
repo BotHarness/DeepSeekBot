@@ -2652,6 +2652,7 @@ export async function runBotCreateCli(
           !LIFECYCLE_COMMANDS.some((entry) => entry.command === command) &&
           !DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) &&
           !LOCAL_MEMORY_COMMANDS.has(command) &&
+          !PROFILE_ONLINE_COMMANDS.some((entry) => entry === command) &&
           !LIVE_COMMANDS.some((entry) => entry.command === command)))
     )
       throw usageError('as-online-required');
