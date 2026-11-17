@@ -3,6 +3,7 @@ import type { Session, SessionSeq } from '@deepseek-ai/dsh-session';
 import { toolPairingBalancedBefore } from '@deepseek-ai/dsh-compaction';
 import type { LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm';
 import { compactionThresholdTokens, type CompactionThresholdPolicy } from './idle-compaction.js';
+import type { ContextSourceRow } from './context-sources.js';
 
 export const UNKNOWN_CONTEXT_WINDOW = 200_000;
 
@@ -12,6 +13,7 @@ export interface BotContextWindow {
   contextWindow: number;
   capacitySource: 'model' | 'estimate';
   thresholdTokens: number;
+  sources?: readonly ContextSourceRow[];
 }
 
 export function contextCapacity(
