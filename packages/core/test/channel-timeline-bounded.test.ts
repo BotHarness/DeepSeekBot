@@ -349,7 +349,12 @@ describe('SQLite bounded timeline hydration', () => {
       [Symbol.asyncIterator]();
     expect((await frames.next()).value).toMatchObject({ type: 'opened' });
     const before = current.channels.revision(current.channel.id);
-    current.seed(message('late-quote', { quotes: [{ messageId: 'hidden-target' }] }));
+    current.seed(
+      message('late-quote', {
+        replyTo: 'hidden-target',
+        quotes: [{ messageId: 'hidden-target' }],
+      }),
+    );
     const [committed] = current.channels.messagesAfter(current.channel.id, before)!;
     expect(committed!.message.quotes?.[0]?.preview?.body).toBe('Never reveal this earlier body');
     hub.publishCommitted(committed!);
@@ -361,6 +366,21 @@ describe('SQLite bounded timeline hydration', () => {
     expect(live!.type === 'entry' && live!.entry.message.quotes).toEqual([
       { messageId: 'hidden-target', preview: null },
     ]);
+    const reopened = new AbortController();
+    const baselineHub = createChannelLiveHub(current.channels);
+    const opened = (
+      await baselineHub
+        .followChannel(OWNER_HUMAN_CONTEXT, current.channel.id, 1, reopened.signal)
+        [Symbol.asyncIterator]()
+        .next()
+    ).value;
+    reopened.abort();
+    baselineHub.close();
+    expect(opened).toMatchObject({ type: 'opened' });
+    const baseline = opened!.type === 'opened' ? opened!.page?.entries : undefined;
+    expect(baseline?.map((entry) => entry.message.id)).toEqual(['late-quote']);
+    expect(baseline?.[0]?.message.replyToPreview).toBeNull();
+    expect(baseline?.[0]?.message.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);
     expect(page.entries[1]?.grantRequestResolved).toBe(false);
     expect(page.entries[2]?.grantRequestResolved).toBe(true);
     const plain = current.channels.readTimeline(current.channel.id, request)!;

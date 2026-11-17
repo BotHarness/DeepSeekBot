@@ -338,6 +338,39 @@ describe('owning Content Purge tracer', () => {
     rmSync(path);
     expect(() => openPurgeLedger(path, false)).toThrow('missing');
   });
+  it('drops the excerpt of a quote whose target is purged and keeps the quoting message', async () => {
+    const core = mount(createTempRoot('purge-quotes-'));
+    const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Quoted purge QA',
+      members: [],
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
+      id: 'target',
+      at: '2026-10-08T00:00:00.000Z',
+      author: { kind: 'human' },
+      body: 'Secret plan: launch on Friday.',
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
+      id: 'quoting',
+      at: '2026-10-08T00:01:00.000Z',
+      author: { kind: 'human' },
+      body: 'Still on?',
+      quotes: [{ messageId: 'target', text: 'launch on Friday', note: 'Is it?' }],
+    });
+    core.channels.deleteGroup(channel.id);
+    const source = core.purge
+      .sources(OWNER_HUMAN_CONTEXT, channel.id)
+      .sources.find((item) => item.messageId === 'target')!;
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [source.sourceEventId]);
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, preview.sourceEventIds, preview.token);
+    expect(core.channels.message(channel.id, 'target')?.contentPurge).toBeDefined();
+    const quoting = core.channels.message(channel.id, 'quoting');
+    expect(quoting?.body).toBe('Still on?');
+    expect(quoting?.quotes).toEqual([{ messageId: 'target', note: 'Is it?', preview: null }]);
+    expect(JSON.stringify(core.channels.readMessages(channel.id))).not.toContain(
+      'launch on Friday',
+    );
+  });
   it('purges one shared managed-file occurrence and retains current bytes across restart', async () => {
     const home = createTempRoot('purge-files-');
     const core = mount(home);
