@@ -61,6 +61,23 @@ describe('uploaded Bots', () => {
     expect(state.status === 'ready' && state.bots).toHaveLength(1);
   });
 
+  it('clears the list once the account signs out', async () => {
+    let signedIn = true;
+    const uploads = createUploadedBots({
+      connect: {
+        accessToken: async () =>
+          signedIn ? { ok: true, value: 'token' } : { ok: false, code: 'sign-in-required' },
+      },
+      client: {
+        authored: async () => ({ ok: true, value: [item('U_a')] }),
+        deleteUpload: vi.fn(),
+      },
+    });
+    await uploads.refresh();
+    signedIn = false;
+    expect((await uploads.refresh()).status).toBe('signed-out');
+  });
+
   it('reports signed out without an account', async () => {
     const authored = vi.fn();
     const uploads = createUploadedBots({

@@ -31,10 +31,10 @@ export function createUploadedBots(deps: UploadedBotsDeps) {
     for (const listener of listeners) listener();
   };
 
-  const token = async (): Promise<string> => {
+  const token = async (current = epoch): Promise<string> => {
     const result = await deps.connect.accessToken();
     if (result.ok) return result.value;
-    if (result.code === 'sign-in-required') publish({ status: 'signed-out' });
+    if (result.code === 'sign-in-required' && current === epoch) publish({ status: 'signed-out' });
     throw new UploadedBotsError(result.code);
   };
 
@@ -49,7 +49,7 @@ export function createUploadedBots(deps: UploadedBotsDeps) {
       const current = ++epoch;
       if (state.status !== 'ready') publish({ status: 'loading' });
       try {
-        const result = await deps.client.authored(await token(), lang);
+        const result = await deps.client.authored(await token(current), lang);
         if (current === epoch)
           publish(result.ok ? { status: 'ready', bots: result.value } : { status: 'error' });
       } catch {
