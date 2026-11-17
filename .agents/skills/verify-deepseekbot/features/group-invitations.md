@@ -1,5 +1,17 @@
 # Group invitation candidates
 
+## Sources
+
+- `packages/client/src/client/{group-member-controls,personabot-deletion}.tsx`
+- `apps/mobile/src/ui/chat/{invite-selection,invite-sheet,invite-sheet.android}.{ts,tsx}`
+
+## Terms
+
+- Group invitation
+- Channel membership
+- PersonaBot Deletion
+- Tob
+
 ## Sub-features
 
 - `eligible-candidates`: invitations exclude protected Tob, archived/deleted Bots, current members and pending invitees. Tob is identified by the Host's `tob` marker, not its name or slug.

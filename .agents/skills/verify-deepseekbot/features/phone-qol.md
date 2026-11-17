@@ -1,5 +1,18 @@
 # Native mobile quiet feedback, loading and stable history
 
+## Sources
+
+- `apps/mobile/src/host/{delivery-receipt,native-delivery-receipts,connection-summary}.ts`
+- `apps/mobile/src/ui/{connection-presence,connection-recovery}.ts`
+- `apps/mobile/src/ui/primitives/{connection-progress,connection-failure-state,list-skeleton}.{ts,tsx}`
+- `apps/mobile/src/ui/chat/delivery-stack.tsx`
+
+## Terms
+
+- Conversation screen
+- Chats
+- Composer
+
 ## Sub-features
 
 - `delivery`: outgoing bubbles remain normal for three seconds per attempt, then mute only while pending; failures retain explicit retry.

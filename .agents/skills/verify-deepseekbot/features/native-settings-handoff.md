@@ -1,5 +1,16 @@
 # Native model settings handoff
 
+## Sources
+
+- `packages/client/src/client/bot-settings-open.ts`
+- `packages/client/src/client/onboarding-view.tsx`
+- `packages/host-client/src/model-settings.ts`
+
+## Terms
+
+- Settings
+- Harness
+
 ## Sub-features
 
 - Model setup opens native Models, not the mobile app dialog, from welcome step 3, Home model configuration and a model-failure action.

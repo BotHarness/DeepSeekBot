@@ -1,5 +1,18 @@
 # Native activity rows
 
+## Sources
+
+- `apps/mobile/app/(tabs)/(activity)/*.tsx`
+- `apps/mobile/app/{request-activity,inbox/[[]id]}.tsx`
+- `apps/mobile/src/host/{activity-sources,native-activity-sources,bot-activity,bot-inbox}.ts`
+- `apps/mobile/src/ui/chat/{activity-row,activity-detail,activity-text,request-activity-action,request-activity-control}.{ts,tsx}`
+
+## Terms
+
+- Activity tab
+- Activity
+- Bot Inbox
+
 ## Sub-features
 
 DM/group activity layout, full details, explicit navigation and device-local DM visibility switches.

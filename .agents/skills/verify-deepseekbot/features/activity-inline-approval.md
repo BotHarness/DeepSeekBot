@@ -1,5 +1,18 @@
 # Activity Center inline Tool approvals
 
+## Sources
+
+- `packages/client/src/client/{activity-*,inbox-*}.{ts,tsx}`
+- `packages/client/src/client/tool-approval-card.tsx`
+- `packages/core/src/runtime/{human-attention,human-attention-live,inbox-history,inbox-triage}.ts`
+
+## Terms
+
+- Activity
+- Environment
+- Attention Unit
+- Tool Approval Rule
+
 ## Sub-features
 
 - Full page and Dock open Human Inbox directly, without Overview or statistics.

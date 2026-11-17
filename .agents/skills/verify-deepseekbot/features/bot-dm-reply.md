@@ -2,6 +2,19 @@
 
 A Human sends a message in a Bot's DM, the Bot runs a session on its configured model, and its reply lands in the same DM.
 
+## Sources
+
+- `packages/core/src/devices/{bot-lan-*,bot-network-*,bot-tailnet*,bot-connect-bridge,connect-bot-network}.ts`
+- `packages/core/src/runtime/{bot-network,bot-message-tool}.ts`
+- `apps/mobile/src/host/native-lan-socket.ts`
+
+## Terms
+
+- DM
+- Bot Collaboration Network
+- Reply
+- Bot Inbox
+
 ## Sub-features
 
 - `send` posts the Human message from the composer.

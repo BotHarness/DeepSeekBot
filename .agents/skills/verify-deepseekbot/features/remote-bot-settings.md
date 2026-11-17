@@ -1,5 +1,17 @@
 # Native remote Bot settings
 
+## Sources
+
+- `packages/client/src/client/{remote-folder-access,remote-native-conversation,remote-hosts}.{ts,tsx}`
+- `apps/mobile/src/ui/chat/bot-settings-panel.tsx`
+
+## Terms
+
+- Remote Host
+- Bot Settings
+- Workspace Grant
+- Approval Template
+
 ## Sub-features
 
 | Sub-feature | Visible result | Canonical proof |

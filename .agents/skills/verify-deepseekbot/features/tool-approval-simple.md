@@ -1,5 +1,16 @@
 # Three-action tool approval and coherent Full Access
 
+## Sources
+
+- `packages/core/src/workspaces/{tool-approval,approval-reviewer,grants}.ts`
+- `packages/client/src/client/{tool-approval-card,approval-settings}.tsx`
+
+## Terms
+
+- Tool Approval Rule
+- Approval Reviewer
+- Access policy
+
 ## Sub-features
 
 - Behavior ID: `desktop.approval.three-actions`.
