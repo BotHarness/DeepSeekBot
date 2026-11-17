@@ -186,6 +186,7 @@ export function FilterPicker({
   emptyLabel,
   side,
   footer,
+  busy = false,
   anchorRef,
   onClose,
 }: {
@@ -201,6 +202,7 @@ export function FilterPicker({
   emptyLabel: string;
   side?: FilterPickerSide | undefined;
   footer?: { label: string; icon: ReactNode; onSelect(): void } | undefined;
+  busy?: boolean;
   anchorRef: RefObject<HTMLElement | null>;
   onClose(): void;
 }): ReactElement {
@@ -250,19 +252,19 @@ export function FilterPicker({
           (part) => part.toLowerCase().includes(needle),
         )),
   );
-  const enabled = shown.filter((option) => option.disabled !== true);
+  const enabled = busy ? [] : shown.filter((option) => option.disabled !== true);
+  const close = () => {
+    onClose();
+    anchorRef.current?.focus();
+  };
   const choose = (next: string) => {
+    if (busy) return;
     onSelect(next);
-    if (closeOnSelect) onClose();
+    if (closeOnSelect) close();
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-      anchorRef.current?.focus();
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       if (enabled.length === 0) return;
       const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -298,7 +300,14 @@ export function FilterPicker({
       ref={mount}
       role="dialog"
       aria-label={label}
+      aria-busy={busy}
       data-filter-picker=""
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      }}
       data-bh-appearance-owned=""
       {...stylex.props(styles.panel)}
       style={position}
@@ -368,7 +377,7 @@ export function FilterPicker({
                     aria-selected={selected}
                     aria-label={option.hint === undefined ? name : `${name} · ${option.hint}`}
                     title={name}
-                    disabled={option.disabled === true}
+                    disabled={busy || option.disabled === true}
                     data-picker-option={option.value}
                     onPointerDown={(event) => event.preventDefault()}
                     onPointerEnter={() => setActive(option.value)}
@@ -377,7 +386,7 @@ export function FilterPicker({
                       styles.row,
                       option.value === active && styles.rowActive,
                       selected && styles.rowSelected,
-                      option.disabled === true && styles.rowDisabled,
+                      (busy || option.disabled === true) && styles.rowDisabled,
                     )}
                   >
                     {option.icon === undefined ? null : (
@@ -404,6 +413,7 @@ export function FilterPicker({
                 type="button"
                 role="radio"
                 aria-checked={option.value === side.value}
+                disabled={busy}
                 data-picker-side={option.value}
                 onClick={() => side.onSelect(option.value)}
                 {...stylex.props(styles.row, option.value === side.value && styles.rowSelected)}

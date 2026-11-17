@@ -538,6 +538,7 @@ function DmComposerContextView({
                 : { reasoningEffort }),
             });
           }}
+          busy={modelBusy}
           efforts={modelEfforts}
           effort={route?.reasoningEffort ?? ''}
           onEffort={(effort) => {

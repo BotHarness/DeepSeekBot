@@ -184,3 +184,38 @@ it('shows the reasoning column beside the list and keeps the menu open to pick o
   expect(onSelect).toHaveBeenCalledWith(key(catalog[1]!));
   expect(onClose).not.toHaveBeenCalled();
 });
+
+it('closes on Escape from the family rail and returns focus to the trigger', async () => {
+  const { onClose } = await render();
+  const rail = document.body.querySelector<HTMLButtonElement>('[data-picker-filter="openai"]')!;
+  rail.focus();
+  await act(async () =>
+    rail.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+  );
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('holds model and effort choices while a change is saving', async () => {
+  const onEffort = vi.fn();
+  const { onSelect } = await render({
+    busy: true,
+    efforts: [
+      { value: '', label: 'Provider default' },
+      { value: 'high', label: 'High' },
+    ],
+    effort: '',
+    onEffort,
+  });
+  expect(
+    document.body.querySelector<HTMLButtonElement>(`[data-picker-option='${key(catalog[1]!)}']`)!
+      .disabled,
+  ).toBe(true);
+  expect(
+    document.body.querySelector<HTMLButtonElement>('[data-picker-side="high"]')!.disabled,
+  ).toBe(true);
+  const search = document.body.querySelector<HTMLInputElement>('[role="combobox"]')!;
+  await act(async () =>
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  expect(onSelect).not.toHaveBeenCalled();
+});

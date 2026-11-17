@@ -91,6 +91,7 @@ export function ModelMenu({
   effort,
   onEffort,
   onSettings,
+  busy = false,
   anchorRef,
   onClose,
   t,
@@ -103,6 +104,7 @@ export function ModelMenu({
   effort?: string | undefined;
   onEffort?: ((value: string) => void) | undefined;
   onSettings?: (() => void) | undefined;
+  busy?: boolean;
   anchorRef: RefObject<HTMLElement | null>;
   onClose(): void;
   t: BotHarnessTranslate;
@@ -159,6 +161,7 @@ export function ModelMenu({
               onSelect: onSettings,
             }
       }
+      busy={busy}
       anchorRef={anchorRef}
       onClose={onClose}
     />

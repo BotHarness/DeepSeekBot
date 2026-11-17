@@ -1703,7 +1703,9 @@ function ChatConversation({
     dm && saved !== undefined && !hostRefused && !missing ? client : undefined,
     slug,
     focused,
-    bot === undefined ? undefined : `${bot.state}:${bot.latestMessageId ?? ''}`,
+    bot === undefined
+      ? undefined
+      : `${bot.state}:${bot.latestMessageId ?? ''}:${profileOpen ? 'profile' : 'chat'}`,
   );
   const title = dm ? (
     <ChatTitle

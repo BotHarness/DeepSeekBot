@@ -34,6 +34,12 @@ import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
 import { ModelBrandIcon } from './model-brand-icon';
 
+const MODEL_LABEL_CHARS = 12;
+
+function clipModel(short: string): string {
+  return short.length <= MODEL_LABEL_CHARS ? short : `${short.slice(0, MODEL_LABEL_CHARS - 1)}…`;
+}
+
 export function ConversationTopBar({
   title,
   subtitle,
@@ -251,7 +257,7 @@ export function ConversationTopBar({
                             style={{ typography: 'bodySmall' }}
                             maxLines={1}
                           >
-                            {`${shownModel.short} ·`}
+                            {`${clipModel(shownModel.short)} ·`}
                           </Text>
                         </Row>
                       )}

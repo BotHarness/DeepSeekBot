@@ -247,8 +247,11 @@ function ModelsView({
         name: entry.modelName,
       })),
     );
+    const shownFamily = families.some((entry) => (entry.brand ?? 'other') === family)
+      ? family
+      : undefined;
     const entries = searchModels(value.models, query).filter(
-      (entry) => family === undefined || modelFamilyKey(entry) === family,
+      (entry) => shownFamily === undefined || modelFamilyKey(entry) === shownFamily,
     );
     return frame(
       <>
@@ -276,7 +279,7 @@ function ModelsView({
               testID="model-family-all"
               label={t.modelSettings.allFamilies}
               count={value.models.length}
-              selected={family === undefined}
+              selected={shownFamily === undefined}
               onPress={() => setFamily(undefined)}
             />
             {families.map((entry) => {
@@ -287,8 +290,8 @@ function ModelsView({
                   testID={`model-family-${key}`}
                   label={entry.title ?? t.modelSettings.otherFamily}
                   count={entry.count}
-                  selected={family === key}
-                  onPress={() => setFamily(family === key ? undefined : key)}
+                  selected={shownFamily === key}
+                  onPress={() => setFamily(shownFamily === key ? undefined : key)}
                 />
               );
             })}

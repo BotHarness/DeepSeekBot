@@ -61,7 +61,7 @@ export function ModelPicker({
       <ModelTrigger
         label={title}
         items={items}
-        value={entry === undefined ? '' : choice.key}
+        value={choice.key}
         placeholder={
           entry === undefined && !options.some((option) => option.value === choice.key)
             ? t('modelPreset.routeUnavailable')
