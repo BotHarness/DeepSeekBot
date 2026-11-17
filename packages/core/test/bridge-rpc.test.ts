@@ -838,6 +838,7 @@ describe('bridge typert service', () => {
       'sessionStop',
       'botStop',
       'modelCatalog',
+      'modelFavoriteSet',
       'modelPresets',
       'modelPresetCreate',
       'modelPresetUpdate',
