@@ -52,6 +52,11 @@ export const INBOX_COMMANDS = [
     description:
       "read the goal and current to-do list of up to 30 of a Bot's root Sessions (--session a,b)",
   },
+  {
+    command: 'session-transcript',
+    description:
+      "read a root Session's conversation: inputs, replies, reasoning and public tool steps",
+  },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
@@ -443,6 +448,13 @@ function prepare(
       if (sessionIds.length === 0 || sessionIds.length > 30)
         usage('--session must list 1 to 30 comma-separated Session ids.');
       return { method: 'sessionProgress', args: { slug, sessionIds } };
+    }
+    case 'session-transcript': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'sessionTranscript',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
     }
     case 'channel-assignments': {
       const [channelId] = positionals(command, rest, 1, 'exactly one group channel id');

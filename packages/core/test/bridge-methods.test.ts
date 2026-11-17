@@ -527,6 +527,12 @@ describe('bridge methods', () => {
         ],
       },
     });
+    expect(await methods.sessionTranscript({ slug: 'ada', sessionId: 'asg-1' })).toMatchObject({
+      ok: true,
+      value: { sessionId: 'asg-1', role: 'assignment', omitted: 0 },
+    });
+    expect((await methods.sessionTranscript({ slug: 'ada', sessionId: 'sub-1' })).ok).toBe(false);
+    expect((await methods.sessionTranscript({ slug: 'ada' })).ok).toBe(false);
     expect((await methods.sessionProgress({ slug: 'ada', sessionIds: [] })).ok).toBe(false);
     expect((await methods.sessionProgress({ slug: 'nobody', sessionIds: ['asg-1'] })).ok).toBe(
       false,

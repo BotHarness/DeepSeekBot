@@ -936,6 +936,7 @@ describe('bridge typert service', () => {
       'assignmentTimeline',
       'sessionSubagents',
       'sessionProgress',
+      'sessionTranscript',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',

@@ -107,6 +107,8 @@ function SessionsPanel({
   t,
   nativeSessions,
   assignmentLimit,
+  onSessionSelect,
+  selectedSessionId,
 }: ChannelSidebarEntryProps & {
   nativeSessions: NativeSessionCatalog;
   assignmentLimit?: number | undefined;
@@ -306,9 +308,14 @@ function SessionsPanel({
         hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"
         state={status}
-        muted={native.byId[row.sessionId] === undefined}
-        disabled={native.byId[row.sessionId] === undefined}
-        onClick={() => void actions.openSession(row.sessionId)}
+        muted={onSessionSelect === undefined && native.byId[row.sessionId] === undefined}
+        disabled={onSessionSelect === undefined && native.byId[row.sessionId] === undefined}
+        expanded={onSessionSelect === undefined ? undefined : selectedSessionId === row.sessionId}
+        onClick={() =>
+          onSessionSelect === undefined
+            ? void actions.openSession(row.sessionId)
+            : onSessionSelect(row.sessionId, row.title)
+        }
         badge={
           row.triageOpenCount !== undefined ? (
             <Tag tone="info">{t('sessions.triage', { count: row.triageOpenCount })}</Tag>

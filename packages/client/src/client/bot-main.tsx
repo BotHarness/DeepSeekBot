@@ -1,4 +1,5 @@
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
+import { SessionDetail } from './session-detail.js';
 import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
@@ -1269,7 +1270,9 @@ function ConversationView({
   const docked = useChannelDockActive();
   const workspaceEnabled = useContext(WorkspaceContext) !== undefined;
   const teamMode = useTeamMode(actions.teamCall)?.enabled === true;
-  const [detail, setDetail] = useScopedState<'files' | 'inbox' | undefined>(
+  const [detail, setDetail] = useScopedState<
+    'files' | 'inbox' | { sessionId: string; title: string } | undefined
+  >(
     scopeKey,
     state.selection?.kind === 'bot' && state.selection.inboxRequest ? 'inbox' : undefined,
   );
@@ -1277,6 +1280,7 @@ function ConversationView({
   const inboxOpen = detail === 'inbox';
   const setFilesOpen = (open: boolean) => setDetail(open ? 'files' : undefined);
   const setInboxOpen = (open: boolean) => setDetail(open ? 'inbox' : undefined);
+  const sessionDetail = typeof detail === 'object' ? detail : undefined;
   const dockBotEntries = useSyncExternalStore(
     channelSidebar.subscribe,
     () => channelSidebar.entries('personabot'),
@@ -2947,6 +2951,8 @@ function ConversationView({
           onMemoryCommitSelect: (sha) => openMemoryView({ kind: 'commit', sha }),
           onMemoryFileSelect: (path) => openMemoryView({ kind: 'file', path }),
           onMemoryWorkingSelect: (change) => openMemoryView({ kind: 'working', change }),
+          onSessionSelect: (sessionId, title) => setDetail({ sessionId, title }),
+          selectedSessionId: sessionDetail?.sessionId,
         };
   const inboxEntry = dockBotEntries.find((entry) => entry.id === 'bot-inbox');
   const inboxAvailable =
@@ -4022,6 +4028,24 @@ function ConversationView({
                   : undefined
               }
               inbox={inboxAvailable ? { open: inboxOpen, setOpen: setInboxOpen } : undefined}
+              session={
+                sessionDetail === undefined || dockBotSlug === undefined
+                  ? undefined
+                  : {
+                      title: sessionDetail.title,
+                      close: () => setDetail(undefined),
+                      content: (
+                        <SessionDetail
+                          key={sessionDetail.sessionId}
+                          actions={actions}
+                          botSlug={dockBotSlug}
+                          botName={botNames.get(dockBotSlug) ?? dockBotSlug}
+                          sessionId={sessionDetail.sessionId}
+                          t={t}
+                        />
+                      ),
+                    }
+              }
               revealBody={
                 state.selection?.kind === 'bot' &&
                 (state.selection.profile === true || state.selection.inboxRequest !== undefined)

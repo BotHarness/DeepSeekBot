@@ -239,6 +239,10 @@ import {
 } from '../runtime/assignment-human-context.js';
 import { summarizeSessionProgress, type SessionProgress } from '../runtime/session-progress.js';
 import {
+  summarizeSessionTranscript,
+  type SessionTranscript,
+} from '../runtime/session-transcript.js';
+import {
   summarizeAssignmentTimeline,
   summarizeSubagentLanes,
   TIMELINE_SUBAGENTS,
@@ -988,6 +992,9 @@ export interface BridgeMethods extends TeamBridgeMethods {
     }>
   >;
   sessionProgress(payload: unknown): Promise<BridgeResult<{ sessions: SessionProgressEntry[] }>>;
+  sessionTranscript(
+    payload: unknown,
+  ): Promise<BridgeResult<{ sessionId: string; role: SessionRootRole } & SessionTranscript>>;
   workspaceOptions(payload: unknown): BridgeResult<{
     workspaces: { id: string; path: string; title: string }[];
   }>;
@@ -8927,6 +8934,35 @@ function buildBridgeMethods(
         }),
       );
       return { ok: true, value: { sessions } };
+    },
+    async sessionTranscript(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const log = await read(sessionId);
+      return {
+        ok: true,
+        value: {
+          sessionId,
+          role: owner.rootRole,
+          ...summarizeSessionTranscript({
+            sessionId,
+            events: log?.events ?? [],
+            describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
+          }),
+        },
+      };
     },
     async sessionSubagents(payload) {
       const source = asObject(payload);

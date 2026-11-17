@@ -365,6 +365,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     await invoke(['assignment-timeline', 'ada', '--session', 'sess-1'], live.url);
     await invoke(['session-subagents', 'ada', '--session', 'orch-1'], live.url);
     await invoke(['session-progress', 'ada', '--session', 'orch-1, asg-1'], live.url);
+    await invoke(['session-transcript', 'ada', '--session', 'asg-1'], live.url);
     for (const argv of [
       ['assignments'],
       ['assignments', 'ada', '--activity', 'busy'],
@@ -375,6 +376,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       ['session-subagents', '--session', 'orch-1'],
       ['session-progress', 'ada'],
       ['session-progress', 'ada', '--session', ','],
+      ['session-transcript', 'ada'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([
@@ -394,6 +396,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       { method: 'assignmentTimeline', args: { slug: 'ada', sessionId: 'sess-1' } },
       { method: 'sessionSubagents', args: { slug: 'ada', sessionId: 'orch-1' } },
       { method: 'sessionProgress', args: { slug: 'ada', sessionIds: ['orch-1', 'asg-1'] } },
+      { method: 'sessionTranscript', args: { slug: 'ada', sessionId: 'asg-1' } },
     ]);
   });
 

@@ -59,6 +59,39 @@ export function isStuck(
   );
 }
 
+export function TodoRing({ done, total }: { done: number; total: number }): ReactElement {
+  const share = total === 0 ? 0 : done / total;
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      aria-hidden="true"
+      {...stylex.props(styles.ring)}
+    >
+      <circle
+        cx="7"
+        cy="7"
+        r={RING}
+        fill="none"
+        strokeWidth="2.5"
+        {...stylex.props(styles.track)}
+      />
+      <circle
+        cx="7"
+        cy="7"
+        r={RING}
+        fill="none"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeDasharray={`${RING_LENGTH * share} ${RING_LENGTH}`}
+        transform="rotate(-90 7 7)"
+        {...stylex.props(share === 1 ? styles.fillDone : styles.fill)}
+      />
+    </svg>
+  );
+}
+
 export function TodoProgressChip({
   todos,
   t,
@@ -68,37 +101,10 @@ export function TodoProgressChip({
 }): ReactElement | null {
   const { done, total } = todoCount(todos);
   if (total === 0) return null;
-  const share = done / total;
   const label = t('sessions.progress.todos', { done, total });
   return (
     <span data-session-todos={`${done}/${total}`} title={label} {...stylex.props(styles.chip)}>
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 14 14"
-        aria-hidden="true"
-        {...stylex.props(styles.ring)}
-      >
-        <circle
-          cx="7"
-          cy="7"
-          r={RING}
-          fill="none"
-          strokeWidth="2.5"
-          {...stylex.props(styles.track)}
-        />
-        <circle
-          cx="7"
-          cy="7"
-          r={RING}
-          fill="none"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeDasharray={`${RING_LENGTH * share} ${RING_LENGTH}`}
-          transform="rotate(-90 7 7)"
-          {...stylex.props(share === 1 ? styles.fillDone : styles.fill)}
-        />
-      </svg>
+      <TodoRing done={done} total={total} />
       <span aria-label={label}>
         {done}/{total}
       </span>

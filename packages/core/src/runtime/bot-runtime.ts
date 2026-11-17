@@ -5432,7 +5432,7 @@ class BotRuntimeImplementation implements BotRuntime {
     } else {
       if (outcome.delivery !== 'steer' && outcome.delivery !== 'followup') return;
       cause = 'direct-request';
-      body = `The Human sent this Assignment a request directly through the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
+      body = `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
     }
     const id = this.#createEventId();
     const at = this.#now().toISOString();

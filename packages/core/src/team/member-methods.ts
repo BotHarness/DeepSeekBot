@@ -229,6 +229,7 @@ export const MEMBER_BOT_METHODS = [
   'assignmentTimeline',
   'sessionSubagents',
   'sessionProgress',
+  'sessionTranscript',
   'sessionArchiveSet',
   'botToolTrace',
   'botTurnInput',
