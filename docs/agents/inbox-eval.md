@@ -29,7 +29,7 @@ A candidate is **accepted** when every gate holds, the suite cost falls by at le
 2. Change one thing in `inbox-render.ts`.
 3. Run the eval with `INBOX_EVAL_BASELINE` set to the baseline report. The verdict is printed and saved next to the report (`.md`).
 4. Accepted: keep it, record it in the ledger below, and make its report the next baseline. Rejected: revert, record why.
-5. Before merging a batch of accepted steps, run the real-model scenarios (`scripts/e2e-llm-scenarios.mjs --runs 5 --baseline …`, see [development scripts](development-scripts.md#real-model-scenarios)) and the unit tests; after release, compare `chat:bot_turn_complete` for inbox-triggered turns ([token telemetry](../token-telemetry.md#per-turn-cost-and-context-sources)).
+5. Before merging a batch of accepted steps, run the real-model scenarios (`scripts/e2e-llm-scenarios.mjs --runs 5 --baseline …`, see [development scripts](development-scripts.md#real-model-scenarios); when the OpenCode Go quota is used up, launch the Host with `DEEPSEEK_API_KEY` set and pass `--model deepseek-official/deepseek-flash`) and the unit tests; after release, compare `chat:bot_turn_complete` for inbox-triggered turns ([token telemetry](../token-telemetry.md#per-turn-cost-and-context-sources)).
 
 ```bash
 # Baseline
@@ -46,6 +46,7 @@ Scenarios live in `packages/core/test/inbox-eval/scenarios.ts`. When a real Bot 
 
 ## Ledger
 
-| Date       | Change                                                                                                                                                                               | Suite cost                    | 95% interval    | Gates    | Verdict  |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- | --------------- | -------- | -------- |
-| 2026-11-17 | External messages: reply rules stated once per Inbox, origin JSON without fields repeated in the line, empty fields dropped (`b0` verbose vs `c1` compact, `deepseek-flash`, 5 runs) | -19.0% on 3 changed scenarios | -27.1% to -9.2% | all held | Accepted |
+| Date       | Change                                                                                                                                                                                                                | Suite cost                    | 95% interval    | Gates        | Verdict       |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | --------------- | ------------ | ------------- |
+| 2026-11-17 | External messages: reply rules stated once per Inbox, origin JSON without fields repeated in the line, empty fields dropped (`b0` verbose vs `c1` compact, `deepseek-flash`, 5 runs)                                  | -19.0% on 3 changed scenarios | -27.1% to -9.2% | all held     | Accepted      |
+| 2026-11-17 | e2e check of the batch above: `dm-reply`, `worker-reports-to-coordinator`, `two-workers-report`, `delegate-and-report-back`, `repeat-reports`, `unmentioned-stay-asleep` (`deepseek-official/deepseek-flash`, 3 runs) | not compared                  | n/a             | 18/18 passed | No regression |
