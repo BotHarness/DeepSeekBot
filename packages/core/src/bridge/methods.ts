@@ -5063,8 +5063,15 @@ function buildBridgeMethods(
           for (const other of deps.registry.list())
             if (other.slug !== slug && other.marketplaceUpload?.id === id)
               deps.registry.setMarketplaceUpload(other.slug, undefined);
-        } catch {
-          return uploadResult(uploaded);
+        } catch (failure) {
+          deps.warn?.(
+            JSON.stringify({
+              module: 'marketplace',
+              initiator: 'client',
+              phase: 'upload-link-not-saved',
+              reason: failure instanceof Error ? failure.message : String(failure),
+            }),
+          );
         }
       }
       return uploadResult(uploaded);

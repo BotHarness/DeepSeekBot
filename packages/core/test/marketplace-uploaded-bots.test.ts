@@ -92,8 +92,10 @@ function fixture() {
     run: async () => ({ text: '{"findings": []}', model: 'deepseek/test' }),
   };
   const captures: [string, Record<string, unknown> | undefined][] = [];
+  const warnings: string[] = [];
   const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     ...core,
+    warn: (message: string) => warnings.push(message),
     telemetry: {
       status: () => ({ enabled: true, preference: true }),
       setPreference: () => ({ enabled: true, preference: true }),
@@ -117,7 +119,7 @@ function fixture() {
       },
     }),
   });
-  return { core, bridge, market, session, reviewer, receipts, captures };
+  return { core, bridge, market, session, reviewer, receipts, captures, warnings };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
@@ -563,4 +565,7 @@ it('still reports a successful upload when remembering the local Bot fails', asy
   const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
   write.mockRestore();
   expect(uploaded.ok).toBe(true);
+  expect(f.warnings.map((line) => JSON.parse(line))).toContainEqual(
+    expect.objectContaining({ phase: 'upload-link-not-saved', reason: 'disk full' }),
+  );
 });
