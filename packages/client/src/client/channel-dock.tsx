@@ -1008,6 +1008,7 @@ function SubpanelColumnEntry({
       <div
         className="bh-subpanel-entry-header"
         data-subpanel-entry-header=""
+        data-appearance-header={entry.id}
         {...contextMenu.triggerProps}
       >
         {contextMenu.menu}
