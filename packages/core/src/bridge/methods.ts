@@ -5058,10 +5058,14 @@ function buildBridgeMethods(
       });
       if (uploaded.ok) {
         const { id, pushedAt } = uploaded.value.bot;
-        for (const other of deps.registry.list())
-          if (other.slug !== slug && other.marketplaceUpload?.id === id)
-            deps.registry.setMarketplaceUpload(other.slug, undefined);
-        deps.registry.setMarketplaceUpload(slug, { id, pushedAt });
+        try {
+          deps.registry.setMarketplaceUpload(slug, { id, pushedAt });
+          for (const other of deps.registry.list())
+            if (other.slug !== slug && other.marketplaceUpload?.id === id)
+              deps.registry.setMarketplaceUpload(other.slug, undefined);
+        } catch {
+          return uploadResult(uploaded);
+        }
       }
       return uploadResult(uploaded);
     },

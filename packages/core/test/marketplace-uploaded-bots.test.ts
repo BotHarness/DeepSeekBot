@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createMarketplaceClient, type MarketplaceClient } from '../src/marketplace/client.js';
@@ -549,4 +549,18 @@ it('remembers which local Bot a listing was uploaded from and moves it when anot
   });
   if (!replaced.ok) throw new Error(replaced.error.message);
   expect(links()).toEqual({ [slug]: [undefined, undefined], [copy]: [id, id] });
+});
+
+it('still reports a successful upload when remembering the local Bot fails', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const write = vi.spyOn(f.core.registry, 'setMarketplaceUpload').mockImplementation(() => {
+    throw new Error('disk full');
+  });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  write.mockRestore();
+  expect(uploaded.ok).toBe(true);
 });
