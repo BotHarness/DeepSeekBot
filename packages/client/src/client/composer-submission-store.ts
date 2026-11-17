@@ -15,6 +15,7 @@ export interface SubmissionAttempt {
   mentions: (SubmissionToken & { botSlug: string })[];
   channelRefs: (SubmissionToken & { channelId: string })[];
   replyTo?: string;
+  quotes?: { messageId: string; text?: string }[];
   attachments?: ChannelAttachmentRef[];
   state: SubmissionState;
   error?: string;
@@ -76,6 +77,21 @@ function parse(raw: string): SubmissionAttempt[] {
       (!Array.isArray(attachments) || !attachments.every((ref) => isChannelAttachmentRef(ref)))
     )
       throw new Error();
+    const quotes = item['quotes'];
+    if (
+      quotes !== undefined &&
+      (!Array.isArray(quotes) ||
+        !quotes.every((quote) => {
+          const record = quote as Record<string, unknown> | null;
+          return (
+            typeof record === 'object' &&
+            record !== null &&
+            typeof record['messageId'] === 'string' &&
+            (record['text'] === undefined || typeof record['text'] === 'string')
+          );
+        }))
+    )
+      throw new Error();
     return {
       id: item['id'],
       at: item['at'],
@@ -84,6 +100,7 @@ function parse(raw: string): SubmissionAttempt[] {
       channelRefs: tokens(item['channelRefs'], '#', 'channelId'),
       state: state as SubmissionState,
       ...(typeof item['replyTo'] === 'string' ? { replyTo: item['replyTo'] } : {}),
+      ...(quotes === undefined ? {} : { quotes: quotes as { messageId: string; text?: string }[] }),
       ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
       ...(typeof item['error'] === 'string' ? { error: item['error'] } : {}),
     };

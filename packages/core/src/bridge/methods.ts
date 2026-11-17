@@ -1,5 +1,10 @@
 import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
-import { assertQuoteTargets, ChannelQuoteError, parseQuotesInput } from '../channels/quotes.js';
+import {
+  assertQuoteTargets,
+  ChannelQuoteError,
+  parseQuotesInput,
+  sameQuoteIntent,
+} from '../channels/quotes.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { requireBotModel, botModelAllowed } from '../team/models.js';
@@ -7724,16 +7729,20 @@ function buildBridgeMethods(
       )
         return invalidInput('Reply target must exist in this Channel');
       try {
-        assertQuoteTargets(quotes, (messageId) =>
-          deps.channels
-            .readHumanTimeline(human, channelId, {
-              direction: 'around',
-              around: messageId,
-              olderLimit: 0,
-              newerLimit: 0,
-            })
-            ?.entries.find((entry) => entry.id === messageId),
-        );
+        if (
+          requestedMessageId === undefined ||
+          deps.channels.message(channelId, requestedMessageId) === undefined
+        )
+          assertQuoteTargets(quotes, (messageId) =>
+            deps.channels
+              .readHumanTimeline(human, channelId, {
+                direction: 'around',
+                around: messageId,
+                olderLimit: 0,
+                newerLimit: 0,
+              })
+              ?.entries.find((entry) => entry.id === messageId),
+          );
       } catch (error) {
         if (error instanceof ChannelQuoteError)
           return { ok: false, error: { code: error.code, message: error.message } };
@@ -7761,9 +7770,7 @@ function buildBridgeMethods(
               genuiReplyContext !== undefined &&
               existing.body === `${body}\n\n${genuiReplyContext}`)) &&
           existing.replyTo === replyTo &&
-          JSON.stringify(
-            (existing.quotes ?? []).map(({ messageId, text }) => ({ messageId, text })),
-          ) === JSON.stringify(quotes.map(({ messageId, text }) => ({ messageId, text }))) &&
+          sameQuoteIntent(existing.quotes, quotes) &&
           JSON.stringify(existing.genuiReply) === JSON.stringify(genuiReply) &&
           existing.memorySwitchTarget === memorySwitchTarget &&
           JSON.stringify(existing.assignmentReply) === JSON.stringify(assignmentReply) &&

@@ -15,7 +15,11 @@ export interface ChannelQuote<Preview = ChannelReplyPreview> {
 
 export class ChannelQuoteError extends Error {
   constructor(
-    readonly code: 'invalid-quotes' | 'quote-target-missing' | 'quote-text-mismatch',
+    readonly code:
+      | 'invalid-quotes'
+      | 'unsupported-quotes'
+      | 'quote-target-missing'
+      | 'quote-text-mismatch',
     message: string,
   ) {
     super(message);
@@ -75,11 +79,15 @@ function comparable(text: string): string {
 
 export function quoteTextMatches(body: string, text: string): boolean {
   const needle = comparable(text);
+  if (needle.length === 0) return body.includes(text.trim());
   return (
-    needle.length === 0 ||
     comparable(body.replace(/\]\([^)\s]*(?:\s+"[^"]*")?\)/gu, ']')).includes(needle) ||
     comparable(body).includes(needle)
   );
+}
+
+function purged(target: object): boolean {
+  return (target as { contentPurge?: unknown }).contentPurge !== undefined;
 }
 
 export function assertQuoteTargets(
@@ -101,6 +109,24 @@ export function assertQuoteTargets(
   }
 }
 
+export function sameQuoteIntent(
+  left: readonly ChannelQuote<unknown>[] | undefined,
+  right: readonly ChannelQuote<unknown>[] | undefined,
+): boolean {
+  const a = left ?? [];
+  const b = right ?? [];
+  return (
+    a.length === b.length &&
+    a.every((quote, index) => {
+      const other = b[index]!;
+      return (
+        quote.messageId === other.messageId &&
+        (quote.text === other.text || quote.preview === null || other.preview === null)
+      );
+    })
+  );
+}
+
 export function quoteIds(message: { quotes?: readonly ChannelQuote<unknown>[] }): string[] {
   return (message.quotes ?? []).map((quote) => quote.messageId);
 }
@@ -116,6 +142,11 @@ export function referencedIds(message: {
 
 export function durableQuotes<T extends { quotes?: ChannelQuote[] }>(message: T): T {
   if (message.quotes === undefined) return message;
+  if (message.quotes.length === 0) {
+    const rest = { ...message };
+    delete rest.quotes;
+    return rest;
+  }
   return {
     ...message,
     quotes: message.quotes.map(({ messageId, text }) =>
@@ -137,7 +168,7 @@ export function projectQuotes<
     ...message,
     quotes: message.quotes.map(({ messageId, text }) => {
       const target = lookup(messageId);
-      if (target === undefined) return { messageId, preview: null };
+      if (target === undefined || purged(target)) return { messageId, preview: null };
       return {
         messageId,
         ...(text === undefined ? {} : { text }),
@@ -159,7 +190,8 @@ export function quotePromptBlock(
   if (quotes === undefined || quotes.length === 0) return '';
   const lines = quotes.map((quote) => {
     const target = lookup(quote.messageId);
-    if (target === undefined) return `- Message ${quote.messageId}: (unavailable)`;
+    if (target === undefined || purged(target))
+      return `- Message ${quote.messageId}: (unavailable)`;
     const source = quote.text ?? target.body;
     const characters = Array.from(source.replace(/\s+/gu, ' ').trim());
     const excerpt =

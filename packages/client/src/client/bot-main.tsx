@@ -371,7 +371,10 @@ function clockTime(at: string): string {
 function fullTime(at: string, t: BotHarnessTranslate): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  return timeFormat(t('main.date.locale'), { dateStyle: 'full', timeStyle: 'short' }).format(date);
+  return timeFormat(t('main.date.locale'), {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 const messageStyles = stylex.create({
@@ -422,24 +425,34 @@ interface MessageMenuRequest {
 function QuoteList({
   humanName,
   message,
+  channelId,
   bots,
   onJump,
   t,
 }: {
   message: ChannelMessage;
+  channelId: string | undefined;
   bots: readonly BotSummary[];
   humanName: string;
   onJump(messageId: string): void;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  const quotes = message.quotes;
-  if (quotes === undefined || quotes.length === 0) return null;
+  const quotes = message.quotes ?? [];
+  const replyTo = message.replyTo;
+  const reply =
+    replyTo === undefined ||
+    quotes.some((quote) => quote.messageId === replyTo && quote.text === undefined)
+      ? []
+      : [{ messageId: replyTo, preview: message.replyToPreview, reply: true }];
+  const entries = [...reply, ...quotes.map((quote) => ({ ...quote, reply: false }))];
+  if (entries.length === 0) return null;
   const mine = message.author.kind === 'human';
   return (
     <QuoteCardList label={t('message.quotes')}>
-      {quotes.map((quote, index) => {
-        const key = `${quote.messageId}:${index}`;
-        const preview = quote.preview;
+      {entries.map((entry, index) => {
+        const key = `${entry.messageId}:${index}`;
+        const preview = entry.preview;
+        const text = 'text' in entry ? entry.text : undefined;
         if (preview === undefined || preview === null)
           return (
             <QuoteCard
@@ -456,78 +469,39 @@ function QuoteList({
           mine || quoted.kind !== 'bot'
             ? undefined
             : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
+        const media = preview.media;
+        const thumbnail =
+          media?.kind === 'image' && channelId !== undefined ? media.thumbnail : undefined;
+        const body = entry.reply
+          ? toolApprovalReplyPreview(message, preview.body, t)
+          : preview.body;
         return (
           <QuoteCard
             key={key}
             ref={(element) => paintBotName(element, colorSource)}
             author={author}
-            body={quote.text ?? replyQuoteText(preview.media, preview.body, t)}
-            part={quote.text !== undefined}
+            body={text ?? replyQuoteText(media, body, t)}
+            part={text !== undefined}
             mine={mine}
             kind={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
+            media={media?.kind}
+            thumb={
+              thumbnail === undefined ||
+              channelId === undefined ||
+              text !== undefined ? undefined : (
+                <ReplyQuoteThumb
+                  thumbnail={thumbnail}
+                  channelId={channelId}
+                  messageId={entry.messageId}
+                />
+              )
+            }
             jumpLabel={t('message.quoteJump', { author })}
-            onJump={() => onJump(quote.messageId)}
+            onJump={() => onJump(entry.messageId)}
           />
         );
       })}
     </QuoteCardList>
-  );
-}
-
-function ReplyQuote({
-  humanName,
-  message,
-  channelId,
-  bots,
-  onJump,
-  t,
-}: {
-  message: ChannelMessage;
-  channelId: string | undefined;
-  bots: readonly BotSummary[];
-  humanName: string;
-  onJump(messageId: string): void;
-  t: BotHarnessTranslate;
-}): ReactElement | null {
-  const targetId = message.replyTo;
-  if (targetId === undefined) return null;
-  const preview = message.replyToPreview;
-  if (preview === undefined || preview === null) {
-    return (
-      <div className="bh-bubble-reply bh-bubble-reply-unavailable" data-bubble-quote="unavailable">
-        {t('message.replyUnavailable')}
-      </div>
-    );
-  }
-  const quoted = preview.author;
-  const author = authorLabel({ ...message, author: quoted }, bots, t, humanName);
-  const colorSource =
-    message.author.kind === 'human' || quoted.kind !== 'bot'
-      ? undefined
-      : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
-  const media = preview.media;
-  const thumbnail =
-    media?.kind === 'image' && channelId !== undefined ? media.thumbnail : undefined;
-  return (
-    <button
-      type="button"
-      className={`bh-bubble-reply${thumbnail === undefined ? '' : ' bh-bubble-reply-media'}`}
-      data-bubble-quote={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
-      data-bubble-quote-media={media?.kind}
-      ref={(element) => paintBotName(element, colorSource)}
-      onClick={() => onJump(targetId)}
-      aria-label={t('message.replyJump', { author })}
-    >
-      {thumbnail === undefined || channelId === undefined ? null : (
-        <ReplyQuoteThumb thumbnail={thumbnail} channelId={channelId} messageId={targetId} />
-      )}
-      <span className="bh-bubble-reply-author" data-bubble-quote-author="">
-        {author}
-      </span>
-      <span className="bh-bubble-reply-body">
-        {replyQuoteText(media, toolApprovalReplyPreview(message, preview.body, t), t)}
-      </span>
-    </button>
   );
 }
 
@@ -888,7 +862,9 @@ const MessageGroupView = memo(function MessageGroupView({
             <button
               type="button"
               className="bh-message-group-avatar-link"
-              aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
+              aria-label={t('message.mention.openDm', {
+                bot: displayBot?.displayName ?? '',
+              })}
               {...(onAvatarMenu === undefined ? {} : { 'aria-haspopup': 'menu' as const })}
               onClick={() => void actions.openBot(author.slug)}
               onContextMenu={
@@ -924,7 +900,9 @@ const MessageGroupView = memo(function MessageGroupView({
                     ? {
                         role: 'group',
                         tabIndex: 0,
-                        'aria-label': t('message.authorCard.label', { name: authorName }),
+                        'aria-label': t('message.authorCard.label', {
+                          name: authorName,
+                        }),
                       }
                     : {})}
                   data-bot-name-color={nameColor}
@@ -991,17 +969,10 @@ const MessageGroupView = memo(function MessageGroupView({
                   data-group-position={position}
                   data-bubble-media={bubbleMedia(message)}
                 >
-                  <ReplyQuote
-                    humanName={humanName}
-                    message={message}
-                    channelId={channelId}
-                    bots={bots}
-                    onJump={onJumpReply}
-                    t={t}
-                  />
                   <QuoteList
                     humanName={humanName}
                     message={message}
+                    channelId={channelId}
                     bots={bots}
                     onJump={onJumpReply}
                     t={t}
@@ -1144,7 +1115,13 @@ function MessageActionMenu({
         items={[
           ...(bubbleStamp(request.message) === undefined
             ? []
-            : [{ type: 'label' as const, id: 'time', text: fullTime(request.message.at, t) }]),
+            : [
+                {
+                  type: 'label' as const,
+                  id: 'time',
+                  text: fullTime(request.message.at, t),
+                },
+              ]),
           ...(onQuote === undefined || !quotableMessage(request.message)
             ? []
             : [
@@ -1159,7 +1136,13 @@ function MessageActionMenu({
               ]),
           ...(onReact === undefined
             ? []
-            : [{ id: 'react', label: t('message.react'), icon: <ReactionIcon /> }]),
+            : [
+                {
+                  id: 'react',
+                  label: t('message.react'),
+                  icon: <ReactionIcon />,
+                },
+              ]),
           {
             id: 'copy',
             label: request.selection === undefined ? t('message.copy') : t('message.copySelection'),
@@ -1176,7 +1159,13 @@ function MessageActionMenu({
               ]),
           ...(onFeedback === undefined || !selectableMessage(request.message)
             ? []
-            : [{ id: 'feedback', label: t('feedback.title'), icon: <ReactionIcon /> }]),
+            : [
+                {
+                  id: 'feedback',
+                  label: t('feedback.title'),
+                  icon: <ReactionIcon />,
+                },
+              ]),
         ]}
         onSelect={(id) => {
           if (id === 'quote') onQuote?.(request.message, request.selection);
@@ -1231,9 +1220,19 @@ export function BotAvatarMenu({
             icon: <IconNewChatOutlineRegular />,
           },
           ...(canMention
-            ? [{ id: 'mention', label: t('message.avatar.mention'), icon: <AtSignIcon /> }]
+            ? [
+                {
+                  id: 'mention',
+                  label: t('message.avatar.mention'),
+                  icon: <AtSignIcon />,
+                },
+              ]
             : []),
-          { id: 'profile', label: t('message.avatar.profile'), icon: <IconUserOutlineRegular /> },
+          {
+            id: 'profile',
+            label: t('message.avatar.profile'),
+            icon: <IconUserOutlineRegular />,
+          },
         ]}
         onSelect={(id) => {
           if (id === 'message') onMessage(request.botSlug);
@@ -1466,7 +1465,11 @@ function ConversationView({
         scope: string;
         index: number;
         text: string;
-        saved: { text: string; mentions: SelectedMention[]; channelRefs: SelectedChannelRef[] };
+        saved: {
+          text: string;
+          mentions: SelectedMention[];
+          channelRefs: SelectedChannelRef[];
+        };
       }
     | undefined
   >(scopeKey, undefined);
@@ -1516,7 +1519,11 @@ function ConversationView({
     const saved =
       active !== undefined && active.text === draft
         ? active.saved
-        : { text: draft, mentions: mentionTokens, channelRefs: channelRefTokens };
+        : {
+            text: draft,
+            mentions: mentionTokens,
+            channelRefs: channelRefTokens,
+          };
     if (step.kind === 'restore') {
       recall.current = undefined;
       setRecallNotice(undefined);
@@ -1856,7 +1863,10 @@ function ConversationView({
             active: selectedIds !== undefined,
             begin: (message) => {
               setMessageMenu(undefined);
-              setSelectedMessages({ channelId, ids: toggleSelection([], message) });
+              setSelectedMessages({
+                channelId,
+                ids: toggleSelection([], message),
+              });
             },
             toggle: (message) =>
               setSelectedMessages((current) =>
@@ -2199,7 +2209,12 @@ function ConversationView({
     if (profileBot === undefined) return;
     const show = (text: string, holdMs: number, tone?: 'success') => {
       compactSeq.current += 1;
-      setCompactNotice({ seq: compactSeq.current, text, holdMs, ...(tone ? { tone } : {}) });
+      setCompactNotice({
+        seq: compactSeq.current,
+        text,
+        holdMs,
+        ...(tone ? { tone } : {}),
+      });
     };
     setCompacting(true);
     show(t('composerCompact.running'), 120000);
@@ -2465,7 +2480,12 @@ function ConversationView({
     contextMenu: (message: ChannelMessage, x: number, y: number) => {
       setAvatarMenu(undefined);
       const selection = selectedMessageText(message.id);
-      setMessageMenu({ message, x, y, ...(selection === undefined ? {} : { selection }) });
+      setMessageMenu({
+        message,
+        x,
+        y,
+        ...(selection === undefined ? {} : { selection }),
+      });
     },
     avatarMenu: (botSlug: string, x: number, y: number) => {
       setMessageMenu(undefined);
@@ -2539,7 +2559,10 @@ function ConversationView({
                     ? [
                         {
                           key: galleryImageKey(message.id, ref),
-                          src: channelAttachmentUrl(ref, { channelId, messageId: message.id }),
+                          src: channelAttachmentUrl(ref, {
+                            channelId,
+                            messageId: message.id,
+                          }),
                           alt: ref.name,
                         },
                       ]
@@ -2814,9 +2837,11 @@ function ConversationView({
   const addFiles = (files: File[], selection?: { start: number; end: number }): number | void => {
     if (recovery.blocked || unavailable || mutationLocked) return;
     const available = Math.max(0, 10 - uploadItems.length);
-    const added = files
-      .slice(0, available)
-      .map((file) => ({ id: crypto.randomUUID(), file, status: 'uploading' as const }));
+    const added = files.slice(0, available).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      status: 'uploading' as const,
+    }));
     if (added.length === 0) return;
     const selected = insertAttachmentReferences(draft, added, selection);
     recovery.update({
@@ -2850,19 +2875,31 @@ function ConversationView({
     const body = draft.trim();
     const leftTrim = draft.length - draft.trimStart().length;
     const submittedRefs = channelRefTokens.flatMap((token) => {
-      const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
+      const adjusted = {
+        ...token,
+        start: token.start - leftTrim,
+        end: token.end - leftTrim,
+      };
       return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '#' + token.label
         ? [adjusted]
         : [];
     });
     const submittedSkills = liveSkills(draft, skillTokens).flatMap((token) => {
-      const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
+      const adjusted = {
+        ...token,
+        start: token.start - leftTrim,
+        end: token.end - leftTrim,
+      };
       return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '/' + token.name
         ? [adjusted]
         : [];
     });
     const submittedMentions = mentionTokens.flatMap((token) => {
-      const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
+      const adjusted = {
+        ...token,
+        start: token.start - leftTrim,
+        end: token.end - leftTrim,
+      };
       return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '@' + token.label
         ? [adjusted]
         : [];
@@ -2922,7 +2959,14 @@ function ConversationView({
             mentions: submittedMentions.flatMap((item) =>
               item.kind === 'all-bots'
                 ? []
-                : [{ botSlug: item.botSlug, label: item.label, start: item.start, end: item.end }],
+                : [
+                    {
+                      botSlug: item.botSlug,
+                      label: item.label,
+                      start: item.start,
+                      end: item.end,
+                    },
+                  ],
             ),
             channelRefs: submittedRefs,
             ...(submittedReplyTo === undefined ? {} : { replyTo: submittedReplyTo }),
@@ -2933,7 +2977,13 @@ function ConversationView({
     );
     recall.current = undefined;
     setRecallNotice(undefined);
-    recovery.update({ text: '', mentions: [], channelRefs: [], skills: [], uploads: [] });
+    recovery.update({
+      text: '',
+      mentions: [],
+      channelRefs: [],
+      skills: [],
+      uploads: [],
+    });
     try {
       const sent = await actions.send(
         body,
@@ -2945,7 +2995,12 @@ function ConversationView({
         undefined,
         allBotMention,
         attempt?.id,
-        submittedSkills.map(({ name, owner, start, end }) => ({ name, owner, start, end })),
+        submittedSkills.map(({ name, owner, start, end }) => ({
+          name,
+          owner,
+          start,
+          end,
+        })),
         submittedQuotes,
       );
       if (sent) {
@@ -3215,7 +3270,9 @@ function ConversationView({
                       className="bh-channel-island"
                       {...(menu === undefined
                         ? {
-                            'aria-label': t('profile.openAvatar', { name: profileBot.displayName }),
+                            'aria-label': t('profile.openAvatar', {
+                              name: profileBot.displayName,
+                            }),
                             onClick: openProfileView,
                           }
                         : {
@@ -3381,7 +3438,9 @@ function ConversationView({
               )
                 pinTimelineToLatest(event.currentTarget);
             }}
-            style={{ display: activeMemoryView === undefined ? undefined : 'none' }}
+            style={{
+              display: activeMemoryView === undefined ? undefined : 'none',
+            }}
           >
             {conversation.timeline.hasOlder ? (
               <div className="bh-timeline-top-sentinel">
@@ -3543,7 +3602,10 @@ function ConversationView({
                           onOpen={() => {
                             const commit = first.memoryCommit!;
                             if (channel?.type === 'dm' && channel.botSlug === commit.botSlug) {
-                              openMemoryView({ kind: 'commit', sha: commit.sha });
+                              openMemoryView({
+                                kind: 'commit',
+                                sha: commit.sha,
+                              });
                               return;
                             }
                             const dm = state.channels.find(
@@ -4123,7 +4185,9 @@ function ConversationView({
                             profile: {
                               label:
                                 channel.type === 'dm' && sessionStopCount > 0
-                                  ? t('sessionStop.open', { count: sessionStopCount })
+                                  ? t('sessionStop.open', {
+                                      count: sessionStopCount,
+                                    })
                                   : t(
                                       channel.type === 'group'
                                         ? 'groupProfile.openAvatar'
@@ -4224,7 +4288,9 @@ function ConversationView({
             conversationScope(
               <PanelDialog
                 title={t('generatedFiles.title')}
-                closeLabel={t('dock.close', { label: t('generatedFiles.title') })}
+                closeLabel={t('dock.close', {
+                  label: t('generatedFiles.title'),
+                })}
                 onClose={() => setFilesOpen(false)}
                 scroll
               >

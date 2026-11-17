@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   assertQuoteTargets,
   ChannelQuoteError,
+  durableQuotes,
   parseQuotesInput,
   projectQuotes,
   quotePromptBlock,
   quoteTextMatches,
   referencedIds,
+  sameQuoteIntent,
 } from '../src/channels/quotes.js';
 import { isChannelMessage } from '../src/channels/channel.js';
 
@@ -62,7 +64,10 @@ describe('Channel quotes', () => {
 
   it('names reply and quote targets once and validates the durable shape', () => {
     expect(
-      referencedIds({ replyTo: 'a', quotes: [{ messageId: 'a' }, { messageId: 'b' }] }),
+      referencedIds({
+        replyTo: 'a',
+        quotes: [{ messageId: 'a' }, { messageId: 'b' }],
+      }),
     ).toEqual(['a', 'b']);
     const message = {
       id: 'm',
@@ -89,5 +94,36 @@ describe('Channel quotes', () => {
     expect(block).toContain('- Message b from PersonaBot ada: "whole message"');
     expect(block).toContain('- Message gone: (unavailable)');
     expect(quotePromptBlock(undefined, () => undefined)).toBe('');
+  });
+
+  it('keeps symbol-only excerpts, drops empty lists and hides purged targets', () => {
+    expect(quoteTextMatches('price: $$$ !!!', '$$$')).toBe(true);
+    expect(quoteTextMatches('price: 10', '$$$')).toBe(false);
+    expect(durableQuotes({ id: 'm', quotes: [] })).toEqual({ id: 'm' });
+    const purgedTarget = {
+      author: 'Ada',
+      body: 'secret',
+      contentPurge: { at: 'now' },
+    };
+    expect(quotePromptBlock([{ messageId: 'a' }], () => purgedTarget)).toContain('(unavailable)');
+    expect(
+      projectQuotes({ quotes: [{ messageId: 'a', text: 'secret' }] }, () => ({
+        author: { kind: 'human' as const },
+        body: 'secret',
+        contentPurge: { at: 'now' },
+      })).quotes,
+    ).toEqual([{ messageId: 'a', preview: null }]);
+  });
+
+  it('treats a retried send with the same quotes as the same intent', () => {
+    expect(sameQuoteIntent([{ messageId: 'a', text: 'x' }], [{ messageId: 'a', text: 'x' }])).toBe(
+      true,
+    );
+    expect(sameQuoteIntent([{ messageId: 'a' }], [{ messageId: 'a', text: 'x' }])).toBe(false);
+    expect(
+      sameQuoteIntent([{ messageId: 'a', preview: null }], [{ messageId: 'a', text: 'x' }]),
+    ).toBe(true);
+    expect(sameQuoteIntent(undefined, [])).toBe(true);
+    expect(sameQuoteIntent([{ messageId: 'a' }], [{ messageId: 'b' }])).toBe(false);
   });
 });

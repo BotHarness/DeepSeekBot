@@ -1,5 +1,10 @@
 import { HarnessError } from '@deepseek-ai/dsh-llm';
-import { assertQuoteTargets, quotePromptBlock, type ChannelQuote } from '../channels/quotes.js';
+import {
+  assertQuoteTargets,
+  ChannelQuoteError,
+  quotePromptBlock,
+  type ChannelQuote,
+} from '../channels/quotes.js';
 import { hasIrreversibleExternalEffect, toolEffects } from '../workspaces/tool-effects.js';
 
 import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../tob/cli-request.js';
@@ -3280,7 +3285,7 @@ class BotRuntimeImplementation implements BotRuntime {
             row.body.length > context.bodyLimit
               ? ` [excerpt; ${row.body.length - context.bodyLimit} more characters available with channel_read]`
               : ''
-          }`
+          }${this.#rowQuotes(context.channelId, row.message_id)}`
         );
       }),
       context.omittedCount > 0
@@ -3316,7 +3321,10 @@ class BotRuntimeImplementation implements BotRuntime {
           )
         : `Source Event ID: ${sourceEventId}\n` +
           this.#groupMentionPrompt(botSlug, channelId, messageId, source.body) +
-          (steered?.author.kind === 'human' ? skillInvocationPrompt(steered.skillInvocations) : '');
+          (steered?.author.kind === 'human'
+            ? skillInvocationPrompt(steered.skillInvocations)
+            : '') +
+          this.#quotePrompt(channelId, steered);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -4282,7 +4290,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${groupSkillInvocationPrompt(row, context.channelId)}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${groupSkillInvocationPrompt(row, context.channelId)}${this.#rowQuotes(context.channelId, row.message_id)}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -4307,7 +4315,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `${rows.length} ordinary messages are due. ${this.#promptText(botSlug)('digest-hint')}`,
       ...rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${groupSkillInvocationPrompt(row, channelId)}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${groupSkillInvocationPrompt(row, channelId)}${this.#rowQuotes(channelId, row.message_id)}`,
       ),
       ...(omittedCount > 0
         ? [
@@ -4444,6 +4452,10 @@ class BotRuntimeImplementation implements BotRuntime {
     return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${formatCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. Read what was said and shown on it with channel_read call=${record.callId}; add from_ms/to_ms (milliseconds from the call's start) for part of it. channel_read text "voice call" with author_kind system lists earlier calls, each read the same way by its callId.]`;
   }
 
+  #rowQuotes(channelId: string, messageId: string): string {
+    return this.#quotePrompt(channelId, this.#channels.message(channelId, messageId));
+  }
+
   #quotePrompt(channelId: string, message: ChannelMessage | undefined): string {
     return quotePromptBlock(message?.quotes, (messageId) => {
       const target = this.#channels.message(channelId, messageId);
@@ -4453,7 +4465,9 @@ class BotRuntimeImplementation implements BotRuntime {
           ? `PersonaBot ${target.author.slug}`
           : target.author.kind === 'human'
             ? `Human${target.author.displayName === undefined ? '' : ` ${JSON.stringify(target.author.displayName)}`}`
-            : 'the Host';
+            : target.author.kind === 'bridged'
+              ? `${JSON.stringify(target.bridgeOrigin?.senderName ?? target.bridgeOrigin?.senderId ?? 'unknown')} (${target.bridgeOrigin?.platform ?? target.author.source}, external)`
+              : 'Channel system';
       return { author, body: target.body };
     });
   }
@@ -9059,10 +9073,14 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('Human mentions require a Group Channel');
         if (isBotDmChannel(channel)) {
           if (channel.remoteBot !== undefined) {
+            if (input.quotes?.length)
+              throw new ChannelQuoteError(
+                'unsupported-quotes',
+                'Quotes are not supported in remote Bot DMs',
+              );
             if (
               input.attachments?.length ||
-              (input.replyTo !== undefined && input.replySourceEventId === undefined) ||
-              input.quotes?.length
+              (input.replyTo !== undefined && input.replySourceEventId === undefined)
             )
               throw new Error('Remote Bot DMs currently support text without quoted replies');
             return (

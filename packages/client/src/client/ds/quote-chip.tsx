@@ -67,7 +67,10 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     cursor: { default: 'pointer', ':disabled': 'default' },
     opacity: { default: 1, ':disabled': 0.5 },
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
   },
   cardList: {
     display: 'flex',
@@ -99,7 +102,10 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid currentColor` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid currentColor`,
+    },
     outlineOffset: '2px',
   },
   cardMine: { color: 'inherit' },
@@ -204,17 +210,24 @@ export const QuoteCard = forwardRef<
     readonly part: boolean;
     readonly mine: boolean;
     readonly kind: string;
+    readonly media?: string | undefined;
+    readonly thumb?: ReactNode | undefined;
     readonly jumpLabel?: string;
     readonly onJump?: () => void;
   }
->(function QuoteCard({ author, body, part, mine, kind, jumpLabel, onJump }, ref) {
+>(function QuoteCard({ author, body, part, mine, kind, media, thumb, jumpLabel, onJump }, ref) {
   const content = (
     <>
       <span aria-hidden="true" {...stylex.props(styles.cardIcon)}>
-        <QuoteIcon size={14} />
+        {thumb ?? <QuoteIcon size={14} />}
       </span>
-      {author === undefined ? null : <span {...stylex.props(styles.cardAuthor)}>{author}</span>}
+      {author === undefined ? null : (
+        <span data-bubble-quote-author="" {...stylex.props(styles.cardAuthor)}>
+          {author}
+        </span>
+      )}
       <span
+        data-bubble-quote-body=""
         {...stylex.props(styles.cardBody, mine && styles.cardBodyMine, part && styles.cardBodyPart)}
       >
         {body}
@@ -235,6 +248,7 @@ export const QuoteCard = forwardRef<
         aria-label={jumpLabel}
         data-bubble-quote={kind}
         data-quote-part={part ? '' : undefined}
+        data-bubble-quote-media={media}
         onClick={onJump}
         {...stylex.props(
           styles.card,

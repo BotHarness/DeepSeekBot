@@ -23,6 +23,7 @@ import {
   projectQuotes,
   quoteIds,
   referencedIds,
+  sameQuoteIntent,
 } from './quotes.js';
 import {
   assertGrantRequestReply,
@@ -272,7 +273,6 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       body: left.body,
       attachments: attachmentIntent(left.attachments ?? []),
       replyTo: left.replyTo,
-      quotes: durableQuotes(left).quotes,
       memorySwitchTarget: left.memorySwitchTarget,
       tobCliRequestId: left.tobCliRequestId,
       mentions: left.mentions ?? [],
@@ -287,26 +287,25 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       genuiReply: left.genuiReply,
       genuiReplyContext: left.genuiReplyContext,
     }) ===
-    JSON.stringify({
-      author: author(right),
-      body: right.body,
-      attachments: attachmentIntent(right.attachments ?? []),
-      replyTo: right.replyTo,
-      quotes: durableQuotes(right).quotes,
-      memorySwitchTarget: right.memorySwitchTarget,
-      tobCliRequestId: right.tobCliRequestId,
-      mentions: right.mentions ?? [],
-      humanMentions: right.humanMentions ?? [],
-      channelRefs: right.channelRefs ?? [],
-      skillInvocations: skillInvocationIntent(right),
-      botDmAction: right.botDmAction,
-      botCausation: right.botCausation,
-      grantRequestResolution: right.grantRequestResolution,
-      assignmentReply: right.assignmentReply,
-      genui: right.genui,
-      genuiReply: right.genuiReply,
-      genuiReplyContext: right.genuiReplyContext,
-    })
+      JSON.stringify({
+        author: author(right),
+        body: right.body,
+        attachments: attachmentIntent(right.attachments ?? []),
+        replyTo: right.replyTo,
+        memorySwitchTarget: right.memorySwitchTarget,
+        tobCliRequestId: right.tobCliRequestId,
+        mentions: right.mentions ?? [],
+        humanMentions: right.humanMentions ?? [],
+        channelRefs: right.channelRefs ?? [],
+        skillInvocations: skillInvocationIntent(right),
+        botDmAction: right.botDmAction,
+        botCausation: right.botCausation,
+        grantRequestResolution: right.grantRequestResolution,
+        assignmentReply: right.assignmentReply,
+        genui: right.genui,
+        genuiReply: right.genuiReply,
+        genuiReplyContext: right.genuiReplyContext,
+      }) && sameQuoteIntent(left.quotes, right.quotes)
   );
 }
 
@@ -3694,9 +3693,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             SELECT p.message_id, e.payload_json, e.body
               FROM channel_placements p
               JOIN source_events e ON e.source_event_id = p.source_event_id
-             WHERE p.channel_id = ? AND p.message_id IN (${placeholders})
+             WHERE p.channel_id = ? AND p.revision >= ? AND p.message_id IN (${placeholders})
           `)
-            .all(id, ...replyIds),
+            .all(id, query.visibleFrom ?? 0, ...replyIds),
         ) as unknown as Array<Pick<PlacementRow, 'message_id' | 'payload_json' | 'body'>>;
         for (const row of replies) {
           const message = parseMessage(row.payload_json, row.body, row.message_id, id);
@@ -3821,7 +3820,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         return [
           {
             channelId: row.channel_id,
-            message: projectMessageAttachments(row.source_event_id, original),
+            message: projectMessageAttachments(
+              row.source_event_id,
+              original.quotes === undefined
+                ? original
+                : { ...original, quotes: original.quotes.map(({ messageId }) => ({ messageId })) },
+            ),
             snippet: searchSnippet(row.search_text, needle),
           },
         ];

@@ -1058,7 +1058,7 @@ export interface BridgeActions {
     begin(
       channelId: string,
       attempt: Pick<SubmissionAttempt, 'text' | 'mentions' | 'channelRefs'> &
-        Partial<Pick<SubmissionAttempt, 'replyTo' | 'attachments'>>,
+        Partial<Pick<SubmissionAttempt, 'replyTo' | 'quotes' | 'attachments'>>,
     ): { id: string; persisted: boolean } | undefined;
     cancel(channelId: string, id: string): void;
     sync(channelId: string): void;
@@ -1325,6 +1325,16 @@ export function createActions(
     ...(attempt.channelRefs.length === 0 ? {} : { channelRefs: attempt.channelRefs }),
     ...(attempt.attachments === undefined ? {} : { attachments: attempt.attachments }),
     ...(attempt.replyTo === undefined ? {} : { replyTo: attempt.replyTo, replyToPreview: null }),
+    ...(attempt.quotes === undefined || attempt.quotes.length === 0
+      ? {}
+      : {
+          quotes: attempt.quotes.map((quote) => {
+            const target = clientStore
+              .getSnapshot()
+              .conversation.messages.find((item) => item.id === quote.messageId);
+            return { ...quote, preview: target === undefined ? null : replyPreviewOf(target) };
+          }),
+        }),
     pending: false,
     failed: attempt.error ?? '',
     ...(attempt.state === 'unknown' ? { unconfirmed: true } : {}),
@@ -3437,6 +3447,13 @@ export function createActions(
           mentions: mentions ?? [],
           channelRefs: channelRefs ?? [],
           ...(replyTo === undefined ? {} : { replyTo }),
+          ...(quotes === undefined || quotes.length === 0
+            ? {}
+            : {
+                quotes: quotes.map(({ messageId, text }) =>
+                  text === undefined ? { messageId } : { messageId, text },
+                ),
+              }),
           ...(attachments === undefined || attachments.length === 0 ? {} : { attachments }),
         });
       onboardingFor(actions).markSubmitted(channel.id, text);

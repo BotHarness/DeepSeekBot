@@ -1,4 +1,4 @@
-import { assertQuoteTargets, durableQuotes, projectQuotes } from './quotes.js';
+import { assertQuoteTargets, durableQuotes, projectQuotes, sameQuoteIntent } from './quotes.js';
 import type { ChannelPolicy } from '../team/channel-contract.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import {
@@ -729,7 +729,7 @@ function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean
     left.genuiReplyContext === right.genuiReplyContext &&
     left.body === right.body &&
     left.replyTo === right.replyTo &&
-    JSON.stringify(durableQuotes(left).quotes) === JSON.stringify(durableQuotes(right).quotes) &&
+    sameQuoteIntent(left.quotes, right.quotes) &&
     JSON.stringify(left.grantRequestResolution) === JSON.stringify(right.grantRequestResolution) &&
     JSON.stringify(left.assignmentReply) === JSON.stringify(right.assignmentReply) &&
     JSON.stringify(attachmentIntent(left.attachments ?? [])) ===

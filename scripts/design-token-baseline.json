@@ -101,7 +101,7 @@
   },
   "packages/client/src/client/bot-main.tsx": {
     "dshImport": 1,
-    "rawControl": 9
+    "rawControl": 8
   },
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
     "dshImport": 1,
@@ -713,7 +713,7 @@
     "lineBorder": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1942,
+    "legacyCss": 1931,
     "lineBorder": 107
   },
   "packages/client/src/client/tag-editor.tsx": {

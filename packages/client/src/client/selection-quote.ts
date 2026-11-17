@@ -14,8 +14,7 @@ const TOOLBAR_ROOM_PX = 48;
 function messageIdOf(node: Node): string | undefined {
   const element = node instanceof Element ? node : node.parentElement;
   if (element === null) return undefined;
-  if (element.closest('.bh-bubble-reply, [data-bubble-quotes], .bh-bubble-actions') !== null)
-    return undefined;
+  if (element.closest('[data-bubble-quotes], .bh-bubble-actions') !== null) return undefined;
   return element.closest('[data-message-id]')?.getAttribute('data-message-id') ?? undefined;
 }
 
