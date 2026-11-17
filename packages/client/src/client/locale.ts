@@ -308,7 +308,7 @@ export const zh = {
   'connections.botPrompt.copied': '已复制，发给 Bot 即可',
   'connections.botPrompt.failed': '没能复制。选中下面的提示词，发给 Bot。',
   'connections.botPrompt.method':
-    '帮我选手机连接这台电脑的方式：运行 `deepseekbot phone-route` 和 `deepseekbot devices`，告诉我哪些连接方式已就绪、推荐用哪个。需要打开局域网连接时先问我，我同意后再运行 `deepseekbot device-lan enable --confirm`。',
+    '帮我选手机连接本机 Host 的方式：运行 `deepseekbot phone-route` 和 `deepseekbot devices`，告诉我哪些连接方式已就绪、推荐用哪个。需要打开局域网连接时先问我，我同意后再运行 `deepseekbot device-lan enable --confirm`。',
   'connections.botPrompt.prepare':
     '帮我生成手机配对邀请：运行 `deepseekbot device-offer --out <新的私有文件绝对路径>`。链接只写进那个文件，不要贴到聊天里。告诉我邀请几点过期，然后用 `deepseekbot device-offer-status <receipt>` 等我在手机上打开。',
   'connections.botPrompt.approve':
@@ -6235,7 +6235,7 @@ export const en = {
   'connections.botPrompt.copied': 'Copied. Send it to a Bot',
   'connections.botPrompt.failed': 'Couldn’t copy. Select the prompt below and send it to a Bot.',
   'connections.botPrompt.method':
-    'Help me choose how my phone connects to this computer: run `deepseekbot phone-route` and `deepseekbot devices`, then tell me which connection methods are ready and which you recommend. If the local network connection needs turning on, ask me first, and only after I agree run `deepseekbot device-lan enable --confirm`.',
+    'Help me choose how my phone connects to This Host: run `deepseekbot phone-route` and `deepseekbot devices`, then tell me which connection methods are ready and which you recommend. If the local network connection needs turning on, ask me first, and only after I agree run `deepseekbot device-lan enable --confirm`.',
   'connections.botPrompt.prepare':
     'Help me create a phone pairing invitation: run `deepseekbot device-offer --out <absolute path to a new private file>`. The link goes only into that file; do not paste it into the chat. Tell me when the invitation expires, then use `deepseekbot device-offer-status <receipt>` to wait for me to open it on the phone.',
   'connections.botPrompt.approve':
