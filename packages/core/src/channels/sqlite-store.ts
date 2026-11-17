@@ -65,6 +65,10 @@ import {
   MAX_ACTOR_REACTIONS_PER_MESSAGE,
   type ChannelReaction,
   type LocalHumanIdentity,
+  type HumanAvatar,
+  HUMAN_AVATAR_BATCH,
+  humanAvatarVersion,
+  isHumanAvatar,
   type ChannelMessage,
   type ChannelRecord,
   type GroupInvitation,
@@ -348,6 +352,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         .all()
         .some((column) => column.name === 'human_id'),
     ));
+  let humanAvatarTableCache: boolean | undefined;
+  const humanAvatarTable = () =>
+    (humanAvatarTableCache ??= database.read(
+      (db) =>
+        db
+          .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'human_avatars'")
+          .get() !== undefined,
+    ));
   const sourcePolicy = options.sourcePolicy ?? createBotSourcePolicyStore(database, now);
   const insertSourceAdmission = (
     db: DatabaseSync,
@@ -619,10 +631,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         .get(human.humanId),
     ) as { default_display_name: string | null; display_name?: string | null } | undefined;
     const defaultDisplayName = row?.default_display_name ?? null;
+    const avatar = humanAvatarTable()
+      ? (database.read((db) =>
+          db.prepare('SELECT version FROM human_avatars WHERE human_id = ?').get(human.humanId),
+        ) as { version: string } | undefined)
+      : undefined;
     return {
       humanId: human.humanId,
       defaultDisplayName,
       displayName: defaultDisplayName ?? row?.display_name ?? 'Human',
+      ...(avatar === undefined ? {} : { avatarVersion: avatar.version }),
     };
   };
 
@@ -631,17 +649,20 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   ): Array<{
     human_id: string;
     display_name: string;
+    avatar_version: string | null;
     visible_from_revision: number;
     read_revision: number;
   }> =>
     database.read((db) =>
       db
         .prepare(`
-        SELECT m.human_id, COALESCE(k.nickname, n.default_display_name, m.display_name, 'Human') AS display_name, m.visible_from_revision,
+        SELECT m.human_id, COALESCE(k.nickname, n.default_display_name, m.display_name, 'Human') AS display_name,
+               ${humanAvatarTable() ? 'a.version' : 'NULL'} AS avatar_version, m.visible_from_revision,
                COALESCE(r.revision, 0) AS read_revision
           FROM channel_human_members m
           LEFT JOIN local_human_names n ON n.human_id = m.human_id
           LEFT JOIN channel_human_nicknames k ON k.channel_id = m.channel_id AND k.human_id = m.human_id
+          ${humanAvatarTable() ? 'LEFT JOIN human_avatars a ON a.human_id = m.human_id' : ''}
           LEFT JOIN channel_read_positions r
             ON r.channel_id = m.channel_id AND r.human_id = m.human_id
          WHERE m.channel_id = ? AND m.left_at IS NULL
@@ -651,6 +672,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     ) as Array<{
       human_id: string;
       display_name: string;
+      avatar_version: string | null;
       visible_from_revision: number;
       read_revision: number;
     }>;
@@ -1909,6 +1931,43 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     humanNickname(human: HumanContext, id) {
       return participates(human, id) ? readNickname(human, id) : undefined;
     },
+    setHumanAvatar(human: HumanContext, avatar) {
+      if (avatar !== null && !isHumanAvatar(avatar)) throw new Error('Invalid Human avatar');
+      database.transaction(
+        (db) => {
+          if (avatar === null)
+            db.prepare('DELETE FROM human_avatars WHERE human_id = ?').run(human.humanId);
+          else
+            db.prepare(
+              'INSERT INTO human_avatars (human_id, avatar, version) VALUES (?, ?, ?) ON CONFLICT(human_id) DO UPDATE SET avatar = excluded.avatar, version = excluded.version',
+            ).run(human.humanId, avatar, humanAvatarVersion(avatar));
+        },
+        ['human-identity'],
+      );
+      options.onRecordChanged?.();
+      return humanIdentity(human);
+    },
+    humanAvatars(human: HumanContext, humanIds) {
+      if (!humanAvatarTable()) return [];
+      const wanted = [...new Set(humanIds)].slice(0, HUMAN_AVATAR_BATCH);
+      if (wanted.length === 0) return [];
+      return database.read((db) => {
+        const visible = db.prepare(`
+          SELECT a.human_id AS humanId, a.version, a.avatar FROM human_avatars a
+           WHERE a.human_id = ?
+             AND (a.human_id = ? OR EXISTS (
+               SELECT 1 FROM channel_human_members mine
+                 JOIN channel_human_members theirs ON theirs.channel_id = mine.channel_id
+                WHERE mine.human_id = ? AND mine.left_at IS NULL
+                  AND theirs.human_id = a.human_id AND theirs.left_at IS NULL))`);
+        return wanted.flatMap((id) => {
+          const row = visible.get(id, human.humanId, human.humanId) as HumanAvatar | undefined;
+          return row === undefined
+            ? []
+            : [{ humanId: row.humanId, version: row.version, avatar: row.avatar }];
+        });
+      });
+    },
     setHumanNickname(human: HumanContext, id, nickname) {
       if (!participates(human, id))
         throw new Error('The local Human must participate in this Channel');
@@ -1936,12 +1995,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           {
             humanId: identity.humanId,
             displayName: readNickname(human, id) ?? identity.displayName,
+            ...(identity.avatarVersion === undefined
+              ? {}
+              : { avatarVersion: identity.avatarVersion }),
           },
         ];
       }
       return humanMembers(id).map((member) => ({
         humanId: member.human_id,
         displayName: member.display_name,
+        ...(member.avatar_version === null ? {} : { avatarVersion: member.avatar_version }),
       }));
     },
     rootDir,

@@ -56,6 +56,7 @@ export interface BotSummary {
 export interface ChannelHumanMember {
   humanId: string;
   displayName: string;
+  avatarVersion?: string;
 }
 
 export interface ChannelSummary {

@@ -32,6 +32,7 @@ const styles = stylex.create({
     containerType: 'inline-size',
   },
   warningCard: { backgroundColor: color.warningSoft },
+  inset: { backgroundColor: 'transparent', paddingInline: 0 },
   head: {
     display: 'flex',
     flexWrap: { default: 'nowrap', [NARROW]: 'wrap' },
@@ -305,6 +306,7 @@ export function StatusBlock({
   body,
   action,
   data,
+  inset = false,
   children,
 }: {
   icon: string;
@@ -313,10 +315,18 @@ export function StatusBlock({
   body?: ReactNode;
   action?: ReactNode;
   data?: Record<`data-${string}`, string | undefined>;
+  inset?: boolean;
   children?: ReactNode;
 }): ReactElement {
   return (
-    <div {...data} {...stylex.props(styles.card, tone === 'warning' && styles.warningCard)}>
+    <div
+      {...data}
+      {...stylex.props(
+        styles.card,
+        tone === 'warning' && !inset && styles.warningCard,
+        inset && styles.inset,
+      )}
+    >
       <div {...stylex.props(styles.head)}>
         <StatusBadge icon={icon} tone={tone} />
         <div {...stylex.props(styles.copy)}>

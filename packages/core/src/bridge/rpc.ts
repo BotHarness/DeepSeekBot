@@ -3456,6 +3456,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'composerIdentity',
   'composerValidate',
   'humanNameSet',
+  'humanAvatarSet',
+  'humanAvatars',
   'channelHumanNameSet',
   'channelDm',
   'channelGet',

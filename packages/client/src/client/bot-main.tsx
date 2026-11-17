@@ -284,6 +284,7 @@ import {
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
 import { MessageAvatarsContext } from './message-avatars.js';
+import { HumanAvatarImage } from './human-avatar.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
@@ -724,6 +725,10 @@ const MessageGroupView = memo(function MessageGroupView({
   const self = useSelfHumanId();
   const human = author.kind === 'human' && humanIdOf(author) === self;
   const otherHuman = author.kind === 'human' && !human;
+  const authorHumanId = author.kind === 'human' ? (humanIdOf(author) ?? self) : self;
+  const authorAvatarVersion = humanMembers.find(
+    (member) => member.humanId === authorHumanId,
+  )?.avatarVersion;
   const authorBot =
     author.kind === 'bot' ? bots.find((candidate) => candidate.slug === author.slug) : undefined;
   const welcomeBot =
@@ -829,7 +834,11 @@ const MessageGroupView = memo(function MessageGroupView({
         <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
             <span className="bh-message-group-human-avatar" aria-label={authorName}>
-              <IconUserOutlineRegular />
+              <HumanAvatarImage
+                cache={actions.humanAvatars}
+                humanId={authorHumanId}
+                version={authorAvatarVersion}
+              />
             </span>,
           )}
         </span>
@@ -1043,7 +1052,11 @@ const MessageGroupView = memo(function MessageGroupView({
       {human && avatars.own ? (
         <span ref={follow} className="bh-message-group-avatar">
           <span className="bh-message-group-human-avatar" aria-label={authorName}>
-            <IconUserOutlineRegular />
+            <HumanAvatarImage
+              cache={actions.humanAvatars}
+              humanId={authorHumanId}
+              version={authorAvatarVersion}
+            />
           </span>
         </span>
       ) : null}

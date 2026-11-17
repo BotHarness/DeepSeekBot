@@ -180,8 +180,10 @@ export function AccountProfileSettings({
 
   const frame = (children: ReactNode): ReactElement => (
     <div ref={mount} data-account-profile-settings="">
-      <SettingsSection>
-        <Note tone="muted">{t('accountProfile.description')}</Note>
+      <SettingsSection
+        title={t('accountProfile.tobsTitle')}
+        description={t('accountProfile.description')}
+      >
         {children}
       </SettingsSection>
     </div>
@@ -198,6 +200,7 @@ export function AccountProfileSettings({
         title={t('accountProfile.loadFailed')}
         body={state.message}
         data={{ 'data-account-profile': 'error' }}
+        inset
         action={
           <Button variant="outline" size="sm" onClick={() => void load()}>
             {t('accountProfile.retry')}
@@ -229,6 +232,7 @@ export function AccountProfileSettings({
           'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in',
         }}
         codeMarker="data-account-sign-in-code"
+        inset
       >
         {signIn === undefined && state.account.issue === undefined ? null : (
           <span ref={poll} hidden />

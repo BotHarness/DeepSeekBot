@@ -453,6 +453,9 @@ deepseekbot roster-top-reorder section:<section-id> channel:<channel-id>
 deepseekbot roster-section-remove <section-id> --confirm
 deepseekbot human-identity
 deepseekbot human-name-set --name "Vain"
+deepseekbot human-avatar-set --file ./me.webp
+deepseekbot human-avatar-set --clear
+deepseekbot human-avatars <human-id> <human-id>
 deepseekbot channel-human-name-set <channel-id> --nickname "Boss"
 deepseekbot part-library
 deepseekbot part-library-import --file ./parts.zip
@@ -462,7 +465,7 @@ deepseekbot part-library-export --out /tmp/part-library.zip
 deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
 ```
 
-图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
+图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`human-avatar-set` 设置调用者自己在该 Host 上的聊天头像（PNG、JPEG 或 WebP，不超过 96 KiB；App 会裁成 256×256 的 WebP），不需要 Tobs 账号；之后 `human-identity` 会显示 `avatarVersion`。Team 模式下作用于已登录的成员。`human-avatars` 返回自己和与你同在某个 Channel 的人的头像，每次最多 64 个，其余的不返回。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
 
 ### 用命令行管理 IM 应用
 

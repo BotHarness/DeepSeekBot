@@ -3812,6 +3812,21 @@ const REMOTE_HOST_CUSTODY_MIGRATION: SchemaMigration = {
   },
 };
 
+const HUMAN_AVATAR_MIGRATION: SchemaMigration = {
+  id: 'human-avatar',
+  module: 'human-identity',
+  description: 'A Host-owned chat avatar for each Human, independent of any Tobs account',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE human_avatars (
+        human_id TEXT PRIMARY KEY,
+        avatar TEXT NOT NULL,
+        version TEXT NOT NULL
+      ) STRICT;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3972,4 +3987,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_AUTO_JOIN_MIGRATION,
   MEMBER_DEVICES_MIGRATION,
   REMOTE_HOST_CUSTODY_MIGRATION,
+  HUMAN_AVATAR_MIGRATION,
 ]);

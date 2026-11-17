@@ -471,6 +471,9 @@ deepseekbot roster-top-reorder section:<section-id> channel:<channel-id>
 deepseekbot roster-section-remove <section-id> --confirm
 deepseekbot human-identity
 deepseekbot human-name-set --name "Vain"
+deepseekbot human-avatar-set --file ./me.webp
+deepseekbot human-avatar-set --clear
+deepseekbot human-avatars <human-id> <human-id>
 deepseekbot channel-human-name-set <channel-id> --nickname "Boss"
 deepseekbot part-library
 deepseekbot part-library-import --file ./parts.zip
@@ -480,7 +483,7 @@ deepseekbot part-library-export --out /tmp/part-library.zip
 deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
 ```
 
-Images are read from a file path: an avatar is a PNG, JPEG or WebP; a banner is a 3:1 PNG; `--clear` returns the avatar to its default and the banner to the seeded scene. `bot-appearance-set` takes the same pixel recipe as the avatar editor and redraws the avatar from it. `--source-class` is `assignment-report` (`--wake conditional|immediate`), `group-ordinary` (`--wake immediate|digest|mentions|silent` with `--digest-count` and `--digest-interval` seconds), or `human-dm`, `bot-dm` and `group-mention` (`--delivery steer|turn`). Roster commands take Channel ids (`dm-<bot-id>` for a DM); `roster-pins-set` and `roster-hidden-set` replace the whole list, so pass no ids to clear it, and `roster-batch move` without `--section` moves to the top level. `roster-section-remove` needs `--confirm` and moves the section's Channels to the top level. With `--host` or `DEEPSEEKBOT_HOST`, `human-name-set` and `channel-human-name-set` use the Host; with `--home` they keep their offline path. `part-library-export` writes the part PNG, or a zip of the whole library, to `--out` and prints its file name and size; `--part-stdin` exports a worn part given as JSON.
+Images are read from a file path: an avatar is a PNG, JPEG or WebP; a banner is a 3:1 PNG; `--clear` returns the avatar to its default and the banner to the seeded scene. `bot-appearance-set` takes the same pixel recipe as the avatar editor and redraws the avatar from it. `--source-class` is `assignment-report` (`--wake conditional|immediate`), `group-ordinary` (`--wake immediate|digest|mentions|silent` with `--digest-count` and `--digest-interval` seconds), or `human-dm`, `bot-dm` and `group-mention` (`--delivery steer|turn`). Roster commands take Channel ids (`dm-<bot-id>` for a DM); `roster-pins-set` and `roster-hidden-set` replace the whole list, so pass no ids to clear it, and `roster-batch move` without `--section` moves to the top level. `roster-section-remove` needs `--confirm` and moves the section's Channels to the top level. With `--host` or `DEEPSEEKBOT_HOST`, `human-name-set` and `channel-human-name-set` use the Host; with `--home` they keep their offline path. `human-avatar-set` sets the calling Human's own chat avatar on that Host (a PNG, JPEG or WebP of at most 96 KiB; the apps crop to 256×256 WebP) and needs no Tobs account; `human-identity` then shows its `avatarVersion`. In Team mode it acts as the signed-in member. `human-avatars` returns the avatars of yourself and of Humans who share a Channel with you, at most 64 per call; others are left out. `part-library-export` writes the part PNG, or a zip of the whole library, to `--out` and prints its file name and size; `--part-stdin` exports a worn part given as JSON.
 
 ### IM apps from the CLI
 

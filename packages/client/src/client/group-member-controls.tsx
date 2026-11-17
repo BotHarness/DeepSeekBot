@@ -14,6 +14,7 @@ import {
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
+import { HumanAvatarImage } from './human-avatar.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { AtSignIcon } from './at-sign-icon.js';
 import { useClientStore } from './use-client-store.js';
@@ -623,7 +624,12 @@ function MembersEntryForChannel({
             data-human-id={member.humanId}
           >
             <span className="bh-delivery-human-avatar" aria-hidden="true">
-              {name.slice(0, 1)}
+              <HumanAvatarImage
+                cache={actions.humanAvatars}
+                humanId={member.humanId}
+                version={member.avatarVersion}
+                fallback={name.slice(0, 1)}
+              />
             </span>
             <span className="bh-name">{name}</span>
             {member.humanId === self && name !== t('channelActivity.human') ? (

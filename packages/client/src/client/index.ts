@@ -927,6 +927,9 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({
             actions,
             startSignIn: startConnectSignIn,
+            call,
+            store,
+            onSaved: () => actions.refreshRoster(),
           }),
         },
         AccountSection,

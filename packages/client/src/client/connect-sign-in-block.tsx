@@ -54,6 +54,7 @@ export function ConnectSignInBlock({
   onSignIn,
   data,
   codeMarker,
+  inset = false,
   children,
 }: PropsLocale<'botharness'> & {
   code: ConnectSignInCode | undefined;
@@ -65,6 +66,7 @@ export function ConnectSignInBlock({
   onSignIn(): void;
   data?: Record<`data-${string}`, string>;
   codeMarker?: `data-${string}`;
+  inset?: boolean;
   children?: ReactNode;
 }): ReactElement {
   const steps = (
@@ -97,6 +99,7 @@ export function ConnectSignInBlock({
           </Button>
         }
         {...(data === undefined ? {} : { data })}
+        inset={inset}
       >
         {steps}
         {failure}
@@ -110,6 +113,7 @@ export function ConnectSignInBlock({
       title={t('devices.connect.panel.confirmTitle')}
       body={t('devices.connect.confirm')}
       {...(data === undefined ? {} : { data })}
+      inset={inset}
     >
       {steps}
       <div data-connect-code="" {...stylex.props(styles.code)}>

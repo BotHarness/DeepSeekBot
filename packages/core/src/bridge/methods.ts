@@ -275,6 +275,9 @@ import {
   isGroupAvatar,
   isReactionEmoji,
   type LocalHumanIdentity,
+  type HumanAvatar,
+  HUMAN_AVATAR_BATCH,
+  isHumanAvatar,
   type ChannelMention,
   type ChannelMessage,
   type ChannelReaction,
@@ -675,7 +678,7 @@ export interface ChannelListItem extends ChannelRecord {
   memberBots?: Array<{ slug: string; displayName: string; avatar?: string }>;
   remoteAvailability?: import('../runtime/bot-network.js').NetworkBotAvailability;
   remoteContact?: BotContact;
-  humanMembers?: Array<{ humanId: string; displayName: string }>;
+  humanMembers?: Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
   humanNickname?: string | null;
   latestMessage?: ChannelMessage;
 }
@@ -896,6 +899,8 @@ export interface BridgeMethods extends TeamBridgeMethods {
     attachments: Array<ChannelAttachmentRef | null>;
   }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatarSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatars(payload: unknown): BridgeResult<{ avatars: HumanAvatar[] }>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
@@ -6104,6 +6109,27 @@ function buildBridgeMethods(
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
+    },
+    humanAvatarSet(payload) {
+      const input = z
+        .object({ avatar: z.string().max(131_072).nullable() })
+        .strict()
+        .safeParse(payload);
+      if (!input.success || (input.data.avatar !== null && !isHumanAvatar(input.data.avatar)))
+        return invalidInput('avatar must be a PNG, JPEG or WebP data URL up to 96 KiB, or null');
+      return { ok: true, value: deps.channels.setHumanAvatar(human, input.data.avatar) };
+    },
+    humanAvatars(payload) {
+      const input = z
+        .object({ humanIds: z.array(z.string().min(1).max(128)).max(HUMAN_AVATAR_BATCH) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success)
+        return invalidInput(`humanIds must be up to ${HUMAN_AVATAR_BATCH} Human IDs`);
+      return {
+        ok: true,
+        value: { avatars: deps.channels.humanAvatars(human, input.data.humanIds) },
+      };
     },
     channelHumanNameSet(payload) {
       const input = z

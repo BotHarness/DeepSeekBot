@@ -367,6 +367,8 @@ Usage:
   tobs bot-standing-limits-set <id> --soul <n> --core-memory <n>
   tobs developer-mode-set (--enabled | --disabled)
   tobs roster | human-identity | part-library
+  tobs human-avatar-set (--file <image> | --clear)
+  tobs human-avatars <human-id>...
   tobs roster-batch pin|unpin|hide|move <channel>... [--section <section-id>]
   tobs roster-pins-set|roster-hidden-set [<channel>...]
   tobs roster-section-create <name>

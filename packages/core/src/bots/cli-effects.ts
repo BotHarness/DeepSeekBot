@@ -260,6 +260,8 @@ export const CLI_EFFECTS = {
   'host-look': { effects: read, brokerRead: false },
   'host-ping': { effects: read, brokerRead: true },
   'human-identity': { effects: read, brokerRead: true },
+  'human-avatar-set': { effects: write, brokerRead: false },
+  'human-avatars': { effects: read, brokerRead: true },
   'human-name-set': { effects: write, brokerRead: false },
   'idle-compaction': { effects: read, brokerRead: true },
   'idle-compaction-cache-set': { effects: write, brokerRead: false },
