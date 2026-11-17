@@ -57,13 +57,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-function scroller(element: HTMLElement, metrics: { scrollHeight: number; clientHeight: number }) {
-  Object.defineProperty(element, 'scrollHeight', { get: () => metrics.scrollHeight });
-  Object.defineProperty(element, 'clientHeight', { get: () => metrics.clientHeight });
-  return metrics;
-}
-
-async function mount(): Promise<void> {
+async function mount(onOverlayResize: (timeline: HTMLElement) => void): Promise<void> {
   await act(async () =>
     root.render(
       createElement(ChannelComposer, {
@@ -72,36 +66,40 @@ async function mount(): Promise<void> {
         sending: false,
         onChange: vi.fn(),
         onSubmit: vi.fn(),
+        onOverlayResize,
       }),
     ),
   );
 }
 
-describe('Composer overlay pinning', () => {
-  it('keeps the latest message pinned while the composer grows into the list', async () => {
+describe('Composer overlay', () => {
+  it('sets the overlay on the timeline before the owner re-pins it on every resize', async () => {
     const timeline = host.querySelector<HTMLElement>('.bh-chat-body')!;
-    const metrics = scroller(timeline, { scrollHeight: 1000, clientHeight: 400 });
-    timeline.scrollTop = 600;
-    await mount();
-    metrics.clientHeight = 380;
+    const shell = () => host.querySelector<HTMLElement>('.bh-composer-shell')!;
+    let top = 700;
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect);
+    const seen: string[] = [];
+    await mount((target) => seen.push(target.style.getPropertyValue('--bh-composer-overlay')));
+    vi.spyOn(shell(), 'getBoundingClientRect').mockImplementation(
+      () => ({ top, height: 800 - top }) as DOMRect,
+    );
     resize();
-    expect(timeline.scrollTop).toBe(1000);
-    timeline.dispatchEvent(new Event('scroll'));
-    timeline.scrollTop = 600;
-    metrics.clientHeight = 360;
+    top = 680;
     resize();
-    expect(timeline.scrollTop).toBe(1000);
+    resize();
+    expect(seen.slice(-3)).toEqual(['100px', '120px', '120px']);
+    expect(timeline.style.getPropertyValue('--bh-composer-overlay')).toBe('120px');
   });
 
-  it('leaves a reader who scrolled up where they are', async () => {
+  it('drops the overlay while the Composer is hidden', async () => {
     const timeline = host.querySelector<HTMLElement>('.bh-chat-body')!;
-    const metrics = scroller(timeline, { scrollHeight: 1000, clientHeight: 400 });
-    timeline.scrollTop = 600;
-    await mount();
-    timeline.scrollTop = 200;
-    timeline.dispatchEvent(new Event('scroll'));
-    metrics.clientHeight = 380;
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect);
+    await mount(vi.fn());
+    vi.spyOn(
+      host.querySelector<HTMLElement>('.bh-composer-shell')!,
+      'getBoundingClientRect',
+    ).mockReturnValue({ top: 0, height: 0 } as DOMRect);
     resize();
-    expect(timeline.scrollTop).toBe(200);
+    expect(timeline.style.getPropertyValue('--bh-composer-overlay')).toBe('0px');
   });
 });

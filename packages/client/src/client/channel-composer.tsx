@@ -106,6 +106,7 @@ export interface ChannelComposerUpload {
 }
 
 export interface ChannelComposerProps {
+  onOverlayResize?: ((timeline: HTMLElement) => void) | undefined;
   context?: ComposerContext | undefined;
   sendKey?: ComposerSendKey | undefined;
   value: string;
@@ -436,8 +437,11 @@ export function ChannelComposer({
   onCancelReply,
   onRecall,
   onSubmit,
+  onOverlayResize,
 }: ChannelComposerProps): ReactElement {
   const locked = sending || disabled;
+  const overlayResize = useRef(onOverlayResize);
+  overlayResize.current = onOverlayResize;
   const skillPeek = useSkillPeek(t);
   const voice = useComposerVoice({
     port: dictation,
@@ -827,15 +831,6 @@ export function ChannelComposer({
     const pane = shell.closest<HTMLElement>('.bh-chat-pane');
     const timeline = pane?.querySelector<HTMLElement>('.bh-chat-body') ?? null;
     if (pane === null || timeline === null || typeof ResizeObserver === 'undefined') return;
-    const distance = (): number =>
-      timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
-    let atLatest = distance() <= 2;
-    let pinning = false;
-    const onScroll = (): void => {
-      if (pinning) pinning = false;
-      else atLatest = distance() <= 2;
-    };
-    timeline.addEventListener('scroll', onScroll, { passive: true });
     let applied: number | undefined;
     const sync = (): void => {
       const shellBounds = shell.getBoundingClientRect();
@@ -847,10 +842,7 @@ export function ChannelComposer({
         applied = overlay;
         timeline.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
       }
-      if (atLatest && distance() > 0) {
-        pinning = true;
-        timeline.scrollTop = timeline.scrollHeight;
-      }
+      overlayResize.current?.(timeline);
     };
     sync();
     const observer = new ResizeObserver(sync);
@@ -858,7 +850,6 @@ export function ChannelComposer({
     observer.observe(pane);
     return () => {
       observer.disconnect();
-      timeline.removeEventListener('scroll', onScroll);
       timeline.style.removeProperty('--bh-composer-overlay');
     };
   }, []);
