@@ -93,20 +93,21 @@ export function createBotTurnTelemetry(options: {
     const measured = options.measure(sessionId);
     if (measured !== undefined) {
       const whole = contextSources(measured);
-      const start = state.startSeq;
-      const addedNodes =
-        start === undefined ? [] : measured.nodes.filter((node) => Number(node.seq) >= start);
-      const added = contextSources({
-        nodes: addedNodes,
-        totalTokens: addedNodes.reduce((sum, node) => sum + node.tokens, 0),
-        eventAt: (seq) => measured.eventAt(seq),
-      });
       properties['context_token_count'] = Math.max(0, Math.round(measured.totalTokens));
-      for (const source of CONTEXT_SOURCES) {
+      for (const source of CONTEXT_SOURCES)
         properties[contextSourceProperty(source, 'context')] =
           whole.find((row) => row.source === source)?.tokens ?? 0;
-        properties[contextSourceProperty(source, 'added')] =
-          added.find((row) => row.source === source)?.tokens ?? 0;
+      const start = state.startSeq;
+      if (start !== undefined) {
+        const addedNodes = measured.nodes.filter((node) => Number(node.seq) >= start);
+        const added = contextSources({
+          nodes: addedNodes,
+          totalTokens: addedNodes.reduce((sum, node) => sum + node.tokens, 0),
+          eventAt: (seq) => measured.eventAt(seq),
+        });
+        for (const source of CONTEXT_SOURCES)
+          properties[contextSourceProperty(source, 'added')] =
+            added.find((row) => row.source === source)?.tokens ?? 0;
       }
     }
     options.telemetry.capture('chat:bot_turn_complete', properties);
@@ -120,6 +121,7 @@ export function createBotTurnTelemetry(options: {
           return;
         }
         if (event.type === 'turn/start') {
+          if (options.role(sessionId) === undefined) return;
           if (open.size >= MAX_OPEN_TURNS && !open.has(sessionId)) return;
           open.set(sessionId, {
             startSeq: event.seq,

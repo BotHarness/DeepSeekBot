@@ -1,28 +1,29 @@
-import type { SessionEvent, SessionSeq } from '@deepseek-ai/dsh-session';
+import type { SessionEvent } from '@deepseek-ai/dsh-session';
 import { describe, expect, it } from 'vitest';
 
 import { createBotTurnTelemetry } from '../src/telemetry/bot-turn.js';
 import { telemetryEventProperties } from '../src/telemetry/events.js';
 
-const at = (seq: number, type: string, data: unknown) => ({ seq, type, time: seq, data });
+const at = (seq: number, type: string, data: unknown): SessionEvent =>
+  ({ seq, type, time: seq, data }) as unknown as SessionEvent;
 const text = (value: string) => ({ type: 'text', text: value });
 
-function harness(enabled = true) {
+function harness(enabled = true, owned = (sessionId: string) => sessionId === 'orch') {
   const captured: { event: string; properties: Record<string, unknown> }[] = [];
-  const log: ReturnType<typeof at>[] = [];
+  const log: SessionEvent[] = [];
   const turns = createBotTurnTelemetry({
     telemetry: {
       enabled,
       capture: (event, properties = {}) => captured.push({ event, properties }),
     },
-    role: (sessionId) => (sessionId === 'orch' ? 'orchestrator' : undefined),
+    role: (sessionId) => (owned(sessionId) ? 'orchestrator' : undefined),
     measure: () => ({
-      nodes: log.map((event) => ({ seq: event.seq as SessionSeq, tokens: 100 })),
+      nodes: log.map((event) => ({ seq: event.seq, tokens: 100 })),
       totalTokens: log.length * 100 + 500,
-      eventAt: (seq) => log.find((event) => event.seq === seq) as unknown as SessionEvent,
+      eventAt: (seq) => log.find((event) => event.seq === seq),
     }),
   });
-  const observe = (sessionId: string, event: ReturnType<typeof at>) => {
+  const observe = (sessionId: string, event: SessionEvent) => {
     log.push(event);
     turns.observe(sessionId, event);
   };
@@ -111,6 +112,25 @@ describe('Bot turn telemetry', () => {
     observe('orch', at(5, 'turn/end', { reason: { kind: 'completed' } }));
     expect(captured).toHaveLength(1);
     expect(captured[0]?.properties['is_partial']).toBe(true);
+  });
+
+  it('leaves added counts out when the turn start has no sequence number', () => {
+    const { captured, observe } = harness();
+    observe('orch', { type: 'turn/start', time: 1, data: {} } as unknown as SessionEvent);
+    observe('orch', at(2, 'turn/end', { reason: { kind: 'completed' } }));
+    expect(captured[0]?.properties['context_token_count']).toBeGreaterThan(0);
+    expect(Object.keys(captured[0]?.properties ?? {}).some((key) => key.startsWith('added_'))).toBe(
+      false,
+    );
+  });
+
+  it('keeps turns of sessions no Bot owns from taking open-turn slots', () => {
+    const { captured, observe } = harness();
+    for (let index = 0; index < 250; index++)
+      observe(`loose-${index}`, at(index + 1, 'turn/start', {}));
+    observe('orch', at(300, 'turn/start', {}));
+    observe('orch', at(301, 'turn/end', { reason: { kind: 'completed' } }));
+    expect(captured).toHaveLength(1);
   });
 
   it('sends nothing while telemetry is off', () => {
