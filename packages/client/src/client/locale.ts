@@ -10085,7 +10085,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'sessions.status.idle': 'Idle',
   'sessions.status.unavailable': 'Session unavailable',
   'sessions.workspace.unknown': 'Unknown workspace',
-  'assignmentWork.tooltip': 'Work',
+  'assignmentWork.tooltip': 'Assignment steps',
   'assignmentWork.open': 'Show the work of “{title}”',
   'assignmentWork.loading': 'Reading the work…',
   'assignmentWork.error': 'Couldn’t read the work: {error}',
