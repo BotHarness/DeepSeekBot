@@ -665,6 +665,7 @@ export interface BridgeActions {
     orchestrator: ModelRouteView,
     assignmentDefault: ModelRouteView,
     assignmentModels?: AssignmentModelOptionView[],
+    openAssignmentModels?: boolean,
   ): Promise<ModelPresetView>;
   updateModelPreset(
     id: string,
@@ -692,6 +693,7 @@ export interface BridgeActions {
     orchestrator: ModelRouteView,
     assignmentDefault: ModelRouteView,
     assignmentModels: AssignmentModelOptionView[],
+    openAssignmentModels?: boolean,
   ): Promise<ModelPlanView>;
   listHostFolders(
     path?: string,
@@ -2136,8 +2138,8 @@ export function createActions(
     deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels) =>
-      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels),
+    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels, open) =>
+      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels, open),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
     applyModelPreset: (slug, presetId) =>
@@ -2154,7 +2156,14 @@ export function createActions(
         setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
         () => actions.telemetryEvent('model:plan_update', { via: 'assignments' }),
       ),
-    setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
+    setModelPlan: (
+      slug,
+      expectedRevision,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+    ) =>
       recorded(
         setModelPlan(
           call,
@@ -2163,6 +2172,7 @@ export function createActions(
           orchestrator,
           assignmentDefault,
           assignmentModels,
+          openAssignmentModels,
         ),
         () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
       ),

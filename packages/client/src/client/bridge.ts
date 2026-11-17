@@ -241,6 +241,7 @@ export interface ModelPresetView {
   orchestrator: ModelRouteView;
   assignmentDefault: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
+  openAssignmentModels?: true;
   createdAt: string;
 }
 
@@ -251,6 +252,7 @@ export interface ModelPlanView {
   orchestrator: ModelRouteView;
   assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
+  openAssignmentModels?: true;
   appliedAt: string;
 }
 
@@ -378,6 +380,7 @@ export async function createModelPreset(
   orchestrator: ModelRouteView,
   assignmentDefault: ModelRouteView,
   assignmentModels?: AssignmentModelOptionView[],
+  openAssignmentModels?: boolean,
 ): Promise<ModelPresetView> {
   const value = asRecord(
     await unwrap(call, 'modelPresetCreate', {
@@ -385,6 +388,7 @@ export async function createModelPreset(
       orchestrator,
       assignmentDefault,
       ...(assignmentModels === undefined ? {} : { assignmentModels }),
+      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
     }),
   );
   if (asRecord(value?.['preset']) === undefined) throw new Error('Invalid Model Preset result');
@@ -7993,6 +7997,7 @@ export async function setModelPlan(
   orchestrator: ModelRouteView,
   assignmentDefault: ModelRouteView,
   assignmentModels: AssignmentModelOptionView[],
+  openAssignmentModels?: boolean,
 ): Promise<ModelPlanView> {
   const value = asRecord(
     await unwrap(call, 'modelPlanSet', {
@@ -8001,6 +8006,7 @@ export async function setModelPlan(
       orchestrator,
       assignmentDefault,
       assignmentModels,
+      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
     }),
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');

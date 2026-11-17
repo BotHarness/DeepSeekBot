@@ -166,6 +166,7 @@ export const MODELS_USAGE_OPTIONS = {
   'plan-stdin': { type: 'boolean' },
   'members-stdin': { type: 'boolean' },
   'orchestrator-group': { type: 'string' },
+  'assignment-models': { type: 'string' },
   period: { type: 'string' },
   after: { type: 'string' },
   start: { type: 'string' },

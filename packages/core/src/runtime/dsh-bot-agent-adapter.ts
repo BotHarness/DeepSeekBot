@@ -51,6 +51,7 @@ import {
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
+import type { OpenAssignmentRoutes } from '../models/open-assignments.js';
 import { MemoryAcceptError } from '../memory/accepted.js';
 import { withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
@@ -384,6 +385,7 @@ export interface DshBotAgentAdapterOptions {
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;
   orchestratorRoute?: (sessionId: string) => ModelRoute | undefined;
+  openAssignmentRoutes?: OpenAssignmentRoutes;
   subagentTools?: (botSlug: string) => ToolDefinition[];
   hasSession?: (sessionId: string) => Promise<boolean>;
   prepareModelRoute?: (
@@ -604,6 +606,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #resolveModelPlan: ((botSlug: string) => PersonaBotModelPlan | undefined) | undefined;
   readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
   readonly #orchestratorRoute: DshBotAgentAdapterOptions['orchestratorRoute'];
+  readonly #openAssignmentRoutes: OpenAssignmentRoutes | undefined;
   readonly #prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
   readonly #turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
@@ -660,6 +663,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#resolveModelPlan = options.resolveModelPlan;
     this.#subagentTools = options.subagentTools;
     this.#orchestratorRoute = options.orchestratorRoute;
+    this.#openAssignmentRoutes = options.openAssignmentRoutes;
     this.#prepareModelRoute = options.prepareModelRoute;
     this.#observeTurnFailure = options.observeTurnFailure;
     this.#turnRefusal = options.turnRefusal;
@@ -1640,7 +1644,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'list_assignment_models',
         description:
-          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
+          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
         parameters: {},
         output: {
           schema: { type: 'string' },
@@ -1651,16 +1655,24 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-          return JSON.stringify(
-            plan?.assignmentDefault === undefined
-              ? { configured: false, message: 'Ask the Human to apply a Model Preset first' }
-              : {
-                  configured: true,
-                  revision: plan.revision,
-                  assignmentDefault: plan.assignmentDefault,
-                  assignmentModels: assignmentModelsOf(plan),
-                },
-          );
+          if (plan?.assignmentDefault === undefined)
+            return JSON.stringify({
+              configured: false,
+              message: 'Ask the Human to apply a Model Preset first',
+            });
+          const open = plan.openAssignmentModels === true;
+          return JSON.stringify({
+            configured: true,
+            revision: plan.revision,
+            assignmentDefault: plan.assignmentDefault,
+            assignmentModels: assignmentModelsOf(plan),
+            ...(open
+              ? {
+                  open: true,
+                  openModels: (await this.#openAssignmentRoutes?.list(run.bot.slug)) ?? [],
+                }
+              : {}),
+          });
         },
       }),
     );
@@ -1727,6 +1739,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             throw new Error('create_assignment: provider and model must be specified together');
           if (args.reasoning_effort !== undefined && args.provider === undefined)
             throw new Error('create_assignment: reasoning_effort requires provider and model');
+          if (args.provider !== undefined)
+            await this.#openAssignmentRoutes?.require(run.bot.slug, {
+              provider: args.provider,
+              model: args.model!,
+            });
           const outcome = active.run.assignments.create({
             title: args.title,
             description: args.description,
@@ -2121,6 +2138,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           }
           const assignments = active.run.assignments;
           const input = assignmentRequestInput('send_assignment_request', args);
+          if (input.model !== undefined)
+            await this.#openAssignmentRoutes?.require(run.bot.slug, input.model);
           let outcome = assignments.request(input);
           let unarchived = false;
           if (

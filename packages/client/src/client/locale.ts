@@ -3473,6 +3473,10 @@ export const zh = {
   'modelPreset.allowedTitle': '可选的执行模型',
   'modelPreset.allowedHint':
     '分派任务时，Orchestrator 可以按你写的说明从这些模型里挑选；没有指定时使用标为「默认」的模型。',
+  'modelPreset.openModels': '允许使用任何模型',
+  'modelPreset.openModelsHint':
+    '分派任务和子代理可以使用你能用、且已配置 API key 的任何模型；没有指定时仍用默认模型。',
+  'modelPreset.openTag': '任何模型',
   'modelPreset.mode': '执行模型模式',
   'modelPreset.modeSimple': '简单',
   'modelPreset.modeAdvanced': '进阶',
@@ -9806,6 +9810,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'modelPreset.allowedTitle': 'Allowed task models',
   'modelPreset.allowedHint':
     'When delegating, the Orchestrator can pick one of these by your notes; otherwise it uses the one marked Default.',
+  'modelPreset.openModels': 'Allow any model',
+  'modelPreset.openModelsHint':
+    'Tasks and Subagents can use any model you can use that has an API key. Without a choice they still use the default.',
+  'modelPreset.openTag': 'Any model',
   'modelPreset.mode': 'Task model mode',
   'modelPreset.modeSimple': 'Simple',
   'modelPreset.modeAdvanced': 'Advanced',
