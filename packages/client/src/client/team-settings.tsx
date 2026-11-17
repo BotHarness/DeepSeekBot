@@ -2,6 +2,7 @@ import { Button } from './ds/button.js';
 import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import { MemberInvitationPanel } from './team-invitation.js';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeCall } from './bridge.js';
@@ -343,6 +344,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             viewer={viewer}
             members={members ?? []}
             canOffboard={manageMembers}
+            memberUrls={view.memberUrls}
             onClose={() => setDialog(undefined)}
             onChanged={() => void refresh()}
           />
@@ -360,6 +362,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
         ) : null}
         {dialog?.kind === 'created' ? (
           <InitialPasswordDialog
+            call={call}
             t={t}
             created={dialog.created}
             urls={view.memberUrls}
@@ -747,12 +750,14 @@ function AddMemberDialog({
 }
 
 function InitialPasswordDialog({
+  call,
   t,
   created,
   urls,
   isolation,
   onDone,
 }: {
+  call: BridgeCall;
   t: BotHarnessTranslate;
   created: CreatedMember;
   urls: readonly string[];
@@ -797,6 +802,14 @@ function InitialPasswordDialog({
         </Button>
       </div>
       <Note tone="warning">{t('team.members.shownOnce')}</Note>
+      <MemberInvitationPanel
+        call={call}
+        t={t}
+        humanId={created.member.humanId}
+        username={created.member.username}
+        password={created.initialPassword}
+        urls={urls}
+      />
       {isolation === 'trial' ? <Note>{t('team.isolation.trial')}</Note> : null}
     </FormDialog>
   );

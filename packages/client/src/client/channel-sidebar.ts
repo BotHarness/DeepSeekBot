@@ -54,6 +54,8 @@ export interface ChannelSidebarEntryProps {
   onMemoryCommitSelect?: ((sha: string) => void) | undefined;
   selectedMemoryCommitSha?: string | undefined;
   onMemoryFileSelect?: ((path: string) => void) | undefined;
+  onSessionSelect?: ((sessionId: string, title: string) => void) | undefined;
+  selectedSessionId?: string | undefined;
   selectedMemoryFilePath?: string | undefined;
   onMemoryWorkingSelect?: ((change: MemoryWorkingChange) => void) | undefined;
   selectedMemoryWorking?: MemoryWorkingChange | undefined;

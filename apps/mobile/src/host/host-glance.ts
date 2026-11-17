@@ -1,4 +1,4 @@
-import type { ConnectionState, HostClient } from '@botharness/host-client/client';
+import type { ConnectionState, DeviceRefusal, HostClient } from '@botharness/host-client/client';
 import type { SavedHost } from '@botharness/host-client/hosts';
 import { actionCount, type InboxSnapshot } from '@botharness/host-client/inbox';
 import type { HumanAttentionPage } from '@botharness/host-protocol/wire';
@@ -11,6 +11,7 @@ export function hostUnavailable(status: HostStatus): boolean {
 
 export interface HostGlance {
   status: HostStatus;
+  refusal?: DeviceRefusal;
   pending?: number;
   unread?: number;
 }
@@ -27,7 +28,7 @@ export function liveGlance(connection: ConnectionState, inbox: InboxSnapshot): H
     case 'reconnecting':
       return { status: 'checking' };
     case 'refused':
-      return { status: 'refused' };
+      return { status: 'refused', refusal: connection.code };
     default:
       return { status: 'offline' };
   }

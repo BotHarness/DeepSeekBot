@@ -26,11 +26,12 @@ export interface PersonaBotSessionRow {
 
 export type AssignmentNeed = 'approval' | 'error' | 'waiting-human' | 'blocked' | 'failed';
 
-export type AssignmentSection = 'needs-input' | 'working' | 'idle' | 'resolved';
+export type AssignmentSection = 'needs-input' | 'working' | 'stuck' | 'idle' | 'resolved';
 
 export const ASSIGNMENT_SECTIONS: readonly AssignmentSection[] = [
   'needs-input',
   'working',
+  'stuck',
   'idle',
   'resolved',
 ];

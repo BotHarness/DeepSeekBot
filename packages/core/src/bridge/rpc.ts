@@ -37,6 +37,9 @@ import type { BotZipUploadStatus } from '../bots/zip-upload.js';
 import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { AssignmentTimelineLane } from '../runtime/assignment-timeline.js';
+import type { SessionTranscript } from '../runtime/session-transcript.js';
+import type { SessionLiveSnapshot } from '../runtime/session-live.js';
+import type { SessionToolDetail } from '../runtime/session-tool-detail.js';
 import type { SessionRootRole } from '../sessions/ownership.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -177,6 +180,7 @@ import type {
   ProfileActivity,
   ProfileSessionUsage,
   SkillDetail,
+  SessionProgressEntry,
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
@@ -2519,6 +2523,38 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
   }
 
+  sessionProgress(
+    slug: string,
+    sessionIds: readonly string[],
+  ): Promise<{ sessions: SessionProgressEntry[] }> {
+    return unwrapAsync(this.methods.sessionProgress({ slug, sessionIds }));
+  }
+
+  sessionTranscript(
+    slug: string,
+    sessionId: string,
+  ): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
+    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
+  }
+
+  sessionLive(
+    slug: string,
+    sessionId: string,
+    after?: number,
+  ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
+    return unwrapAsync(
+      this.methods.sessionLive({ slug, sessionId, ...(after === undefined ? {} : { after }) }),
+    );
+  }
+
+  sessionToolDetail(
+    slug: string,
+    sessionId: string,
+    callId: string,
+  ): Promise<{ sessionId: string; callId: string; detail: SessionToolDetail }> {
+    return unwrapAsync(this.methods.sessionToolDetail({ slug, sessionId, callId }));
+  }
+
   workspaceOptions(): {
     workspaces: { id: string; path: string; title: string }[];
   } {
@@ -3481,6 +3517,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignment',
   'assignmentTimeline',
   'sessionSubagents',
+  'sessionProgress',
+  'sessionTranscript',
+  'sessionLive',
+  'sessionToolDetail',
   'workspaceOptions',
   'messageAttachmentTarget',
   'channelMediaTarget',

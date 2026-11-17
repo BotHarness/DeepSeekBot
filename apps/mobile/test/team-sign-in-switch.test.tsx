@@ -16,9 +16,10 @@ vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
 const router = vi.hoisted(() => ({ dismissTo: vi.fn() }));
+const params = vi.hoisted(() => ({ value: { i: 'invite' } as Record<string, string> }));
 vi.mock('expo-router', () => ({
   useRouter: () => router,
-  useLocalSearchParams: () => ({ i: 'invite' }),
+  useLocalSearchParams: () => params.value,
 }));
 const bob = vi.hoisted(() => ({
   hostId: 'h',
@@ -35,6 +36,7 @@ const bob = vi.hoisted(() => ({
   },
 }));
 const session = vi.hoisted(() => ({
+  getState: () => ({ hosts: [bob] }),
   pairMember: vi.fn(async (_host: unknown, options?: { confirmedIdentitySwitch?: boolean }) =>
     options?.confirmedIdentitySwitch
       ? { ok: true as const, value: bob }
@@ -46,13 +48,20 @@ vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
 const revokePairing = vi.hoisted(() => vi.fn(async () => 'revoked' as const));
 vi.mock('@botharness/host-client/pairing', () => ({ revokePairing }));
 const dialog = vi.hoisted(() => vi.fn());
+const signInTeamDevice = vi.hoisted(() =>
+  vi.fn(async (_input: unknown) => ({ ok: true, value: bob })),
+);
 vi.mock('../src/ui/primitives/app-dialog', () => ({ showAppDialog: dialog }));
 vi.mock('@botharness/host-client/team-client', () => ({
   parseTeamInvitation: () => ({
     ok: true,
     value: { host: { name: 'Studio' }, username: 'bob' },
   }),
-  signInTeamDevice: async () => ({ ok: true, value: bob }),
+  signInAgainInvitation: (host: { hostName: string; member?: { username: string } }) => ({
+    host: { name: host.hostName },
+    username: host.member?.username,
+  }),
+  signInTeamDevice: signInTeamDevice,
   changeTeamDevicePassword: vi.fn(),
 }));
 import TeamSignInScreen from '../app/pair/team';
@@ -108,5 +117,56 @@ it('revokes the new sign-in when the account switch is cancelled', async () => {
   } finally {
     act(() => root.unmount());
     element.remove();
+  }
+});
+
+it('signs the same member in again from a saved Host without an invitation or a switch prompt', async () => {
+  router.dismissTo.mockClear();
+  session.pairMember.mockImplementationOnce(async () => ({ ok: true as const, value: bob }));
+  params.value = { host: 'h' };
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  try {
+    await act(async () => root.render(<TeamSignInScreen />));
+    expect(element.querySelector('[data-testid="team-invitation-link"]')).toBeNull();
+    expect(element.textContent).toContain('bob');
+    await signIn(element);
+    expect(element.querySelector('[data-testid="team-switch-confirm"]')).toBeNull();
+    expect(router.dismissTo).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    element.remove();
+    params.value = { i: 'invite' };
+  }
+});
+
+it('switches to another member account on a saved Host by username, behind the switch prompt', async () => {
+  router.dismissTo.mockClear();
+  signInTeamDevice.mockClear();
+  params.value = { host: 'h', switch: '1' };
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  try {
+    await act(async () => root.render(<TeamSignInScreen />));
+    const input = element.querySelector<HTMLTextAreaElement>('[data-testid="team-username"]')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setter.call(input, ' carol ');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await signIn(element);
+    expect(signInTeamDevice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invitation: expect.objectContaining({ username: 'carol' }),
+        password: 'one-time-password',
+      }),
+    );
+    expect(element.querySelector('[data-testid="team-switch-confirm"]')).not.toBeNull();
+  } finally {
+    act(() => root.unmount());
+    element.remove();
+    params.value = { i: 'invite' };
   }
 });

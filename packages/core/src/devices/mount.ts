@@ -207,6 +207,8 @@ export function mountDevicePairing(
                 ? options.team!.device(peer.principal.grantId)
                 : undefined;
             },
+            refusal: (authorization: string | undefined) =>
+              options.team!.deviceRefusal(authorization),
             check: (deviceId: string) => options.team!.device(deviceId),
             attach: (deviceId: string, close: () => void) =>
               options.team!.attachDeviceStream(deviceId, close),

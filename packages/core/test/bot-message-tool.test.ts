@@ -5,7 +5,11 @@ import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
+import {
+  createBotMessageTool,
+  sessionMentionIds,
+  withoutSessionMentions,
+} from '../src/runtime/bot-message-tool.js';
 import { describe, expect, it } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
@@ -417,3 +421,71 @@ it('keeps an explicitly selected Group source as causation when newer input exis
     core.operationalDatabase.close();
   }
 }, 60000);
+
+it('links the Assignments this turn created or sent to, and checks inline mentions', async () => {
+  const f = await fixture();
+  try {
+    await f.send('Fix the export', async (run) => {
+      const scoped = {
+        ...run,
+        assignments: {
+          ...run.assignments,
+          inspect: (sessionId: string) =>
+            sessionId === 'asg-new' || sessionId === 'asg-old'
+              ? ({ sessionId, title: sessionId === 'asg-new' ? 'Fix export' : 'Old work' } as never)
+              : undefined,
+        },
+      } as OrchestratorAgentRun;
+      const tool = createBotMessageTool(
+        () => scoped,
+        undefined,
+        () => new Map([['asg-new', 'created' as const]]),
+      );
+      const context = (id: string) =>
+        ({
+          callId: ToolCallId(id),
+          signal: new AbortController().signal,
+          concludeTurn: () => {},
+        }) as ToolRunContext;
+      const source = run.triage!.current()[0];
+      await expect(
+        tool.execute(
+          { source_event_id: source, body: 'Started.', session_ids: ['asg-old'] },
+          context('stale'),
+        ),
+      ).rejects.toThrow('was not created or sent a request in this turn');
+      await expect(
+        tool.execute(
+          { source_event_id: source, body: 'See [x](session:asg-missing).' },
+          context('missing'),
+        ),
+      ).rejects.toThrow('Unknown Assignment Session');
+      const result = receipt(
+        await tool.execute(
+          {
+            source_event_id: source,
+            body: 'Started it; see also [Old work](session:asg-old).',
+            session_ids: ['asg-new'],
+          },
+          context('linked'),
+        ),
+      );
+      const message = f.core.channels
+        .readMessages(f.dm.id)
+        .find((entry) => entry.id === result.messageId);
+      expect(message?.sessionLinks).toEqual([
+        { sessionId: 'asg-new', kind: 'created', title: 'Fix export' },
+      ]);
+      expect(message?.body).toContain('[Old work](session:asg-old)');
+    });
+  } finally {
+    await f.close();
+  }
+});
+
+it('turns inline session mentions into plain titles for external IM', () => {
+  const body =
+    'Done: [Fix export](session:asg-1) and [Docs](session:asg-2), [Fix export](session:asg-1).';
+  expect(sessionMentionIds(body)).toEqual(['asg-1', 'asg-2']);
+  expect(withoutSessionMentions(body)).toBe('Done: Fix export and Docs, Fix export.');
+});

@@ -27,6 +27,9 @@ import {
   DmAvatarSetting,
   OwnAvatarSetting,
   StreamRepliesSetting,
+  SessionCollapseSetting,
+  SessionDetailLevelSetting,
+  SessionFoldedRepliesSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { PromptPresetSettings } from './prompt-preset-settings.js';
@@ -201,6 +204,11 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
         <OwnAvatarSetting {...props} />
         <DeliveryReceiptsSetting {...props} />
         <StreamRepliesSetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('sessions.settings.section')}>
+        <SessionDetailLevelSetting {...props} />
+        <SessionCollapseSetting {...props} />
+        <SessionFoldedRepliesSetting {...props} />
       </SettingsSection>
       <SettingsSection title={props.t('messaging.section.bots')}>
         <GroupAutoAcceptSetting {...props} />

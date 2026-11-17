@@ -1,3 +1,4 @@
+import { parseSkillOwnerKey } from '../skills/entries.js';
 import {
   BOT_ADMIN_READS,
   botAdminActionSchema,
@@ -235,6 +236,12 @@ export function guardHumanBridge(
             return refuse('bot-not-found');
         }
         if (!owner && !MEMBER_METHODS.has(property)) return refuse('permission-required');
+        if (!owner && property === 'skillShow') {
+          const skillOwner =
+            typeof input['owner'] === 'string' ? parseSkillOwnerKey(input['owner']) : undefined;
+          if (skillOwner?.kind !== 'bot' || !ownsBot(human, deps.registry.get(skillOwner.botSlug)))
+            return refuse('skill-not-found');
+        }
         if (property === 'assignmentAccessSet' && input['mode'] === 'danger-full-access') {
           if (!owner) return refuse('owner-only');
           const bot =

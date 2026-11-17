@@ -10,6 +10,7 @@ import { revokePairing } from '@botharness/host-client/pairing';
 import {
   changeTeamDevicePassword,
   parseTeamInvitation,
+  signInAgainInvitation,
   signInTeamDevice,
   type TeamErrorCode,
   type TeamInvitation,
@@ -25,7 +26,7 @@ const PASSWORD_MIN = 10;
 
 type Step =
   | { kind: 'link' }
-  | { kind: 'sign-in'; invitation: TeamInvitation }
+  | { kind: 'sign-in'; invitation: TeamInvitation; again?: boolean; pick?: boolean }
   | { kind: 'change'; host: SavedHost; current: string }
   | { kind: 'switch'; host: SavedHost };
 
@@ -33,7 +34,21 @@ function phoneName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
 }
 
-function initialStep(link: string | undefined): { step: Step; error?: TeamErrorCode | string } {
+function initialStep(
+  link: string | undefined,
+  hostId: string | undefined,
+  pick = false,
+): { step: Step; error?: TeamErrorCode | string } {
+  if (hostId !== undefined) {
+    const saved = hostSession.getState().hosts.find((host) => host.hostId === hostId);
+    const invitation = saved === undefined ? undefined : signInAgainInvitation(saved);
+    if (invitation !== undefined)
+      return {
+        step: pick
+          ? { kind: 'sign-in', invitation: { ...invitation, username: '' }, pick: true }
+          : { kind: 'sign-in', invitation, again: true },
+      };
+  }
   if (link === undefined) return { step: { kind: 'link' } };
   const parsed = parseTeamInvitation(`deepseekbot://team?i=${link}`);
   return parsed.ok
@@ -44,13 +59,20 @@ function initialStep(link: string | undefined): { step: Step; error?: TeamErrorC
 export default function TeamSignInScreen() {
   const t = useStrings();
   const router = useRouter();
-  const params = useLocalSearchParams<{ i?: string }>();
-  const first = useRef(initialStep(typeof params.i === 'string' ? params.i : undefined));
+  const params = useLocalSearchParams<{ i?: string; host?: string; switch?: string }>();
+  const first = useRef(
+    initialStep(
+      typeof params.i === 'string' ? params.i : undefined,
+      typeof params.host === 'string' ? params.host : undefined,
+      params.switch === '1',
+    ),
+  );
   const [step, setStep] = useState<Step>(first.current.step);
   const [error, setError] = useState<string | undefined>(first.current.error);
   const [retryAfter, setRetryAfter] = useState<number>();
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -102,7 +124,14 @@ export default function TeamSignInScreen() {
     setStep({ kind: 'sign-in', invitation: parsed.value });
   };
 
-  const signIn = async (invitation: TeamInvitation): Promise<void> => {
+  const signIn = async (step: TeamInvitation, pick = false): Promise<void> => {
+    const savedHost =
+      typeof params.host === 'string'
+        ? hostSession.getState().hosts.find((host) => host.hostId === params.host)
+        : undefined;
+    const fresh = savedHost === undefined ? step : (signInAgainInvitation(savedHost) ?? step);
+    const invitation = pick ? { ...fresh, username: username.trim() } : fresh;
+    if (invitation.username === '') return;
     setBusy(true);
     setError(undefined);
     const result = await signInTeamDevice({
@@ -230,9 +259,30 @@ export default function TeamSignInScreen() {
               {t.teamSignIn.title.replace('{host}', step.invitation.host.name)}
             </Text>
             <Text tone="muted">
-              {t.teamSignIn.as.replace('{username}', step.invitation.username)}
+              {step.pick === true
+                ? t.teamSignIn.switchHint
+                : t.teamSignIn.as.replace('{username}', step.invitation.username)}
             </Text>
+            {step.again === true ? <Text tone="muted">{t.teamSignIn.againHint}</Text> : null}
           </View>
+          {step.pick === true ? (
+            <TextField
+              testID="team-username"
+              accessibilityLabel={t.teamSignIn.username}
+              placeholder={t.teamSignIn.username}
+              value={username}
+              onChangeText={(value) => {
+                setUsername(value);
+                setError(undefined);
+              }}
+              textContentType="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="next"
+              editable={!busy}
+            />
+          ) : null}
           <TextField
             testID="team-password"
             accessibilityLabel={t.teamSignIn.password}
@@ -249,11 +299,13 @@ export default function TeamSignInScreen() {
             autoCorrect={false}
             returnKeyType="go"
             editable={!busy}
-            onSubmitEditing={() => void signIn(step.invitation)}
+            onSubmitEditing={() => void signIn(step.invitation, step.pick === true)}
           />
-          <Text variant="meta" tone="muted">
-            {t.teamSignIn.passwordHint}
-          </Text>
+          {step.again === true ? null : (
+            <Text variant="meta" tone="muted">
+              {t.teamSignIn.passwordHint}
+            </Text>
+          )}
           {errorText}
           <Button
             testID="team-sign-in"
@@ -261,8 +313,8 @@ export default function TeamSignInScreen() {
             tone="primary"
             on="canvas"
             busy={busy}
-            disabled={busy || password === ''}
-            onPress={() => void signIn(step.invitation)}
+            disabled={busy || password === '' || (step.pick === true && username.trim() === '')}
+            onPress={() => void signIn(step.invitation, step.pick === true)}
           />
         </>
       ) : (
