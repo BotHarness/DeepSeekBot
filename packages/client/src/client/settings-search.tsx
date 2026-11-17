@@ -20,8 +20,11 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'market.mine.title',
   ],
   general: [
-    'environment.settings.device',
-    'remoteHosts.this',
+    'general.section.language',
+    'general.section.motion',
+    'general.section.onboarding',
+    'settings.language',
+    'motion.row.title',
     'zoom.current',
     'zoom.default',
     'zoom.setup.enable',
@@ -53,9 +56,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'appearance.materialBlur',
     'appearance.body',
     'appearance.panels',
-    'motion.row.title',
     'icon.row.title',
-    'settings.language',
     'workspace.appearance',
     'workspace.layoutMode',
     'workspace.gap',
@@ -65,7 +66,6 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'models.section.default',
     'models.section.context',
     'models.section.run',
-    'models.section.sessions',
     'onboarding.defaultTitle',
     'idleCompaction.row.title',
     'compactionThreshold.row.title',
@@ -73,8 +73,6 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'compactionThreshold.headroom',
     'compactionThreshold.reset.title',
     'assignmentLimit.title',
-    'botSessions.row.title',
-    'approvalReviewSessions.row.title',
   ],
   messaging: [
     'humanName.title',
@@ -106,7 +104,13 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'voice.mic.threshold',
   ],
   'im-apps': ['imApps.allApps'],
-  advanced: ['developer.row.title', 'git.settings.title'],
+  advanced: [
+    'advanced.section.developer',
+    'developer.row.title',
+    'botSessions.row.title',
+    'approvalReviewSessions.row.title',
+    'git.settings.title',
+  ],
   'auto-approval': [
     'autoApproval.globalDefault',
     'autoApproval.reviewerModel.title',
@@ -213,6 +217,7 @@ export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessK
 
 export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'idleCompaction.row.title': 'idleCompaction.row.info',
+  'git.settings.title': 'git.settings.description',
   'compactionThreshold.ratio': 'compactionThreshold.row.description',
   'assignmentLimit.title': 'assignmentLimit.description',
   'botSessions.row.title': 'botSessions.row.info',
@@ -278,7 +283,7 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'storage.row.title': 'storage.row.description',
   'dataReset.row.title': 'dataReset.row.description',
   'developer.row.title': 'developer.row.description',
-  'git.settings.title': 'git.settings.description',
+  'git.settings.title': 'git.settings.summary',
 };
 
 const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {

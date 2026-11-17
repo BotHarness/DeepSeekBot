@@ -3329,7 +3329,7 @@ window.__ModuleLoader__.load({
 				"aria-labelledby": titleId,
 				"aria-describedby": description === void 0 ? void 0 : descriptionId,
 				...data,
-				className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1voi8sm bhx1auanwt bhxrvphhj bhx1q0q8m5 bhx19o0gr8 bhx1bta2m4",
+				className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1voi8sm bhx1auanwt bhxrvphhj bhx1q0q8m5 bhx19o0gr8 bhxqdcwya",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
 					children: [
@@ -3991,7 +3991,7 @@ window.__ModuleLoader__.load({
 .bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}
 .bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}
 .bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}
-.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}
+.bhxqdcwya:last-of-type:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}
 @media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
 @container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
 .bhx-level-5:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}

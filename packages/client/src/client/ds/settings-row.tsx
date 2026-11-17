@@ -81,7 +81,7 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: {
       default: style.listSeparator,
-      ':last-child': 'transparent',
+      ':last-of-type': 'transparent',
     },
   },
   text: {

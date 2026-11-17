@@ -3,11 +3,10 @@ import { WallpaperSettings } from './wallpaper-settings.js';
 import type { Wallpaper } from './wallpaper.js';
 import { AppearanceMaterialSettings } from './appearance-material-settings.js';
 import { useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
-import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client';
 import type { Appearance, AppearancePatch } from './appearance.js';
 import type { PropsLocale, PropsRenderSlots, InjectFace } from '@deepseek-ai/dsh-client-ui-slots';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
-import { BotIconSetting, MotionSetting } from './bot-mode-setting-rows.js';
+import { BotIconSetting } from './bot-mode-setting-rows.js';
 import { SettingsRows, SettingsRow, SettingsSection } from './ds/settings-row.js';
 import {
   ColorSchemePicker,
@@ -15,13 +14,11 @@ import {
   ThemePresetPicker,
   applyPreset,
 } from './appearance-pickers.js';
-import { Select } from './ds/select.js';
 import { Note } from './ds/note.js';
 
 export interface AppearanceFace extends BotModePrefsFace {
   appearance: Appearance;
   wallpaper: Wallpaper;
-  localeSource: Pick<LocaleRuntime, 'getSnapshot' | 'subscribe' | 'setLocale'>;
 }
 
 export function AppearanceSection(
@@ -29,9 +26,8 @@ export function AppearanceSection(
     InjectFace<AppearanceFace> &
     PropsRenderSlots<'botharness.settings.layout'> & { clientOnly?: boolean },
 ): ReactElement {
-  const { t, appearance, wallpaper, localeSource, renderSlot } = props;
+  const { t, appearance, wallpaper, renderSlot } = props;
   const theme = useSyncExternalStore(appearance.subscribe, appearance.getSnapshot);
-  const locale = useSyncExternalStore(localeSource.subscribe, localeSource.getSnapshot);
   const change = (patch: AppearancePatch) => {
     try {
       appearance.update(patch);
@@ -80,19 +76,7 @@ export function AppearanceSection(
       <AppearanceRecoverySettings appearance={appearance} wallpaper={wallpaper} t={t} />
       {props.clientOnly ? null : (
         <SettingsSection title={t('remoteHosts.this')}>
-          <MotionSetting {...props} />
           <BotIconSetting {...props} />
-          <SettingsRow
-            title={t('settings.language')}
-            control={
-              <Select
-                label={t('settings.language')}
-                value={locale.active}
-                options={locale.locales.map((item) => ({ value: item.id, label: item.label }))}
-                onChange={localeSource.setLocale}
-              />
-            }
-          />
         </SettingsSection>
       )}
       {props.clientOnly

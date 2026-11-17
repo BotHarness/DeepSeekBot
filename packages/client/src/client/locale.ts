@@ -1688,7 +1688,10 @@ export const zh = {
   'models.section.default': '默认模型',
   'models.section.context': '上下文',
   'models.section.run': '运行',
-  'models.section.sessions': '会话列表',
+  'general.section.language': '语言与缩放',
+  'general.section.motion': '动效',
+  'general.section.onboarding': '新手教程',
+  'advanced.section.developer': '开发者',
   'idleCompaction.row.title': '空闲时提前压缩上下文',
   'idleCompaction.row.description': 'Bot 空闲时，趁缓存还在先压缩上下文',
   'idleCompaction.row.info':
@@ -3610,6 +3613,7 @@ export const zh = {
   'git.settings.title': 'Git',
   'git.settings.description':
     'Bot 的记忆仓库用这个 Git 读写。可用的系统 Git 优先；没有时用 Tobs 安装的托管 Git。',
+  'git.settings.summary': 'Bot 的记忆仓库用它读写',
   'git.settings.system': '{version}（系统）',
   'git.settings.managed': '{version}（托管）',
   'git.settings.tooOld': '{version} 太旧，不可用',
@@ -7711,7 +7715,10 @@ export const en = {
   'models.section.default': 'Default model',
   'models.section.context': 'Context',
   'models.section.run': 'Running',
-  'models.section.sessions': 'Session list',
+  'general.section.language': 'Language and zoom',
+  'general.section.motion': 'Motion',
+  'general.section.onboarding': 'Getting started',
+  'advanced.section.developer': 'Developer',
   'idleCompaction.row.title': 'Compact idle conversations early',
   'idleCompaction.row.description': 'Compact an idle Bot while its cache is warm',
   'idleCompaction.row.info':
@@ -9754,6 +9761,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'git.settings.title': 'Git',
   'git.settings.description':
     "Bot memory repositories are read and written with this Git. A usable system Git comes first; otherwise Tobs's Managed Git is used.",
+  'git.settings.summary': 'Used for Bot memory repositories',
   'git.settings.system': '{version} (system)',
   'git.settings.managed': '{version} (managed)',
   'git.settings.tooOld': '{version} is too old to use',

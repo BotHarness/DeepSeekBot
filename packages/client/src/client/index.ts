@@ -942,9 +942,15 @@ export function apply(ctx: ClientContext): void {
           label: () => t('botSettings.section.general'),
           locale: LOCALE_NS,
           inject: () => ({
+            ...botModePrefsFace(prefs),
             actions,
             closeBotSettings: botSettings.close,
             zoomSurface: zoom.surface,
+            localeSource: {
+              getSnapshot: () => ctx.locale.getSnapshot(),
+              subscribe: (listener: () => void) => ctx.locale.subscribe(listener),
+              setLocale: (value: string) => ctx.locale.setLocale(value),
+            },
           }),
         },
         GeneralSection,
@@ -963,11 +969,6 @@ export function apply(ctx: ClientContext): void {
             ...botModePrefsFace(prefs),
             appearance,
             wallpaper,
-            localeSource: {
-              getSnapshot: () => ctx.locale.getSnapshot(),
-              subscribe: (listener: () => void) => ctx.locale.subscribe(listener),
-              setLocale: (value: string) => ctx.locale.setLocale(value),
-            },
           }),
         },
         AppearanceSection,

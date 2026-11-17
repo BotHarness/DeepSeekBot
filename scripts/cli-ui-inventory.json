@@ -27,7 +27,7 @@
       "description": "Theme, locale, notifications, file opening and presentation preferences; native Settings fields already have generic settings CLI, but local services need a target Client.",
       "scope": "Client",
       "surfaces": [
-        "setting:packages/client/src/client/appearance-settings.tsx:{t('settings.language')}",
+        "setting:packages/client/src/client/bot-settings-sections.tsx:{t('settings.language')}",
         "setting:packages/client/src/client/notification-settings.tsx:{t('desktopNotify.row.title')}",
         "storage:packages/client/src/client/composer-footer-preferences.ts:setItem(FOOTER_STORAGE_KEY)",
         "storage:packages/client/src/client/desktop-notifications.ts:setItem(DESKTOP_NOTIFICATIONS_KEY)",

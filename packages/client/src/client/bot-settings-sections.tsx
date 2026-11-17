@@ -1,7 +1,9 @@
 import { WindowZoomSettings } from './window-zoom-settings.js';
 import { WindowZoomSetup } from './window-zoom-setup.js';
 import type { ZoomSurface } from './window-zoom-mount.js';
-import type { ReactElement, ReactNode } from 'react';
+import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client';
+import { Select } from './ds/select.js';
 
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
@@ -18,6 +20,7 @@ import {
   BotSessionsVisibilitySetting,
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
+  MotionSetting,
   SendKeySetting,
   AutoCollapseMessagesSetting,
   DeliveryReceiptsSetting,
@@ -53,11 +56,37 @@ function Rows({ children }: { children: ReactNode }): ReactElement {
   return <SettingsRows>{children}</SettingsRows>;
 }
 
-export type GeneralSectionFace = {
+export type LocaleSource = Pick<LocaleRuntime, 'getSnapshot' | 'subscribe' | 'setLocale'>;
+
+export type GeneralSectionFace = BotModePrefsFace & {
   zoomSurface: ZoomSurface;
   actions: BridgeActions;
   closeBotSettings(): void;
+  localeSource: LocaleSource;
 };
+
+function LanguageSetting({
+  localeSource,
+  t,
+}: {
+  localeSource: LocaleSource;
+  t: SectionProps<object>['t'];
+}): ReactElement {
+  const locale = useSyncExternalStore(localeSource.subscribe, localeSource.getSnapshot);
+  return (
+    <SettingsRow
+      title={t('settings.language')}
+      control={
+        <Select
+          label={t('settings.language')}
+          value={locale.active}
+          options={locale.locales.map((item) => ({ value: item.id, label: item.label }))}
+          onChange={localeSource.setLocale}
+        />
+      }
+    />
+  );
+}
 export type MessagingSectionFace = BotModePrefsFace & {
   call: BridgeCall;
   store: ClientStore;
@@ -82,11 +111,15 @@ export function AccountSection(
 export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactElement {
   return (
     <Rows>
-      <SettingsSection title={props.t('environment.settings.device')}>
+      <SettingsSection title={props.t('general.section.language')}>
+        <LanguageSetting localeSource={props.localeSource} t={props.t} />
         <WindowZoomSettings surface={props.zoomSurface} t={props.t} />
         <WindowZoomSetup surface={props.zoomSurface} t={props.t} />
       </SettingsSection>
-      <SettingsSection title={props.t('remoteHosts.this')}>
+      <SettingsSection title={props.t('general.section.motion')}>
+        <MotionSetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('general.section.onboarding')}>
         <OnboardingSetting
           actions={props.actions}
           closeBotSettings={props.closeBotSettings}
@@ -111,10 +144,6 @@ export function ModelsSection(
       </SettingsSection>
       <SettingsSection title={props.t('models.section.run')}>
         <AssignmentConcurrencyRow {...props} />
-      </SettingsSection>
-      <SettingsSection title={props.t('models.section.sessions')}>
-        <BotSessionsVisibilitySetting {...props} />
-        <ApprovalReviewSessionsVisibilitySetting {...props} />
       </SettingsSection>
     </Rows>
   );
@@ -209,8 +238,14 @@ export function AdvancedSection(
 ): ReactElement {
   return (
     <Rows>
-      <DeveloperModeSetting {...props} />
-      <GitSettings call={props.call} t={props.t} />
+      <SettingsSection title={props.t('advanced.section.developer')}>
+        <DeveloperModeSetting {...props} />
+        <BotSessionsVisibilitySetting {...props} />
+        <ApprovalReviewSessionsVisibilitySetting {...props} />
+      </SettingsSection>
+      <SettingsSection>
+        <GitSettings call={props.call} t={props.t} />
+      </SettingsSection>
     </Rows>
   );
 }
