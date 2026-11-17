@@ -17,6 +17,7 @@ import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
   REMOTE_HOSTS_STORAGE_KEY,
+  REMOTE_HOST_RELEASE_STORAGE_KEY,
   conversationKey,
   createRemoteHosts,
   type HostStorage,
@@ -2131,6 +2132,30 @@ describe('Remote Host credentials kept by the local Host', () => {
     expect(reloaded.getSnapshot().hosts[0]?.host.credential).toBe(handle);
     await Promise.resolve();
     expect(custody.seal).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries forgetting a released handle on the next start after the Host could not forget it', async () => {
+    const storage = memoryStorage();
+    const { carrier: raw } = fakeCarrier();
+    const { custody, carrier, kept, forgotten } = custodyFake(raw);
+    const sources = createRemoteHosts({ storage, carrier, custody });
+    await sources.pair(link(), 'Browser', 'host-a');
+    const [saved] = JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY)!) as SavedHost[];
+    const forget = custody.forget.getMockImplementation()!;
+    custody.forget.mockRejectedValueOnce(new Error('custody-storage-unavailable'));
+
+    await sources.remove('host-b');
+    expect(storage.values.get(REMOTE_HOSTS_STORAGE_KEY)).not.toContain(saved!.credential);
+    expect(kept.has(saved!.credential)).toBe(true);
+    expect(JSON.parse(storage.values.get(REMOTE_HOST_RELEASE_STORAGE_KEY)!)).toEqual([
+      saved!.credential,
+    ]);
+
+    custody.forget.mockImplementation(forget);
+    createRemoteHosts({ storage, carrier, custody });
+    await vi.waitFor(() => expect(kept.has(saved!.credential)).toBe(false));
+    expect(forgotten).toEqual([saved!.credential]);
+    expect(storage.values.has(REMOTE_HOST_RELEASE_STORAGE_KEY)).toBe(false);
   });
 
   it('keeps the old credential when the Host cannot take it yet', async () => {

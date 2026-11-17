@@ -82,6 +82,31 @@ import { relationshipListSchema } from '../../../core/src/devices/relationship-c
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
+export const REMOTE_HOST_RELEASE_STORAGE_KEY = 'botharness.remoteHosts.release.v1';
+const RELEASE_LIMIT = 256;
+
+function readReleaseQueue(storage: HostStorage | undefined): string[] {
+  try {
+    const value: unknown = JSON.parse(storage?.getItem(REMOTE_HOST_RELEASE_STORAGE_KEY) ?? '[]');
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string' && isCustodyHandle(item))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function updateReleaseQueue(
+  storage: HostStorage | undefined,
+  change: (handles: string[]) => string[],
+): void {
+  if (!storage) return;
+  const handles = [...new Set(change(readReleaseQueue(storage)))].slice(-RELEASE_LIMIT);
+  try {
+    if (handles.length === 0) storage.removeItem(REMOTE_HOST_RELEASE_STORAGE_KEY);
+    else storage.setItem(REMOTE_HOST_RELEASE_STORAGE_KEY, JSON.stringify(handles));
+  } catch {}
+}
 export const ALL_HOSTS = 'all';
 export const THIS_HOST = 'local';
 
@@ -654,21 +679,18 @@ export function createRemoteHosts(options: {
 
   const custody = options.custody;
   const sealedHandles = new Map<string, string>();
-  const pendingRelease = new Set<string>();
   const forgetHandle = async (handle: string, raw?: string): Promise<void> => {
     if (!custody) return;
-    if (readHosts(storage).some((saved) => saved.credential === handle)) {
-      pendingRelease.add(handle);
-      return;
-    }
+    updateReleaseQueue(storage, (handles) => [...handles, handle]);
+    if (readHosts(storage).some((saved) => saved.credential === handle)) return;
     try {
       await custody.forget(handle);
-      pendingRelease.delete(handle);
+      updateReleaseQueue(storage, (handles) => handles.filter((item) => item !== handle));
       if (raw !== undefined) sealedHandles.delete(raw);
     } catch {}
   };
   const releasePending = async (): Promise<void> => {
-    for (const handle of [...pendingRelease]) await forgetHandle(handle);
+    for (const handle of readReleaseQueue(storage)) await forgetHandle(handle);
   };
   const sameCredential = (a: SavedHost, b: SavedHost): boolean =>
     a.hostId === b.hostId &&
@@ -899,6 +921,7 @@ export function createRemoteHosts(options: {
   };
   void (async () => {
     if (!custody) return;
+    await releasePending();
     for (const host of readHosts(storage)) {
       if (isCustodyHandle(host.credential)) continue;
       const entry = clients.get(host.hostId);
