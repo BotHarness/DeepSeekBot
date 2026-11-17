@@ -167,6 +167,7 @@ function SkillPreviewModal({
       description={skill.owner}
       closeLabel={t('common.close')}
       className="bh-skill-preview"
+      contentClassName="bh-skill-preview-body"
     >
       <div ref={body} className="bh-skill-detail" data-skill-preview={skill.name}>
         {description.length === 0 ? null : (
