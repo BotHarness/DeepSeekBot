@@ -2866,12 +2866,18 @@ export async function validateComposerDraft(
   channelId: string,
   attachments: ChannelAttachmentRef[],
   replyTo?: string,
-): Promise<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }> {
+  quotes?: ReadonlyArray<{ messageId: string; text?: string }>,
+): Promise<{
+  reply?: ChannelMessage;
+  attachments: Array<ChannelAttachmentRef | null>;
+  quotes?: Array<ChannelMessage | null>;
+}> {
   const value = asRecord(
     await unwrap(call, 'composerValidate', {
       channelId,
       attachments,
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined ? {} : { quotes }),
     }),
   );
   if (
@@ -2884,9 +2890,17 @@ export async function validateComposerDraft(
   const reply = value['reply'] === undefined ? undefined : parseChannelMessage(value['reply']);
   if (value['reply'] !== undefined && reply === undefined)
     throw new Error('invalid composer reply');
+  const rawQuotes = value['quotes'];
+  if (quotes !== undefined && (!Array.isArray(rawQuotes) || rawQuotes.length !== quotes.length))
+    throw new Error('invalid composer quotes');
+  const checked = Array.isArray(rawQuotes)
+    ? rawQuotes.map((raw) => (raw === null ? null : parseChannelMessage(raw)))
+    : undefined;
+  if (checked?.some((message) => message === undefined)) throw new Error('invalid composer quotes');
   return {
     ...(reply === undefined ? {} : { reply }),
     attachments: value['attachments'] as Array<ChannelAttachmentRef | null>,
+    ...(checked === undefined ? {} : { quotes: checked as Array<ChannelMessage | null> }),
   };
 }
 

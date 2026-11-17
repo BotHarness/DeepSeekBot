@@ -11,7 +11,7 @@ import {
   sessionMentionIds,
   withoutSessionMentions,
 } from '../src/runtime/bot-message-tool.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { inboxFixture, type TurnHook } from './inbox-fixture.js';
@@ -365,6 +365,44 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
       await f.send('Still on?', async (run) => {
         prompt = run.message;
       });
+      expect(prompt).toContain('- Message human-1: (unavailable)');
+      expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('hides a quote target cleaned up while the Bot turn is being prepared', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-2',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'Still on?',
+        quotes: [{ messageId: 'human-1' }],
+      });
+      const prepare = f.core.memory.prepareTurnAsync.bind(f.core.memory);
+      const spy = vi
+        .spyOn(f.core.memory, 'prepareTurnAsync')
+        .mockImplementationOnce(async (...args) => {
+          const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+          const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+          f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+          return prepare(...args);
+        });
+      let prompt = '';
+      await f.send('Still on?', async (run) => {
+        prompt = run.message;
+      });
+      expect(spy).toHaveBeenCalled();
       expect(prompt).toContain('- Message human-1: (unavailable)');
       expect(prompt).not.toContain('launch on Friday');
     } finally {

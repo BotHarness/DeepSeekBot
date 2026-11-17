@@ -103,8 +103,9 @@ function bodyMatches(body: string, text: string): boolean {
   const needle = comparable(text);
   if (needle.length === 0) return body.includes(text.trim());
   return (
-    comparable(body.replace(/\]\([^)\s]*(?:\s+"[^"]*")?\)/gu, ']')).includes(needle) ||
-    comparable(body).includes(needle)
+    comparable(
+      body.replace(/\]\([^)\s]*(?:\s+"[^"]*")?\)/gu, ']').replace(/\]\[[^\]]*\]/gu, ']'),
+    ).includes(needle) || comparable(body).includes(needle)
   );
 }
 

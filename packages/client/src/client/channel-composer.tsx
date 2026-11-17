@@ -1,6 +1,6 @@
 import { Button } from './ds/button.js';
 import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
-import type { ComposerQuote } from './composer-draft-store.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
   composerSlashQuery,
@@ -1361,6 +1361,11 @@ export function ChannelComposer({
               );
             })}
           </QuoteChipList>
+        )}
+        {quotes.length < MAX_DRAFT_QUOTES ? null : (
+          <div className="bh-muted" role="status">
+            {t('message.quoteLimit', { count: MAX_DRAFT_QUOTES })}
+          </div>
         )}
         {attachments.length > 0 ? (
           <div className="bh-composer-attachments" aria-live="polite">

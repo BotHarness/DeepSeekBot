@@ -492,9 +492,11 @@ export interface BridgeActions {
     channelId: string,
     attachments: ChannelAttachmentRef[],
     replyTo?: string,
+    quotes?: ReadonlyArray<{ messageId: string; text?: string }>,
   ): Promise<{
     reply?: ChannelMessage;
     attachments: Array<ChannelAttachmentRef | null>;
+    quotes?: Array<ChannelMessage | null>;
   }>;
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot>;
   onboardingModel(
@@ -1338,7 +1340,10 @@ export function createActions(
       ? { kind: 'human' }
       : { kind: 'human', humanId: identity.humanId };
   };
-  const submissionEcho = (attempt: SubmissionAttempt): ChannelMessage => ({
+  const submissionEcho = (
+    attempt: SubmissionAttempt,
+    known: readonly ChannelMessage[] = [],
+  ): ChannelMessage => ({
     id: attempt.id,
     at: attempt.at,
     author: currentHumanAuthor(),
@@ -1351,9 +1356,11 @@ export function createActions(
       ? {}
       : {
           quotes: attempt.quotes.map((quote) => {
-            const target = clientStore
-              .getSnapshot()
-              .conversation.messages.find((item) => item.id === quote.messageId);
+            const target =
+              known.find((item) => item.id === quote.messageId) ??
+              clientStore
+                .getSnapshot()
+                .conversation.messages.find((item) => item.id === quote.messageId);
             return { ...quote, preview: target === undefined ? null : replyPreviewOf(target) };
           }),
         }),
@@ -1371,7 +1378,7 @@ export function createActions(
     if (scope !== undefined) submissions.settle(scope, id, state, error);
   };
   const failedByChannel = new Map<string, ChannelMessage[]>();
-  const localFailedFor = (id: string): ChannelMessage[] => {
+  const localFailedFor = (id: string, known: readonly ChannelMessage[] = []): ChannelMessage[] => {
     const held = failedByChannel.get(id) ?? [];
     const scope = submissionScope(id);
     if (scope === undefined) return held;
@@ -1392,7 +1399,7 @@ export function createActions(
             !heldIds.has(attempt.id) &&
             !active.has(attempt.id),
         )
-        .map(submissionEcho),
+        .map((attempt) => submissionEcho(attempt, known)),
     ];
   };
   const remainingFailures = (
@@ -1400,7 +1407,7 @@ export function createActions(
     committed: readonly ChannelMessage[],
   ): ChannelMessage[] => {
     const committedIds = new Set(committed.map((message) => message.id));
-    const current = localFailedFor(channelId);
+    const current = localFailedFor(channelId, committed);
     const next = current.filter((message) => !committedIds.has(message.id));
     if (next.length !== current.length) {
       for (const message of current)
@@ -3387,8 +3394,8 @@ export function createActions(
     botSkills: (slug) => loadBotSkills(call, slug),
     skillDetail: (name, owner) => loadSkillDetail(call, name, owner),
     botSkillRemove: (slug, name) => removeBotSkill(call, slug, name),
-    validateComposerDraft: (channelId, attachments, replyTo) =>
-      validateComposerDraft(call, channelId, attachments, replyTo),
+    validateComposerDraft: (channelId, attachments, replyTo, quotes) =>
+      validateComposerDraft(call, channelId, attachments, replyTo, quotes),
     async send(
       body,
       replyTo,

@@ -2,7 +2,9 @@ import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deleti
 import {
   assertQuoteTargets,
   ChannelQuoteError,
+  MAX_CHANNEL_QUOTES,
   parseQuotesInput,
+  quoteTextMatches,
   sameQuoteIntent,
 } from '../channels/quotes.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
@@ -900,6 +902,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   composerValidate(payload: unknown): BridgeResult<{
     reply?: ChannelMessage;
     attachments: Array<ChannelAttachmentRef | null>;
+    quotes?: Array<ChannelMessage | null>;
   }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
@@ -6053,6 +6056,10 @@ function buildBridgeMethods(
           channelId: z.string(),
           replyTo: z.string().optional(),
           attachments: z.array(z.unknown()).max(10),
+          quotes: z
+            .array(z.object({ messageId: z.string(), text: z.string().optional() }).strict())
+            .max(MAX_CHANNEL_QUOTES)
+            .optional(),
         })
         .strict()
         .safeParse(payload);
@@ -6068,17 +6075,24 @@ function buildBridgeMethods(
               .some((member) => member.humanId === deps.channels.humanIdentity(human).humanId))
       )
         return invalidInput('Channel is unavailable');
-      const reply =
-        input.data.replyTo === undefined
-          ? undefined
-          : deps.channels
-              .readHumanTimeline(human, channel.id, {
-                direction: 'around',
-                around: input.data.replyTo,
-                olderLimit: 0,
-                newerLimit: 0,
-              })
-              ?.entries.find((message) => message.id === input.data.replyTo);
+      const visible = (messageId: string) =>
+        deps.channels
+          .readHumanTimeline(human, channel.id, {
+            direction: 'around',
+            around: messageId,
+            olderLimit: 0,
+            newerLimit: 0,
+          })
+          ?.entries.find((message) => message.id === messageId);
+      const reply = input.data.replyTo === undefined ? undefined : visible(input.data.replyTo);
+      const quotes = input.data.quotes?.map((quote) => {
+        const target = visible(quote.messageId);
+        return target === undefined ||
+          (target as { contentPurge?: unknown }).contentPurge !== undefined ||
+          (quote.text !== undefined && !quoteTextMatches(target.body, quote.text))
+          ? null
+          : target;
+      });
       const attachments = input.data.attachments.map((ref) => {
         try {
           return deps.attachments?.current(ref) ?? null;
@@ -6093,7 +6107,11 @@ function buildBridgeMethods(
       });
       return {
         ok: true,
-        value: { ...(reply === undefined ? {} : { reply }), attachments },
+        value: {
+          ...(reply === undefined ? {} : { reply }),
+          attachments,
+          ...(quotes === undefined ? {} : { quotes }),
+        },
       };
     },
     humanNameSet(payload) {

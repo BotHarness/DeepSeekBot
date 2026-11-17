@@ -22,9 +22,10 @@ export interface ComposerQuote {
   note?: string;
   author?: string;
   excerpt?: string;
+  target?: ChannelMessage;
 }
 
-const MAX_DRAFT_QUOTES = 8;
+export const MAX_DRAFT_QUOTES = 8;
 
 export interface Version {
   writer: string;

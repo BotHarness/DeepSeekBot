@@ -12,7 +12,7 @@ import {
 } from './selection-quote.js';
 import { SelectionToolbar, SelectionToolbarButton } from './ds/selection-toolbar.js';
 import { QuoteCard, QuoteCardList } from './ds/quote-chip.js';
-import type { ComposerQuote } from './composer-draft-store.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { SessionDetail, SessionDetailPrefsContext } from './session-detail.js';
 import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
@@ -332,6 +332,17 @@ export function resolvedGrantRequestIds(messages: readonly ChannelMessage[]): Se
 
 function memberName(bots: readonly BotSummary[], slug: string): string {
   return bots.find((bot) => bot.slug === slug)?.displayName ?? slug;
+}
+
+function quoteSource(message: ChannelMessage, text?: string): string {
+  return (
+    text ??
+    (message.body.trim().length > 0
+      ? message.body
+      : (message.attachments ?? []).map((ref) => ref.name).join(', '))
+  )
+    .replace(/\s+/gu, ' ')
+    .trim();
 }
 
 function authorLabel(
@@ -1745,14 +1756,12 @@ function ConversationView({
   const mutationLocked = readOnlyDm || channel?.readOnly === true;
   const composerQuotes = quoteTargets.map((quote) => {
     if (quote.author !== undefined) return quote;
-    const target = messages.find((candidate) => candidate.id === quote.messageId);
+    const target = messages.find((candidate) => candidate.id === quote.messageId) ?? quote.target;
     if (target === undefined) return quote;
     return {
       ...quote,
       author: authorLabel(target, state.bots, t, channelHumanName(channel)),
-      excerpt: Array.from((quote.text ?? target.body).replace(/\s+/gu, ' ').trim())
-        .slice(0, 140)
-        .join(''),
+      excerpt: Array.from(quoteSource(target, quote.text)).slice(0, 140).join(''),
     };
   });
   const selectionQuote = useSelectionQuote(!mutationLocked, (messageId) => {
@@ -2473,15 +2482,8 @@ function ConversationView({
     setRestoreFocusSignal((value) => value + 1);
   };
   const quoteMessage = (message: ChannelMessage, text?: string): void => {
-    const source = (
-      text ??
-      (message.body.trim().length > 0
-        ? message.body
-        : (message.attachments ?? []).map((ref) => ref.name).join(', '))
-    )
-      .replace(/\s+/gu, ' ')
-      .trim();
-    const characters = Array.from(source);
+    if (quoteTargets.length >= MAX_DRAFT_QUOTES) return;
+    const characters = Array.from(quoteSource(message, text));
     const quote: ComposerQuote = {
       messageId: message.id,
       ...(text === undefined ? {} : { text: characters.slice(0, 1000).join('') }),
@@ -2491,7 +2493,9 @@ function ConversationView({
     setQuoteTargets((current) =>
       current.some((item) => item.messageId === quote.messageId && item.text === quote.text)
         ? current
-        : [...current, quote].slice(-8),
+        : current.length >= MAX_DRAFT_QUOTES
+          ? current
+          : [...current, quote],
     );
     const author = message.author;
     const member =

@@ -101,6 +101,32 @@ describe('composer recovery reference validation', () => {
     ).toBe(false);
     expect(methods.composerValidate({ channelId: 'missing', attachments: [] }).ok).toBe(false);
   });
+
+  it('returns each restored quote target, or null when it is gone or no longer holds the excerpt', async () => {
+    const { channels, methods } = setup();
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const sent = await methods.channelSend({ channelId: channel.id, body: 'ship on Friday' });
+    if (!sent.ok) throw new Error('send failed');
+    const id = sent.value.message.id;
+    expect(
+      methods.composerValidate({
+        channelId: channel.id,
+        attachments: [],
+        quotes: [
+          { messageId: id, text: 'on Friday' },
+          { messageId: id, text: 'on Monday' },
+          { messageId: 'deleted' },
+        ],
+      }),
+    ).toMatchObject({ ok: true, value: { quotes: [{ id, body: 'ship on Friday' }, null, null] } });
+    expect(
+      methods.composerValidate({
+        channelId: channel.id,
+        attachments: [],
+        quotes: Array.from({ length: 9 }, () => ({ messageId: id })),
+      }).ok,
+    ).toBe(false);
+  });
 });
 
 function tickingNow(): () => Date {

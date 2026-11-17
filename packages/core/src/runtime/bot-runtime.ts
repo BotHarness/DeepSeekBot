@@ -1746,6 +1746,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #approvalCapacity: AssignmentApprovalCapacity;
   readonly #warn: ((message: string) => void) | undefined;
   readonly #triageContinuation: boolean;
+  readonly #quoteBlocks = new Map<string, { channelId: string; message: ChannelMessage }>();
   readonly #tails = new Map<string, Promise<unknown>>();
   readonly #activeTurns = new Map<string, Promise<void>>();
   readonly #nativeStepReady = new Map<string, (accepted: boolean) => void>();
@@ -4462,6 +4463,27 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #quotePrompt(channelId: string, message: ChannelMessage | undefined): string {
+    const block = this.#renderQuotePrompt(channelId, message);
+    if (block.length > 0 && message !== undefined) {
+      this.#quoteBlocks.delete(block);
+      this.#quoteBlocks.set(block, { channelId, message });
+      if (this.#quoteBlocks.size > 256)
+        this.#quoteBlocks.delete(this.#quoteBlocks.keys().next().value!);
+    }
+    return block;
+  }
+
+  #refreshQuoteBlocks(body: string): string {
+    let refreshed = body;
+    for (const [block, source] of this.#quoteBlocks) {
+      if (!refreshed.includes(block)) continue;
+      const current = this.#renderQuotePrompt(source.channelId, source.message);
+      if (current !== block) refreshed = refreshed.split(block).join(current);
+    }
+    return refreshed;
+  }
+
+  #renderQuotePrompt(channelId: string, message: ChannelMessage | undefined): string {
     return quotePromptBlock(message?.quotes, (messageId) => {
       const target = this.#channels.message(channelId, messageId);
       if (target === undefined || Reflect.get(target, 'contentPurge') !== undefined)
@@ -6731,6 +6753,7 @@ class BotRuntimeImplementation implements BotRuntime {
         : undefined;
       if (this.#closed || this.#stoppedTurns.has(bot.slug))
         throw new Error(SESSION_STOPPED_REFUSAL);
+      body = this.#refreshQuoteBlocks(body);
       const observation = observeMemory
         ? this.#memory?.preparedObservation?.(bot.slug, orchestrator.sessionId)
         : undefined;

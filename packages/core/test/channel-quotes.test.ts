@@ -41,6 +41,9 @@ describe('Channel quotes', () => {
     expect(quoteTextMatches(body, 'a\tb\n1\t2')).toBe(true);
     expect(quoteTextMatches(body, 'ship it today')).toBe(false);
     expect(quoteTextMatches('引用这一段话。然后继续', '这一段话')).toBe(true);
+    expect(
+      quoteTextMatches('Read [the guide][ref] now.\n\n[ref]: https://example.com', 'the guide now'),
+    ).toBe(true);
   });
 
   it('refuses a missing target or an excerpt that is not in it', () => {

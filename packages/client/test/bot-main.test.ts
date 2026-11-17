@@ -2445,6 +2445,84 @@ describe('B2 chat bubbles', () => {
     }
   });
 
+  it('keeps the first eight quotes and says so when a ninth is added', async () => {
+    const previous = store.getSnapshot();
+    const identity = previous.composerIdentity;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    try {
+      store.setComposerIdentity({ hostId: 'host', profileId: 'limit', humanId: 'human' });
+      store.setRoster([ada, bob], [group]);
+      store.select({ kind: 'channel', channelId: group.id });
+      store.setConversation({
+        status: 'ready',
+        channel: group,
+        sending: false,
+        messages: Array.from({ length: 9 }, (_, index) => ({
+          id: `m${index}`,
+          at,
+          author: { kind: 'bot' as const, slug: 'ada' },
+          body: index === 8 ? '' : `message ${index}`,
+          ...(index === 8
+            ? {
+                attachments: [
+                  {
+                    hash: `sha256:${'1'.repeat(64)}`,
+                    name: 'plan.pdf',
+                    mime: 'application/pdf',
+                    size: 1,
+                  },
+                ],
+              }
+            : {}),
+        })),
+      });
+      const actions = {
+        modelPlanState: async () => ({}),
+        listWorkspaceGrants: async () => [],
+        botSourcePolicies: async () => [],
+        skillCatalog: async () => [],
+        allBotPreview: async () => ({ recipients: [], excluded: [] }),
+        listWorkspaceOptions: async () => [],
+        markRead: async () => undefined,
+        ...inertSubmissionActions,
+      } as unknown as BridgeActions;
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const quote = async (id: string) => {
+        await act(async () =>
+          container
+            .querySelector(`[data-message-id="${id}"]`)!
+            .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+        );
+        const button = container.querySelector<HTMLButtonElement>(
+          `[data-message-id="${id}"] [data-bubble-action][aria-label="Quote"], [data-message-id="${id}"] [data-bubble-action][aria-label="引用"]`,
+        )!;
+        await act(async () => button.click());
+      };
+      const chips = () =>
+        [...container.querySelectorAll('[data-quote-chip]')].map((chip) => chip.textContent ?? '');
+      await quote('m8');
+      expect(chips()[0]).toContain('plan.pdf');
+      for (let index = 0; index < 8; index += 1) await quote(`m${index}`);
+      expect(chips()).toHaveLength(8);
+      expect(chips()[0]).toContain('plan.pdf');
+      expect(chips().some((chip) => chip.includes('message 7'))).toBe(false);
+      expect(container.textContent).toMatch(
+        /A message can quote at most 8 messages|一条消息最多引用 8 条/u,
+      );
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setComposerIdentity(identity);
+      localStorage.clear();
+      restore(previous);
+    }
+  });
+
   it('restores the quote of a failed message whose target is not loaded', async () => {
     const previous = store.getSnapshot();
     const identity = previous.composerIdentity;
