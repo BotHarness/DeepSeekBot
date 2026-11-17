@@ -3722,6 +3722,7 @@ function ConversationView({
                           : []
                     }
                     placeholder={channel?.readOnly === true ? t('composer.readOnly') : ''}
+                    label={t('composer.label', { name: title })}
                     holdPlaceholder={t('composer.holdToTalk', { name: title })}
                     dictation={dictationPort}
                     dictating={dictating}

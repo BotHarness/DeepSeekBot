@@ -110,6 +110,7 @@ export interface ChannelComposerProps {
   sendKey?: ComposerSendKey | undefined;
   value: string;
   placeholder: string;
+  label?: string | undefined;
   holdPlaceholder?: string | undefined;
   dictation?: VoiceDictationPort | undefined;
   dictating?: { current: boolean } | undefined;
@@ -411,6 +412,7 @@ export function ChannelComposer({
   sendKey = 'enter',
   value,
   placeholder: basePlaceholder,
+  label,
   holdPlaceholder,
   dictation,
   dictating,
@@ -1330,7 +1332,7 @@ export function ChannelComposer({
               ref={richMount}
               className="bh-composer-input bh-composer-rich-input"
               role="textbox"
-              aria-label={basePlaceholder}
+              aria-label={label ?? basePlaceholder}
               aria-multiline="true"
               aria-disabled={locked}
               aria-readonly={voice.active || undefined}
@@ -1403,7 +1405,7 @@ export function ChannelComposer({
               className="bh-composer-input"
               rows={1}
               placeholder={placeholder}
-              aria-label={basePlaceholder}
+              aria-label={label ?? basePlaceholder}
               value={value}
               disabled={locked}
               readOnly={voice.active}

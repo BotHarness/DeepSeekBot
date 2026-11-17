@@ -411,6 +411,7 @@ export function SessionDetail({
           <ChannelComposer
             value={draft}
             placeholder=""
+            label={t('sessions.detail.composer')}
             sending={sending}
             t={t}
             onChange={(value) => setDraft(value)}
