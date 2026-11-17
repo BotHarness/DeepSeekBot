@@ -17,6 +17,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'accountProfile.name',
     'accountProfile.id',
     'accountProfile.email',
+    'market.mine.title',
   ],
   general: [
     'environment.settings.device',
@@ -201,6 +202,7 @@ export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessK
 
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'relationships.prepareReturn': 'relationships.prepareReturnHint',
+  'market.mine.title': 'market.mine.settingsHint',
   'connections.methods': 'connections.hosts.local',
   'devices.lan.title': 'devices.lan.notice',
   'connections.hosts.preference': 'connections.hosts.preferenceScope',
@@ -366,6 +368,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'privateTunnel.ingressLan': '代理 反向代理 隧道 局域网 proxy tunnel ingress LAN',
   'accountProfile.name': '名字 昵称 name nickname',
   'accountProfile.photo': '头像 avatar picture',
+  'market.mine.title': '上传 市场 发布 删除 upload marketplace publish delete',
   'appearance.primary': '颜色 强调色 color accent',
   'wallpaper.interval': '壁纸 轮播 wallpaper rotate slideshow',
   'wallpaper.shuffle': '壁纸 随机 wallpaper random',

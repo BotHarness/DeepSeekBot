@@ -7,6 +7,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
 import { AccountProfileSettings } from './account-profile-settings.js';
+import { MyUploadsSettingsRow } from './market-mine.js';
 import type { ConnectSignInCode } from './connect-sign-in.js';
 import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.js';
 import { VoiceProviderSettings } from './voice-settings.js';
@@ -68,7 +69,12 @@ export function AccountSection(
 ): ReactElement {
   return (
     <Rows>
-      <AccountProfileSettings actions={props.actions} startSignIn={props.startSignIn} t={props.t} />
+      <AccountProfileSettings
+        actions={props.actions}
+        startSignIn={props.startSignIn}
+        uploads={<MyUploadsSettingsRow actions={props.actions} t={props.t} />}
+        t={props.t}
+      />
     </Rows>
   );
 }
