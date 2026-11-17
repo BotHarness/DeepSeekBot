@@ -83,16 +83,18 @@ describe('rich mention editor', () => {
       });
       const editor = container.querySelector<HTMLElement>('.bh-composer-rich-input');
       expect(editor?.innerHTML).toBe('abc<br><br data-rich-placeholder="">');
-      for (const [left, after] of [
-        ['abc<br data-rich-placeholder="">', 'abc'],
-        ['<br data-rich-placeholder="">', ''],
+      for (const [left, after, draft] of [
+        ['abc<br data-rich-placeholder="">', 'abc', 'abc'],
+        ['abc<br><br>', 'abc<br><br data-rich-placeholder="">', 'abc\n'],
+        ['<br data-rich-placeholder="">', '', ''],
+        ['<br>', '', ''],
       ] as const) {
         editor!.innerHTML = left;
         await act(async () => {
           editor!.dispatchEvent(new Event('input', { bubbles: true }));
         });
         expect(editor!.innerHTML).toBe(after);
-        expect(changes.at(-1)).toBe(after);
+        expect(changes.at(-1)).toBe(draft);
       }
     } finally {
       await act(async () => root.unmount());

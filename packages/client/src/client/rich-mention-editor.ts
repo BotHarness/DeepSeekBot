@@ -81,7 +81,7 @@ function richTextNodes(document: Document, text: string): Node[] {
   });
 }
 
-export function syncTrailingLine(editor: HTMLElement): void {
+function syncTrailingLine(editor: HTMLElement): void {
   for (const placeholder of editor.querySelectorAll('br[data-rich-placeholder]'))
     placeholder.remove();
   while (editor.lastChild?.nodeType === Node.TEXT_NODE && editor.lastChild.textContent === '')
@@ -91,6 +91,17 @@ export function syncTrailingLine(editor: HTMLElement): void {
     placeholder.dataset.richPlaceholder = '';
     editor.append(placeholder);
   }
+}
+
+export function normalizeRichInput(editor: HTMLElement): void {
+  const last = editor.lastChild;
+  if (
+    editor.querySelector('br[data-rich-placeholder]') === null &&
+    last instanceof HTMLBRElement &&
+    (last.previousSibling === null || last.previousSibling instanceof HTMLBRElement)
+  )
+    last.remove();
+  syncTrailingLine(editor);
 }
 
 export function renderRichMentionDraft(

@@ -4297,7 +4297,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   white-space: pre-wrap;
   cursor: text;
 }
-.bh-composer-rich-input::after {
+.bh-composer-rich-input:not(:has(> br[data-rich-placeholder]:last-child))::after {
   content: '\\200b';
 }
 .bh-composer-rich-input:empty::before {

@@ -42,11 +42,11 @@ import {
 } from './mentions.js';
 import {
   insertRichPlainText,
+  normalizeRichInput,
   readRichMentionDraft,
   renderRichMentionDraft,
   richSelectionOffsets,
   sameRichMentionDraft,
-  syncTrailingLine,
   setRichSelection,
   type MentionAvatarMount,
 } from './rich-mention-editor.js';
@@ -873,8 +873,7 @@ export function ChannelComposer({
   );
 
   const emitRichChange = (editor: HTMLDivElement): void => {
-    if (editor.innerHTML === '<br>') editor.replaceChildren();
-    else syncTrailingLine(editor);
+    normalizeRichInput(editor);
     const next = readRichMentionDraft(editor);
     scheduleSync(editor);
     onChange(next.value, next.mentions, next.channelRefs, next.skills);

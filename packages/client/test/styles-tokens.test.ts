@@ -228,6 +228,9 @@ describe('client styles', () => {
 
   it('keeps the composer island token-driven and clear of the message scroll area', () => {
     expect(source).toMatch(/\.bh-composer \{[^}]*min-height: 50px/);
+    expect(source).toContain(
+      '.bh-composer-rich-input:not(:has(> br[data-rich-placeholder]:last-child))::after',
+    );
     expect(source).toMatch(
       /\.bh-composer \{[^}]*border-radius: calc\(var\(--tobs-style-radius-sheet\) \+ 8px\)/,
     );
