@@ -153,8 +153,8 @@ export function custodyCarrier(handle: string, raw: HostCarrier): HostCarrier {
               const payload = JSON.parse(data) as { text?: unknown; reason?: unknown };
               if (event === 'open') {
                 opened = true;
-                events.open();
                 for (const text of queued.splice(0)) send(text);
+                events.open();
               } else if (event === 'message' && typeof payload.text === 'string')
                 events.message(payload.text);
               else if (event === 'closed')

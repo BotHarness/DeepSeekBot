@@ -9,7 +9,12 @@ import {
   keyBytes,
   keyHex,
 } from '@botharness/host-client/encrypted-carrier';
-import { isCustodyHandle, parseSavedHost, type SavedHost } from '@botharness/host-client/hosts';
+import {
+  isCustodyHandle,
+  parseEncryption,
+  parseSavedHost,
+  type SavedHost,
+} from '@botharness/host-client/hosts';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 const MAX_RECORDS = 256;
@@ -66,6 +71,16 @@ function digest(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function parseSecret(input: unknown): Secret | undefined {
+  if (!input || typeof input !== 'object') return;
+  const value = input as Record<string, unknown>;
+  const credential = value['credential'];
+  if (typeof credential !== 'string' || !credential) return;
+  if (value['encryption'] === undefined) return { credential };
+  const encryption = parseEncryption(value['encryption']);
+  return encryption ? { credential, encryption } : undefined;
+}
+
 function origin(url: string): string {
   return new URL(url.replace(/^ws/u, 'http')).origin;
 }
@@ -108,7 +123,7 @@ export function createRemoteCustody(options: {
     {
       handle: string;
       url: string;
-      headers: Record<string, string>;
+      headers: Record<string, string> | undefined;
       claimed: boolean;
       socket?: HostSocket;
       timer: ReturnType<typeof setTimeout>;
@@ -127,9 +142,8 @@ export function createRemoteCustody(options: {
   };
   const load = async (handle: string): Promise<Custodied> => {
     const found = row(handle);
-    const secret = (await options.secrets.read(handle)) as Partial<Secret> | undefined;
-    if (typeof secret?.credential !== 'string')
-      throw new CustodyRefused('custody-secret-unavailable');
+    const secret = parseSecret(await options.secrets.read(handle));
+    if (!secret) throw new CustodyRefused('custody-secret-unavailable');
     row(handle);
     return {
       handle: found.handle,
@@ -301,13 +315,13 @@ export function createRemoteCustody(options: {
     async forget(handle: string): Promise<void> {
       row(handle);
       drop(handle);
+      await options.secrets.delete(handle);
       options.database.transaction(
         (db) => {
           db.prepare('DELETE FROM remote_host_custody WHERE handle = ?').run(handle);
         },
         ['remote-host-custody'],
       );
-      await options.secrets.delete(handle);
     },
 
     async request(input: {
@@ -349,13 +363,13 @@ export function createRemoteCustody(options: {
       headers?: Record<string, string>;
     }): Promise<string> {
       const record = await load(input.handle);
-      const headers = inject(record, input.url, input.headers);
+      inject(record, input.url, input.headers);
       if (sockets.size >= MAX_SOCKETS) throw new CustodyRefused('custody-socket-limit');
       const id = randomBytes(18).toString('base64url');
       sockets.set(id, {
         handle: record.handle,
         url: input.url,
-        headers,
+        headers: input.headers,
         claimed: false,
         timer: setTimeout(() => sockets.delete(id), UNCLAIMED_SOCKET_MS),
       });
@@ -367,20 +381,26 @@ export function createRemoteCustody(options: {
       if (!entry || entry.claimed) throw new CustodyRefused('custody-socket-unknown');
       clearTimeout(entry.timer);
       entry.claimed = true;
-      const record = await load(entry.handle);
-      if (sockets.get(id) !== entry) throw new CustodyRefused('custody-socket-unknown');
-      entry.socket = transport(record).openSocket(
-        entry.url,
-        {
-          open: events.open,
-          message: events.message,
-          closed: (reason) => {
-            sockets.delete(id);
-            events.closed(reason);
+      try {
+        const record = await load(entry.handle);
+        if (sockets.get(id) !== entry) throw new CustodyRefused('custody-socket-unknown');
+        const headers = inject(record, entry.url, entry.headers);
+        entry.socket = transport(record).openSocket(
+          entry.url,
+          {
+            open: events.open,
+            message: events.message,
+            closed: (reason) => {
+              if (sockets.get(id) === entry) sockets.delete(id);
+              events.closed(reason);
+            },
           },
-        },
-        entry.headers,
-      );
+          headers,
+        );
+      } catch (error) {
+        if (sockets.get(id) === entry) sockets.delete(id);
+        throw error;
+      }
       return () => {
         if (sockets.get(id) !== entry) return;
         sockets.delete(id);

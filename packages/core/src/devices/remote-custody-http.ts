@@ -98,63 +98,70 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
     let release: (() => void) | undefined;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     let ended = false;
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        const emit = (event: string, data: unknown) => {
-          if (ended) return;
-          try {
-            controller.enqueue(
-              encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+    const body = new ReadableStream<Uint8Array>(
+      {
+        start(controller) {
+          const emit = (event: string, data: unknown) => {
+            if (ended) return;
+            if (event === 'message' && (controller.desiredSize ?? 0) <= 0) {
+              finish();
+              return;
+            }
+            try {
+              controller.enqueue(
+                encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+              );
+            } catch {
+              finish();
+            }
+          };
+          const finish = () => {
+            if (ended) return;
+            ended = true;
+            if (heartbeat !== undefined) clearInterval(heartbeat);
+            release?.();
+            try {
+              controller.close();
+            } catch {}
+          };
+          void custody
+            .attachSocket(id, {
+              open: () => emit('open', {}),
+              message: (text) => emit('message', { text }),
+              closed: (reason) => {
+                emit('closed', { reason });
+                release = undefined;
+                finish();
+              },
+            })
+            .then(
+              (detach) => {
+                if (ended) detach();
+                else release = detach;
+              },
+              (error: unknown) => {
+                emit('closed', { reason: custodyFailure(error).code });
+                finish();
+              },
             );
-          } catch {
-            finish();
-          }
-        };
-        const finish = () => {
-          if (ended) return;
+          heartbeat = setInterval(() => {
+            if (ended || (controller.desiredSize ?? 0) <= 0) return;
+            try {
+              controller.enqueue(encoder.encode(': heartbeat\n\n'));
+            } catch {
+              finish();
+            }
+          }, 15_000);
+          request.signal.addEventListener('abort', finish, { once: true });
+        },
+        cancel() {
           ended = true;
           if (heartbeat !== undefined) clearInterval(heartbeat);
           release?.();
-          try {
-            controller.close();
-          } catch {}
-        };
-        void custody
-          .attachSocket(id, {
-            open: () => emit('open', {}),
-            message: (text) => emit('message', { text }),
-            closed: (reason) => {
-              emit('closed', { reason });
-              release = undefined;
-              finish();
-            },
-          })
-          .then(
-            (detach) => {
-              if (ended) detach();
-              else release = detach;
-            },
-            (error: unknown) => {
-              emit('closed', { reason: custodyFailure(error).code });
-              finish();
-            },
-          );
-        heartbeat = setInterval(() => {
-          if (ended) return;
-          try {
-            controller.enqueue(encoder.encode(': heartbeat\n\n'));
-          } catch {
-            finish();
-          }
-        }, 15_000);
-        request.signal.addEventListener('abort', finish, { once: true });
+        },
       },
-      cancel() {
-        ended = true;
-        if (heartbeat !== undefined) clearInterval(heartbeat);
-        release?.();
-      },
-    });
+      new CountQueuingStrategy({ highWaterMark: 256 }),
+    );
     return new Response(body, {
       headers: {
         'Content-Type': 'text/event-stream; charset=utf-8',

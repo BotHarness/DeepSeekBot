@@ -54,7 +54,7 @@ A returning member skips `password-change` when the Host says `mustChangePasswor
 
 One saved identity is active per Host. Replacing Owner with member, or switching Human id, needs confirmation; a changed pinned Host fingerprint is always refused, even with replacement confirmation. The desktop adapter rechecks these conditions under the storage lock, retires the old session and its viewers, installs the member session and attempts to revoke the superseded grant. Member traffic uses the M8 device grant and member Peer, never an Owner cookie. Relationship and E6 enrollment refuse member credentials and cannot manufacture a member grant.
 
-Remote-host management is available only to the local Owner Client. This is independent of being a member on the remote Host. H3's credential custody migration remains a separate issue scope; existing desktop storage remains in place for this change.
+Remote-host management is available only to the local Owner Client. This is independent of being a member on the remote Host. Member credentials saved by desktop sign-in are sealed into the local Host's custody like any other Remote Host credential; see [Remote Host credential custody](remote-host-credential-custody.md).
 
 ## Refusals
 

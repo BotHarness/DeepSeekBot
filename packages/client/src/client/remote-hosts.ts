@@ -654,6 +654,22 @@ export function createRemoteHosts(options: {
 
   const custody = options.custody;
   const sealedHandles = new Map<string, string>();
+  const pendingRelease = new Set<string>();
+  const forgetHandle = async (handle: string, raw?: string): Promise<void> => {
+    if (!custody) return;
+    if (readHosts(storage).some((saved) => saved.credential === handle)) {
+      pendingRelease.add(handle);
+      return;
+    }
+    try {
+      await custody.forget(handle);
+      pendingRelease.delete(handle);
+      if (raw !== undefined) sealedHandles.delete(raw);
+    } catch {}
+  };
+  const releasePending = async (): Promise<void> => {
+    for (const handle of [...pendingRelease]) await forgetHandle(handle);
+  };
   const sameCredential = (a: SavedHost, b: SavedHost): boolean =>
     a.hostId === b.hostId &&
     a.deviceId === b.deviceId &&
@@ -670,11 +686,7 @@ export function createRemoteHosts(options: {
       ? host.credential
       : sealedHandles.get(host.credential);
     if (handle === undefined) return;
-    if (readHosts(storage).some((saved) => saved.credential === handle)) return;
-    try {
-      await custody.forget(handle);
-      if (!isCustodyHandle(host.credential)) sealedHandles.delete(host.credential);
-    } catch {}
+    await forgetHandle(handle, isCustodyHandle(host.credential) ? undefined : host.credential);
   };
   const revoke = async (host: SavedHost) => {
     try {
@@ -699,25 +711,33 @@ export function createRemoteHosts(options: {
     for (let attempt = 0; ; attempt += 1) {
       let preview: SavedHost | undefined;
       let sealed: SavedHost | undefined;
+      let storedBefore: string | undefined;
       if (custody) {
         const stored = readHosts(storage).find((host) => host.hostId === hostId);
         if (expected ? !stored || !sameCredential(stored, expected) : stored !== undefined)
           throw new Error('connection-host-changed');
+        storedBefore = JSON.stringify(stored);
         preview = change(stored);
         if (preview) sealed = await sealFor(preview);
       }
       try {
-        return await writeCredential(
+        const written = await writeCredential(
           hostId,
           expected,
           (stored) => {
             const next = change(stored);
             if (!custody || !next) return next;
-            if (JSON.stringify(next) !== JSON.stringify(preview)) throw new SealOutdated();
+            if (
+              JSON.stringify(stored) !== storedBefore ||
+              JSON.stringify(next) !== JSON.stringify(preview)
+            )
+              throw new SealOutdated();
             return sealed;
           },
           choiceChange,
         );
+        await releasePending();
+        return written;
       } catch (error) {
         if (!(error instanceof SealOutdated) || attempt >= 2) {
           if (sealed && !isCustodyHandle(preview?.credential ?? '')) await releaseCustody(preview!);
@@ -838,10 +858,9 @@ export function createRemoteHosts(options: {
   for (const host of readHosts(storage)) attach(host);
   publish();
 
-  const retireEntry = (entry: HostEntry): void => {
+  const detachEntry = (entry: HostEntry): boolean => {
     const hostId = entry.host.hostId;
-    if (clients.get(hostId) !== entry) return;
-    notifications.forget(hostId);
+    if (clients.get(hostId) !== entry) return false;
     entry.release();
     stop(entry);
     clients.delete(hostId);
@@ -851,6 +870,12 @@ export function createRemoteHosts(options: {
         conversation.stop();
         conversations.delete(key);
       }
+    return true;
+  };
+  const retireEntry = (entry: HostEntry): void => {
+    const hostId = entry.host.hostId;
+    if (!detachEntry(entry)) return;
+    notifications.forget(hostId);
     if (open?.hostId === hostId) open = undefined;
     if (tab === hostId) {
       tab = ALL_HOSTS;
@@ -878,7 +903,7 @@ export function createRemoteHosts(options: {
         const sealed = await persistCredential(host.hostId, host, (current) => current);
         if (!sealed || clients.get(host.hostId) !== entry) continue;
         const running = entry.inbox !== undefined;
-        retireEntry(entry);
+        detachEntry(entry);
         attach(sealed);
         const next = clients.get(host.hostId);
         if (running && next && listeners.size > 0) start(next);

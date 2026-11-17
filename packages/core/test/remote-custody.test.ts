@@ -181,6 +181,41 @@ describe('Remote Host credential custody', () => {
     ).rejects.toMatchObject({ code: 'custody-host-mismatch' });
   });
 
+  it('keeps a handle retryable when the secret cannot be deleted and rechecks socket routes on attach', async () => {
+    const f = fixture();
+    const sealed = await f.custody.seal(host);
+    const socket = await f.custody.prepareSocket({
+      handle: sealed.credential,
+      url: 'ws://127.0.0.1:31009/botharness-device/socket',
+      headers: { authorization: `Device ${sealed.credential}` },
+    });
+    await f.custody.seal({ ...sealed, routes: ['http://127.0.0.1:31010'] });
+    const events = { open: vi.fn(), message: vi.fn(), closed: vi.fn() };
+    await expect(f.custody.attachSocket(socket, events)).rejects.toMatchObject({
+      code: 'custody-route-unknown',
+    });
+    await expect(f.custody.attachSocket(socket, events)).rejects.toMatchObject({
+      code: 'custody-socket-unknown',
+    });
+    f.secrets.set(sealed.credential, { credential: 42 } as unknown as Secret);
+    await expect(
+      f.custody.request({
+        handle: sealed.credential,
+        url: 'http://127.0.0.1:31010/x',
+        method: 'GET',
+        signal: AbortSignal.timeout(1000),
+      }),
+    ).rejects.toMatchObject({ code: 'custody-secret-unavailable' });
+    const failing = vi.spyOn(f.secrets, 'delete').mockImplementationOnce(() => {
+      throw new Error('vault-busy');
+    });
+    await expect(f.custody.forget(sealed.credential)).rejects.toThrow('vault-busy');
+    expect(f.rows()).toHaveLength(1);
+    failing.mockRestore();
+    await f.custody.forget(sealed.credential);
+    expect(f.rows()).toEqual([]);
+  });
+
   it('answers the Client in the same shape a direct carrier would', async () => {
     const f = fixture();
     const http = createRemoteCustodyHttp(f.custody);
