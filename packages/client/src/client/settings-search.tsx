@@ -419,7 +419,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'wallpaper.shuffle': '壁纸 随机 wallpaper random',
   'sendKey.row.title': 'Enter Shift+Enter Ctrl+Enter 回车 发送 换行 newline',
   'message.stream.row.title': '流式 打字 stream streaming typing',
-  'message.avatar.dm.row.title': '头像 私聊 avatar dm direct',
+  'message.avatar.dm.row.title': '头像 DM 私聊 avatar direct',
   'message.avatar.own.row.title': '头像 自己 我的 avatar my own',
   'message.delivery.row.title': '已读 回执 read receipt receipts',
   'botHopLimit.title': '跳数 接力 循环 hop loop relay',

@@ -1382,7 +1382,9 @@ describe('Bot main Sessions pane', () => {
       ),
     );
     const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'react'));
+    expect(menu?.items?.[0]).toMatchObject({ type: 'label', text: expect.stringMatching(/\S/) });
     expect(menu?.items?.map((item) => item.id)).toEqual([
+      'time',
       'reply',
       'react',
       'copy',

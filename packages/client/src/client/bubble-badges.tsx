@@ -67,7 +67,7 @@ export function BubbleBadges({
       <MessageReading
         readers={shownReaders}
         bots={bots}
-        motion={readers.length === 0 ? 'leave' : readingStill ? undefined : 'enter'}
+        motion={readers.length === 0 ? 'leave' : readingStill || readingSeen ? undefined : 'enter'}
         onShown={() => setReadingSeen(true)}
         onLeft={() => {
           setShownReaders(NO_READERS);

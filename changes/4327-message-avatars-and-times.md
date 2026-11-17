@@ -11,5 +11,5 @@ section: Changed
 ## zh
 
 - 聊天气泡里不再显示时间；把鼠标移到消息上，操作条开头会显示时间（[#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)）。
-- 聊天设置新增两个开关：私聊时显示对方头像、显示自己的头像，默认都关闭（[#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)）。
+- 聊天设置新增两个开关：在 DM 中显示对方头像、显示自己的头像，默认都关闭（[#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)）。
 - Bot 的“正在阅读”标记现在等 300ms 才出现，读一下就结束时不会闪一下；出现后在阅读结束后再停留 800ms（[#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)）。

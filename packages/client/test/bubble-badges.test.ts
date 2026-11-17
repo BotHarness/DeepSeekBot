@@ -111,11 +111,24 @@ describe('BubbleBadges', () => {
     expect(CSS).toMatch(/\.bh-reading\[data-badge-motion='leave'\] \{\s*animation-delay: 800ms;/);
   });
 
-  it('brings a leaving badge back when it returns before the exit ends', async () => {
+  it('keeps a shown reading chip in place when reading resumes before it leaves', async () => {
     await render([], ['ada']);
     await render([], []);
     expect(motion('[data-message-reading]')).toBe('leave');
     await render([], ['ada']);
-    expect(motion('[data-message-reading]')).toBe('enter');
+    expect(motion('[data-message-reading]')).toBeUndefined();
+    await render([], []);
+    await render([], ['bob']);
+    expect(motion('[data-message-reading]')).toBeUndefined();
+  });
+
+  it('keeps a faded-in reading chip in place when reading resumes', async () => {
+    await render([], []);
+    await render([], ['ada']);
+    await start(container.querySelector('[data-message-reading]'));
+    await render([], []);
+    expect(motion('[data-message-reading]')).toBe('leave');
+    await render([], ['ada']);
+    expect(motion('[data-message-reading]')).toBeUndefined();
   });
 });

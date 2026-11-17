@@ -1077,6 +1077,9 @@ function MessageActionMenu({
         autoFocus
         anchor={<span ref={proxy} aria-hidden="true" />}
         items={[
+          ...(bubbleStamp(request.message) === undefined
+            ? []
+            : [{ type: 'label' as const, id: 'time', text: fullTime(request.message.at, t) }]),
           ...(request.message.pending === true || request.message.streaming === true
             ? []
             : [{ id: 'reply', label: t('message.reply'), icon: <ReplyIcon /> }]),
