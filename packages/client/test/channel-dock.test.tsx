@@ -1798,3 +1798,76 @@ it('shows Channel subpanels as one Simple column with global collapse state', as
   await settle();
   expect(host.querySelector('[data-subpanel-column]')).toBeNull();
 });
+
+it('docks Session detail as a movable panel in the advanced layout and keeps it beside messages in the simple one', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  const registry = createDockPanelRegistry();
+  registry.register({
+    id: CHANNEL_BODY_PANEL,
+    title: 'Messages',
+    scope: 'global',
+    component: () => null,
+  });
+  registry.registerEntry({ ...entry('sessions'), label: '会话' });
+  const close = vi.fn();
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: { rail: () => createElement('nav') } },
+      createElement(ChannelDock, {
+        body: createElement('input', { 'data-message-draft': '' }),
+        session: {
+          title: '补单元测试',
+          close,
+          content: createElement('div', { 'data-session-body': '' }, 'transcript'),
+        },
+        panels: registry.panels(),
+        registry,
+        channel: { id: 'ada', type: 'dm', botSlug: 'ada' },
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  const docked = host.querySelector('[data-channel-subpanel="session-detail"]')!;
+  expect(docked.querySelector('[data-session-body]')).not.toBeNull();
+  expect(docked.querySelector('[data-panel-hide]')?.getAttribute('draggable')).toBe('true');
+  expect(host.querySelector('[data-session-aside]')).toBeNull();
+  const target = host.querySelector('[data-channel-leaf="messages"]')!;
+  vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100));
+  const data = new Map<string, string>();
+  const transfer = {
+    types: [] as string[],
+    setData(type: string, value: string) {
+      data.set(type, value);
+      this.types.push(type);
+    },
+    getData: (type: string) => data.get(type) ?? '',
+    effectAllowed: 'none',
+    dropEffect: 'none',
+  };
+  const dragEvent = (type: string, x = 0, y = 0) =>
+    Object.assign(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }), {
+      dataTransfer: transfer,
+    });
+  act(() => {
+    docked.querySelector('[data-panel-hide]')!.dispatchEvent(dragEvent('dragstart'));
+  });
+  act(() => {
+    target.dispatchEvent(dragEvent('dragover', 5, 50));
+    target.dispatchEvent(dragEvent('drop', 5, 50));
+  });
+  await settle();
+  const tree = readChannelDock(storage)?.channelSplits?.ada;
+  expect(JSON.stringify(tree)).toContain('"first":{"panel":"session-detail"}');
+  act(() => root.unmount());
+  root = createRoot(host);
+  values.set(LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'simple' }));
+  act(() => root.render(view()));
+  await settle();
+  expect(host.querySelector('[data-session-aside] [data-session-body]')).not.toBeNull();
+  expect(host.querySelector('[data-channel-subpanel="session-detail"]')).toBeNull();
+});
