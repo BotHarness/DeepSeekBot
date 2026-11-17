@@ -969,7 +969,7 @@ export function SessionDetail({
             readSkill={actions.skillDetail}
             onChange={(value, _mentions, _channels, nextSkills) => {
               setDraft(value);
-              setSkills(nextSkills ?? []);
+              if (nextSkills !== undefined) setSkills(nextSkills);
             }}
             onSubmit={send}
             onStop={running ? stop : undefined}
