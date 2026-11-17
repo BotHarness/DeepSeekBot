@@ -87,6 +87,7 @@ describe('Channel composer', () => {
     );
     expect(markup).toContain('bh-composer-replying');
     expect(markup).toContain('bh-composer-with-footer');
+    expect(markup).toContain('--bh-composer-padding:var(--bh-composer-footer-padding)');
     expect(markup).toContain('bh-composer-reply-copy');
     expect(markup).toContain('original text');
     expect(markup).toContain('bh-composer-reply-cancel');

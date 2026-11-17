@@ -3575,6 +3575,15 @@ function ConversationView({
               <button
                 type="button"
                 className="bh-timeline-new"
+                data-unseen={unseen > 0 ? '' : undefined}
+                style={
+                  unseen > 0
+                    ? ({
+                        '--bh-timeline-new-bg': color.accent,
+                        '--bh-timeline-new-fg': color.onAccent,
+                      } as CSSProperties)
+                    : undefined
+                }
                 aria-label={t('messages.latest')}
                 aria-description={
                   unseen > 0
