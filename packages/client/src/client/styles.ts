@@ -3473,11 +3473,16 @@ button.bh-profile-heat-cell:focus-visible {
   display: flex;
   flex-direction: column;
   margin-bottom: calc(-1 * var(--bh-composer-overlay, 0px));
-  padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
+  --bh-chat-top-inset: 74px;
+  --bh-code-sticky-top: calc(var(--bh-chat-mask-top, ${space.x6}) - var(--bh-chat-top-inset));
+  padding: var(--bh-chat-top-inset) ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
   transition: padding-bottom 160ms ease;
 }
 html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
+.md-code-block > :first-child {
+  top: var(--bh-code-sticky-top, 0px);
+}
 .bh-chat-empty {
   height: 100%;
 }
