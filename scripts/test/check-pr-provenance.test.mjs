@@ -85,6 +85,13 @@ describe('PR and issue provenance', () => {
     ).toEqual({ add: ['harness:claude-code', 'model:claude-opus-5-5'], errors: [], warnings: [] });
   });
 
+  it('reads trailers only from the footer, not from examples in the body', () => {
+    const quoted =
+      'docs: explain trailers\n\nWrite `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.\n' +
+      'Claude-Session: example\n\nCo-authored-by: Claude <noreply@anthropic.com>';
+    expect(trailers([quoted])).toEqual({ harness: [], model: [] });
+  });
+
   it('prefers what the description declares over commit trailers', () => {
     const commit = 'x\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>';
     expect(

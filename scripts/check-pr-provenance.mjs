@@ -48,12 +48,18 @@ const TRAILERS = [
 
 export function trailers(messages) {
   const result = { harness: [], model: [] };
-  for (const message of messages)
+  for (const message of messages) {
+    const footer =
+      message
+        .trim()
+        .split(/\n[ \t]*\n/u)
+        .at(-1) ?? '';
     for (const agent of TRAILERS) {
-      if (agent.session.test(message)) result.harness.push(agent.harness);
-      for (const [, name] of message.matchAll(agent.model))
+      if (agent.session.test(footer)) result.harness.push(agent.harness);
+      for (const [, name] of footer.matchAll(agent.model))
         result.model.push(name.toLowerCase().replace(/[\s.]+/gu, '-'));
     }
+  }
   return { harness: [...new Set(result.harness)], model: [...new Set(result.model)] };
 }
 
