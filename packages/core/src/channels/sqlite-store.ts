@@ -4027,12 +4027,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (channel === undefined) return undefined;
       const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
       if (channel.type === 'group' && member === undefined && !humanAccess) return undefined;
+      const visibleFrom = member?.visible_from_revision ?? 0;
       return pageChannelJournalRange(
         id,
         revisionOf(id),
-        { ...request, visibleFrom: member?.visible_from_revision ?? 0 },
+        { ...request, visibleFrom },
         (first, last) =>
-          projectRows(id, placementRange(id, first, last)).map((message) => ({
+          projectRows(id, placementRange(id, first, last), visibleFrom).map((message) => ({
             message,
             revision: message.channelRevision!,
           })),

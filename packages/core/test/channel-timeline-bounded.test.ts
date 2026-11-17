@@ -272,7 +272,10 @@ describe('SQLite bounded timeline hydration', () => {
       message('before-3'),
       message('before-4'),
       message('before-5'),
-      message('visible-reply', { replyTo: 'hidden-target' }),
+      message('visible-reply', {
+        replyTo: 'hidden-target',
+        quotes: [{ messageId: 'hidden-target', text: 'earlier body' }],
+      }),
       message('visible-grant', { grantRequest: true }),
       message('resolved-grant', { grantRequest: true }),
       ...Array.from({ length: 250 }, (_, index) => message(`middle-${index}`)),
@@ -301,6 +304,14 @@ describe('SQLite bounded timeline hydration', () => {
     expect(page.hasOlder).toBe(false);
     expect(page.hasNewer).toBe(true);
     expect(page.entries[0]?.replyToPreview).toBeNull();
+    expect(page.entries[0]?.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);
+    const journal = current.channels.readHumanJournalPage(OWNER_HUMAN_CONTEXT, current.channel.id, {
+      through: page.entries[0]!.channelRevision!,
+      limit: 1,
+    })!;
+    const journalReply = journal.entries.find((entry) => entry.message.id === 'visible-reply')!;
+    expect(journalReply.message.replyToPreview).toBeNull();
+    expect(journalReply.message.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);
     expect(page.entries[1]?.grantRequestResolved).toBe(false);
     expect(page.entries[2]?.grantRequestResolved).toBe(true);
     const plain = current.channels.readTimeline(current.channel.id, request)!;
