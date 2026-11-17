@@ -35,10 +35,16 @@ const bound = (context, node, name) => {
     const variable = scope.set.get(name);
     if (variable === undefined) continue;
     const [definition] = variable.defs;
-    const init =
-      definition?.type === 'Variable' && definition.parent.kind === 'const'
-        ? definition.node.init
-        : undefined;
+    if (
+      definition?.type !== 'Variable' ||
+      definition.parent.kind !== 'const' ||
+      definition.node.id.type !== 'Identifier' ||
+      variable.references.some(
+        (reference) => !reference.init && reference.identifier.parent?.type === 'MemberExpression',
+      )
+    )
+      return undefined;
+    const { init } = definition.node;
     return init?.type === 'ArrayExpression' || init?.type === 'ObjectExpression' ? init : undefined;
   }
   return undefined;

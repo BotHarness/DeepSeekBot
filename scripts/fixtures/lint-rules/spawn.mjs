@@ -22,6 +22,11 @@ const hidden = { shell: false, windowsHide: true };
 spawn('git', hidden);
 const visible = { stdio: 'ignore' };
 spawn('git', visible);
+const { picked } = { picked: { shell: false, windowsHide: true } };
+spawn('git', picked);
+const assigned = { shell: false };
+assigned.windowsHide = true;
+spawn('git', assigned);
 
 export function run(spawnSync) {
   spawnSync('task');
