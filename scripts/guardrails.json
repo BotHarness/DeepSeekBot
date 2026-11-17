@@ -67,6 +67,14 @@
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
       "fix": "keep always-loaded agent prose (AGENTS.md, CLAUDE.md, apps/mobile/AGENTS.md) short: move a runbook into an on-demand doc or skill behind a one-line pointer, or turn the rule into a check. CI warns when a change makes them longer.",
       "check": "scripts/health.mjs"
+    },
+    {
+      "id": "feature-sources",
+      "layer": "L4 feature map",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "give the feature file a \"## Sources\" list of globs for the code it covers and a \"## Terms\" list of GLOSSARY.md entries it uses; fix a glob that matches nothing or a term the glossary lacks; when a feature gets mapped, remove it from the baseline. Find the features a change touches with node scripts/feature-impact.mjs --base=origin/main.",
+      "check": "scripts/check-feature-map.mjs",
+      "baseline": "scripts/feature-map-baseline.json"
     }
   ]
 }

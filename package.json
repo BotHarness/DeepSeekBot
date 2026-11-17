@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:changed": "node scripts/ci-plan.mjs --run",
     "health": "node scripts/health.mjs --report",
+    "feature-impact": "node scripts/feature-impact.mjs",
     "changelog:check": "node scripts/check-release-ledger.mjs && node scripts/check-dsh-skill-release-ledger.mjs",
     "changelog:fold": "node scripts/fold-change-fragments.mjs",
     "skill:changelog:check": "node scripts/check-dsh-skill-release-ledger.mjs",

@@ -1,5 +1,17 @@
 # Temporary Workspace Grant: authorize, read and revoke
 
+## Sources
+
+- `packages/core/src/workspaces/grant*.ts`
+- `packages/client/src/client/workspace-grant*`
+- `scripts/workspace-grant-report.mjs`
+
+## Terms
+
+- Workspace Grant
+- Workspace
+- Workspace root
+
 ## Sub-features
 
 - Behavior ID: `desktop.grants.temporary-read-revoke`.
