@@ -268,6 +268,9 @@ export function FilterPicker({
   );
   const favoriteKey = favorites?.filter.key;
   const [query, setQuery] = useState('');
+  const [held, setHeld] = useState<ReadonlySet<string>>();
+  const listed = (option: FilterPickerOption) =>
+    held === undefined ? option.favorite === true : held.has(option.value);
   const [active, setActive] = useState<string>();
   const position = useAnchoredPanel({ open: true, anchorRef, panelRef: panel, gap: 6, margin: 12 });
   const dismiss = useRef(onClose);
@@ -305,7 +308,7 @@ export function FilterPicker({
   const matched = options.filter(
     (option) =>
       (filter === allFilter.key ||
-        (filter === favoriteKey ? option.favorite === true : option.filter === filter)) &&
+        (filter === favoriteKey ? needle !== '' || listed(option) : option.filter === filter)) &&
       (needle === '' ||
         [option.label, option.name ?? '', option.hint ?? '', ...(option.search ?? [])].some(
           (part) => part.toLowerCase().includes(needle),
@@ -314,10 +317,7 @@ export function FilterPicker({
   const shown =
     favorites === undefined || filter === favoriteKey
       ? matched
-      : [
-          ...matched.filter((option) => option.favorite === true),
-          ...matched.filter((option) => option.favorite !== true),
-        ];
+      : [...matched.filter(listed), ...matched.filter((option) => !listed(option))];
   const enabled = busy ? [] : shown.filter((option) => option.disabled !== true);
   const close = () => {
     onClose();
@@ -407,6 +407,7 @@ export function FilterPicker({
                 onClick={() => {
                   setFilter(entry.key);
                   setActive(undefined);
+                  setHeld(undefined);
                 }}
                 {...stylex.props(styles.railButton, filter === entry.key && styles.railSelected)}
               >
@@ -500,7 +501,18 @@ export function FilterPicker({
                         }
                         data-picker-favorite={option.value}
                         onPointerDown={(event) => event.preventDefault()}
-                        onClick={() => favorites.onToggle(option.value, option.favorite !== true)}
+                        onClick={() => {
+                          setHeld(
+                            (current) =>
+                              current ??
+                              new Set(
+                                options
+                                  .filter((entry) => entry.favorite === true)
+                                  .map((entry) => entry.value),
+                              ),
+                          );
+                          favorites.onToggle(option.value, option.favorite !== true);
+                        }}
                         {...stylex.props(
                           styles.star,
                           (option.favorite === true || option.value === active) && styles.starShown,

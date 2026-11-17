@@ -166,6 +166,11 @@ function ModelsView({
   const theme = useDesignTheme();
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState<string>();
+  const [held, setHeld] = useState<ReadonlySet<string>>();
+  const chooseFamily = (next: string) => {
+    setFamily(next);
+    setHeld(undefined);
+  };
   const [name, setName] = useState<string>();
   const [saved, setSaved] = useState(false);
   const value = models.value;
@@ -281,6 +286,10 @@ function ModelsView({
       starredKeys.has(
         modelChoiceKey({ kind: 'model', provider: entry.provider, model: entry.model }),
       );
+    const listedModel = (entry: ModelRoute) =>
+      held === undefined
+        ? starredModel(entry)
+        : held.has(JSON.stringify([entry.provider, entry.model]));
     const favoriteCount = value.models.filter(starredModel).length;
     const showFavorites = !picker.endsWith('-effort') && favoriteCount > 0;
     const filter =
@@ -298,15 +307,24 @@ function ModelsView({
         : ALL;
     const found = searchModels(value.models, query).filter((entry) =>
       shownFamily === FAVORITES
-        ? starredModel(entry)
+        ? query.trim() !== '' || listedModel(entry)
         : shownFamily === ALL || modelFamilyKey(entry) === shownFamily,
     );
     const entries =
       shownFamily === FAVORITES
         ? found
-        : [...found.filter(starredModel), ...found.filter((entry) => !starredModel(entry))];
+        : [...found.filter(listedModel), ...found.filter((entry) => !listedModel(entry))];
     const star = (entry: ModelRoute, on: boolean) => {
       if (family === undefined) setFamily(shownFamily);
+      setHeld(
+        (current) =>
+          current ??
+          new Set(
+            value.models
+              .filter(starredModel)
+              .map((item) => JSON.stringify([item.provider, item.model])),
+          ),
+      );
       models.favorite({ kind: 'model', provider: entry.provider, model: entry.model }, on);
     };
     return frame(
@@ -337,7 +355,7 @@ function ModelsView({
                 label={t.modelSettings.favorites}
                 count={favoriteCount}
                 selected={shownFamily === FAVORITES}
-                onPress={() => setFamily(FAVORITES)}
+                onPress={() => chooseFamily(FAVORITES)}
               />
             ) : null}
             <Chip
@@ -345,7 +363,7 @@ function ModelsView({
               label={t.modelSettings.allFamilies}
               count={value.models.length}
               selected={shownFamily === ALL}
-              onPress={() => setFamily(ALL)}
+              onPress={() => chooseFamily(ALL)}
             />
             {families.length > 1
               ? families.map((entry) => {
@@ -357,7 +375,7 @@ function ModelsView({
                       label={entry.title ?? t.modelSettings.otherFamily}
                       count={entry.count}
                       selected={shownFamily === key}
-                      onPress={() => setFamily(shownFamily === key ? ALL : key)}
+                      onPress={() => chooseFamily(shownFamily === key ? ALL : key)}
                     />
                   );
                 })

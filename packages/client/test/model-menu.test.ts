@@ -255,6 +255,12 @@ it('opens on Favorites, stars from the row and jumps with Ctrl+number', async ()
       .querySelector(`[data-picker-favorite='${key(catalog[3]!)}']`)
       ?.getAttribute('aria-pressed'),
   ).toBe('true');
+  expect(rows()[0]).toBe('GPT-6.1OpenAICtrl+1');
+  expect(rows()[1]).not.toContain('house-model');
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>('[data-picker-filter="favorites"]')!.click(),
+  );
+  expect(rows()).toHaveLength(2);
   const search = document.body.querySelector<HTMLInputElement>('[role="combobox"]')!;
   await act(async () =>
     search.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true, bubbles: true })),
