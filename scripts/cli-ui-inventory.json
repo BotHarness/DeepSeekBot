@@ -353,13 +353,20 @@
     },
     {
       "id": "profile-personal",
-      "description": "Human default name, Channel nickname and DM trace policy.",
+      "description": "Human default name, Host chat avatar, Channel nickname and DM trace policy.",
       "scope": "Host",
       "surfaces": [
         "setting:packages/client/src/client/channel-personal-settings.tsx:{<label htmlFor=\"bh-channel-human-nickname\">{t('humanNickname.title')}</label>}",
-        "setting:packages/client/src/client/human-name-settings.tsx:{<label htmlFor=\"bh-human-default-name\">{t('humanName.title')}</label>}"
+        "setting:packages/client/src/client/human-name-settings.tsx:{<label htmlFor=\"bh-human-default-name\">{t('humanName.title')}</label>}",
+        "setting:packages/client/src/client/human-avatar-settings.tsx:{t('humanAvatar.title')}"
       ],
-      "commands": ["human-identity", "human-name-set", "channel-human-name-set"]
+      "commands": [
+        "human-identity",
+        "human-name-set",
+        "human-avatar-set",
+        "human-avatars",
+        "channel-human-name-set"
+      ]
     },
     {
       "id": "account-profile",
