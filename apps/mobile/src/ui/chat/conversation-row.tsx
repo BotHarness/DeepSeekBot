@@ -17,7 +17,7 @@ import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { GroupMark } from './group-mark';
+import { GroupMark, personInitial } from './group-mark';
 import {
   countBadge,
   previewText,
@@ -166,23 +166,16 @@ export function ConversationGroupAvatar({ avatar }: { avatar?: string | undefine
 }
 
 export function ConversationPersonAvatar({ name }: { name: string }) {
-  const theme = useDesignTheme();
   return (
     <AvatarSlot>
-      <View
-        style={{
-          width: AVATAR,
-          height: AVATAR,
-          borderRadius: radius.md,
-          backgroundColor: theme.color.surface,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text strong tone="muted">
-          {(Array.from(name.trim())[0] ?? '').toLocaleUpperCase()}
-        </Text>
-      </View>
+      <GroupMark
+        avatar={undefined}
+        initial={personInitial(name)}
+        size={AVATAR}
+        corner={radius.md}
+        variant="title"
+        strong={false}
+      />
     </AvatarSlot>
   );
 }

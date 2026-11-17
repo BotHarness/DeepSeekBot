@@ -23,9 +23,11 @@ export function ReplyBar({
       author:
         message.author === 'human'
           ? { kind: 'human' }
-          : message.bot !== undefined
-            ? { kind: 'bot', slug: message.bot }
-            : { kind: 'system' },
+          : message.person !== undefined
+            ? { kind: 'human', humanId: message.person.humanId, displayName: message.person.name }
+            : message.bot !== undefined
+              ? { kind: 'bot', slug: message.bot }
+              : { kind: 'system' },
       body: message.body,
     },
     t.reply.you,

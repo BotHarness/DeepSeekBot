@@ -187,6 +187,7 @@ connectionMode.subscribe(() => {
 });
 
 const clientHosts = new WeakMap<HostClient, string>();
+const clientSelves = new WeakMap<HostClient, string>();
 const listeners = new Set<() => void>();
 const removalListeners = new Set<(host: SavedHost) => Promise<void>>();
 export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () => void {
@@ -336,6 +337,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
+  if (saved.member !== undefined) clientSelves.set(client, saved.member.humanId);
   warmHostConversations(saved.hostId);
   const inbox = createInbox(client, {
     notifications: localAlerts,
@@ -945,9 +947,11 @@ function conversationFor(
   if (existing !== undefined) return existing;
   const cacheWaitMs = conversationCacheWaitMs();
   const cacheWait = cacheWaitMs === undefined ? {} : { cacheWaitMs };
+  const self = clientSelves.get(client);
   const inner = createConversation({
     host: client,
     ...options,
+    ...(self === undefined ? {} : { selfHumanId: self }),
     cache: conversationCache(),
     ...cacheWait,
     cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),

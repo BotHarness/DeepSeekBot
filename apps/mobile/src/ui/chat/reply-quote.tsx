@@ -19,7 +19,7 @@ export function replyAuthor(
 ): string {
   switch (preview?.author.kind) {
     case 'human':
-      return you;
+      return preview.author.displayName ?? you;
     case 'bot':
       return botName(preview.author.slug);
     case 'bridged':

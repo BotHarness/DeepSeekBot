@@ -497,11 +497,18 @@ function ChatConversation({
   const hiddenActivity = useHiddenDmActivity(saved?.hostId, slug);
   const channelId = dm ? undefined : place.channelId;
   const bot = dm ? host.roster?.bots.find((entry) => entry.slug === slug) : undefined;
-  const channel = dm ? undefined : host.roster?.channels.find((entry) => entry.id === channelId);
+  const person = dm ? undefined : host.roster?.people?.find((entry) => entry.id === channelId);
+  const channel = dm
+    ? undefined
+    : (host.roster?.channels.find((entry) => entry.id === channelId) ?? person);
   const channelDetails = dm
     ? undefined
     : host.roster?.activityChannels?.find((entry) => entry.id === channelId);
-  const botDm = channelDetails?.type === 'dm' && channelDetails.botSlug === undefined;
+  const botDm =
+    person === undefined &&
+    channelDetails?.type === 'dm' &&
+    channelDetails.botSlug === undefined &&
+    (channelDetails.humanParticipants?.length ?? 0) === 0;
   const [lastChannelName, setLastChannelName] = useState({
     hostId: saved?.hostId,
     channelId,
@@ -581,10 +588,7 @@ function ChatConversation({
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
-  const [allPreview, setAllPreview] = useState<{
-    key: string;
-    preview: WireAllBotPreview;
-  }>();
+  const [allPreview, setAllPreview] = useState<{ key: string; preview: WireAllBotPreview }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
   const sentFiles = useRef<readonly PickedFile[] | undefined>(undefined);
   const [attachError, setAttachError] = useState(false);
@@ -608,10 +612,7 @@ function ChatConversation({
     select: selectSource,
     close: closeSource,
   } = useMessageSourceState(selectionScope, focused, snapshot.messages);
-  const [picked, setPicked] = useState<{
-    scope: string;
-    ids: readonly string[];
-  }>();
+  const [picked, setPicked] = useState<{ scope: string; ids: readonly string[] }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
   const [replying, setReplying] = useState<{ scope: string; message: ConversationMessage }>();
   const replyTarget = replying?.scope === selectionScope ? replying.message : undefined;
@@ -678,10 +679,7 @@ function ChatConversation({
     },
     [android],
   );
-  const focusIntent = useRef<{
-    request: string | undefined;
-    message: string | undefined;
-  }>({
+  const focusIntent = useRef<{ request: string | undefined; message: string | undefined }>({
     request: undefined,
     message: undefined,
   });
@@ -1210,6 +1208,23 @@ function ChatConversation({
     }),
     [roster, botName, groupOf],
   );
+  const personFallback = person?.name;
+  const personSpeaker = useCallback(
+    (
+      message: ConversationMessage,
+      row: { key: string; first: boolean; last: boolean },
+    ): Speaker | undefined =>
+      message.person === undefined
+        ? undefined
+        : {
+            name: message.person.name || personFallback || '',
+            bot: undefined,
+            group: groupOf.get(row.key) ?? row.key,
+            first: row.first,
+            last: row.last,
+          },
+    [personFallback, groupOf],
+  );
 
   const nativeRows = nativeChatRecycler;
   const nativeRow = useCallback(
@@ -1222,11 +1237,15 @@ function ChatConversation({
             latest: newestMessageId,
             reading,
             speaker:
-              !dm && row.kind === 'message' && row.message.bot !== undefined
-                ? { name: botName(row.message.bot) }
-                : undefined,
+              dm || row.kind !== 'message'
+                ? undefined
+                : row.message.bot !== undefined
+                  ? { name: botName(row.message.bot) }
+                  : row.message.person !== undefined
+                    ? { name: personSpeaker(row.message, row)?.name ?? '' }
+                    : undefined,
           }),
-    [dm, selected, newestMessageId, reading, botName],
+    [dm, selected, newestMessageId, reading, botName, personSpeaker],
   );
   const speakerRow = useCallback(
     (row: Row): SpeakerRowSlot | undefined => {
@@ -1234,7 +1253,11 @@ function ChatConversation({
       const group = groupOf.get(row.key) ?? row.key;
       if (row.kind === 'draft')
         return { key: row.key, group, first: true, name: true, bottom: space.x2 };
-      if (row.kind !== 'message' || row.message.bot === undefined) return undefined;
+      if (
+        row.kind !== 'message' ||
+        (row.message.bot === undefined && row.message.person === undefined)
+      )
+        return undefined;
       const message = row.message;
       if (
         message.activity !== undefined ||
@@ -1256,6 +1279,11 @@ function ChatConversation({
   const speakerAvatar = useCallback(
     (group: string) => {
       const row = rows.find((entry) => (groupOf.get(entry.key) ?? entry.key) === group);
+      const human =
+        row?.kind === 'message'
+          ? personSpeaker(row.message, { key: group, first: true, last: true })
+          : undefined;
+      if (human !== undefined) return <SpeakerAvatar speaker={human} />;
       const slug =
         row?.kind === 'message'
           ? row.message.bot
@@ -1266,7 +1294,7 @@ function ChatConversation({
         <SpeakerAvatar speaker={speakerOf(slug, { key: group, first: true, last: true })} />
       );
     },
-    [rows, groupOf, speakerOf],
+    [rows, groupOf, speakerOf, personSpeaker],
   );
   const nativeStyle = useMemo(
     () =>
@@ -1500,7 +1528,11 @@ function ChatConversation({
           bots={roster?.bots}
           botName={botName}
           speaker={
-            !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
+            dm
+              ? undefined
+              : item.message.bot !== undefined
+                ? speakerOf(item.message.bot, item)
+                : personSpeaker(item.message, item)
           }
         />,
       );
@@ -1532,6 +1564,7 @@ function ChatConversation({
       online,
       botName,
       speakerOf,
+      personSpeaker,
       roster,
       botDm,
       router,
@@ -1638,7 +1671,12 @@ function ChatConversation({
   useLayoutEffect(() => {
     paging?.setActivity(profileActivity);
   }, [paging?.setActivity, profileActivity]);
-  const canSwipeProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const canSwipeProfile =
+    saved !== undefined &&
+    !hostRefused &&
+    !missing &&
+    selected === undefined &&
+    person === undefined;
   useLayoutEffect(() => {
     paging?.setEnabled(canSwipeProfile);
   }, [paging?.setEnabled, canSwipeProfile]);
@@ -1671,6 +1709,7 @@ function ChatConversation({
   ) : (
     <ChannelTitle
       channel={channel}
+      person={person !== undefined}
       bots={members}
       sessions={runningSessionCount(members)}
       connectionLabel={connectionLabel}
@@ -1678,7 +1717,12 @@ function ChatConversation({
       onPress={openProfile}
     />
   );
-  const canOpenProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const canOpenProfile =
+    saved !== undefined &&
+    !hostRefused &&
+    !missing &&
+    selected === undefined &&
+    person === undefined;
   const placeCall = useBotCall(
     canOpenProfile && dm && bot !== undefined ? client : undefined,
     slug,
@@ -1754,16 +1798,7 @@ function ChatConversation({
       />
     ) : null;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
-  const titleItem = (
-    <View
-      style={{
-        width: titleWidth,
-        maxWidth: titleWidth,
-      }}
-    >
-      {title}
-    </View>
-  );
+  const titleItem = <View style={{ width: titleWidth, maxWidth: titleWidth }}>{title}</View>;
   const notice = missingGroup
     ? undefined
     : hostRefused
@@ -2317,7 +2352,9 @@ function ChatConversation({
                                       tone="muted"
                                       style={{ textAlign: 'center', padding: space.x5 }}
                                     >
-                                      {dm ? t.beginning : t.beginningChannel}
+                                      {dm || person !== undefined
+                                        ? t.beginning
+                                        : t.beginningChannel}
                                     </Text>
                                   ) : undefined,
                               }}
