@@ -1,5 +1,6 @@
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
+import type { ModelFavorite } from '../models/favorites.js';
 import type { ModelPreset, ModelRoute } from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -116,7 +117,7 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
-function favoriteChoice(target: string): Record<string, string> {
+function favoriteChoice(target: string): ModelFavorite {
   if (target.startsWith('group:')) {
     const id = target.slice('group:'.length).trim();
     if (!id) usage('group:<id> needs a nonempty Model Route Group id.');

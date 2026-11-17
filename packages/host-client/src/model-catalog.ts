@@ -41,6 +41,36 @@ export function modelChoiceKey(choice: ModelChoice): string {
     : JSON.stringify([choice.provider, choice.model]);
 }
 
+export interface ModelFavoriteChange {
+  choice: ModelChoice;
+  favorite: boolean;
+}
+
+export function applyModelFavoriteChanges(
+  confirmed: readonly ModelChoice[],
+  changes: readonly ModelFavoriteChange[],
+): ModelChoice[] {
+  return changes.reduce<ModelChoice[]>(
+    (list, change) => {
+      const key = modelChoiceKey(change.choice);
+      const rest = list.filter((entry) => modelChoiceKey(entry) !== key);
+      return change.favorite ? [...rest, change.choice] : rest;
+    },
+    [...confirmed],
+  );
+}
+
+export function serialWrites<A extends unknown[], T>(
+  write: (...args: A) => Promise<T>,
+): (...args: A) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return (...args) => {
+    const run = tail.then(() => write(...args));
+    tail = run.catch(() => undefined);
+    return run;
+  };
+}
+
 export class ModelCatalogInvalid extends Error {}
 
 function record(value: unknown): Record<string, unknown> | undefined {

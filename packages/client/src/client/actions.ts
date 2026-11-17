@@ -26,7 +26,7 @@ import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
-import { rememberModelFavorites } from './model-favorites.js';
+import { modelFavoritesEpoch, rememberModelFavorites } from './model-favorites.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -2093,13 +2093,18 @@ export function createActions(
       });
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
     },
-    modelCatalog: () =>
-      loadModelCatalog(call).then((catalog) => {
-        rememberModelFavorites(catalog.favorites, (choice, favorite) =>
-          setModelFavorite(call, choice, favorite),
+    modelCatalog: () => {
+      const seen = modelFavoritesEpoch();
+      return loadModelCatalog(call).then((catalog) => {
+        rememberModelFavorites(
+          catalog.favorites,
+          call,
+          (choice, favorite) => setModelFavorite(call, choice, favorite),
+          seen,
         );
         return catalog;
-      }),
+      });
+    },
     setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
     modelPlan: (slug) => loadModelPlan(call, slug),

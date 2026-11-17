@@ -51,7 +51,7 @@ let cleanup: (() => void) | undefined;
 afterEach(() => {
   cleanup?.();
   cleanup = undefined;
-  rememberModelFavorites(undefined, undefined);
+  rememberModelFavorites(undefined);
 });
 
 async function render(props: Partial<Parameters<typeof ModelMenu>[0]> = {}) {
@@ -231,7 +231,7 @@ it('opens on Favorites, stars from the row and jumps with Ctrl+number', async ()
         ]
       : [],
   );
-  rememberModelFavorites([{ kind: 'model', provider: 'openai', model: 'gpt-6.1' }], write);
+  rememberModelFavorites([{ kind: 'model', provider: 'openai', model: 'gpt-6.1' }], 'host', write);
   const { rows, onSelect } = await render();
   expect(
     document.body.querySelector('[data-picker-filter="favorites"]')?.getAttribute('aria-pressed'),

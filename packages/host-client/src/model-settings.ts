@@ -16,6 +16,7 @@ import {
   type ModelSettingsClient,
 } from './bot-settings';
 import { recordFeature } from './telemetry/features';
+import { serialWrites } from './model-catalog';
 
 export type ModelScope =
   | { kind: 'global' }
@@ -38,6 +39,20 @@ export function modelScopeKey(scope: ModelScope): string {
 }
 
 const owners = new WeakMap<ModelSettingsClient, QueryClient>();
+const favoriteWriters = new WeakMap<
+  ModelSettingsClient,
+  (choice: ModelChoice, favorite: boolean) => Promise<ModelChoice[]>
+>();
+function writeFavorite(client: ModelSettingsClient) {
+  let write = favoriteWriters.get(client);
+  if (write === undefined) {
+    write = serialWrites((choice: ModelChoice, favorite: boolean) =>
+      setModelFavorite(client, choice, favorite),
+    );
+    favoriteWriters.set(client, write);
+  }
+  return write;
+}
 export function modelSettingsResource(client: ModelSettingsClient, scope: ModelScope) {
   let queries = owners.get(client);
   if (queries === undefined) {
@@ -57,7 +72,8 @@ export function modelSettingsResource(client: ModelSettingsClient, scope: ModelS
       await owner.invalidateQueries({ queryKey: ['mobile-model-settings'], refetchType: 'none' });
     },
     favorite: async (choice: ModelChoice, favorite: boolean) => {
-      const favorites = await setModelFavorite(client, choice, favorite);
+      const favorites = await writeFavorite(client)(choice, favorite);
+      await owner.cancelQueries({ queryKey: ['mobile-model-settings'] });
       owner.setQueriesData<ModelSettingsState>({ queryKey: ['mobile-model-settings'] }, (old) =>
         old === undefined ? old : { ...old, favorites },
       );

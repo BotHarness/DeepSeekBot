@@ -10,7 +10,11 @@ import {
   type ModelChoice,
   type ModelRoute,
 } from '@botharness/host-client/bot-settings';
-import { modelChoiceKey } from '@botharness/host-client/model-catalog';
+import {
+  applyModelFavoriteChanges,
+  modelChoiceKey,
+  type ModelFavoriteChange,
+} from '@botharness/host-client/model-catalog';
 import type { HostClient } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
 import {
@@ -52,9 +56,8 @@ function useModels(client: HostClient, scope: ModelScope) {
   const [value, setValue] = useState(resource.peek);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [starred, setStarred] = useState<ModelChoice[]>();
+  const [changes, setChanges] = useState<readonly ModelFavoriteChange[]>([]);
   const pending = useRef(false);
-  const starring = useRef(0);
   const generation = useRef(0);
   const refresh = useCallback(() => {
     const request = generation.current;
@@ -107,23 +110,20 @@ function useModels(client: HostClient, scope: ModelScope) {
         setBusy(false);
       });
   };
-  const favorites = starred ?? value?.favorites ?? [];
+  const favorites = applyModelFavoriteChanges(value?.favorites ?? [], changes);
   const favorite = (choice: ModelChoice, on: boolean) => {
-    const key = modelChoiceKey(choice);
-    const rest = favorites.filter((entry) => modelChoiceKey(entry) !== key);
-    setStarred(on ? [...rest, choice] : rest);
+    const change: ModelFavoriteChange = { choice, favorite: on };
+    generation.current += 1;
+    setChanges((current) => [...current, change]);
     setError(undefined);
-    starring.current += 1;
+    const settle = () => setChanges((current) => current.filter((entry) => entry !== change));
     void resource.favorite(choice, on).then(
       (list) => {
-        starring.current -= 1;
-        if (starring.current > 0) return;
         setValue((current) => (current === undefined ? current : { ...current, favorites: list }));
-        setStarred(undefined);
+        settle();
       },
       (cause: unknown) => {
-        starring.current -= 1;
-        if (starring.current === 0) setStarred(undefined);
+        settle();
         setError(errorText(cause));
       },
     );
@@ -420,6 +420,7 @@ function ModelsView({
                           : t.modelSettings.favoriteAdd(item.modelName)
                       }
                       favorite={isFavorite}
+                      disabled={models.busy}
                       onPress={() => star(item, !isFavorite)}
                     />
                   }
