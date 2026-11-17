@@ -182,13 +182,14 @@ export function createBotMessageTool(
       },
       quotes: {
         type: 'array',
-        description: `Cite up to ${MAX_CHANNEL_QUOTES} earlier messages of the destination Channel that this message answers, shown to the Human above your text. Give message_id, and text only to cite a part: copy that excerpt word for word from the message. Local Channels only.`,
+        description: `Cite up to ${MAX_CHANNEL_QUOTES} earlier messages of the destination Channel that this message answers, shown to the Human above your text. Give message_id, and text only to cite a part: copy that excerpt word for word from the message. Add note to answer that one quote right under it. Local Channels only.`,
         items: {
           type: 'object',
           additionalProperties: false,
           properties: {
             message_id: { type: 'string', required: true },
             text: { type: 'string' },
+            note: { type: 'string' },
           },
         },
       },
@@ -348,6 +349,7 @@ export function createBotMessageTool(
                 args.quotes!.map((quote) => ({
                   messageId: quote.message_id,
                   ...(quote.text === undefined ? {} : { text: quote.text }),
+                  ...(quote.note === undefined ? {} : { note: quote.note }),
                 })),
               );
               if (typeof parsed === 'string') throw new BotMessageError('invalid-quotes', parsed);

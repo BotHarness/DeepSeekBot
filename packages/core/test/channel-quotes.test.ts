@@ -20,6 +20,13 @@ describe('Channel quotes', () => {
       { messageId: 'a' },
       { messageId: 'b', text: 'part' },
     ]);
+    expect(
+      parseQuotesInput([
+        { messageId: 'a', note: '  ok  ' },
+        { messageId: 'b', note: ' ' },
+      ]),
+    ).toEqual([{ messageId: 'a', note: 'ok' }, { messageId: 'b' }]);
+    expect(parseQuotesInput([{ messageId: 'a', note: 3 }])).toBeTypeOf('string');
     expect(parseQuotesInput('a')).toBeTypeOf('string');
     expect(parseQuotesInput([{ messageId: '' }])).toBeTypeOf('string');
     expect(parseQuotesInput([{ messageId: 'a', text: ' ' }])).toBeTypeOf('string');
@@ -94,6 +101,12 @@ describe('Channel quotes', () => {
     expect(block).toContain('- Message b from PersonaBot ada: "whole message"');
     expect(block).toContain('- Message gone: (unavailable)');
     expect(quotePromptBlock(undefined, () => undefined)).toBe('');
+    expect(
+      quotePromptBlock([{ messageId: 'a', text: 'beta', note: 'Agreed' }], () => ({
+        author: 'Human',
+        body: 'alpha beta',
+      })),
+    ).toContain('(excerpt): "beta"\n  Sender\'s reply to this quote: "Agreed"');
   });
 
   it('keeps symbol-only excerpts, drops empty lists and hides purged targets', () => {

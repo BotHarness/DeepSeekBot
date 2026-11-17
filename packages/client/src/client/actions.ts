@@ -369,7 +369,7 @@ import {
   type RosterSection,
   type TopOrderEntry,
 } from './roster.js';
-import { initialTimeline } from './store.js';
+import { initialTimeline, quoteRefOf, type QuoteRef } from './store.js';
 import {
   completeFlatEntries,
   flatRosterChannelIds,
@@ -1050,7 +1050,7 @@ export interface BridgeActions {
     allBotMention?: AllBotMention,
     submissionId?: string,
     skillInvocations?: ChannelSkillInvocationToken[],
-    quotes?: readonly { messageId: string; text?: string }[],
+    quotes?: readonly QuoteRef[],
   ): Promise<boolean>;
   skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
   botSkills?(slug: string): Promise<BotSkillRow[]>;
@@ -3416,11 +3416,12 @@ export function createActions(
         if (!(typeof prepared === 'boolean' ? prepared : await prepared)) return false;
       }
       const replyTarget = snapshot.conversation.messages.find((message) => message.id === replyTo);
-      const quoteEcho = quotes?.map(({ messageId, text }) => {
-        const target = snapshot.conversation.messages.find((message) => message.id === messageId);
+      const quoteEcho = quotes?.map((quote) => {
+        const target = snapshot.conversation.messages.find(
+          (message) => message.id === quote.messageId,
+        );
         return {
-          messageId,
-          ...(text === undefined ? {} : { text }),
+          ...quoteRefOf(quote),
           preview: target === undefined ? null : replyPreviewOf(target),
         };
       });
@@ -3461,9 +3462,7 @@ export function createActions(
           ...(quotes === undefined || quotes.length === 0
             ? {}
             : {
-                quotes: quotes.map(({ messageId, text }) =>
-                  text === undefined ? { messageId } : { messageId, text },
-                ),
+                quotes: quotes.map(quoteRefOf),
               }),
           ...(attachments === undefined || attachments.length === 0 ? {} : { attachments }),
         });

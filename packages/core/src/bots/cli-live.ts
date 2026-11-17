@@ -544,6 +544,7 @@ interface LiveValues
   'message-id'?: string;
   'reply-to'?: string;
   quote?: string[];
+  'quote-note'?: string[];
   'failure-message-id'?: string;
   'auto-continue-for'?: string;
   recovery?: string;
@@ -1314,7 +1315,15 @@ export async function runLiveCli(
       usage('--message-id must be human- followed by a UUID.');
     if (values['reply-to'] !== undefined && !values['reply-to'].trim())
       usage('--reply-to needs a message id.');
-    const parsedQuotes = parseQuotesInput(values.quote?.map(cliQuote));
+    const notes = values['quote-note'] ?? [];
+    if (notes.length > (values.quote?.length ?? 0))
+      usage('--quote-note pairs with the --quote at the same position.');
+    const parsedQuotes = parseQuotesInput(
+      values.quote?.map((value, index) => ({
+        ...cliQuote(value),
+        ...(notes[index] ? { note: notes[index] } : {}),
+      })),
+    );
     if (typeof parsedQuotes === 'string') usage(`--quote: ${parsedQuotes}.`);
     quotes = parsedQuotes as ChannelQuote[];
     skillTokens = skillInvocationTokens(body, values.skill);

@@ -13,7 +13,7 @@ import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { humanIdOf, useSelfHumanId, SelfHumanContext } from './self-human.js';
-import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
+import { CONVERSATION_STATE_KEYS, quoteRefOf, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
 import { BubbleHoveredContext, BubbleToolbar } from './bubble-toolbar.js';
 import { AppearanceContext } from './appearance-context.js';
@@ -460,6 +460,7 @@ function QuoteList({
         const key = `${entry.messageId}:${index}`;
         const preview = entry.preview;
         const text = 'text' in entry ? entry.text : undefined;
+        const note = 'note' in entry ? entry.note : undefined;
         if (preview === undefined || preview === null)
           return (
             <QuoteCard
@@ -468,6 +469,7 @@ function QuoteList({
               part={false}
               mine={mine}
               kind="unavailable"
+              note={note}
             />
           );
         const quoted = preview.author;
@@ -503,6 +505,8 @@ function QuoteList({
                 />
               )
             }
+            note={note}
+            noteLabel={t('message.quoteNoteLabel', { author })}
             jumpLabel={t('message.quoteJump', { author })}
             onJump={() => onJump(entry.messageId)}
           />
@@ -2435,6 +2439,7 @@ function ConversationView({
           {
             messageId: quote.messageId,
             ...(quote.text === undefined ? {} : { text: quote.text }),
+            ...(quote.note === undefined ? {} : { note: quote.note }),
             author: authorLabel(target, state.bots, t, channelHumanName(channel)),
             excerpt,
           },
@@ -2956,8 +2961,12 @@ function ConversationView({
         .map((item) => item.id),
     );
     const submittedReplyTo = replyTarget?.id;
-    const submittedQuotes = quoteTargets.map(({ messageId, text }) =>
-      text === undefined ? { messageId } : { messageId, text },
+    const submittedQuotes = quoteTargets.map(({ messageId, text, note }) =>
+      quoteRefOf({
+        messageId,
+        ...(text === undefined ? {} : { text }),
+        ...(note?.trim() ? { note: note.trim() } : {}),
+      }),
     );
     const submittedAttachments = submittedUploads.flatMap((item) =>
       item.ref === undefined ? [] : [item.ref],
@@ -3990,6 +3999,15 @@ function ConversationView({
                       setQuoteTargets((current) =>
                         current.filter(
                           (item) => item.messageId !== quote.messageId || item.text !== quote.text,
+                        ),
+                      )
+                    }
+                    onQuoteNote={(quote, note) =>
+                      setQuoteTargets((current) =>
+                        current.map((item) =>
+                          item.messageId === quote.messageId && item.text === quote.text
+                            ? { ...item, note }
+                            : item,
                         ),
                       )
                     }

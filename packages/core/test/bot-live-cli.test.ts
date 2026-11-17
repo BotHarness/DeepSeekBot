@@ -380,6 +380,10 @@ describe('live CLI over the authenticated DSH carrier', () => {
         'bot-earlier',
         '--quote',
         'human-first::the export fix',
+        '--quote-note',
+        '',
+        '--quote-note',
+        'still Friday?',
       ],
       live.url,
     );
@@ -388,8 +392,16 @@ describe('live CLI over the authenticated DSH carrier', () => {
       channelId: 'dm-ada',
       body: 'both?',
       messageId: 'human-44444444-4444-4444-8444-444444444444',
-      quotes: [{ messageId: 'bot-earlier' }, { messageId: 'human-first', text: 'the export fix' }],
+      quotes: [
+        { messageId: 'bot-earlier' },
+        { messageId: 'human-first', text: 'the export fix', note: 'still Friday?' },
+      ],
     });
+    const extra = await invoke(
+      ['send', 'ada', '--body', 'x', '--quote', 'id', '--quote-note', 'a', '--quote-note', 'b'],
+      live.url,
+    );
+    expect(extra.code).not.toBe(0);
     const blank = await invoke(['send', 'ada', '--body', 'x', '--quote', 'id::  '], live.url);
     expect(blank.code).not.toBe(0);
   });

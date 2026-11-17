@@ -216,7 +216,7 @@ Prompt Preset 用于编辑 System Prompt 和每轮模板里的行为文字；围
 deepseekbot send <bot-id> --body "回复 QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "就这条" --reply-to <消息-id>
-deepseekbot send <bot-id> --body "这两条还成立吗？" --quote <消息-id> --quote "<消息-id>::原文片段"
+deepseekbot send <bot-id> --body "这两条还成立吗？" --quote <消息-id> --quote "<消息-id>::原文片段" --quote-note "" --quote-note "还是周五吗？"
 deepseekbot skills-list --bot <bot-id> [--query <文本>]
 deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <名称> --owner bot:<bot-id>
@@ -351,7 +351,7 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
 
-`bot_send_message` 可用 `quotes: [{message_id, text?}]`（最多 8 条）在正文上方引用目标本地 Channel 中的旧消息；`text` 必须是该消息的原文片段，外部 IM、远程 Bot 和 `bot_id` 发送不支持引用，返回 `unsupported-quotes`。`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。空的可选字段（`""`、`[]`、`false` 或归零的 `freshness_override`）视为未提供，因此只需恰好一个非空目标；`destination-required` 错误会列出实际收到的目标字段。
+`bot_send_message` 可用 `quotes: [{message_id, text?, note?}]`（最多 8 条）在正文上方引用目标本地 Channel 中的旧消息；`text` 必须是该消息的原文片段，`note` 是针对这一条引用的回复，显示在引用下方；外部 IM、远程 Bot 和 `bot_id` 发送不支持引用，返回 `unsupported-quotes`。`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。空的可选字段（`""`、`[]`、`false` 或归零的 `freshness_override`）视为未提供，因此只需恰好一个非空目标；`destination-required` 错误会列出实际收到的目标字段。
 
 若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`bot_send_message` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
 
@@ -800,7 +800,7 @@ printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim\\nCalm and pre
 
 结合 `send` 与 `bot-trace` 即可定位问题：直接调用成功而同一请求经 `send` 失败，去 `bot-trace` 看模型的调用；直接调用也失败，问题在 Harness 或运行时。
 
-`send` 由 Host 建立已注册 Bot 的 DM，返回 `receipt`、已提交的人类 `message`、`sourceEventId`、处理 `state` 和 `replies`。回复必须关联这一条请求及归该 Bot 所有的 Session；其他请求、审批／提问卡片、通知和失败不算回复。真实回复同时验证当前模型和 key。默认期限 120 秒，最多 600 秒；发送不会自动重试。开始发送后的错误包含回执，请先用 `send-status` 查结果。指定同一 `human-<UUID>` ID 与正文可由 Host 去重，改变正文则返回错误码。已处理但无回复返回 `reply-not-produced`，需要修复返回 `send-needs-repair`。`--reply-to <消息-id>` 把这条消息作为对该 DM 中某条旧消息的回复发出，与手机上左滑回复相同；目标不在这个 DM 中时 Host 拒绝。`--quote <消息-id>` 引用整条旧消息，`--quote <消息-id>::<片段>` 只引用其中一部分；可重复，最多 8 条，输入框里显示为引用 chip，Bot 收到 `[Quoted messages]` 块。消息不在这个 DM 中时 Host 拒绝（`quote-target-missing`）；片段不属于该消息时也拒绝，比较时只看字母和数字，所以渲染后的 Markdown 能匹配原文（`quote-text-mismatch`）。
+`send` 由 Host 建立已注册 Bot 的 DM，返回 `receipt`、已提交的人类 `message`、`sourceEventId`、处理 `state` 和 `replies`。回复必须关联这一条请求及归该 Bot 所有的 Session；其他请求、审批／提问卡片、通知和失败不算回复。真实回复同时验证当前模型和 key。默认期限 120 秒，最多 600 秒；发送不会自动重试。开始发送后的错误包含回执，请先用 `send-status` 查结果。指定同一 `human-<UUID>` ID 与正文可由 Host 去重，改变正文则返回错误码。已处理但无回复返回 `reply-not-produced`，需要修复返回 `send-needs-repair`。`--reply-to <消息-id>` 把这条消息作为对该 DM 中某条旧消息的回复发出，与手机上左滑回复相同；目标不在这个 DM 中时 Host 拒绝。`--quote <消息-id>` 引用整条旧消息，`--quote <消息-id>::<片段>` 只引用其中一部分；可重复，最多 8 条，输入框里显示为引用 chip，Bot 收到 `[Quoted messages]` 块。`--quote-note <文字>` 为同一位置的 `--quote` 加一句回复，显示在该引用下方；传 `""` 表示这条引用不加回复。消息不在这个 DM 中时 Host 拒绝（`quote-target-missing`）；片段不属于该消息时也拒绝，比较时只看字母和数字，所以渲染后的 Markdown 能匹配原文（`quote-text-mismatch`）。
 
 问题答案由 stdin 提供：`{"answers":[{"id":"question-id","selected":["Blue"],"custom":"可选文字"}]}`；从在线历史获取问题 ID 与选项。Host owner 只应用一次决定，重复或竞争操作返回原有错误码。工具审批提供仅允许一次和拒绝；问题状态保留 pending/submitted/answered/expired。`release-info` 只读生命周期，工作区授权使用 `workspace-options` 返回的 ID。
 

@@ -19,6 +19,7 @@ export interface ComposerDraft {
 export interface ComposerQuote {
   messageId: string;
   text?: string;
+  note?: string;
   author: string;
   excerpt: string;
 }
@@ -132,9 +133,11 @@ function parseVersion(raw: string): Version {
   const quotes = savedQuotes.map((entry): ComposerQuote => {
     const quote = record(entry);
     const text = quote['text'] === undefined ? undefined : string(quote['text']);
+    const note = quote['note'] === undefined ? undefined : string(quote['note']);
     return {
       messageId: string(quote['messageId']),
       ...(text === undefined ? {} : { text }),
+      ...(note === undefined ? {} : { note }),
       author: string(quote['author']),
       excerpt: string(quote['excerpt']),
     };

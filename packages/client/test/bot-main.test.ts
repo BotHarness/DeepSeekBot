@@ -1595,6 +1595,18 @@ describe('Bot main Sessions pane', () => {
       true,
     );
     expect(document.body.querySelector('[data-selection-toolbar]')).toBeNull();
+    const noteInput = container.querySelector<HTMLInputElement>('[data-quote-chip] input')!;
+    expect(noteInput.placeholder).toBe(zhTranslate('message.quoteNote'));
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        noteInput,
+        'Agreed',
+      );
+      noteInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(container.querySelector<HTMLInputElement>('[data-quote-chip] input')!.value).toBe(
+      'Agreed',
+    );
     Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
     window.getSelection()!.removeAllRanges();
     await act(async () => store.setComposerIdentity(identity));
@@ -1759,6 +1771,19 @@ describe('Bot main Sessions pane', () => {
       ],
     });
     expect(render().match(/data-bubble-quote="bot"/gu)).toHaveLength(1);
+    store.setConversation({
+      messages: [
+        {
+          ...reply,
+          quotes: [
+            { messageId: 'm1', text: 'original', note: 'Agreed', preview: reply.replyToPreview! },
+          ],
+        },
+      ],
+    });
+    const noted = render();
+    expect(noted).toContain('data-bubble-quote-note');
+    expect(noted.indexOf('original')).toBeLessThan(noted.indexOf('Agreed'));
 
     store.setConversation({ messages: [{ ...reply, replyToPreview: null }] });
     const unavailable = render();

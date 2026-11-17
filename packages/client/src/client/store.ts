@@ -120,9 +120,21 @@ export type ChannelAuthor =
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
-export interface ChannelMessageQuote {
+export interface QuoteRef {
   messageId: string;
   text?: string;
+  note?: string;
+}
+
+export function quoteRefOf({ messageId, text, note }: QuoteRef): QuoteRef {
+  return {
+    messageId,
+    ...(text === undefined ? {} : { text }),
+    ...(note === undefined ? {} : { note }),
+  };
+}
+
+export interface ChannelMessageQuote extends QuoteRef {
   preview?: ChannelReplyPreview | null;
 }
 

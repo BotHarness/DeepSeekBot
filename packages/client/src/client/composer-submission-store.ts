@@ -1,4 +1,4 @@
-import type { ChannelAttachmentRef } from './store.js';
+import type { ChannelAttachmentRef, QuoteRef } from './store.js';
 import { isChannelAttachmentRef } from '../../../core/src/attachments/ref.js';
 
 export type SubmissionState = 'pending' | 'failed' | 'unknown' | 'sent' | 'restored';
@@ -15,7 +15,7 @@ export interface SubmissionAttempt {
   mentions: (SubmissionToken & { botSlug: string })[];
   channelRefs: (SubmissionToken & { channelId: string })[];
   replyTo?: string;
-  quotes?: { messageId: string; text?: string }[];
+  quotes?: QuoteRef[];
   attachments?: ChannelAttachmentRef[];
   state: SubmissionState;
   error?: string;
@@ -87,7 +87,8 @@ function parse(raw: string): SubmissionAttempt[] {
             typeof record === 'object' &&
             record !== null &&
             typeof record['messageId'] === 'string' &&
-            (record['text'] === undefined || typeof record['text'] === 'string')
+            (record['text'] === undefined || typeof record['text'] === 'string') &&
+            (record['note'] === undefined || typeof record['note'] === 'string')
           );
         }))
     )
@@ -100,7 +101,7 @@ function parse(raw: string): SubmissionAttempt[] {
       channelRefs: tokens(item['channelRefs'], '#', 'channelId'),
       state: state as SubmissionState,
       ...(typeof item['replyTo'] === 'string' ? { replyTo: item['replyTo'] } : {}),
-      ...(quotes === undefined ? {} : { quotes: quotes as { messageId: string; text?: string }[] }),
+      ...(quotes === undefined ? {} : { quotes: quotes as QuoteRef[] }),
       ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
       ...(typeof item['error'] === 'string' ? { error: item['error'] } : {}),
     };

@@ -167,10 +167,12 @@ import type {
   ChannelReaction,
   ChannelSummary,
   OwnedSessionSummary,
+  QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
   ApprovalCardView,
 } from './store.js';
+import { quoteRefOf } from './store.js';
 import {
   parseRosterSection,
   parseRosterSnapshot,
@@ -4644,7 +4646,7 @@ export async function sendChannelMessage(
   allBotMention?: AllBotMention,
   genuiReply?: GenuiMessageReply,
   skillInvocations?: ChannelSkillInvocationToken[],
-  quotes?: readonly { messageId: string; text?: string }[],
+  quotes?: readonly QuoteRef[],
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -4659,9 +4661,7 @@ export async function sendChannelMessage(
       ...(quotes === undefined || quotes.length === 0
         ? {}
         : {
-            quotes: quotes.map(({ messageId, text }) =>
-              text === undefined ? { messageId } : { messageId, text },
-            ),
+            quotes: quotes.map(quoteRefOf),
           }),
       ...(attachments === undefined ? {} : { attachments }),
       ...(messageId === undefined ? {} : { messageId }),
@@ -7687,12 +7687,14 @@ function parseMessageQuotes(value: unknown): ChannelMessageQuote[] | undefined |
     const quote = asRecord(entry);
     if (quote === undefined || typeof quote['messageId'] !== 'string') return false;
     if (quote['text'] !== undefined && typeof quote['text'] !== 'string') return false;
+    if (quote['note'] !== undefined && typeof quote['note'] !== 'string') return false;
     const preview =
       quote['preview'] === undefined ? undefined : parseQuotePreview(quote['preview']);
     if (preview === false) return false;
     quotes.push({
       messageId: quote['messageId'],
       ...(typeof quote['text'] === 'string' ? { text: quote['text'] } : {}),
+      ...(typeof quote['note'] === 'string' ? { note: quote['note'] } : {}),
       ...(preview === undefined ? {} : { preview }),
     });
   }

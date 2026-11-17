@@ -10,6 +10,7 @@ export const MAX_QUOTE_TEXT = 1000;
 export interface ChannelQuote<Preview = ChannelReplyPreview> {
   messageId: string;
   text?: string;
+  note?: string;
   preview?: Preview | null;
 }
 
@@ -37,6 +38,11 @@ export function parseQuotesInput(raw: unknown): ChannelQuote[] | string {
     const record = item as Record<string, unknown>;
     const messageId = record['messageId'];
     const text = record['text'];
+    const rawNote = record['note'];
+    if (rawNote !== undefined && typeof rawNote !== 'string') return 'Quote note must be text';
+    const note = typeof rawNote === 'string' && rawNote.trim() ? rawNote.trim() : undefined;
+    if (note !== undefined && Array.from(note).length > MAX_QUOTE_TEXT)
+      return `Quote note is limited to ${MAX_QUOTE_TEXT} characters`;
     if (typeof messageId !== 'string' || messageId.length === 0 || messageId.length > 200)
       return 'Each quote names a messageId';
     if (text !== undefined && (typeof text !== 'string' || !text.trim()))
@@ -46,7 +52,11 @@ export function parseQuotesInput(raw: unknown): ChannelQuote[] | string {
     const excerpt = typeof text === 'string' ? text.trim() : undefined;
     if (quotes.some((quote) => quote.messageId === messageId && quote.text === excerpt))
       return 'The same quote appears twice';
-    quotes.push(excerpt === undefined ? { messageId } : { messageId, text: excerpt });
+    quotes.push({
+      messageId,
+      ...(excerpt === undefined ? {} : { text: excerpt }),
+      ...(note === undefined ? {} : { note }),
+    });
   }
   return quotes;
 }
@@ -60,6 +70,7 @@ export function isChannelQuoteList(value: unknown): boolean {
     const record = item as Record<string, unknown>;
     if (typeof record['messageId'] !== 'string' || record['messageId'].length === 0) return false;
     if (record['text'] !== undefined && typeof record['text'] !== 'string') return false;
+    if (record['note'] !== undefined && typeof record['note'] !== 'string') return false;
     const preview = record['preview'];
     return (
       preview === undefined ||
@@ -119,7 +130,11 @@ export function sameQuoteIntent(
     a.length === b.length &&
     a.every((quote, index) => {
       const other = b[index]!;
-      return quote.messageId === other.messageId && quote.text === other.text;
+      return (
+        quote.messageId === other.messageId &&
+        quote.text === other.text &&
+        quote.note === other.note
+      );
     })
   );
 }
@@ -146,9 +161,11 @@ export function durableQuotes<T extends { quotes?: ChannelQuote[] }>(message: T)
   }
   return {
     ...message,
-    quotes: message.quotes.map(({ messageId, text }) =>
-      text === undefined ? { messageId } : { messageId, text },
-    ),
+    quotes: message.quotes.map(({ messageId, text, note }) => ({
+      messageId,
+      ...(text === undefined ? {} : { text }),
+      ...(note === undefined ? {} : { note }),
+    })),
   };
 }
 
@@ -163,12 +180,14 @@ export function projectQuotes<
   if (message.quotes === undefined) return message;
   return {
     ...message,
-    quotes: message.quotes.map(({ messageId, text }) => {
+    quotes: message.quotes.map(({ messageId, text, note }) => {
       const target = lookup(messageId);
-      if (target === undefined || purged(target)) return { messageId, preview: null };
+      if (target === undefined || purged(target))
+        return { messageId, ...(note === undefined ? {} : { note }), preview: null };
       return {
         messageId,
         ...(text === undefined ? {} : { text }),
+        ...(note === undefined ? {} : { note }),
         preview: replyPreviewOf(
           target,
           projectThumbnail === undefined ? undefined : (ref) => projectThumbnail(target, ref),
@@ -187,15 +206,19 @@ export function quotePromptBlock(
   if (quotes === undefined || quotes.length === 0) return '';
   const lines = quotes.map((quote) => {
     const target = lookup(quote.messageId);
+    const note =
+      quote.note === undefined
+        ? ''
+        : `\n  Sender's reply to this quote: ${JSON.stringify(quote.note)}`;
     if (target === undefined || purged(target))
-      return `- Message ${quote.messageId}: (unavailable)`;
+      return `- Message ${quote.messageId}: (unavailable)${note}`;
     const source = quote.text ?? target.body;
     const characters = Array.from(source.replace(/\s+/gu, ' ').trim());
     const excerpt =
       characters.length > PROMPT_QUOTE_LIMIT
         ? characters.slice(0, PROMPT_QUOTE_LIMIT).join('') + '...'
         : characters.join('');
-    return `- Message ${quote.messageId} from ${target.author}${quote.text === undefined ? '' : ' (excerpt)'}: ${JSON.stringify(excerpt)}`;
+    return `- Message ${quote.messageId} from ${target.author}${quote.text === undefined ? '' : ' (excerpt)'}: ${JSON.stringify(excerpt)}${note}`;
   });
-  return `\n[Quoted messages: the sender cites these earlier messages of this Channel; answer with them in mind]\n${lines.join('\n')}`;
+  return `\n[Quoted messages: the sender cites these earlier messages of this Channel, some with a reply to that quote; answer with them in mind]\n${lines.join('\n')}`;
 }

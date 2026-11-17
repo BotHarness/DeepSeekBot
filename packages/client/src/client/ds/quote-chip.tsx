@@ -10,8 +10,8 @@ const tint = (percent: number) => `color-mix(in srgb, currentColor ${percent}%, 
 const styles = stylex.create({
   chipList: {
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: space.x2,
+    flexDirection: 'column',
+    gap: space.x1,
     minWidth: 0,
     margin: 0,
     paddingBlock: `0 ${space.x2}`,
@@ -19,11 +19,10 @@ const styles = stylex.create({
     listStyle: 'none',
   },
   chip: {
-    display: 'inline-flex',
+    display: 'flex',
     alignItems: 'center',
     gap: space.x1,
     minWidth: 0,
-    maxWidth: 'min(100%, 280px)',
     minHeight: style.chipHeight,
     boxSizing: 'border-box',
     paddingBlock: 0,
@@ -46,10 +45,35 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
   },
   excerpt: {
+    flexShrink: 1,
+    flexBasis: 'auto',
     minWidth: 0,
+    maxWidth: '45%',
     overflow: 'hidden',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
+  },
+  note: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: '96px',
+    height: style.chipHeight,
+    boxSizing: 'border-box',
+    marginInlineStart: space.x1,
+    paddingBlock: 0,
+    paddingInline: space.x2,
+    borderWidth: 0,
+    borderInlineStartWidth: border.hairline,
+    borderStyle: 'solid',
+    borderColor: color.border,
+    backgroundColor: 'transparent',
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    outline: 'none',
+    '::placeholder': { color: color.subtle },
   },
   remove: {
     display: 'grid',
@@ -132,6 +156,21 @@ const styles = stylex.create({
   },
   cardBodyMine: { color: 'inherit' },
   cardBodyPart: { fontStyle: 'italic' },
+  quoteItem: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  cardNote: {
+    display: 'flex',
+    margin: 0,
+    alignItems: 'baseline',
+    gap: space.x1,
+    minWidth: 0,
+    paddingInlineStart: space.x2,
+    color: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    overflowWrap: 'anywhere',
+    whiteSpace: 'pre-wrap',
+  },
+  cardNoteMark: { flexShrink: 0, opacity: 0.6 },
 });
 
 export function QuoteChipList({
@@ -152,29 +191,45 @@ export function QuoteChip({
   author,
   excerpt,
   part,
+  note,
+  noteLabel,
+  notePlaceholder,
   removeLabel,
   disabled,
+  onNoteChange,
   onRemove,
 }: {
   readonly author: string;
   readonly excerpt: string;
   readonly part: boolean;
+  readonly note: string;
+  readonly noteLabel: string;
+  readonly notePlaceholder: string;
   readonly removeLabel: string;
   readonly disabled?: boolean;
+  readonly onNoteChange: (note: string) => void;
   readonly onRemove: () => void;
 }) {
   return (
-    <li
-      title={`${author}: ${excerpt}`}
-      data-quote-chip=""
-      data-quote-part={part ? '' : undefined}
-      {...stylex.props(styles.chip)}
-    >
+    <li data-quote-chip="" data-quote-part={part ? '' : undefined} {...stylex.props(styles.chip)}>
       <span aria-hidden="true" {...stylex.props(styles.icon)}>
         <QuoteIcon size={14} />
       </span>
       <span {...stylex.props(styles.author)}>{author}</span>
-      <span {...stylex.props(styles.excerpt)}>{excerpt}</span>
+      <span title={`${author}: ${excerpt}`} {...stylex.props(styles.excerpt)}>
+        {excerpt}
+      </span>
+      <input
+        type="text"
+        value={note}
+        maxLength={1000}
+        aria-label={noteLabel}
+        placeholder={notePlaceholder}
+        disabled={disabled}
+        data-quote-note=""
+        onChange={(event) => onNoteChange(event.target.value)}
+        {...stylex.props(styles.note)}
+      />
       <button
         type="button"
         aria-label={removeLabel}
@@ -212,10 +267,15 @@ export const QuoteCard = forwardRef<
     readonly kind: string;
     readonly media?: string | undefined;
     readonly thumb?: ReactNode | undefined;
+    readonly note?: string | undefined;
+    readonly noteLabel?: string;
     readonly jumpLabel?: string;
     readonly onJump?: () => void;
   }
->(function QuoteCard({ author, body, part, mine, kind, media, thumb, jumpLabel, onJump }, ref) {
+>(function QuoteCard(
+  { author, body, part, mine, kind, media, thumb, note, noteLabel, jumpLabel, onJump },
+  ref,
+) {
   const content = (
     <>
       <span aria-hidden="true" {...stylex.props(styles.cardIcon)}>
@@ -234,14 +294,26 @@ export const QuoteCard = forwardRef<
       </span>
     </>
   );
+  const reply =
+    note === undefined ? null : (
+      <p aria-label={noteLabel} data-bubble-quote-note="" {...stylex.props(styles.cardNote)}>
+        <span aria-hidden="true" {...stylex.props(styles.cardNoteMark)}>
+          ↳
+        </span>
+        <span>{note}</span>
+      </p>
+    );
   if (onJump === undefined)
     return (
-      <li data-bubble-quote="unavailable" {...stylex.props(styles.card, styles.cardMuted)}>
-        {content}
+      <li {...stylex.props(styles.quoteItem)}>
+        <div data-bubble-quote="unavailable" {...stylex.props(styles.card, styles.cardMuted)}>
+          {content}
+        </div>
+        {reply}
       </li>
     );
   return (
-    <li>
+    <li {...stylex.props(styles.quoteItem)}>
       <button
         ref={ref}
         type="button"
@@ -258,6 +330,7 @@ export const QuoteCard = forwardRef<
       >
         {content}
       </button>
+      {reply}
     </li>
   );
 });

@@ -144,6 +144,7 @@ export interface ChannelComposerProps {
   ): void;
   onCancelReply?(): void;
   onRemoveQuote?(quote: ComposerQuote): void;
+  onQuoteNote?(quote: ComposerQuote, note: string): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
   onStop?: (() => void) | undefined;
@@ -445,6 +446,7 @@ export function ChannelComposer({
   onChange,
   onCancelReply,
   onRemoveQuote,
+  onQuoteNote,
   onRecall,
   onSubmit,
   onStop,
@@ -1340,8 +1342,12 @@ export function ChannelComposer({
                 author={quote.author}
                 excerpt={quote.excerpt}
                 part={quote.text !== undefined}
+                note={quote.note ?? ''}
+                noteLabel={t('message.quoteNoteLabel', { author: quote.author })}
+                notePlaceholder={t('message.quoteNote')}
                 removeLabel={t('message.quoteRemove', { author: quote.author })}
                 disabled={locked}
+                onNoteChange={(note) => onQuoteNote?.(quote, note)}
                 onRemove={() => onRemoveQuote?.(quote)}
               />
             ))}
