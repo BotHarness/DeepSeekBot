@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { field, problems } from '../check-pr-body.mjs';
+import { problems } from '../check-pr-body.mjs';
+import { field } from '../pr-body-field.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const template = readFileSync(join(root, '.github', 'pull_request_template.md'), 'utf8');

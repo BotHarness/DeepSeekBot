@@ -22,6 +22,13 @@ describe('PR and issue provenance', () => {
     expect(declared('Harness:\nModel: glm-5.3')).toEqual({ harness: [], model: ['glm-5.3'] });
   });
 
+  it('reads the fields under the template heading, not the heading itself', () => {
+    expect(declared('## Harness / Model\n\nHarness: Claude Code\n- **Model:** glm-5.3')).toEqual({
+      harness: ['claude-code'],
+      model: ['glm-5.3'],
+    });
+  });
+
   it('passes work without an agent marker or declaration', () => {
     expect(plan({ body: 'Closes #1', labels: [], existing, external: false })).toEqual({
       add: [],

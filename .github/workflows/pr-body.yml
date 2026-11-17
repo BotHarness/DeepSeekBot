@@ -24,6 +24,7 @@ jobs:
           sparse-checkout: |
             .node-version
             scripts/check-pr-body.mjs
+            scripts/pr-body-field.mjs
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v7
         with:

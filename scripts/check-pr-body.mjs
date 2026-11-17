@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { field } from './pr-body-field.mjs';
 
 const REFERENCE = /\b(?:Closes|Fixes|Resolves|Refs)\s+(?:[\w.-]+\/[\w.-]+)?#\d+\b/i;
 const LINK = /\[[^\]]*\]\([^)]*\)/gu;
@@ -23,26 +24,6 @@ const TEMPLATE_TEXT = [
   'Show the smallest useful before/after or structural outline',
 ];
 const EXEMPT_TITLE = /^(?:chore\(release\)|Revert ")/u;
-
-const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-
-export function field(body, label) {
-  const lines = body.split(/\r?\n/u);
-  const start = new RegExp(
-    `^\\s*(?:[-*]\\s+|#{2,6}\\s+)?(?:\\*\\*|__)?${escape(label)}(?:\\*\\*|__)?\\s*[:：.]?\\s*(?:\\*\\*|__)?\\s*(.*)$`,
-    'iu',
-  );
-  const index = lines.findIndex((line) => start.test(line));
-  if (index === -1) return undefined;
-  const parts = [start.exec(lines[index])[1].trim()];
-  for (const line of lines.slice(index + 1)) {
-    if (/^(?:#{1,6}\s|[-*]\s+(?:\*\*|__)?[A-Z][\w /-]{2,30}(?:\*\*|__)?\s*[:：.])/u.test(line))
-      break;
-    if (line.trim() === '' && parts.join('').trim() !== '') break;
-    parts.push(line.trim());
-  }
-  return parts.join(' ').trim();
-}
 
 export function problems({ title = '', body = '', author = '' }) {
   if (author.endsWith('[bot]') || EXEMPT_TITLE.test(title.trim())) return [];
