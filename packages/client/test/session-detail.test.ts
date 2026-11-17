@@ -31,8 +31,10 @@ import {
   type SessionDetailPrefs,
 } from '../src/client/session-detail.js';
 import {
+  cachedSessionDetail,
   clearSessionDetailCache,
   prefetchSessionDetail,
+  rememberSessionDetail,
 } from '../src/client/session-detail-cache.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -504,12 +506,22 @@ it('reopens a Session from its last transcript while it refreshes', async () => 
 
 it('prefetches a Session once before it opens', async () => {
   const read = vi.fn(async () => transcript('assignment'));
-  prefetchSessionDetail({ sessionTranscript: read }, 'tobs', 'asg-1');
-  prefetchSessionDetail({ sessionTranscript: read }, 'tobs', 'asg-1');
+  prefetchSessionDetail({ sessionTranscript: read }, { botSlug: 'tobs', sessionId: 'asg-1' });
+  prefetchSessionDetail({ sessionTranscript: read }, { botSlug: 'tobs', sessionId: 'asg-1' });
   await act(async () => {});
   expect(read).toHaveBeenCalledTimes(1);
   const host = await render({ sessionTranscript: vi.fn(() => new Promise<never>(() => {})) });
   expect(host.textContent).not.toContain('正在读取会话');
+});
+
+it('keeps a newer transcript when a hover prefetch finishes late', async () => {
+  let finish: (value: SessionTranscript) => void = () => {};
+  const at = { botSlug: 'tobs', sessionId: 'asg-1' };
+  prefetchSessionDetail({ sessionTranscript: () => new Promise((done) => (finish = done)) }, at);
+  const newer = transcript('assignment');
+  rememberSessionDetail(at, { transcript: newer });
+  await act(async () => finish({ ...newer, items: [] }));
+  expect(cachedSessionDetail(at)?.transcript).toBe(newer);
 });
 
 it('offers a jump to the latest step after scrolling up', async () => {
@@ -530,6 +542,10 @@ it('offers a jump to the latest step after scrolling up', async () => {
   expect(host.querySelector('[data-session-composer]')?.contains(jump())).toBe(true);
   act(() => jump()!.click());
   expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: 'smooth' });
+  document.documentElement.dataset['botharnessMotion'] = 'reduce';
+  act(() => jump()!.click());
+  delete document.documentElement.dataset['botharnessMotion'];
+  expect(scrollTo).toHaveBeenLastCalledWith({ top: 1000, behavior: 'auto' });
   timeline.scrollTop = 700;
   await act(async () => timeline.dispatchEvent(new Event('scroll')));
   expect(jump()).toBeNull();
