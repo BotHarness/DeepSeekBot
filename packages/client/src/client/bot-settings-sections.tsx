@@ -39,7 +39,7 @@ import { HumanNameSettings } from './human-name-settings.js';
 import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
-import { ConnectionsDialog } from './connections-dialog.js';
+import { ConnectionsPage } from './connections-dialog.js';
 import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
 import { ProfileBackupSettings } from './profile-backup.js';
 import type { ReleaseNotesController } from './release-notes.js';
@@ -219,13 +219,10 @@ export function CompanionsSection({
 
 export function DevicesSection({
   t,
-  close,
   pairPhone,
   joinComputer,
 }: PropsLocale<'botharness'> & BotSettingsSectionOwnerProps): ReactElement {
-  return (
-    <ConnectionsDialog t={t} onClose={close} pairPhone={pairPhone} joinComputer={joinComputer} />
-  );
+  return <ConnectionsPage t={t} pairPhone={pairPhone} joinComputer={joinComputer} />;
 }
 
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {

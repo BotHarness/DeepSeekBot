@@ -161,10 +161,7 @@ export class BotSettings {
       sectionId:
         sectionId === 'connect' || sectionId === 'pair-phone' || sectionId === 'join-computer'
           ? BOT_SETTINGS_SECTIONS.devices
-          : (sectionId ??
-            (this.#snapshot.sectionId === BOT_SETTINGS_SECTIONS.devices
-              ? BOT_SETTINGS_SECTIONS.general
-              : this.#snapshot.sectionId)),
+          : (sectionId ?? this.#snapshot.sectionId),
       pairPhone: sectionId === 'pair-phone',
       joinComputer: sectionId === 'join-computer',
       target: this.#target(target),
@@ -410,19 +407,6 @@ export function BotSettingsView({
             name: remote?.hostName ?? hereName,
           });
   const searchable = remote ? deviceRows : rows;
-  if (active?.id === BOT_SETTINGS_SECTIONS.devices) {
-    return (
-      <>
-        {
-          renderSlot(
-            SECTION_SLOT,
-            { close, pairPhone: state.pairPhone, joinComputer: state.joinComputer },
-            { only: active.id },
-          ) as ReactNode
-        }
-      </>
-    );
-  }
   return (
     <SettingsDialog
       title={t(state.clientOnly ? 'environment.settings.app' : 'settings.nav')}
@@ -589,7 +573,12 @@ export function BotSettingsView({
         ) : (
           (renderSlot(
             SECTION_SLOT,
-            { close, clientOnly: state.clientOnly === true },
+            {
+              close,
+              clientOnly: state.clientOnly === true,
+              pairPhone: state.pairPhone,
+              joinComputer: state.joinComputer,
+            },
             { only: active.id },
           ) as unknown as ReactNode)
         )}

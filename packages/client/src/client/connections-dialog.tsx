@@ -32,3 +32,24 @@ export function ConnectionsDialog({
     />
   );
 }
+
+export function ConnectionsPage({
+  t,
+  pairPhone = false,
+  joinComputer = false,
+}: {
+  t: BotHarnessTranslate;
+  pairPhone?: boolean | undefined;
+  joinComputer?: boolean | undefined;
+}): ReactElement {
+  return (
+    <PairedDevicesSettings
+      key={`${String(pairPhone)}:${String(joinComputer)}`}
+      t={t}
+      standalone
+      page
+      initialPairing={pairPhone}
+      initialRemote={joinComputer}
+    />
+  );
+}

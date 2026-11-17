@@ -145,6 +145,7 @@ let rendered: {
   id: string | undefined;
   close: (() => void) | undefined;
   clientOnly?: boolean | undefined;
+  pairPhone?: boolean | undefined;
 }[];
 
 beforeEach(() => {
@@ -183,13 +184,14 @@ function mount(
         t: zhTranslate,
         renderSlot: ((
           _name: string,
-          owner: { close(): void; clientOnly?: boolean },
+          owner: { close(): void; clientOnly?: boolean; pairPhone?: boolean },
           options?: { only?: string },
         ) => {
           rendered.push({
             id: options?.only,
             close: owner.close,
             clientOnly: owner.clientOnly,
+            pairPhone: owner.pairPhone,
           });
           return createElement('p', { 'data-section': options?.only }, `section:${options?.only}`);
         }) as never,
@@ -552,24 +554,23 @@ it('routes the phone entry to Connections while keeping ordinary settings indepe
   });
 });
 
-it('opens Connections outside the settings sidebar and passes the phone intent to its shared surface', () => {
+it('opens Connections as a settings page and passes the phone intent to it', () => {
   const settings = new BotSettings();
   mount(settings, [...ROWS, { id: 'devices', order: 45, label: '连接' }]);
   act(() => settings.open('pair-phone'));
   expect(shownSection()).toBe('devices');
-  expect(document.querySelector('nav')).toBeNull();
-  act(() => rendered.at(-1)!.close!());
-  expect(settings.getSnapshot().open).toBe(false);
+  expect(current()).toBe('连接');
+  expect(rendered.at(-1)).toMatchObject({ id: 'devices', pairPhone: true });
 });
 
-it('returns to ordinary settings after closing the standalone Connections dialog', () => {
+it('drops the pairing intent when Connections is opened again', () => {
   const settings = new BotSettings();
   settings.open('pair-phone');
   settings.close();
   settings.open();
   expect(settings.getSnapshot()).toMatchObject({
     open: true,
-    sectionId: 'general',
+    sectionId: 'devices',
     pairPhone: false,
   });
 });
