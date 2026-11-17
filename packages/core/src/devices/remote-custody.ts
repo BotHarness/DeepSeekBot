@@ -157,6 +157,18 @@ export function createRemoteCustody(options: {
     };
   };
 
+  const locks = new Map<string, Promise<unknown>>();
+  const serial = <T>(key: string, run: () => Promise<T>): Promise<T> => {
+    const next = (locks.get(key) ?? Promise.resolve()).catch(() => {}).then(run);
+    locks.set(key, next);
+    void next
+      .finally(() => {
+        if (locks.get(key) === next) locks.delete(key);
+      })
+      .catch(() => {});
+    return next;
+  };
+
   const transport = (record: Custodied): HostCarrier => {
     const cached = carriers.get(record.handle);
     if (cached) {
@@ -214,79 +226,82 @@ export function createRemoteCustody(options: {
       const host = parseSavedHost(input);
       if (!host) throw new CustodyRefused('custody-host-invalid');
       const owner = options.ownerHumanId();
-      if (isCustodyHandle(host.credential)) {
-        const current = await load(host.credential);
-        if (current.hostId !== host.hostId) throw new CustodyRefused('custody-host-mismatch');
-        const stored = current.secret.encryption;
-        const incoming = host.encryption;
-        if (
-          (stored === undefined) !== (incoming === undefined) ||
-          (stored &&
-            incoming &&
-            (stored.hostKey !== incoming.hostKey ||
-              keyHex(noisePublicKey(keyBytes(stored.deviceKey))) !== incoming.deviceKey))
-        )
-          throw new CustodyRefused('custody-host-mismatch');
-        const relay = incoming?.privateRelay;
-        const relayToken =
-          relay &&
-          (stored?.privateRelay && digest(stored.privateRelay.token) === relay.token
-            ? stored.privateRelay.token
-            : relay.token);
-        const secret: Secret = {
-          credential: current.secret.credential,
-          ...(stored && incoming
-            ? {
-                encryption: {
-                  ...incoming,
-                  deviceKey: stored.deviceKey,
-                  ...(relay && relayToken ? { privateRelay: { ...relay, token: relayToken } } : {}),
-                },
-              }
-            : {}),
-        };
-        const secretChanged = JSON.stringify(secret) !== JSON.stringify(current.secret);
-        const writeRoutes = (routes: string[]) =>
-          options.database.transaction(
-            (db) => {
-              db.prepare('UPDATE remote_host_custody SET routes = ? WHERE handle = ?').run(
-                JSON.stringify(routes),
-                current.handle,
-              );
-            },
-            ['remote-host-custody'],
-          );
-        try {
-          writeRoutes(host.routes);
-          if (secretChanged) {
-            try {
-              await options.secrets.write(current.handle, secret);
-            } catch (error) {
-              writeRoutes(current.routes);
-              throw error;
-            }
-          }
-        } finally {
+      if (isCustodyHandle(host.credential))
+        return serial(host.credential, async () => {
+          const current = await load(host.credential);
+          if (current.hostId !== host.hostId) throw new CustodyRefused('custody-host-mismatch');
+          const stored = current.secret.encryption;
+          const incoming = host.encryption;
           if (
-            secretChanged ||
-            (current.member && JSON.stringify(current.routes) !== JSON.stringify(host.routes))
+            (stored === undefined) !== (incoming === undefined) ||
+            (stored &&
+              incoming &&
+              (stored.hostKey !== incoming.hostKey ||
+                keyHex(noisePublicKey(keyBytes(stored.deviceKey))) !== incoming.deviceKey))
           )
-            drop(current.handle);
-        }
-        return {
-          ...host,
-          ...(incoming
-            ? {
-                encryption: {
-                  ...incoming,
-                  ...(relay && relayToken
-                    ? { privateRelay: { ...relay, token: digest(relayToken) } }
-                    : {}),
-                },
+            throw new CustodyRefused('custody-host-mismatch');
+          const relay = incoming?.privateRelay;
+          const relayToken =
+            relay &&
+            (stored?.privateRelay && digest(stored.privateRelay.token) === relay.token
+              ? stored.privateRelay.token
+              : relay.token);
+          const secret: Secret = {
+            credential: current.secret.credential,
+            ...(stored && incoming
+              ? {
+                  encryption: {
+                    ...incoming,
+                    deviceKey: stored.deviceKey,
+                    ...(relay && relayToken
+                      ? { privateRelay: { ...relay, token: relayToken } }
+                      : {}),
+                  },
+                }
+              : {}),
+          };
+          const secretChanged = JSON.stringify(secret) !== JSON.stringify(current.secret);
+          const writeRoutes = (routes: string[]) =>
+            options.database.transaction(
+              (db) => {
+                db.prepare('UPDATE remote_host_custody SET routes = ? WHERE handle = ?').run(
+                  JSON.stringify(routes),
+                  current.handle,
+                );
+              },
+              ['remote-host-custody'],
+            );
+          try {
+            writeRoutes(host.routes);
+            if (secretChanged) {
+              try {
+                await options.secrets.write(current.handle, secret);
+              } catch (error) {
+                writeRoutes(current.routes);
+                throw error;
               }
-            : {}),
-        };
-      }
+            }
+          } finally {
+            if (
+              secretChanged ||
+              (current.member && JSON.stringify(current.routes) !== JSON.stringify(host.routes))
+            )
+              drop(current.handle);
+          }
+          return {
+            ...host,
+            ...(incoming
+              ? {
+                  encryption: {
+                    ...incoming,
+                    ...(relay && relayToken
+                      ? { privateRelay: { ...relay, token: digest(relayToken) } }
+                      : {}),
+                  },
+                }
+              : {}),
+          };
+        });
       const count = options.database.read(
         (db) =>
           db.prepare('SELECT count(*) AS count FROM remote_host_custody').get() as {

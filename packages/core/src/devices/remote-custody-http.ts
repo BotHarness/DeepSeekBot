@@ -98,6 +98,7 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
     let release: (() => void) | undefined;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     let ended = false;
+    let attaching = false;
     const body = new ReadableStream<Uint8Array>(
       {
         start(controller) {
@@ -120,12 +121,13 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
             ended = true;
             request.signal.removeEventListener('abort', finish);
             if (heartbeat !== undefined) clearInterval(heartbeat);
-            custody.closeSocket(id);
+            if (attaching) custody.closeSocket(id);
             release?.();
             try {
               controller.close();
             } catch {}
           };
+          attaching = true;
           void custody
             .attachSocket(id, {
               open: () => emit('open', {}),
@@ -138,10 +140,12 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
             })
             .then(
               (detach) => {
+                attaching = false;
                 if (ended) detach();
                 else release = detach;
               },
               (error: unknown) => {
+                attaching = false;
                 emit('closed', { reason: custodyFailure(error).code });
                 finish();
               },
@@ -160,7 +164,7 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
         cancel() {
           ended = true;
           if (heartbeat !== undefined) clearInterval(heartbeat);
-          custody.closeSocket(id);
+          if (attaching) custody.closeSocket(id);
           release?.();
         },
       },

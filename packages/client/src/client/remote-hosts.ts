@@ -740,7 +740,11 @@ export function createRemoteHosts(options: {
         await releasePending();
         return written;
       } catch (error) {
-        if (sealed && !isCustodyHandle(preview?.credential ?? '')) await releaseCustody(preview!);
+        if (sealed && preview && !isCustodyHandle(preview.credential)) {
+          if (sealedHandles.get(preview.credential) === sealed.credential)
+            sealedHandles.delete(preview.credential);
+          await forgetHandle(sealed.credential);
+        }
         if (!(error instanceof SealOutdated) || attempt >= 2)
           throw error instanceof SealOutdated ? new Error('connection-host-changed') : error;
       }
