@@ -17,7 +17,8 @@ import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { GroupMark, personInitial } from './group-mark';
+import { GroupMark } from './group-mark';
+import { humanInitial } from '../shell/human-avatar-initial';
 import {
   countBadge,
   previewText,
@@ -170,7 +171,7 @@ export function ConversationPersonAvatar({ name }: { name: string }) {
     <AvatarSlot>
       <GroupMark
         avatar={undefined}
-        initial={personInitial(name)}
+        initial={humanInitial(name) ?? '#'}
         size={AVATAR}
         corner={radius.md}
         variant="title"

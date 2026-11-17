@@ -4,10 +4,6 @@ import { useDesignTheme } from '../design/theme';
 import type { TextVariant } from '../primitives/text';
 import { Text } from '../primitives/text';
 
-export function personInitial(name: string): string {
-  return (Array.from(name.trim())[0] ?? '#').toLocaleUpperCase();
-}
-
 export function GroupMark({
   avatar,
   initial = '#',

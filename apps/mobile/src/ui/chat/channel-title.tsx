@@ -17,7 +17,8 @@ import {
   headerControlHeight,
   glassHeader,
 } from './native-header';
-import { GroupMark, personInitial } from './group-mark';
+import { GroupMark } from './group-mark';
+import { humanInitial } from '../shell/human-avatar-initial';
 
 const MARK = 28;
 
@@ -78,7 +79,7 @@ export function ChannelTitle({
     >
       <GroupMark
         avatar={person ? undefined : channel?.avatar}
-        {...(person ? { initial: personInitial(name) } : {})}
+        {...(person ? { initial: humanInitial(name) ?? '#' } : {})}
         size={avatarSize}
         labelScale={contentScale}
         corner={radius.round}

@@ -14,6 +14,7 @@ export type ConversationTopBarProps = {
   bot?: RosterBot | undefined;
   activeBots?: readonly RosterBot[] | undefined;
   avatar?: string | undefined;
+  initial?: string | undefined;
   connectionLabel?: string | undefined;
   onBack(): void;
   onProfile?: (() => void) | undefined;

@@ -132,6 +132,7 @@ import {
   titleChipFill,
   useChatHeaderHeight,
 } from './header-chrome';
+import { humanInitial } from '../shell/human-avatar-initial';
 import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
@@ -2453,7 +2454,8 @@ function ChatConversation({
                       : (channel?.name ?? channelName ?? t.groupInfo)
                 }
                 bot={dm ? bot : undefined}
-                avatar={channel?.avatar}
+                avatar={person === undefined ? channel?.avatar : undefined}
+                initial={person === undefined ? undefined : (humanInitial(person.name) ?? '#')}
                 subtitle={headerStatus.label}
                 activeBots={headerStatus.bots}
                 connectionLabel={connectionLabel}

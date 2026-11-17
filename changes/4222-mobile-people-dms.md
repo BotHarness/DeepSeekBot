@@ -4,7 +4,7 @@ section: Fixed
 
 ## en
 
-- The phone's chat list now shows direct messages with other people on the Host, named for the other person, next to Bot DMs and Channels; they can be pinned or moved into a section, and are never offered for disbanding. Opening one shows the other person's name and initial in the header, lets you reply, and puts their messages on the left under their name, including when you quote them ([#4222](https://github.com/BotHarness/DeepSeekBot/issues/4222)).
+- The phone's Chats tab now lists direct messages with other people on the Host, named for the other person, next to Bot DMs and Channels; they can be pinned or moved into a section, and are never offered for disbanding. Opening one shows the other person's name and initial in the header, lets you reply, and puts their messages on the left under their name, including when you quote them ([#4222](https://github.com/BotHarness/DeepSeekBot/issues/4222)).
 
 ## zh
 

@@ -39,6 +39,7 @@ export function ConversationTopBar({
   bot,
   activeBots = [],
   avatar,
+  initial,
   connectionLabel,
   onBack,
   onProfile,
@@ -185,7 +186,12 @@ export function ConversationTopBar({
                 <RNHostView modifiers={[size(mark, mark)]}>
                   <View accessible={false} importantForAccessibility="no-hide-descendants">
                     {bot === undefined ? (
-                      <GroupMark avatar={avatar} size={mark} corner={radius.round} />
+                      <GroupMark
+                        avatar={avatar}
+                        {...(initial === undefined ? {} : { initial })}
+                        size={mark}
+                        corner={radius.round}
+                      />
                     ) : (
                       <BotAvatar bot={bot} size={mark} ring={false} />
                     )}
