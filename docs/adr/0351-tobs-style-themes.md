@@ -10,7 +10,7 @@ ADR-0348 gave Tobs its own tokens for one look, direction A. The owner wants thr
 
 ## Decision
 
-**Three independent axes.** Colour mode (light, dark), style (A quiet, B native, C tonal) and accent preset are independent switches. The token source moves to the W3C Design Tokens 2025.10 format: object colour and dimension values, light and dark as separate sets, and a resolver file with the modifiers `mode`, `style` and `accent`. The generator still emits `--tobs-*` custom properties and StyleX constants. The style switch sits in Appearance settings next to the accent preset and is stored per device, like colour mode. A is the default.
+**Three independent axes.** Colour mode (light, dark), style (A Default, B Apple, C Material; B and C are named after the design languages they draw on, macOS/iOS and Material 3 Expressive) and accent preset are independent switches. The token source moves to the W3C Design Tokens 2025.10 format: object colour and dimension values, light and dark as separate sets, and a resolver file with the modifiers `mode`, `style` and `accent`. The generator still emits `--tobs-*` custom properties and StyleX constants. The style switch sits in Appearance settings next to the accent preset and is stored per device, like colour mode. A is the default.
 
 **What a style changes.** About 25 style tokens, all aliases into shared primitive scales, so a style never carries a colour value:
 
@@ -27,6 +27,7 @@ Colour roles, spacing, font families, motion, breakpoints and z-order are shared
 
 **Colour rules.**
 
+- Accent reach differs by style. In A and B only accent-bearing elements (primary buttons, switches, selection, focus) follow the accent; panels and muted ink stay neutral. C follows Material 3's tonal surfaces: panel layers, the selected state, hover and secondary, tertiary and quiet ink take a small share of the accent (a custom colour included), re-checked for contrast after tinting.
 - Text ink, including tertiary, meets 4.5:1 on every surface it can sit on. A separate `ink.quiet` at 3:1 is for icons and decoration only.
 - Each accent preset gets a fixed role set per mode at build time (`solid`, `solid-hover`, `on-solid`, `container`, `on-container`, `tint`, `ink`, `focus`, and `selection` for style B, which keeps white ink in both modes). Runtime colour mixing stays only for a user's custom colour.
 - The contrast test runs in CI for every combination: 2 modes × 3 styles × 4 accents, over every surface and selected state.

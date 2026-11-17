@@ -171,6 +171,10 @@
         "sheet": {
           "$type": "dimension",
           "$value": "{core.radius.28}"
+        },
+        "small": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
         }
       },
       "chip": {
@@ -263,6 +267,28 @@
             "value": 24,
             "unit": "px"
           }
+        },
+        "thumb-on": {
+          "$type": "dimension",
+          "$value": {
+            "value": 16,
+            "unit": "px"
+          }
+        },
+        "thumb-off": {
+          "$type": "dimension",
+          "$value": {
+            "value": 12,
+            "unit": "px"
+          }
+        },
+        "thumb-off-fill": {
+          "$type": "color",
+          "$value": "{web.color.ink.tertiary}"
+        },
+        "thumb-off-shadow": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
         }
       },
       "segmented": {
@@ -283,6 +309,28 @@
         "secondary-ink": {
           "$type": "color",
           "$value": "{web.color.accent.ink}"
+        }
+      },
+      "choice": {
+        "fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.raised}"
+        },
+        "selected-fill": {
+          "$type": "color",
+          "$value": "{web.color.accent.container}"
+        },
+        "selected-ring": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "selected-ink": {
+          "$type": "color",
+          "$value": "{web.color.accent.on-container}"
+        },
+        "padding": {
+          "$type": "dimension",
+          "$value": "{web.space.3}"
         }
       }
     }
