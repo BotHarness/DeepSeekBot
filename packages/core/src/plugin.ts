@@ -239,6 +239,7 @@ import {
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
+import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
 import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
@@ -572,6 +573,7 @@ export interface BotHarnessCore {
   deletions: PersonaBotDeletions;
   contentPurge: ContentPurge;
   modelPresets: ModelPresetStore;
+  modelFavorites: ModelFavoriteStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
 
@@ -757,6 +759,7 @@ function initializeCore(
   });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
+  let modelFavorites: ModelFavoriteStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
@@ -873,6 +876,8 @@ function initializeCore(
       warn: options.warn,
       onCommitted: () => live?.publishRosterCommitted(),
     });
+    startup.enter('model-favorites', 'initialize');
+    modelFavorites = createModelFavoriteStore({ database: operationalDatabase });
     startup.enter('model-presets', 'initialize');
     modelPresets = createModelPresetStore({
       rootDir: join(dshHome, 'botharness'),
@@ -1542,6 +1547,7 @@ function initializeCore(
     externalMessaging,
     registry,
     modelPresets,
+    modelFavorites,
     configureBotHopLimit: (read) => {
       const registration = { read };
       botHopLimits.push(registration);
@@ -3553,6 +3559,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    modelFavorites: core.modelFavorites,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,

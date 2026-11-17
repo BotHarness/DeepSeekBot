@@ -11,6 +11,7 @@ import { modelFamilies } from '@botharness/host-client/shared/model-brand';
 import type { ModelCatalogEntryView } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { ModelMenu, catalogMenuItems } from '../src/client/model-menu.js';
+import { rememberModelFavorites } from '../src/client/model-favorites.js';
 
 const catalog: ModelCatalogEntryView[] = [
   {
@@ -50,6 +51,7 @@ let cleanup: (() => void) | undefined;
 afterEach(() => {
   cleanup?.();
   cleanup = undefined;
+  rememberModelFavorites(undefined, undefined);
 });
 
 async function render(props: Partial<Parameters<typeof ModelMenu>[0]> = {}) {
@@ -108,9 +110,9 @@ it('groups the Host catalog by model family, unknown families last', () => {
 it('lists models with their family logo, full name and provider, usable ones first', async () => {
   const { rows } = await render();
   expect(rows()).toEqual([
-    'DeepSeek V4.1 FlashOpenCode Go',
-    'GPT-6.1OpenAI',
-    'house-modelLab',
+    'DeepSeek V4.1 FlashOpenCode GoCtrl+1',
+    'GPT-6.1OpenAICtrl+2',
+    'house-modelLabCtrl+3',
     `Claude Opus${zhTranslate('modelPreset.credentialMissing', { provider: 'Anthropic' })}`,
   ]);
   expect(
@@ -133,7 +135,7 @@ it('filters by family from the rail and by text from the search field', async ()
   await act(async () =>
     document.body.querySelector<HTMLButtonElement>('[data-picker-filter="openai"]')!.click(),
   );
-  expect(rows()).toEqual(['GPT-6.1OpenAI']);
+  expect(rows()).toEqual(['GPT-6.1OpenAICtrl+1']);
   await act(async () =>
     document.body.querySelector<HTMLButtonElement>('[data-picker-filter="all"]')!.click(),
   );
@@ -143,7 +145,7 @@ it('filters by family from the rail and by text from the search field', async ()
     setter.call(search, 'house');
     search.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  expect(rows()).toEqual(['house-modelLab']);
+  expect(rows()).toEqual(['house-modelLabCtrl+1']);
 });
 
 it('chooses with the keyboard and closes when there is no effort to pick', async () => {
@@ -218,4 +220,44 @@ it('holds model and effort choices while a change is saving', async () => {
     search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
   );
   expect(onSelect).not.toHaveBeenCalled();
+});
+
+it('opens on Favorites, stars from the row and jumps with Ctrl+number', async () => {
+  const write = vi.fn(async (choice: { kind: string }, favorite: boolean) =>
+    favorite
+      ? [
+          { kind: 'model' as const, provider: 'openai', model: 'gpt-6.1' },
+          choice as { kind: 'model'; provider: string; model: string },
+        ]
+      : [],
+  );
+  rememberModelFavorites([{ kind: 'model', provider: 'openai', model: 'gpt-6.1' }], write);
+  const { rows, onSelect } = await render();
+  expect(
+    document.body.querySelector('[data-picker-filter="favorites"]')?.getAttribute('aria-pressed'),
+  ).toBe('true');
+  expect(rows()).toEqual(['GPT-6.1OpenAICtrl+1']);
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>('[data-picker-filter="all"]')!.click(),
+  );
+  expect(rows()[0]).toBe('GPT-6.1OpenAICtrl+1');
+  await act(async () =>
+    document.body
+      .querySelector<HTMLButtonElement>(`[data-picker-favorite='${key(catalog[3]!)}']`)!
+      .click(),
+  );
+  expect(write).toHaveBeenCalledWith(
+    { kind: 'model', provider: 'lab', model: 'house-model' },
+    true,
+  );
+  expect(
+    document.body
+      .querySelector(`[data-picker-favorite='${key(catalog[3]!)}']`)
+      ?.getAttribute('aria-pressed'),
+  ).toBe('true');
+  const search = document.body.querySelector<HTMLInputElement>('[role="combobox"]')!;
+  await act(async () =>
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true, bubbles: true })),
+  );
+  expect(onSelect).toHaveBeenCalledWith(key(catalog[3]!));
 });

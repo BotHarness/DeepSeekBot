@@ -34,6 +34,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'teamMode',
   'modelsAllowed',
   'modelCatalog',
+  'modelFavoriteSet',
   'usageByMember',
   'overviewUsage',
   'permissionCatalog',

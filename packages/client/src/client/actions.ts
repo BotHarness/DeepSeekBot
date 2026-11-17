@@ -26,6 +26,7 @@ import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { rememberModelFavorites } from './model-favorites.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -279,6 +280,7 @@ import {
   type UsageQueryResult,
   loadGroupProfileActivity,
   loadModelCatalog,
+  setModelFavorite,
   loadModelPresets,
   loadModelPlan,
   loadModelPlanState,
@@ -291,6 +293,7 @@ import {
   setModelPlan,
   setStandingLimits,
   type ModelCatalogView,
+  type ModelChoice,
   type ModelPresetView,
   type ModelPlanView,
   type ModelRouteView,
@@ -632,6 +635,7 @@ export interface BridgeActions {
   ): Promise<OutboxIntent>;
 
   modelCatalog(): Promise<ModelCatalogView>;
+  setModelFavorite?(choice: ModelChoice, favorite: boolean): Promise<ModelChoice[]>;
   modelPresets(): Promise<ModelPresetView[]>;
   modelPlan(slug: string): Promise<ModelPlanView | undefined>;
   modelPlanState(slug: string): Promise<ModelPlanStateView>;
@@ -2089,7 +2093,14 @@ export function createActions(
       });
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
     },
-    modelCatalog: () => loadModelCatalog(call),
+    modelCatalog: () =>
+      loadModelCatalog(call).then((catalog) => {
+        rememberModelFavorites(catalog.favorites, (choice, favorite) =>
+          setModelFavorite(call, choice, favorite),
+        );
+        return catalog;
+      }),
+    setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),

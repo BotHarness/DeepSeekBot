@@ -154,6 +154,7 @@ import type { PrivateAccountSummary, PrivateInputStatus } from '../credentials/c
 
 import type { PersonaBotPatch } from '../bots/persona-bot.js';
 import type { ModelCatalogEntry } from '../models/catalog.js';
+import type { ModelFavorite } from '../models/favorites.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type {
   AssignmentModelOption,
@@ -1252,8 +1253,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     models: ModelCatalogEntry[];
     default?: ModelRoute;
     defaultRevision?: number;
+    favorites?: ModelFavorite[];
   }> {
     return unwrapAsync(this.methods.modelCatalog({}));
+  }
+
+  modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {
+    return unwrap(this.methods.modelFavoriteSet({ choice, favorite }));
   }
 
   modelPresets(): { presets: ModelPreset[] } {
@@ -3384,6 +3390,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionStop',
   'botStop',
   'modelCatalog',
+  'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',

@@ -1,4 +1,4 @@
-import type { ReactElement, RefObject } from 'react';
+import { useState, type ReactElement, type RefObject } from 'react';
 
 import {
   modelBrand,
@@ -12,6 +12,7 @@ import type { ComboboxOption } from './combobox.js';
 import { FilterPicker } from './ds/filter-picker.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ModelBrandIcon } from './model-brand.js';
+import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
 export interface ModelMenuItem extends ComboboxOption {
   readonly brand: ModelBrand | undefined;
@@ -26,6 +27,7 @@ export interface ModelMenuEffort {
 }
 
 const ALL = 'all';
+const FAVORITES = 'favorites';
 const OTHER = 'other';
 
 export function modelMenuItems(
@@ -110,6 +112,8 @@ export function ModelMenu({
   t: BotHarnessTranslate;
 }): ReactElement {
   const models = items.filter((item) => item.model !== undefined);
+  const favorites = useModelFavorites();
+  const [favoriteError, setFavoriteError] = useState<string>();
   return (
     <FilterPicker
       label={label}
@@ -122,6 +126,7 @@ export function ModelMenu({
         hint: item.hint,
         disabled: item.disabled,
         search: [item.value],
+        favorite: item.model !== undefined && favorites.keys.has(item.value),
         ...(item.model === undefined
           ? {}
           : {
@@ -162,6 +167,35 @@ export function ModelMenu({
             }
       }
       busy={busy}
+      favorites={
+        favorites.writable
+          ? {
+              filter: {
+                key: FAVORITES,
+                label: t('modelMenu.favorites'),
+                icon: <ChannelSidebarIcon name="star" size={16} filled />,
+              },
+              addLabel: t('modelMenu.favoriteAdd'),
+              removeLabel: t('modelMenu.favoriteRemove'),
+              onToggle: (key, favorite) => {
+                const item = models.find((entry) => entry.value === key);
+                if (item?.provider === undefined || item.model === undefined) return;
+                setFavoriteError(undefined);
+                void setModelFavorite(
+                  { kind: 'model', provider: item.provider, model: item.model },
+                  favorite,
+                ).catch((error: unknown) =>
+                  setFavoriteError(
+                    t('modelMenu.favoriteFailed', {
+                      error: error instanceof Error ? error.message : String(error),
+                    }),
+                  ),
+                );
+              },
+            }
+          : undefined
+      }
+      notice={favoriteError}
       anchorRef={anchorRef}
       onClose={onClose}
     />

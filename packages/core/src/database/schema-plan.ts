@@ -3754,6 +3754,21 @@ const HUMAN_ROSTER_ARRANGEMENTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const HUMAN_MODEL_FAVORITES_MIGRATION: SchemaMigration = {
+  id: 'human-model-favorites',
+  module: 'model-favorites',
+  description: 'Keep each Human favorite models as a personal preference shared by their devices',
+  migrate(database) {
+    database.exec(`CREATE TABLE human_model_favorites (
+      human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+      favorite_key TEXT NOT NULL,
+      favorite_json TEXT NOT NULL CHECK (json_valid(favorite_json)),
+      position INTEGER NOT NULL,
+      PRIMARY KEY (human_id, favorite_key)
+    )`);
+  },
+};
+
 const CHANNEL_AUTO_JOIN_MIGRATION: SchemaMigration = {
   id: 'channel-auto-join',
   module: 'team',
@@ -3972,4 +3987,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_AUTO_JOIN_MIGRATION,
   MEMBER_DEVICES_MIGRATION,
   REMOTE_HOST_CUSTODY_MIGRATION,
+  HUMAN_MODEL_FAVORITES_MIGRATION,
 ]);

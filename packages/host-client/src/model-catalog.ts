@@ -14,10 +14,31 @@ export interface ModelCatalogEntry {
   credential?: 'missing' | 'invalid';
 }
 
+export type ModelChoice =
+  | { kind: 'model'; provider: string; model: string }
+  | { kind: 'group'; id: string };
+
 export interface ModelCatalogAnswer {
   models: ModelCatalogEntry[];
   default?: ModelCatalogRoute;
   defaultRevision?: number;
+  favorites?: ModelChoice[];
+}
+
+export function modelChoice(value: unknown): ModelChoice | undefined {
+  const row = record(value);
+  if (row === undefined) return undefined;
+  if (row['kind'] === 'group')
+    return filled(row['id']) ? { kind: 'group', id: row['id'] } : undefined;
+  return row['kind'] === 'model' && filled(row['provider']) && filled(row['model'])
+    ? { kind: 'model', provider: row['provider'], model: row['model'] }
+    : undefined;
+}
+
+export function modelChoiceKey(choice: ModelChoice): string {
+  return choice.kind === 'group'
+    ? `group:${choice.id}`
+    : JSON.stringify([choice.provider, choice.model]);
 }
 
 export class ModelCatalogInvalid extends Error {}
@@ -87,6 +108,14 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
     Number.isSafeInteger(defaultRevision) &&
     defaultRevision >= 0
       ? { defaultRevision }
+      : {}),
+    ...(Array.isArray(answer?.['favorites'])
+      ? {
+          favorites: answer['favorites'].flatMap((value) => {
+            const choice = modelChoice(value);
+            return choice === undefined ? [] : [choice];
+          }),
+        }
       : {}),
   };
 }

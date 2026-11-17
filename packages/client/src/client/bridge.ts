@@ -19,7 +19,11 @@ import {
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
-import { parseModelCatalog } from '@botharness/host-client/model-catalog';
+import {
+  modelChoice,
+  parseModelCatalog,
+  type ModelChoice,
+} from '@botharness/host-client/model-catalog';
 import { clientLog } from './diagnostic-log.js';
 import {
   genuiReplySchema,
@@ -231,6 +235,22 @@ export interface ModelCatalogEntryView {
 export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
   default?: ModelRouteView;
+  favorites?: ModelChoice[];
+}
+
+export type { ModelChoice };
+
+export async function setModelFavorite(
+  call: BridgeCall,
+  choice: ModelChoice,
+  favorite: boolean,
+): Promise<ModelChoice[]> {
+  const value = asRecord(await unwrap(call, 'modelFavoriteSet', { choice, favorite }));
+  if (!Array.isArray(value?.['favorites'])) throw new Error('Invalid model favorites');
+  return value['favorites'].flatMap((entry) => {
+    const parsed = modelChoice(entry);
+    return parsed === undefined ? [] : [parsed];
+  });
 }
 
 export interface ModelPresetView {
@@ -267,6 +287,7 @@ export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogVi
     ...(catalog.default === undefined
       ? {}
       : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
+    ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
   };
 }
 
