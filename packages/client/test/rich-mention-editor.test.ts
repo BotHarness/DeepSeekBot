@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import {
+  act,
+  createElement,
+  useState,
+  type ButtonHTMLAttributes,
+  type PropsWithChildren,
+} from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -42,6 +48,58 @@ import {
 } from '../src/client/rich-mention-editor.js';
 
 describe('rich mention editor', () => {
+  it('drops the trailing-line placeholder when Backspace removes the line break', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const changes: string[] = [];
+    const Draft = () => {
+      const [value, setValue] = useState('abc\n');
+      return createElement(ChannelComposer, {
+        value,
+        mentionCandidates: [
+          {
+            slug: 'ada',
+            displayName: 'Ada',
+            roles: [],
+            aggregateState: 'idle',
+            workspaces: [],
+            createdAt: '2026-09-25T00:00:00.000Z',
+          },
+        ],
+        placeholder: 'Message',
+        sending: false,
+        onChange: (next: string) => {
+          changes.push(next);
+          setValue(next);
+        },
+        onSubmit: () => undefined,
+      });
+    };
+    try {
+      await act(async () => {
+        root.render(createElement(Draft));
+      });
+      const editor = container.querySelector<HTMLElement>('.bh-composer-rich-input');
+      expect(editor?.innerHTML).toBe('abc<br><br data-rich-placeholder="">');
+      for (const [left, after] of [
+        ['abc<br data-rich-placeholder="">', 'abc'],
+        ['<br data-rich-placeholder="">', ''],
+      ] as const) {
+        editor!.innerHTML = left;
+        await act(async () => {
+          editor!.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        expect(editor!.innerHTML).toBe(after);
+        expect(changes.at(-1)).toBe(after);
+      }
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   it('keeps a trailing line editable after an attachment and repeated line breaks', () => {
     const editor = document.createElement('div');
     document.body.append(editor);

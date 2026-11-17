@@ -81,7 +81,7 @@ function richTextNodes(document: Document, text: string): Node[] {
   });
 }
 
-function syncTrailingLine(editor: HTMLElement): void {
+export function syncTrailingLine(editor: HTMLElement): void {
   for (const placeholder of editor.querySelectorAll('br[data-rich-placeholder]'))
     placeholder.remove();
   while (editor.lastChild?.nodeType === Node.TEXT_NODE && editor.lastChild.textContent === '')
