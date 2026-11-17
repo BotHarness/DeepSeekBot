@@ -1453,6 +1453,17 @@ const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
+  id: 'routing-group-storage',
+  module: 'routing-groups',
+  description: 'Own Host-wide Routing Groups: named, ordered model routes and nested groups',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE routing_groups (id TEXT PRIMARY KEY, body TEXT NOT NULL CHECK (json_valid(body)));
+    `);
+  },
+};
+
 const PERSONA_BOT_REGISTRY_MIGRATION: SchemaMigration = {
   id: 'persona-bot-registry',
   module: 'bot-registry',
@@ -3972,4 +3983,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_AUTO_JOIN_MIGRATION,
   MEMBER_DEVICES_MIGRATION,
   REMOTE_HOST_CUSTODY_MIGRATION,
+  ROUTING_GROUP_STORAGE_MIGRATION,
 ]);

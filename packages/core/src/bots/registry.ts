@@ -176,6 +176,7 @@ export interface PersonaBotRegistry {
     slug: string,
     orchestrator: PersonaBotModelPlan['orchestrator'],
     expectedRevision: number,
+    orchestratorGroupId?: string,
   ): UpdatePersonaBotResult;
   setAssignmentModels(
     slug: string,
@@ -301,6 +302,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         sourcePresetName: plan.sourcePresetName,
         appliedAt: plan.appliedAt,
         orchestrator: route(plan.orchestrator),
+        ...(plan.orchestratorGroupId === undefined
+          ? {}
+          : { orchestratorGroupId: plan.orchestratorGroupId }),
         ...(plan.assignmentDefault === undefined
           ? {}
           : { assignmentDefault: route(plan.assignmentDefault) }),
@@ -1159,18 +1163,20 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       write(record);
       return { ok: true, record };
     },
-    customizeModelPlan(slug, orchestrator, expectedRevision) {
+    customizeModelPlan(slug, orchestrator, expectedRevision, orchestratorGroupId) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (record.model !== undefined) return { ok: false, reason: 'invalid-input' };
       const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
       if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
+      const { orchestratorGroupId: _previousGroup, ...kept } = record.modelPlan ?? {};
       record.modelPlan = {
-        ...record.modelPlan,
+        ...kept,
         revision: revision + 1,
         sourcePresetId: '',
         sourcePresetName: '',
         orchestrator: { ...orchestrator },
+        ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
         appliedAt: now().toISOString(),
       };
       write(record);

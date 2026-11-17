@@ -239,6 +239,7 @@ import {
   syncBotDescriptor,
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
+import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
 import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
@@ -573,6 +574,7 @@ export interface BotHarnessCore {
   deletions: PersonaBotDeletions;
   contentPurge: ContentPurge;
   modelPresets: ModelPresetStore;
+  routingGroups: RoutingGroupStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
 
@@ -758,6 +760,7 @@ function initializeCore(
   });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
+  let routingGroups: RoutingGroupStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
@@ -882,6 +885,15 @@ function initializeCore(
         options.warn?.(
           `model-presets-import initiator=host-startup phase=${event.phase} count=${event.count ?? 0} durationMs=${Math.round(event.durationMs)}`,
         ),
+    });
+    startup.enter('routing-groups', 'initialize');
+    routingGroups = createRoutingGroupStore({
+      database: operationalDatabase,
+      references: (groupId) =>
+        registry
+          .list()
+          .filter((bot) => bot.modelPlan?.orchestratorGroupId === groupId)
+          .map((bot) => `Bot ${bot.displayName}`),
     });
   } catch (error) {
     operationalDatabase.close();
@@ -1543,6 +1555,7 @@ function initializeCore(
     externalMessaging,
     registry,
     modelPresets,
+    routingGroups,
     configureBotHopLimit: (read) => {
       const registration = { read };
       botHopLimits.push(registration);
@@ -3558,6 +3571,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    routingGroups: core.routingGroups,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,

@@ -1090,6 +1090,12 @@ deepseekbot model-plan-customize <bot-id> --orchestrator-provider deepseek --orc
 printf '%s' "$ASSIGNMENTS_JSON" | deepseekbot model-plan-assignments-set <bot-id> --plan-stdin
 deepseekbot model-plan-inherit <bot-id>
 deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort high
+deepseekbot model-groups
+deepseekbot model-group <group-id>
+printf '%s' '{"members":[{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"},{"kind":"model","provider":"deepseek","model":"deepseek-v4.1-flash"}]}' | deepseekbot model-group-create --name Flash --members-stdin
+deepseekbot model-group-update <group-id> --name Fast [--members-stdin] [--expected-revision <group-revision>]
+deepseekbot model-group-delete <group-id> [--expected-revision <group-revision>]
+deepseekbot model-plan-customize <bot-id> --orchestrator-group <group-id>
 deepseekbot home-model-set --provider <provider-id> --model <model-id> [--orchestrator-effort <effort>] [--expected-revision <default-revision>]
 deepseekbot model-preset-apply <bot-id> --preset <preset-id> [--expected-revision <plan-revision>] [--preset-revision <preset-revision>]
 deepseekbot overview-usage --period week
@@ -1105,6 +1111,8 @@ deepseekbot group-activity <group-channel>
 连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`，stdin 仅包含 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
 
 `model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
+
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表；成员可以是路由 `{"kind":"model","provider","model","reasoningEffort"?}`，也可以是另一个组 `{"kind":"group","id"}`。`model-groups` 列出所有组，`model-group` 还会按顺序、去重返回组展开后的路由。`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`；每个模型成员都必须在 `model-catalog` 中，名称不能重复，会包含自身或没有任何模型的组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。被 Bot 或其他组使用的组不能用 `model-group-delete` 删除，返回 `routing-group-in-use` 并列出使用者。`model-plan-customize --orchestrator-group <id>` 把组设为 Bot 的 Orchestrator 选择：每个成员都必须是 Bot 所有者角色允许的模型（`model-not-allowed` 会指出第一个不允许的），Bot 使用第一个供应商已就绪的成员。方案里的 `orchestrator` 显示当前路由，`orchestratorGroupId` 显示所选组；重新选择单个路由会清除组。组的写入和预设一样核对 revision。
 
 在线 Human CLI 的 `home-model-set` 支持 `--orchestrator-effort` 和 `--expected-revision`；后者对应 `model-catalog.defaultRevision`，省略时先读取当前默认模型 revision。`model-preset-apply` 可通过 `--expected-revision` 约束 Bot 计划、`--preset-revision` 约束预设；省略这些参数时保留原有 Human 行为。受限 Tob 调用必须明确传入对应 revision，不能借省略参数跳过已审核快照。
 
