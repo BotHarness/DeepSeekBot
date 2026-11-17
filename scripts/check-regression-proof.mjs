@@ -1,9 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { pnpmCommand } from './dev-package-manager.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TEST =
@@ -62,20 +63,27 @@ export function proof(head, base) {
 }
 
 function git(args) {
-  return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', windowsHide: true });
 }
 
 function vitest(files, out) {
-  spawnSync('pnpm', ['exec', 'vitest', 'run', '--reporter=json', `--outputFile=${out}`, ...files], {
+  const [command, args] = pnpmCommand([
+    'exec',
+    'vitest',
+    'run',
+    '--reporter=json',
+    `--outputFile=${out}`,
+    ...files,
+  ]);
+  const result = spawnSync(command, args, {
     cwd: ROOT,
     stdio: ['ignore', 'ignore', 'inherit'],
+    shell: false,
     windowsHide: true,
   });
-  try {
-    return outcomes(JSON.parse(readFileSync(out, 'utf8')), ROOT);
-  } catch {
-    return new Map();
-  }
+  if (result.error) throw result.error;
+  if (!existsSync(out)) return new Map();
+  return outcomes(JSON.parse(readFileSync(out, 'utf8')), ROOT);
 }
 
 export function check({ base, title, body }) {
@@ -97,10 +105,11 @@ export function check({ base, title, body }) {
       ok: false,
       message: `the PR changes only tests, so there is no fix to remove. ${help}`,
     };
-  if (git(['status', '--porcelain', '--', ...touched]).trim())
+  if (git(['status', '--porcelain', '--untracked-files=no']).trim())
     return {
       ok: false,
-      message: `uncommitted changes in ${touched.join(', ')}; commit or stash them first`,
+      message:
+        'the working tree or index has uncommitted changes; the proof must run on the committed PR, so commit or stash them first',
     };
   const dir = mkdtempSync(join(tmpdir(), 'regression-proof-'));
   try {
@@ -120,6 +129,7 @@ export function check({ base, title, body }) {
         message: `no test in ${tests.join(', ')} both passes with the fix and fails without it (a test file that cannot load without the fix does not count). ${help}`,
       };
     } finally {
+      git(['reset', '-q', 'HEAD', '--', ...touched]);
       const existing = new Set(
         changes.filter((change) => change.status !== 'D').map((change) => change.path),
       );

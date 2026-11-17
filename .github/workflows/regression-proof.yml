@@ -14,7 +14,7 @@ concurrency:
 jobs:
   proof:
     name: fix PR test fails without the fix
-    if: github.event.action != 'edited' || github.event.changes.title || github.event.changes.body
+    if: github.event.action != 'edited' || github.event.changes.title || github.event.changes.body || github.event.changes.base
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
