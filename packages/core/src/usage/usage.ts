@@ -143,7 +143,7 @@ function recordOf(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function reportedBuckets(event: DshSessionEvent): {
+export function reportedBuckets(event: DshSessionEvent): {
   uncachedInputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
