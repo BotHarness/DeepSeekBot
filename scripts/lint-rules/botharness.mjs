@@ -39,9 +39,7 @@ const bound = (context, node, name) => {
       definition?.type !== 'Variable' ||
       definition.parent.kind !== 'const' ||
       definition.node.id.type !== 'Identifier' ||
-      variable.references.some(
-        (reference) => !reference.init && reference.identifier.parent?.type === 'MemberExpression',
-      )
+      variable.references.filter((reference) => !reference.init).length !== 1
     )
       return undefined;
     const { init } = definition.node;

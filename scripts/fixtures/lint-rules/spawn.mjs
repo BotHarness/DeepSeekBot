@@ -27,6 +27,9 @@ spawn('git', picked);
 const assigned = { shell: false };
 assigned.windowsHide = true;
 spawn('git', assigned);
+const merged = { shell: false };
+Object.assign(merged, { windowsHide: true });
+spawn('git', merged);
 
 export function run(spawnSync) {
   spawnSync('task');
