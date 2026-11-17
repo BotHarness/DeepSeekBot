@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { declared, isInternal, plan } from '../check-pr-provenance.mjs';
+import { declared, isInternal, plan, trailers } from '../check-pr-provenance.mjs';
 
 const agentBody = 'Closes #1\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)';
 const existing = [
@@ -65,6 +65,37 @@ describe('PR and issue provenance', () => {
         external: false,
       }).errors,
     ).toEqual([]);
+  });
+
+  it('reads the harness and model from Claude Code commit trailers', () => {
+    const commit =
+      'feat: x\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n' +
+      'Claude-Session: https://claude.ai/code/session_1';
+    expect(
+      trailers([commit, 'Merge main\n\nCo-authored-by: Claude <noreply@anthropic.com>']),
+    ).toEqual({ harness: ['claude-code'], model: ['claude-opus-5-5'] });
+    expect(
+      plan({
+        body: `Harness: claude-code\nModel:\n${agentBody}`,
+        labels: [],
+        existing,
+        external: false,
+        commits: [commit],
+      }),
+    ).toEqual({ add: ['harness:claude-code', 'model:claude-opus-5-5'], errors: [], warnings: [] });
+  });
+
+  it('prefers what the description declares over commit trailers', () => {
+    const commit = 'x\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>';
+    expect(
+      plan({
+        body: 'Harness: opencode\nModel: glm-5.3',
+        labels: [],
+        existing,
+        external: false,
+        commits: [commit],
+      }).add,
+    ).toEqual(['harness:opencode', 'model:glm-5.3']);
   });
 
   it('treats a private org member with write access as internal', () => {
