@@ -20,15 +20,15 @@ const call: BridgeCall = async (endpoint, payload) => {
           },
         ],
       },
-    } as never;
+    };
   if (endpoint === 'settings/update') {
     writes.push(payload);
     return {
       ok: true,
       value: { ns: 'botharness-client', revision: 2, value: { autoAcceptGroupInvites: false } },
-    } as never;
+    };
   }
-  return { ok: false, error: { code: 'unsupported', message: endpoint, details: {} } } as never;
+  return { ok: false, error: { code: 'unsupported', message: endpoint, details: {} } };
 };
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({

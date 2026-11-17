@@ -3,8 +3,10 @@ import {
   DEFAULT_BOT_MODE_DEVELOPER,
   DEFAULT_BOT_MODE_ICON,
   DEFAULT_BOT_MODE_MOTION,
+  BOT_MODE_SORT_MODES,
   DEFAULT_BOT_MODE_SORT,
   type BotModeSettings,
+  type BotModeSortMode,
 } from '@botharness/host-client/shared/bot-mode-settings';
 
 import type { BotModePathOp, BotModeScope, BotModeScopeSnapshot } from './bot-mode-prefs.js';
@@ -20,14 +22,27 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function isSortMode(value: unknown): value is BotModeSortMode {
+  return BOT_MODE_SORT_MODES.some((mode) => mode === value);
+}
+
+function sortModesOf(value: unknown): Record<string, BotModeSortMode> {
+  return Object.fromEntries(
+    Object.entries(record(value)).filter((entry): entry is [string, BotModeSortMode] =>
+      isSortMode(entry[1]),
+    ),
+  );
+}
+
 function settingsOf(value: unknown): BotModeSettings {
+  const fields = record(value);
   return {
     developerMode: DEFAULT_BOT_MODE_DEVELOPER,
     motionPreference: DEFAULT_BOT_MODE_MOTION,
     botIcon: DEFAULT_BOT_MODE_ICON,
-    sortMode: DEFAULT_BOT_MODE_SORT,
-    sortModes: {},
-    ...record(value),
+    ...fields,
+    sortMode: isSortMode(fields['sortMode']) ? fields['sortMode'] : DEFAULT_BOT_MODE_SORT,
+    sortModes: sortModesOf(fields['sortModes']),
   };
 }
 

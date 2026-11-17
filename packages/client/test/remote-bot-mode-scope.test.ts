@@ -14,16 +14,16 @@ function fakeHost(refuseWrites = false) {
       return {
         ok: true,
         value: { namespaces: [{ ns: 'botharness-client', revision, value }] },
-      } as never;
+      };
     if (endpoint === 'settings/update') {
       if (refuseWrites)
         return {
           ok: false,
           error: { code: 'secret-route-refused', message: 'no', details: {} },
-        } as never;
+        };
       value = { ...value, ...(payload['patch'] as Record<string, unknown>) };
       revision += 1;
-      return { ok: true, value: { ns: 'botharness-client', revision, value } } as never;
+      return { ok: true, value: { ns: 'botharness-client', revision, value } };
     }
     throw new Error(`unexpected ${endpoint}`);
   };
@@ -65,4 +65,25 @@ it('keeps the remote value when the Host refuses a write', async () => {
   await scope.refresh();
   await expect(prefs.setBotHopLimit(12)).resolves.toBe(false);
   expect(prefs.source.getSnapshot().botHopLimit).toBe(128);
+});
+
+it('falls back to the default sort modes when the Host sends unknown ones', async () => {
+  const call: BridgeCall = async () => ({
+    ok: true,
+    value: {
+      namespaces: [
+        {
+          ns: 'botharness-client',
+          revision: 1,
+          value: { sortMode: 'sideways', sortModes: { pinned: 'manual', bots: 7 } },
+        },
+      ],
+    },
+  });
+  const scope = remoteBotModeScope(call);
+  await scope.refresh();
+  expect(scope.getSnapshot().value).toMatchObject({
+    sortMode: 'updated',
+    sortModes: { pinned: 'manual' },
+  });
 });
