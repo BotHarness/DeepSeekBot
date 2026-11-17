@@ -825,18 +825,19 @@ export function ChannelComposer({
   );
   const shellMount = useMountedResource<HTMLDivElement>((shell) => {
     const pane = shell.closest<HTMLElement>('.bh-chat-pane');
-    if (pane === null || typeof ResizeObserver === 'undefined') return;
-    const timeline = pane.querySelector<HTMLElement>('.bh-chat-body');
+    const timeline = pane?.querySelector<HTMLElement>('.bh-chat-body') ?? null;
+    if (pane === null || timeline === null || typeof ResizeObserver === 'undefined') return;
+    let applied: number | undefined;
     const sync = (): void => {
       const shellBounds = shell.getBoundingClientRect();
       const overlay =
         shellBounds.height === 0
           ? 0
           : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
-      const atLatest =
-        timeline !== null &&
-        timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
-      pane.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
+      if (overlay === applied) return;
+      applied = overlay;
+      const atLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
+      timeline.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
       if (atLatest) timeline.scrollTop = timeline.scrollHeight;
     };
     sync();
@@ -845,7 +846,7 @@ export function ChannelComposer({
     observer.observe(pane);
     return () => {
       observer.disconnect();
-      pane.style.removeProperty('--bh-composer-overlay');
+      timeline.style.removeProperty('--bh-composer-overlay');
     };
   }, []);
   const replyId = reply?.id;

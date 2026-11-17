@@ -27,6 +27,11 @@ export const CSS =
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `
+@property --bh-composer-overlay {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
 .bh-settings-search-results { display: flex; flex-direction: column; gap: ${space.x2}; max-height: 45vh; overflow-y: auto; }
 .bh-settings-search-results button { display: flex; flex-direction: column; gap: ${space.x2}; padding: ${space.x3}; text-align: start; border: 0; border-radius: ${radius.xs}; background: transparent; color: ${color.fg}; cursor: pointer; font: inherit; }
 .bh-settings-search-results button:hover { background: ${color.hover}; }
@@ -4578,8 +4583,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   background: var(--tobs-layer-raised);
   transition:
     padding 220ms var(--ds-ease-in-out),
-    border-color 160ms var(--ds-ease-in-out),
-    box-shadow 160ms var(--ds-ease-in-out);
+    border-color 160ms var(--ds-ease-in-out);
 }
 .bh-composer-reply {
   display: flex;
