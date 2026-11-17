@@ -25,8 +25,7 @@ import {
   type PersonaBotSessionRow,
 } from './session-rows.js';
 import {
-  sessionViewPreferenceSnapshot,
-  subscribeSessionViewPreference,
+  useSessionViewPreference,
   updateSessionViewPreference,
   type SessionStatusSection,
 } from './session-view-prefs.js';
@@ -90,14 +89,6 @@ export interface NativeSessionCatalog {
 
 function workspaceName(path: string | undefined): string | undefined {
   return path?.split(/[\\/]/u).filter(Boolean).at(-1);
-}
-
-function useSessionViewPreference(botSlug: string) {
-  return useSyncExternalStore(
-    (listener) => subscribeSessionViewPreference(botSlug, listener),
-    () => sessionViewPreferenceSnapshot(botSlug),
-    () => sessionViewPreferenceSnapshot(botSlug),
-  );
 }
 
 function SessionsPanel({
@@ -633,6 +624,8 @@ export function SessionsHeaderAction({
               { type: 'label' as const, id: 'layout-label', text: t('sessions.layout') },
               { id: 'layout:status', label: t('sessions.layout.status') },
               { id: 'layout:workspace', label: t('sessions.layout.workspace') },
+              { type: 'separator' as const, id: 'links-separator' },
+              { id: 'links:on', label: t('sessions.link.toggle') },
             ]
           : []),
         ...extraItems,
@@ -640,9 +633,14 @@ export function SessionsHeaderAction({
       selectedIds={[
         ...extraSelectedIds,
         ...(botSlug ? ['scope:' + preference.scope, 'layout:' + preference.layout] : []),
+        ...(botSlug && preference.links ? ['links:on'] : []),
       ]}
       onSelect={(id) => {
         const [kind, value] = id.split(':');
+        if (kind === 'links') {
+          updateSessionViewPreference(slug, (current) => ({ ...current, links: !current.links }));
+          return;
+        }
         if (kind !== 'scope' && kind !== 'layout') {
           onExtraSelect?.(id);
           return;

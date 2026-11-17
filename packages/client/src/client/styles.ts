@@ -4248,13 +4248,15 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-timeline-new:focus-visible { outline: ${border.focus} solid ${color.accent}; }
 
-.bh-inline-mention {
+.bh-inline-mention,
+.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"] {
   border-radius: ${radius.xs};
   background: var(--tobs-state-pressed);
   color: var(--tobs-ink-primary);
   box-shadow: 0 0 0 1px var(--tobs-state-pressed);
 }
-.bh-inline-mention-sent {
+.bh-inline-mention-sent,
+.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"] {
   display: inline-flex;
   align-items: center;
   gap: ${space.x1};
@@ -4266,12 +4268,15 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   display: inline-flex;
   flex: 0 0 auto;
 }
-.bh-inline-mention-link {
+.bh-inline-mention-link,
+.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"] {
   border: 0;
+  text-decoration: none;
   font: inherit;
   cursor: pointer;
 }
-.bh-inline-mention-link:hover {
+.bh-inline-mention-link:hover,
+.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"]:hover {
   background: var(--tobs-state-hover);
   box-shadow: 0 0 0 1px var(--tobs-state-hover);
 }

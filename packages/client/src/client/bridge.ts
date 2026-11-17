@@ -1340,6 +1340,25 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (grantRequest !== undefined && (grantRequest !== true || author.kind !== 'bot'))
     return undefined;
   let grantRequestResolution: ChannelMessage['grantRequestResolution'];
+  const sessionLinks =
+    author.kind === 'bot' && Array.isArray(record['sessionLinks'])
+      ? record['sessionLinks'].flatMap((entry) => {
+          const link = asRecord(entry);
+          return link !== undefined &&
+            typeof link['sessionId'] === 'string' &&
+            link['sessionId'] !== '' &&
+            typeof link['title'] === 'string' &&
+            (link['kind'] === 'created' || link['kind'] === 'sent')
+            ? [
+                {
+                  sessionId: link['sessionId'],
+                  kind: link['kind'] as 'created' | 'sent',
+                  title: link['title'],
+                },
+              ]
+            : [];
+        })
+      : [];
   let assignmentReply: ChannelMessage['assignmentReply'];
   if (record['assignmentReply'] !== undefined) {
     const target = asRecord(record['assignmentReply']);
@@ -2100,6 +2119,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : {}),
     ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
     ...(assignmentReply === undefined ? {} : { assignmentReply }),
+    ...(sessionLinks.length === 0 ? {} : { sessionLinks }),
     ...(botDmAction === undefined ? {} : { botDmAction }),
     ...(botCreateAction === undefined ? {} : { botCreateAction }),
     ...(botChannelPost === undefined ? {} : { botChannelPost }),
