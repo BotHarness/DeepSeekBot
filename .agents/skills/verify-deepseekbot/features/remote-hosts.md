@@ -5,6 +5,8 @@ The browser reads each Remote Host Feed through its own Paired Device and the sh
 ## Sources
 
 - `packages/client/src/client/remote-host*.{ts,tsx}`
+- `packages/client/src/client/relationship{s,-settings}.{ts,tsx}`
+- `packages/core/src/devices/relationship*.ts`
 
 ## Terms
 

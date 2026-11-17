@@ -5,6 +5,7 @@
 - `packages/core/src/devices/{connect,connect-*,bot-connect-*}.ts`
 - `apps/mobile/src/host/{native-connect-account,connect-follow}.ts`
 - `packages/client/src/client/connect-panel.tsx`
+- `packages/connect-relay/src/{auth,cloudflare,relay,worker}.ts`
 
 ## Terms
 

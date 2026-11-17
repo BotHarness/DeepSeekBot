@@ -3,6 +3,8 @@
 ## Sources
 
 - `apps/mobile/src/ui/chat/{composer,composer-*,native-composer-*}.{ts,tsx}`
+- `apps/mobile/src/ui/primitives/hardware-send*.tsx`
+- `apps/mobile/modules/hardware-send/**`
 
 ## Terms
 
