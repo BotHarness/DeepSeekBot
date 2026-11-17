@@ -116,8 +116,7 @@ export function ModelMenu({
       closeOnSelect={efforts === undefined || efforts.length <= 1}
       options={items.map((item) => ({
         value: item.value,
-        label: item.label,
-        name: item.name,
+        label: item.name,
         hint: item.hint,
         disabled: item.disabled,
         search: [item.value],

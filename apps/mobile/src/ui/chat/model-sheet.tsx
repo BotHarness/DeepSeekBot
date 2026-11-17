@@ -145,7 +145,7 @@ export function ModelSheet({
               color={usable ? theme.color.fg : theme.color.muted}
             />
           }
-          title={modelEntryLabel(item.entry).short}
+          title={modelEntryLabel(item.entry).name}
           accessibilityLabel={`${item.entry.modelName}, ${credentialHint(item.entry)}`}
           detail={credentialHint(item.entry)}
           tone={usable ? 'fg' : 'muted'}

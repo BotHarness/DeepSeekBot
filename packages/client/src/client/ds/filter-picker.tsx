@@ -79,7 +79,10 @@ const styles = stylex.create({
     color: color.muted,
     cursor: 'pointer',
   },
-  railSelected: { backgroundColor: color.selected, color: color.fg },
+  railSelected: {
+    backgroundColor: { default: color.navSelected, ':hover': color.navSelected },
+    color: color.navSelectedInk,
+  },
   main: { display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 },
   search: { display: 'flex', padding: space.x3 },
   searchInput: { flexGrow: 1 },
@@ -228,6 +231,16 @@ export function FilterPicker({
     },
     [anchorRef],
   );
+  const focusSearch = useMountedResource<HTMLInputElement>((node) => {
+    let frame = 0;
+    const attempt = (left: number) => {
+      node.focus({ preventScroll: true });
+      if (node.ownerDocument.activeElement !== node && left > 0)
+        frame = requestAnimationFrame(() => attempt(left - 1));
+    };
+    frame = requestAnimationFrame(() => attempt(5));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const needle = query.trim().toLowerCase();
   const shown = options.filter(
     (option) =>
@@ -316,6 +329,7 @@ export function FilterPicker({
           <div {...stylex.props(styles.search)}>
             <Input
               className={stylex.props(styles.searchInput).className}
+              ref={focusSearch}
               icon={<ChannelSidebarIcon name="search" size={14} />}
               autoFocus
               role="combobox"

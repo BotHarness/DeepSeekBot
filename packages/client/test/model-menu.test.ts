@@ -105,13 +105,13 @@ it('groups the Host catalog by model family, unknown families last', () => {
   ]);
 });
 
-it('lists models with their family logo, short name and provider, usable ones first', async () => {
+it('lists models with their family logo, full name and provider, usable ones first', async () => {
   const { rows } = await render();
   expect(rows()).toEqual([
-    'V4.1 FlashOpenCode Go',
-    '6.1OpenAI',
+    'DeepSeek V4.1 FlashOpenCode Go',
+    'GPT-6.1OpenAI',
     'house-modelLab',
-    `Opus${zhTranslate('modelPreset.credentialMissing', { provider: 'Anthropic' })}`,
+    `Claude Opus${zhTranslate('modelPreset.credentialMissing', { provider: 'Anthropic' })}`,
   ]);
   expect(
     document.body.querySelector(`[data-picker-option='${key(catalog[0]!)}'] [data-model-brand]`),
@@ -133,7 +133,7 @@ it('filters by family from the rail and by text from the search field', async ()
   await act(async () =>
     document.body.querySelector<HTMLButtonElement>('[data-picker-filter="openai"]')!.click(),
   );
-  expect(rows()).toEqual(['6.1OpenAI']);
+  expect(rows()).toEqual(['GPT-6.1OpenAI']);
   await act(async () =>
     document.body.querySelector<HTMLButtonElement>('[data-picker-filter="all"]')!.click(),
   );
@@ -149,6 +149,8 @@ it('filters by family from the rail and by text from the search field', async ()
 it('chooses with the keyboard and closes when there is no effort to pick', async () => {
   const { onSelect, onClose } = await render();
   const search = document.body.querySelector<HTMLInputElement>('[role="combobox"]')!;
+  await act(async () => new Promise((resolve) => requestAnimationFrame(resolve)));
+  expect(document.activeElement).toBe(search);
   for (let step = 0; step < 2; step += 1)
     await act(async () =>
       search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),

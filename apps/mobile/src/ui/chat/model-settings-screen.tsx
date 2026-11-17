@@ -328,7 +328,7 @@ function ModelsView({
                       color={usable ? theme.color.fg : theme.color.muted}
                     />
                   }
-                  title={modelEntryLabel(item).short}
+                  title={modelEntryLabel(item).name}
                   accessibilityLabel={`${item.modelName}, ${item.providerName}`}
                   detail={
                     item.credential === 'missing'
