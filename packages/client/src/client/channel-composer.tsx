@@ -686,7 +686,7 @@ export function ChannelComposer({
       }
       return {
         ...nextFit,
-        animateFirstExpand: !current.expanded && nextFit.expanded,
+        animateFirstExpand: current.expanded !== nextFit.expanded,
       };
     });
   }, []);
@@ -827,6 +827,15 @@ export function ChannelComposer({
     const pane = shell.closest<HTMLElement>('.bh-chat-pane');
     const timeline = pane?.querySelector<HTMLElement>('.bh-chat-body') ?? null;
     if (pane === null || timeline === null || typeof ResizeObserver === 'undefined') return;
+    const distance = (): number =>
+      timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
+    let atLatest = distance() <= 2;
+    let pinning = false;
+    const onScroll = (): void => {
+      if (pinning) pinning = false;
+      else atLatest = distance() <= 2;
+    };
+    timeline.addEventListener('scroll', onScroll, { passive: true });
     let applied: number | undefined;
     const sync = (): void => {
       const shellBounds = shell.getBoundingClientRect();
@@ -834,11 +843,14 @@ export function ChannelComposer({
         shellBounds.height === 0
           ? 0
           : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
-      if (overlay === applied) return;
-      applied = overlay;
-      const atLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
-      timeline.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
-      if (atLatest) timeline.scrollTop = timeline.scrollHeight;
+      if (overlay !== applied) {
+        applied = overlay;
+        timeline.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
+      }
+      if (atLatest && distance() > 0) {
+        pinning = true;
+        timeline.scrollTop = timeline.scrollHeight;
+      }
     };
     sync();
     const observer = new ResizeObserver(sync);
@@ -846,6 +858,7 @@ export function ChannelComposer({
     observer.observe(pane);
     return () => {
       observer.disconnect();
+      timeline.removeEventListener('scroll', onScroll);
       timeline.style.removeProperty('--bh-composer-overlay');
     };
   }, []);

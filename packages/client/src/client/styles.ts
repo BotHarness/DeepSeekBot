@@ -3480,9 +3480,7 @@ button.bh-profile-heat-cell:focus-visible {
   margin-bottom: calc(-1 * var(--bh-composer-overlay, 0px));
   padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
-  transition: padding-bottom 160ms ease;
 }
-html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .bh-chat-empty {
   height: 100%;
 }
@@ -4582,7 +4580,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   border-radius: calc(${radius.panel} + ${space.x3});
   background: var(--tobs-layer-raised);
   transition:
-    padding 220ms var(--ds-ease-in-out),
+    padding 180ms var(--bh-ease-out),
     border-color 160ms var(--ds-ease-in-out);
 }
 .bh-composer-reply {
@@ -4718,7 +4716,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   overflow: hidden;
 }
 .bh-composer-first-expand .bh-composer-body {
-  transition: height 220ms var(--ds-ease-in-out);
+  transition: height 180ms var(--bh-ease-out);
 }
 .bh-composer-input {
   display: block;
