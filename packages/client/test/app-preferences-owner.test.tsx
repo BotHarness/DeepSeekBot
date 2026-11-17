@@ -9,6 +9,7 @@ vi.mock('../src/client/appearance-pickers.js', () => ({
     createElement('button', { onClick: () => onChange('dark') }, 'Change Client theme'),
   PrimaryColorPicker: () => null,
   ThemePresetPicker: () => null,
+  StylePicker: () => null,
   applyPreset: () => {},
 }));
 vi.mock('../src/client/bot-mode-setting-rows.js', () => ({

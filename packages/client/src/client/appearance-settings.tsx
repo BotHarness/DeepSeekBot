@@ -11,6 +11,7 @@ import { SettingsRows, SettingsRow, SettingsSection } from './ds/settings-row.js
 import {
   ColorSchemePicker,
   PrimaryColorPicker,
+  StylePicker,
   ThemePresetPicker,
   applyPreset,
 } from './appearance-pickers.js';
@@ -43,6 +44,13 @@ export function AppearanceSection(
           config={theme.config}
           t={t}
           onChange={(preference) => change({ preference })}
+        />
+      </SettingsSection>
+      <SettingsSection title={t('appearance.style')}>
+        <StylePicker
+          value={theme.config.style ?? 'a'}
+          t={t}
+          onChange={(style) => change({ style })}
         />
       </SettingsSection>
       <SettingsSection title={t('appearance.palette')}>

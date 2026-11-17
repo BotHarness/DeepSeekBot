@@ -1,0 +1,263 @@
+{
+  "$description": "Style B, native: macOS/iOS grouped cards on a grey backdrop with a hairline edge, accent selection with white ink, compact controls. Every value aliases a shared scale or colour role.",
+  "web": {
+    "style": {
+      "text": {
+        "ui": {
+          "size": {
+            "$type": "dimension",
+            "$value": "{web.type.body.size}"
+          },
+          "line": {
+            "$type": "dimension",
+            "$value": {
+              "value": 18,
+              "unit": "px"
+            }
+          }
+        },
+        "message": {
+          "size": {
+            "$type": "dimension",
+            "$value": "{web.type.body.size}"
+          },
+          "line": {
+            "$type": "dimension",
+            "$value": "{web.type.body.line}"
+          }
+        }
+      },
+      "control": {
+        "height": {
+          "$type": "dimension",
+          "$value": "{web.size.control-small}"
+        },
+        "height-small": {
+          "$type": "dimension",
+          "$value": "{web.size.control-small}"
+        },
+        "height-large": {
+          "$type": "dimension",
+          "$value": "{web.size.control-large}"
+        }
+      },
+      "row": {
+        "nav": {
+          "$type": "dimension",
+          "$value": "{web.size.row}"
+        },
+        "list": {
+          "$type": "dimension",
+          "$value": "{web.size.row-medium}"
+        }
+      },
+      "icon": {
+        "size": {
+          "$type": "dimension",
+          "$value": "{web.size.icon}"
+        },
+        "slot": {
+          "$type": "dimension",
+          "$value": "{web.size.icon-slot}"
+        }
+      },
+      "list": {
+        "gap": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "group-radius": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        },
+        "group-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.elevated}"
+        },
+        "item-radius": {
+          "$type": "dimension",
+          "$value": "{core.radius.0}"
+        },
+        "item-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "item-padding": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "separator": {
+          "$type": "color",
+          "$value": "{web.color.line.divider}"
+        },
+        "item-padding-block": {
+          "$type": "dimension",
+          "$value": "{web.space.2}"
+        },
+        "group-padding-inline": {
+          "$type": "dimension",
+          "$value": "{web.space.4}"
+        },
+        "group-padding-block": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "group-edge": {
+          "$type": "color",
+          "$value": "{web.color.line.edge}"
+        }
+      },
+      "radius": {
+        "control": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "field": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "container": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        },
+        "menu": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        },
+        "dialog": {
+          "$type": "dimension",
+          "$value": "{core.radius.12}"
+        },
+        "nav-selected": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "chip": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "segmented": {
+          "$type": "dimension",
+          "$value": "{core.radius.6}"
+        },
+        "composer": {
+          "$type": "dimension",
+          "$value": "{core.radius.14}"
+        },
+        "bubble": {
+          "$type": "dimension",
+          "$value": "{core.radius.14}"
+        },
+        "card": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        },
+        "sheet": {
+          "$type": "dimension",
+          "$value": "{core.radius.12}"
+        }
+      },
+      "chip": {
+        "height": {
+          "$type": "dimension",
+          "$value": "{web.size.control-small}"
+        }
+      },
+      "nav": {
+        "selected-fill": {
+          "$type": "color",
+          "$value": "{web.color.accent.selection}"
+        },
+        "selected-ink": {
+          "$type": "color",
+          "$value": "{web.color.accent.on-selection}"
+        },
+        "selected-icon": {
+          "$type": "color",
+          "$value": "{web.color.accent.on-selection}"
+        }
+      },
+      "surface": {
+        "list-backdrop": {
+          "$type": "color",
+          "$value": "{web.color.layer.raised}"
+        },
+        "nav": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "nav-edge": {
+          "$type": "color",
+          "$value": "{web.color.line.divider}"
+        }
+      },
+      "on": {
+        "page-field": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-field-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "page-track": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-secondary": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-secondary-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "card-field": {
+          "$type": "color",
+          "$value": "{web.color.layer.field}"
+        },
+        "card-field-edge": {
+          "$type": "color",
+          "$value": "{web.color.line.edge}"
+        },
+        "card-track": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "card-secondary": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "card-secondary-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        }
+      },
+      "switch": {
+        "width": {
+          "$type": "dimension",
+          "$value": {
+            "value": 30,
+            "unit": "px"
+          }
+        },
+        "height": {
+          "$type": "dimension",
+          "$value": {
+            "value": 18,
+            "unit": "px"
+          }
+        }
+      }
+    }
+  }
+}

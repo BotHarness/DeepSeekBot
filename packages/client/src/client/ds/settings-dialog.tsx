@@ -16,7 +16,7 @@ import {
 
 import { Dialog } from './dialog.js';
 import { NavGroupHeading, NavItem } from './nav-item.js';
-import { layer, line, ink, type as tobsType } from './tobs.stylex.js';
+import { layer, ink, style, type as tobsType } from './tobs.stylex.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const NARROW_QUERY = '(max-width: 648px)';
@@ -72,8 +72,8 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     borderRightWidth: border.hairline,
     borderRightStyle: 'solid',
-    borderRightColor: line.divider,
-    backgroundColor: layer.nav,
+    borderRightColor: style.surfaceNavEdge,
+    backgroundColor: style.surfaceNav,
     fontFamily: 'inherit',
   },
   navTitle: {
@@ -115,6 +115,7 @@ const styles = stylex.create({
     minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
+    backgroundColor: style.surfaceListBackdrop,
   },
   captionNarrow: {
     marginTop: space.x5,

@@ -38,8 +38,8 @@
     "dshToken": 809
   },
   "packages/client/src/client/appearance-pickers.tsx": {
-    "rawControl": 4,
-    "lineBorder": 4
+    "rawControl": 2,
+    "lineBorder": 3
   },
   "packages/client/src/client/appearance-primitives.tsx": {
     "dshImport": 1

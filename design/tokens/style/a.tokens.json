@@ -107,6 +107,10 @@
         "group-padding-block": {
           "$type": "dimension",
           "$value": "{web.space.2}"
+        },
+        "group-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
         }
       },
       "radius": {
@@ -183,6 +187,14 @@
         "list-backdrop": {
           "$type": "color",
           "$value": "{web.color.layer.sheet}"
+        },
+        "nav": {
+          "$type": "color",
+          "$value": "{web.color.layer.nav}"
+        },
+        "nav-edge": {
+          "$type": "color",
+          "$value": "{web.color.line.divider}"
         }
       },
       "on": {

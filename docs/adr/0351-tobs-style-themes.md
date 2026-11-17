@@ -15,7 +15,7 @@ ADR-0348 gave Tobs its own tokens for one look, direction A. The owner wants thr
 **What a style changes.** About 25 style tokens, all aliases into shared primitive scales, so a style never carries a colour value:
 
 - UI text size: 13/20 for A and B, 14/20 for C.
-- Control height: 28 for A and B, 40 for C. The 24px minimum stays.
+- Control height: 28 for A, 24 for B (as in its prototype), 40 for C. The 24px minimum stays.
 - Row heights for navigation and lists.
 - List model: one grouped card per section with inset hairline separators, on the raised layer with no edge (A) or on an elevated layer with a hairline edge over a grey backdrop (B); separate tiles with 2px gaps (C). Rows use UI text, not title text, as in the prototypes.
 - Radius by role (`control`, `field`, `container`, `overlay`, `list-group`, `list-item`, `nav-selected`, `composer`, `bubble`) over the primitive scale 0/4/6/10/12/14/16/20/28/full.

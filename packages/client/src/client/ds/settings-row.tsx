@@ -46,6 +46,10 @@ const styles = stylex.create({
       default: style.listGroupFill,
       ':has(> section)': 'transparent',
     },
+    boxShadow: {
+      default: `0 0 0 0.5px ${style.listGroupEdge}`,
+      ':has(> section)': 'none',
+    },
   },
   sectionHead: {
     display: 'flex',
