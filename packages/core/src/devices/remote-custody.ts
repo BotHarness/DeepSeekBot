@@ -246,17 +246,26 @@ export function createRemoteCustody(options: {
             : {}),
         };
         const secretChanged = JSON.stringify(secret) !== JSON.stringify(current.secret);
-        if (secretChanged) await options.secrets.write(current.handle, secret);
-        try {
+        const writeRoutes = (routes: string[]) =>
           options.database.transaction(
             (db) => {
               db.prepare('UPDATE remote_host_custody SET routes = ? WHERE handle = ?').run(
-                JSON.stringify(host.routes),
+                JSON.stringify(routes),
                 current.handle,
               );
             },
             ['remote-host-custody'],
           );
+        try {
+          writeRoutes(host.routes);
+          if (secretChanged) {
+            try {
+              await options.secrets.write(current.handle, secret);
+            } catch (error) {
+              writeRoutes(current.routes);
+              throw error;
+            }
+          }
         } finally {
           if (
             secretChanged ||

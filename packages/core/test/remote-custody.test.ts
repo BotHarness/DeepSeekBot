@@ -216,6 +216,32 @@ describe('Remote Host credential custody', () => {
     expect(f.rows()).toEqual([]);
   });
 
+  it('keeps the old relay token and routes when the rotated token cannot be stored', async () => {
+    const f = fixture();
+    const sealed = await f.custody.seal(encryptedHost);
+    const failing = vi.spyOn(f.secrets, 'set').mockImplementationOnce(() => {
+      throw new Error('vault-busy');
+    });
+    await expect(
+      f.custody.seal({
+        ...sealed,
+        routes: ['https://relay.example.test', 'https://other.example.test'],
+        encryption: {
+          ...sealed.encryption!,
+          privateRelay: {
+            origin: 'https://relay.example.test',
+            token: '44'.repeat(32),
+            additionalOrigins: ['https://other.example.test'],
+          },
+        },
+      }),
+    ).rejects.toThrow('vault-busy');
+    failing.mockRestore();
+    expect(JSON.parse((f.rows()[0] as { routes: string }).routes)).toEqual(sealed.routes);
+    await f.custody.seal(sealed);
+    expect(f.secrets.get(sealed.credential)?.encryption?.privateRelay?.token).toBe(relayToken);
+  });
+
   it('answers the Client in the same shape a direct carrier would', async () => {
     const f = fixture();
     const http = createRemoteCustodyHttp(f.custody);
