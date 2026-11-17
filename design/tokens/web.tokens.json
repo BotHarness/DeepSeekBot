@@ -265,6 +265,13 @@
           "unit": "px"
         }
       },
+      "row-comfortable": {
+        "$type": "dimension",
+        "$value": {
+          "value": 40,
+          "unit": "px"
+        }
+      },
       "row-large": {
         "$type": "dimension",
         "$value": {
