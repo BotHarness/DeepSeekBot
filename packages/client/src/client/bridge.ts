@@ -3956,7 +3956,7 @@ export type SessionTranscriptItem =
       detail?: string;
       at: string;
     }
-  | { kind: 'turn-end'; state: 'done' | 'failed' | 'cancelled'; at: string };
+  | { kind: 'turn-end'; state: 'done' | 'failed' | 'cancelled'; at: string; message?: string };
 
 export interface SessionTranscript {
   role: 'orchestrator' | 'assignment';
@@ -4008,6 +4008,7 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
             kind: 'turn-end',
             state: item['state'] as Extract<SessionTranscriptItem, { kind: 'turn-end' }>['state'],
             at,
+            ...(typeof item['message'] === 'string' ? { message: item['message'] } : {}),
           }
         : undefined;
     default:

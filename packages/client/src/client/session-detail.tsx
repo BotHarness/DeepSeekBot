@@ -5,6 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
 import type { SessionProgress, SessionTranscript, SessionTranscriptItem } from './bridge.js';
 import { ChannelComposer } from './channel-composer.js';
+import { MessageMarkdown } from './channel-message-body.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ChipButton } from './ds/chip-button.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
@@ -76,7 +77,13 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',
   },
-  reply: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
+  summary: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+  },
+  reply: { overflowWrap: 'anywhere', minWidth: 0 },
   reasoning: { color: color.subtle, fontSize: text.metaSize, lineHeight: text.metaLine },
   reasoningBody: { whiteSpace: 'pre-wrap', marginTop: space.x2 },
   tool: {
@@ -141,9 +148,12 @@ function TranscriptItem({
   switch (item.kind) {
     case 'input':
       return item.source === 'system' ? (
-        <div data-transcript="system" {...stylex.props(styles.system)}>
-          {t('sessions.detail.wake')} · {item.text}
-        </div>
+        <details data-transcript="system" {...stylex.props(styles.system)}>
+          <summary {...stylex.props(styles.summary)}>
+            {t('sessions.detail.wake')} · {item.text.split('\n', 1)[0]}
+          </summary>
+          <div {...stylex.props(styles.reasoningBody)}>{item.text}</div>
+        </details>
       ) : (
         <div data-transcript="input" {...stylex.props(styles.input)}>
           <span {...stylex.props(styles.quiet)}>
@@ -162,7 +172,7 @@ function TranscriptItem({
     case 'reply':
       return (
         <div data-transcript="reply" {...stylex.props(styles.reply)}>
-          {item.text}
+          <MessageMarkdown text={item.text} t={t} />
         </div>
       );
     case 'tool':
@@ -181,6 +191,7 @@ function TranscriptItem({
       return (
         <div data-transcript="turn-end" {...stylex.props(styles.quiet, styles.end)}>
           {t(`sessions.detail.turn.${item.state}`)}
+          {item.message === undefined ? null : ` · ${item.message}`}
         </div>
       );
   }

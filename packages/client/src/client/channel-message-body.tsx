@@ -66,6 +66,23 @@ const ChannelMarkdownText = MarkdownText as unknown as (
   props: Parameters<typeof MarkdownText>[0],
 ) => ReactElement;
 
+export function MessageMarkdown({
+  text,
+  t,
+}: {
+  text: string;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const labels = useMemo<MarkdownLabels>(
+    () => ({
+      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
+      footnotes: t('message.footnotes'),
+    }),
+    [t],
+  );
+  return <ChannelMarkdownText text={text} labels={labels} />;
+}
+
 export type NativeChatFailureText = (key: 'message.turnError' | 'message.failure.auth') => string;
 
 const REFUSAL_TEXT: Record<string, readonly [BotHarnessKey, BotHarnessKey?]> = {

@@ -625,6 +625,74 @@ interface SubpanelReorderApi {
   nudge(id: string, delta: -1 | 1): void;
 }
 
+function SessionDetailAside({
+  dock,
+  session,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+}): ReactElement {
+  const members = dock.members;
+  const ratio = members?.ratio ?? 0.4;
+  const label = dock.t('dock.close', { label: session.title });
+  return (
+    <>
+      <div
+        className="bh-message-member-divider"
+        role="separator"
+        tabIndex={0}
+        aria-label={session.title}
+        aria-orientation="vertical"
+        aria-valuemin={20}
+        aria-valuemax={60}
+        aria-valuenow={Math.round(ratio * 100)}
+        onKeyDown={(event) => {
+          if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+          event.preventDefault();
+          members?.setRatio(ratio + (event.key === 'ArrowLeft' ? 0.02 : -0.02));
+        }}
+        onPointerDown={(event) => {
+          if (event.button === 0) event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+          const box = event.currentTarget.parentElement!.getBoundingClientRect();
+          members?.setRatio((box.right - event.clientX) / box.width);
+        }}
+        onPointerUp={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+      />
+      <aside
+        className="bh-message-members"
+        aria-label={session.title}
+        data-session-aside=""
+        style={{ width: `${ratio * 100}%` }}
+      >
+        <AppearancePanelHeader id="session-detail" label={session.title} t={dock.t}>
+          <PanelHeader
+            label={session.title}
+            onHide={session.close}
+            hideLabel={label}
+            hideHint={dock.t('dock.headHintHide')}
+            action={
+              <Tooltip label={label} side="bottom">
+                <IconButton aria-label={label} onClick={session.close}>
+                  <ChannelSidebarIcon name="x" />
+                </IconButton>
+              </Tooltip>
+            }
+          />
+        </AppearancePanelHeader>
+        <div className="bh-channel-subpanel-body" data-appearance-body="session-detail">
+          {session.content}
+        </div>
+      </aside>
+    </>
+  );
+}
+
 function SimpleMessageContent({ column }: { column: SubpanelColumnView }): ReactElement {
   const dock = useDock();
   const all = columnEntries(dock);
@@ -787,6 +855,9 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
       <div className="bh-message-content">
         <DockBodySlot />
       </div>
+      {dock.channel !== undefined && dock.session !== undefined ? (
+        <SessionDetailAside dock={dock} session={dock.session} />
+      ) : null}
       {column.state.open && dock.channel && (
         <>
           <div

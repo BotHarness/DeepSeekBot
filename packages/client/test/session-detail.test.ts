@@ -18,6 +18,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
   IconSkillOutlineRegular: () => null,
+  MarkdownText: ({ text }: { text: string }) => createElement('div', null, text),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';

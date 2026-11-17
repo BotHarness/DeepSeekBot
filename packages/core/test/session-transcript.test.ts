@@ -22,7 +22,12 @@ describe('Session transcript', () => {
         event(1, 'turn/start'),
         event(2, 'user/message', {
           source: { kind: 'user' },
-          content: [{ type: 'text', text: 'Fix the Safari export button.' }],
+          content: [
+            {
+              type: 'text',
+              text: 'Fix the Safari export button.\n\n[Host Assignment report transport] ## Report delivery contract\nCall report_to_orchestrator.',
+            },
+          ],
         }),
         say(3, [
           { type: 'reasoning', text: 'Look at the handler first.' },

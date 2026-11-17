@@ -17,7 +17,7 @@ export type SessionTranscriptItem =
       detail?: string;
       at: string;
     }
-  | { kind: 'turn-end'; state: 'done' | 'failed' | 'cancelled'; at: string };
+  | { kind: 'turn-end'; state: 'done' | 'failed' | 'cancelled'; at: string; message?: string };
 
 export interface SessionTranscript {
   items: SessionTranscriptItem[];
@@ -69,6 +69,8 @@ function joined(parts: Record<string, unknown>[], type: string): string {
   );
 }
 
+const HOST_BLOCK = /\n+\[Host [^\]\n]{1,80}\][\s\S]*$/u;
+
 function parsedArgs(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;
   try {
@@ -98,7 +100,7 @@ export function summarizeSessionTranscript(input: {
       running = true;
     } else if (event.type === 'user/message') {
       const kind = object(data['source'])['kind'];
-      const text = joined(blocks(data), 'text');
+      const text = joined(blocks(data), 'text').replace(HOST_BLOCK, '').trim();
       if (text !== '')
         items.push({
           kind: 'input',
@@ -162,10 +164,14 @@ export function summarizeSessionTranscript(input: {
       running = false;
       const reason = data['reason'];
       const kind = typeof reason === 'string' ? reason : object(reason)['kind'];
+      const failure = object(object(reason)['error'])['message'];
       items.push({
         kind: 'turn-end',
         state: kind === 'error' ? 'failed' : kind === 'aborted' ? 'cancelled' : 'done',
         at,
+        ...(kind === 'error' && typeof failure === 'string' && failure.trim() !== ''
+          ? { message: failure.trim().slice(0, 280) }
+          : {}),
       });
     }
   }
