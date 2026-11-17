@@ -24,9 +24,8 @@ const styles = stylex.create({
       default: 'transparent',
       ':hover': state.hover,
       ':active': state.pressed,
-      ':is([aria-current=page])': style.navSelectedFill,
     },
-    color: { default: ink.primary, ':is([aria-current=page])': style.navSelectedInk },
+    color: ink.primary,
     fontFamily: 'inherit',
     fontSize: style.textUiSize,
     lineHeight: style.textUiLine,
@@ -43,6 +42,10 @@ const styles = stylex.create({
     width: style.iconSlot,
     height: style.iconSlot,
     color: ink.secondary,
+  },
+  current: {
+    backgroundColor: { default: style.navSelectedFill, ':hover': style.navSelectedFill },
+    color: style.navSelectedInk,
   },
   slotCurrent: { color: style.navSelectedIcon },
   label: {
@@ -112,7 +115,7 @@ export function NavItem({
       type="button"
       aria-current={current ? 'page' : undefined}
       onClick={onSelect}
-      {...stylex.props(styles.item)}
+      {...stylex.props(styles.item, current && styles.current)}
     >
       <span aria-hidden="true" {...stylex.props(styles.slot, current && styles.slotCurrent)}>
         {icon}
