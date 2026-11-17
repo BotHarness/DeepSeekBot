@@ -74,13 +74,6 @@
           "$type": "color",
           "$value": "{web.color.layer.raised}"
         },
-        "group-padding": {
-          "$type": "dimension",
-          "$value": {
-            "value": 0,
-            "unit": "px"
-          }
-        },
         "item-radius": {
           "$type": "dimension",
           "$value": "{core.radius.0}"
@@ -91,7 +84,10 @@
         },
         "item-padding": {
           "$type": "dimension",
-          "$value": "{web.space.4}"
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
         },
         "separator": {
           "$type": "color",
@@ -103,6 +99,14 @@
             "value": 6,
             "unit": "px"
           }
+        },
+        "group-padding-inline": {
+          "$type": "dimension",
+          "$value": "{web.space.4}"
+        },
+        "group-padding-block": {
+          "$type": "dimension",
+          "$value": "{web.space.2}"
         }
       },
       "radius": {
