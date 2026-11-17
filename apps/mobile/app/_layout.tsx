@@ -91,6 +91,7 @@ function RootNavigator() {
     ['models', t.modelSettings.title],
     ['model-picker', undefined],
     ['model-preset', undefined],
+    ['prompts', t.prompts.title],
     ['notifications', t.notifications],
     ['storage', t.storage.title],
     ['app-icon', t.appIcon],
