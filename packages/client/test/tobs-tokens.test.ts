@@ -57,6 +57,30 @@ describe('Tobs design tokens', () => {
     expect(readFileSync(STYLEX_OUTPUT, 'utf8')).toBe(renderStylex(tokens));
   });
 
+  it('keeps box corners finite in every style so cards never turn into capsules', () => {
+    const source = readFileSync(
+      new URL('../src/client/ds/tokens.stylex.ts', import.meta.url),
+      'utf8',
+    );
+    const consts =
+      /export const radius = stylex\.defineConsts\(\{([^}]*)\}/.exec(source)?.[1] ?? '';
+    const boxes = ['sm', 'md', 'lg', 'panel'].map((name) => {
+      const variable = new RegExp(`\\b${name}: 'var\\(--tobs-style-radius-([a-z-]+)\\)'`).exec(
+        consts,
+      )?.[1];
+      expect(variable, `radius.${name} reads a style radius`).toBeDefined();
+      return { name, path: `web.style.radius.${variable}` };
+    });
+    for (const style of contexts('style')) {
+      const value = resolved({ mode: 'light', style, accent: contexts('accent')[0]! });
+      for (const box of boxes)
+        expect(
+          Number.parseFloat(value(box.path) as string),
+          `${style} radius.${box.name}`,
+        ).toBeLessThanOrEqual(28);
+    }
+  });
+
   it('defines the same custom properties in every mode, accent and style', () => {
     expect(Object.keys(TOBS_TOKENS.dark)).toEqual(Object.keys(TOBS_TOKENS.light));
     for (const name of Object.keys(TOBS_TOKENS.light)) expect(name).toMatch(/^--tobs-[a-z0-9-]+$/);
