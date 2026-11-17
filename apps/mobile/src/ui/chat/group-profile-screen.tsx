@@ -6,6 +6,7 @@ import { groupActions, groupInfo, loadGroupAssignments } from '../../host/group-
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import {
+  followConnection,
   loadChannelNickname,
   saveChannelNickname,
   useHumanIdentity,
@@ -57,28 +58,13 @@ export function GroupProfileScreen({
   const human = useHumanIdentity(sourceChanged ? undefined : client);
   const nicknameMount = useMounted<ViewInstance>(() => {
     let live = true;
-    let loaded = false;
-    let pending = false;
     setNickname(undefined);
     if (sourceChanged || client === undefined || id === undefined) return;
-    const load = (): void => {
-      if (loaded || pending) return;
-      pending = true;
-      loadChannelNickname(client, id).then(
-        (value) => {
-          loaded = true;
-          pending = false;
-          if (live) setNickname(value);
-        },
-        () => {
-          pending = false;
-        },
-      );
-    };
-    load();
-    const unfollow = client.subscribe(() => {
-      if (client.getSnapshot().connection.status === 'connected') load();
-    });
+    const unfollow = followConnection(client, () =>
+      loadChannelNickname(client, id).then((value) => {
+        if (live) setNickname(value);
+      }),
+    );
     return () => {
       live = false;
       unfollow();
@@ -129,7 +115,10 @@ export function GroupProfileScreen({
         pickAvatar={pickAvatarImage}
         onClose={onClose ?? (() => router.back())}
         onOpenBot={(slug) =>
-          router.push({ pathname: '/bot/[slug]', params: { slug, hostId: saved?.hostId } })
+          router.push({
+            pathname: '/bot/[slug]',
+            params: { slug, hostId: saved?.hostId },
+          })
         }
         onDisbanded={() => router.dismissAll()}
         {...(refused ? {} : { loadWork, stopper: sessionStopper(client, info.channel.id) })}
@@ -137,7 +126,11 @@ export function GroupProfileScreen({
           if (assignment.botSlug === undefined) return;
           router.push({
             pathname: '/group/[id]/assignment/[session]',
-            params: { ...params, slug: assignment.botSlug, session: assignment.sessionId },
+            params: {
+              ...params,
+              slug: assignment.botSlug,
+              session: assignment.sessionId,
+            },
           });
         }}
         onChatBackground={() =>

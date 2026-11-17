@@ -1194,6 +1194,7 @@
       "description": "Loading, empty and load-failure rows shown inside settings groups.",
       "scope": "Client transport / transient state",
       "surfaces": [
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loading')}",
         "setting:packages/client/src/client/im-apps-section.tsx:{t('imApps.empty')}",
         "setting:packages/client/src/client/im-apps-section.tsx:{<span role=\"status\">{t('imApps.loadFailed')}</span>}",
         "setting:packages/client/src/client/messaging-defaults-settings.tsx:{<Note tone=\"danger\">{error}</Note>}",

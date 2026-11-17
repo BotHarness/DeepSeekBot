@@ -71,19 +71,26 @@ export async function loadHumanIdentity(client: HostClient): Promise<HumanIdenti
     : remember(client, identity);
 }
 
-export function followHumanIdentity(client: HostClient): () => void {
+export function followConnection(client: HostClient, run: () => Promise<unknown>): () => void {
   let loaded = false;
   let pending = false;
+  let again = false;
   const load = (): void => {
-    if (loaded || pending) return;
+    if (loaded) return;
+    if (pending) {
+      again = true;
+      return;
+    }
     pending = true;
-    loadHumanIdentity(client).then(
+    again = false;
+    run().then(
       () => {
         loaded = true;
         pending = false;
       },
       () => {
         pending = false;
+        if (again) load();
       },
     );
   };
@@ -91,6 +98,10 @@ export function followHumanIdentity(client: HostClient): () => void {
   return client.subscribe(() => {
     if (client.getSnapshot().connection.status === 'connected') load();
   });
+}
+
+export function followHumanIdentity(client: HostClient): () => void {
+  return followConnection(client, () => loadHumanIdentity(client));
 }
 
 export async function saveHumanName(
