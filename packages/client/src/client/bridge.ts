@@ -3972,11 +3972,32 @@ export type SessionTranscriptItem =
       kind: 'tool';
       id: string;
       tool: string;
+      toolKind: SessionToolKind;
       status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
       detail?: string;
       at: string;
     }
   | { kind: 'turn-end'; state: 'done' | 'failed' | 'cancelled'; at: string; message?: string };
+
+export type SessionToolKind =
+  | 'read'
+  | 'edit'
+  | 'delete'
+  | 'move'
+  | 'search'
+  | 'execute'
+  | 'fetch'
+  | 'other';
+
+const SESSION_TOOL_KINDS: readonly string[] = [
+  'read',
+  'edit',
+  'delete',
+  'move',
+  'search',
+  'execute',
+  'fetch',
+];
 
 export interface SessionTranscript {
   role: 'orchestrator' | 'assignment';
@@ -4008,7 +4029,7 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
     case 'reasoning':
       return typeof text === 'string' ? { kind: item['kind'], text, at } : undefined;
     case 'tool': {
-      const { id, tool, status, detail } = item;
+      const { id, tool, status, detail, toolKind } = item;
       return typeof id === 'string' &&
         typeof tool === 'string' &&
         TRANSCRIPT_TOOL_STATUSES.includes(status as string)
@@ -4016,6 +4037,9 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
             kind: 'tool',
             id,
             tool,
+            toolKind: SESSION_TOOL_KINDS.includes(toolKind as string)
+              ? (toolKind as SessionToolKind)
+              : 'other',
             status: status as Extract<SessionTranscriptItem, { kind: 'tool' }>['status'],
             ...(typeof detail === 'string' ? { detail } : {}),
             at,

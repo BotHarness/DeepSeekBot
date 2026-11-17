@@ -60,6 +60,7 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
       kind: 'tool',
       id: 'c1',
       tool: 'read_file',
+      toolKind: 'read',
       status: 'done',
       detail: 'src/export.tsx',
       at: '2026-11-17T00:00:04.000Z',
@@ -109,12 +110,22 @@ it('shows the full conversation with summary chips that expand in place', async 
     })),
     sendSessionRequest: vi.fn(async () => {}),
   });
-  const kinds = [...host.querySelectorAll('[data-transcript]')].map((node) =>
-    node.getAttribute('data-transcript'),
-  );
-  expect(kinds).toEqual(['input', 'reasoning', 'reply', 'tool', 'turn-end']);
-  expect(host.textContent).toContain('第 1 轮指示');
+  const kinds = () =>
+    [...host.querySelectorAll('[data-transcript]')].map((node) =>
+      node.getAttribute('data-transcript'),
+    );
+  expect(kinds()).toEqual(['input', 'turn-end', 'reply']);
+  expect(host.textContent).not.toContain('第 1 轮');
+  expect(host.querySelector('[data-transcript="turn-end"]')?.textContent).toBe('已完成，用时 4 秒');
   expect(host.textContent).toContain('更早的 2 条没有显示');
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="turn-end"]')!.click(),
+  );
+  expect(kinds()).toEqual(['input', 'turn-end', 'process', 'reply', 'process']);
+  const groups = host.querySelectorAll<HTMLElement>('[data-transcript="process"]');
+  expect(groups[0]!.textContent).toBe('已思考');
+  expect(groups[1]!.textContent).toBe('读取了 1 个文件');
+  await act(async () => groups[1]!.querySelector('button')!.click());
   expect(host.querySelector('[data-tool-status="done"]')?.textContent).toContain('src/export.tsx');
   expect(host.querySelector('[data-session-panel]')).toBeNull();
   const todos = host.querySelector<HTMLButtonElement>('[data-session-chip="todos"]')!;
@@ -136,7 +147,7 @@ it('has no composer for the Orchestrator conversation', async () => {
     sessionTranscript: vi.fn(async () => transcript('orchestrator')),
     sendSessionRequest: vi.fn(async () => {}),
   });
-  expect(host.querySelectorAll('[data-transcript]')).toHaveLength(5);
+  expect(host.querySelectorAll('[data-transcript]')).toHaveLength(3);
   expect(host.querySelector('[data-session-composer]')).toBeNull();
 });
 
@@ -198,6 +209,21 @@ it('sends a direct request into the Assignment and reports a refusal', async () 
   const parsed = await loadSessionTranscript(read, 'tobs', 'asg-1');
   expect(parsed.running).toBe(true);
   expect(parsed.items).toHaveLength(5);
+  expect(parsed.items[3]).toMatchObject({ kind: 'tool', toolKind: 'read' });
+  const unknownKind = await loadSessionTranscript(
+    vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        role: 'assignment',
+        running: false,
+        omitted: 0,
+        items: [{ kind: 'tool', id: 'c2', tool: 'mcp_x', status: 'done', at: 'x' }],
+      },
+    })),
+    'tobs',
+    'asg-1',
+  );
+  expect(unknownKind.items[0]).toMatchObject({ toolKind: 'other' });
 });
 
 it('stops a running Assignment from an empty composer', async () => {
@@ -221,4 +247,36 @@ it('keeps send for an idle Assignment', async () => {
   });
   expect(host.querySelector('[data-session-composer]')).not.toBeNull();
   expect(host.querySelector('[data-composer-stop]')).toBeNull();
+});
+
+it('shows the running step live and keeps the turn open', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => ({
+      role: 'assignment' as const,
+      running: true,
+      omitted: 0,
+      items: [
+        {
+          kind: 'input' as const,
+          text: 'Run the tests.',
+          at: '2026-11-17T00:00:01.000Z',
+          turn: 1,
+          source: 'user' as const,
+        },
+        {
+          kind: 'tool' as const,
+          id: 'c1',
+          tool: 'bash',
+          toolKind: 'other' as const,
+          status: 'running' as const,
+          detail: 'node --test',
+          at: '2026-11-17T00:00:02.000Z',
+        },
+      ],
+    })),
+    sendSessionRequest: vi.fn(async () => {}),
+    stopSession: vi.fn(async () => {}),
+  });
+  expect(host.querySelector('[data-transcript="turn-end"]')).toBeNull();
+  expect(host.querySelector('[data-process-live]')?.textContent).toBe('正在运行命令node --test');
 });

@@ -657,7 +657,8 @@ function SessionDetailAside({
         onPointerMove={(event) => {
           if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
           const box = event.currentTarget.parentElement!.getBoundingClientRect();
-          members?.setRatio((box.right - event.clientX) / box.width);
+          const aside = event.currentTarget.nextElementSibling!.getBoundingClientRect();
+          members?.setRatio((aside.right - event.clientX) / box.width);
         }}
         onPointerUp={(event) => {
           if (event.currentTarget.hasPointerCapture(event.pointerId))

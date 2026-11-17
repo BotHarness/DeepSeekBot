@@ -3,18 +3,39 @@ import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
-import type { SessionProgress, SessionTranscript, SessionTranscriptItem } from './bridge.js';
+import type { SessionProgress, SessionTranscript } from './bridge.js';
 import { ChannelComposer } from './channel-composer.js';
 import { MessageMarkdown } from './channel-message-body.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ChipButton } from './ds/chip-button.js';
+import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { todoCount, TodoRing } from './session-progress-view.js';
+import {
+  elapsedText,
+  liveLabel,
+  processSummary,
+  stepFailed,
+  toolGroup,
+  transcriptBlocks,
+  type ToolGroup,
+  type TranscriptBlock,
+  type TranscriptStep,
+} from './session-transcript-view.js';
 
 const RUNNING_REFRESH_MS = 4_000;
 const IDLE_REFRESH_MS = 30_000;
+
+const GROUP_ICONS: Record<ToolGroup, string> = {
+  read: 'file',
+  edit: 'files',
+  execute: 'terminal',
+  search: 'search',
+  fetch: 'globe',
+  other: 'puzzle',
+};
 
 const styles = stylex.create({
   root: {
@@ -53,7 +74,7 @@ const styles = stylex.create({
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
-    gap: space.x3,
+    gap: space.x1,
     paddingInline: space.x5,
     paddingBlock: space.x4,
   },
@@ -62,16 +83,11 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
+  center: { textAlign: 'center' },
   input: {
     alignSelf: 'flex-end',
     maxWidth: '88%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: space.x1,
-    marginTop: space.x2,
-  },
-  bubble: {
+    marginBlock: space.x3,
     paddingBlock: space.x3,
     paddingInline: space.x4,
     borderRadius: radius.lg,
@@ -79,52 +95,25 @@ const styles = stylex.create({
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
-  system: {
-    alignSelf: 'stretch',
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    whiteSpace: 'pre-wrap',
-  },
-  summary: {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    cursor: 'pointer',
-  },
-  reply: { overflowWrap: 'anywhere', minWidth: 0 },
-  reasoning: {
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
-  reasoningBody: { whiteSpace: 'pre-wrap', marginTop: space.x2 },
-  tool: {
+  reply: { overflowWrap: 'anywhere', minWidth: 0, marginBlock: space.x2 },
+  nested: {
     display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    paddingBlock: space.x2,
-    paddingInline: space.x4,
-    borderRadius: radius.md,
-    backgroundColor: color.surface,
+    flexDirection: 'column',
+    gap: space.x1,
+    paddingInlineStart: space.x5,
+  },
+  thought: {
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    color: color.subtle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
-    minWidth: 0,
+    paddingInlineStart: space.x6,
+    paddingBottom: space.x2,
   },
-  toolName: { fontWeight: text.strong, color: color.muted, flexShrink: 0 },
-  toolDetail: {
-    flex: 1,
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    color: color.subtle,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-  },
+  bad: { color: color.danger },
   ok: { color: color.success, display: 'inline-flex' },
-  bad: { color: color.danger, display: 'inline-flex' },
   run: { color: color.accent, display: 'inline-flex' },
-  end: { textAlign: 'center' },
   composer: { flexShrink: 0, paddingBlock: space.x3 },
   error: {
     color: color.danger,
@@ -133,84 +122,165 @@ const styles = stylex.create({
   },
 });
 
-function ToolStatus({
-  status,
-  t,
-}: {
-  status: Extract<SessionTranscriptItem, { kind: 'tool' }>['status'];
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const label = t(`sessions.detail.tool.${status}`);
-  const [icon, tone] =
-    status === 'done'
-      ? (['check', styles.ok] as const)
-      : status === 'running'
-        ? (['play', styles.run] as const)
-        : (['ban', styles.bad] as const);
+function stepIcon(step: TranscriptStep): string {
+  return step.kind === 'reasoning' ? 'brain' : GROUP_ICONS[toolGroup(step)];
+}
+
+function StepRow({ step, t }: { step: TranscriptStep; t: BotHarnessTranslate }): ReactElement {
+  const [open, setOpen] = useState(false);
+  if (step.kind === 'reasoning') {
+    const preview = step.text.split('\n').find((line) => line.trim() !== '') ?? '';
+    return (
+      <div data-transcript="reasoning">
+        <WorkRow
+          icon="brain"
+          label={t('sessions.detail.reasoning')}
+          detail={open ? undefined : preview}
+          expanded={open}
+          onToggle={() => setOpen((value) => !value)}
+        />
+        {open ? <div {...stylex.props(styles.thought)}>{step.text}</div> : null}
+      </div>
+    );
+  }
+  const failed = stepFailed(step) || step.status === 'cancelled';
+  const status = t(`sessions.detail.tool.${step.status}`);
   return (
-    <span role="img" aria-label={label} title={label} {...stylex.props(tone)}>
-      <ChannelSidebarIcon name={icon} size={14} />
-    </span>
+    <WorkRow
+      data-transcript="tool"
+      data-tool-status={step.status}
+      title={`${step.tool}${step.detail === undefined ? '' : ` · ${step.detail}`} · ${status}`}
+      icon={stepIcon(step)}
+      label={step.tool}
+      detail={step.detail}
+      live={step.status === 'running'}
+      danger={failed}
+    />
   );
 }
 
-function TranscriptItem({
-  item,
+function ProcessGroup({
+  steps,
+  live,
   t,
 }: {
-  item: SessionTranscriptItem;
+  steps: TranscriptStep[];
+  live: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
-  switch (item.kind) {
-    case 'input':
-      return item.source === 'system' ? (
-        <details data-transcript="system" {...stylex.props(styles.system)}>
-          <summary {...stylex.props(styles.summary)}>
-            {t('sessions.detail.wake')} · {item.text.split('\n', 1)[0]}
-          </summary>
-          <div {...stylex.props(styles.reasoningBody)}>{item.text}</div>
-        </details>
-      ) : (
-        <div data-transcript="input" {...stylex.props(styles.input)}>
-          <span {...stylex.props(styles.quiet)}>
-            {t('sessions.detail.instruction', { turn: item.turn })}
-          </span>
-          <div {...stylex.props(styles.bubble)}>{item.text}</div>
+  const [open, setOpen] = useState(false);
+  const last = steps.at(-1);
+  const latestTool = [...steps].reverse().find((step) => step.kind === 'tool');
+  return (
+    <div data-transcript="process" data-process-live={live ? '' : undefined}>
+      <WorkRow
+        icon={
+          live && last !== undefined
+            ? stepIcon(last)
+            : latestTool === undefined
+              ? 'brain'
+              : stepIcon(latestTool)
+        }
+        label={live ? liveLabel(last, t) : processSummary(steps, t)}
+        detail={live && last?.kind === 'tool' ? last.detail : undefined}
+        live={live}
+        danger={!live && steps.some(stepFailed)}
+        expanded={open}
+        onToggle={() => setOpen((value) => !value)}
+      />
+      {open ? (
+        <div {...stylex.props(styles.nested)}>
+          {steps.map((step, index) => (
+            <StepRow key={`${step.kind}-${step.at}-${index}`} step={step} t={t} />
+          ))}
         </div>
-      );
-    case 'reasoning':
-      return (
-        <details data-transcript="reasoning" {...stylex.props(styles.reasoning)}>
-          <summary>{t('sessions.detail.reasoning')}</summary>
-          <div {...stylex.props(styles.reasoningBody)}>{item.text}</div>
-        </details>
-      );
-    case 'reply':
-      return (
-        <div data-transcript="reply" {...stylex.props(styles.reply)}>
-          <MessageMarkdown text={item.text} t={t} />
-        </div>
-      );
-    case 'tool':
-      return (
-        <div data-transcript="tool" data-tool-status={item.status} {...stylex.props(styles.tool)}>
-          <ToolStatus status={item.status} t={t} />
-          <span {...stylex.props(styles.toolName)}>{item.tool}</span>
-          {item.detail === undefined ? null : (
-            <span title={item.detail} {...stylex.props(styles.toolDetail)}>
-              {item.detail}
-            </span>
-          )}
-        </div>
-      );
-    case 'turn-end':
-      return (
-        <div data-transcript="turn-end" {...stylex.props(styles.quiet, styles.end)}>
-          {t(`sessions.detail.turn.${item.state}`)}
-          {item.message === undefined ? null : ` · ${item.message}`}
-        </div>
-      );
-  }
+      ) : null}
+    </div>
+  );
+}
+
+function TurnBlock({
+  block,
+  t,
+}: {
+  block: Extract<TranscriptBlock, { kind: 'turn' }>;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const folds = !block.live && block.segments.some((segment) => segment.kind === 'process');
+  const end = block.end;
+  const state = end?.state ?? 'done';
+  const duration = end === undefined ? undefined : elapsedText(block.startedAt, end.at, t);
+  const heading =
+    duration === undefined
+      ? t(`sessions.detail.turn.${state}`)
+      : t(`sessions.detail.took.${state}`, { duration });
+  const visible =
+    folds && !open ? block.segments.filter((segment) => segment.kind === 'reply') : block.segments;
+  const lastSegment = block.segments.at(-1);
+  return (
+    <>
+      {folds || (end !== undefined && state !== 'done') ? (
+        <WorkRow
+          data-transcript="turn-end"
+          data-turn-state={state}
+          icon={state === 'done' ? 'check' : state === 'cancelled' ? 'ban' : 'x'}
+          label={heading}
+          danger={state === 'failed'}
+          {...(folds ? { expanded: open, onToggle: () => setOpen((value) => !value) } : {})}
+        />
+      ) : null}
+      {end?.message === undefined ? null : (
+        <div {...stylex.props(styles.quiet, styles.bad)}>{end.message}</div>
+      )}
+      {visible.map((segment) =>
+        segment.kind === 'reply' ? (
+          <div key={segment.key} data-transcript="reply" {...stylex.props(styles.reply)}>
+            <MessageMarkdown text={segment.item.text} t={t} />
+          </div>
+        ) : (
+          <ProcessGroup
+            key={segment.key}
+            steps={segment.steps}
+            live={block.live && segment === lastSegment}
+            t={t}
+          />
+        ),
+      )}
+      {block.live && lastSegment?.kind !== 'process' ? (
+        <WorkRow data-transcript="working" icon="brain" label={t('sessions.detail.working')} live />
+      ) : null}
+    </>
+  );
+}
+
+function InputBlock({
+  block,
+  t,
+}: {
+  block: Extract<TranscriptBlock, { kind: 'input' }>;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const item = block.item;
+  if (item.source === 'user')
+    return (
+      <div data-transcript="input" {...stylex.props(styles.input)}>
+        {item.text}
+      </div>
+    );
+  return (
+    <div data-transcript="system">
+      <WorkRow
+        icon="inbox"
+        label={t('sessions.detail.wake')}
+        detail={open ? undefined : item.text.split('\n', 1)[0]}
+        expanded={open}
+        onToggle={() => setOpen((value) => !value)}
+      />
+      {open ? <div {...stylex.props(styles.thought)}>{item.text}</div> : null}
+    </div>
+  );
 }
 
 export function SessionDetail({
@@ -391,13 +461,17 @@ export function SessionDetail({
         ) : (
           <>
             {transcript.omitted === 0 ? null : (
-              <div {...stylex.props(styles.quiet, styles.end)}>
+              <div {...stylex.props(styles.quiet, styles.center)}>
                 {t('sessions.detail.omitted', { count: transcript.omitted })}
               </div>
             )}
-            {transcript.items.map((item, index) => (
-              <TranscriptItem key={`${item.kind}-${item.at}-${index}`} item={item} t={t} />
-            ))}
+            {transcriptBlocks(transcript.items, transcript.running).map((block) =>
+              block.kind === 'input' ? (
+                <InputBlock key={block.key} block={block} t={t} />
+              ) : (
+                <TurnBlock key={block.key} block={block} t={t} />
+              ),
+            )}
           </>
         )}
       </div>
