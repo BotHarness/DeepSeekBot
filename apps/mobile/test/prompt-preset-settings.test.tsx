@@ -58,6 +58,7 @@ function library(globalPresetId: string | null): PromptLibrary {
         limits: { 'review-tool-calls': 6 },
         updatedAt: '',
       },
+      { id: 'plain', name: 'Plain', revision: 1, parts: {}, limits: {}, updatedAt: '' },
     ],
     globalPresetId,
   };
@@ -78,6 +79,8 @@ describe('Prompt preset settings', () => {
     expect(row(view, 'prompt-global-built-in').getAttribute('aria-selected')).toBe('true');
     expect(row(view, 'prompt-preset-concise').textContent).toContain(t.prompts.changed(2));
     expect(row(view, 'prompt-preset-concise').textContent).toContain(t.prompts.defaultChanged);
+    expect(row(view, 'prompt-preset-plain').textContent).toBe(`Plain${t.prompts.changed(0)}`);
+    expect(t.prompts.changed(0)).not.toMatch(/0/);
     await act(async () => row(view, 'prompt-global-concise').click());
     await act(async () => undefined);
     expect(setGlobal).toHaveBeenCalledWith('concise');

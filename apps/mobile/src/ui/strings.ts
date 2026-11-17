@@ -745,7 +745,8 @@ const en = {
     presets: 'Presets',
     presetsHint: 'Create and edit presets in BotHarness on your computer.',
     none: 'No presets yet',
-    changed: (count: number) => `${count} ${count === 1 ? 'part' : 'parts'} changed`,
+    changed: (count: number) =>
+      count === 0 ? 'No changes' : `${count} ${count === 1 ? 'part' : 'parts'} changed`,
     defaultChanged: 'Default updated',
     failed: 'Could not change the global preset.',
   },
@@ -3380,7 +3381,7 @@ const zh: typeof en = {
     presets: '预设',
     presetsHint: '新建和编辑预设请在电脑上的 BotHarness 里进行。',
     none: '还没有预设',
-    changed: (count: number) => `改了 ${count} 处`,
+    changed: (count: number) => (count === 0 ? '未修改' : `改了 ${count} 处`),
     defaultChanged: '默认已更新',
     failed: '没能更换全局预设。',
   },
