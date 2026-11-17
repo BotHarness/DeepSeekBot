@@ -9,6 +9,7 @@ import {
   lowered,
   malformed,
   raised,
+  ratcheted,
   readGuardrails,
   validateGuardrails,
 } from '../lint-ratchet.mjs';
@@ -82,6 +83,24 @@ describe('lint ratchet', () => {
       `a.ts: ${rule} baseline raised from 1 to 2`,
       `b.ts: ${rule} baseline raised from 0 to 1`,
     ]);
+  });
+
+  it('keeps a seeded rule in the baseline after its last finding is fixed', () => {
+    const { counts } = countFindings([], [guardrail]);
+    expect(lowered({ [rule]: { 'a.ts': 1 } }, counts, [guardrail])).toEqual({ [rule]: {} });
+    expect(lowered({}, counts, [guardrail])).toEqual({});
+  });
+
+  it('lets a rule registered since the base revision seed its baseline', () => {
+    expect(raised({}, { [rule]: { 'a.ts': 2 } }, new Set([rule]))).toEqual([]);
+    expect(raised({}, { [rule]: { 'a.ts': 2 } }, new Set())).toEqual([
+      `a.ts: ${rule} baseline raised from 0 to 2`,
+    ]);
+  });
+
+  it('expands a guardrail that lists several rules', () => {
+    const group = { id: 'g', check: 'scripts/lint-ratchet.mjs', rules: ['eslint/a', 'eslint/b'] };
+    expect(ratcheted([group]).map((guardrail) => guardrail.rule)).toEqual(['eslint/a', 'eslint/b']);
   });
 
   it('rejects a baseline count that is not a nonnegative integer', () => {

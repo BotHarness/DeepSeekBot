@@ -147,6 +147,7 @@ export function createDailyControl(options: {
       const child =
         options.spawn?.() ??
         fork(fileURLToPath(new URL('./daily-worker.mjs', import.meta.url)), [], {
+          windowsHide: true,
           env,
           stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
           execArgv: [],

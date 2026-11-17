@@ -14,24 +14,6 @@ import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 import { font } from './ds/tobs.stylex.js';
 
-const STAMP_TEXT_ENDS = [
-  '.bh-bubble-body:last-child',
-  '.bh-bubble-content > .bh-bubble-body:not(.bh-bubble-body-markdown):last-child',
-  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(p, h1, h2, h3, h4, h5, h6):last-child',
-  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(ul, ol):last-child > li:last-child',
-  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > .bh-bot-mention-prefix:last-child',
-];
-const STAMP_SPACERS = STAMP_TEXT_ENDS.map(
-  (end) => `.bh-bubble-stamped > [data-message-fold] > ${end}::after`,
-).join(',\n');
-const STAMP_ME_SPACERS = STAMP_TEXT_ENDS.map(
-  (end) => `.bh-bubble-me.bh-bubble-stamped > [data-message-fold] > ${end}::after`,
-).join(',\n');
-const STAMP_CHECK_SPACE = '16px';
-const STAMP_INLINE = STAMP_TEXT_ENDS.map(
-  (end) => `> [data-message-fold]:nth-last-child(2) > ${end}`,
-).join(',\n  ');
-
 export const CSS =
   WORKSPACE_CSS +
   COMPOSER_CONTEXT_CSS +
@@ -3838,22 +3820,13 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
 .bh-message-group-me .bh-bubble-badges {
   flex-direction: row-reverse;
 }
-/* The time sits inside the bubble at the bottom-right, so the reading chip takes the
-   bottom-left on every bubble, and the Human's reactions keep clear of the time with an
-   invisible copy of it at the row's right end. */
+/* Reactions take the author's side of the bubble's bottom edge and the reading chip the
+   other side. */
 .bh-bubble-badges .bh-reading {
   order: 1;
 }
 .bh-message-group-me .bh-bubble-badges .bh-reading {
   margin-right: auto;
-}
-.bh-message-group-me .bh-bubble-badges::before {
-  content: var(--bh-stamp, '');
-  visibility: hidden;
-  padding-right: ${STAMP_CHECK_SPACE};
-  font-size: ${text.metaSize};
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 .bh-message-stack > .bh-bubble-wrap:last-child,
 .bh-message-group > .bh-message-group-avatar {
@@ -3904,6 +3877,15 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
 [data-badge-motion='leave'] {
   animation: bh-badge-out 150ms var(--bh-ease-out) both;
   pointer-events: none;
+}
+/* A Bot that reads for only a moment never shows its chip: the chip waits 300ms
+   before it fades in and is dropped if the reading ends first. Once shown it holds
+   for 800ms before it leaves, so it never blinks out. */
+.bh-reading[data-badge-motion='enter'] {
+  animation-delay: 300ms;
+}
+.bh-reading[data-badge-motion='leave'] {
+  animation-delay: 800ms;
 }
 html[data-botharness-motion='reduce'] [data-badge-motion='enter'] { animation-name: bh-fade-in; }
 html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-name: bh-fade-out; }
@@ -4126,54 +4108,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
 }
-/* B2: the time sits inside the bubble at the bottom-right. An invisible copy of it ends the
-   body's last line of text, so the time shares that line when it fits and wraps to its own
-   line otherwise. Content that does not end in a line of text (code, tables, files, cards)
-   gives the time a line of its own. */
 .bh-bubble {
   position: relative;
-}
-.bh-bubble-stamp {
-  position: absolute;
-  right: ${space.x4};
-  bottom: ${space.x4};
-  color: var(--tobs-ink-tertiary);
-  font-size: ${text.metaSize};
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-.bh-bubble-me .bh-bubble-stamp {
-  color: color-mix(in srgb, currentColor 72%, transparent);
-}
-.bh-bubble-stamped::after {
-  content: '';
-  display: block;
-  height: ${text.metaLine};
-}
-.bh-bubble-stamped:has(
-  ${STAMP_INLINE}
-)::after {
-  display: none;
-}
-${STAMP_SPACERS} {
-  content: var(--bh-stamp);
-  display: inline-block;
-  visibility: hidden;
-  margin-left: ${space.x3};
-  font-size: ${text.metaSize};
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-${STAMP_ME_SPACERS} {
-  padding-right: ${STAMP_CHECK_SPACE};
-}
-.bh-bubble-stamp-check {
-  display: inline-block;
-  margin-left: ${space.x1};
-  vertical-align: -2px;
 }
 .bh-bubble[data-bubble-media] {
   width: 320px;
@@ -4196,21 +4132,6 @@ ${STAMP_ME_SPACERS} {
 }
 .bh-bubble[data-bubble-media] .bh-bubble-content > :last-child:not(.bh-message-album) {
   margin-bottom: ${space.x3};
-}
-.bh-bubble[data-bubble-media='captioned']::after {
-  height: calc(${text.metaLine} + ${space.x3});
-}
-.bh-bubble[data-bubble-media='bare']::after {
-  display: none;
-}
-.bh-bubble[data-bubble-media='bare'] .bh-bubble-stamp {
-  right: ${space.x3};
-  bottom: ${space.x3};
-  padding: ${space.x1} ${space.x3};
-  border-radius: 999px;
-  corner-shape: round;
-  background: color-mix(in srgb, black 45%, transparent);
-  color: white;
 }
 .bh-bubble-status {
   display: block;
@@ -4252,6 +4173,14 @@ ${STAMP_ME_SPACERS} {
   border-radius: ${radius.md};
   background: ${color.base};
   box-shadow: 0 2px 8px color-mix(in srgb, var(--tobs-ink-primary) 8%, transparent);
+}
+.bh-bubble-toolbar-time {
+  padding-inline: ${space.x3} ${space.x2};
+  color: var(--tobs-ink-tertiary);
+  font-size: ${text.metaSize};
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .bh-bubble-wrap:hover .bh-bubble-actions,
 .bh-bubble-wrap:focus-within .bh-bubble-actions,

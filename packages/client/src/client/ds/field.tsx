@@ -70,6 +70,7 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     width: '100%',
     minWidth: 0,
+    flexShrink: 0,
     height: style.controlHeight,
     paddingInline: space.x3,
     borderRadius: style.radiusControl,

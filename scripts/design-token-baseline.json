@@ -38,7 +38,7 @@
     "dshToken": 809
   },
   "packages/client/src/client/appearance-pickers.tsx": {
-    "rawControl": 2,
+    "rawControl": 1,
     "inlineStyle": 2,
     "lineBorder": 3
   },
@@ -713,7 +713,7 @@
     "lineBorder": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1949,
+    "legacyCss": 1944,
     "lineBorder": 110
   },
   "packages/client/src/client/tag-editor.tsx": {

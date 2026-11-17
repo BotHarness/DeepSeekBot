@@ -261,6 +261,7 @@ deepseekbot settings botharness-client
 printf '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"autoCollapseMessages":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"showDeliveryReceipts":true}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"showDmAvatar":true,"showOwnAvatar":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"botHopLimit":128}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"settingsPins":["models","auto-approval","devices"]}' | deepseekbot settings-set botharness-client --patch-stdin

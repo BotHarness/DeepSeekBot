@@ -10,6 +10,54 @@
       "baseline": "scripts/lint-baseline.json"
     },
     {
+      "id": "bug-patterns",
+      "layer": "L2 lint",
+      "rules": [
+        "typescript/no-misused-promises",
+        "typescript/switch-exhaustiveness-check",
+        "typescript/only-throw-error",
+        "typescript/prefer-promise-reject-errors",
+        "typescript/no-implied-eval",
+        "typescript/no-unsafe-enum-comparison",
+        "eslint/preserve-caught-error",
+        "eslint/no-unsafe-finally",
+        "eslint/no-unsafe-optional-chaining",
+        "eslint/no-constant-condition",
+        "unicorn/require-post-message-target-origin"
+      ],
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "fix what the oxlint message names at its root: handle the promise, cover every union member, throw and reject Error objects with { cause }, keep control flow out of finally. Do not silence the rule.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "spawn-options",
+      "layer": "L2 lint",
+      "rule": "botharness/spawn-options",
+      "source": "AGENTS.md (Repo scripts: shell: false, windowsHide: true on every spawn)",
+      "fix": "call spawn/execFile with direct argv and an options object holding windowsHide: true (false only for a program whose window the user should see); never exec/execSync or shell: true.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "no-api-intercept",
+      "layer": "L2 lint",
+      "rule": "botharness/no-api-intercept",
+      "source": "AGENTS.md (dsh-dev: api-gateway owns the single /api interceptor)",
+      "fix": "register the route through the API gateway instead of connection.rpc.intercept('/api...').",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "package-no-console",
+      "layer": "L2 lint",
+      "rule": "eslint/no-console",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "in packages/*/src, report through the package's logger or a Developer diagnostics log instead of console.*.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
       "id": "pr-provenance",
       "layer": "L3 CI",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893",

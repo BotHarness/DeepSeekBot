@@ -40,17 +40,22 @@ const LONG_EDGE = 1920;
 
 function ffmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile('ffmpeg', args, { timeout: 300_000, maxBuffer: 4 * 1024 * 1024 }, (error) => {
-      if (error === null) return resolve();
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
-        return reject(
-          new CallVideoError(
-            'ffmpeg-missing',
-            'Reading a video file needs ffmpeg on PATH; pass a folder of JPEG frames instead.',
-          ),
-        );
-      reject(new CallVideoError('video-unreadable', 'ffmpeg could not read the video file.'));
-    });
+    execFile(
+      'ffmpeg',
+      args,
+      { windowsHide: true, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 },
+      (error) => {
+        if (error === null) return resolve();
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+          return reject(
+            new CallVideoError(
+              'ffmpeg-missing',
+              'Reading a video file needs ffmpeg on PATH; pass a folder of JPEG frames instead.',
+            ),
+          );
+        reject(new CallVideoError('video-unreadable', 'ffmpeg could not read the video file.'));
+      },
+    );
   });
 }
 

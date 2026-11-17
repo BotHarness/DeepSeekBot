@@ -1,7 +1,29 @@
 {
+  "jsPlugins": ["./scripts/lint-rules/botharness.mjs"],
   "rules": {
-    "typescript/no-floating-promises": "error"
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/no-implied-eval": "error",
+    "typescript/no-unsafe-enum-comparison": "error",
+    "eslint/preserve-caught-error": "error",
+    "eslint/no-unsafe-finally": "error",
+    "eslint/no-unsafe-optional-chaining": "error",
+    "eslint/no-constant-condition": "error",
+    "unicorn/require-post-message-target-origin": "error",
+    "botharness/spawn-options": "error",
+    "botharness/no-api-intercept": "error"
   },
+  "overrides": [
+    {
+      "files": ["packages/*/src/**"],
+      "rules": {
+        "eslint/no-console": "error"
+      }
+    }
+  ],
   "ignorePatterns": [
     "dist",
     "coverage",
@@ -18,6 +40,7 @@
     "output",
     "packages/client/vendor/dsh-ui-theme-022-rc2",
     "scripts/fixtures/lint-ratchet",
+    "scripts/fixtures/lint-rules",
     "packages/*/lib/client.js"
   ]
 }

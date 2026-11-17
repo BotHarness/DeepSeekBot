@@ -24,6 +24,8 @@ import {
   SendKeySetting,
   AutoCollapseMessagesSetting,
   DeliveryReceiptsSetting,
+  DmAvatarSetting,
+  OwnAvatarSetting,
   StreamRepliesSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
@@ -195,6 +197,8 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
       </SettingsSection>
       <SettingsSection title={props.t('messaging.section.display')}>
         <AutoCollapseMessagesSetting {...props} />
+        <DmAvatarSetting {...props} />
+        <OwnAvatarSetting {...props} />
         <DeliveryReceiptsSetting {...props} />
         <StreamRepliesSetting {...props} />
       </SettingsSection>

@@ -271,6 +271,7 @@ import {
   type GalleryImage,
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
+import { MessageAvatarsContext } from './message-avatars.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
@@ -470,28 +471,6 @@ function bubbleStamp(message: ChannelMessage): string | undefined {
     return undefined;
   const clock = clockTime(message.at);
   return clock === '' ? undefined : clock;
-}
-
-function DeliveredCheck(): ReactElement {
-  return (
-    <svg
-      className="bh-bubble-stamp-check"
-      data-bubble-check=""
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="m4 12 5 5L20 6"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 function ReplyIcon(): ReactElement {
@@ -751,12 +730,13 @@ const MessageGroupView = memo(function MessageGroupView({
   const nameColor =
     nameSource === undefined ? undefined : botNameColor(nameSource, surface.background);
   const dm = currentDmBotSlug !== undefined;
+  const avatars = useContext(MessageAvatarsContext);
   const foreignBot =
     author.kind === 'bot' && displayBot === undefined && !dm
       ? { slug: author.slug, name: author.displayName ?? t('team.someBot') }
       : undefined;
   const avatar =
-    dm || displayBot === undefined ? undefined : (
+    (dm && !avatars.dm) || displayBot === undefined ? undefined : (
       <PersonaBotAvatar
         t={t}
         personaBotId={displayBot.slug}
@@ -915,11 +895,6 @@ const MessageGroupView = memo(function MessageGroupView({
             >
               <div
                 className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
-                style={
-                  stamp === undefined
-                    ? undefined
-                    : ({ '--bh-stamp': JSON.stringify(stamp) } as CSSProperties)
-                }
               >
                 {human && message.pending === true && message.failed === undefined ? (
                   <PendingDelivery message={message} t={t} />
@@ -951,7 +926,7 @@ const MessageGroupView = memo(function MessageGroupView({
                   </button>
                 )}
                 <div
-                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}${stamp === undefined ? '' : ' bh-bubble-stamped'}`}
+                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
                   data-group-position={position}
                   data-bubble-media={bubbleMedia(message)}
                 >
@@ -984,17 +959,6 @@ const MessageGroupView = memo(function MessageGroupView({
                       {t(message.streaming === true ? 'message.generating' : 'message.sending')}
                     </span>
                   ) : null}
-                  {stamp === undefined ? null : (
-                    <time
-                      className="bh-bubble-stamp"
-                      data-bubble-time=""
-                      dateTime={message.at}
-                      title={fullTime(message.at, t)}
-                    >
-                      {stamp}
-                      {human ? <DeliveredCheck /> : null}
-                    </time>
-                  )}
                 </div>
                 <BubbleBadges
                   reactions={message.reactions ?? NO_REACTIONS}
@@ -1011,6 +975,16 @@ const MessageGroupView = memo(function MessageGroupView({
                 />
                 <BubbleToolbar>
                   <div className="bh-bubble-actions">
+                    {stamp === undefined ? null : (
+                      <time
+                        className="bh-bubble-toolbar-time"
+                        data-bubble-time=""
+                        dateTime={message.at}
+                        title={fullTime(message.at, t)}
+                      >
+                        {stamp}
+                      </time>
+                    )}
                     {onReact !== undefined && reactableMessage(message) ? (
                       <MessageReactionPicker
                         message={message}
@@ -1054,6 +1028,13 @@ const MessageGroupView = memo(function MessageGroupView({
           );
         })}
       </div>
+      {human && avatars.own ? (
+        <span ref={follow} className="bh-message-group-avatar">
+          <span className="bh-message-group-human-avatar" aria-label={authorName}>
+            <IconUserOutlineRegular />
+          </span>
+        </span>
+      ) : null}
     </div>
   );
 });
@@ -1096,6 +1077,9 @@ function MessageActionMenu({
         autoFocus
         anchor={<span ref={proxy} aria-hidden="true" />}
         items={[
+          ...(bubbleStamp(request.message) === undefined
+            ? []
+            : [{ type: 'label' as const, id: 'time', text: fullTime(request.message.at, t) }]),
           ...(request.message.pending === true || request.message.streaming === true
             ? []
             : [{ id: 'reply', label: t('message.reply'), icon: <ReplyIcon /> }]),
@@ -4360,6 +4344,20 @@ export function BotMain({
     () => prefs?.source.getSnapshot().showDeliveryReceipts ?? false,
     () => false,
   );
+  const showDmAvatar = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().showDmAvatar ?? false,
+    () => prefs?.source.getSnapshot().showDmAvatar ?? false,
+  );
+  const showOwnAvatar = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().showOwnAvatar ?? false,
+    () => prefs?.source.getSnapshot().showOwnAvatar ?? false,
+  );
+  const messageAvatars = useMemo(
+    () => ({ dm: showDmAvatar, own: showOwnAvatar }),
+    [showDmAvatar, showOwnAvatar],
+  );
   const streamReplies = useSyncExternalStore(
     prefs?.source.subscribe ?? subscribeWithoutPrefs,
     () => prefs?.source.getSnapshot().streamReplies ?? false,
@@ -4367,19 +4365,21 @@ export function BotMain({
   );
   return (
     <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
-      <StreamReplies.Provider value={streamReplies}>
-        <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-          <MessageDeveloperMode.Provider value={developerMode}>
-            <ComposerSendKeyContext.Provider value={sendKey}>
-              <AppearanceContext.Provider value={appearance}>
-                <Workspace options={workspace} t={props.t ?? zhTranslate}>
-                  <BotMainContent {...props} />
-                </Workspace>
-              </AppearanceContext.Provider>
-            </ComposerSendKeyContext.Provider>
-          </MessageDeveloperMode.Provider>
-        </AutoCollapseMessages.Provider>
-      </StreamReplies.Provider>
+      <MessageAvatarsContext.Provider value={messageAvatars}>
+        <StreamReplies.Provider value={streamReplies}>
+          <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+            <MessageDeveloperMode.Provider value={developerMode}>
+              <ComposerSendKeyContext.Provider value={sendKey}>
+                <AppearanceContext.Provider value={appearance}>
+                  <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                    <BotMainContent {...props} />
+                  </Workspace>
+                </AppearanceContext.Provider>
+              </ComposerSendKeyContext.Provider>
+            </MessageDeveloperMode.Provider>
+          </AutoCollapseMessages.Provider>
+        </StreamReplies.Provider>
+      </MessageAvatarsContext.Provider>
     </DeliveryReceiptsVisible.Provider>
   );
 }

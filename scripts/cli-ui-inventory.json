@@ -226,6 +226,8 @@
         "field:packages/host-client/src/shared/bot-mode-settings.ts:sortMode",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:sortModes",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showDeliveryReceipts",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showDmAvatar",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showOwnAvatar",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:streamReplies",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:botHopLimit",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:settingsPins",
@@ -236,6 +238,8 @@
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sendKey.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('messageFold.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.delivery.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.dm.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.own.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.stream.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],

@@ -15,6 +15,8 @@ import {
   BOT_MODE_SEND_KEY_FIELD,
   BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD,
   BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD,
+  BOT_MODE_SHOW_DM_AVATAR_FIELD,
+  BOT_MODE_SHOW_OWN_AVATAR_FIELD,
   BOT_MODE_STREAM_REPLIES_FIELD,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
@@ -81,6 +83,8 @@ export interface BotModePrefsSnapshot {
   sendKey: BotModeSendKey;
   autoCollapseMessages: boolean;
   showDeliveryReceipts: boolean;
+  showDmAvatar: boolean;
+  showOwnAvatar: boolean;
   streamReplies: boolean;
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
@@ -110,6 +114,8 @@ export interface BotModePrefsFace {
   setSendKey: (sendKey: BotModeSendKey) => void;
   setAutoCollapseMessages: (enabled: boolean) => void;
   setShowDeliveryReceipts: (enabled: boolean) => void;
+  setShowDmAvatar: (enabled: boolean) => void;
+  setShowOwnAvatar: (enabled: boolean) => void;
   setStreamReplies: (enabled: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
@@ -140,6 +146,8 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
     },
     setAutoCollapseMessages: (enabled) => prefs.setAutoCollapseMessages(enabled),
     setShowDeliveryReceipts: (enabled) => prefs.setShowDeliveryReceipts(enabled),
+    setShowDmAvatar: (enabled) => prefs.setShowDmAvatar(enabled),
+    setShowOwnAvatar: (enabled) => prefs.setShowOwnAvatar(enabled),
     setStreamReplies: (enabled) => prefs.setStreamReplies(enabled),
     setDeveloperMode: (enabled) => {
       prefs.setDeveloperMode(enabled);
@@ -211,6 +219,8 @@ export class BotModePrefs {
       sendKey: DEFAULT_BOT_MODE_SEND_KEY,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
@@ -308,6 +318,24 @@ export class BotModePrefs {
     });
     if (this.host !== undefined)
       this.persist(this.host.set(BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD, enabled));
+  }
+
+  setShowDmAvatar(enabled: boolean): void {
+    if (this.source.getSnapshot().showDmAvatar === enabled) return;
+    this.source.update((draft) => {
+      draft.showDmAvatar = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_DM_AVATAR_FIELD, enabled));
+  }
+
+  setShowOwnAvatar(enabled: boolean): void {
+    if (this.source.getSnapshot().showOwnAvatar === enabled) return;
+    this.source.update((draft) => {
+      draft.showOwnAvatar = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_OWN_AVATAR_FIELD, enabled));
   }
 
   setStreamReplies(enabled: boolean): void {
@@ -490,6 +518,8 @@ export class BotModePrefs {
         draft.developerMode = section.developerMode === true;
         draft.autoCollapseMessages = section.autoCollapseMessages === true;
         draft.showDeliveryReceipts = section.showDeliveryReceipts === true;
+        draft.showDmAvatar = section.showDmAvatar === true;
+        draft.showOwnAvatar = section.showOwnAvatar === true;
         draft.streamReplies = section.streamReplies === true;
         draft.showBotSessions = section.showBotSessions !== false;
         draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
