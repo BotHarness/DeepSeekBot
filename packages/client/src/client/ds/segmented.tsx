@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactElement } from 'react';
+import type { KeyboardEvent, ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { joinClass } from './class-name.js';
 import { on } from './surface.stylex.js';
@@ -84,22 +84,19 @@ export function SegmentedControl<Value extends string>({
   disabled = false,
   className,
 }: SegmentedControlProps<Value>): ReactElement {
-  const list = useRef<HTMLDivElement | null>(null);
   const selected = options.findIndex((option) => option.value === value);
-  useEffect(() => {
-    const root = list.current;
-    if (root === null || !root.contains(document.activeElement)) return;
-    root.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
-  }, [value]);
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
     if (!WALK.has(event.key)) return;
     event.preventDefault();
     const target = walk(options, selected, event.key);
-    if (target !== undefined && target.value !== value) onChange(target.value);
+    if (target === undefined || target.value === value) return;
+    onChange(target.value);
+    event.currentTarget.parentElement
+      ?.querySelector<HTMLElement>(`[id="${CSS.escape(`${id}-${target.value}`)}"]`)
+      ?.focus();
   };
   return (
     <div
-      ref={list}
       role="tablist"
       aria-label={label}
       className={joinClass(stylex.props(styles.track).className, className)}
