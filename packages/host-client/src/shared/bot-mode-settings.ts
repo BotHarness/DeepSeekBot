@@ -53,6 +53,8 @@ export const BOT_MODE_SEND_KEY_FIELD = 'sendKey';
 
 export const BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD = 'autoCollapseMessages';
 export const BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD = 'showDeliveryReceipts';
+export const BOT_MODE_SHOW_DM_AVATAR_FIELD = 'showDmAvatar';
+export const BOT_MODE_SHOW_OWN_AVATAR_FIELD = 'showOwnAvatar';
 export const BOT_MODE_STREAM_REPLIES_FIELD = 'streamReplies';
 
 export const BOT_MODE_SORT_MODES = ['updated', 'manual'] as const;
@@ -109,6 +111,8 @@ export interface BotModeSettings {
   sendKey?: BotModeSendKey;
   autoCollapseMessages?: boolean;
   showDeliveryReceipts?: boolean;
+  showDmAvatar?: boolean;
+  showOwnAvatar?: boolean;
   streamReplies?: boolean;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;

@@ -44,8 +44,10 @@ export function BubbleBadges({
   const [readingStill, setReadingStill] = useState(readers.length > 0);
   if (readingStill && readers.length === 0) setReadingStill(false);
   const [shownReaders, setShownReaders] = useState(readers);
+  const [readingSeen, setReadingSeen] = useState(readers.length > 0);
   if (readers.length > 0 && readers.join('\n') !== shownReaders.join('\n'))
     setShownReaders(readers);
+  if (readers.length === 0 && shownReaders.length > 0 && !readingSeen) setShownReaders(NO_READERS);
   if (shownChips.length === 0 && shownReaders.length === 0) return null;
   return (
     <div className="bh-bubble-badges">
@@ -66,7 +68,11 @@ export function BubbleBadges({
         readers={shownReaders}
         bots={bots}
         motion={readers.length === 0 ? 'leave' : readingStill ? undefined : 'enter'}
-        onLeft={() => setShownReaders(NO_READERS)}
+        onShown={() => setReadingSeen(true)}
+        onLeft={() => {
+          setShownReaders(NO_READERS);
+          setReadingSeen(false);
+        }}
         t={t}
       />
     </div>

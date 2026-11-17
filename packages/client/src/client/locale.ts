@@ -2766,6 +2766,10 @@ export const zh = {
   'message.delivery.thisMessage': '这条消息',
   'message.delivery.notInInbox': '这条消息没有进入 {name} 的收件箱。',
   'message.delivery.history': '收件记录',
+  'message.avatar.dm.row.title': '私聊时显示对方头像',
+  'message.avatar.dm.row.description': '在和 Bot 的私聊里，对方每组消息旁显示头像',
+  'message.avatar.own.row.title': '显示自己的头像',
+  'message.avatar.own.row.description': '在你发出的每组消息旁显示你的头像',
   'message.delivery.row.title': '显示收件与已读状态',
   'message.delivery.row.description': '在消息旁用头像显示每个 Bot 和成员的收件、处理和已读状态',
   'message.stream.row.title': '逐字显示 Bot 回复',
@@ -8867,6 +8871,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.delivery.thisMessage': 'This message',
   'message.delivery.notInInbox': "This message never reached {name}'s Inbox.",
   'message.delivery.history': 'Inbox history',
+  'message.avatar.dm.row.title': 'Show the avatar in direct messages',
+  'message.avatar.dm.row.description':
+    "Show the Bot's avatar beside its messages in a direct message",
+  'message.avatar.own.row.title': 'Show my avatar',
+  'message.avatar.own.row.description': 'Show your avatar beside the messages you send',
   'message.delivery.row.title': 'Show delivery and read status',
   'message.delivery.row.description':
     'Show avatars beside messages for whether each Bot and member received, handled or read them',

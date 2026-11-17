@@ -123,12 +123,14 @@ export function MessageReading({
   readers,
   bots,
   motion,
+  onShown,
   onLeft,
   t,
 }: {
   readers: readonly string[];
   bots: readonly BotSummary[];
   motion?: 'enter' | 'leave' | undefined;
+  onShown?: (() => void) | undefined;
   onLeft?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
@@ -147,6 +149,9 @@ export function MessageReading({
       data-message-reading=""
       data-badge-motion={motion}
       aria-hidden={motion === 'leave' ? true : undefined}
+      onAnimationStart={(event) => {
+        if (motion === 'enter' && event.target === event.currentTarget) onShown?.();
+      }}
       onAnimationEnd={(event) => {
         if (motion === 'leave' && event.target === event.currentTarget) onLeft?.();
       }}

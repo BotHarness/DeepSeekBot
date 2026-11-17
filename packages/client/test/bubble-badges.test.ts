@@ -10,6 +10,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 
 import { BubbleBadges, keptReactions } from '../src/client/bubble-badges.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { CSS } from '../src/client/styles.js';
 import type { ChannelReaction } from '../src/client/store.js';
 
 const reaction = (emoji: string, count = 1): ChannelReaction => ({
@@ -52,6 +53,11 @@ const finish = (element: Element | null) =>
     element?.dispatchEvent(event);
   });
 
+const start = (element: Element | null) =>
+  act(async () => {
+    element?.dispatchEvent(new Event('animationstart', { bubbles: true }));
+  });
+
 const motion = (selector: string) =>
   container.querySelector<HTMLElement>(selector)?.dataset['badgeMotion'];
 
@@ -79,6 +85,7 @@ describe('BubbleBadges', () => {
     await render([reaction('👍')], ['ada']);
     expect(motion('[data-reaction="👍"]')).toBe('enter');
     expect(motion('[data-message-reading]')).toBe('enter');
+    await start(container.querySelector('[data-message-reading]'));
 
     await render([], []);
     expect(motion('[data-reaction="👍"]')).toBe('leave');
@@ -92,6 +99,16 @@ describe('BubbleBadges', () => {
     expect(container.querySelector('[data-reaction="👍"]')).toBeNull();
     await finish(container.querySelector('[data-message-reading]'));
     expect(container.querySelector('.bh-bubble-badges')).toBeNull();
+  });
+
+  it('drops a reading chip that ends before it fades in, and holds a shown one', async () => {
+    await render([], []);
+    await render([], ['ada']);
+    expect(motion('[data-message-reading]')).toBe('enter');
+    await render([], []);
+    expect(container.querySelector('[data-message-reading]')).toBeNull();
+    expect(CSS).toMatch(/\.bh-reading\[data-badge-motion='enter'\] \{\s*animation-delay: 300ms;/);
+    expect(CSS).toMatch(/\.bh-reading\[data-badge-motion='leave'\] \{\s*animation-delay: 800ms;/);
   });
 
   it('brings a leaving badge back when it returns before the exit ends', async () => {
