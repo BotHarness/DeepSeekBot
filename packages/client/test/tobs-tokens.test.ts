@@ -170,5 +170,9 @@ describe('design token guard', () => {
     expect(match('lineBorder', 'border: ${border.hairline} solid ${color.border};')).toBe(true);
     expect(match('lineBorder', "borderBottomStyle: 'solid'")).toBe(true);
     expect(match('lineBorder', "borderStyle: 'none'")).toBe(false);
+    expect(match('legacyCss', '.bh-new { gap: ${gap}px; }')).toBe(true);
+    expect(match('inlineStyle', '<div style={{ padding: 12 }} />')).toBe(true);
+    expect(match('inlineStyle', '<div style={{ opacity: visible ? 1 : 0 }} />')).toBe(false);
+    expect(match('lineBorder', "borderBottom: '1px solid currentColor'")).toBe(true);
   });
 });

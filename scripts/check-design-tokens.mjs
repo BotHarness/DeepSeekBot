@@ -24,7 +24,7 @@ export const RULES = {
     outsideDs: true,
   },
   legacyCss: {
-    pattern: /\.bh-[\w-]+[^{}`;]*\{[^{}`]*:[^{}`]*\}/g,
+    pattern: /\.bh-[\w-]+[^{}`;]*\{(?:[^{}`]|\$\{[^{}`]*\})*:(?:[^{}`]|\$\{[^{}`]*\})*\}/g,
     fix: 'style it with stylex.create and tokens from ds/tobs.stylex.ts instead of a new bh- CSS rule',
   },
   literalColor: {
@@ -34,13 +34,14 @@ export const RULES = {
     when: (source) => source.includes('stylex.create('),
   },
   inlineStyle: {
-    pattern: /style=\{\{[^}]*?(?:#[\da-fA-F]{3,8}\b|\d+px|(?:rgba?|hsla?)\()/gs,
+    pattern:
+      /style=\{\{[^}]*?(?:#[\da-fA-F]{3,8}\b|\d+px|(?:rgba?|hsla?)\(|[A-Za-z]:\s*-?\d+(?:\.\d+)?\s*[,}])/gs,
     fix: 'use stylex.create (a dynamic style for runtime values) instead of an inline style literal',
     outsideDs: true,
   },
   lineBorder: {
     pattern:
-      /border(?:-(?:top|right|bottom|left|block|inline)(?:-start|-end)?)?\s*:\s*(?:[^;'"`{}]|\$\{[^}]*\})*?\bsolid\b|border\w*Style:\s*['"]solid['"]/g,
+      /border(?:-(?:top|right|bottom|left|block|inline)(?:-start|-end)?)?\s*:\s*(?:[^;'"`{}]|\$\{[^}]*\})*?\bsolid\b|border\w*:\s*['"][^'"\n]*\bsolid\b|border\w*Style:\s*['"]solid['"]/g,
     fix: 'separate surfaces with a gap showing the canvas, not a line; inputs and focus rings live in ds/',
     outsideDs: true,
   },
