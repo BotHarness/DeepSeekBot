@@ -61,7 +61,13 @@ import {
 } from '../attachments/file-operations.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import { withMentionNames } from '../messaging/mention-text.js';
-import { renderInbox, type InboxUnit, type ScheduleFiringFacts } from './inbox-render.js';
+import {
+  EXTERNAL_GUIDANCE_CHARS,
+  inboxLine,
+  renderInbox,
+  type InboxUnit,
+  type ScheduleFiringFacts,
+} from './inbox-render.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
 import { PrivateInputRefusal, type PrivateInputOrigin } from '../credentials/im-origin.js';
@@ -2715,7 +2721,8 @@ class BotRuntimeImplementation implements BotRuntime {
         repeats: 1,
       };
       const units = [unit];
-      let characters = source.body.length + 1600;
+      let characters =
+        EXTERNAL_GUIDANCE_CHARS + inboxLine(unit, this.#promptText(botSlug)).length + 1;
       for (const candidate of this.#pendingExternalRows(botSlug, true)) {
         if (
           candidate.source_event_id === sourceEventId ||
@@ -2723,20 +2730,21 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           continue;
         const context = this.#externalMessaging.inbound.read(botSlug, candidate.source_event_id);
-        if (
-          context.grantId !== source.grantId ||
-          characters + context.body.length + 1600 >
-            this.#promptLimits(botSlug)['group-context-chars']
-        )
-          continue;
-        characters += context.body.length + 1600;
-        units.push({
+        const next: InboxUnit = {
           ...unit,
           sourceEventId: candidate.source_event_id,
           external: context,
           summary: context.body,
           createdAt: context.at,
-        });
+        };
+        const cost = inboxLine(next, this.#promptText(botSlug)).length + 1;
+        if (
+          context.grantId !== source.grantId ||
+          characters + cost > this.#promptLimits(botSlug)['group-context-chars']
+        )
+          continue;
+        characters += cost;
+        units.push(next);
       }
       const context = source.localChannelId
         ? this.#database.transaction(
@@ -11148,10 +11156,25 @@ class BotRuntimeImplementation implements BotRuntime {
     );
 
     rows.reverse();
-    let externalCharacters = 0;
+    let externalCharacters = EXTERNAL_GUIDANCE_CHARS;
     for (const row of this.#pendingExternalRows(botSlug, true)) {
       if (!this.#externalMessaging?.inbound.available(botSlug, row.source_event_id, true)) continue;
-      const cost = row.body.length + 1600;
+      const external = this.#externalMessaging.inbound.read(botSlug, row.source_event_id);
+      const cost =
+        inboxLine(
+          {
+            sourceEventId: row.source_event_id,
+            sourceKind: 'bridge-message',
+            external,
+            assignmentSessionId: null,
+            summary: row.body,
+            createdAt: row.created_at,
+            continuityKey: null,
+            activity: null,
+            repeats: 0,
+          },
+          this.#promptText(botSlug),
+        ).length + 1;
       if (externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']) break;
       externalCharacters += cost;
       rows.push({
@@ -11161,7 +11184,7 @@ class BotRuntimeImplementation implements BotRuntime {
         expects_reply: 0,
         continuity_key: null,
         activity: null,
-        external: this.#externalMessaging.inbound.read(botSlug, row.source_event_id),
+        external,
       });
     }
     const units = coalesceInbox(rows);

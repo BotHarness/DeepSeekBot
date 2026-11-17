@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { it } from 'vitest';
 
 import { runSuite, type ModelEndpoint } from './harness.js';
-import { rescore, SCENARIOS } from './scenarios.js';
+import { BATCH_SCENARIOS, rescore, SCENARIOS } from './scenarios.js';
 import { compare, markdown, type EvalReport } from './score.js';
 
 const env = process.env;
@@ -28,7 +28,9 @@ function endpoint(): ModelEndpoint {
 it('runs the Bot Inbox rendering eval against a live model', async () => {
   const runs = Number(env['INBOX_EVAL_RUNS'] ?? 5);
   const only = env['INBOX_EVAL_SCENARIOS']?.split(',');
-  const scenarios = only ? SCENARIOS.filter((scenario) => only.includes(scenario.id)) : SCENARIOS;
+  const scenarios = only
+    ? [...SCENARIOS, ...BATCH_SCENARIOS].filter((scenario) => only.includes(scenario.id))
+    : SCENARIOS;
   const label = env['INBOX_EVAL_LABEL'] ?? 'candidate';
   const out = resolve(
     env['INBOX_EVAL_OUT'] ?? join('.humanlayer', 'inbox-eval', `${label}-${Date.now()}.json`),
