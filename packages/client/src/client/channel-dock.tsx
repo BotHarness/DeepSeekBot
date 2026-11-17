@@ -103,6 +103,7 @@ import { EntryPart, useStableProps } from './entry-part.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
 const styles = stylex.create({
+  sessionChips: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
   storageWarning: {
     position: 'absolute',
     bottom: space.x4,
@@ -628,6 +629,7 @@ function SessionDetailHeader({
       onHide={session.close}
       hideLabel={label}
       hideHint={dock.t('dock.headHintHide')}
+      badge={<span data-session-header-chips="" {...stylex.props(styles.sessionChips)} />}
       action={
         <Tooltip label={label} side="bottom">
           <IconButton aria-label={label} onClick={session.close}>

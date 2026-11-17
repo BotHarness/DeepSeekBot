@@ -567,3 +567,53 @@ it("loads the Session's own Skill menu for its composer", async () => {
   });
   expect(orchestrator).not.toHaveBeenCalled();
 });
+
+it('names the Skill DSH loaded for a /name request', async () => {
+  const loaded = transcript('assignment');
+  loaded.items.splice(1, 0, {
+    kind: 'input',
+    text: '<skill_content name="qa-check">\nRun node --test.\n</skill_content>',
+    at: '2026-11-17T00:00:01.500Z',
+    source: 'system',
+    trigger: 'request',
+  } as (typeof loaded.items)[number]);
+  const host = await render({ sessionTranscript: vi.fn(async () => loaded) });
+  const row = host.querySelector('[data-trigger="skill"]')!;
+  expect(label(row as HTMLElement)).toContain('使用了 skill qa-check');
+  expect(row.textContent).not.toContain('<skill_content');
+});
+
+it('puts the goal and to-do chips in the panel header when it offers a slot', async () => {
+  const panel = document.createElement('aside');
+  panel.setAttribute('data-session-aside', '');
+  const slot = document.createElement('span');
+  slot.setAttribute('data-session-header-chips', '');
+  const body = document.createElement('div');
+  panel.append(slot, body);
+  document.body.append(panel);
+  const root = createRoot(body);
+  mounted.push(() => {
+    act(() => root.unmount());
+    panel.remove();
+  });
+  await act(async () => {
+    root.render(
+      createElement(SessionDetail, {
+        actions: {
+          sessionTranscript: vi.fn(async () => transcript('assignment')),
+          sessionProgress: vi.fn(async () => ({
+            'asg-1': { todos: [{ content: 'Fix', status: 'completed' as const }] },
+          })),
+        } as unknown as BridgeActions,
+        botSlug: 'tobs',
+        sessionId: 'asg-1',
+        t: zhTranslate,
+      }),
+    );
+  });
+  await act(async () => {});
+  expect(slot.querySelector('[data-session-chip="todos"]')?.textContent).toContain('1/1');
+  expect(body.querySelector('[data-session-chip]')).toBeNull();
+  act(() => slot.querySelector<HTMLButtonElement>('[data-session-chip="todos"]')!.click());
+  expect(body.querySelector('[data-session-panel="todos"]')).not.toBeNull();
+});

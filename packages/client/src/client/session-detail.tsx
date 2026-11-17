@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react';
 
+import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -22,7 +23,6 @@ import type {
 import { ChannelComposer } from './channel-composer.js';
 import { MessageMarkdown } from './channel-message-body.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { ChipButton } from './ds/chip-button.js';
 import { font, status } from './ds/tobs.stylex.js';
 import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
@@ -34,7 +34,7 @@ import { SessionJump } from './session-jump.js';
 import type { SelectedSkill } from './skill-refs.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
-import { todoCount, TodoRing } from './session-progress-view.js';
+import { SessionProgressChips } from './session-progress-view.js';
 import {
   changedFiles,
   clockText,
@@ -595,12 +595,17 @@ function InputBlock({
       </div>
     );
   const trigger = item.trigger ?? 'request';
+  const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
   return (
-    <div data-transcript="system" data-trigger={trigger}>
+    <div data-transcript="system" data-trigger={skill === undefined ? trigger : 'skill'}>
       <WorkRow
-        icon={TRIGGER_ICONS[trigger]}
-        label={t(`sessions.detail.trigger.${trigger}`)}
-        detail={open ? undefined : item.text.split('\n', 1)[0]}
+        icon={skill === undefined ? TRIGGER_ICONS[trigger] : 'slash'}
+        label={
+          skill === undefined
+            ? t(`sessions.detail.trigger.${trigger}`)
+            : t('sessions.detail.trigger.skill', { name: skill })
+        }
+        detail={open || skill !== undefined ? undefined : item.text.split('\n', 1)[0]}
         trailing={<span {...stylex.props(styles.meta)}>{clockText(item.at)}</span>}
         expanded={open}
         onToggle={() => setOpen((value) => !value)}
@@ -639,6 +644,15 @@ export function SessionDetail({
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
   const [away, setAway] = useState(false);
+  const [chipSlot, setChipSlot] = useState<HTMLElement | null>(null);
+  const rootMount = useMountedResource<HTMLDivElement>((root) => {
+    setChipSlot(
+      root
+        .closest('[data-channel-subpanel], [data-session-aside]')
+        ?.querySelector<HTMLElement>('[data-session-header-chips]') ?? null,
+    );
+    return () => setChipSlot(null);
+  }, []);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const running = transcript?.running === true || live.length > 0;
@@ -839,34 +853,16 @@ export function SessionDetail({
     transcript === undefined ? [] : transcriptBlocks(mergeLive(transcript.items, live), running);
   const toggle = (key: 'goal' | 'todos') =>
     setOpen((current) => (current === key ? undefined : key));
+  const chips =
+    goal === undefined && todos === undefined ? null : (
+      <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
+    );
   return (
-    <div data-session-detail={sessionId} {...stylex.props(styles.root)}>
-      {goal === undefined && todos === undefined ? null : (
-        <div {...stylex.props(styles.chips)}>
-          {goal === undefined ? null : (
-            <ChipButton
-              data-session-chip="goal"
-              aria-expanded={open === 'goal'}
-              title={t('sessions.progress.goal', {
-                objective: goal.objective,
-                phase: t(`sessions.goal.${goal.phase}`),
-              })}
-              icon={<ChannelSidebarIcon name="target" size={12} />}
-              label={goal.objective}
-              onClick={() => toggle('goal')}
-            />
-          )}
-          {todos === undefined ? null : (
-            <ChipButton
-              data-session-chip="todos"
-              aria-expanded={open === 'todos'}
-              title={t('sessions.progress.todos', todoCount(todos))}
-              icon={<TodoRing {...todoCount(todos)} />}
-              label={`${todoCount(todos).done}/${todoCount(todos).total}`}
-              onClick={() => toggle('todos')}
-            />
-          )}
-        </div>
+    <div ref={rootMount} data-session-detail={sessionId} {...stylex.props(styles.root)}>
+      {chips === null ? null : chipSlot === null ? (
+        <div {...stylex.props(styles.chips)}>{chips}</div>
+      ) : (
+        createPortal(chips, chipSlot)
       )}
       {open === 'goal' && goal !== undefined ? (
         <div data-session-panel="goal" {...stylex.props(styles.panel)}>
