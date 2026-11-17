@@ -238,6 +238,7 @@ export function MarketUploadDialog({
   const [cause, setCause] = useState<unknown>();
   const mounted = useRef(true);
   const signInEpoch = useRef(0);
+  const draftFor = useRef<string | undefined>(undefined);
   const signingIn = useRef(false);
 
   const loadAccount = async (): Promise<MarketplaceAccount | undefined> => {
@@ -259,13 +260,16 @@ export function MarketUploadDialog({
   };
 
   const loadDraft = (bot: BotSummary): void => {
+    draftFor.current = bot.slug;
     setDraft({ status: 'loading' });
     void actions.shareDraftGet(bot.slug).then(
       (value) => {
-        if (mounted.current) setDraft({ status: 'ready', draft: value });
+        if (mounted.current && draftFor.current === bot.slug)
+          setDraft({ status: 'ready', draft: value });
       },
       (failure: unknown) => {
-        if (mounted.current) setDraft({ status: 'error', cause: failure });
+        if (mounted.current && draftFor.current === bot.slug)
+          setDraft({ status: 'error', cause: failure });
       },
     );
   };
@@ -692,9 +696,8 @@ export function MarketUploadDialog({
                 tags: tagList(tags),
                 ...(replacing === undefined ? {} : { replaces: replacing.id }),
               });
-              if (!mounted.current) return;
               onListed(uploaded.bot);
-              onClose();
+              if (mounted.current) onClose();
             })
           }
         >

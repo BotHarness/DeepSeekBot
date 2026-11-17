@@ -51,7 +51,12 @@ export function UploadedBotsView({
     return (
       <SettingsForm testID="uploaded-bots">
         <SettingsSection footer={copy.signInHint} on={SHEET_GROUP}>
-          <SettingsRow on={SHEET_GROUP} title={copy.signIn} onPress={actions.onSignIn} />
+          <SettingsRow
+            on={SHEET_GROUP}
+            testID="uploaded-bots-sign-in"
+            title={copy.signIn}
+            onPress={actions.onSignIn}
+          />
         </SettingsSection>
       </SettingsForm>
     );
@@ -62,7 +67,12 @@ export function UploadedBotsView({
           <Notice tone="danger">{copy.loadFailed}</Notice>
         </SettingsFormItem>
         <SettingsSection on={SHEET_GROUP}>
-          <SettingsRow on={SHEET_GROUP} title={copy.retry} onPress={actions.onRetry} />
+          <SettingsRow
+            on={SHEET_GROUP}
+            testID="uploaded-bots-retry"
+            title={copy.retry}
+            onPress={actions.onRetry}
+          />
         </SettingsSection>
       </SettingsForm>
     );
@@ -90,7 +100,7 @@ export function UploadedBotsView({
             title={uploadedBotName(item)}
             detail={
               item.blocked
-                ? `${copy.uploadsBlocked} · ${item.bot.pushedAt.slice(0, 10)}`
+                ? `${copy.uploadsBlocked} · ${copy.uploadsMeta(item.files, fileSize(item.bytes), item.bot.pushedAt.slice(0, 10))}`
                 : copy.uploadsMeta(item.files, fileSize(item.bytes), item.bot.pushedAt.slice(0, 10))
             }
             leading={<MarketplaceAvatarImage bot={item.bot} size={theme.touch} />}
