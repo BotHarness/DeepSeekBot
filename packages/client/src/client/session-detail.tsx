@@ -29,6 +29,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
+import { SessionJump } from './session-jump.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
 import { todoCount, TodoRing } from './session-progress-view.js';
@@ -635,6 +636,7 @@ export function SessionDetail({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
+  const [away, setAway] = useState(false);
   const running = transcript?.running === true || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -895,7 +897,15 @@ export function SessionDetail({
           ))}
         </div>
       ) : null}
-      <div ref={mount} data-session-transcript="" {...stylex.props(styles.transcript)}>
+      <div
+        ref={mount}
+        data-session-transcript=""
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          setAway(node.scrollHeight - node.scrollTop - node.clientHeight > 80);
+        }}
+        {...stylex.props(styles.transcript)}
+      >
         {transcript === undefined ? (
           <div {...stylex.props(styles.quiet)}>
             {failed ? t('sessions.detail.loadFailed') : t('sessions.detail.loading')}
@@ -922,6 +932,7 @@ export function SessionDetail({
       <TurnNav blocks={blocks} t={t} />
       {transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined ? (
         <div ref={composerMount} data-session-composer="" {...stylex.props(styles.composer)}>
+          {away ? <SessionJump floating={false} t={t} /> : null}
           {sendError === undefined ? null : (
             <div role="alert" {...stylex.props(styles.quiet, styles.error)}>
               {sendError}
@@ -938,6 +949,8 @@ export function SessionDetail({
             onStop={running ? stop : undefined}
           />
         </div>
+      ) : away ? (
+        <SessionJump floating t={t} />
       ) : null}
     </div>
   );

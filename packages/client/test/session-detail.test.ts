@@ -511,3 +511,26 @@ it('prefetches a Session once before it opens', async () => {
   const host = await render({ sessionTranscript: vi.fn(() => new Promise<never>(() => {})) });
   expect(host.textContent).not.toContain('正在读取会话');
 });
+
+it('offers a jump to the latest step after scrolling up', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+    sendSessionRequest: vi.fn(async () => {}),
+  });
+  const timeline = host.querySelector<HTMLElement>('[data-session-transcript]')!;
+  const jump = (): HTMLButtonElement | null =>
+    host.querySelector<HTMLButtonElement>('[aria-label="跳到最新"]');
+  Object.defineProperty(timeline, 'scrollHeight', { configurable: true, value: 1000 });
+  Object.defineProperty(timeline, 'clientHeight', { configurable: true, value: 300 });
+  const scrollTo = vi.fn();
+  timeline.scrollTo = scrollTo;
+  expect(jump()).toBeNull();
+  timeline.scrollTop = 100;
+  await act(async () => timeline.dispatchEvent(new Event('scroll')));
+  expect(host.querySelector('[data-session-composer]')?.contains(jump())).toBe(true);
+  act(() => jump()!.click());
+  expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: 'smooth' });
+  timeline.scrollTop = 700;
+  await act(async () => timeline.dispatchEvent(new Event('scroll')));
+  expect(jump()).toBeNull();
+});
