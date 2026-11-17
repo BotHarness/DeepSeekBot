@@ -38,7 +38,7 @@
     "dshToken": 809
   },
   "packages/client/src/client/appearance-pickers.tsx": {
-    "rawControl": 2,
+    "rawControl": 1,
     "inlineStyle": 2,
     "lineBorder": 3
   },

@@ -12,7 +12,7 @@ import {
   APPEARANCE_STYLES,
 } from './appearance.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { PreviewChoices } from './ds/preview-choice.js';
+import { PreviewChoices, SwatchChoices } from './ds/preview-choice.js';
 import { accent, layer, line, state } from './ds/tobs.stylex.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { LayoutMode } from './layout-mode.js';
@@ -43,32 +43,6 @@ const ink = {
 } as const;
 
 const styles = stylex.create({
-  card: {
-    position: 'relative',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x2,
-    minWidth: 0,
-    padding: space.x2,
-    borderWidth: 0,
-    borderRadius: radius.md,
-    backgroundColor: { default: color.surface, ':hover': color.hover },
-    color: color.muted,
-    fontFamily: 'inherit',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    textAlign: 'center',
-    cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
-    outlineOffset: '2px',
-    transitionProperty: 'background-color',
-    transitionDuration: '120ms',
-  },
-  checked: {
-    backgroundColor: { default: color.accentTint, ':hover': color.accentTint },
-    color: color.fg,
-    fontWeight: text.strong,
-  },
   layer: {
     position: 'absolute',
     inset: 0,
@@ -137,31 +111,6 @@ const styles = stylex.create({
   },
   sampleTonal: { backgroundColor: accent.container },
 
-  presets: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: space.x2,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.x2,
-    paddingBlock: space.x2,
-    paddingInlineStart: space.x2,
-    paddingInlineEnd: space.x4,
-    borderRadius: radius.lg,
-    textAlign: 'start',
-  },
-  morph: {
-    display: 'block',
-    flexShrink: 0,
-    width: '20px',
-    height: '20px',
-    borderRadius: radius.round,
-    cornerShape: 'round',
-    boxShadow: `inset 0 0 0 1px ${color.divider}`,
-  },
-  name: {},
   layoutFrame: {
     position: 'absolute',
     inset: 0,
@@ -301,30 +250,18 @@ export function ThemePresetPicker({
   onSelect: (preset: AppearancePreset) => void;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const light = config.modes.light.preset;
   return (
-    <div role="radiogroup" aria-label={t('appearance.palette')} {...stylex.props(styles.presets)}>
-      {APPEARANCE_PRESETS.map((preset) => {
-        const checked =
-          config.modes.light.preset === preset.id && config.modes.dark.preset === preset.id;
-        return (
-          <button
-            key={preset.id}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            onClick={() => onSelect(preset.id)}
-            {...stylex.props(styles.card, styles.chip, checked && styles.checked)}
-          >
-            <span
-              aria-hidden="true"
-              {...stylex.props(styles.morph)}
-              style={morph(APPEARANCE_PRIMARY[preset.id].light, APPEARANCE_PRIMARY[preset.id].dark)}
-            />
-            <span {...stylex.props(styles.name)}>{t(preset.label)}</span>
-          </button>
-        );
-      })}
-    </div>
+    <SwatchChoices
+      label={t('appearance.palette')}
+      value={light === config.modes.dark.preset ? light : undefined}
+      onChange={onSelect}
+      options={APPEARANCE_PRESETS.map((preset) => ({
+        id: preset.id,
+        label: t(preset.label),
+        swatch: morph(APPEARANCE_PRIMARY[preset.id].light, APPEARANCE_PRIMARY[preset.id].dark),
+      }))}
+    />
   );
 }
 
