@@ -2,7 +2,6 @@ import {
   DEFAULT_APPEARANCE_PRESET,
   isAppearancePreference,
   isAppearancePreset,
-  isAppearancePrimary,
   type AppearanceMode,
   type AppearancePalette,
   type AppearancePreference,
@@ -28,11 +27,8 @@ const DEFAULT_PALETTE: AppearancePalette = { preset: DEFAULT_APPEARANCE_PRESET }
 
 function savedPalette(raw: unknown): AppearancePalette {
   if (typeof raw !== 'object' || raw === null) return DEFAULT_PALETTE;
-  const entry = raw as Record<string, unknown>;
-  if (!isAppearancePreset(entry['preset'])) return DEFAULT_PALETTE;
-  return isAppearancePrimary(entry['primary'])
-    ? { preset: entry['preset'], primary: entry['primary'].toLowerCase() }
-    : { preset: entry['preset'] };
+  const preset = (raw as Record<string, unknown>)['preset'];
+  return isAppearancePreset(preset) ? { preset } : DEFAULT_PALETTE;
 }
 
 export function preferredLanguage(locales: readonly string[]): 'en' | 'zh' {

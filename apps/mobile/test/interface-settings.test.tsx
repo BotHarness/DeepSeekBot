@@ -186,7 +186,7 @@ it('applies a color preset per light and dark mode and keeps it on this phone', 
   }
 });
 
-it('restores a saved palette and falls back to Classic Blue for an unknown preset', async () => {
+it('restores a saved preset, ignores a custom color the phone cannot set, and falls back for an unknown preset', async () => {
   const preferences = (
     await import('../src/ui/interface-preferences')
   ).createInterfacePreferences();
@@ -197,7 +197,7 @@ it('restores a saved palette and falls back to Classic Blue for an unknown prese
     write() {},
   });
   expect(preferences.getSnapshot().palette).toEqual({
-    light: { preset: 'warm-amber', primary: '#abcdef' },
+    light: { preset: 'warm-amber' },
     dark: { preset: 'classic-blue' },
   });
 });

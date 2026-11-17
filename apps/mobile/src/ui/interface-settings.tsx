@@ -122,7 +122,7 @@ function PaletteSection({ mode }: { mode: AppearanceMode }) {
   return (
     <SettingsSection on="raised" title={mode === 'light' ? t.light : t.dark}>
       {APPEARANCE_PRESETS.map((preset) => {
-        const selected = current.primary === undefined && current.preset === preset;
+        const selected = current.preset === preset;
         return (
           <SettingsRow
             on="raised"
