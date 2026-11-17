@@ -1,4 +1,5 @@
 import { isLanAddress } from '@botharness/host-protocol/lan-address';
+import { parseQuotesInput, type ChannelQuote } from '../channels/quotes.js';
 import { toolEffectLabels } from '../workspaces/tool-effect-labels.js';
 import type { ChannelMessage } from '../channels/channel.js';
 
@@ -542,6 +543,7 @@ interface LiveValues
   timeout?: string;
   'message-id'?: string;
   'reply-to'?: string;
+  quote?: string[];
   'failure-message-id'?: string;
   'auto-continue-for'?: string;
   recovery?: string;
@@ -1272,6 +1274,7 @@ export async function runLiveCli(
     usage('--message-id is required.');
   let body: string | undefined;
   let skillTokens: ReturnType<typeof skillInvocationTokens> = [];
+  let quotes: ChannelQuote[] = [];
   let answer: unknown;
   let confidential: Record<string, string> | undefined;
   if (command === 'ask-secret-submit') {
@@ -1311,6 +1314,9 @@ export async function runLiveCli(
       usage('--message-id must be human- followed by a UUID.');
     if (values['reply-to'] !== undefined && !values['reply-to'].trim())
       usage('--reply-to needs a message id.');
+    const parsedQuotes = parseQuotesInput(values.quote?.map(cliQuote));
+    if (typeof parsedQuotes === 'string') usage(`--quote: ${parsedQuotes}.`);
+    quotes = parsedQuotes as ChannelQuote[];
     skillTokens = skillInvocationTokens(body, values.skill);
   }
   if (
@@ -1491,6 +1497,7 @@ export async function runLiveCli(
         body,
         messageId: receipt.messageId,
         ...(values['reply-to'] === undefined ? {} : { replyTo: values['reply-to'].trim() }),
+        ...(quotes.length === 0 ? {} : { quotes }),
         ...(skillTokens.length === 0 ? {} : { skillInvocations: skillTokens }),
       });
       while (Date.now() < deadline) {
@@ -2337,4 +2344,11 @@ export function parseReviewedSettings(
     expectedRevision: Number(revision),
     previousValue: previousValue as Record<string, unknown>,
   };
+}
+
+export function cliQuote(value: string): { messageId: string; text?: string } {
+  const split = value.indexOf('::');
+  return split < 0
+    ? { messageId: value.trim() }
+    : { messageId: value.slice(0, split).trim(), text: value.slice(split + 2) };
 }

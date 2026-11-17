@@ -1,3 +1,4 @@
+import { assertQuoteTargets, durableQuotes, projectQuotes } from './quotes.js';
 import type { ChannelPolicy } from '../team/channel-contract.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import {
@@ -691,10 +692,17 @@ export class ChannelReplyTargetError extends Error {
 }
 
 function projectReplyBase(
-  message: ChannelMessage,
+  input: ChannelMessage,
   byId: ReadonlyMap<string, ChannelMessage>,
   attachments?: AttachmentStore,
 ): ChannelMessage {
+  const message = projectQuotes(
+    input,
+    (messageId) => byId.get(messageId),
+    (target, ref) =>
+      projectAttachmentFiles({ ...(target as ChannelMessage), attachments: [ref] }, attachments)
+        .attachments?.[0] ?? ref,
+  );
   if (message.replyTo === undefined) return message;
   const target = byId.get(message.replyTo);
   if (target === undefined) return { ...message, replyToPreview: null };
@@ -721,6 +729,7 @@ function sameMessageIntent(left: ChannelMessage, right: ChannelMessage): boolean
     left.genuiReplyContext === right.genuiReplyContext &&
     left.body === right.body &&
     left.replyTo === right.replyTo &&
+    JSON.stringify(durableQuotes(left).quotes) === JSON.stringify(durableQuotes(right).quotes) &&
     JSON.stringify(left.grantRequestResolution) === JSON.stringify(right.grantRequestResolution) &&
     JSON.stringify(left.assignmentReply) === JSON.stringify(right.assignmentReply) &&
     JSON.stringify(attachmentIntent(left.attachments ?? [])) ===
@@ -1158,11 +1167,14 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         ) {
           throw new ChannelReplyTargetError();
         }
+        assertQuoteTargets(message.quotes, (messageId) =>
+          priorMessages.find((candidate) => candidate.id === messageId),
+        );
         assertAttachmentRefs(message.attachments ?? []);
         assertGrantRequestReply(record, message, priorMessages);
         assertGenuiMessage(record, message, priorMessages);
         if (beforeCommit && !beforeCommit()) return undefined;
-        const durableMessage = { ...message };
+        const durableMessage = durableQuotes({ ...message });
         delete durableMessage.grantRequestResolved;
         delete durableMessage.replyToPreview;
         const projected = projectReply(durableMessage, messageIndex(priorMessages));
@@ -1240,10 +1252,13 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         ) {
           throw new ChannelReplyTargetError();
         }
+        assertQuoteTargets(message.quotes, (messageId) =>
+          priorMessages.find((candidate) => candidate.id === messageId),
+        );
         assertAttachmentRefs(message.attachments ?? []);
         assertGrantRequestReply(record, message, priorMessages);
         assertGenuiMessage(record, message, priorMessages);
-        const durableMessage = { ...message };
+        const durableMessage = durableQuotes({ ...message });
         delete durableMessage.grantRequestResolved;
         delete durableMessage.replyToPreview;
         const projected = projectReply(durableMessage, messageIndex(priorMessages));

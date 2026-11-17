@@ -1045,6 +1045,7 @@ export interface BridgeActions {
     allBotMention?: AllBotMention,
     submissionId?: string,
     skillInvocations?: ChannelSkillInvocationToken[],
+    quotes?: readonly { messageId: string; text?: string }[],
   ): Promise<boolean>;
   skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
   botSkills?(slug: string): Promise<BotSkillRow[]>;
@@ -3367,6 +3368,7 @@ export function createActions(
       allBotMention,
       submissionId,
       skillInvocations,
+      quotes,
     ) {
       let snapshot = clientStore.getSnapshot();
       const channel = snapshot.conversation.channel;
@@ -3382,6 +3384,7 @@ export function createActions(
         channel.botSlug !== undefined &&
         !attachments?.length &&
         !replyTo &&
+        !quotes?.length &&
         !mentions?.length &&
         !channelRefs?.length &&
         !skillInvocations?.length &&
@@ -3392,6 +3395,14 @@ export function createActions(
         if (!(typeof prepared === 'boolean' ? prepared : await prepared)) return false;
       }
       const replyTarget = snapshot.conversation.messages.find((message) => message.id === replyTo);
+      const quoteEcho = quotes?.map(({ messageId, text }) => {
+        const target = snapshot.conversation.messages.find((message) => message.id === messageId);
+        return {
+          messageId,
+          ...(text === undefined ? {} : { text }),
+          preview: target === undefined ? null : replyPreviewOf(target),
+        };
+      });
       if (snapshot.conversation.timeline.hasNewer) {
         try {
           const { page, revision } = await loadTimelinePage(call, channel.id);
@@ -3449,6 +3460,7 @@ export function createActions(
                   replyTo,
                   replyToPreview: replyTarget === undefined ? null : replyPreviewOf(replyTarget),
                 }),
+            ...(quoteEcho === undefined || quoteEcho.length === 0 ? {} : { quotes: quoteEcho }),
             pending: true,
           },
         ],
@@ -3473,6 +3485,7 @@ export function createActions(
           allBotMention,
           undefined,
           skillInvocations,
+          quotes,
         );
         remainingFailures(channel.id, [message]);
         settleSubmission(channel.id, localId, 'sent');

@@ -1470,11 +1470,54 @@ describe('Bot main Sessions pane', () => {
     expect(menu?.items?.map((item) => item.id)).toEqual([
       'time',
       'reply',
+      'quote',
       'react',
       'copy',
       'select',
       'feedback',
     ]);
+    const identity = store.getSnapshot().composerIdentity;
+    await act(async () =>
+      store.setComposerIdentity({ hostId: 'host', profileId: 'quotes', humanId: 'human' }),
+    );
+    const bodyText = document.createTextNode('Ready');
+    container.querySelector('.bh-bubble-wrap .bh-bubble-body')!.append(bodyText);
+    const range = document.createRange();
+    range.setStart(bodyText, 0);
+    range.setEnd(bodyText, 2);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    menus.length = 0;
+    await act(async () =>
+      container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 60,
+        }),
+      ),
+    );
+    const selectionMenu = menus.findLast((props) =>
+      props.items?.some((item) => item.id === 'react'),
+    );
+    expect(selectionMenu?.items?.map((item) => item.id).slice(0, 4)).toEqual([
+      'time',
+      'reply',
+      'quote-selection',
+      'quote',
+    ]);
+    await act(async () => selectionMenu!.onSelect!('quote-selection'));
+    const quoteChip = container.querySelector('[data-quote-chip]');
+    expect(quoteChip?.hasAttribute('data-quote-part')).toBe(true);
+    expect(quoteChip?.textContent).toContain((bodyText.textContent ?? '').slice(0, 2));
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-quote-chip] button')!.click(),
+    );
+    expect(container.querySelector('[data-quote-chip]')).toBeNull();
+    window.getSelection()!.removeAllRanges();
+    await act(async () => store.setComposerIdentity(identity));
+    localStorage.clear();
     await act(async () => menu!.onSelect!('react'));
     const pressed = document.body.querySelector('[data-reaction-picker]');
     expect(pressed).not.toBeNull();

@@ -120,6 +120,12 @@ export type ChannelAuthor =
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
+export interface ChannelMessageQuote {
+  messageId: string;
+  text?: string;
+  preview?: ChannelReplyPreview | null;
+}
+
 export interface ChannelReplyPreview {
   author: ChannelAuthor;
   body: string;
@@ -306,6 +312,7 @@ export interface ChannelMessage {
   format?: 'markdown' | 'text';
   replyTo?: string;
   replyToPreview?: ChannelReplyPreview | null;
+  quotes?: ChannelMessageQuote[];
   pending?: boolean;
   failed?: string;
   unconfirmed?: boolean;

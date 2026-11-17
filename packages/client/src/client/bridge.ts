@@ -162,6 +162,8 @@ import type {
   ChannelAuthor,
   ChannelAttachmentRef,
   ChannelMessage,
+  ChannelMessageQuote,
+  ChannelReplyPreview,
   ChannelReaction,
   ChannelSummary,
   OwnedSessionSummary,
@@ -1931,6 +1933,8 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       };
     }
   }
+  const quotes = parseMessageQuotes(record['quotes']);
+  if (quotes === false) return undefined;
   const rawPreview = record['replyToPreview'];
   let replyToPreview: ChannelMessage['replyToPreview'];
   if (rawPreview === null) {
@@ -2145,6 +2149,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+    ...(quotes === undefined ? {} : { quotes }),
     ...(perf === undefined ? {} : { perf }),
   };
 }
@@ -4391,6 +4396,7 @@ export async function sendChannelMessage(
   allBotMention?: AllBotMention,
   genuiReply?: GenuiMessageReply,
   skillInvocations?: ChannelSkillInvocationToken[],
+  quotes?: readonly { messageId: string; text?: string }[],
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -4402,6 +4408,13 @@ export async function sendChannelMessage(
         ? {}
         : { skillInvocations }),
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined || quotes.length === 0
+        ? {}
+        : {
+            quotes: quotes.map(({ messageId, text }) =>
+              text === undefined ? { messageId } : { messageId, text },
+            ),
+          }),
       ...(attachments === undefined ? {} : { attachments }),
       ...(messageId === undefined ? {} : { messageId }),
       ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
@@ -7402,4 +7415,38 @@ export async function setModelPlan(
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;
+}
+
+function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {
+  if (value === null) return null;
+  const preview = asRecord(value);
+  if (preview === undefined || typeof preview['body'] !== 'string') return false;
+  const author = parseAuthor(preview['author']);
+  if (author === undefined) return false;
+  const media = preview['media'];
+  return {
+    author,
+    body: preview['body'],
+    ...(isChannelReplyPreviewMedia(media) ? { media } : {}),
+  };
+}
+
+function parseMessageQuotes(value: unknown): ChannelMessageQuote[] | undefined | false {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 8) return false;
+  const quotes: ChannelMessageQuote[] = [];
+  for (const entry of value) {
+    const quote = asRecord(entry);
+    if (quote === undefined || typeof quote['messageId'] !== 'string') return false;
+    if (quote['text'] !== undefined && typeof quote['text'] !== 'string') return false;
+    const preview =
+      quote['preview'] === undefined ? undefined : parseQuotePreview(quote['preview']);
+    if (preview === false) return false;
+    quotes.push({
+      messageId: quote['messageId'],
+      ...(typeof quote['text'] === 'string' ? { text: quote['text'] } : {}),
+      ...(preview === undefined ? {} : { preview }),
+    });
+  }
+  return quotes;
 }

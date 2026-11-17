@@ -1,4 +1,6 @@
 import { Button } from './ds/button.js';
+import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
+import type { ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
   composerSlashQuery,
@@ -130,6 +132,7 @@ export interface ChannelComposerProps {
   skills?: readonly SelectedSkill[] | undefined;
   readSkill?: ((name: string, owner: string) => Promise<SkillDocument>) | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
+  quotes?: readonly ComposerQuote[] | undefined;
   t?: BotHarnessTranslate | undefined;
   onChange(
     value: string,
@@ -138,9 +141,12 @@ export interface ChannelComposerProps {
     skills?: SelectedSkill[],
   ): void;
   onCancelReply?(): void;
+  onRemoveQuote?(quote: ComposerQuote): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
 }
+
+const NO_QUOTES: readonly ComposerQuote[] = [];
 
 const IMAGE_ATTACHMENT_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
 
@@ -430,9 +436,11 @@ export function ChannelComposer({
   skills = [],
   readSkill,
   reply,
+  quotes = NO_QUOTES,
   t = zhTranslate,
   onChange,
   onCancelReply,
+  onRemoveQuote,
   onRecall,
   onSubmit,
 }: ChannelComposerProps): ReactElement {
@@ -675,7 +683,8 @@ export function ChannelComposer({
     height: 34,
     animateFirstExpand: false,
   });
-  const hasFooter = fit.expanded || reply !== undefined || attachments.length > 0;
+  const hasFooter =
+    fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
     const nextFit = fitComposerTextarea(element);
@@ -1316,6 +1325,21 @@ export function ChannelComposer({
               &times;
             </button>
           </div>
+        )}
+        {quotes.length === 0 ? null : (
+          <QuoteChipList label={t('message.quotes')}>
+            {quotes.map((quote) => (
+              <QuoteChip
+                key={`${quote.messageId}:${quote.text ?? ''}`}
+                author={quote.author}
+                excerpt={quote.excerpt}
+                part={quote.text !== undefined}
+                removeLabel={t('message.quoteRemove', { author: quote.author })}
+                disabled={locked}
+                onRemove={() => onRemoveQuote?.(quote)}
+              />
+            ))}
+          </QuoteChipList>
         )}
         {attachments.length > 0 ? (
           <div className="bh-composer-attachments" aria-live="polite">

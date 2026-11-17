@@ -12,8 +12,18 @@ export interface ComposerDraft {
   channelRefs: SelectedChannelRef[];
   skills: SelectedSkill[];
   reply: ChannelMessage | undefined;
+  quotes: ComposerQuote[];
   uploads: ChannelComposerUpload[];
 }
+
+export interface ComposerQuote {
+  messageId: string;
+  text?: string;
+  author: string;
+  excerpt: string;
+}
+
+const MAX_DRAFT_QUOTES = 8;
 
 export interface Version {
   writer: string;
@@ -37,7 +47,15 @@ const MAX_BYTES = 1_048_576;
 const MAX_VERSIONS = 100;
 
 export function emptyComposerDraft(): ComposerDraft {
-  return { text: '', mentions: [], channelRefs: [], skills: [], reply: undefined, uploads: [] };
+  return {
+    text: '',
+    mentions: [],
+    channelRefs: [],
+    skills: [],
+    reply: undefined,
+    quotes: [],
+    uploads: [],
+  };
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -109,6 +127,18 @@ function parseVersion(raw: string): Version {
     const target = record(saved['reply']);
     reply = { id: string(target['id']), at: '', author: { kind: 'human' }, body: '' };
   }
+  const savedQuotes = saved['quotes'] ?? [];
+  if (!Array.isArray(savedQuotes) || savedQuotes.length > MAX_DRAFT_QUOTES) throw new Error();
+  const quotes = savedQuotes.map((entry): ComposerQuote => {
+    const quote = record(entry);
+    const text = quote['text'] === undefined ? undefined : string(quote['text']);
+    return {
+      messageId: string(quote['messageId']),
+      ...(text === undefined ? {} : { text }),
+      author: string(quote['author']),
+      excerpt: string(quote['excerpt']),
+    };
+  });
   if (!Array.isArray(saved['uploads']) || saved['uploads'].length > 10) throw new Error();
   const uploads = saved['uploads'].map((entry): ChannelComposerUpload => {
     const upload = record(entry);
@@ -131,7 +161,7 @@ function parseVersion(raw: string): Version {
     writer: string(source['writer']),
     sequence: number(source['sequence']),
     seen,
-    draft: { text, mentions, channelRefs, skills, reply, uploads },
+    draft: { text, mentions, channelRefs, skills, reply, quotes, uploads },
     notice:
       source['reselectAllBots'] === true ||
       mentions.length !== (saved['mentions'] as unknown[]).length,
@@ -163,6 +193,7 @@ function serialize(version: Version): string {
           end: token.end,
         })),
       reply: draft.reply === undefined ? null : { id: draft.reply.id },
+      ...(draft.quotes.length === 0 ? {} : { quotes: draft.quotes }),
       uploads: draft.uploads.map((upload) => ({
         id: upload.id,
         name: upload.file.name,

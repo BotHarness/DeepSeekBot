@@ -1,4 +1,7 @@
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
+import { QuoteIcon } from './quote-icon.js';
+import { QuoteCard, QuoteCardList } from './ds/quote-chip.js';
+import type { ComposerQuote } from './composer-draft-store.js';
 import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
@@ -407,6 +410,82 @@ interface MessageMenuRequest {
   message: ChannelMessage;
   x: number;
   y: number;
+  selection?: string;
+}
+
+function selectedMessageText(messageId: string): string | undefined {
+  const selection = typeof window === 'undefined' ? null : window.getSelection();
+  if (selection === null || selection.isCollapsed || selection.rangeCount === 0) return undefined;
+  const range = selection.getRangeAt(0);
+  const inBody = (node: Node): boolean => {
+    const element = node instanceof Element ? node : node.parentElement;
+    return (
+      element !== null &&
+      element.closest('[data-message-id]')?.getAttribute('data-message-id') === messageId &&
+      element.closest('.bh-bubble-reply, [data-bubble-quotes], .bh-bubble-actions') === null
+    );
+  };
+  if (!inBody(range.startContainer) || !inBody(range.endContainer)) return undefined;
+  const text = selection
+    .toString()
+    .replace(/\u200b/gu, '')
+    .trim();
+  return text.length === 0 ? undefined : text;
+}
+
+function QuoteList({
+  humanName,
+  message,
+  bots,
+  onJump,
+  t,
+}: {
+  message: ChannelMessage;
+  bots: readonly BotSummary[];
+  humanName: string;
+  onJump(messageId: string): void;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
+  const quotes = message.quotes;
+  if (quotes === undefined || quotes.length === 0) return null;
+  const mine = message.author.kind === 'human';
+  return (
+    <QuoteCardList label={t('message.quotes')}>
+      {quotes.map((quote, index) => {
+        const key = `${quote.messageId}:${index}`;
+        const preview = quote.preview;
+        if (preview === undefined || preview === null)
+          return (
+            <QuoteCard
+              key={key}
+              body={t('message.replyUnavailable')}
+              part={false}
+              mine={mine}
+              kind="unavailable"
+            />
+          );
+        const quoted = preview.author;
+        const author = authorLabel({ ...message, author: quoted }, bots, t, humanName);
+        const colorSource =
+          mine || quoted.kind !== 'bot'
+            ? undefined
+            : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
+        return (
+          <QuoteCard
+            key={key}
+            ref={(element) => paintBotName(element, colorSource)}
+            author={author}
+            body={quote.text ?? replyQuoteText(preview.media, preview.body, t)}
+            part={quote.text !== undefined}
+            mine={mine}
+            kind={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
+            jumpLabel={t('message.quoteJump', { author })}
+            onJump={() => onJump(quote.messageId)}
+          />
+        );
+      })}
+    </QuoteCardList>
+  );
 }
 
 function ReplyQuote({
@@ -463,6 +542,16 @@ function ReplyQuote({
         {replyQuoteText(media, toolApprovalReplyPreview(message, preview.body, t), t)}
       </span>
     </button>
+  );
+}
+
+function quotableMessage(message: ChannelMessage): boolean {
+  return (
+    message.pending !== true &&
+    message.streaming !== true &&
+    message.failed === undefined &&
+    message.body.trim().length > 0 &&
+    !message.id.startsWith('local-')
   );
 }
 
@@ -938,6 +1027,13 @@ const MessageGroupView = memo(function MessageGroupView({
                     onJump={onJumpReply}
                     t={t}
                   />
+                  <QuoteList
+                    humanName={humanName}
+                    message={message}
+                    bots={bots}
+                    onJump={onJumpReply}
+                    t={t}
+                  />
                   <ImageGalleryScope value={gallery}>
                     <MessageFold messageId={message.id} enabled={foldableMessage(message)} t={t}>
                       <ChannelMessageBody
@@ -1041,6 +1137,7 @@ const MessageGroupView = memo(function MessageGroupView({
 
 function MessageActionMenu({
   onReply,
+  onQuote,
   onFeedback,
   onSelect,
   onReact,
@@ -1049,6 +1146,7 @@ function MessageActionMenu({
   t,
 }: {
   onReply?(message: ChannelMessage): void;
+  onQuote?(message: ChannelMessage, text?: string): void;
   onFeedback?(message: ChannelMessage): void;
   onSelect?(message: ChannelMessage): void;
   onReact?(request: MessageMenuRequest): void;
@@ -1085,6 +1183,20 @@ function MessageActionMenu({
           request.message.streaming === true
             ? []
             : [{ id: 'reply', label: t('message.reply'), icon: <ReplyIcon /> }]),
+          ...(onQuote === undefined || !quotableMessage(request.message)
+            ? []
+            : [
+                ...(request.selection === undefined
+                  ? []
+                  : [
+                      {
+                        id: 'quote-selection',
+                        label: t('message.quoteSelection'),
+                        icon: <QuoteIcon />,
+                      },
+                    ]),
+                { id: 'quote', label: t('message.quote'), icon: <QuoteIcon /> },
+              ]),
           ...(onReact === undefined
             ? []
             : [{ id: 'react', label: t('message.react'), icon: <ReactionIcon /> }]),
@@ -1104,6 +1216,8 @@ function MessageActionMenu({
         ]}
         onSelect={(id) => {
           if (id === 'reply') onReply?.(request.message);
+          else if (id === 'quote') onQuote?.(request.message);
+          else if (id === 'quote-selection') onQuote?.(request.message, request.selection);
           else if (id === 'react') onReact?.(request);
           else if (id === 'feedback') onFeedback?.(request.message);
           else if (id === 'copy') {
@@ -1383,6 +1497,7 @@ function ConversationView({
   const [restoreFocusSignal, setRestoreFocusSignal] = useScopedState(scopeKey, 0);
   const uploadControllers = useScopedRef(scopeKey, new Map<string, AbortController>());
   const [replyTarget, setReplyTarget] = useConversationDraft(draftScope, 'reply', undefined);
+  const [quoteTargets, setQuoteTargets] = useConversationDraft(draftScope, 'quotes', []);
   const submitting = useScopedRef(scopeKey, false);
   const recall = useScopedRef<
     | {
@@ -2345,10 +2460,27 @@ function ConversationView({
     setRestoreFocusSignal((value) => value + 1);
   };
 
+  const quoteInComposer = (message: ChannelMessage, text?: string) => {
+    const excerpt = Array.from((text ?? message.body).replace(/\s+/gu, ' ').trim());
+    const quote: ComposerQuote = {
+      messageId: message.id,
+      ...(text === undefined ? {} : { text: excerpt.slice(0, 1000).join('') }),
+      author: authorLabel(message, state.bots, t, channelHumanName(channel)),
+      excerpt: excerpt.slice(0, 140).join(''),
+    };
+    setQuoteTargets((current) =>
+      current.some((item) => item.messageId === quote.messageId && item.text === quote.text)
+        ? current
+        : [...current, quote].slice(-8),
+    );
+    setRestoreFocusSignal((value) => value + 1);
+  };
+
   const timelineHandlers = {
     contextMenu: (message: ChannelMessage, x: number, y: number) => {
       setAvatarMenu(undefined);
-      setMessageMenu({ message, x, y });
+      const selection = selectedMessageText(message.id);
+      setMessageMenu({ message, x, y, ...(selection === undefined ? {} : { selection }) });
     },
     avatarMenu: (botSlug: string, x: number, y: number) => {
       setMessageMenu(undefined);
@@ -2791,6 +2923,9 @@ function ConversationView({
         .map((item) => item.id),
     );
     const submittedReplyTo = replyTarget?.id;
+    const submittedQuotes = quoteTargets.map(({ messageId, text }) =>
+      text === undefined ? { messageId } : { messageId, text },
+    );
     const submittedAttachments = submittedUploads.flatMap((item) =>
       item.ref === undefined ? [] : [item.ref],
     );
@@ -2826,9 +2961,20 @@ function ConversationView({
         allBotMention,
         attempt?.id,
         submittedSkills.map(({ name, owner, start, end }) => ({ name, owner, start, end })),
+        submittedQuotes,
       );
       if (sent) {
         setAllBotNotice(undefined);
+        if (submittedQuotes.length > 0)
+          setQuoteTargets((current) =>
+            current.filter(
+              (item) =>
+                !submittedQuotes.some(
+                  (sentQuote) =>
+                    sentQuote.messageId === item.messageId && sentQuote.text === item.text,
+                ),
+            ),
+          );
         setReplyTarget((current) => (current?.id === submittedReplyTo ? undefined : current));
       } else if (currentChannel.current === submittedFor) {
         const failedEcho = store
@@ -3782,6 +3928,14 @@ function ConversationView({
                       setRestoreBlocked(false);
                     }}
                     onCancelReply={() => setReplyTarget(undefined)}
+                    quotes={quoteTargets}
+                    onRemoveQuote={(quote) =>
+                      setQuoteTargets((current) =>
+                        current.filter(
+                          (item) => item.messageId !== quote.messageId || item.text !== quote.text,
+                        ),
+                      )
+                    }
                     onRecall={recallInput}
                     onSubmit={submit}
                   />
@@ -3802,6 +3956,7 @@ function ConversationView({
                 ? {}
                 : {
                     onReply: quoteMessage,
+                    onQuote: quoteInComposer,
                     onFeedback: (message: ChannelMessage) => setFeedbackMessage(message.id),
                   })}
               {...(messageSelection === undefined ? {} : { onSelect: messageSelection.begin })}

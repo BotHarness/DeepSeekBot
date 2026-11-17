@@ -260,6 +260,75 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     }
   });
 
+  it('shows a Human quote to the Bot and lets the Bot cite several messages', async () => {
+    const f = await inboxFixture();
+    const adapter = tools();
+    const append = (id: string, body: string, quotes?: { messageId: string; text?: string }[]) =>
+      f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id,
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body,
+        ...(quotes === undefined ? {} : { quotes }),
+      });
+    try {
+      await append('human-1', 'Ship the **export** fix on Friday, then update the docs.');
+      await f.send('Ship the export fix on Friday, then update the docs.');
+      await append('human-2', 'Is this still the plan?', [
+        { messageId: 'human-1', text: 'export fix on Friday' },
+      ]);
+      let prompt = '';
+      let refused: unknown;
+      await f.send('Is this still the plan?', async (run) => {
+        prompt = run.message;
+        const source = run.triage!.current()[0];
+        refused = await adapter.runDirectTool!(
+          run,
+          'bot_send_message',
+          {
+            source_event_id: source,
+            body: 'x',
+            quotes: [{ message_id: 'human-1', text: 'ship on Monday' }],
+          },
+          new AbortController().signal,
+        ).catch((error: unknown) => error);
+        await adapter.runDirectTool!(
+          run,
+          'bot_send_message',
+          {
+            source_event_id: source,
+            body: 'Yes: Friday for the fix, docs after.',
+            quotes: [
+              { message_id: 'human-1', text: 'then update the docs' },
+              { message_id: 'human-2' },
+            ],
+          },
+          new AbortController().signal,
+        );
+      });
+      expect(prompt).toContain('[Quoted messages');
+      expect(prompt).toContain('- Message human-1 from Human');
+      expect(prompt).toContain('(excerpt): "export fix on Friday"');
+      expect(refused).toMatchObject({ code: 'quote-text-mismatch' });
+      const page = f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, f.dm.id, { limit: 5 })!;
+      const reply = page.entries.find(
+        (entry) => entry.body === 'Yes: Friday for the fix, docs after.',
+      );
+      expect(reply?.author).toMatchObject({ kind: 'bot', slug: 'ada' });
+      expect(reply?.quotes).toMatchObject([
+        {
+          messageId: 'human-1',
+          text: 'then update the docs',
+          preview: { body: expect.any(String) },
+        },
+        { messageId: 'human-2', preview: { body: 'Is this still the plan?' } },
+      ]);
+    } finally {
+      await adapter.close();
+      await f.close();
+    }
+  });
+
   it('sends a question without resolving the task and accepts a later answer', async () => {
     const f = await fixture();
     const adapter = tools();

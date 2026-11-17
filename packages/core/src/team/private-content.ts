@@ -304,6 +304,18 @@ export class TeamPrivateContent {
               },
             }
           : {}),
+        ...(message.quotes === undefined
+          ? {}
+          : {
+              quotes: message.quotes.map((quote) =>
+                quote.preview
+                  ? {
+                      ...quote,
+                      preview: { ...quote.preview, author: author(quote.preview.author) },
+                    }
+                  : quote,
+              ),
+            }),
       }));
   }
 

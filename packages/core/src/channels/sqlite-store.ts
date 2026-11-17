@@ -18,6 +18,13 @@ import {
 import { projectAttachmentFiles } from '../attachments/message-files.js';
 import { replyPreviewOf } from './reply-preview.js';
 import {
+  assertQuoteTargets,
+  durableQuotes,
+  projectQuotes,
+  quoteIds,
+  referencedIds,
+} from './quotes.js';
+import {
   assertGrantRequestReply,
   grantRequester,
   isGrantRequestResolved,
@@ -219,11 +226,16 @@ function replyProjection(
   byId: ReadonlyMap<string, ChannelMessage>,
   projectThumbnail: (target: ChannelMessage, ref: ChannelAttachmentRef) => ChannelAttachmentRef,
 ): ChannelMessage {
-  if (message.replyTo === undefined) return message;
-  const target = byId.get(message.replyTo);
-  if (target === undefined) return { ...message, replyToPreview: null };
+  const quoted = projectQuotes(
+    message,
+    (messageId) => byId.get(messageId),
+    (target, ref) => projectThumbnail(target as ChannelMessage, ref),
+  );
+  if (quoted.replyTo === undefined) return quoted;
+  const target = byId.get(quoted.replyTo);
+  if (target === undefined) return { ...quoted, replyToPreview: null };
   return {
-    ...message,
+    ...quoted,
     replyToPreview: replyPreviewOf(target, (ref) => projectThumbnail(target, ref)),
   };
 }
@@ -260,6 +272,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       body: left.body,
       attachments: attachmentIntent(left.attachments ?? []),
       replyTo: left.replyTo,
+      quotes: durableQuotes(left).quotes,
       memorySwitchTarget: left.memorySwitchTarget,
       tobCliRequestId: left.tobCliRequestId,
       mentions: left.mentions ?? [],
@@ -279,6 +292,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       body: right.body,
       attachments: attachmentIntent(right.attachments ?? []),
       replyTo: right.replyTo,
+      quotes: durableQuotes(right).quotes,
       memorySwitchTarget: right.memorySwitchTarget,
       tobCliRequestId: right.tobCliRequestId,
       mentions: right.mentions ?? [],
@@ -319,7 +333,7 @@ function sourceKind(message: ChannelMessage): string {
 }
 
 function rawMessage(message: ChannelMessage): ChannelMessage {
-  const result = { ...message };
+  const result = durableQuotes({ ...message });
   delete result.grantRequestResolved;
   delete result.replyToPreview;
   delete result.botChannelPostPreview;
@@ -1020,11 +1034,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       ...selected,
       ...placementMessages(
         id,
-        selected.flatMap((message) =>
-          message.replyTo === undefined || selectedIds.has(message.replyTo)
-            ? []
-            : [message.replyTo],
-        ),
+        [
+          ...new Set(
+            selected.flatMap((message) =>
+              referencedIds(message).filter((reference) => !selectedIds.has(reference)),
+            ),
+          ),
+        ],
         visibleFrom,
       ),
       ...grantResolutions(
@@ -1181,6 +1197,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         message.takeoverResolution?.requestMessageId,
         message.genui?.predecessorMessageId,
         message.genuiReply?.messageId,
+        ...quoteIds(message),
       ]),
       ...grantResolutions(id, grantRequestId === undefined ? [] : [grantRequestId]),
     ];
@@ -1193,6 +1210,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     }
     if (message.replyTo !== undefined && !previous.some((item) => item.id === message.replyTo))
       throw new ChannelReplyTargetError();
+    assertQuoteTargets(message.quotes, (messageId) =>
+      previous.find((item) => item.id === messageId),
+    );
     assertAttachmentRefs(message.attachments ?? []);
     const mentions = message.mentions ?? [];
     const humanMentions = message.humanMentions ?? [];
@@ -3664,11 +3684,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           },
         ];
       });
-      const replyIds = [
-        ...new Set(
-          selected.flatMap((message) => (message.replyTo === undefined ? [] : [message.replyTo])),
-        ),
-      ];
+      const replyIds = [...new Set(selected.flatMap((message) => referencedIds(message)))];
       const byId = new Map<string, ChannelMessage>();
       if (replyIds.length > 0) {
         const placeholders = replyIds.map(() => '?').join(', ');

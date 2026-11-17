@@ -56,6 +56,15 @@ describe('browser-local composer drafts', () => {
     expect(new ComposerDraftStore(local, 'reopened').read('channel').draft.mentions).toEqual([]);
     expect(first.read('channel').draft.text).toBe('@Gone');
   });
+  it('keeps quote chips across a reload', () => {
+    const local = storage();
+    const quotes = [
+      { messageId: 'a', author: 'Ada', excerpt: 'whole message' },
+      { messageId: 'b', text: 'part', author: 'You', excerpt: 'part' },
+    ];
+    new ComposerDraftStore(local, 'first').update('channel', { text: 'both?', quotes });
+    expect(new ComposerDraftStore(local, 'reopened').read('channel').draft.quotes).toEqual(quotes);
+  });
   it('recovers an unsent draft in a new browser owner without leaking across trusted scopes', () => {
     const local = storage();
     const first = new ComposerDraftStore(local, 'first-tab');

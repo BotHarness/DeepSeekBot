@@ -641,6 +641,7 @@ export function fingerprint(message: ChannelMessage): string {
         body: message.body,
         attachments: message.attachments,
         replyTo: message.replyTo,
+        quotes: message.quotes?.map(({ messageId, text }) => ({ messageId, text })),
         mentions: message.mentions,
         humanMentions: message.humanMentions,
       }),
