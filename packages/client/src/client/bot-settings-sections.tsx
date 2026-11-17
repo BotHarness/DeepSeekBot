@@ -264,7 +264,7 @@ export function AboutSection({
 }: SectionProps<{
   releaseNotes: ReleaseNotesController;
   call: BridgeCall;
-  updateRuns?: UpdateRunsController;
+  updateRuns: UpdateRunsController;
 }>): ReactElement {
   return (
     <Rows>
