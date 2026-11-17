@@ -507,3 +507,46 @@ it('lists, replaces and deletes my uploads, marking earlier installs as author-u
   });
   expect(f.core.registry.get(copy)).toBeDefined();
 });
+
+it('remembers which local Bot a listing was uploaded from and moves it when another Bot replaces it', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  if (!uploaded.ok) throw new Error(uploaded.error.message);
+  const id = uploaded.value.bot.id;
+  expect(f.core.registry.get(slug)?.marketplaceUpload).toEqual({
+    id,
+    pushedAt: uploaded.value.bot.pushedAt,
+  });
+  const reviewed = await f.bridge.marketplaceInstallReview({ id });
+  if (!reviewed.ok) throw new Error(reviewed.error.message);
+  const installed = await f.bridge.marketplaceInstall({ id, reviewId: reviewed.value.reviewId });
+  if (!installed.ok) throw new Error(installed.error.message);
+  const copy = installed.value.bot.slug;
+  const links = () => {
+    const listed = f.bridge.list({});
+    if (!listed.ok) throw new Error(listed.error.message);
+    return Object.fromEntries(
+      listed.value.bots
+        .filter((bot) => bot.slug === slug || bot.slug === copy)
+        .map((bot) => [
+          bot.slug,
+          'metadataOnly' in bot ? [] : [bot.uploadedListing, bot.installedListing],
+        ]),
+    );
+  };
+  expect(links()).toEqual({ [slug]: [id, undefined], [copy]: [undefined, id] });
+
+  f.market.clock.value = new Date('2026-10-06T09:00:00Z');
+  readyDraft(f, copy);
+  const replaced = await f.bridge.marketplaceUpload({
+    slug: copy,
+    displayName: 'Helper',
+    replaces: id,
+  });
+  if (!replaced.ok) throw new Error(replaced.error.message);
+  expect(links()).toEqual({ [slug]: [undefined, undefined], [copy]: [id, id] });
+});

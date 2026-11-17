@@ -723,6 +723,12 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
     ...(typeof record['paused'] === 'boolean' ? { paused: record['paused'] } : {}),
     ...(record['deleted'] === true ? { deleted: true } : {}),
     ...(record['modelAllowed'] === false ? { modelAllowed: false as const } : {}),
+    ...(typeof record['uploadedListing'] === 'string'
+      ? { uploadedListing: record['uploadedListing'] }
+      : {}),
+    ...(typeof record['installedListing'] === 'string'
+      ? { installedListing: record['installedListing'] }
+      : {}),
     ...(parseStandingLimits(record['standingLimits']) ?? {}),
   };
 }

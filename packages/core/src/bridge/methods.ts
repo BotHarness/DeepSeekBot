@@ -568,6 +568,8 @@ export interface PersonaBotSummary {
   paused?: boolean;
   deleted?: boolean;
   approvalTemplate?: string;
+  uploadedListing?: string;
+  installedListing?: string;
   standingLimits: StandingLimits;
   aggregateState: AggregatedState;
   workspaces: string[];
@@ -2139,6 +2141,12 @@ function summarize(
     ...(record.browserAccess === undefined ? {} : { browserAccess: record.browserAccess }),
     ...(record.browserProfile === undefined ? {} : { browserProfile: record.browserProfile }),
     ...(record.approvalTemplate === undefined ? {} : { approvalTemplate: record.approvalTemplate }),
+    ...(record.marketplaceUpload === undefined
+      ? {}
+      : { uploadedListing: record.marketplaceUpload.id }),
+    ...(record.marketplaceListing === undefined
+      ? {}
+      : { installedListing: record.marketplaceListing.id }),
   };
 }
 
@@ -5042,14 +5050,20 @@ function buildBridgeMethods(
       if (replaces !== undefined && (typeof replaces !== 'string' || replaces.trim().length === 0))
         return invalidInput('invalid replaces');
       const trimmedBio = bio.value?.trim();
-      return uploadResult(
-        await deps.marketplaceUploads.upload(slug, {
-          displayName: displayName.trim(),
-          ...(trimmedBio === undefined || trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
-          ...(tags === undefined ? {} : { tags: tags as string[] }),
-          ...(replaces === undefined ? {} : { replaces: replaces.trim() }),
-        }),
-      );
+      const uploaded = await deps.marketplaceUploads.upload(slug, {
+        displayName: displayName.trim(),
+        ...(trimmedBio === undefined || trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
+        ...(tags === undefined ? {} : { tags: tags as string[] }),
+        ...(replaces === undefined ? {} : { replaces: replaces.trim() }),
+      });
+      if (uploaded.ok) {
+        const { id, pushedAt } = uploaded.value.bot;
+        for (const other of deps.registry.list())
+          if (other.slug !== slug && other.marketplaceUpload?.id === id)
+            deps.registry.setMarketplaceUpload(other.slug, undefined);
+        deps.registry.setMarketplaceUpload(slug, { id, pushedAt });
+      }
+      return uploadResult(uploaded);
     },
     async marketplaceMine(payload) {
       if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();

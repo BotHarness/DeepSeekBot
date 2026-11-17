@@ -144,6 +144,7 @@ describe('M2 private Bot boundaries', () => {
     'setVoice',
     'setAsr',
     'setMarketplaceListing',
+    'setMarketplaceUpload',
     'setPromptSettings',
     'setStandingLimits',
     'inheritModel',

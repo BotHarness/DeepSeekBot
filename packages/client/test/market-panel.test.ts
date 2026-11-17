@@ -979,7 +979,9 @@ describe('Market panel', () => {
       async ({ host, registry }) => {
         await click(host, '上传 Bot');
         await click(host, '分享 Bot');
-        const choices = [...host.querySelectorAll('[role="listitem"] button')];
+        const choices = [
+          ...host.querySelectorAll('[data-market-direct="bot"] [role="listitem"] button'),
+        ];
         expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual(['Writer']);
         await click(host, 'Writer');
         expect(host.querySelector('[data-market-draft-meta]')?.textContent).toBe(
@@ -1165,6 +1167,9 @@ describe('Uploaded Bots in the Market panel', () => {
         expect(document.body.textContent).toContain('更新 Helper');
         expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('1选择 Bot');
         expect(host.querySelectorAll('[aria-label="上传步骤"] li')).toHaveLength(5);
+        expect(host.querySelector('[data-market-replace-hint="missing"]')?.textContent).toContain(
+          '这台电脑上没有当初上传「Helper」的 Bot',
+        );
         await click(host, 'Writer');
         expect(host.querySelector('[data-market-direct="draft"]')).not.toBeNull();
         await click(host, '下一步');
@@ -1178,6 +1183,12 @@ describe('Uploaded Bots in the Market panel', () => {
         await click(host, '下一步');
         const review = host.querySelector('[data-market-direct="review"]')!;
         expect(review.textContent).toContain('1 个文件，10 B');
+        expect(review.querySelector('[data-market-replace-summary]')?.textContent).toContain(
+          '用「Writer」替换市场上的「Helper」',
+        );
+        expect(review.querySelector('[data-market-replace-warning]')?.textContent).toContain(
+          '无法确认「Writer」就是当初上传的 Bot',
+        );
         await click(host, '替换全部文件');
         expect(upload).toHaveBeenCalledWith('writer', {
           displayName: 'Helper',
@@ -1202,6 +1213,66 @@ describe('Uploaded Bots in the Market panel', () => {
         marketplaceUploadPlan: plan,
         marketplaceUpload: upload,
         marketplaceDelete: remove,
+      },
+    );
+  });
+
+  it('starts an update from the Bot uploaded as the listing and warns before replacing it with another', async () => {
+    store.setRoster(
+      [
+        bot('writer', { displayName: 'Writer' }),
+        bot('helper', { displayName: 'Helper Local', uploadedListing: 'U_helper' }),
+      ],
+      [],
+    );
+    const plan = vi.fn(async () => ({
+      files: [{ path: 'SOUL.md', size: 10, kind: 'text' }],
+      skipped: [],
+      totalBytes: 10,
+    }));
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host }) => {
+        await click(host, '我上传的');
+        await click(host, '更新 Helper');
+        expect(host.querySelector('[data-market-direct="draft"]')?.textContent).toContain(
+          'Helper Local',
+        );
+        await click(host, '下一步');
+        await click(host, '下一步');
+        let review = host.querySelector('[data-market-direct="review"]')!;
+        expect(review.querySelector('[data-market-replace-summary]')?.textContent).toContain(
+          '用「Helper Local」替换市场上的「Helper」',
+        );
+        expect(review.querySelector('[data-market-replace-warning]')).toBeNull();
+
+        await click(host, '返回');
+        await click(host, '返回');
+        await click(host, '返回');
+        expect(host.querySelector('[data-market-replace-hint="found"]')).not.toBeNull();
+        const choices = [
+          ...host.querySelectorAll('[data-market-direct="bot"] [role="listitem"] button'),
+        ];
+        expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual([
+          'Helper Local',
+          'Writer',
+        ]);
+        expect(choices[0]?.textContent).toContain('当初上传的 Bot');
+        await click(host, 'Writer');
+        await click(host, '下一步');
+        await click(host, '下一步');
+        review = host.querySelector('[data-market-direct="review"]')!;
+        expect(review.querySelector('[data-market-replace-warning]')?.textContent).toContain(
+          '「Writer」不是当初上传的 Bot（「Helper Local」）',
+        );
+      },
+      {
+        marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
+        marketplaceMine: vi.fn(async () => [
+          { bot: uploaded, files: 3, bytes: 2048, blocked: false },
+        ]),
+        shareDraftGet: vi.fn(async () => draftView('ready')),
+        marketplaceUploadPlan: plan,
       },
     );
   });
