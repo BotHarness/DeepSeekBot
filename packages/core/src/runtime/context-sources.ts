@@ -2,25 +2,9 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm';
 import { deriveEventMessage, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session';
 import { estimateStructuralBlock } from '@deepseek-ai/dsh-token-meter/estimate';
 
-export const CONTEXT_SOURCES = [
-  'system',
-  'tools',
-  'human',
-  'inbox-mention',
-  'inbox-schedule',
-  'inbox-memory',
-  'inbox-assignment',
-  'host',
-  'skills',
-  'attachments',
-  'replies',
-  'thinking',
-  'tool-use',
-  'summary',
-  'other',
-] as const;
+import { CONTEXT_SOURCES, type ContextSource } from './context-source-names.js';
 
-export type ContextSource = (typeof CONTEXT_SOURCES)[number];
+export { CONTEXT_SOURCES, type ContextSource };
 
 export interface ContextSourceRow {
   readonly source: ContextSource;
@@ -41,8 +25,11 @@ interface MessageLike {
 
 type Share = readonly [ContextSource, number, string?];
 
-const INBOX_HEADER = '[Bot Inbox]';
-const HOST_PREFIXES = ['[Host Assignment report transport]', '[Host reply transport reminder]'];
+const INBOX_LIST_HEADER = '[Bot Inbox]';
+const INBOX_PREFIX = '[Bot Inbox';
+const OPEN_INBOX_PREFIX = '[Open Inbox]';
+const HOST_PREFIXES = ['[Host ', '[Host:', '[Bot Inbox: Takeover Handoff ended]'];
+const SOURCE_EVENT_LINE = /^Source Event ID: \S+$/u;
 
 function messageOf(event: SessionEvent | undefined): MessageLike | undefined {
   if (event === undefined) return undefined;
@@ -73,14 +60,49 @@ function inboxLineSource(line: string): ContextSource {
   return 'inbox-mention';
 }
 
-function inboxShares(text: string): Share[] {
+type Section = 'human' | 'inbox-list' | 'inbox-mention' | 'inbox-open' | 'host';
+
+function sectionOf(line: string): Section | undefined {
+  if (HOST_PREFIXES.some((prefix) => line.startsWith(prefix))) return 'host';
+  if (line.startsWith(INBOX_LIST_HEADER)) return 'inbox-list';
+  if (line.startsWith(OPEN_INBOX_PREFIX)) return 'inbox-open';
+  if (line.startsWith(INBOX_PREFIX)) return 'inbox-mention';
+  return undefined;
+}
+
+export function textShares(text: string): (readonly [ContextSource, number])[] {
   const lines = text.split('\n');
-  const items = lines.filter((line) => line.startsWith('- '));
-  if (items.length === 0) return [['inbox-mention', text.length]];
-  const header = text.length - items.reduce((sum, line) => sum + line.length + 1, 0);
-  const shares: Share[] = items.map((line) => [inboxLineSource(line), line.length + 1]);
-  const first = shares[0]!;
-  return [[first[0], first[1] + Math.max(0, header)], ...shares.slice(1)];
+  const shares: [ContextSource, number][] = [];
+  let section: Section = 'human';
+  let carry = 0;
+  let item: ContextSource | undefined;
+  const add = (source: ContextSource, size: number): void => {
+    const last = shares.at(-1);
+    if (last?.[0] === source) last[1] += size;
+    else shares.push([source, size]);
+  };
+  for (const [index, line] of lines.entries()) {
+    const size = line.length + (index < lines.length - 1 ? 1 : 0);
+    const next = sectionOf(line);
+    if (next !== undefined) {
+      section = next;
+      item = undefined;
+    } else if (SOURCE_EVENT_LINE.test(line) && sectionOf(lines[index + 1] ?? '') !== undefined) {
+      carry += size;
+      continue;
+    }
+    if (section === 'inbox-list') {
+      if (line.startsWith('- ')) item = inboxLineSource(line);
+      if (item === undefined) {
+        carry += size;
+        continue;
+      }
+      add(item, size + carry);
+    } else add(section, size + carry);
+    carry = 0;
+  }
+  if (carry > 0) add(section === 'inbox-list' ? 'inbox-mention' : section, carry);
+  return shares.filter(([, size]) => size > 0);
 }
 
 function userShares(message: MessageLike): Share[] {
@@ -103,15 +125,10 @@ function userShares(message: MessageLike): Share[] {
     if (block.type === 'image' || block.type === 'file') return [['attachments', weight(block)]];
     if (block.type !== 'text') return [['other', weight(block)]];
     const text = block.text;
-    if (HOST_PREFIXES.some((prefix) => text.startsWith(prefix))) return [['host', weight(block)]];
-    const at = text.indexOf(INBOX_HEADER);
-    if (at < 0) return [['human', weight(block)]];
+    const shares = textShares(text);
+    if (shares.length <= 1) return [[shares[0]?.[0] ?? 'human', weight(block)]];
     const scale = weight(block) / Math.max(1, text.length);
-    const before = text.slice(0, at).trimEnd();
-    return [
-      ...(before === '' ? [] : ([['human', before.length * scale]] as Share[])),
-      ...inboxShares(text.slice(at)).map(([source, size]): Share => [source, size * scale]),
-    ];
+    return shares.map(([source, size]): Share => [source, size * scale]);
   });
 }
 

@@ -223,6 +223,7 @@ import {
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
 import { startTokenUsage } from './telemetry/token-usage.js';
+import { createBotTurnTelemetry } from './telemetry/bot-turn.js';
 import {
   createActiveDay,
   readHumanMessageCounts,
@@ -4405,6 +4406,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     { global: true },
   );
 
+  const botTurnTelemetry = createBotTurnTelemetry({
+    telemetry,
+    role: (sessionId) => core.ownership.resolve(sessionId)?.rootRole,
+    measure: (sessionId) => {
+      const agent = liveAgent(sessionId);
+      const measurement = agent?.ctx.get('tokenMeter')?.measure(agent.session);
+      if (agent === undefined || measurement === undefined) return undefined;
+      return {
+        nodes: measurement.nodes,
+        totalTokens: measurement.totalTokens,
+        eventAt: (seq) => agent.session.eventAt(seq),
+      };
+    },
+    log: (message) => ctx.logger.info(message),
+  });
   const turnLog = createTurnLog({
     events: diagnosticEvents,
     owner: (sessionId) => core.ownership.resolve(sessionId),
@@ -4426,6 +4442,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.usage?.handleSessionEvent(session.id, event);
       core.messagePerf.observeSessionEvent(session.id, event);
       turnLog.observe(session.id, event);
+      botTurnTelemetry.observe(session.id, event);
       idleCompaction.observeEvent(session.id, event);
       handleCompactionEvent(
         {
@@ -4473,6 +4490,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
       turnLog.forget(agent.session.id);
+      botTurnTelemetry.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
     },
