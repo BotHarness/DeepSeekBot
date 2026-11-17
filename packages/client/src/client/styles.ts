@@ -4569,32 +4569,21 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-composer-inset { margin-inline: ${space.x4}; }
 .bh-composer {
   --bh-composer-body-height: 34px;
-  --bh-composer-compact-padding-left: 44px;
-  --bh-composer-compact-padding-right: 54px;
+  --bh-composer-compact-padding-left: 48px;
+  --bh-composer-compact-padding-right: 52px;
   position: relative;
   min-height: 50px;
   box-sizing: border-box;
   overflow: hidden;
   padding: ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left);
   border: ${border.hairline} solid ${color.border};
-  border-radius: 25px;
+  border-radius: ${radius.panel};
   background: var(--tobs-layer-raised);
   box-shadow: 0 8px 24px
     color-mix(in srgb, var(--tobs-ink-primary) 9%, transparent);
   transition:
-    padding 220ms var(--ds-ease-in-out),
-    border-radius 220ms var(--ds-ease-in-out),
     border-color 160ms var(--ds-ease-in-out),
     box-shadow 160ms var(--ds-ease-in-out);
-}
-.bh-composer-expanded {
-  padding-top: ${space.x3};
-  padding-bottom: 48px;
-  border-radius: 20px;
-}
-.bh-composer-with-footer {
-  padding: 10px 12px 48px;
-  border-radius: 20px;
 }
 .bh-composer-reply {
   display: flex;
@@ -4647,8 +4636,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 
 .bh-composer-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.bh-composer-add-file { position: absolute; left: 8px; bottom: 10px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.round}; background: var(--tobs-layer-canvas); color: var(--tobs-ink-primary); cursor: pointer; }
-.bh-composer-add-file:hover { background: var(--tobs-state-pressed); }
+.bh-composer-add-file { position: absolute; left: 9px; bottom: 9px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: ${radius.control}; background: transparent; color: var(--tobs-ink-secondary); cursor: pointer; }
+.bh-composer-add-file:hover { background: var(--tobs-state-hover); color: var(--tobs-ink-primary); }
 .bh-composer-add-file:focus-visible { outline: ${border.focus} solid var(--tobs-line-focus); outline-offset: 2px; }
 .bh-composer-add-file:disabled { opacity: .5; cursor: default; }
 .bh-composer-attachments {
@@ -4757,38 +4746,39 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-composer-footer {
   position: absolute;
-  right: 10px;
-  bottom: 8px;
+  right: 9px;
+  bottom: 9px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
 }
-.bh-send-btn {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
+.bh-composer .bh-send-btn {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
   padding: 0;
-  border-radius: ${radius.round};
+  border-radius: ${radius.control};
 }
-.bh-composer-has-mic { --bh-composer-compact-padding-right: 92px; }
+.bh-composer-has-mic { --bh-composer-compact-padding-right: 88px; }
 .bh-composer-has-mic .bh-composer-footer { gap: ${space.x2}; }
 .bh-composer-mic {
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: ${border.hairline} solid ${color.border};
-  border-radius: ${radius.round};
-  background: var(--tobs-layer-canvas);
+  border: 0;
+  border-radius: ${radius.control};
+  background: transparent;
   color: var(--tobs-ink-secondary);
   cursor: pointer;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
-.bh-composer-mic:hover { background: var(--tobs-state-pressed); color: var(--tobs-ink-primary); }
+.bh-composer-mic:hover { background: var(--tobs-state-hover); color: var(--tobs-ink-primary); }
 .bh-composer-mic:focus-visible { outline: ${border.focus} solid var(--tobs-line-focus); outline-offset: 2px; }
 .bh-composer-mic:disabled { opacity: .5; cursor: default; }
 .bh-composer-mic[data-state='starting'] { color: var(--tobs-accent-solid); background: var(--tobs-state-pressed); }

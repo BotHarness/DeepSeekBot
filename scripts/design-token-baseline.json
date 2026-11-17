@@ -713,8 +713,8 @@
     "lineBorder": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1944,
-    "lineBorder": 110
+    "legacyCss": 1942,
+    "lineBorder": 108
   },
   "packages/client/src/client/tag-editor.tsx": {
     "dshImport": 1
