@@ -1,7 +1,7 @@
 import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { DEFAULT_SETTINGS_PINS } from '../bot-mode-settings.js';
+import { DEFAULT_SETTINGS_PINS } from '@botharness/host-client/shared/bot-mode-settings';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ActionButton } from './ds/action-button.js';
 import { IconButton } from './ds/icon-button.js';
