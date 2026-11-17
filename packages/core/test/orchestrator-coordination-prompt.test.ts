@@ -71,8 +71,9 @@ describe('Orchestrator Host context', () => {
       ...(archivedAt === undefined ? {} : { archivedAt }),
     }) as unknown as ReturnType<Parameters<typeof hostWorkContext>[0]['list']>[number];
 
-  it('sizes each Assignment and closes the turn with the final answer', () => {
-    expect(coordination).toContain('Size each Assignment to the ask');
+  it('dispatches in one step and closes the turn with the final answer', () => {
+    expect(coordination).toContain('Make the create_assignment calls and a short receipt');
+    expect(coordination).not.toContain('how deep to go');
     expect(coordination).toContain('resolve its Inbox items in that same send');
   });
 

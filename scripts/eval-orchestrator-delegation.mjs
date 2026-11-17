@@ -28,6 +28,8 @@ Options:
   --runs <n>         Runs per task, 1-10 (default 2).
   --parallel <n>     Runs in flight at once, 1-8 (default 4).
   --model <p/m@e>    Orchestrator and Assignment route (default deepseek-official/deepseek-flash).
+  --orchestrator-model <p/m@e>
+                     Orchestrator route only, for example to try another reasoning effort.
   --timeout <s>      Seconds per run before it is cut off (default 600).
   --quiet <s>        Seconds without a new Bot message, an active Bot or a working Assignment
                      that end a run (default 45).
@@ -168,6 +170,9 @@ export function parseArgs(argv) {
         break;
       case '--model':
         options.model = value();
+        break;
+      case '--orchestrator-model':
+        options.orchestratorModel = value();
         break;
       case '--timeout':
         options.timeoutSeconds = int(60, 3600);
@@ -362,7 +367,7 @@ async function runOne({ instance, call, task, index, route, options, root }) {
   const preset = (
     await call('modelPresetCreate', {
       name: `Eval ${stamp}`,
-      orchestrator: route,
+      orchestrator: options.orchestratorModel ? parseRoute(options.orchestratorModel) : route,
       assignmentDefault: route,
     })
   ).preset;
@@ -705,7 +710,9 @@ async function main() {
       encoding: 'utf8',
       windowsHide: true,
     }).trim(),
-    model: options.model,
+    model: options.orchestratorModel
+      ? `${options.model}, Orchestrator ${options.orchestratorModel}`
+      : options.model,
     judge: options.judge,
     at: new Date().toISOString(),
     summary: summarize(finished),
