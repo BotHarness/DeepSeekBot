@@ -14,7 +14,6 @@ import Animated, {
 
 import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
-import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
 import { popScale, space } from '../design/tokens';
 import { useMounted } from '../mounted';
@@ -22,6 +21,8 @@ import { Text } from '../primitives/text';
 import { AVATAR_CORNER, SPEAKER_AVATAR } from './bubble-shape';
 import { usePopIn } from './pop-in';
 import { SpeakerAnchor } from './speaker-anchor';
+import { GroupMark } from './group-mark';
+import { humanInitial } from '../shell/human-avatar-initial';
 import { nativeChatRecycler } from '../primitives/chat-recycler';
 import {
   groupSpan,
@@ -338,26 +339,17 @@ function AnimatedStickyAvatar({
 }
 
 export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
-  const theme = useDesignTheme();
   if (speaker.bot !== undefined)
     return (
       <BotAvatar bot={speaker.bot} size={SPEAKER_AVATAR} ring={false} corner={AVATAR_CORNER} />
     );
   return (
-    <View
-      style={{
-        width: SPEAKER_AVATAR,
-        height: SPEAKER_AVATAR,
-        borderRadius: AVATAR_CORNER,
-        backgroundColor: theme.color.surface,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text strong tone="muted">
-        {Array.from(speaker.name)[0] ?? ''}
-      </Text>
-    </View>
+    <GroupMark
+      avatar={undefined}
+      initial={humanInitial(speaker.name) ?? ''}
+      size={SPEAKER_AVATAR}
+      corner={AVATAR_CORNER}
+    />
   );
 }
 
