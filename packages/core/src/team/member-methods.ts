@@ -111,6 +111,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'activitySnapshot',
   'followActivity',
   'botSessionIds',
+  'skillShow',
 ] as const;
 
 export const MEMBER_APPROVAL_METHODS = [
@@ -239,6 +240,8 @@ export const MEMBER_BOT_METHODS = [
   'channelDm',
   'assignmentAccessGet',
   'assignmentAccessSet',
+  'botSkills',
+  'botSkillRemove',
 ] as const;
 
 export const MEMBER_METHODS: ReadonlySet<string> = new Set([

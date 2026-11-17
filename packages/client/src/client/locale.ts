@@ -5647,6 +5647,27 @@ export const zh = {
   'team.members.createdHint': '私下发送以下信息。对方首次登录时会设置新密码。',
   'team.members.initialPassword': '一次性密码',
   'team.members.copy': '复制',
+  'team.invite.action': '邀请登录…',
+  'team.invite.title': '邀请 {name} 登录',
+  'team.invite.hint':
+    '发给对方一个新的邀请，用来在新设备上登录。密码不变；忘记密码时用「重置密码」。',
+  'team.invite.noAddress':
+    '这台 Host 还没有成员可用的 HTTPS 地址，邀请里没有能连接的地址。先在「连接」里开启 Tailscale 或 Tobs Connect。',
+  'team.invite.qrLabel': '邀请二维码',
+  'team.invite.qrHint':
+    '对方用手机上的 Tobs 扫码，或打开邀请链接。邀请 10 分钟内有效，过期后点「重新生成」。',
+  'team.invite.copyText': '复制邀请文字',
+  'team.invite.copyLink': '复制邀请链接',
+  'team.invite.renew': '重新生成',
+  'team.invite.text.intro': '你被邀请加入 {host} 的 Team。',
+  'team.invite.text.phone': '手机：在 Tobs 里打开这个邀请链接（10 分钟内有效）：{link}',
+  'team.invite.text.desktop':
+    '电脑：在 Tobs「环境」里点「添加远程」→「用用户名登录」，地址填 {address}',
+  'team.invite.text.username': '用户名：{username}',
+  'team.invite.text.password': '一次性密码：{password}（第一次登录后改成你自己的密码）',
+  'team.invite.text.fingerprint': '登录时核对 Host 指纹：{fingerprint}',
+  'team.invite.text.expires':
+    '邀请链接过期后，用户名和密码仍然有效：可以在电脑上按地址登录，或找我要新的邀请。',
   'team.members.copied': '已复制',
   'team.members.shownOnce': '此密码只显示一次。',
   'team.members.owner': '所有者',
@@ -12037,6 +12058,29 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Send these details privately. They choose a new password when they first sign in.',
   'team.members.initialPassword': 'One-time password',
   'team.members.copy': 'Copy',
+  'team.invite.action': 'Invite to sign in…',
+  'team.invite.title': 'Invite {name} to sign in',
+  'team.invite.hint':
+    'Send a new invitation for signing in on another device. The password does not change; use Reset password if it was forgotten.',
+  'team.invite.noAddress':
+    'This Host has no HTTPS address members can use, so the invitation has nowhere to connect. Turn on Tailscale or Tobs Connect in Connections first.',
+  'team.invite.qrLabel': 'Invitation QR code',
+  'team.invite.qrHint':
+    'Scan with Tobs on the phone, or open the invitation link. It works for 10 minutes; choose Renew after that.',
+  'team.invite.copyText': 'Copy invitation text',
+  'team.invite.copyLink': 'Copy invitation link',
+  'team.invite.renew': 'Renew',
+  'team.invite.text.intro': 'You are invited to the {host} Team.',
+  'team.invite.text.phone':
+    'Phone: open this invitation link in Tobs (valid for 10 minutes): {link}',
+  'team.invite.text.desktop':
+    'Computer: in Tobs Environments, choose Add remote → Sign in with a username, and enter {address}',
+  'team.invite.text.username': 'Username: {username}',
+  'team.invite.text.password':
+    'One-time password: {password} (you choose your own password after the first sign-in)',
+  'team.invite.text.fingerprint': 'Check the Host fingerprint when signing in: {fingerprint}',
+  'team.invite.text.expires':
+    'After the link expires, the username and password still work: sign in on a computer with the address, or ask me for a new invitation.',
   'team.members.copied': 'Copied',
   'team.members.shownOnce': 'This password is shown only once.',
   'team.members.owner': 'Owner',

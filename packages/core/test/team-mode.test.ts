@@ -1172,6 +1172,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
             'storage-unavailable',
             'member-not-found',
             'invalid-input',
+            'skill-not-found',
           ]).toContain(code);
         result = { code };
       } finally {
