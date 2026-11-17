@@ -5,12 +5,13 @@ import { SHEET_GROUP } from './chat/sheet';
 import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { UsageCard } from './shell/usage-card';
-import { AppearanceSetting, InterfaceSaveNotice, LanguageSetting } from './interface-settings';
+import { AppearanceRow, InterfaceSaveNotice, LanguageSetting } from './interface-settings';
 import { useStrings } from './strings';
 
 export interface SettingsActions {
   onUsage(): void;
   onAppIcon(): void;
+  onAppearance(): void;
   onNotifications(): void;
   onStorage(): void;
   onModels(): void;
@@ -79,7 +80,7 @@ export function SettingsView({
       </SettingsSection>
       <SettingsSection title={t.interface} on={SHEET_GROUP} footer={t.interfacePreferences.local}>
         <LanguageSetting on={SHEET_GROUP} />
-        <AppearanceSetting on={SHEET_GROUP} />
+        <AppearanceRow on={SHEET_GROUP} onPress={actions.onAppearance} />
         {messageDisplay}
         {sendJump}
         <SettingsRow

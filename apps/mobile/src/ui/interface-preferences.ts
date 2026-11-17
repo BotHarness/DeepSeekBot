@@ -1,9 +1,21 @@
+import {
+  DEFAULT_APPEARANCE_PRESET,
+  isAppearancePreference,
+  isAppearancePreset,
+  isAppearancePrimary,
+  type AppearanceMode,
+  type AppearancePalette,
+  type AppearancePreference,
+  type AppearancePreset,
+} from '@botharness/host-client/ui/design/appearance-palette';
+
+export type { AppearancePreference };
 export type LanguagePreference = 'system' | 'en' | 'zh';
-export type AppearancePreference = 'system' | 'light' | 'dark';
 export type InAppAlertStyle = 'inline' | 'overlay';
 export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
+  palette: Record<AppearanceMode, AppearancePalette>;
   inAppAlerts: boolean;
   inAppAlertStyle: InAppAlertStyle;
 };
@@ -11,6 +23,17 @@ export type InterfaceStorage = {
   read(): Promise<unknown>;
   write(value: InterfacePreferences): void;
 };
+
+const DEFAULT_PALETTE: AppearancePalette = { preset: DEFAULT_APPEARANCE_PRESET };
+
+function savedPalette(raw: unknown): AppearancePalette {
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_PALETTE;
+  const entry = raw as Record<string, unknown>;
+  if (!isAppearancePreset(entry['preset'])) return DEFAULT_PALETTE;
+  return isAppearancePrimary(entry['primary'])
+    ? { preset: entry['preset'], primary: entry['primary'].toLowerCase() }
+    : { preset: entry['preset'] };
+}
 
 export function preferredLanguage(locales: readonly string[]): 'en' | 'zh' {
   for (const tag of locales) {
@@ -25,6 +48,7 @@ export function createInterfacePreferences() {
   let value: InterfacePreferences = {
     language: 'system',
     appearance: 'system',
+    palette: { light: DEFAULT_PALETTE, dark: DEFAULT_PALETTE },
     inAppAlerts: true,
     inAppAlertStyle: 'overlay',
   };
@@ -73,13 +97,15 @@ export function createInterfacePreferences() {
             (saved.language === 'system' || saved.language === 'en' || saved.language === 'zh')
           )
             value.language = saved.language;
-          if (
-            'appearance' in saved &&
-            (saved.appearance === 'system' ||
-              saved.appearance === 'light' ||
-              saved.appearance === 'dark')
-          )
+          if ('appearance' in saved && isAppearancePreference(saved.appearance))
             value.appearance = saved.appearance;
+          if ('palette' in saved && typeof saved.palette === 'object' && saved.palette !== null) {
+            const palette = saved.palette as Record<string, unknown>;
+            value.palette = {
+              light: savedPalette(palette['light']),
+              dark: savedPalette(palette['dark']),
+            };
+          }
         }
       } catch {
         snapshot = { ...snapshot, storageError: true };
@@ -97,6 +123,12 @@ export function createInterfacePreferences() {
     setAppearance(appearance: AppearancePreference) {
       touched = true;
       value = { ...value, appearance };
+      if (snapshot.loaded) persist();
+      publish();
+    },
+    setPalettePreset(mode: AppearanceMode, preset: AppearancePreset) {
+      touched = true;
+      value = { ...value, palette: { ...value.palette, [mode]: { preset } } };
       if (snapshot.loaded) persist();
       publish();
     },

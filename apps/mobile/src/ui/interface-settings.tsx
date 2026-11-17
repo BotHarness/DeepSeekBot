@@ -1,11 +1,17 @@
 import { useSyncExternalStore } from 'react';
-import { View } from 'react-native';
+import { useColorScheme, View } from 'react-native';
+import {
+  APPEARANCE_PRESETS,
+  APPEARANCE_PRIMARY,
+  type AppearanceMode,
+} from '@botharness/host-client/ui/design/appearance-palette';
 import { interfacePreferences } from './interface-preferences';
 import { PreferenceRow } from './primitives/preference-row';
 import { Button } from './primitives/button';
-import { SettingsFormItem } from './primitives/settings-form';
+import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
+import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
-import { space } from './design/tokens';
+import { colorSwatch, radius, space } from './design/tokens';
 import type { LayerName } from './design/layers';
 import { useStrings } from './strings';
 
@@ -74,5 +80,81 @@ export function InterfaceSaveNotice() {
         />
       </View>
     </SettingsFormItem>
+  );
+}
+
+function ColorSwatch({ color }: { color: string }) {
+  return (
+    <View
+      style={{
+        width: colorSwatch.size,
+        height: colorSwatch.size,
+        borderRadius: radius.round,
+        backgroundColor: color,
+      }}
+    />
+  );
+}
+
+export function AppearanceRow({ on = 'sheet', onPress }: { on?: LayerName; onPress(): void }) {
+  const t = useStrings().interfacePreferences;
+  const state = usePreferences();
+  const system: AppearanceMode = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const mode = state.appearance === 'system' ? system : state.appearance;
+  const scheme = { system: t.system, light: t.light, dark: t.dark }[state.appearance];
+  return (
+    <SettingsRow
+      on={on}
+      title={t.appearance}
+      icon="appearance"
+      detail={`${scheme} · ${t.presets[state.palette[mode].preset]}`}
+      disclosure
+      testID="settings-appearance"
+      onPress={onPress}
+    />
+  );
+}
+
+function PaletteSection({ mode }: { mode: AppearanceMode }) {
+  const t = useStrings().interfacePreferences;
+  const state = usePreferences();
+  const current = state.palette[mode];
+  return (
+    <SettingsSection on="raised" title={mode === 'light' ? t.light : t.dark}>
+      {APPEARANCE_PRESETS.map((preset) => {
+        const selected = current.primary === undefined && current.preset === preset;
+        return (
+          <SettingsRow
+            on="raised"
+            key={preset}
+            title={t.presets[preset]}
+            selected={selected}
+            leading={<ColorSwatch color={APPEARANCE_PRIMARY[preset][mode]} />}
+            control={selected ? { kind: 'check' } : undefined}
+            testID={`appearance-palette-${mode}-${preset}`}
+            onPress={() => interfacePreferences.setPalettePreset(mode, preset)}
+          />
+        );
+      })}
+    </SettingsSection>
+  );
+}
+
+export function AppearanceSettings() {
+  const t = useStrings().interfacePreferences;
+  return (
+    <SettingsForm>
+      <SettingsSection on="raised">
+        <AppearanceSetting on="raised" />
+      </SettingsSection>
+      <SettingsFormItem>
+        <Text variant="meta" tone="muted">
+          {t.colorsHint}
+        </Text>
+      </SettingsFormItem>
+      <PaletteSection mode="light" />
+      <PaletteSection mode="dark" />
+      <InterfaceSaveNotice />
+    </SettingsForm>
   );
 }

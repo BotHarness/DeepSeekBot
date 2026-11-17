@@ -4,6 +4,7 @@ import { Dimensions, Platform, useColorScheme } from 'react-native';
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
 import { parseColor, toHex, type Rgb } from '@botharness/host-client/shared/bot-name-color';
 import { glass, PRESS_TINT, replyQuote, type PlatformOS } from './tokens';
+import { appearancePrimary } from '@botharness/host-client/ui/design/appearance-palette';
 import { interfacePreferences } from '../interface-preferences';
 
 export {
@@ -80,11 +81,16 @@ export function useDesignTheme(): DesignTheme {
     interfacePreferences.getSnapshot,
     interfacePreferences.getSnapshot,
   );
-  const effective = useMemo(
-    () => ({ scheme: preferences.appearance, ...appearance }),
-    [preferences.appearance, appearance],
-  );
   const system: ColorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const effective = useMemo(() => {
+    const scheme = appearance.scheme ?? preferences.appearance;
+    const mode = scheme === 'system' ? system : scheme;
+    return {
+      scheme,
+      ...appearance,
+      accent: appearance.accent ?? appearancePrimary(preferences.palette[mode], mode),
+    };
+  }, [preferences.appearance, preferences.palette, appearance, system]);
   const fontScale = useSyncExternalStore(subscribeFontScale, fontScaleSnapshot, fontScaleSnapshot);
   return useMemo(
     () => ({

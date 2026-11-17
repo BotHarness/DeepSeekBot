@@ -58,6 +58,7 @@ export default function SettingsScreen() {
         actions={{
           onUsage: () => router.push('/settings/usage'),
           onAppIcon: () => router.push('/settings/app-icon'),
+          onAppearance: () => router.push('/settings/appearance'),
           onNotifications: () => router.push('/settings/notifications'),
           onStorage: () => router.push('/settings/storage'),
           onModels: () => router.push('/settings/models'),

@@ -9,8 +9,10 @@ vi.mock('expo-symbols', () => ({
   SymbolView: ({ name }: { name: { ios: string } }) =>
     createElement('i', { 'data-symbol': name.ios }),
 }));
+import { APPEARANCE_PRIMARY } from '@botharness/host-client/ui/design/appearance-palette';
 import {
   AppearanceSetting,
+  AppearanceSettings,
   InterfaceSaveNotice,
   LanguageSetting,
 } from '../src/ui/interface-settings';
@@ -93,6 +95,7 @@ it('updates mounted settings and theme immediately and preserves unrelated state
     expect(saved).toEqual({
       language: 'zh',
       appearance: 'dark',
+      palette: { light: { preset: 'classic-blue' }, dark: { preset: 'classic-blue' } },
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });
@@ -136,4 +139,65 @@ it('retries a failed save without changing the selected preference', async () =>
     await act(async () => root.unmount());
     interfacePreferences.setLanguage('system');
   }
+});
+
+it('applies a color preset per light and dark mode and keeps it on this phone', async () => {
+  let saved: unknown;
+  await interfacePreferences.restore({
+    read: async () => undefined,
+    write(value) {
+      saved = structuredClone(value);
+    },
+  });
+  interfacePreferences.setLanguage('en');
+  function Accent() {
+    return <output>{useDesignTheme().color.accent}</output>;
+  }
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const press = async (id: string) => {
+    await act(async () => host.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+  };
+  try {
+    await act(async () =>
+      root.render(
+        <>
+          <Accent />
+          <AppearanceSettings />
+        </>,
+      ),
+    );
+    expect(host.textContent).toContain('Classic Blue');
+    await press('appearance-palette-light-mist-purple');
+    expect(host.querySelector('output')!.textContent).toBe(APPEARANCE_PRIMARY['mist-purple'].light);
+    await press('appearance-palette-dark-forest-green');
+    await press('settings-appearance');
+    await press('settings-appearance-dark');
+    expect(host.querySelector('output')!.textContent).toBe(APPEARANCE_PRIMARY['forest-green'].dark);
+    expect(saved).toMatchObject({
+      palette: { light: { preset: 'mist-purple' }, dark: { preset: 'forest-green' } },
+    });
+  } finally {
+    await act(async () => root.unmount());
+    interfacePreferences.setAppearance('system');
+    interfacePreferences.setPalettePreset('light', 'classic-blue');
+    interfacePreferences.setPalettePreset('dark', 'classic-blue');
+    interfacePreferences.setLanguage('system');
+  }
+});
+
+it('restores a saved palette and falls back to Classic Blue for an unknown preset', async () => {
+  const preferences = (
+    await import('../src/ui/interface-preferences')
+  ).createInterfacePreferences();
+  await preferences.restore({
+    read: async () => ({
+      palette: { light: { preset: 'warm-amber', primary: '#ABCDEF' }, dark: { preset: 'neon' } },
+    }),
+    write() {},
+  });
+  expect(preferences.getSnapshot().palette).toEqual({
+    light: { preset: 'warm-amber', primary: '#abcdef' },
+    dark: { preset: 'classic-blue' },
+  });
 });

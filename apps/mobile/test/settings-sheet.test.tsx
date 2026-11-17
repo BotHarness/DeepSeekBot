@@ -63,6 +63,7 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
   return {
     onUsage: vi.fn(),
     onAppIcon: vi.fn(),
+    onAppearance: vi.fn(),
     onNotifications: vi.fn(),
     onStorage: vi.fn(),
     onModels: vi.fn(),
@@ -84,6 +85,10 @@ describe('Settings sheet', () => {
 
     const rows: [string, keyof SettingsActions][] = [
       [t.appIcon, 'onAppIcon'],
+      [
+        `${t.interfacePreferences.appearance}, ${t.interfacePreferences.system} · ${t.interfacePreferences.presets['classic-blue']}`,
+        'onAppearance',
+      ],
       [t.notifications, 'onNotifications'],
       [`${t.storage.title}, ${t.storage.hint}`, 'onStorage'],
       [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
