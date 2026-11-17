@@ -3616,7 +3616,7 @@ const zh: typeof en = {
     uploadsBlocked: '已下架',
     uploadsView: '在市场中查看',
     uploadsDelete: '删除',
-    uploadsDeleteTitle: (name: string) => `删除 ${name}？`,
+    uploadsDeleteTitle: (name: string) => `删除「${name}」？`,
     uploadsDeleteBody: '文件和安装数一起删除，无法恢复。已安装的副本不受影响。',
     uploadsDeleteFailed: '未能删除，请重试。',
   },

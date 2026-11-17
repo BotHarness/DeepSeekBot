@@ -88,11 +88,11 @@ export function UploadedBotsView({
             on={SHEET_GROUP}
             testID={`uploaded-bot-${item.bot.id}`}
             title={uploadedBotName(item)}
-            detail={[
-              ...(item.blocked ? [copy.uploadsBlocked] : []),
-              copy.uploadsMeta(item.files, fileSize(item.bytes), item.bot.pushedAt.slice(0, 10)),
-            ].join(' · ')}
-            {...(item.blocked ? { detailDot: theme.color.warning } : {})}
+            detail={
+              item.blocked
+                ? `${copy.uploadsBlocked} · ${item.bot.pushedAt.slice(0, 10)}`
+                : copy.uploadsMeta(item.files, fileSize(item.bytes), item.bot.pushedAt.slice(0, 10))
+            }
             leading={<MarketplaceAvatarImage bot={item.bot} size={theme.touch} />}
             control={busyId === item.bot.id ? { kind: 'busy' } : { kind: 'chevron' }}
             onPress={busyId === undefined ? () => actions.onSelect(item) : undefined}

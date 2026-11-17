@@ -160,7 +160,7 @@ describe('Account Profile screen', () => {
       t.accountProfile.uploadsMeta(14, '47 KB', '2026-11-12'),
     );
     expect(byTestId(view, 'uploaded-bot-U_nova')?.textContent).toContain(
-      t.accountProfile.uploadsBlocked,
+      `${t.accountProfile.uploadsBlocked} · 2026-11-12`,
     );
     expect(view.textContent).toContain(t.accountProfile.uploadsFooter);
     await act(async () => byTestId(view, 'uploaded-bot-U_nova')!.click());
