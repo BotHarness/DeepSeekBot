@@ -995,6 +995,8 @@ describe('plugin entry', () => {
       'composerIdentity',
       'composerValidate',
       'humanNameSet',
+      'humanAvatarSet',
+      'humanAvatars',
       'channelHumanNameSet',
       'channelDm',
       'channelGet',

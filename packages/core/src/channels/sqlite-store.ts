@@ -624,23 +624,26 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   const humanIdentity = (human: HumanContext): LocalHumanIdentity => {
     const row = database.read((db) =>
       db
-        .prepare(`SELECT n.default_display_name${sourceHumanIdentity() ? ', h.display_name' : ''}
+        .prepare(`SELECT n.default_display_name${sourceHumanIdentity() ? ', h.display_name' : ''}${humanAvatarTable() ? ', a.version AS avatar_version' : ''}
           FROM (SELECT ? AS human_id) actor
           LEFT JOIN local_human_names n ON n.human_id = actor.human_id
-          ${sourceHumanIdentity() ? 'LEFT JOIN humans h ON h.human_id = actor.human_id' : ''}`)
+          ${sourceHumanIdentity() ? 'LEFT JOIN humans h ON h.human_id = actor.human_id' : ''}
+          ${humanAvatarTable() ? 'LEFT JOIN human_avatars a ON a.human_id = actor.human_id' : ''}`)
         .get(human.humanId),
-    ) as { default_display_name: string | null; display_name?: string | null } | undefined;
+    ) as
+      | {
+          default_display_name: string | null;
+          display_name?: string | null;
+          avatar_version?: string | null;
+        }
+      | undefined;
     const defaultDisplayName = row?.default_display_name ?? null;
-    const avatar = humanAvatarTable()
-      ? (database.read((db) =>
-          db.prepare('SELECT version FROM human_avatars WHERE human_id = ?').get(human.humanId),
-        ) as { version: string } | undefined)
-      : undefined;
+    const avatarVersion = row?.avatar_version ?? undefined;
     return {
       humanId: human.humanId,
       defaultDisplayName,
       displayName: defaultDisplayName ?? row?.display_name ?? 'Human',
-      ...(avatar === undefined ? {} : { avatarVersion: avatar.version }),
+      ...(avatarVersion === undefined ? {} : { avatarVersion }),
     };
   };
 

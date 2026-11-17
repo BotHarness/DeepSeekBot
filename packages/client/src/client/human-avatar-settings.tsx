@@ -41,7 +41,7 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
   const fileInput = useRef<HTMLInputElement>(null);
   const mounted = useRef(false);
   const cache = actions.humanAvatars;
-  useSyncExternalStore(cache.subscribe, cache.getSnapshot);
+  useSyncExternalStore(cache.subscribe, cache.getSnapshot, cache.getSnapshot);
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     const controller = new AbortController();

@@ -874,6 +874,8 @@ describe('bridge typert service', () => {
       'composerIdentity',
       'composerValidate',
       'humanNameSet',
+      'humanAvatarSet',
+      'humanAvatars',
       'channelHumanNameSet',
       'channelDm',
       'channelGet',

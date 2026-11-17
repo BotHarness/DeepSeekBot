@@ -7,20 +7,24 @@ const styles = stylex.create({
   image: { width: '100%', height: '100%', objectFit: 'cover' },
 });
 
+const noSubscribe = () => () => undefined;
+const noSnapshot = () => 0;
+
 export function HumanAvatarImage({
   cache,
   humanId,
   version,
   fallback,
 }: {
-  cache: HumanAvatarCache;
+  cache: HumanAvatarCache | undefined;
   humanId: string;
   version: string | undefined;
   fallback?: ReactNode;
 }): ReactElement {
-  useSyncExternalStore(cache.subscribe, cache.getSnapshot);
-  cache.want(humanId, version);
-  const src = cache.get(humanId, version);
+  const snapshot = cache?.getSnapshot ?? noSnapshot;
+  useSyncExternalStore(cache?.subscribe ?? noSubscribe, snapshot, snapshot);
+  cache?.want(humanId, version);
+  const src = cache?.get(humanId, version);
   return src === undefined ? (
     <>{fallback ?? <Icon name="user" />}</>
   ) : (
