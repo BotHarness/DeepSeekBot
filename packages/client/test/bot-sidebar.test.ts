@@ -823,7 +823,7 @@ describe('bot sidebar rows', () => {
         expect(host.querySelector('.bh-section-name')?.textContent).toContain('工作流');
         expect(host.querySelector('[data-environment-channel]')).toBeNull();
         expect(
-          host.querySelector('.bh-section [data-channel-id="c-section"]')?.closest('.bh-section'),
+          host.querySelector('[data-section-id="s1"] [data-channel-id="c-section"]'),
         ).not.toBeNull();
         expect(host.querySelector('.bh-pin-zone')).not.toBeNull();
         expect(host.querySelector('[data-channel-id="c-section"]')?.getAttribute('draggable')).toBe(

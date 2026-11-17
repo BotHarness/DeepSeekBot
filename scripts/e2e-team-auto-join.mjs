@@ -235,7 +235,7 @@ try {
         .first()
         .waitFor({ timeout: 30_000 });
     });
-  check("docked member Web Client shows its own sections and not another member's", null);
+  check("wide member Web Client shows its own sections and not another member's", null);
 
   run(['channels', 'visibility', lobby, 'private']);
   assert.deepEqual(channelIds(bob), []);
