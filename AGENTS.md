@@ -67,6 +67,8 @@ Every feature must be operable and testable by an agent through the `deepseekbot
 
 Every new feature and dependency carries a performance-impact assessment and a regression guard on its hot path, Host/CLI work included; a docs-only change records a no-runtime-impact exemption. Budgets only tighten; raising one needs the Human's approval. Before profiling, an A/B comparison, or a timeline or rendering change, follow [performance observation and verification](docs/agents/ax-performance.md).
 
+Before changing how the Bot Inbox is rendered for the Orchestrator (`inbox-render.ts`), run the [Bot Inbox rendering eval](docs/agents/inbox-eval.md) against a same-day baseline and record the verdict in its ledger.
+
 ### IM browser QA (AX)
 
 For Discord and Lark message/reaction tests, prefer their signed-in web clients in the **Codex in-app browser**. Discover the current tabs and verify the account and designated test conversation each run; login state is session-local. Reuse the existing login in place, with the Human completing login when it expires.
