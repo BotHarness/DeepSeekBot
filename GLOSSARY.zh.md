@@ -123,12 +123,36 @@ _避免使用_：desktop pet、Channel pin、另一个 bot
 _避免使用_：Channel pin、Channel membership、Agent Scope
 
 **Model Preset**：
-模型预设。Human 创建的可复用、仅对当前部署有效的 PersonaBot 模型方案：一个 Orchestrator provider、model 和 reasoning effort，以及 Assignment 可选的模型与 effort 集合和默认值。应用时将方案复制给 PersonaBot；之后修改预设不会更新已应用的副本。
+模型预设。Human 创建的可复用、仅对当前部署有效的 PersonaBot 模型方案：一个 Orchestrator Model Choice，以及 Assignment 可选的 Model Choice（列出的集合或 Open Assignment Models）和默认值。应用时将方案复制给 PersonaBot；之后修改预设不会更新已应用的副本。它按身份引用 Routing Group，不复制其内容。
 _避免使用_：DSH Agent preset、SoulSnapshot
 
 **PersonaBot Model Plan**：
 PersonaBot 模型方案。某个 PersonaBot 持有的模型预设快照或 Human 自定义选择，决定其 Orchestrator 路由与后续 Assignment 的模型选择。其 Assignment 策略可继续继承全局模型，而 Orchestrator 独立定制。它属于运行配置，不属于 Soul 或 Memory。
 _避免使用_：Soul、DSH Agent preset、model usage
+
+**Model Choice**：
+模型选择。Human 或 Orchestrator 在任何选模型的地方选中的东西：要么是一条 provider、model 和 reasoning effort 路由，要么是一个 Routing Group。
+_避免使用_：裸用 model（可能是 Routing Group 时）、template
+
+**Routing Group**：
+路由组。Host 范围内有名字、有顺序的一组模型路由和其他 Routing Group，作为一个 Model Choice 整体被选中。用它的 Session 使用第一个不是 Resting Route 的成员，只通过 Model Fallback 沿顺序往后移动。
+_避免使用_：模型池、fallback 链、template、Model Preset、裸用 group
+
+**Model Fallback**：
+模型回退。Session 因当前路由额度或余额用完、凭据缺失或失效、或限流超过等待时间，而移到其 Routing Group 中下一个可用成员。上下文超长永远不会触发它。
+_避免使用_：failover、retry、reroute
+
+**Resting Route**：
+休息中的路由。额度或余额用完后，Host 让所有 Session 跳过的路由，直到其 provider 给出的重置时间或默认休息时间结束。已经回退的 Session 在休息结束后的下一个 Turn 回到首选路由。
+_避免使用_：禁用模型、封禁模型、cooldown
+
+**Model Switch Notice**：
+换模型记录。Session 历史中记录一次 Model Fallback 或一次回到首选路由的那一行：从哪条路由、到哪条、原因，以及离开的路由休息到何时。它只做记录，不唤醒也不通知任何人。
+_避免使用_：error、失败通知、裸用 system message
+
+**Open Assignment Models**：
+开放 Assignment 模型。一种 Assignment 策略：Orchestrator 可以选择其 PersonaBot 主人被允许使用、且已配置凭据的任意路由，而不限于列出的集合。仍需指定 Assignment 默认值。
+_避免使用_：不设限模式、any model、无预设
 
 ### 支撑与执行
 
