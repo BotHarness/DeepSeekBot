@@ -41,3 +41,7 @@ The Human confirmed that the product decision delivered in [#4337](https://githu
 Existing secret, Bot-creation, attachment-write and protected-management checks retain their own boundaries. Browser and Computer keep per-session authorization rather than adding a card for each already-authorized action. Reviewer guidance applies only when the existing admission rules reach the Reviewer; the three-part template, single effective selection, deterministic rule precedence and ADR-0249 management scope remain unchanged.
 
 The trade-off avoids repeated cards for ordinary messaging, delegation and authorized device actions, without claiming a universal approval guarantee for every irreversible external effect. This task fixes private calls that already require approval; it does not reintroduce the retired E2 gate.
+
+## Review context for direct calls
+
+[ADR-0207’s request-scoped context amendment](0207-an-approval-template-lets-a-reviewer-session-answer-tool-approvals.md#amendment-request-scoped-context-for-direct-calls-2026-11-18) governs authenticated direct private-tool and standalone effect Reviews: template and pending call context only, with no borrowed Session excerpt. Ordinary model-turn Reviews retain their bounded Session excerpt. This context distinction does not alter the single effective template, deterministic authorization precedence or restored admission above.
