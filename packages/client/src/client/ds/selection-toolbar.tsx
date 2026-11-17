@@ -82,7 +82,7 @@ export function SelectionToolbar({
       role="toolbar"
       aria-label={label}
       data-selection-toolbar=""
-      ref={keepInViewport}
+      ref={(element) => keepInViewport(element)}
       onMouseDown={(event) => event.preventDefault()}
       {...stylex.props(styles.bar, below ? styles.below : styles.above)}
       style={{ left: x, top: y }}

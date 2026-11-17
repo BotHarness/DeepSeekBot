@@ -9367,7 +9367,6 @@ class BotRuntimeImplementation implements BotRuntime {
     if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo))
       throw new ChannelReplyTargetError();
     const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
-    this.#assertQuoteTargets(channel.id, messageId, input.quotes);
     const message: ChannelMessage = {
       id: messageId,
       at: this.#now().toISOString(),
@@ -9408,6 +9407,7 @@ class BotRuntimeImplementation implements BotRuntime {
         return committed;
       }
     }
+    this.#assertQuoteTargets(channel.id, messageId, input.quotes);
     let reviewOutcome: import('../channels/send-review.js').SendReviewOutcome | undefined;
     const originId = input.sourceEventId ?? message.botCausation!.parentSourceEventId;
     const result = await this.#channels.appendMessageOnce(

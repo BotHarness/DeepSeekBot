@@ -342,6 +342,47 @@ describe('Group send review through the same direct model tools', () => {
     });
   });
 
+  it('replays a committed quoting draft after its quoted target is purged', async () => {
+    await fixture(async ({ core, channelId, human, tool }) => {
+      await human('question', 'Ship the export fix on Friday.');
+      const read = await tool('channel_read', {});
+      const peerRead = await tool('channel_read', {}, 'bob');
+      await tool(
+        'bot_send_message',
+        { body: 'Friday works', observation_id: peerRead.observationIds[channelId] },
+        'bob',
+      );
+      const quotes = [{ message_id: 'question', text: 'export fix', note: 'Confirmed' }];
+      const held = await tool('bot_send_message', {
+        body: 'The fix ships Friday.',
+        quotes,
+        observation_id: read.observationIds[channelId],
+      });
+      const args = {
+        body: 'The fix ships Friday.',
+        quotes,
+        draft_id: held.draftId,
+        observation_id: held.review!.observationId,
+      };
+      const sent = await tool('bot_send_message', args);
+      expect(sent.status).toBe('committed');
+      const message = core.channels.message.bind(core.channels);
+      core.channels.message = (id, messageId) => {
+        const found = message(id, messageId);
+        return messageId === 'question' && found !== undefined
+          ? ({ ...found, body: '', contentPurge: { at: new Date().toISOString() } } as typeof found)
+          : found;
+      };
+      expect(await tool('bot_send_message', args)).toMatchObject({
+        status: 'committed',
+        messageId: sent.messageId,
+      });
+      expect(
+        await tool('bot_send_message', { ...args, quotes: [{ ...quotes[0], note: 'Changed' }] }),
+      ).toMatchObject({ reason: 'draft-commit-content-changed' });
+    });
+  });
+
   it('refuses Human, invented preview, own and unobserved peer IDs as yielding evidence without dropping the draft', async () => {
     await fixture(async ({ channelId, human, tool }) => {
       await human('question', 'Question');
