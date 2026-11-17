@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { isChannelMessage, type ChannelMessage } from '../src/channels/channel.js';
 import { CHANNEL_NOTICE_FIELDS } from '../src/channels/channel-notice.js';
+import { createChannelLiveHub } from '../src/channels/live.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { pageChannelTimeline, type ChannelTimelineRequest } from '../src/channels/timeline.js';
 import {
@@ -260,7 +261,7 @@ describe('SQLite bounded timeline hydration', () => {
     expect(collected).toEqual(all);
   });
 
-  it('keeps off-page dependencies inside the Human visibility boundary', () => {
+  it('keeps off-page dependencies inside the Human visibility boundary', async () => {
     const current = fixture();
     current.seed(
       message('hidden-target', { body: 'Never reveal this earlier body' }),
@@ -312,6 +313,25 @@ describe('SQLite bounded timeline hydration', () => {
     const journalReply = journal.entries.find((entry) => entry.message.id === 'visible-reply')!;
     expect(journalReply.message.replyToPreview).toBeNull();
     expect(journalReply.message.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);
+    const hub = createChannelLiveHub(current.channels);
+    const abort = new AbortController();
+    const frames = hub
+      .followChannel(OWNER_HUMAN_CONTEXT, current.channel.id, 0, abort.signal)
+      [Symbol.asyncIterator]();
+    expect((await frames.next()).value).toMatchObject({ type: 'opened' });
+    const before = current.channels.revision(current.channel.id);
+    current.seed(message('late-quote', { quotes: [{ messageId: 'hidden-target' }] }));
+    const [committed] = current.channels.messagesAfter(current.channel.id, before)!;
+    expect(committed!.message.quotes?.[0]?.preview?.body).toBe('Never reveal this earlier body');
+    hub.publishCommitted(committed!);
+    let live = (await frames.next()).value;
+    while (live?.type !== 'entry') live = (await frames.next()).value;
+    abort.abort();
+    hub.close();
+    expect(live).toMatchObject({ type: 'entry' });
+    expect(live!.type === 'entry' && live!.entry.message.quotes).toEqual([
+      { messageId: 'hidden-target', preview: null },
+    ]);
     expect(page.entries[1]?.grantRequestResolved).toBe(false);
     expect(page.entries[2]?.grantRequestResolved).toBe(true);
     const plain = current.channels.readTimeline(current.channel.id, request)!;
