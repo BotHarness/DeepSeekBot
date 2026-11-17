@@ -80,12 +80,12 @@ import { chipSkill, useSkillPeek, type SkillDocument } from './skill-preview.js'
 import {
   activeSessionQuery,
   deleteSessionReference,
-  hasSessionReferences,
   rankSessionOptions,
   selectSession,
   type ComposerSessionOption,
   type SessionQuery,
 } from './session-refs.js';
+import { hasSessionMentions } from './session-links.js';
 import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { MenuRowButton } from './ds/menu-row-button.js';
 import * as stylex from '@stylexjs/stylex';
@@ -524,7 +524,7 @@ export function ChannelComposer({
     skillOptions.length > 0 ||
     skills.length > 0 ||
     sessionOptions.length > 0 ||
-    hasSessionReferences(value);
+    hasSessionMentions(value);
   const [mentionQuery, setMentionQuery] = useState<MentionQuery | undefined>();
   const [channelQuery, setChannelQuery] = useState<ChannelRefQuery | undefined>();
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);

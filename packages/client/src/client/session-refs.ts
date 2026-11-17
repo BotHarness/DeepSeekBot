@@ -27,10 +27,6 @@ const SESSION_ID = /^[A-Za-z0-9_.:-]{1,200}$/u;
 const REFERENCE = /\[((?:\\.|[^\]\\\n])*)\]\(session:([A-Za-z0-9_.:-]{1,200})\)/gu;
 export const SESSION_MENU_LIMIT = 8;
 
-export function hasSessionReferences(value: string): boolean {
-  return /\]\(session:[A-Za-z0-9_.:-]/u.test(value);
-}
-
 export function sessionReferenceText(option: Pick<ComposerSessionOption, 'sessionId' | 'title'>) {
   if (!SESSION_ID.test(option.sessionId)) throw new Error('invalid session id');
   const title = (option.title.trim() || option.sessionId)
