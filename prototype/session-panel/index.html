@@ -873,6 +873,67 @@
         color: var(--tobs-ink-primary);
         font-weight: 500;
       }
+
+      /* session link lines on Bot bubbles (Claude-projects style): below = created, above = sent to */
+      .slink {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--tobs-ink-tertiary);
+        font-size: 12px;
+        line-height: 16px;
+        padding-left: 4px;
+        cursor: pointer;
+        width: fit-content;
+        border-radius: 6px;
+      }
+      .slink:hover {
+        color: var(--tobs-ink-primary);
+      }
+      .slink .curve {
+        width: 18px;
+        height: 14px;
+        flex: none;
+        color: var(--tobs-line-strong);
+      }
+      .slink.up {
+        margin-bottom: 4px;
+      }
+      .slink.down {
+        margin-top: 4px;
+      }
+      .slink .glyph,
+      .slink .glyph svg {
+        width: 14px;
+        height: 14px;
+      }
+      .slink .verb {
+        color: var(--tobs-ink-quiet);
+      }
+      .slink .name {
+        color: var(--tobs-ink-secondary);
+        font-weight: 500;
+      }
+      .slink .cnt {
+        font-variant-numeric: tabular-nums;
+      }
+      .slpop {
+        margin: 2px 0 6px 28px;
+        padding: 4px;
+        border-radius: 10px;
+        background: var(--tobs-layer-elevated);
+        box-shadow: var(--tobs-elevation-2);
+        display: flex;
+        flex-direction: column;
+        width: 280px;
+      }
+      .slpop .slink {
+        width: auto;
+        padding: 6px 8px;
+      }
+      .slpop .slink:hover {
+        background: var(--tobs-state-hover);
+      }
       .switch .sepv {
         width: 1px;
         height: 18px;
@@ -891,6 +952,8 @@
       let variant = params.get('variant') || 'A';
       let theme = params.get('theme') || 'light';
       let selected = params.get('open') || 'a1';
+      let links = params.get('links') !== 'off';
+      let pop = params.get('pop') === '1';
       if (selected === 'none') selected = null;
       if (params.has('shot')) document.body.classList.add('shot');
 
@@ -1312,11 +1375,27 @@
       }
 
       /* ---------- page ---------- */
+      const CURVE_DOWN =
+        '<svg class="curve" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 0v4a8 8 0 0 0 8 8h8"/></svg>';
+      const CURVE_UP =
+        '<svg class="curve" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14v-4a8 8 0 0 1 8-8h8"/></svg>';
+      function linkRow(id, dir, verb) {
+        const x = byId[id],
+          c = count(x);
+        return `<div class="slink ${dir}" data-open="${id}" role="button" tabindex="0">${dir ? (dir === 'down' ? CURVE_DOWN : CURVE_UP) : ''}<span class="verb">${verb}</span>${glyph(x.state, stateLabel(x))}<span class="name">${x.title}</span>${c.total ? `<span class="cnt">${c.done}/${c.total}</span>` : ''}${x.state === 'needs' ? `<span class="tag warning">${NEED[x.need]}</span>` : ''}</div>`;
+      }
       function chat() {
+        const created = links ? linkRow('a1', 'down', '新建') : '';
+        const sentMany = links
+          ? `<div class="slink up" data-pop role="button" tabindex="0" aria-expanded="${pop}">${CURVE_UP}<span class="verb">转给</span><span class="name">2 个会话</span></div>${pop ? `<div class="slpop">${linkRow('a2', '', '')}${linkRow('a3', '', '')}</div>` : ''}`
+          : '';
+        const sentOne = links ? linkRow('a2', 'up', '回复给') : '';
         return `<div class="msgs">
-    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:01</div><div class="bubble">收到。我开了一个 Assignment 去修 Safari 的导出按钮，另外两个还在跑：虚拟滚动和 bot-cli 的 todo 命令。</div></div></div>
-    <div class="m me"><div><div class="bubble">好，导出那个修好记得附截图。发布说明那边呢？</div></div></div>
-    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:10</div><div class="bubble">发布说明的 Assignment 在问你一个问题：「语音输入」要不要算亮点。你可以在右边「会话」里直接回答它。</div></div></div>
+    <div class="m me"><div><div class="bubble">Safari 上导出按钮点了没反应，帮我修一下，带回归测试。</div></div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:01</div><div class="bubble">好，我开了一个 Assignment 去修，修好会附截图。</div>${created}</div></div>
+    <div class="m me"><div><div class="bubble">发布说明里「语音输入」算亮点。另外虚拟滚动记得录前后对比。</div></div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:10</div>${sentMany}<div class="bubble">两件事都转过去了：发布说明按亮点写，虚拟滚动那边会附录屏。</div></div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:14</div>${sentOne}<div class="bubble">发布说明的 Assignment 又问了一句：亮点要放几条？我先让它放 3 条。</div></div></div>
   </div>
   <div class="composer">给 Tobs 发消息…<span style="flex:1"></span>${ic('send')}</div>`;
       }
@@ -1349,19 +1428,27 @@
   <div class="switch" role="toolbar" aria-label="Prototype">
     ${['A', 'B', 'C'].map((v) => `<button class="${v === variant ? 'on' : ''}" data-variant="${v}">${{ A: 'A 列表行 + 消息内详情', B: 'B 卡片 + 进度条', C: 'C 面板内下钻' }[v]}</button>`).join('')}
     <span class="sepv"></span>
+    <button data-links class="${links ? 'on' : ''}">会话链接 ${links ? '开' : '关'}</button>
     <button data-theme-toggle>${theme === 'light' ? '深色' : '浅色'}</button>
   </div>`;
       }
       document.addEventListener('click', (e) => {
         const t = e.target.closest(
-          '[data-open],[data-close],[data-back],[data-variant],[data-theme-toggle]',
+          '[data-open],[data-close],[data-back],[data-variant],[data-theme-toggle],[data-links],[data-pop]',
         );
         if (!t) return;
         if (t.dataset.open) selected = t.dataset.open;
         if (t.hasAttribute('data-close') || t.hasAttribute('data-back')) selected = null;
         if (t.dataset.variant) variant = t.dataset.variant;
+        if (t.hasAttribute('data-links')) links = !links;
+        if (t.hasAttribute('data-pop')) pop = !pop;
         if (t.hasAttribute('data-theme-toggle')) theme = theme === 'light' ? 'dark' : 'light';
-        const q = new URLSearchParams({ variant, theme, open: selected || 'none' });
+        const q = new URLSearchParams({
+          variant,
+          theme,
+          open: selected || 'none',
+          links: links ? 'on' : 'off',
+        });
         history.replaceState(null, '', '?' + q);
         render();
       });
