@@ -370,6 +370,44 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     }
   });
 
+  it('hides a quote target removed by message cleanup from readers and the Bot prompt', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-2',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'Still on?',
+        quotes: [{ messageId: 'human-1', text: 'launch on Friday', note: 'Is it?' }],
+      });
+      const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+      const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+      expect(preview.messages).toBe(1);
+      f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+      expect(f.core.channels.message(f.dm.id, 'human-1')).toHaveProperty('contentPurge');
+      const page = f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, f.dm.id, { limit: 5 })!;
+      expect(page.entries.find((entry) => entry.id === 'human-2')?.quotes).toEqual([
+        { messageId: 'human-1', note: 'Is it?', preview: null },
+      ]);
+      expect(JSON.stringify(page.entries)).not.toContain('launch on Friday');
+      let prompt = '';
+      await f.send('Still on?', async (run) => {
+        prompt = run.message;
+      });
+      expect(prompt).toContain('- Message human-1: (unavailable)');
+      expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
   it('returns a committed quoting send on retry after its target is purged', async () => {
     const f = await inboxFixture();
     try {
