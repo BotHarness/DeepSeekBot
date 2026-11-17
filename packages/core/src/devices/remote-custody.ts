@@ -403,14 +403,24 @@ export function createRemoteCustody(options: {
       return id;
     },
 
-    async attachSocket(id: string, events: CustodySocketEvents): Promise<() => void> {
+    async attachSocket(
+      id: string,
+      events: CustodySocketEvents,
+      signal?: AbortSignal,
+    ): Promise<() => void> {
       const entry = sockets.get(id);
       if (!entry || entry.claimed) throw new CustodyRefused('custody-socket-unknown');
       clearTimeout(entry.timer);
       entry.claimed = true;
+      const abandon = () => {
+        if (sockets.get(id) === entry && !entry.socket) sockets.delete(id);
+      };
+      signal?.addEventListener('abort', abandon, { once: true });
       try {
+        if (signal?.aborted) throw new CustodyRefused('custody-socket-unknown');
         const record = await load(entry.handle);
-        if (sockets.get(id) !== entry) throw new CustodyRefused('custody-socket-unknown');
+        if (sockets.get(id) !== entry || signal?.aborted)
+          throw new CustodyRefused('custody-socket-unknown');
         const headers = inject(record, entry.url, entry.headers);
         entry.socket = transport(record).openSocket(
           entry.url,
@@ -427,6 +437,8 @@ export function createRemoteCustody(options: {
       } catch (error) {
         if (sockets.get(id) === entry) sockets.delete(id);
         throw error;
+      } finally {
+        signal?.removeEventListener('abort', abandon);
       }
       return () => {
         if (sockets.get(id) !== entry) return;

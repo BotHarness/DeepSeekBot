@@ -10,6 +10,7 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createRemoteCustody, type Secret } from '../src/devices/remote-custody.js';
 import {
   createRemoteCustodyHttp,
+  createRemoteCustodyStream,
   REMOTE_CUSTODY_ACTIONS,
 } from '../src/devices/remote-custody-http.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
@@ -240,6 +241,33 @@ describe('Remote Host credential custody', () => {
     expect(JSON.parse((f.rows()[0] as { routes: string }).routes)).toEqual(sealed.routes);
     await f.custody.seal(sealed);
     expect(f.secrets.get(sealed.credential)?.encryption?.privateRelay?.token).toBe(relayToken);
+  });
+
+  it('lets only the stream that owns a pending attach abandon it', async () => {
+    const f = fixture();
+    const sealed = await f.custody.seal(host);
+    const prepare = () =>
+      f.custody.prepareSocket({
+        handle: sealed.credential,
+        url: 'ws://127.0.0.1:31009/botharness-device/socket',
+        headers: { authorization: `Device ${sealed.credential}` },
+      });
+    const events = { open: vi.fn(), message: vi.fn(), closed: vi.fn() };
+    const first = await prepare();
+    await f.custody.attachSocket(first, events);
+    const duplicate = await createRemoteCustodyStream(f.custody)(
+      new Request(`http://localhost/stream?socket=${first}`, { signal: AbortSignal.abort() }),
+    );
+    await duplicate.text();
+    expect(() => f.custody.sendSocket(first, 'still-open')).not.toThrow();
+    const second = await prepare();
+    const owner = new AbortController();
+    const attaching = f.custody.attachSocket(second, events, owner.signal);
+    owner.abort();
+    await expect(attaching).rejects.toMatchObject({ code: 'custody-socket-unknown' });
+    await expect(f.custody.attachSocket(second, events)).rejects.toMatchObject({
+      code: 'custody-socket-unknown',
+    });
   });
 
   it('answers the Client in the same shape a direct carrier would', async () => {

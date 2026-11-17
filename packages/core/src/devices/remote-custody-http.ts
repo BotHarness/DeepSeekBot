@@ -98,7 +98,7 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
     let release: (() => void) | undefined;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     let ended = false;
-    let attaching = false;
+    const pending = new AbortController();
     const body = new ReadableStream<Uint8Array>(
       {
         start(controller) {
@@ -121,31 +121,32 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
             ended = true;
             request.signal.removeEventListener('abort', finish);
             if (heartbeat !== undefined) clearInterval(heartbeat);
-            if (attaching) custody.closeSocket(id);
+            pending.abort();
             release?.();
             try {
               controller.close();
             } catch {}
           };
-          attaching = true;
           void custody
-            .attachSocket(id, {
-              open: () => emit('open', {}),
-              message: (text) => emit('message', { text }),
-              closed: (reason) => {
-                emit('closed', { reason });
-                release = undefined;
-                finish();
+            .attachSocket(
+              id,
+              {
+                open: () => emit('open', {}),
+                message: (text) => emit('message', { text }),
+                closed: (reason) => {
+                  emit('closed', { reason });
+                  release = undefined;
+                  finish();
+                },
               },
-            })
+              pending.signal,
+            )
             .then(
               (detach) => {
-                attaching = false;
                 if (ended) detach();
                 else release = detach;
               },
               (error: unknown) => {
-                attaching = false;
                 emit('closed', { reason: custodyFailure(error).code });
                 finish();
               },
@@ -164,7 +165,7 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
         cancel() {
           ended = true;
           if (heartbeat !== undefined) clearInterval(heartbeat);
-          if (attaching) custody.closeSocket(id);
+          pending.abort();
           release?.();
         },
       },
