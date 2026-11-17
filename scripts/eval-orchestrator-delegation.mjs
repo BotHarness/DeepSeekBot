@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 
 import { cookieFor, rpc, verifyPaths } from './verify-app.mjs';
 import { installed } from './e2e-assignment-probe.mjs';
-import { readSessionRecords, sumSessionTotals } from './e2e-llm-scenarios.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -19,7 +18,8 @@ Grant, one Human DM message, and is observed until the Bot and its Assignments g
 
 Per run it records: Assignments created, how many ran at the same time, work tools the
 Orchestrator ran itself (web, Shell, file edits outside Memory), time to the first and last Bot
-reply, tokens, a few deterministic checks, and an LLM judge score (1-5) of the delivered answer.
+reply, tokens and their list-price cost across every Session of the Bot, Orchestrator turns,
+Assignment steps, a few deterministic checks, and an LLM judge score (1-5) of the delivered answer.
 
 Options:
   --name <n>         verify-app instance (default orch-eval).
@@ -263,9 +263,47 @@ async function sessionSnapshot(instance, sessionId) {
   }
 }
 
+export const PRICE_PER_MILLION = { input: 0.15, cacheRead: 0.003, cacheWrite: 0.15, output: 0.6 };
+
+export function readSessionUsage(home, sessionIds) {
+  const folder = join(home, 'storages', 'session_projcache', 'sessions');
+  return sessionIds.flatMap((sessionId) => {
+    const file = join(folder, `${sessionId}.json`);
+    if (!existsSync(file)) return [];
+    try {
+      return [JSON.parse(readFileSync(file, 'utf8')).record];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export function sessionCost(records) {
+  const usage = { inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0 };
+  for (const record of records) {
+    const totals = record?.rows?.tokenUsage?.val?.totals;
+    if (totals === undefined) continue;
+    usage.inputTokens += totals.uncachedInputTokens ?? 0;
+    usage.cacheReadTokens += totals.cacheReadTokens ?? 0;
+    usage.cacheWriteTokens += totals.cacheWriteTokens ?? 0;
+    usage.outputTokens += totals.outputTokens ?? 0;
+  }
+  const totalTokens = Object.values(usage).reduce((a, b) => a + b, 0);
+  const costUsd =
+    (usage.inputTokens * PRICE_PER_MILLION.input +
+      usage.cacheReadTokens * PRICE_PER_MILLION.cacheRead +
+      usage.cacheWriteTokens * PRICE_PER_MILLION.cacheWrite +
+      usage.outputTokens * PRICE_PER_MILLION.output) /
+    1_000_000;
+  return { ...usage, totalTokens, costUsd };
+}
+
 async function toolTrace(instance, call, slug) {
   const { sessions } = await call('sessions', { slug });
   const trace = [];
+  trace.sessions = sessions;
+  trace.turns = { orchestrator: 0, assignment: 0 };
+  trace.steps = { orchestrator: 0, assignment: 0 };
   for (const session of sessions) {
     let records = [];
     try {
@@ -273,7 +311,10 @@ async function toolTrace(instance, call, slug) {
     } catch {
       continue;
     }
-    for (const { event } of records)
+    const role = session.role === 'orchestrator' ? 'orchestrator' : 'assignment';
+    for (const { event } of records) {
+      if (event.type === 'turn/start') trace.turns[role] += 1;
+      if (event.type === 'step/start') trace.steps[role] += 1;
       if (event.type === 'tool/call') {
         let args = event.data.arguments;
         try {
@@ -286,6 +327,7 @@ async function toolTrace(instance, call, slug) {
           args,
         });
       }
+    }
   }
   return trace;
 }
@@ -385,7 +427,12 @@ async function runOne({ instance, call, task, index, route, options, root }) {
     a.activity === 'working' ? Date.now() : Date.parse(a.latestReport?.at ?? a.updatedAt),
   ]);
   const answer = botMessages.map((message) => message.body ?? '').join('\n\n---\n\n');
-  const usage = sumSessionTotals(readSessionRecords(instance.home), [bot.slug]);
+  const usage = sessionCost(
+    readSessionUsage(
+      instance.home,
+      trace.sessions.map((session) => session.sessionId),
+    ),
+  );
   const first = botMessages[0];
   const last = botMessages.at(-1);
   const [low, high] = task.expect.assignments;
@@ -416,6 +463,11 @@ async function runOne({ instance, call, task, index, route, options, root }) {
     botMessages: botMessages.length,
     check: task.check ? task.check({ answer, workspace }) : null,
     tokens: usage.totalTokens,
+    usage,
+    costUsd: usage.costUsd,
+    orchestratorTurns: trace.turns.orchestrator,
+    orchestratorSteps: trace.steps.orchestrator,
+    assignmentSteps: trace.steps.assignment,
     answer,
   };
 }
@@ -484,6 +536,9 @@ export function summarize(runs) {
     firstReplyS: mean(list.map((run) => run.firstReplyMs)) / 1000,
     finalReplyS: mean(list.map((run) => run.finalReplyMs)) / 1000,
     tokens: mean(list.map((run) => run.tokens)),
+    costUsd: mean(list.map((run) => run.costUsd)),
+    orchestratorTurns: mean(list.map((run) => run.orchestratorTurns)),
+    assignmentSteps: mean(list.map((run) => run.assignmentSteps)),
     timedOut: list.filter((run) => run.timedOut).length,
   });
   const tasks = Object.fromEntries(
@@ -506,12 +561,12 @@ const num = (value, digits = 1) =>
   value === null || Number.isNaN(value) ? '–' : value.toFixed(digits);
 
 function row(label, s) {
-  return `| ${label} | ${s.runs} | ${pct(s.delegated)} | ${num(s.meanAssignments)} | ${pct(s.parallelRuns)} | ${pct(s.orchestratorDidWork)} | ${pct(s.delegationFit)} | ${pct(s.check)} | ${num(s.judge, 2)} | ${num(s.firstReplyS, 0)}s | ${num(s.finalReplyS, 0)}s | ${s.tokens === null ? '–' : Math.round(s.tokens / 1000)}k |`;
+  return `| ${label} | ${s.runs} | ${pct(s.delegated)} | ${num(s.meanAssignments)} | ${pct(s.parallelRuns)} | ${pct(s.orchestratorDidWork)} | ${pct(s.delegationFit)} | ${pct(s.check)} | ${num(s.judge, 2)} | ${num(s.firstReplyS, 0)}s | ${num(s.finalReplyS, 0)}s | ${s.tokens === null ? '–' : Math.round(s.tokens / 1000)}k | ${s.costUsd == null ? '–' : `$${s.costUsd.toFixed(4)}`} | ${num(s.orchestratorTurns ?? null)} | ${num(s.assignmentSteps ?? null, 0)} |`;
 }
 
 const HEADER = [
-  '| Task | Runs | Delegated | Assignments | ≥2 parallel | Orchestrator did work | Expected split | Check | Judge (1-5) | First reply | Last reply | Tokens |',
-  '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+  '| Task | Runs | Delegated | Assignments | ≥2 parallel | Orchestrator did work | Expected split | Check | Judge (1-5) | First reply | Last reply | Tokens | Cost | Orch turns | Assignment steps |',
+  '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
 ];
 
 export function renderMarkdown(report) {
@@ -590,6 +645,18 @@ async function main() {
     for (const run of report.runs) {
       const work = workCalls(await toolTrace(instance, call, run.bot), instance, run.bot);
       run.orchestratorWorkTools = work.map((entry) => entry.name);
+      const trace = await toolTrace(instance, call, run.bot);
+      run.usage = sessionCost(
+        readSessionUsage(
+          instance.home,
+          trace.sessions.map((session) => session.sessionId),
+        ),
+      );
+      run.tokens = run.usage.totalTokens;
+      run.costUsd = run.usage.costUsd;
+      run.orchestratorTurns = trace.turns.orchestrator;
+      run.orchestratorSteps = trace.steps.orchestrator;
+      run.assignmentSteps = trace.steps.assignment;
       run.orchestratorWork = work.map((entry) => ({
         name: entry.name,
         args: JSON.stringify(entry.args).slice(0, 300),
