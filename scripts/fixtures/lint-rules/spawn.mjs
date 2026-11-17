@@ -18,6 +18,10 @@ childProcess.execFile('git', ['status'], { windowsHide: true }, () => {});
 const args = ['status'];
 childProcess.execFile('git', ['status'], () => {});
 spawn('git', args);
+const hidden = { shell: false, windowsHide: true };
+spawn('git', hidden);
+const visible = { stdio: 'ignore' };
+spawn('git', visible);
 
 export function run(spawnSync) {
   spawnSync('task');

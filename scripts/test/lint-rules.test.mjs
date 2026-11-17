@@ -40,6 +40,7 @@ describe('botharness lint rules', () => {
       '10 botharness(spawn-options): execSync() runs through a shell; use execFile/spawn with direct argv, shell: false and windowsHide: true.',
       '19 botharness(spawn-options): execFile() needs an options object with windowsHide: true.',
       '20 botharness(spawn-options): spawn() needs an options object with windowsHide: true.',
+      '23 botharness(spawn-options): spawn() needs windowsHide: true so no console window flashes on Windows (false only for a program whose window the user should see).',
     ]);
   }, 30_000);
 

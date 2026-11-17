@@ -30,6 +30,20 @@ const imported = (context, node, name) => {
   return false;
 };
 
+const bound = (context, node, name) => {
+  for (let scope = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+    const variable = scope.set.get(name);
+    if (variable === undefined) continue;
+    const [definition] = variable.defs;
+    const init =
+      definition?.type === 'Variable' && definition.parent.kind === 'const'
+        ? definition.node.init
+        : undefined;
+    return init?.type === 'ArrayExpression' || init?.type === 'ObjectExpression' ? init : undefined;
+  }
+  return undefined;
+};
+
 const pathOf = (node) =>
   node?.type === 'Literal' && typeof node.value === 'string'
     ? node.value
@@ -77,14 +91,17 @@ const spawnOptions = {
           return;
         }
         if (!SPAWNERS.has(name)) return;
-        const [, second, third] = node.arguments;
+        const [, given, third] = node.arguments;
+        const second =
+          given?.type === 'Identifier' ? (bound(context, node, given.name) ?? given) : given;
+        if (second?.type === 'SpreadElement') return;
+        if (second?.type === 'Identifier' && third === undefined) return;
         const options =
           second?.type === 'ObjectExpression'
             ? second
             : third !== undefined && !FUNCTIONS.has(third.type)
               ? third
               : undefined;
-        if (second?.type === 'SpreadElement') return;
         if (options === undefined) {
           context.report({
             node,
