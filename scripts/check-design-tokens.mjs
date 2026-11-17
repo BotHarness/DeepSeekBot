@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,6 +107,16 @@ function pick(counts, names) {
   );
 }
 
+function stagedBaseline() {
+  const staged = spawnSync('git', ['show', `:${relative(root, BASELINE).replaceAll('\\', '/')}`], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
+  return staged.status === 0 ? staged.stdout : readFileSync(BASELINE, 'utf8');
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
   const only = args.length > 0 ? args.map((path) => resolve(path)) : undefined;
@@ -125,7 +136,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     writeFileSync(BASELINE, `${JSON.stringify(sorted(current), null, 2)}\n`);
   } else {
-    const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
+    const baseline = JSON.parse(only ? stagedBaseline() : readFileSync(BASELINE, 'utf8'));
     const problems = compare(current, names ? pick(baseline, names) : baseline);
     for (const line of problems) console.error(`design tokens: ${line}`);
     if (problems.length > 0) process.exit(1);
