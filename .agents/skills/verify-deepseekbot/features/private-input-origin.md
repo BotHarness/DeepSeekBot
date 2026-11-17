@@ -24,7 +24,7 @@
 - Explicit IM selection retains source leases, same-account ambiguity and revocation checks.
 - Native approval waiting does not remove accepted local authority. Schedules reuse configured accounts in later turns.
 - IM-only multi-source refusals identify the `ask_secret` recovery path; configured reuse needs no Web notification address. Direct CLI calls retain the native approval pipeline and source checks.
-- A model-free private-tool execution approval uses the authenticated caller's DM and exact live Agent Session/call ID, including while the Agent is idle. Concurrent calls and an ordinary Group turn keep separate origins; cancellation releases only its own direct-call origin.
+- A model-free private-tool execution approval uses the authenticated caller's DM and exact live Agent Session/call ID, including while the Agent is idle. Concurrent calls and an ordinary Group turn keep separate origins; cancellation releases only its own direct-call origin. Protected-input approval for a read-only `secret_http` GET uses the same routing; direct Reviewer requests omit the borrowed Session history.
 
 ## How to get to it (user POV)
 
@@ -71,6 +71,8 @@ For #2847, use a fresh instance with the same synthetic Provider and run `node s
 On an isolated Host, initialize a QA Bot through its real Human DM, then check `bot-tools <bot-id>` for its live private-tool registrations. Call `bot-tool <bot-id> secret_cli --args-stdin` with a synthetic missing account/reference and a harmless `git --version` command. A usable account or real secret is unnecessary: the expected credential-consumer refusal after approval keeps the program from executing.
 
 Verify the execution card appears in the authenticated caller's DM. Save its existing Always allow kind, read `tool-approval-rules <bot-id>`, and compare the rule's Bot, role, scope and source with the card and permissions table. Repeat the same call: the saved rule's reuse counter must advance without a new card or Reviewer call, while the synthetic credential refusal remains distinct from authorization success. Revoke with `tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm`; the next call must ask again. Reject that final card and retain canonical readbacks. Preserve current Human decision permissions and private-input Source Event checks throughout.
+
+Repeat the approval routing check with `secret_http`, a synthetic missing account/reference, method `GET` and a protected-policy path such as `/audit/approval-reviewer.json`; approval must reach the caller DM even though GET has no declared write effect. Keep the missing-account refusal and verify no HTTP request occurs. With automatic review enabled, a direct-call Reviewer Session must contain the selected policy and pending input without earlier Human messages or tool calls from the borrowed Session. Use only a unique synthetic marker in the earlier QA conversation, never private Human content.
 
 ## Gotchas
 

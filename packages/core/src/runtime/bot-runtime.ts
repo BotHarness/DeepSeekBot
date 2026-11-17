@@ -103,7 +103,11 @@ import {
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import type { BotCreatePreview } from '../workspaces/tool-approval.js';
+import type {
+  BotCreatePreview,
+  ToolApprovalOrigin,
+  ToolApprovalOriginQuery,
+} from '../workspaces/tool-approval.js';
 import {
   MemoryAcceptError,
   type MemoryChangeDelta,
@@ -874,7 +878,8 @@ export interface BotRuntime {
   botCreatePreview?(botSlug: string, args: unknown): BotCreatePreview | undefined;
   captureTobCliAuthority?(sessionId: string): TobCliAuthority;
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
-  askChannel?(sessionId: string, callId?: string): string | undefined;
+  askChannel?(sessionId: string): string | undefined;
+  toolApprovalOrigin?(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined;
   bindPrivateInputOrigin?(
     sessionId: string,
     sourceEventId?: string,
@@ -4602,7 +4607,21 @@ class BotRuntimeImplementation implements BotRuntime {
     if (changed) this.#channels.admissionChanged?.(channelId, messageId);
   }
 
-  askChannel(sessionId: string, callId?: string): string | undefined {
+  askChannel(sessionId: string): string | undefined {
+    return this.#askOrigin({ sessionId })?.channelId;
+  }
+
+  toolApprovalOrigin(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined {
+    return this.#askOrigin(query);
+  }
+
+  #askOrigin({
+    sessionId,
+    callId,
+  }: {
+    sessionId: string;
+    callId?: string;
+  }): ToolApprovalOrigin | undefined {
     const owner = this.#ownership.resolve(sessionId);
     if (this.#closed || owner?.rootRole !== 'orchestrator') return undefined;
     const direct = this.#activeDirectTools.get(callId ?? sessionId);
@@ -4612,7 +4631,9 @@ class BotRuntimeImplementation implements BotRuntime {
         direct.approvalChannelId === undefined
           ? undefined
           : this.#channels.get(direct.approvalChannelId);
-      return channel?.type === 'dm' && channel.botSlug === owner.botSlug ? channel.id : undefined;
+      return channel?.type === 'dm' && channel.botSlug === owner.botSlug
+        ? { kind: 'direct', channelId: channel.id }
+        : undefined;
     }
     const turn = this.#turnSources.get(owner.botSlug);
     if (
@@ -4624,8 +4645,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const channel = this.#channels.get(turn.inboundChannelId);
     if (channel === undefined) return undefined;
     if (channel.type === 'group')
-      return channel.members.includes(owner.botSlug) ? channel.id : undefined;
-    return channel.botSlug === owner.botSlug ? channel.id : undefined;
+      return channel.members.includes(owner.botSlug)
+        ? { kind: 'turn', channelId: channel.id }
+        : undefined;
+    return channel.botSlug === owner.botSlug ? { kind: 'turn', channelId: channel.id } : undefined;
   }
 
   botCreatePreview(botSlug: string, args: unknown): BotCreatePreview | undefined {
@@ -5318,6 +5341,7 @@ class BotRuntimeImplementation implements BotRuntime {
     };
     let approvalChannelId: string | undefined;
     if (
+      PRIVATE_INPUT_TOOLS.has(tool) ||
       hasIrreversibleExternalEffect(toolEffects(tool, args)) ||
       toolEffects(tool, args)?.authority === 'management'
     ) {
@@ -5345,14 +5369,18 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };
-    const parent = delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug);
+    const executionParentSessionId = delegation
+      ? parentSessionId
+      : this.currentOrchestratorSessionId(botSlug);
     this.#activeDirectTools.set(sessionId, {
       botSlug: bot.slug,
-      agentSessionId: PRIVATE_INPUT_TOOLS.has(tool) ? (parent ?? sessionId) : sessionId,
+      agentSessionId: PRIVATE_INPUT_TOOLS.has(tool)
+        ? (executionParentSessionId ?? sessionId)
+        : sessionId,
       ...(approvalChannelId === undefined ? {} : { approvalChannelId }),
     });
     try {
-      const result = await runDirect(run, tool, args, signal, parent);
+      const result = await runDirect(run, tool, args, signal, executionParentSessionId);
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
         try {
