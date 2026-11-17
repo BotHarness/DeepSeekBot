@@ -1342,6 +1342,25 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (grantRequest !== undefined && (grantRequest !== true || author.kind !== 'bot'))
     return undefined;
   let grantRequestResolution: ChannelMessage['grantRequestResolution'];
+  const sessionLinks =
+    author.kind === 'bot' && Array.isArray(record['sessionLinks'])
+      ? record['sessionLinks'].flatMap((entry) => {
+          const link = asRecord(entry);
+          return link !== undefined &&
+            typeof link['sessionId'] === 'string' &&
+            link['sessionId'] !== '' &&
+            typeof link['title'] === 'string' &&
+            (link['kind'] === 'created' || link['kind'] === 'sent')
+            ? [
+                {
+                  sessionId: link['sessionId'],
+                  kind: link['kind'] as 'created' | 'sent',
+                  title: link['title'],
+                },
+              ]
+            : [];
+        })
+      : [];
   let assignmentReply: ChannelMessage['assignmentReply'];
   if (record['assignmentReply'] !== undefined) {
     const target = asRecord(record['assignmentReply']);
@@ -2104,6 +2123,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : {}),
     ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
     ...(assignmentReply === undefined ? {} : { assignmentReply }),
+    ...(sessionLinks.length === 0 ? {} : { sessionLinks }),
     ...(botDmAction === undefined ? {} : { botDmAction }),
     ...(botCreateAction === undefined ? {} : { botCreateAction }),
     ...(botChannelPost === undefined ? {} : { botChannelPost }),
@@ -3864,6 +3884,234 @@ export async function loadSessionSubagents(
     ];
   });
   return { subagents, omitted };
+}
+
+export interface SessionGoal {
+  objective: string;
+  phase: 'active' | 'paused' | 'blocked' | 'complete';
+  roundsStarted: number;
+  maxGoalRounds: number;
+  blockedReason?: string;
+}
+
+export interface SessionTodo {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+export interface SessionProgress {
+  goal?: SessionGoal;
+  todos?: SessionTodo[];
+  lastEventAt?: number;
+}
+
+const GOAL_PHASES = ['active', 'paused', 'blocked', 'complete'];
+const TODO_STATUSES = ['pending', 'in_progress', 'completed'];
+
+function parseSessionGoal(value: unknown): SessionGoal | undefined {
+  const goal = asRecord(value);
+  const objective = goal?.['objective'];
+  const phase = goal?.['phase'];
+  const rounds = goal?.['roundsStarted'];
+  const max = goal?.['maxGoalRounds'];
+  const reason = goal?.['blockedReason'];
+  if (
+    typeof objective !== 'string' ||
+    !GOAL_PHASES.includes(phase as string) ||
+    typeof rounds !== 'number' ||
+    typeof max !== 'number'
+  )
+    return undefined;
+  return {
+    objective,
+    phase: phase as SessionGoal['phase'],
+    roundsStarted: rounds,
+    maxGoalRounds: max,
+    ...(typeof reason === 'string' ? { blockedReason: reason } : {}),
+  };
+}
+
+function parseSessionTodos(value: unknown): SessionTodo[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const todos = value.flatMap((entry): SessionTodo[] => {
+    const todo = asRecord(entry);
+    const content = todo?.['content'];
+    const status = todo?.['status'];
+    return typeof content === 'string' && TODO_STATUSES.includes(status as string)
+      ? [{ content, status: status as SessionTodo['status'] }]
+      : [];
+  });
+  return todos.length === 0 ? undefined : todos;
+}
+
+export async function loadSessionProgress(
+  call: BridgeCall,
+  slug: string,
+  sessionIds: readonly string[],
+): Promise<Record<string, SessionProgress>> {
+  const value = asRecord(await unwrap(call, 'sessionProgress', { slug, sessionIds }));
+  const sessions = value?.['sessions'];
+  if (!Array.isArray(sessions)) throw new Error('invalid sessionProgress response');
+  const progress: Record<string, SessionProgress> = {};
+  for (const entry of sessions) {
+    const session = asRecord(entry);
+    const id = session?.['sessionId'];
+    if (session === undefined || typeof id !== 'string' || session['error'] !== undefined) continue;
+    const goal = parseSessionGoal(session['goal']);
+    const todos = parseSessionTodos(session['todos']);
+    const at = session['lastEventAt'];
+    progress[id] = {
+      ...(goal === undefined ? {} : { goal }),
+      ...(todos === undefined ? {} : { todos }),
+      ...(typeof at === 'number' ? { lastEventAt: at } : {}),
+    };
+  }
+  return progress;
+}
+
+export type SessionTranscriptItem =
+  | { kind: 'input'; text: string; at: string; turn: number; source: 'user' | 'system' }
+  | { kind: 'reply'; text: string; at: string }
+  | { kind: 'reasoning'; text: string; at: string }
+  | {
+      kind: 'tool';
+      id: string;
+      tool: string;
+      toolKind: SessionToolKind;
+      status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
+      detail?: string;
+      at: string;
+    }
+  | { kind: 'turn-end'; state: 'done' | 'failed' | 'cancelled'; at: string; message?: string };
+
+export type SessionToolKind =
+  | 'read'
+  | 'edit'
+  | 'delete'
+  | 'move'
+  | 'search'
+  | 'execute'
+  | 'fetch'
+  | 'other';
+
+const SESSION_TOOL_KINDS: readonly string[] = [
+  'read',
+  'edit',
+  'delete',
+  'move',
+  'search',
+  'execute',
+  'fetch',
+];
+
+export interface SessionTranscript {
+  role: 'orchestrator' | 'assignment';
+  items: SessionTranscriptItem[];
+  omitted: number;
+  running: boolean;
+}
+
+const TRANSCRIPT_TOOL_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
+const TRANSCRIPT_END_STATES = ['done', 'failed', 'cancelled'];
+
+function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined {
+  const item = asRecord(value);
+  const at = item?.['at'];
+  const text = item?.['text'];
+  if (item === undefined || typeof at !== 'string') return undefined;
+  switch (item['kind']) {
+    case 'input':
+      return typeof text === 'string' && typeof item['turn'] === 'number'
+        ? {
+            kind: 'input',
+            text,
+            at,
+            turn: item['turn'],
+            source: item['source'] === 'system' ? 'system' : 'user',
+          }
+        : undefined;
+    case 'reply':
+    case 'reasoning':
+      return typeof text === 'string' ? { kind: item['kind'], text, at } : undefined;
+    case 'tool': {
+      const { id, tool, status, detail, toolKind } = item;
+      return typeof id === 'string' &&
+        typeof tool === 'string' &&
+        TRANSCRIPT_TOOL_STATUSES.includes(status as string)
+        ? {
+            kind: 'tool',
+            id,
+            tool,
+            toolKind: SESSION_TOOL_KINDS.includes(toolKind as string)
+              ? (toolKind as SessionToolKind)
+              : 'other',
+            status: status as Extract<SessionTranscriptItem, { kind: 'tool' }>['status'],
+            ...(typeof detail === 'string' ? { detail } : {}),
+            at,
+          }
+        : undefined;
+    }
+    case 'turn-end':
+      return TRANSCRIPT_END_STATES.includes(item['state'] as string)
+        ? {
+            kind: 'turn-end',
+            state: item['state'] as Extract<SessionTranscriptItem, { kind: 'turn-end' }>['state'],
+            at,
+            ...(typeof item['message'] === 'string' ? { message: item['message'] } : {}),
+          }
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
+export async function loadSessionTranscript(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<SessionTranscript> {
+  const value = asRecord(await unwrap(call, 'sessionTranscript', { slug, sessionId }));
+  const items = value?.['items'];
+  if (value === undefined || !Array.isArray(items))
+    throw new Error('invalid sessionTranscript response');
+  return {
+    role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
+    items: items.flatMap((entry) => {
+      const item = parseTranscriptItem(entry);
+      return item === undefined ? [] : [item];
+    }),
+    omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
+    running: value['running'] === true,
+  };
+}
+
+export async function sendSessionRequest(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+  text: string,
+  steer: boolean,
+): Promise<void> {
+  const value = asRecord(
+    await unwrap(call, 'botToolRun', {
+      slug,
+      tool: 'send_assignment_request',
+      args: { session_id: sessionId, text, mode: steer ? 'next-step' : 'next-turn' },
+    }),
+  );
+  let result: unknown = value?.['result'];
+  if (typeof result === 'string') {
+    try {
+      result = JSON.parse(result);
+    } catch {
+      result = undefined;
+    }
+  }
+  const outcome = asRecord(result);
+  if (outcome?.['code'] !== undefined)
+    throw new Error(
+      typeof outcome['message'] === 'string' ? outcome['message'] : String(outcome['code']),
+    );
 }
 
 const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];

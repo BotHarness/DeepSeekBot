@@ -447,6 +447,17 @@ const HomeContent = memo(function HomeContent({
   };
   const includesCloud = environment.kind !== 'computer';
   const hostFailed = hostDown || selectedHost?.snapshot.connection.status === 'refused';
+  const refusedHost =
+    selectedHost?.snapshot.connection.status === 'refused'
+      ? selectedHost
+      : selectedHost === undefined
+        ? hosts.find(
+            (host) =>
+              host.snapshot.connection.status === 'refused' &&
+              (host.snapshot.connection.code === 'sign-in-required' ||
+                host.snapshot.connection.code === 'member-suspended'),
+          )
+        : undefined;
   const cloudFailed = includesCloud && Boolean(directory.errors.length || cloud.error);
   const loadingHosts = selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [];
   const coldLoading =
@@ -673,12 +684,30 @@ const HomeContent = memo(function HomeContent({
                           {t.rowActions.failed}
                         </Text>
                       ) : null}
-                      {selectedHost?.snapshot.connection.status === 'refused' ? (
+                      {refusedHost?.snapshot.connection.status === 'refused' ? (
                         <StatusChip
                           testID="home-status-chip"
                           tone="danger"
-                          label={t.deviceRefusal[selectedHost.snapshot.connection.code]}
-                          action={{ label: t.pairAgain, onPress: () => router.push('/pair') }}
+                          label={
+                            selectedHost === undefined && hosts.length > 1
+                              ? `${shownHostName(hostLooks.look(refusedHost.saved.hostId), refusedHost.saved.hostName)}: ${t.deviceRefusal[refusedHost.snapshot.connection.code]}`
+                              : t.deviceRefusal[refusedHost.snapshot.connection.code]
+                          }
+                          action={
+                            refusedHost.snapshot.connection.code === 'sign-in-required'
+                              ? {
+                                  label: t.teamSignIn.again,
+                                  testID: 'home-sign-in-again',
+                                  onPress: () =>
+                                    router.push({
+                                      pathname: '/pair/team',
+                                      params: { host: refusedHost.saved.hostId },
+                                    }),
+                                }
+                              : refusedHost.snapshot.connection.code === 'member-suspended'
+                                ? undefined
+                                : { label: t.pairAgain, onPress: () => router.push('/pair') }
+                          }
                         />
                       ) : null}
                       {selectedHost &&
@@ -745,7 +774,7 @@ const HomeContent = memo(function HomeContent({
                   ListEmptyComponent={
                     coldLoading ? (
                       <ListSkeleton />
-                    ) : hostFailed || cloudFailed ? undefined : (
+                    ) : hostFailed || cloudFailed || refusedHost !== undefined ? undefined : (
                       <Text tone="muted" style={{ padding: space.x6 }}>
                         {query
                           ? t.searchNoMatch(query.trim())

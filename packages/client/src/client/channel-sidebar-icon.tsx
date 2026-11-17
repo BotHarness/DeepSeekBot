@@ -386,6 +386,11 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
     ['path', { d: 'm3 17 2 2 4-4' }],
     ['path', { d: 'm3 7 2 2 4-4' }],
   ],
+  target: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['circle', { cx: '12', cy: '12', r: '6' }],
+    ['circle', { cx: '12', cy: '12', r: '2' }],
+  ],
   palette: [
     [
       'path',
@@ -737,6 +742,11 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
   copy: [
     ['rect', { width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' }],
     ['path', { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' }],
+  ],
+  'ellipsis-vertical': [
+    ['circle', { cx: '12', cy: '12', r: '1' }],
+    ['circle', { cx: '12', cy: '5', r: '1' }],
+    ['circle', { cx: '12', cy: '19', r: '1' }],
   ],
   'external-link': [
     ['path', { d: 'M15 3h6v6' }],

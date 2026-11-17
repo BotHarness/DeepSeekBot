@@ -49,7 +49,12 @@ export type OfferRefusal =
   | 'offer-expired'
   | 'device-approval-required'
   | 'relationship-inactive';
-export type DeviceRefusal = 'device-credential-missing' | 'device-unknown' | 'device-revoked';
+export type DeviceRefusal =
+  | 'device-credential-missing'
+  | 'device-unknown'
+  | 'device-revoked'
+  | 'sign-in-required'
+  | 'member-suspended';
 
 export type Redemption =
   | {
@@ -137,6 +142,7 @@ export interface DevicePairingOptions {
       mustChangePassword: boolean;
     };
     admit(authorization: string | undefined, publicKey?: string): PairedDevice | undefined;
+    refusal(authorization: string | undefined): 'sign-in-required' | 'member-suspended';
     check(deviceId: string): PairedDevice | undefined;
     attach(deviceId: string, close: () => void): () => void;
   };
@@ -424,7 +430,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     admitKey(authorization, publicKey) {
       if (authorization?.startsWith('Device member.')) {
         const member = options.members?.admit(authorization, publicKey);
-        return member ? { ok: true, device: member } : { ok: false, code: 'device-unknown' };
+        return member
+          ? { ok: true, device: member }
+          : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
       }
       const admitted = this.admit(authorization);
       if (!admitted.ok) return admitted;
@@ -559,7 +567,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     admit(authorization) {
       if (authorization?.startsWith('Device member.')) {
         const member = options.members?.admit(authorization);
-        return member ? { ok: true, device: member } : { ok: false, code: 'device-unknown' };
+        return member
+          ? { ok: true, device: member }
+          : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
       }
       const match = CREDENTIAL.exec(authorization?.trim() ?? '');
       if (match === null) {

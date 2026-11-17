@@ -243,6 +243,11 @@ import {
   AssignmentReplyTargetError,
   type HumanAssignmentContext,
 } from '../runtime/assignment-human-context.js';
+import { summarizeSessionProgress, type SessionProgress } from '../runtime/session-progress.js';
+import {
+  summarizeSessionTranscript,
+  type SessionTranscript,
+} from '../runtime/session-transcript.js';
 import {
   summarizeAssignmentTimeline,
   summarizeSubagentLanes,
@@ -992,6 +997,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
       omittedSubagents: number;
     }>
   >;
+  sessionProgress(payload: unknown): Promise<BridgeResult<{ sessions: SessionProgressEntry[] }>>;
+  sessionTranscript(
+    payload: unknown,
+  ): Promise<BridgeResult<{ sessionId: string; role: SessionRootRole } & SessionTranscript>>;
   workspaceOptions(payload: unknown): BridgeResult<{
     workspaces: { id: string; path: string; title: string }[];
   }>;
@@ -1931,6 +1940,13 @@ function dataResetFailure(error: unknown): BridgeResult<never> {
     },
   };
 }
+
+export const SESSION_PROGRESS_LIMIT = 30;
+
+export type SessionProgressEntry = { sessionId: string } & (
+  | SessionProgress
+  | { error: 'not-found' | 'unavailable' }
+);
 
 async function sessionLogOf(
   read: DshUsageSessionLogReader,
@@ -8919,6 +8935,65 @@ function buildBridgeMethods(
         describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
       });
       return { ok: true, value: { assignment, ...timeline } };
+    },
+    async sessionProgress(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      if (slug === undefined) return invalidInput('slug is required');
+      const ids = source?.['sessionIds'];
+      if (
+        !Array.isArray(ids) ||
+        ids.length === 0 ||
+        ids.length > SESSION_PROGRESS_LIMIT ||
+        !ids.every((id) => typeof id === 'string' && id.trim() !== '')
+      )
+        return invalidInput(`sessionIds must list 1 to ${SESSION_PROGRESS_LIMIT} Session ids`);
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const sessions = await Promise.all(
+        [...new Set(ids as string[])].map(async (sessionId): Promise<SessionProgressEntry> => {
+          const owner = deps.ownership.resolve(sessionId);
+          if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+            return { sessionId, error: 'not-found' };
+          try {
+            const log = await read(sessionId);
+            return { sessionId, ...summarizeSessionProgress(log?.events ?? []) };
+          } catch {
+            return { sessionId, error: 'unavailable' };
+          }
+        }),
+      );
+      return { ok: true, value: { sessions } };
+    },
+    async sessionTranscript(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const log = await read(sessionId);
+      return {
+        ok: true,
+        value: {
+          sessionId,
+          role: owner.rootRole,
+          ...summarizeSessionTranscript({
+            sessionId,
+            events: log?.events ?? [],
+            describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
+          }),
+        },
+      };
     },
     async sessionSubagents(payload) {
       const source = asObject(payload);

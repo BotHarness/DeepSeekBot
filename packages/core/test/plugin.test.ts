@@ -1056,6 +1056,8 @@ describe('plugin entry', () => {
       'assignment',
       'assignmentTimeline',
       'sessionSubagents',
+      'sessionProgress',
+      'sessionTranscript',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',

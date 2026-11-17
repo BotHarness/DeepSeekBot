@@ -692,6 +692,7 @@ export interface OrchestratorChannelAccess {
   }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
     genui?: import('../channels/genui.js').GenuiContent;
+    sessionLinks?: import('../channels/channel.js').ChannelSessionLink[];
     replySourceEventId?: string;
     observationId?: string;
     draftId?: string;
@@ -5463,7 +5464,7 @@ class BotRuntimeImplementation implements BotRuntime {
     } else {
       if (outcome.delivery !== 'steer' && outcome.delivery !== 'followup') return;
       cause = 'direct-request';
-      body = `The Human sent this Assignment a request directly through the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
+      body = `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
     }
     const id = this.#createEventId();
     const at = this.#now().toISOString();
@@ -9057,6 +9058,11 @@ class BotRuntimeImplementation implements BotRuntime {
         const exhaustedDraftId = exhaustedDrops.get(channel.id);
         if (input.genui !== undefined && (channel.type !== 'dm' || channel.botSlug !== botSlug))
           throw new Error('GenUI reports require the Bot Human DM');
+        if (
+          input.sessionLinks !== undefined &&
+          (channel.type !== 'dm' || channel.botSlug !== botSlug)
+        )
+          throw new Error('Session links require the Bot Human DM');
         if (exhaustedDraftId)
           throw new SendReviewRequired({
             status: 'requires-review',
@@ -9216,6 +9222,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(input.quotes?.length ? { quotes: input.quotes } : {}),
           ...this.#perf(sessionId, body),
           ...(input.genui === undefined ? {} : { genui: input.genui }),
+          ...(input.sessionLinks === undefined ? {} : { sessionLinks: input.sessionLinks }),
         };
         const originId = input.replySourceEventId ?? sourceEventId;
         const origin = {

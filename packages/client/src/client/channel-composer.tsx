@@ -28,6 +28,7 @@ import {
   IconPaperclipOutlineRegular,
   IconSendOutlineRegular,
   IconSkillOutlineRegular,
+  IconStopFillRegular,
   ImageLightbox,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -111,6 +112,7 @@ export interface ChannelComposerProps {
   sendKey?: ComposerSendKey | undefined;
   value: string;
   placeholder: string;
+  label?: string | undefined;
   holdPlaceholder?: string | undefined;
   dictation?: VoiceDictationPort | undefined;
   dictating?: { current: boolean } | undefined;
@@ -144,6 +146,7 @@ export interface ChannelComposerProps {
   onRemoveQuote?(quote: ComposerQuote): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
+  onStop?: (() => void) | undefined;
 }
 
 const NO_QUOTES: readonly ComposerQuote[] = [];
@@ -415,6 +418,7 @@ export function ChannelComposer({
   sendKey = 'enter',
   value,
   placeholder: basePlaceholder,
+  label,
   holdPlaceholder,
   dictation,
   dictating,
@@ -443,8 +447,10 @@ export function ChannelComposer({
   onRemoveQuote,
   onRecall,
   onSubmit,
+  onStop,
 }: ChannelComposerProps): ReactElement {
   const locked = sending || disabled;
+  const stops = onStop !== undefined && !hasVisibleText(value) && attachments.length === 0;
   const skillPeek = useSkillPeek(t);
   const voice = useComposerVoice({
     port: dictation,
@@ -1385,7 +1391,7 @@ export function ChannelComposer({
               ref={richMount}
               className="bh-composer-input bh-composer-rich-input"
               role="textbox"
-              aria-label={basePlaceholder}
+              aria-label={label ?? basePlaceholder}
               aria-multiline="true"
               aria-disabled={locked}
               aria-readonly={voice.active || undefined}
@@ -1458,7 +1464,7 @@ export function ChannelComposer({
               className="bh-composer-input"
               rows={1}
               placeholder={placeholder}
-              aria-label={basePlaceholder}
+              aria-label={label ?? basePlaceholder}
               value={value}
               disabled={locked}
               readOnly={voice.active}
@@ -1552,29 +1558,42 @@ export function ChannelComposer({
 
         <div className="bh-composer-footer">
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
-          <Button
-            className="bh-send-btn"
-            variant="primary"
-            size="sm"
-            icon={<IconSendOutlineRegular size={16} />}
-            aria-label={sending ? t('message.sending') : t('composer.send')}
-            disabled={
-              (!hasVisibleText(value) && attachments.length === 0) ||
-              locked ||
-              voice.active ||
-              mentions.some(
-                (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
-              ) ||
-              attachments.length > 10 ||
-              attachments.some((item) => item.status !== 'ready')
-            }
-            onClick={() => {
-              if (shortcutOptions.length > 0) {
-                const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
-                if (shortcut !== undefined) chooseShortcut(shortcut);
-              } else if (!hasShortcutArgument) void onSubmit();
-            }}
-          />
+          {stops ? (
+            <Button
+              className="bh-send-btn"
+              variant="primary"
+              size="sm"
+              data-composer-stop=""
+              icon={<IconStopFillRegular size={12} />}
+              aria-label={t('sessions.stop')}
+              disabled={disabled}
+              onClick={onStop}
+            />
+          ) : (
+            <Button
+              className="bh-send-btn"
+              variant="primary"
+              size="sm"
+              icon={<IconSendOutlineRegular size={16} />}
+              aria-label={sending ? t('message.sending') : t('composer.send')}
+              disabled={
+                (!hasVisibleText(value) && attachments.length === 0) ||
+                locked ||
+                voice.active ||
+                mentions.some(
+                  (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
+                ) ||
+                attachments.length > 10 ||
+                attachments.some((item) => item.status !== 'ready')
+              }
+              onClick={() => {
+                if (shortcutOptions.length > 0) {
+                  const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
+                  if (shortcut !== undefined) chooseShortcut(shortcut);
+                } else if (!hasShortcutArgument) void onSubmit();
+              }}
+            />
+          )}
         </div>
       </div>
       {context?.content}
