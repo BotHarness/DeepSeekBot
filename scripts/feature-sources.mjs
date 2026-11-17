@@ -75,6 +75,16 @@ export function parseGlossary(text) {
 export const claims = (feature, path) =>
   (feature.sources ?? []).some((glob) => matchesGlob(path, glob));
 
+const literalPrefix = (glob) => {
+  const head = glob.slice(0, glob.search(/[*?[{]/u) + 1 || glob.length + 1);
+  return head.slice(0, head.lastIndexOf('/') + 1);
+};
+
+export const matchesTracked = (tracked, glob) => {
+  const prefix = literalPrefix(glob);
+  return tracked.some((path) => path.startsWith(prefix) && matchesGlob(path, glob));
+};
+
 export function checkSources(features, tracked, glossary, baseline) {
   const errors = [];
   const pending = new Set(baseline.unmapped ?? []);
@@ -87,7 +97,7 @@ export function checkSources(features, tracked, glossary, baseline) {
     if (mapped && pending.has(feature.file))
       errors.push(`${feature.file} is mapped now; remove it from ${BASELINE} "unmapped"`);
     for (const glob of feature.sources ?? [])
-      if (!tracked.some((path) => matchesGlob(path, glob)))
+      if (!matchesTracked(tracked, glob))
         errors.push(`${feature.file}: source ${glob} matches no tracked file`);
     if (feature.sources?.length === 0) errors.push(`${feature.file}: "## Sources" is empty`);
     if (feature.terms?.length === 0) errors.push(`${feature.file}: "## Terms" is empty`);
