@@ -86,6 +86,7 @@ function RootNavigator() {
   const settingsPages: [string, string | undefined][] = [
     ['profile', t.accountProfile.title],
     ['profile-name', undefined],
+    ['uploaded-bots', t.accountProfile.uploads],
     ['usage', t.usage],
     ['models', t.modelSettings.title],
     ['model-picker', undefined],

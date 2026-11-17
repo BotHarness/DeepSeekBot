@@ -19,6 +19,8 @@ vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 import type { AccountProfileState } from '../src/account/account-profile';
 import { AccountNameEditor } from '../src/ui/shell/account-name-editor';
 import { AccountProfileView } from '../src/ui/shell/account-profile-view';
+import { UploadedBotsView } from '../src/ui/shell/uploaded-bots-view';
+import type { MarketplaceAuthoredBot } from '../../../packages/core/src/marketplace/client';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -45,6 +47,7 @@ const actions = () => ({
   onSignIn: vi.fn(),
   onEditName: vi.fn(),
   onRetry: vi.fn(),
+  onOpenUploads: vi.fn(),
 });
 const byTestId = (view: HTMLElement, id: string) =>
   view.querySelector<HTMLElement>(`[data-testid="${id}"]`);
@@ -81,6 +84,11 @@ describe('Account Profile screen', () => {
     expect(byTestId(view, 'account-avatar-remove')).not.toBeNull();
     await act(async () => byTestId(view, 'account-profile-name')!.click());
     expect(on.onEditName).toHaveBeenCalled();
+    expect(byTestId(view, 'account-uploaded-bots')?.textContent).toContain(
+      t.accountProfile.uploads,
+    );
+    await act(async () => byTestId(view, 'account-uploaded-bots')!.click());
+    expect(on.onOpenUploads).toHaveBeenCalled();
   });
 
   it('shows the initial and no remove row without a photo', async () => {
@@ -115,5 +123,57 @@ describe('Account Profile screen', () => {
     await act(async () => save.click());
     expect(onSave).toHaveBeenCalledWith('爱丽丝');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('lists uploaded Bots with size, date and a taken-down mark', async () => {
+    const bot = (id: string, name: string) =>
+      ({
+        id,
+        owner: 'Vain',
+        name,
+        fullName: `Vain/${name}`,
+        displayName: name,
+        banner: null,
+        avatar: null,
+        roles: [],
+        description: null,
+        descriptionGenerated: false,
+        topics: [],
+        stars: 0,
+        installs: 0,
+        pushedAt: '2026-11-12T08:00:00Z',
+      }) as unknown as MarketplaceAuthoredBot['bot'];
+    const onSelect = vi.fn();
+    const view = await render(
+      <UploadedBotsView
+        state={{
+          status: 'ready',
+          bots: [
+            { bot: bot('U_mira', 'Mira'), files: 14, bytes: 48213, blocked: false },
+            { bot: bot('U_nova', 'Nova'), files: 3, bytes: 2048, blocked: true },
+          ],
+        }}
+        actions={{ onRetry: vi.fn(), onSignIn: vi.fn(), onSelect }}
+      />,
+    );
+    expect(byTestId(view, 'uploaded-bot-U_mira')?.textContent).toContain(
+      t.accountProfile.uploadsMeta(14, '47 KB', '2026-11-12'),
+    );
+    expect(byTestId(view, 'uploaded-bot-U_nova')?.textContent).toContain(
+      t.accountProfile.uploadsBlocked,
+    );
+    expect(view.textContent).toContain(t.accountProfile.uploadsFooter);
+    await act(async () => byTestId(view, 'uploaded-bot-U_nova')!.click());
+    expect(onSelect.mock.calls[0]?.[0].bot.id).toBe('U_nova');
+  });
+
+  it('says when nothing is uploaded yet', async () => {
+    const view = await render(
+      <UploadedBotsView
+        state={{ status: 'ready', bots: [] }}
+        actions={{ onRetry: vi.fn(), onSignIn: vi.fn(), onSelect: vi.fn() }}
+      />,
+    );
+    expect(view.textContent).toContain(t.accountProfile.uploadsEmpty);
   });
 });
