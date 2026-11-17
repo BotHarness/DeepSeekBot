@@ -89,6 +89,8 @@ export async function setModelFavorite(choice: ModelChoice, favorite: boolean): 
   try {
     registration.confirmed = await registration.queue(choice, favorite);
   } finally {
+    epoch += 1;
+    registration.lastWrite = epoch;
     registration.changes = registration.changes.filter((entry) => entry !== change);
     if (current === registration) publish();
   }

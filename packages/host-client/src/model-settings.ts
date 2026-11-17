@@ -73,10 +73,10 @@ export function modelSettingsResource(client: ModelSettingsClient, scope: ModelS
     },
     favorite: async (choice: ModelChoice, favorite: boolean) => {
       const favorites = await writeFavorite(client)(choice, favorite);
-      await owner.cancelQueries({ queryKey: ['mobile-model-settings'] });
       owner.setQueriesData<ModelSettingsState>({ queryKey: ['mobile-model-settings'] }, (old) =>
         old === undefined ? old : { ...old, favorites },
       );
+      await owner.invalidateQueries({ queryKey: ['mobile-model-settings'], refetchType: 'none' });
       return favorites;
     },
     refresh: () =>

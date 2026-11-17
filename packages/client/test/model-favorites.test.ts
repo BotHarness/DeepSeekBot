@@ -86,10 +86,15 @@ it('ignores a catalog read that started before a star, and a completion from ano
   rememberModelFavorites([], 'host', () => reply.promise);
   const seen = modelFavoritesEpoch();
   const star = setModelFavorite(a, true);
+  const during = modelFavoritesEpoch();
   reply.resolve([a]);
   await star;
   rememberModelFavorites([], 'host', async () => [], seen);
   expect(order()).toEqual([modelChoiceKey(a)]);
+  rememberModelFavorites([], 'host', async () => [], during);
+  expect(order()).toEqual([modelChoiceKey(a)]);
+  rememberModelFavorites([a, group], 'host', async () => [], modelFavoritesEpoch());
+  expect(order()).toEqual([a, group].map(modelChoiceKey));
   rememberModelFavorites([b], 'host', async () => []);
   expect(order()).toEqual([modelChoiceKey(b)]);
 
