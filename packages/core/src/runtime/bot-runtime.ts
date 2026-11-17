@@ -3754,8 +3754,10 @@ class BotRuntimeImplementation implements BotRuntime {
       claimed.digests.length === 0 &&
       (collected.eventIds.length === 0 ||
         (claimed.contexts.length === 0 && collected.units.every(onlyPairedLifecycle)))
-    )
+    ) {
+      this.#settleSeenPairedNotices(botSlug, collected.eventIds);
       return;
+    }
     const externalChannelId = collected.units.find((unit) => unit.external?.localChannelId)
       ?.external?.localChannelId;
     const primaryChannelId =
@@ -7348,7 +7350,12 @@ class BotRuntimeImplementation implements BotRuntime {
           timeoutMs,
         }).then((outcome) => {
           if (outcome.outcome === 'timeout' || readAdmissions === undefined) return outcome;
-          const inboxIds = this.#claimAssignmentNotices(bot.slug, sessionId, readAdmissions);
+          const inboxIds = this.#claimAssignmentNotices(
+            bot.slug,
+            sessionId,
+            outcome.reportId,
+            readAdmissions,
+          );
           return inboxIds.length === 0
             ? outcome
             : {
@@ -11211,7 +11218,11 @@ class BotRuntimeImplementation implements BotRuntime {
           },
           this.#promptText(botSlug),
         ).length + 1;
-      if (externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']) break;
+      if (
+        externalCharacters > EXTERNAL_GUIDANCE_CHARS &&
+        externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']
+      )
+        break;
       externalCharacters += cost;
       rows.push({
         ...row,
@@ -11368,6 +11379,7 @@ class BotRuntimeImplementation implements BotRuntime {
   #claimAssignmentNotices(
     botSlug: string,
     sessionId: string,
+    reportId: string | undefined,
     readAdmissions: Set<string>,
   ): string[] {
     const at = this.#now().toISOString();
@@ -11382,10 +11394,25 @@ class BotRuntimeImplementation implements BotRuntime {
             AND source_event_id IN (SELECT source_event_id FROM source_events
               WHERE bot_slug = ? AND assignment_session_id = ?
                 AND COALESCE(json_extract(payload_json, '$.assignmentLifecycle.cause'), '')
-                  NOT LIKE 'direct-%')
+                  NOT LIKE 'direct-%'
+                AND (? IS NULL
+                  OR rowid <= (SELECT rowid FROM source_events WHERE source_event_id = ?)
+                  OR json_extract(payload_json, '$.assignmentLifecycle.reportSourceEventId') IN (
+                    SELECT r.source_event_id FROM source_events r
+                     WHERE r.assignment_session_id = ? AND r.source_kind = 'assignment-report'
+                       AND r.rowid <= (SELECT rowid FROM source_events WHERE source_event_id = ?))))
           RETURNING source_event_id`,
           )
-          .all(at, botSlug, botSlug, sessionId) as unknown as Array<{
+          .all(
+            at,
+            botSlug,
+            botSlug,
+            sessionId,
+            reportId ?? null,
+            reportId ?? null,
+            sessionId,
+            reportId ?? null,
+          ) as unknown as Array<{
           source_event_id: string;
         }>,
       ['bot-inbox'],
@@ -11512,6 +11539,27 @@ class BotRuntimeImplementation implements BotRuntime {
           .run(this.#now().toISOString(), botSlug, ...sourceEventIds),
       ['bot-inbox'],
     );
+  }
+
+  #settleSeenPairedNotices(botSlug: string, sourceEventIds: string[]): void {
+    if (sourceEventIds.length === 0) return;
+    const placeholders = sourceEventIds.map(() => '?').join(', ');
+    const seen = this.#database.read(
+      (database) =>
+        database
+          .prepare(
+            `SELECT n.source_event_id FROM source_events n
+               JOIN source_events r
+                 ON r.source_event_id = json_extract(n.payload_json, '$.assignmentLifecycle.reportSourceEventId')
+              WHERE n.source_kind = 'assignment-lifecycle' AND r.observed_at IS NOT NULL
+                AND n.source_event_id IN (${placeholders})`,
+          )
+          .all(...sourceEventIds) as unknown as Array<{ source_event_id: string }>,
+    );
+    const ids = seen.map((row) => row.source_event_id);
+    if (ids.length === 0) return;
+    this.#setObserved(ids, this.#now().toISOString(), botSlug);
+    this.#markReportsHandled(ids, botSlug);
   }
 
   #setObserved(sourceEventIds: string[], at: string | null, botSlug?: string): void {

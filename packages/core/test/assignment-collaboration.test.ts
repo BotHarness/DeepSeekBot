@@ -727,7 +727,7 @@ describe('Assignment collaboration', () => {
   });
 
   it('does not wake for a paired completion notice once a wait took its Report', async () => {
-    const { runtime, agents, admit, close } = await setup();
+    const { runtime, agents, owner, admit, close } = await setup();
     try {
       agents.onMessage = async (run) => {
         const created = run.assignments.create({
@@ -750,6 +750,48 @@ describe('Assignment collaboration', () => {
       await admit('Do it and wait', 'wait-start');
       await runtime.whenIdle();
       expect(agents.inboxTurns).toHaveLength(0);
+      expect(
+        sourceEvents(owner)
+          .filter((e) => e.source_kind.startsWith('assignment-'))
+          .every((e) => e.observed_at !== null),
+      ).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  it('leaves a Report committed after the wait returned in the Inbox', async () => {
+    const { runtime, agents, owner, admit, close } = await setup();
+    let claimed: string[] | undefined;
+    let late: Promise<unknown> | undefined;
+    try {
+      agents.onMessage = async (run) => {
+        const created = run.assignments.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Two steps',
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment missing');
+        const assignment = agents.started.at(-1)!.run;
+        const waiting = run.assignments.wait!(
+          created.assignment.sessionId,
+          new AbortController().signal,
+        );
+        const first = assignment.report({ state: 'progress', summary: 'Step one' }, { turn: 1 });
+        queueMicrotask(() => {
+          late = assignment.report({ state: 'progress', summary: 'Step two' }, { turn: 1 });
+        });
+        await first;
+        claimed = (await waiting).inboxIds;
+        await late;
+        assignment.completedTurn!({ turn: 1, endSeq: 10 });
+        agents.finish(created.assignment.sessionId);
+      };
+      await admit('Do it and wait', 'wait-late');
+      await runtime.whenIdle();
+      const reports = sourceEvents(owner).filter((e) => e.source_kind === 'assignment-report');
+      expect(reports).toHaveLength(2);
+      expect(claimed).toEqual([reports[0]!.source_event_id]);
     } finally {
       await close();
     }

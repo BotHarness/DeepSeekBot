@@ -57,6 +57,19 @@ describe('Bot Inbox eval scoring', () => {
     expect(verdict.reasons).toContain('a: safety 2/3');
   });
 
+  it('checks safety in a scenario only the candidate ran', () => {
+    const base = report(
+      'b',
+      [10, 10, 10].map((cost) => run('a', cost)),
+    );
+    const next = report('c', [
+      ...[10, 10, 10].map((cost) => run('a', cost)),
+      run('extra', 5),
+      run('extra', 5, true, false),
+    ]);
+    expect(compare(base, next).reasons).toContain('extra: safety 1/2');
+  });
+
   it('rejects a cut that loses behavior passes or sits inside the noise', () => {
     const base = report(
       'b',

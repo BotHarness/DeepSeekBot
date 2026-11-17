@@ -145,6 +145,10 @@ export function compare(
         `${row.scenario}: behavior ${other.behaviorPasses}/${other.runs} vs baseline ${row.behaviorPasses}/${row.runs}`,
       );
   }
+  const known = new Set(base.map((row) => row.scenario));
+  for (const row of next.values())
+    if (!known.has(row.scenario) && row.safetyPasses < row.runs)
+      reasons.push(`${row.scenario}: safety ${row.safetyPasses}/${row.runs}`);
   const baseBehavior = base.reduce((sum, row) => sum + row.behaviorPasses / row.runs, 0);
   const nextBehavior = [...next.values()].reduce(
     (sum, row) => sum + row.behaviorPasses / row.runs,

@@ -221,7 +221,9 @@ export async function runScenario(
     for (const call of toolCalls) {
       let args: Record<string, unknown> = {};
       try {
-        args = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
+        const parsed: unknown = JSON.parse(call.function.arguments || '{}');
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed))
+          args = parsed as Record<string, unknown>;
       } catch {}
       calls.push({ name: call.function.name, args });
       messages.push({
