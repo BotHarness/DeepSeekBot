@@ -97,12 +97,7 @@ export function ConversationRow({
                 : 'bell',
       run: () => act(action.key),
     }));
-  const avatar =
-    row.kind === 'bot' ? (
-      <ConversationBotAvatar bot={row.bot} />
-    ) : (
-      <ConversationGroupAvatar avatar={row.channel.avatar} />
-    );
+  const avatar = <ConversationAvatar row={row} />;
   const frame = (
     <ConversationRowFrame
       testID={`conversation-row-${row.key}`}
@@ -168,6 +163,34 @@ export function ConversationGroupAvatar({ avatar }: { avatar?: string | undefine
       <GroupMark avatar={avatar} size={AVATAR} corner={radius.md} variant="title" strong={false} />
     </AvatarSlot>
   );
+}
+
+export function ConversationPersonAvatar({ name }: { name: string }) {
+  const theme = useDesignTheme();
+  return (
+    <AvatarSlot>
+      <View
+        style={{
+          width: AVATAR,
+          height: AVATAR,
+          borderRadius: radius.md,
+          backgroundColor: theme.color.surface,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text strong tone="muted">
+          {(Array.from(name.trim())[0] ?? '').toLocaleUpperCase()}
+        </Text>
+      </View>
+    </AvatarSlot>
+  );
+}
+
+export function ConversationAvatar({ row }: { row: Conversation }) {
+  if (row.kind === 'bot') return <ConversationBotAvatar bot={row.bot} />;
+  if (row.person === true) return <ConversationPersonAvatar name={row.channel.name} />;
+  return <ConversationGroupAvatar avatar={row.channel.avatar} />;
 }
 
 export function ConversationRowFrame({

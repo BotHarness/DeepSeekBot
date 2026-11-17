@@ -41,3 +41,25 @@ it('offers explicit Bot deletion alongside pin and section placement but never f
     ),
   ).toBe(false);
 });
+
+it('never offers to disband a DM with another person', () => {
+  const person: Conversation = {
+    kind: 'channel',
+    key: 'channel:dm-humans-ab',
+    person: true,
+    unread: 0,
+    needsYou: 0,
+    muted: false,
+    channel: { id: 'dm-humans-ab', name: 'Bob', memberCount: 2, members: [] },
+  };
+  const menu = conversationMenu(person, {
+    pinned: false,
+    hostMuted: false,
+    sections: [],
+    onAction: vi.fn(),
+    onMove: vi.fn(),
+    onDelete: vi.fn(),
+  });
+  expect(menu.some((action) => action.key === 'delete')).toBe(false);
+  expect(menu.map((action) => action.label)).toContain(t.rowActions.pin);
+});

@@ -54,6 +54,7 @@ export function conversationMenu(
         run: () => options.onMove(null),
       });
   }
+  if (conversation.kind === 'channel' && conversation.person === true) return actions;
   if (conversation.kind === 'channel')
     actions.push({
       key: 'delete',

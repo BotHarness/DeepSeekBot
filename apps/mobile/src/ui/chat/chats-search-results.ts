@@ -34,6 +34,12 @@ function avatarOfConversation(
   title: string,
   image: AvatarImage,
 ): Pick<ChatsSearchResult, 'initial' | 'image' | 'dimmed'> {
+  if (conversation.kind === 'channel' && conversation.person === true)
+    return {
+      initial: (Array.from(title.trim())[0] ?? '#').toLocaleUpperCase(),
+      image: '',
+      dimmed: false,
+    };
   if (conversation.kind === 'channel')
     return {
       initial: '#',

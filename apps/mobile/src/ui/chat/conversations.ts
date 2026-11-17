@@ -22,6 +22,7 @@ export type Conversation =
       kind: 'channel';
       key: string;
       channel: RosterChannel;
+      person?: true;
       at?: string;
       createdAt?: string;
     } & Attention);
@@ -140,6 +141,15 @@ export function conversations(
       kind: 'channel',
       key: `channel:${channel.id}`,
       channel,
+      ...creationTime(channel.id),
+      ...(channel.previewAt === undefined ? {} : { at: channel.previewAt }),
+      ...attention(channel.id, action.filter((item) => item.channelId === channel.id).length),
+    })),
+    ...(roster.people ?? []).map((channel): Conversation => ({
+      kind: 'channel',
+      key: `channel:${channel.id}`,
+      channel,
+      person: true,
       ...creationTime(channel.id),
       ...(channel.previewAt === undefined ? {} : { at: channel.previewAt }),
       ...attention(channel.id, action.filter((item) => item.channelId === channel.id).length),
@@ -279,6 +289,7 @@ export function chatList(
         ...(roster?.activityChannels?.map((channel) => channel.id) ?? []),
         ...(roster?.bots.map((bot) => bot.dmChannelId ?? `bot:${bot.slug}`) ?? []),
         ...(roster?.channels.map((channel) => channel.id) ?? []),
+        ...(roster?.people?.map((channel) => channel.id) ?? []),
       ]),
     ].map((id, index) => [id, index]),
   );

@@ -848,6 +848,33 @@ describe('Host client', () => {
     expect(snapshot.roster?.activityChannels).toEqual(wire.activityJournal.channels);
     expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
   });
+  it('lists a DM between two people apart from the groups, named for the other person', async () => {
+    const host = new FakeHost();
+    const people = {
+      id: 'dm-humans-ab',
+      type: 'dm',
+      name: 'Bob',
+      members: [],
+      humanParticipants: ['human-alice', 'human-bob'],
+      latestMessage: {
+        id: 'm1',
+        body: 'hi',
+        at: '2026-11-17T08:00:00.000Z',
+        author: { kind: 'human', id: 'human-bob' },
+      },
+    };
+    host.methods.set('channels', () => ({ channels: [...wire.activityJournal.channels, people] }));
+    const snapshot = await until(connect(host), (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+    expect(snapshot.roster?.people).toEqual([
+      expect.objectContaining({
+        id: 'dm-humans-ab',
+        name: 'Bob',
+        preview: 'hi',
+        previewAt: '2026-11-17T08:00:00.000Z',
+      }),
+    ]);
+  });
   it('keeps the channel list in the local store and later asks only for what changed (C3)', async () => {
     const store: LocalStore = await openLocalStore(nodeSqlConnection());
     const host = new FakeHost();
