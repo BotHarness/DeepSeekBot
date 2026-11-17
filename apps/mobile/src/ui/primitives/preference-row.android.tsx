@@ -45,13 +45,16 @@ export function PreferenceRow<T extends string>({
                   label: option.label,
                   selected: option.value === value,
                   testID: `${testID}-${option.value}`,
-                  icon: (
-                    <RowIcon
-                      name={option.icon}
-                      color={option.value === value ? theme.color.accent : theme.color.fg}
-                      size={materialMenu.iconSize}
-                    />
-                  ),
+                  icon:
+                    option.icon === undefined ? (
+                      <View />
+                    ) : (
+                      <RowIcon
+                        name={option.icon}
+                        color={option.value === value ? theme.color.accent : theme.color.fg}
+                        size={materialMenu.iconSize}
+                      />
+                    ),
                   onPress: () => {
                     setOpen(false);
                     onChange(option.value);

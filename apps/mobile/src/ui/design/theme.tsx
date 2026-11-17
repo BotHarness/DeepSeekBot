@@ -2,9 +2,14 @@ import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNod
 import { Dimensions, Platform, useColorScheme } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
-import { parseColor, toHex, type Rgb } from '@botharness/host-client/shared/bot-name-color';
+import {
+  parseColor,
+  toHex,
+  type Rgb,
+} from '@botharness/host-client/shared/bot-name-color';
 import { glass, PRESS_TINT, replyQuote, type PlatformOS } from './tokens';
 import { interfacePreferences } from '../interface-preferences';
+import { appearanceStore, documentScheme } from '../appearance-store';
 
 export {
   headerBand,
@@ -23,10 +28,19 @@ function platformOS(): PlatformOS {
 
 const AppearanceContext = createContext<Appearance>({});
 
-const resolvedAppearances = new WeakMap<
-  Appearance,
-  { scheme: ColorScheme; accent: string | undefined; os: PlatformOS; theme: DesignTheme }
->();
+type ResolvedAppearance = {
+  scheme: ColorScheme;
+  accent: string | undefined;
+  os: PlatformOS;
+  preset: string | undefined;
+  primary: string | undefined;
+  style: string | undefined;
+  materialEnabled: boolean | undefined;
+  materials: unknown;
+  theme: DesignTheme;
+};
+
+const resolvedAppearances = new WeakMap<Appearance, ResolvedAppearance>();
 
 function sharedTheme(
   owner: Appearance,
@@ -36,10 +50,29 @@ function sharedTheme(
 ): DesignTheme {
   const scheme = effective.scheme === 'system' ? system : (effective.scheme ?? system);
   const previous = resolvedAppearances.get(owner);
-  if (previous?.scheme === scheme && previous.accent === effective.accent && previous.os === os)
+  if (
+    previous?.scheme === scheme &&
+    previous.accent === effective.accent &&
+    previous.os === os &&
+    previous.preset === effective.preset &&
+    previous.primary === effective.primary &&
+    previous.style === effective.style &&
+    previous.materialEnabled === effective.materialEnabled &&
+    previous.materials === effective.materials
+  )
     return previous.theme;
   const theme = resolveTheme(system, effective, os);
-  resolvedAppearances.set(owner, { scheme, accent: effective.accent, os, theme });
+  resolvedAppearances.set(owner, {
+    scheme,
+    accent: effective.accent,
+    os,
+    preset: effective.preset,
+    primary: effective.primary,
+    style: effective.style,
+    materialEnabled: effective.materialEnabled,
+    materials: effective.materials,
+    theme,
+  });
   return theme;
 }
 const subscribeFontScale = (changed: () => void) => {
@@ -80,11 +113,29 @@ export function useDesignTheme(): DesignTheme {
     interfacePreferences.getSnapshot,
     interfacePreferences.getSnapshot,
   );
-  const effective = useMemo(
-    () => ({ scheme: preferences.appearance, ...appearance }),
-    [preferences.appearance, appearance],
+  const { document } = useSyncExternalStore(
+    appearanceStore.subscribe,
+    appearanceStore.getSnapshot,
+    appearanceStore.getSnapshot,
   );
   const system: ColorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const effective = useMemo(() => {
+    const schemePref = appearance.scheme ?? preferences.appearance;
+    const resolvedScheme: ColorScheme =
+      schemePref === 'system' || schemePref === undefined ? system : schemePref;
+    const modeScheme: ColorScheme =
+      document.preference === 'system' ? resolvedScheme : documentScheme(document, system);
+    const mode = document.modes[modeScheme];
+    return {
+      scheme: schemePref,
+      style: document.style,
+      preset: mode.preset,
+      ...(mode.primary !== undefined ? { primary: mode.primary } : {}),
+      materialEnabled: document.materialEnabled,
+      ...(mode.materials !== undefined ? { materials: mode.materials } : {}),
+      ...appearance,
+    };
+  }, [appearance, preferences.appearance, document, system]);
   const fontScale = useSyncExternalStore(subscribeFontScale, fontScaleSnapshot, fontScaleSnapshot);
   return useMemo(
     () => ({

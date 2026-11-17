@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
 import * as stylex from '@stylexjs/stylex';
 import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -9,11 +9,15 @@ import {
   type ModelSettingsClient,
 } from '@botharness/host-client/bot-settings';
 import {
+  classifyModelList,
+  getModelSourceSnapshot,
   modelRoutes,
   modelScopeKey,
   modelSettingsResource,
+  modelSourceText,
   saveModelPreset,
   setModelRoute,
+  subscribeModelSource,
   toggleAssignmentModel,
   type ModelScope,
   type ModelSettingsState,
@@ -138,6 +142,8 @@ function Models({
 }) {
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, scope]);
   const [value, setValue] = useState<ModelSettingsState>();
+  const source = useSyncExternalStore(subscribeModelSource, getModelSourceSnapshot);
+  const modelCount = value?.models.length ?? 0;
   const [error, setError] = useState<ReturnType<typeof settingsFailure>>();
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string>();
@@ -281,6 +287,8 @@ function Models({
     [hostId, client, resource],
   );
   const routes = value === undefined ? undefined : modelRoutes(value);
+  const listState = classifyModelList(modelCount, error !== undefined);
+  const lastSource = source[source.length - 1];
   const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
     value === undefined ? null : (
       <ModelPicker
@@ -352,6 +360,17 @@ function Models({
         )
       ) : (
         <>
+          <div data-model-catalog-debug="">
+            {t('modelPreset.catalogDebug', {
+              count: String(modelCount),
+              source: modelSourceText(lastSource),
+            })}
+          </div>
+          {listState === 'empty' || listState === 'single' ? (
+            <Note tone="warning">
+              {t(listState === 'empty' ? 'modelPreset.emptyCatalog' : 'modelPreset.onlyOne')}
+            </Note>
+          ) : null}
           <SettingsRow
             title={t('remoteHosts.settings.models')}
             control={
