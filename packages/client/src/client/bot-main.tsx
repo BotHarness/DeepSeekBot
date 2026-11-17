@@ -2486,7 +2486,7 @@ function ConversationView({
     const characters = Array.from(quoteSource(message, text));
     const quote: ComposerQuote = {
       messageId: message.id,
-      ...(text === undefined ? {} : { text: characters.slice(0, 1000).join('') }),
+      ...(text === undefined ? {} : { text: Array.from(text.trim()).slice(0, 1000).join('') }),
       author: authorLabel(message, state.bots, t, channelHumanName(channel)),
       excerpt: characters.slice(0, 140).join(''),
     };

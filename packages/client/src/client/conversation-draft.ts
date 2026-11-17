@@ -56,7 +56,7 @@ export function clearConversationDrafts(): void {
 export function useComposerRecovery(
   scope: string | undefined,
   getState: () => ClientState,
-  actions: BridgeActions,
+  actions: Pick<BridgeActions, 'validateComposerDraft'>,
 ) {
   const manager = owner();
   const read = () => (scope === undefined ? unavailable : manager.read(scope));

@@ -4473,9 +4473,18 @@ class BotRuntimeImplementation implements BotRuntime {
     return block;
   }
 
-  #refreshQuoteBlocks(body: string): string {
+  #turnQuoteBlocks(
+    body: string,
+  ): ReadonlyArray<readonly [string, { channelId: string; message: ChannelMessage }]> {
+    return [...this.#quoteBlocks].filter(([block]) => body.includes(block));
+  }
+
+  #refreshQuoteBlocks(
+    body: string,
+    sources: ReadonlyArray<readonly [string, { channelId: string; message: ChannelMessage }]>,
+  ): string {
     let refreshed = body;
-    for (const [block, source] of this.#quoteBlocks) {
+    for (const [block, source] of sources) {
       if (!refreshed.includes(block)) continue;
       const current = this.#renderQuotePrompt(source.channelId, source.message);
       if (current !== block) refreshed = refreshed.split(block).join(current);
@@ -6742,6 +6751,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ['bot-inbox'],
         );
       if (observeMemory) this.#memoryTurnOperations.add(bot.slug);
+      const quoteSources = this.#turnQuoteBlocks(body);
       const change = observeMemory
         ? await (this.#memory?.prepareTurnAsync ?? this.#memory?.prepareTurn)?.(
             bot.slug,
@@ -6753,7 +6763,7 @@ class BotRuntimeImplementation implements BotRuntime {
         : undefined;
       if (this.#closed || this.#stoppedTurns.has(bot.slug))
         throw new Error(SESSION_STOPPED_REFUSAL);
-      body = this.#refreshQuoteBlocks(body);
+      body = this.#refreshQuoteBlocks(body, quoteSources);
       const observation = observeMemory
         ? this.#memory?.preparedObservation?.(bot.slug, orchestrator.sessionId)
         : undefined;

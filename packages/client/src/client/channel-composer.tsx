@@ -1,3 +1,4 @@
+import { Note } from './ds/note.js';
 import { Button } from './ds/button.js';
 import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
@@ -1363,9 +1364,7 @@ export function ChannelComposer({
           </QuoteChipList>
         )}
         {quotes.length < MAX_DRAFT_QUOTES ? null : (
-          <div className="bh-muted" role="status">
-            {t('message.quoteLimit', { count: MAX_DRAFT_QUOTES })}
-          </div>
+          <Note>{t('message.quoteLimit', { count: MAX_DRAFT_QUOTES })}</Note>
         )}
         {attachments.length > 0 ? (
           <div className="bh-composer-attachments" aria-live="polite">

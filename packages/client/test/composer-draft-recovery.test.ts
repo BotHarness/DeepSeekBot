@@ -8,7 +8,7 @@ import {
   conversationDraftKey,
   useComposerRecovery,
 } from '../src/client/conversation-draft.js';
-import { createStore } from '../src/client/store.js';
+import { createStore, type ChannelMessage } from '../src/client/store.js';
 import type { BridgeActions } from '../src/client/actions.js';
 
 let container: HTMLDivElement;
@@ -82,9 +82,17 @@ describe('composer recovery integration', () => {
       text: 'both?',
       quotes: [{ messageId: 'kept', text: 'part', note: 'Agreed' }, { messageId: 'gone' }],
     });
-    const target = { id: 'kept', at: '', author: { kind: 'human' as const }, body: 'a part' };
-    const validate = vi.fn(async () => ({ attachments: [], quotes: [target, null] }));
-    const actions = { validateComposerDraft: validate } as unknown as BridgeActions;
+    const target: ChannelMessage = {
+      id: 'kept',
+      at: '',
+      author: { kind: 'human' },
+      body: 'a part',
+    };
+    const validate = vi.fn<BridgeActions['validateComposerDraft']>(async () => ({
+      attachments: [],
+      quotes: [target, null],
+    }));
+    const actions = { validateComposerDraft: validate };
     function View() {
       const recovery = useComposerRecovery(scope, current.getSnapshot, actions);
       return createElement(
