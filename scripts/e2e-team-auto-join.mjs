@@ -219,6 +219,24 @@ try {
   assert.deepEqual(channelIds(bob), [lobby]);
   check('revoking the role removes the open role Channel at once', null);
 
+  const reading = run(['--as', alice, 'roster-section-create', 'Reading']);
+  const readingId = reading.section?.id ?? run(['--as', alice, 'roster']).sections[0].id;
+  run(['--as', alice, 'roster-batch', 'move', books, '--section', readingId]);
+  assert.deepEqual(
+    run(['--as', alice, 'roster']).sections.map((section) => section.name),
+    ['Reading'],
+  );
+  assert.deepEqual(run(['--as', bob, 'roster']).sections, []);
+  const aliceCookies = await signIn(alice);
+  for (const scheme of ['light', 'dark'])
+    await capture('member-own-sections', scheme, aliceCookies, async (page) => {
+      await page
+        .locator('.bh-section-name >> text=Reading >> visible=true')
+        .first()
+        .waitFor({ timeout: 30_000 });
+    });
+  check("docked member Web Client shows its own sections and not another member's", null);
+
   run(['channels', 'visibility', lobby, 'private']);
   assert.deepEqual(channelIds(bob), []);
   assert.deepEqual(channelIds(alice), [books]);
