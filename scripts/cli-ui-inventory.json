@@ -1077,7 +1077,8 @@
       "description": "Browser-owned Host name, icon and colour; shared HostLooks locks persisted revision/merge, supports explicit refresh after read failure, and checks CLI absolute expiry before setItem. Early disconnect is unknown outcome with readback; no Host mirror.",
       "scope": "Client / Host",
       "surfaces": [
-        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)",
+        "setting:packages/client/src/client/host-look-settings.tsx:{<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}"
       ],
       "commands": ["appearance-clients", "host-look"]
     },
