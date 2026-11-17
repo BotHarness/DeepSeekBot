@@ -935,8 +935,10 @@
         background: var(--tobs-state-hover);
       }
 
-      /* inner variant: link band inside the Bot bubble; top = sent on, bottom = created */
+      /* inner variant: link band inside the Bot bubble; top = sent on, bottom = created.
+         The connector is a rounded corner into the header row's vertical centre plus a rail to the body text. */
       .iband {
+        position: relative;
         display: flex;
         flex-direction: column;
       }
@@ -945,6 +947,39 @@
       }
       .iband.bottom {
         margin: 2px -4px -4px;
+      }
+      .corner {
+        flex: none;
+        width: 10px;
+        height: 12px;
+        margin-right: 2px;
+        border-left: 1.5px solid var(--tobs-ink-quiet);
+      }
+      .corner.up {
+        align-self: flex-end;
+        border-top: 1.5px solid var(--tobs-ink-quiet);
+        border-top-left-radius: 6px;
+      }
+      .corner.down {
+        align-self: flex-start;
+        border-bottom: 1.5px solid var(--tobs-ink-quiet);
+        border-bottom-left-radius: 6px;
+      }
+      .iband.top::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 24px;
+        bottom: -2px;
+        border-left: 1.5px solid var(--tobs-ink-quiet);
+      }
+      .iband.bottom::before {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: -2px;
+        height: 2px;
+        border-left: 1.5px solid var(--tobs-ink-quiet);
       }
       .ilink {
         display: flex;
@@ -961,13 +996,6 @@
       .ilink:hover {
         background: var(--tobs-state-hover);
         color: var(--tobs-ink-primary);
-      }
-      .ilink .curve {
-        width: 14px;
-        height: 24px;
-        align-self: stretch;
-        color: var(--tobs-ink-quiet);
-        flex: none;
       }
       .ilink .glyph,
       .ilink .glyph svg {
@@ -991,14 +1019,40 @@
         display: inline-grid;
         color: var(--tobs-ink-quiet);
         transform: rotate(-90deg);
+        transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
       }
-      .ilink .chev.open {
+      .iband.open .ilink .chev {
         transform: none;
       }
-      .igroup {
+      .ikids {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 220ms cubic-bezier(0.2, 0, 0, 1);
+      }
+      .iband.open .ikids {
+        grid-template-rows: 1fr;
+      }
+      .ikids-inner {
+        min-height: 0;
+        overflow: hidden;
         display: flex;
         flex-direction: column;
-        padding-left: 20px;
+      }
+      .ikids .ilink {
+        padding-left: 22px;
+        opacity: 0;
+        transition: opacity 160ms ease-out;
+      }
+      .iband.open .ikids .ilink {
+        opacity: 1;
+        transition-delay: 60ms;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ikids,
+        .ikids .ilink,
+        .ilink .chev {
+          transition: none;
+        }
       }
       /* card variant: attached session cards at the bottom of the bubble */
       .cards {
@@ -1498,21 +1552,16 @@
         '<svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
       const FWD =
         '<svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>';
-      const ICURVE_DOWN =
-        '<svg class="curve" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 0v7a5 5 0 0 0 5 5h7"/></svg>';
-      const ICURVE_UP =
-        '<svg class="curve" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 24v-7a5 5 0 0 1 5-5h7"/></svg>';
       function innerItem(id) {
         const x = byId[id],
           c = count(x);
         return `${glyph(x.state, stateLabel(x))}<span class="name">${x.title}</span>${c.total ? `<span class="cnt">${c.done}/${c.total}</span>` : ''}${x.state === 'needs' ? `<span class="tag warning">${NEED[x.need]}</span>` : ''}`;
       }
       function innerGroup(ids, dir, verb, key) {
-        const curve = dir === 'down' ? ICURVE_DOWN : ICURVE_UP;
+        const corner = `<span class="corner ${dir}" aria-hidden="true"></span>`;
         if (ids.length === 1)
-          return `<div class="ilink" data-open="${ids[0]}" role="button" tabindex="0">${curve}${innerItem(ids[0])}</div>`;
-        const open = pop;
-        return `<div class="ilink" data-pop="${key}" role="button" tabindex="0" aria-expanded="${open}">${curve}<span class="verb">${verb}</span><span class="name">${ids.length} 个会话</span><span class="chev ${open ? 'open' : ''}">${ic('chev', 's14')}</span></div>${open ? `<div class="igroup">${ids.map((id) => `<div class="ilink" data-open="${id}" role="button" tabindex="0">${innerItem(id)}</div>`).join('')}</div>` : ''}`;
+          return `<div class="ilink" data-open="${ids[0]}" role="button" tabindex="0">${corner}${innerItem(ids[0])}</div>`;
+        return `<div class="ilink" data-pop="${key}" role="button" tabindex="0" aria-expanded="${pop}">${corner}<span class="verb">${verb}</span><span class="name">${ids.length} 个会话</span><span class="chev">${ic('chev', 's14')}</span></div><div class="ikids"><div class="ikids-inner">${ids.map((id) => `<div class="ilink" data-open="${id}" role="button" tabindex="0">${innerItem(id)}</div>`).join('')}</div></div>`;
       }
       function cardRow(id, kind) {
         const x = byId[id],
@@ -1522,10 +1571,10 @@
       function bubble(text, { up = [], down = [] } = {}) {
         if (links === 'inner') {
           const top = up.length
-            ? `<div class="iband top">${innerGroup(up, 'up', '转给', 'up')}</div>`
+            ? `<div class="iband top ${pop ? 'open' : ''}">${innerGroup(up, 'up', '转给', 'up')}</div>`
             : '';
           const bottom = down.length
-            ? `<div class="iband bottom">${innerGroup(down, 'down', '新建', 'down')}</div>`
+            ? `<div class="iband bottom ${pop ? 'open' : ''}">${innerGroup(down, 'down', '新建', 'down')}</div>`
             : '';
           return `<div class="bubble">${top}<div>${text}</div>${bottom}</div>`;
         }
@@ -1605,6 +1654,12 @@
         if (t.hasAttribute('data-close') || t.hasAttribute('data-back')) selected = null;
         if (t.dataset.variant) variant = t.dataset.variant;
         if (t.dataset.links) links = t.dataset.links;
+        if (t.hasAttribute('data-pop') && links === 'inner') {
+          const band = t.closest('.iband');
+          const open = band.classList.toggle('open');
+          t.setAttribute('aria-expanded', String(open));
+          return;
+        }
         if (t.hasAttribute('data-pop')) pop = !pop;
         if (t.hasAttribute('data-theme-toggle')) theme = theme === 'light' ? 'dark' : 'light';
         const q = new URLSearchParams({
