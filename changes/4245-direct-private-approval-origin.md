@@ -6,10 +6,10 @@ section: Fixed
 
 - Fix model-free private-tool calls that fail to open execution approvals while their Orchestrator is idle; approvals, including policy-protected HTTP GET calls, follow each caller's DM and remain isolated from concurrent callers, Group turns and borrowed conversation history ([#4245](https://github.com/BotHarness/BotHarness/issues/4245)).
 
-- Clarify the existing Full Access boundary: irreversible external effects still require valid authorization or approval.
+- Clarify the existing Full Access boundary: irreversible external effects still require valid authorization or approval ([#4210](https://github.com/BotHarness/BotHarness/issues/4210)).
 
 ## zh
 
 - 修复 Orchestrator 空闲时无模型私密工具调用无法显示执行审批的问题；包括被输入策略要求审批的 HTTP GET 在内，审批进入调用方 DM，并与并发调用、Group 任务及借用的历史对话保持隔离（[#4245](https://github.com/BotHarness/BotHarness/issues/4245)）。
 
-- 澄清既有 Full Access 边界：不可撤销外部效果仍需有效授权或审批。
+- 澄清既有 Full Access 边界：不可撤销外部效果仍需有效授权或审批（[#4210](https://github.com/BotHarness/BotHarness/issues/4210)）。
