@@ -25,7 +25,7 @@ Lint rules with an existing backlog run through `scripts/lint-ratchet.mjs` (type
 
 Toolchain: pnpm 12.4.2 · Node ≥22 (`.node-version` = v24.21.0) · TypeScript 7 · oxlint · oxfmt · vitest · tsdown.
 In WSL, use the fnm node and `corepack pnpm` — Windows pnpm cannot create symlinks on WSL paths.
-Local DSH development boots an isolated, verified Host with `node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n>`. Before launching or restarting a Host, reloading the Client, or reusing the shared DeepSeek key, follow [local DSH instances](docs/agents/dev-instance.md) and the `dsh-dev` skill. Verify model usability with a real DM reply before declaring a key missing; secrets stay machine-local.
+Local DSH development boots an isolated, verified Host with `node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n>`. Before launching or restarting a Host, reloading the Client, or reusing the shared DeepSeek key, follow [local DSH Hosts](docs/agents/dev-instance.md) and the `dsh-dev` skill. Verify model usability with a real DM reply before declaring a key missing; secrets stay machine-local.
 
 AX default model setup and credential reuse: follow `docs/agents/ax-model.md` for the machine-local `opencode-go` opt-in, local hidden-input setup, per-launch credential override and real DM verification. `dev-instance.mjs` applies the selected native model only to its own launched Host.
 
