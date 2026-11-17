@@ -742,16 +742,18 @@ export function SessionDetail({
   );
   const composerMount = useMountedResource<HTMLDivElement>((composer) => {
     const root = composer.parentElement;
-    const timeline = root?.querySelector<HTMLElement>('[data-session-transcript]');
-    if (root == null || typeof ResizeObserver === 'undefined') return;
+    const timeline = root?.querySelector<HTMLElement>('[data-session-transcript]') ?? null;
+    if (root == null || timeline === null || typeof ResizeObserver === 'undefined') return;
+    let applied: number | undefined;
     const sync = (): void => {
       const overlay = Math.max(
         0,
         Math.round(root.getBoundingClientRect().bottom - composer.getBoundingClientRect().top),
       );
-      const atLatest =
-        timeline != null && timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
-      root.style.setProperty('--session-composer-overlay', `${overlay}px`);
+      if (overlay === applied) return;
+      applied = overlay;
+      const atLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
+      timeline.style.setProperty('--session-composer-overlay', `${overlay}px`);
       if (atLatest) timeline.scrollTop = timeline.scrollHeight;
     };
     sync();
@@ -760,7 +762,7 @@ export function SessionDetail({
     observer.observe(root);
     return () => {
       observer.disconnect();
-      root.style.removeProperty('--session-composer-overlay');
+      timeline.style.removeProperty('--session-composer-overlay');
     };
   }, []);
   const send = async (): Promise<void> => {

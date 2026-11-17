@@ -4248,6 +4248,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   align-self: flex-start;
   padding-top: ${space.x3};
 }
+@property --session-composer-overlay {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
 @media (hover: hover) {
   li:not(:hover):not(:focus-within) [data-session-more="closed"] {
     opacity: 0;
