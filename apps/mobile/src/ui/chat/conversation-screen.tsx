@@ -1217,13 +1217,13 @@ function ChatConversation({
       message.person === undefined
         ? undefined
         : {
-            name: message.person.name || personFallback || '',
+            name: message.person.name || personFallback || t.reply.member,
             bot: undefined,
             group: groupOf.get(row.key) ?? row.key,
             first: row.first,
             last: row.last,
           },
-    [personFallback, groupOf],
+    [personFallback, groupOf, t],
   );
 
   const nativeRows = nativeChatRecycler;
@@ -2027,7 +2027,7 @@ function ChatConversation({
           <EndSheet
             open={profileOpen}
             active={focused}
-            enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
+            enabled={canOpenProfile}
             fullWidth
             onOpening={prepareProfile}
             onOpenChange={(open) => {

@@ -204,7 +204,7 @@ export function SelectionScreenshot({
                     : message.author === 'human'
                       ? t.activityRow.human
                       : message.person !== undefined
-                        ? message.person.name
+                        ? message.person.name || t.reply.member
                         : t.feedback.system}{' '}
                   · {new Date(message.at).toLocaleString()}
                 </Text>

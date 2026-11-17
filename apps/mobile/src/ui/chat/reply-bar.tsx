@@ -32,6 +32,7 @@ export function ReplyBar({
     },
     t.reply.you,
     botName,
+    t.reply.member,
   );
   return (
     <View

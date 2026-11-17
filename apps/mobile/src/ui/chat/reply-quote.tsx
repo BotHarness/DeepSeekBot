@@ -16,10 +16,11 @@ export function replyAuthor(
   preview: WireReplyPreview | null | undefined,
   you: string,
   botName: (id: string) => string,
+  member = you,
 ): string {
   switch (preview?.author.kind) {
     case 'human':
-      return preview.author.displayName ?? you;
+      return preview.author.humanId === undefined ? you : preview.author.displayName || member;
     case 'bot':
       return botName(preview.author.slug);
     case 'bridged':
@@ -86,7 +87,7 @@ export function ReplyQuote({
   const t = useStrings();
   const theme = useDesignTheme();
   const { bots } = useContext(MessageIdentities);
-  const author = replyAuthor(preview, t.reply.you, botName);
+  const author = replyAuthor(preview, t.reply.you, botName, t.reply.member);
   const text = replyText(preview, t);
   const background = onAccent ? theme.color.accent : theme.color.surface;
   const ink = onAccent ? theme.color.onAccent : authorInk(preview, bots, theme, background);
