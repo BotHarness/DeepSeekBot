@@ -48,6 +48,11 @@
           {
             "$ref": "style/b.tokens.json"
           }
+        ],
+        "c": [
+          {
+            "$ref": "style/c.tokens.json"
+          }
         ]
       },
       "default": "a"

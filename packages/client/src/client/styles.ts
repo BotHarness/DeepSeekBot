@@ -4078,6 +4078,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-message-audio-meta { color: color-mix(in srgb, currentColor 70%, transparent); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bh-message-audio-element { display: none; }
 .bh-bubble-body {
+  font-size: var(--tobs-style-text-message-size);
+  line-height: var(--tobs-style-text-message-line);
   text-wrap: pretty;
   white-space: pre-wrap;
   word-break: break-word;

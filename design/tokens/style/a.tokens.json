@@ -22,6 +22,10 @@
             "$type": "dimension",
             "$value": "{web.type.body.line}"
           }
+        },
+        "section-title": {
+          "$type": "color",
+          "$value": "{web.color.ink.tertiary}"
         }
       },
       "control": {
@@ -253,6 +257,26 @@
             "value": 18,
             "unit": "px"
           }
+        }
+      },
+      "segmented": {
+        "selected-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.field}"
+        },
+        "selected-ink": {
+          "$type": "color",
+          "$value": "{web.color.ink.primary}"
+        },
+        "edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        }
+      },
+      "button": {
+        "secondary-ink": {
+          "$type": "color",
+          "$value": "{web.color.ink.primary}"
         }
       }
     }

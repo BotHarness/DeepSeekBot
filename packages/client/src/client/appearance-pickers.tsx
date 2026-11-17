@@ -128,6 +128,14 @@ const styles = stylex.create({
   sampleRowQuiet: { backgroundColor: layer.raised },
   sampleNeutral: { backgroundColor: state.selected },
   sampleAccent: { backgroundColor: accent.solid },
+  sampleTiles: { gap: space.x1, borderRadius: radius.md, backgroundColor: 'transparent' },
+  sampleTile: {
+    height: '11px',
+    marginBlock: 0,
+    borderRadius: radius.xs,
+    backgroundColor: layer.raised,
+  },
+  sampleTonal: { backgroundColor: accent.container },
 
   presets: {
     display: 'flex',
@@ -323,21 +331,24 @@ export function ThemePresetPicker({
 const STYLE_LABELS: Record<AppearanceStyle, BotHarnessKey> = {
   a: 'appearance.style.a',
   b: 'appearance.style.b',
+  c: 'appearance.style.c',
 };
 
 function StyleSample({ id }: { id: AppearanceStyle }): ReactElement {
   const native = id === 'b';
+  const tonal = id === 'c';
   return (
     <span {...stylex.props(styles.sample, native && styles.sampleGrouped)}>
-      <span {...stylex.props(styles.sampleGroup, styles.sampleCard)}>
+      <span {...stylex.props(styles.sampleGroup, tonal ? styles.sampleTiles : styles.sampleCard)}>
         {[0, 1, 2].map((row) => (
           <span
             key={row}
             {...stylex.props(
               styles.sampleRow,
-              styles.sampleRowCard,
-              !native && styles.sampleRowQuiet,
-              row === 0 && (native ? styles.sampleAccent : styles.sampleNeutral),
+              tonal ? styles.sampleTile : styles.sampleRowCard,
+              id === 'a' && styles.sampleRowQuiet,
+              row === 0 &&
+                (tonal ? styles.sampleTonal : native ? styles.sampleAccent : styles.sampleNeutral),
             )}
           />
         ))}

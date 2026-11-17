@@ -66,6 +66,10 @@ describe('device-local appearance authority', () => {
     const css = appearanceCss(owner.getSnapshot());
     expect(css).toContain('--tobs-style-surface-list-backdrop:var(--tobs-layer-raised)');
     expect(css).toContain('--tobs-style-nav-selected-fill:var(--tobs-accent-selection)');
+    owner.update({ style: 'c' });
+    const tonal = appearanceCss(owner.getSnapshot());
+    expect(tonal).toContain('--tobs-style-nav-selected-fill:var(--tobs-accent-container)');
+    expect(tonal).toContain('--tobs-style-list-gap:2px');
     expect(() => parseAppearancePatch({ style: 'z' })).toThrow('appearance-invalid-input');
     expect(() =>
       parseAppearance(JSON.stringify({ ...owner.getSnapshot().config, style: 'z' })),

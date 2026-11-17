@@ -397,7 +397,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'zoom.default': '缩放 放大 缩小 字体 字号 zoom scale font size',
   'zoom.setup.enable': '缩放 放大 缩小 zoom scale',
   'zoom.setup.disable': '缩放 卸载 zoom uninstall',
-  'appearance.style': '风格 样式 简洁 原生 style quiet native',
+  'appearance.style': '风格 样式 简洁 原生 色调 style quiet native tonal',
   'appearance.palette': '颜色 主题色 color palette',
   'appearance.panels': '面板 透明 毛玻璃 panel transparency glass',
   'voice.providers.new': '朗读 语音合成 TTS text-to-speech',

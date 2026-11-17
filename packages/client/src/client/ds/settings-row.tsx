@@ -60,7 +60,7 @@ const styles = stylex.create({
   },
   sectionTitle: {
     margin: 0,
-    color: color.subtle,
+    color: style.textSectionTitle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     fontWeight: text.strong,
@@ -79,7 +79,13 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     paddingBlock: style.listItemPaddingBlock,
     paddingInline: style.listItemPadding,
-    borderRadius: style.listItemRadius,
+    borderTopLeftRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
+    borderTopRightRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
+    borderBottomLeftRadius: { default: style.listItemRadius, ':last-child': style.listGroupRadius },
+    borderBottomRightRadius: {
+      default: style.listItemRadius,
+      ':last-child': style.listGroupRadius,
+    },
     backgroundColor: style.listItemFill,
     borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',

@@ -134,6 +134,7 @@ export const style = stylex.defineConsts({
   textUiLine: 'var(--tobs-style-text-ui-line)',
   textMessageSize: 'var(--tobs-style-text-message-size)',
   textMessageLine: 'var(--tobs-style-text-message-line)',
+  textSectionTitle: 'var(--tobs-style-text-section-title)',
   controlHeight: 'var(--tobs-style-control-height)',
   controlHeightSmall: 'var(--tobs-style-control-height-small)',
   controlHeightLarge: 'var(--tobs-style-control-height-large)',
@@ -183,6 +184,10 @@ export const style = stylex.defineConsts({
   onCardSecondaryEdge: 'var(--tobs-style-on-card-secondary-edge)',
   switchWidth: 'var(--tobs-style-switch-width)',
   switchHeight: 'var(--tobs-style-switch-height)',
+  segmentedSelectedFill: 'var(--tobs-style-segmented-selected-fill)',
+  segmentedSelectedInk: 'var(--tobs-style-segmented-selected-ink)',
+  segmentedEdge: 'var(--tobs-style-segmented-edge)',
+  buttonSecondaryInk: 'var(--tobs-style-button-secondary-ink)',
 });
 
 export const accent = stylex.defineConsts({
