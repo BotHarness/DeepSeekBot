@@ -1,7 +1,7 @@
 import { GroupWorkEntry } from './group-work-entry.js';
 import { useSessionTarget } from './session-target.js';
 import type { SessionsState } from './store.js';
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useCallback, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -42,6 +42,11 @@ import { PanelEmptyState } from './ds/empty-state.js';
 import { color, radius } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
 import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
+import type { SessionProgress } from './bridge.js';
+import { currentTodo, GoalChip, isStuck, TodoProgressChip } from './session-progress-view.js';
+
+const PROGRESS_SESSIONS = 30;
+const PROGRESS_REFRESH_MS = 60_000;
 
 const styles = stylex.create({
   groups: { display: 'flex', flexDirection: 'column' },
@@ -69,6 +74,7 @@ const STATUS_TONE = {
 const IMPLIED_STATUS = {
   'needs-input': undefined,
   working: 'running',
+  stuck: 'running',
   idle: 'idle',
   resolved: 'any',
 } as const;
@@ -176,6 +182,46 @@ function SessionsPanel({
     preference.layout === 'status' ? personaBotSessionRows(owned.items, native.byId, 'all') : rows;
   const groups = groupSessionRowsByWorkspace(rows);
   const flip = useFlipList<HTMLDivElement>();
+  const [progress, setProgress] = useState<Readonly<Record<string, SessionProgress>>>({});
+  const progressIds = [
+    ...new Set(
+      [...rows, ...statusRows]
+        .filter((row) => native.byId[row.sessionId] !== undefined && row.archived !== true)
+        .map((row) => row.sessionId),
+    ),
+  ]
+    .slice(0, PROGRESS_SESSIONS)
+    .join(',');
+  const anyRunning = statusRows.some((row) => row.status === 'running');
+  const progressMount = useMountedResource<HTMLDivElement>(() => {
+    const read = actions.sessionProgress;
+    if (botSlug === undefined || read === undefined || progressIds === '') return;
+    let live = true;
+    const load = (): void => {
+      void read(botSlug, progressIds.split(',')).then(
+        (next) => {
+          if (live) setProgress(next);
+        },
+        () => {},
+      );
+    };
+    load();
+    const timer = anyRunning ? setInterval(load, PROGRESS_REFRESH_MS) : undefined;
+    return () => {
+      live = false;
+      if (timer !== undefined) clearInterval(timer);
+    };
+  }, [actions, botSlug, progressIds, anyRunning, signature, conversationRevision, reload]);
+  const rootRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      mount(node);
+      progressMount(node);
+    },
+    [mount, progressMount],
+  );
+  const now = Date.now();
+  const stuckOf = (row: PersonaBotSessionRow): boolean =>
+    isStuck(row.status === 'running', progress[row.sessionId], now);
   const statusLabel = {
     running: t('sessions.status.running'),
     stopping: t('sessions.status.stopping'),
@@ -219,6 +265,13 @@ function SessionsPanel({
     const subagentsExpanded = subagents !== undefined && subagentsOpen.has(row.sessionId);
     const workable = row.role === 'assignment' && botSlug !== undefined;
     const locallyStopping = stopping.has(row.sessionId);
+    const rowProgress = progress[row.sessionId];
+    const stuck = stuckOf(row);
+    const summary = stuck
+      ? t('sessions.stuck.line', {
+          minutes: Math.floor((now - (rowProgress?.lastEventAt ?? now)) / 60_000),
+        })
+      : currentTodo(rowProgress);
     const status = locallyStopping ? 'stopping' : row.status;
     const stoppable = botSlug !== undefined && (status === 'running' || status === 'stopping');
     const archivable = !(
@@ -363,12 +416,21 @@ function SessionsPanel({
               ),
             }
           : {})}
-        {...(row.assignmentAccessMode === 'danger-full-access'
+        {...(summary === undefined ? {} : { summary })}
+        {...(row.assignmentAccessMode === 'danger-full-access' ||
+        rowProgress?.todos !== undefined ||
+        rowProgress?.goal !== undefined
           ? {
               chips: (
-                <span title={t('sessions.access.dangerDetails')}>
-                  <Tag tone="warning">{t('sessions.access.danger')}</Tag>
-                </span>
+                <>
+                  {row.assignmentAccessMode === 'danger-full-access' ? (
+                    <span title={t('sessions.access.dangerDetails')}>
+                      <Tag tone="warning">{t('sessions.access.danger')}</Tag>
+                    </span>
+                  ) : null}
+                  <TodoProgressChip todos={rowProgress?.todos} t={t} />
+                  <GoalChip goal={rowProgress?.goal} t={t} />
+                </>
               ),
             }
           : {})}
@@ -391,7 +453,9 @@ function SessionsPanel({
   const sections = ASSIGNMENT_SECTIONS.map((id) => ({
     id,
     implied: IMPLIED_STATUS[id],
-    rows: assignments.filter((row) => row.section === id),
+    rows: assignments.filter(
+      (row) => (row.section === 'working' && stuckOf(row) ? 'stuck' : row.section) === id,
+    ),
   }));
   const runningCount = assignments.filter((row) => row.status === 'running').length;
   const toggleSection = (id: SessionStatusSection): void => {
@@ -424,7 +488,7 @@ function SessionsPanel({
   );
 
   return (
-    <div data-sessions="" ref={mount}>
+    <div data-sessions="" ref={rootRef}>
       {owned.status === 'loading' && rows.length === 0 ? (
         <LoadingSkeleton kind="sidebar" label={t('sessions.loading')} />
       ) : null}

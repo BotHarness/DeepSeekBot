@@ -182,6 +182,8 @@ import {
   loadChannelAssignments,
   loadSessionSubagents,
   loadAssignmentWork,
+  loadSessionProgress,
+  type SessionProgress,
   type SessionSubagent,
   type AssignmentWork,
   deleteGroupChannel,
@@ -1168,6 +1170,10 @@ export interface BridgeActions {
     sessionId: string,
   ): Promise<{ subagents: SessionSubagent[]; omitted: number }>;
   assignmentWork?(slug: string, sessionId: string): Promise<AssignmentWork>;
+  sessionProgress?(
+    slug: string,
+    sessionIds: readonly string[],
+  ): Promise<Record<string, SessionProgress>>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -3915,6 +3921,9 @@ export function createActions(
     },
     assignmentWork(slug, sessionId) {
       return loadAssignmentWork(call, slug, sessionId);
+    },
+    sessionProgress(slug, sessionIds) {
+      return loadSessionProgress(call, slug, sessionIds);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);

@@ -487,3 +487,76 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
     store.setSessions(previous);
   }
 });
+
+it('shows each Session goal and to-do progress, and moves a quiet running Assignment to Stuck', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().sessions;
+  store.setSessions({
+    status: 'ready',
+    error: undefined,
+    items: [
+      { sessionId: 'orc', role: 'orchestrator', createdAt: '2026-10-01T00:00:00Z' },
+      { sessionId: 'a-busy', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
+      { sessionId: 'a-quiet', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
+    ],
+  });
+  const now = Date.now();
+  const sessionProgress = vi.fn(async () => ({
+    'a-busy': {
+      goal: {
+        objective: 'Ship the export fix',
+        phase: 'active' as const,
+        roundsStarted: 2,
+        maxGoalRounds: 256,
+      },
+      todos: [
+        { content: 'Reproduce', status: 'completed' as const },
+        { content: 'Write the test', status: 'in_progress' as const },
+        { content: 'Open the PR', status: 'pending' as const },
+      ],
+      lastEventAt: now - 30_000,
+    },
+    'a-quiet': { lastEventAt: now - 18 * 60_000 },
+  }));
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          scope: 'personabot',
+          channelId: 'dm-progress',
+          botSlug: 'progress-qa',
+          actions: {
+            refreshSessions: vi.fn(async () => undefined),
+            sessionProgress,
+            openSession: vi.fn(),
+          } as unknown as BridgeActions,
+          t: zhTranslate,
+          nativeSessions: catalog({
+            orc: { displayTitle: 'Main', updatedAt: 1, running: false },
+            'a-busy': { displayTitle: 'Export', updatedAt: 3, running: true },
+            'a-quiet': { displayTitle: 'CLI', updatedAt: 2, running: true },
+          }),
+        } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }),
+      ),
+    );
+    expect(sessionProgress).toHaveBeenCalledWith('progress-qa', ['orc', 'a-busy', 'a-quiet']);
+    const working = container.querySelector('[data-section="working"]')!;
+    expect(working.querySelector('[data-session-todos]')?.getAttribute('data-session-todos')).toBe(
+      '1/3',
+    );
+    expect(working.querySelector('[data-session-goal]')?.textContent).toContain(
+      'Ship the export fix',
+    );
+    expect(working.textContent).toContain('Write the test');
+    const stuck = container.querySelector('[data-section="stuck"]')!;
+    expect(stuck.textContent).toContain('CLI');
+    expect(stuck.textContent).toContain(zhTranslate('sessions.stuck.line', { minutes: 18 }));
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setSessions(previous);
+  }
+});

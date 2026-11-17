@@ -3861,6 +3861,89 @@ export async function loadSessionSubagents(
   return { subagents, omitted };
 }
 
+export interface SessionGoal {
+  objective: string;
+  phase: 'active' | 'paused' | 'blocked' | 'complete';
+  roundsStarted: number;
+  maxGoalRounds: number;
+  blockedReason?: string;
+}
+
+export interface SessionTodo {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+export interface SessionProgress {
+  goal?: SessionGoal;
+  todos?: SessionTodo[];
+  lastEventAt?: number;
+}
+
+const GOAL_PHASES = ['active', 'paused', 'blocked', 'complete'];
+const TODO_STATUSES = ['pending', 'in_progress', 'completed'];
+
+function parseSessionGoal(value: unknown): SessionGoal | undefined {
+  const goal = asRecord(value);
+  const objective = goal?.['objective'];
+  const phase = goal?.['phase'];
+  const rounds = goal?.['roundsStarted'];
+  const max = goal?.['maxGoalRounds'];
+  const reason = goal?.['blockedReason'];
+  if (
+    typeof objective !== 'string' ||
+    !GOAL_PHASES.includes(phase as string) ||
+    typeof rounds !== 'number' ||
+    typeof max !== 'number'
+  )
+    return undefined;
+  return {
+    objective,
+    phase: phase as SessionGoal['phase'],
+    roundsStarted: rounds,
+    maxGoalRounds: max,
+    ...(typeof reason === 'string' ? { blockedReason: reason } : {}),
+  };
+}
+
+function parseSessionTodos(value: unknown): SessionTodo[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const todos = value.flatMap((entry): SessionTodo[] => {
+    const todo = asRecord(entry);
+    const content = todo?.['content'];
+    const status = todo?.['status'];
+    return typeof content === 'string' && TODO_STATUSES.includes(status as string)
+      ? [{ content, status: status as SessionTodo['status'] }]
+      : [];
+  });
+  return todos.length === 0 ? undefined : todos;
+}
+
+export async function loadSessionProgress(
+  call: BridgeCall,
+  slug: string,
+  sessionIds: readonly string[],
+): Promise<Record<string, SessionProgress>> {
+  const value = asRecord(await unwrap(call, 'sessionProgress', { slug, sessionIds }));
+  const sessions = value?.['sessions'];
+  if (!Array.isArray(sessions)) throw new Error('invalid sessionProgress response');
+  const progress: Record<string, SessionProgress> = {};
+  for (const entry of sessions) {
+    const session = asRecord(entry);
+    const id = session?.['sessionId'];
+    if (session === undefined || typeof id !== 'string' || session['error'] !== undefined) continue;
+    const goal = parseSessionGoal(session['goal']);
+    const todos = parseSessionTodos(session['todos']);
+    const at = session['lastEventAt'];
+    progress[id] = {
+      ...(goal === undefined ? {} : { goal }),
+      ...(todos === undefined ? {} : { todos }),
+      ...(typeof at === 'number' ? { lastEventAt: at } : {}),
+    };
+  }
+  return progress;
+}
+
 const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
 
 export interface AssignmentWorkStep {

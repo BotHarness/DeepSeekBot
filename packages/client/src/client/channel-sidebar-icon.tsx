@@ -386,6 +386,11 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
     ['path', { d: 'm3 17 2 2 4-4' }],
     ['path', { d: 'm3 7 2 2 4-4' }],
   ],
+  target: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['circle', { cx: '12', cy: '12', r: '6' }],
+    ['circle', { cx: '12', cy: '12', r: '2' }],
+  ],
   palette: [
     [
       'path',
