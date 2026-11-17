@@ -38,7 +38,6 @@ import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
 import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
-import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
 import { ConnectionsDialog } from './connections-dialog.js';
 import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
@@ -181,21 +180,26 @@ export function VoiceSection(props: SectionProps<{ actions: BridgeActions }>): R
 export function MessagingSection(props: SectionProps<MessagingSectionFace>): ReactElement {
   return (
     <Rows>
-      <HumanNameSettings
-        call={props.call}
-        store={props.store}
-        onSaved={props.onSaved}
-        t={props.t}
-      />
-      <SendKeySetting {...props} />
-      <AutoCollapseMessagesSetting {...props} />
-      <DeliveryReceiptsSetting {...props} />
-      <StreamRepliesSetting {...props} />
-      <SettingsSection>
+      <SettingsSection title={props.t('messaging.section.me')}>
+        <HumanNameSettings
+          call={props.call}
+          store={props.store}
+          onSaved={props.onSaved}
+          t={props.t}
+        />
+      </SettingsSection>
+      <SettingsSection title={props.t('messaging.section.input')}>
+        <SendKeySetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('messaging.section.display')}>
+        <AutoCollapseMessagesSetting {...props} />
+        <DeliveryReceiptsSetting {...props} />
+        <StreamRepliesSetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('messaging.section.bots')}>
         <GroupAutoAcceptSetting {...props} />
         <BotHopLimitRow {...props} />
       </SettingsSection>
-      <MessagingDefaultsSettings call={props.call} t={props.t} />
     </Rows>
   );
 }

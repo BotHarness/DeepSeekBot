@@ -1083,7 +1083,7 @@ export function apply(ctx: ClientContext): void {
           order: 25,
           label: () => t('botSettings.section.imApps'),
           locale: LOCALE_NS,
-          inject: () => ({ imApps, store }),
+          inject: () => ({ imApps, store, call }),
         },
         ImAppsSection,
       ),

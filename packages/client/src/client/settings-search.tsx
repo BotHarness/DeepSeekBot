@@ -75,13 +75,20 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'assignmentLimit.title',
   ],
   messaging: [
+    'messaging.section.me',
     'humanName.title',
+    'messaging.section.input',
     'sendKey.row.title',
+    'messaging.section.display',
     'messageFold.row.title',
     'message.delivery.row.title',
     'message.stream.row.title',
+    'messaging.section.bots',
     'groupAutoAccept.row.title',
     'botHopLimit.title',
+  ],
+  'im-apps': [
+    'imApps.allApps',
     'defaults.title',
     'identity.platform',
     'bridge.condition',
@@ -103,7 +110,6 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'voice.mic.title',
     'voice.mic.threshold',
   ],
-  'im-apps': ['imApps.allApps'],
   advanced: [
     'advanced.section.developer',
     'developer.row.title',
@@ -217,6 +223,7 @@ export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessK
 
 export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'idleCompaction.row.title': 'idleCompaction.row.info',
+  'botHopLimit.title': 'botHopLimit.description',
   'git.settings.title': 'git.settings.description',
   'compactionThreshold.ratio': 'compactionThreshold.row.description',
   'assignmentLimit.title': 'assignmentLimit.description',
@@ -269,7 +276,7 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'message.delivery.row.title': 'message.delivery.row.description',
   'message.stream.row.title': 'message.stream.row.description',
   'groupAutoAccept.row.title': 'groupAutoAccept.row.description',
-  'botHopLimit.title': 'botHopLimit.description',
+  'botHopLimit.title': 'botHopLimit.summary',
   'bridge.condition': 'defaults.collectionHint',
   'defaults.threshold': 'defaults.thresholdHint',
   'defaults.identityRow': 'defaults.enableIdentity',
