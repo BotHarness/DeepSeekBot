@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { Note } from './ds/note.js';
@@ -18,7 +18,12 @@ import { space } from './ds/tokens.stylex.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
-  identity: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  identity: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
 });
 type Peer = LanBotSnapshot['peers'][number];
 
@@ -32,7 +37,10 @@ export function LanBotSettings({
   fresh: boolean;
   onChanged(): void;
 }): ReactElement {
-  const [review, setReview] = useState<{ peer: Peer; action: 'admit' | 'revoke' }>();
+  const [review, setReview] = useState<{
+    peer: Peer;
+    action: 'admit' | 'revoke';
+  }>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [identity, setIdentity] = useState(false);

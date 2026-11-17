@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';

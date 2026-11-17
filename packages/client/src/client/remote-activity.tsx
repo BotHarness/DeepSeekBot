@@ -1,8 +1,8 @@
+import { Button } from './ds/button.js';
 import { hostLooks } from './host-looks.js';
 import { ActivityEnvironmentBadge } from './activity-environment-badge.js';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InboxSnapshot } from '@botharness/host-client/inbox';
 import { isAvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
 import { parseHumanAttentionPage } from './bridge.js';

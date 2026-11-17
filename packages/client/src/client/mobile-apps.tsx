@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import {
   useId,
   useRef,
@@ -8,7 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, IconCloseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconCloseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { COMMUNITY } from './community-links.js';
 import { CommunityIcon } from './community-icons.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -102,7 +103,9 @@ function usePlacement(
   trigger: RefObject<HTMLButtonElement | null>,
   width: number,
 ): [CSSProperties, (node: HTMLDivElement) => () => void] {
-  const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
+  const [position, setPosition] = useState<CSSProperties>({
+    visibility: 'hidden',
+  });
   const attach = (node: HTMLDivElement) => {
     const place = () => {
       const rect = trigger.current?.getBoundingClientRect();

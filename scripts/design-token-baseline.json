@@ -1,10 +1,9 @@
 {
   "packages/client/src/client/account-profile-settings.tsx": {
-    "dshImport": 2,
+    "dshImport": 1,
     "rawControl": 1
   },
   "packages/client/src/client/activity-approval.tsx": {
-    "dshImport": 1,
     "rawControl": 2
   },
   "packages/client/src/client/activity-center-view.tsx": {
@@ -18,12 +17,6 @@
   "packages/client/src/client/activity-inbox-styles.ts": {
     "legacyCss": 21
   },
-  "packages/client/src/client/activity-list-assignment.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/activity-list-auto-rejection.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/activity-list-controls.tsx": {
     "dshImport": 1,
     "rawControl": 1
@@ -35,15 +28,8 @@
   "packages/client/src/client/activity-list-pairing.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/activity-list-reply.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/activity-list-view.tsx": {
-    "dshImport": 1,
     "rawControl": 4
-  },
-  "packages/client/src/client/activity-list-workspace-action.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/anchored-panel.ts": {
     "dshImport": 1
@@ -109,7 +95,6 @@
     "rawControl": 1
   },
   "packages/client/src/client/bot-intro.tsx": {
-    "dshImport": 1,
     "rawControl": 6,
     "lineBorder": 2
   },
@@ -118,7 +103,7 @@
     "rawControl": 9
   },
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
-    "dshImport": 2,
+    "dshImport": 1,
     "rawControl": 1,
     "lineBorder": 1
   },
@@ -154,9 +139,6 @@
     "rawControl": 2,
     "lineBorder": 1
   },
-  "packages/client/src/client/bridge-audio.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/bridge-file.tsx": {
     "dshImport": 1,
     "rawControl": 3
@@ -166,9 +148,6 @@
   },
   "packages/client/src/client/bridge-source-author.tsx": {
     "rawControl": 1
-  },
-  "packages/client/src/client/bridge-video.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/bug-report-annotate-dialog.tsx": {
     "dshImport": 1,
@@ -224,7 +203,6 @@
     "rawControl": 1
   },
   "packages/client/src/client/channel-history.tsx": {
-    "dshImport": 1,
     "rawControl": 1,
     "lineBorder": 1
   },
@@ -233,9 +211,6 @@
     "rawControl": 2
   },
   "packages/client/src/client/channel-options.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/channel-personal-settings.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/channel-sidebar-builtins.tsx": {
@@ -263,16 +238,13 @@
     "lineBorder": 1
   },
   "packages/client/src/client/compaction-threshold-setting.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/companion-requests-view.tsx": {
     "rawControl": 2
   },
   "packages/client/src/client/companion-surface.ts": {
     "lineBorder": 1
-  },
-  "packages/client/src/client/composer-context-bar.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/composer-context-styles.ts": {
     "legacyCss": 17,
@@ -283,21 +255,15 @@
     "rawControl": 1
   },
   "packages/client/src/client/connect-account-hosts.tsx": {
-    "dshImport": 2
-  },
-  "packages/client/src/client/connect-health-card.tsx": {
-    "dshImport": 2
-  },
-  "packages/client/src/client/connect-panel.tsx": {
-    "dshImport": 2
-  },
-  "packages/client/src/client/connect-sign-in-block.tsx": {
-    "dshImport": 2
-  },
-  "packages/client/src/client/connection-guide.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/connection-hosts.tsx": {
+  "packages/client/src/client/connect-health-card.tsx": {
+    "dshImport": 1
+  },
+  "packages/client/src/client/connect-panel.tsx": {
+    "dshImport": 1
+  },
+  "packages/client/src/client/connect-sign-in-block.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/connection-progress-log.tsx": {
@@ -314,9 +280,6 @@
     "rawControl": 1,
     "literalColor": 1,
     "lineBorder": 2
-  },
-  "packages/client/src/client/create-app-form.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/custom-part-editor.tsx": {
     "dshImport": 1,
@@ -346,15 +309,6 @@
   "packages/client/src/client/ds/action-button.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/ds/choice-button.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/ds/field.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/ds/form-dialog.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/ds/group-heading.tsx": {
     "dshImport": 1
   },
@@ -372,14 +326,11 @@
     "dshImport": 1
   },
   "packages/client/src/client/dsh-bot-settings-item.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/environment-panel.tsx": {
     "dshImport": 1,
     "rawControl": 2
-  },
-  "packages/client/src/client/environment-sections.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/external-conversations.tsx": {
     "dshImport": 1
@@ -403,14 +354,10 @@
     "legacyCss": 11
   },
   "packages/client/src/client/genui-report.tsx": {
-    "dshImport": 1,
     "rawControl": 2,
     "lineBorder": 1
   },
   "packages/client/src/client/git-settings.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/git-unavailable-notice.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/group-channel-header.tsx": {
@@ -421,7 +368,6 @@
     "dshImport": 1
   },
   "packages/client/src/client/group-management-settings.tsx": {
-    "dshImport": 1,
     "rawControl": 1
   },
   "packages/client/src/client/group-member-controls.tsx": {
@@ -445,12 +391,6 @@
     "literalColor": 1,
     "lineBorder": 1
   },
-  "packages/client/src/client/hidden-channels.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/host-draft-guard.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/host-file-menu.tsx": {
     "dshImport": 1,
     "rawControl": 3
@@ -460,17 +400,16 @@
     "lineBorder": 1
   },
   "packages/client/src/client/host-tabs.tsx": {
-    "dshImport": 1,
     "rawControl": 2
   },
   "packages/client/src/client/human-channel-name.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/human-name-settings.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/idle-compaction-setting.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/im-apps-section.tsx": {
     "dshImport": 2
@@ -480,13 +419,13 @@
     "lineBorder": 2
   },
   "packages/client/src/client/keyboard-settings.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/labels.ts": {
     "dshImport": 1
   },
   "packages/client/src/client/lan-bot-settings.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/locale.ts": {
     "dshImport": 1
@@ -521,7 +460,6 @@
     "rawControl": 1
   },
   "packages/client/src/client/memory-entry.tsx": {
-    "dshImport": 1,
     "rawControl": 5
   },
   "packages/client/src/client/memory-file-tree.tsx": {
@@ -543,7 +481,6 @@
     "rawControl": 2
   },
   "packages/client/src/client/memory-recovery.tsx": {
-    "dshImport": 1,
     "rawControl": 1
   },
   "packages/client/src/client/memory-working-groups.tsx": {
@@ -564,13 +501,9 @@
     "dshImport": 1
   },
   "packages/client/src/client/message-bot-dialog.tsx": {
-    "dshImport": 1,
     "rawControl": 1
   },
   "packages/client/src/client/message-copy-action.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/message-feedback.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/message-fold.tsx": {
@@ -583,7 +516,6 @@
     "lineBorder": 1
   },
   "packages/client/src/client/message-person-dialog.tsx": {
-    "dshImport": 1,
     "rawControl": 1
   },
   "packages/client/src/client/message-reactions.tsx": {
@@ -592,14 +524,8 @@
     "literalColor": 2,
     "lineBorder": 1
   },
-  "packages/client/src/client/message-selection.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/message-snapshot.ts": {
     "legacyCss": 1
-  },
-  "packages/client/src/client/messaging-defaults-settings.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/messaging-grant.tsx": {
     "dshImport": 1
@@ -607,9 +533,6 @@
   "packages/client/src/client/messaging-help.tsx": {
     "dshImport": 1,
     "rawControl": 1
-  },
-  "packages/client/src/client/missing-packages.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/mobile-apps-styles.ts": {
     "legacyCss": 9,
@@ -632,9 +555,6 @@
     "rawControl": 4,
     "lineBorder": 1
   },
-  "packages/client/src/client/model-picker.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/model-preset-profile.tsx": {
     "dshImport": 1,
     "lineBorder": 1
@@ -646,18 +566,8 @@
   "packages/client/src/client/name-input.tsx": {
     "rawControl": 1
   },
-  "packages/client/src/client/notification-settings.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/onboarding-binding.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/onboarding-checklist-view.tsx": {
-    "dshImport": 1,
     "rawControl": 3
-  },
-  "packages/client/src/client/onboarding-memory.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/onboarding-view.tsx": {
     "dshImport": 1
@@ -671,7 +581,7 @@
     "rawControl": 3
   },
   "packages/client/src/client/paired-devices.tsx": {
-    "dshImport": 2,
+    "dshImport": 1,
     "rawControl": 1
   },
   "packages/client/src/client/pairing-settings.tsx": {
@@ -688,9 +598,6 @@
   "packages/client/src/client/permission-group-settings.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/persona-bot-create.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/personabot-deletion.tsx": {
     "dshImport": 1
   },
@@ -699,13 +606,13 @@
     "rawControl": 1
   },
   "packages/client/src/client/phone-route-steps.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/pinned-panel-cards.tsx": {
     "lineBorder": 1
   },
   "packages/client/src/client/plugin-updates-view.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/primary-color-editor.tsx": {
     "rawControl": 3,
@@ -722,10 +629,10 @@
     "dshImport": 1
   },
   "packages/client/src/client/private-relay-settings.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/private-tunnel-settings.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/profile-backup.tsx": {
     "dshImport": 2,
@@ -756,33 +663,17 @@
     "lineBorder": 2
   },
   "packages/client/src/client/reachable-post.tsx": {
-    "dshImport": 1,
     "rawControl": 1
-  },
-  "packages/client/src/client/relationship-settings.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/release-notes-view.tsx": {
     "dshImport": 2
   },
-  "packages/client/src/client/remote-activity.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/remote-host-models.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/remote-host-viewer-panel.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/remote-notification-settings.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/remote-viewer/index.tsx": {
     "dshImport": 1,
     "inlineStyle": 2
-  },
-  "packages/client/src/client/role-policy-field.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/schedules-entry.tsx": {
     "dshImport": 1,
@@ -829,12 +720,6 @@
   "packages/client/src/client/takeover-card.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/team-audit.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/team-offboarding.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/team-password-dialog.tsx": {
     "dshImport": 1
   },
@@ -845,16 +730,13 @@
     "dshImport": 1
   },
   "packages/client/src/client/team-settings.tsx": {
-    "dshImport": 2
-  },
-  "packages/client/src/client/team-spaces.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/telemetry-settings.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/thread-reception-settings.tsx": {
     "dshImport": 1
@@ -867,14 +749,9 @@
     "legacyCss": 1
   },
   "packages/client/src/client/update-run-view.tsx": {
-    "dshImport": 1,
     "lineBorder": 1
   },
-  "packages/client/src/client/user-question-card.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/voice-mic-test.tsx": {
-    "dshImport": 1,
     "rawControl": 1,
     "lineBorder": 1
   },
@@ -895,9 +772,6 @@
     "rawControl": 5,
     "lineBorder": 1
   },
-  "packages/client/src/client/wallpaper-settings.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/window-companion-styles.ts": {
     "legacyCss": 21,
     "lineBorder": 3
@@ -911,9 +785,6 @@
     "dshImport": 1,
     "rawControl": 1
   },
-  "packages/client/src/client/window-zoom-setup.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/workspace-grants-entry.tsx": {
     "dshImport": 1,
     "rawControl": 4,
@@ -924,7 +795,6 @@
     "lineBorder": 4
   },
   "packages/client/src/client/workspace.tsx": {
-    "dshImport": 1,
     "rawControl": 3
   }
 }

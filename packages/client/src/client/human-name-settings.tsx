@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import {
   loadHumanIdentity,

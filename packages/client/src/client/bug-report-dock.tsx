@@ -1,8 +1,8 @@
+import { Button } from './ds/button.js';
 import { type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 import {
-  Button,
   IconCheckOutlineRegular,
   IconCopyOutlineRegular,
   IconFullscreenOutlineRegular,
@@ -56,7 +56,11 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     whiteSpace: 'nowrap',
   },
-  status: { color: color.danger, fontSize: text.metaSize, lineHeight: text.metaLine },
+  status: {
+    color: color.danger,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   info: { color: color.success },
   shots: {
     display: 'flex',
@@ -84,10 +88,18 @@ const styles = stylex.create({
     borderRadius: radius.xs,
     backgroundColor: color.well,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '1px',
   },
-  image: { display: 'block', width: '100%', height: '100%', objectFit: 'cover' },
+  image: {
+    display: 'block',
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
   copyButton: {
     position: 'absolute',
     right: '2px',
@@ -102,7 +114,10 @@ const styles = stylex.create({
     backgroundColor: { default: color.modal, ':hover': color.hover },
     color: { default: color.muted, ':hover': color.fg },
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
   },
 });
 
@@ -168,7 +183,9 @@ export function CaptureDock({
               {canCopyImage() ? (
                 <button
                   type="button"
-                  aria-label={t('bugReport.dock.copy', { name: entry.file.name })}
+                  aria-label={t('bugReport.dock.copy', {
+                    name: entry.file.name,
+                  })}
                   title={t('bugReport.dock.copy', { name: entry.file.name })}
                   onClick={() => onCopy(entry)}
                   {...stylex.props(styles.copyButton)}

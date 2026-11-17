@@ -168,6 +168,18 @@ export const style = stylex.defineConsts({
   navSelectedInk: 'var(--tobs-style-nav-selected-ink)',
   navSelectedIcon: 'var(--tobs-style-nav-selected-icon)',
   surfaceListBackdrop: 'var(--tobs-style-surface-list-backdrop)',
+  onPageField: 'var(--tobs-style-on-page-field)',
+  onPageFieldEdge: 'var(--tobs-style-on-page-field-edge)',
+  onPageTrack: 'var(--tobs-style-on-page-track)',
+  onPageSecondary: 'var(--tobs-style-on-page-secondary)',
+  onPageSecondaryEdge: 'var(--tobs-style-on-page-secondary-edge)',
+  onCardField: 'var(--tobs-style-on-card-field)',
+  onCardFieldEdge: 'var(--tobs-style-on-card-field-edge)',
+  onCardTrack: 'var(--tobs-style-on-card-track)',
+  onCardSecondary: 'var(--tobs-style-on-card-secondary)',
+  onCardSecondaryEdge: 'var(--tobs-style-on-card-secondary-edge)',
+  switchWidth: 'var(--tobs-style-switch-width)',
+  switchHeight: 'var(--tobs-style-switch-height)',
 });
 
 export const accent = stylex.defineConsts({

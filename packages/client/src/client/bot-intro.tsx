@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import {
   useLayoutEffect,
   useState,
@@ -6,7 +7,6 @@ import {
   type ReactNode,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { errorMessage, type ModelCatalogEntryView, type ModelRouteView } from './bridge.js';
 import { BotIcon } from './bot-icon.js';
@@ -122,7 +122,10 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
     whiteSpace: 'nowrap',
     cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '2px',
     borderRadius: radius.sm,
   },
@@ -244,9 +247,24 @@ const styles = stylex.create({
   },
   starterItem: { display: 'flex', flexDirection: 'column' },
   note: { display: 'flex', flexDirection: 'column', gap: space.x2 },
-  signature: { margin: 0, alignSelf: 'flex-end', color: color.muted, fontSize: text.bodySize },
-  section: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
-  layoutHint: { margin: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  signature: {
+    margin: 0,
+    alignSelf: 'flex-end',
+    color: color.muted,
+    fontSize: text.bodySize,
+  },
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  layoutHint: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   sectionTitle: {
     margin: 0,
     color: color.muted,
@@ -264,7 +282,10 @@ const styles = stylex.create({
     backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
     textDecoration: 'none',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
   },
   linkIcon: {
     display: 'inline-flex',
@@ -277,8 +298,17 @@ const styles = stylex.create({
     backgroundColor: color.modal,
     color: color.fg,
   },
-  linkText: { display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 },
-  linkTitle: { fontWeight: text.strong, fontSize: text.titleSize, lineHeight: text.titleLine },
+  linkText: {
+    display: 'flex',
+    flexDirection: 'column',
+    flexGrow: 1,
+    minWidth: 0,
+  },
+  linkTitle: {
+    fontWeight: text.strong,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+  },
   stars: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -308,7 +338,9 @@ const styles = stylex.create({
   persona: { height: '100%', alignItems: 'flex-start' },
   interviewIcon: { backgroundColor: color.accent, color: color.onAccent },
   personaActions: { display: 'flex', justifyContent: 'center', gap: space.x3 },
-  chosen: { backgroundColor: { default: color.accentTint, ':hover': color.accentTint } },
+  chosen: {
+    backgroundColor: { default: color.accentTint, ':hover': color.accentTint },
+  },
   chosenIcon: { backgroundColor: color.accent, color: color.onAccent },
   chosenChip: {
     backgroundColor: { default: color.accent, ':hover': color.accent },
@@ -327,9 +359,14 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
   },
-  still: { backgroundColor: { default: color.surface, ':hover': color.surface } },
+  still: {
+    backgroundColor: { default: color.surface, ':hover': color.surface },
+  },
   soft: {
     borderWidth: 0,
     backgroundColor: { default: color.surface, ':hover': color.hover },
@@ -338,7 +375,11 @@ const styles = stylex.create({
   full: { width: '100%' },
   onCard: { backgroundColor: { default: color.modal, ':hover': color.hover } },
   strong: { color: color.fg, fontWeight: text.strong },
-  meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  meta: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   starter: {
     fontFamily: 'inherit',
     fontSize: text.bodySize,
@@ -548,7 +589,11 @@ export function BotIntro({
         {step === 'community' ? (
           <CommunityStep
             t={t}
-            track={(target) => controller.introEvent('onboarding:community_link_click', { target })}
+            track={(target) =>
+              controller.introEvent('onboarding:community_link_click', {
+                target,
+              })
+            }
           />
         ) : null}
         {step === 'start' ? (
@@ -828,7 +873,9 @@ function ModelStep({
         setPlanned(plan);
       }
       if (changed)
-        onboardingFor(actions).introEvent('onboarding:model_save', { is_advanced: split });
+        onboardingFor(actions).introEvent('onboarding:model_save', {
+          is_advanced: split,
+        });
       return true;
     } catch (cause) {
       setError(errorMessage(cause));
@@ -1067,7 +1114,9 @@ function StartStep({
               .join(t('intro.persona.aboutJoin')),
           });
     });
-    return t('intro.persona.about', { list: list.join(t('intro.persona.aboutJoin')) });
+    return t('intro.persona.about', {
+      list: list.join(t('intro.persona.aboutJoin')),
+    });
   };
   const own = (
     <Button variant="ghost" onClick={() => pick({ starter: 'own', ...profile() })}>
@@ -1112,7 +1161,12 @@ function StartStep({
                   data-persona-prompt={prompt.id}
                   onClick={() =>
                     pick(
-                      { starter: 'persona', persona, feature: prompt.feature, ...profile() },
+                      {
+                        starter: 'persona',
+                        persona,
+                        feature: prompt.feature,
+                        ...profile(),
+                      },
                       body(persona, prompt),
                     )
                   }
@@ -1182,12 +1236,16 @@ function StartStep({
         <div
           key={id}
           role="group"
-          aria-label={t('intro.persona.details', { persona: t(`intro.persona.${id}.name`) })}
+          aria-label={t('intro.persona.details', {
+            persona: t(`intro.persona.${id}.name`),
+          })}
           data-persona-details={id}
           {...stylex.props(styles.details)}
         >
           <span {...stylex.props(styles.meta)}>
-            {t('intro.persona.details', { persona: t(`intro.persona.${id}.name`) })}
+            {t('intro.persona.details', {
+              persona: t(`intro.persona.${id}.name`),
+            })}
           </span>
           <div {...stylex.props(styles.chips)}>
             {PERSONA_DETAILS[id].map((detail: PersonaDetail) => {

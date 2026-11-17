@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { MethodRefused } from '@botharness/host-client/client';
 import {
@@ -191,10 +192,9 @@ export interface StorageSettingsSource {
   confirmMessages(preview: StorageMessagesPreview): Promise<StorageMessagesResult>;
 }
 
-export type StorageSettingsProps = PropsLocale<'botharness'> & { title?: string } & (
-    | { call: BridgeCall; source?: never }
-    | { source: StorageSettingsSource; call?: never }
-  );
+export type StorageSettingsProps = PropsLocale<'botharness'> & {
+  title?: string;
+} & ({ call: BridgeCall; source?: never } | { source: StorageSettingsSource; call?: never });
 
 function UsageSummary({
   usage,
@@ -641,7 +641,9 @@ function StorageSettingsView({
                           />
                           <span {...stylex.props(styles.chatMeta)}>
                             {messagesTarget
-                              ? t('storage.messages.count', { count: chat.messages })
+                              ? t('storage.messages.count', {
+                                  count: chat.messages,
+                                })
                               : formatBotZipSize(chat.mediaBytes)}
                           </span>
                         </li>

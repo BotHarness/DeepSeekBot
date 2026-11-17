@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import type { ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BotHarnessTranslate } from './locale.js';
 
 export function ConnectionGuide({

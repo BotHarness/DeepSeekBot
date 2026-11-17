@@ -1,9 +1,9 @@
+import { Button } from './ds/button.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
-  Button,
   IconEllipsisOutlineRegular,
   IconNewChatOutlineRegular,
   IconPlusOutlineRegular,
@@ -88,7 +88,10 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '-2px',
   },
   optionOn: {
@@ -118,7 +121,10 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '1px',
   },
   choiceOn: {
@@ -578,13 +584,27 @@ function MembersEntryForChannel({
       (bot) => bot.slug === selectedMember && bot.deleted !== true && members.includes(bot.slug),
     );
   const menuItems: readonly MenuEntry[] = [
-    { id: 'dm', label: t('members.openDm'), icon: <IconNewChatOutlineRegular size={16} /> },
+    {
+      id: 'dm',
+      label: t('members.openDm'),
+      icon: <IconNewChatOutlineRegular size={16} />,
+    },
     ...(canMention
-      ? [{ id: 'mention', label: t('message.avatar.mention'), icon: <AtSignIcon /> }]
+      ? [
+          {
+            id: 'mention',
+            label: t('message.avatar.mention'),
+            icon: <AtSignIcon />,
+          },
+        ]
       : []),
     { id: 'policy', label: t('members.policy'), icon: <BellIcon /> },
     { type: 'separator', id: 'member-separator' },
-    { id: 'remove', label: t('members.remove'), icon: <IconTrashOutlineRegular size={16} /> },
+    {
+      id: 'remove',
+      label: t('members.remove'),
+      icon: <IconTrashOutlineRegular size={16} />,
+    },
   ];
   return (
     <>
@@ -632,7 +652,9 @@ function MembersEntryForChannel({
             <button
               type="button"
               className="bh-member-open-dm"
-              aria-label={t('message.mention.openDm', { bot: memberName(bots, slug) })}
+              aria-label={t('message.mention.openDm', {
+                bot: memberName(bots, slug),
+              })}
               onClick={() => void actions.openBot(slug)}
             >
               <PersonaBotAvatar
@@ -683,7 +705,9 @@ function MembersEntryForChannel({
               else if (
                 id === 'remove' &&
                 window.confirm(
-                  t('members.removeConfirm', { bot: memberName(bots, selectedMember) }),
+                  t('members.removeConfirm', {
+                    bot: memberName(bots, selectedMember),
+                  }),
                 )
               ) {
                 void removal.run(() => actions.removeGroupMember(group.id, selectedMember));

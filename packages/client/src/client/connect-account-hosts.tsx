@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useCallback, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
 import { SettingsRow } from './ds/settings-row.js';
@@ -47,7 +47,12 @@ export function parseConnectedHosts(value: unknown): ConnectedHost[] {
     hosts.push({
       ...(identity === undefined
         ? {}
-        : { botNetwork: { hostId: identity.hostId, publicKey: identity.publicKey } }),
+        : {
+            botNetwork: {
+              hostId: identity.hostId,
+              publicKey: identity.publicKey,
+            },
+          }),
       id: host.id,
       name: host.name,
       hostname: host.hostname,

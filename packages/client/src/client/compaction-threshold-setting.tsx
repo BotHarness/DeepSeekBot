@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
@@ -107,7 +107,10 @@ export function CompactionThresholdSetting({
             })}
             error={
               percentInvalid
-                ? t('compactionThreshold.ratio.invalid', { min: percentMin, max: percentMax })
+                ? t('compactionThreshold.ratio.invalid', {
+                    min: percentMin,
+                    max: percentMax,
+                  })
                 : undefined
             }
             inputMode="numeric"

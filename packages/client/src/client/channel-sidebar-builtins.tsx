@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import { useTeamMode } from './team-state.js';
 import { BotAccessEntry } from './bot-access-entry.js';
 import type { ConversationStateView } from './store.js';
@@ -8,7 +9,6 @@ import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement 
 import * as stylex from '@stylexjs/stylex';
 
 import {
-  Button,
   IconEllipsisOutlineRegular,
   Tag,
   type MenuEntry,
@@ -125,7 +125,10 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '-2px',
   },
   viewTabSelected: {
@@ -590,7 +593,10 @@ export function BotInboxItemRow({
                             src={videoPreviews[file.id]}
                             aria-label={t('im.videoPlayer')}
                             onError={() =>
-                              setVideoErrors((value) => ({ ...value, [file.id]: true }))
+                              setVideoErrors((value) => ({
+                                ...value,
+                                [file.id]: true,
+                              }))
                             }
                           />
                         ) : null}
@@ -624,7 +630,12 @@ export function BotInboxItemRow({
                           preload="metadata"
                           src={audioPreviews[file.id]}
                           aria-label={t('im.voiceAudioPlayer')}
-                          onError={() => setAudioErrors((value) => ({ ...value, [file.id]: true }))}
+                          onError={() =>
+                            setAudioErrors((value) => ({
+                              ...value,
+                              [file.id]: true,
+                            }))
+                          }
                         />
                       ) : null}
                       {!audioPreviews[file.id] || audioErrors[file.id] ? (
@@ -713,7 +724,10 @@ function BotInboxGroup({
       data-inbox-group=""
       open={expanded}
       onToggle={(event) =>
-        setExpansion({ signature: activeSignature, expanded: event.currentTarget.open })
+        setExpansion({
+          signature: activeSignature,
+          expanded: event.currentTarget.open,
+        })
       }
       {...stylex.props(styles.inboxGroup, flush && styles.flushInboxGroup)}
     >
@@ -979,7 +993,11 @@ function MemoryHeaderAction({
       <SidebarViewMenu
         label={t('memory.menu')}
         items={[
-          { type: 'label', id: 'terminology-label', text: t('memory.terminology') },
+          {
+            type: 'label',
+            id: 'terminology-label',
+            text: t('memory.terminology'),
+          },
           { id: 'memory', label: t('memory.terms.memory') },
           { id: 'git', label: t('memory.terms.git') },
           { type: 'separator', id: 'backups-separator' },
@@ -1162,8 +1180,15 @@ function SessionsHeaderWithSettings({
       ? []
       : [
           { type: 'separator' as const, id: 'limit-separator' },
-          { type: 'label' as const, id: 'limit-label', text: t('assignmentLimit.title') },
-          { id: 'limit:edit', label: t('sessions.limit.value', { count: limit }) },
+          {
+            type: 'label' as const,
+            id: 'limit-label',
+            text: t('assignmentLimit.title'),
+          },
+          {
+            id: 'limit:edit',
+            label: t('sessions.limit.value', { count: limit }),
+          },
         ]),
   ];
   return (
@@ -1200,8 +1225,20 @@ export function createChannelSidebarBuiltinTabs(
       order: 1,
       scope: 'personabot',
     },
-    { id: 'memory', icon: 'brain', label: t('tab.memory'), order: 2, scope: 'personabot' },
-    { id: 'screen', icon: 'monitor', label: t('tab.screen'), order: 3, scope: 'personabot' },
+    {
+      id: 'memory',
+      icon: 'brain',
+      label: t('tab.memory'),
+      order: 2,
+      scope: 'personabot',
+    },
+    {
+      id: 'screen',
+      icon: 'monitor',
+      label: t('tab.screen'),
+      order: 3,
+      scope: 'personabot',
+    },
   ];
 }
 
@@ -1258,7 +1295,11 @@ export function createChannelSidebarBuiltins(
       : undefined;
     const targetItems: MenuEntry[] = group
       ? [
-          { type: 'label', id: 'target-label', text: props.t('sessions.target.label') },
+          {
+            type: 'label',
+            id: 'target-label',
+            text: props.t('sessions.target.label'),
+          },
           { id: 'target:channel', label: props.t('sessions.target.channel') },
           ...bots.map((bot) => ({
             id: `target:bot:${bot.slug}`,

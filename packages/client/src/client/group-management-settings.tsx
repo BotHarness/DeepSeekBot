@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { ChannelAccessSettings } from './channel-access-settings.js';
@@ -33,7 +34,12 @@ const styles = stylex.create({
   },
   image: { width: '100%', height: '100%', objectFit: 'cover' },
   file: { display: 'none' },
-  field: { boxSizing: 'border-box', width: '200px', maxWidth: '100%', minWidth: 0 },
+  field: {
+    boxSizing: 'border-box',
+    width: '200px',
+    maxWidth: '100%',
+    minWidth: 0,
+  },
 });
 
 export function GroupManagementSettings({
@@ -45,7 +51,10 @@ export function GroupManagementSettings({
   readonly t: BotHarnessTranslate;
   readonly group: ChannelSummary;
 }): ReactElement {
-  const [nameState, setNameState] = useState({ source: group.name, draft: group.name });
+  const [nameState, setNameState] = useState({
+    source: group.name,
+    draft: group.name,
+  });
   if (nameState.source !== group.name) setNameState({ source: group.name, draft: group.name });
   const name = nameState.source === group.name ? nameState.draft : group.name;
   const [cropFile, setCropFile] = useState<File>();
@@ -131,7 +140,10 @@ export function GroupManagementSettings({
             maxLength={120}
             disabled={busy}
             onChange={(event) =>
-              setNameState({ source: group.name, draft: event.currentTarget.value })
+              setNameState({
+                source: group.name,
+                draft: event.currentTarget.value,
+              })
             }
             onCompositionStart={() => {
               composing.current = true;

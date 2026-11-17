@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import {
   assignRosterChannel,
   createRosterSection,
@@ -193,7 +193,10 @@ export function EnvironmentSections({
               value={sections.find((section) => section.channelIds.includes(channel.id))?.id ?? ''}
               options={[
                 { value: '', label: t('environment.sections.ungrouped') },
-                ...sections.map((section) => ({ value: section.id, label: section.name })),
+                ...sections.map((section) => ({
+                  value: section.id,
+                  label: section.name,
+                })),
               ]}
               disabled={busy || !online}
               onChange={(id) =>

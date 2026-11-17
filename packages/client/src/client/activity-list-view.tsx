@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import { ActivityApproval, useActivityRows } from './activity-approval.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import {
@@ -9,7 +10,6 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ActivityListSnoozeButton, ActivityListSourceButton } from './activity-list-controls.js';
 import { canSnoozeActivityListItem } from './activity-list-snooze.js';
 
@@ -36,10 +36,16 @@ import {
 
 const categoryCopy = {
   unread: { title: 'activityList.unread', empty: 'activityList.empty.unread' },
-  replies: { title: 'activityList.replies', empty: 'activityList.empty.replies' },
+  replies: {
+    title: 'activityList.replies',
+    empty: 'activityList.empty.replies',
+  },
   action: { title: 'activityList.action', empty: 'activityList.empty.action' },
   info: { title: 'activityList.info', empty: 'activityList.empty.info' },
-  handled: { title: 'activityList.handled', empty: 'activityList.empty.handled' },
+  handled: {
+    title: 'activityList.handled',
+    empty: 'activityList.empty.handled',
+  },
 } as const;
 
 type InboxInputs = Pick<ClientState, 'bots' | 'channels' | 'activityList'>;
@@ -411,9 +417,13 @@ export function ActivityListView({
             : item.kind === 'user-question'
               ? t('activityList.question', { bot: botName(item.botSlug, item) })
               : item.kind === 'tool-approval'
-                ? t('activityList.approval', { bot: botName(item.botSlug, item) })
+                ? t('activityList.approval', {
+                    bot: botName(item.botSlug, item),
+                  })
                 : item.kind === 'auto-rejection'
-                  ? t('activityList.autoRejection', { bot: botName(item.botSlug, item) })
+                  ? t('activityList.autoRejection', {
+                      bot: botName(item.botSlug, item),
+                    })
                   : item.kind === 'pairing-request'
                     ? t(
                         item.summary.startsWith('conversation')
@@ -425,9 +435,13 @@ export function ActivityListView({
                         },
                       )
                     : item.kind === 'workspace-grant-request'
-                      ? t('activityList.grant', { bot: botName(item.botSlug, item) })
+                      ? t('activityList.grant', {
+                          bot: botName(item.botSlug, item),
+                        })
                       : item.kind === 'assignment-waiting-human'
-                        ? t('activityList.assignmentWaiting', { bot: botName(item.botSlug, item) })
+                        ? t('activityList.assignmentWaiting', {
+                            bot: botName(item.botSlug, item),
+                          })
                         : item.kind === 'assignment-blocked'
                           ? t('activityList.assignmentBlocked', {
                               bot: botName(item.botSlug, item),
@@ -437,7 +451,9 @@ export function ActivityListView({
                                 bot: botName(item.botSlug, item),
                               })
                             : item.kind === 'bot-message-needs-repair'
-                              ? t('activityList.repair', { bot: botName(item.botSlug, item) })
+                              ? t('activityList.repair', {
+                                  bot: botName(item.botSlug, item),
+                                })
                               : botName(item.botSlug, item);
 
   const renderSource = (source: HumanAttentionItem, onClose: () => void): ReactElement => {
@@ -598,7 +614,9 @@ export function ActivityListView({
                 />
                 {selectedItems.length === 0
                   ? t('activityList.batch.all')
-                  : t('activityList.batch.selected', { count: String(selectedItems.length) })}
+                  : t('activityList.batch.selected', {
+                      count: String(selectedItems.length),
+                    })}
               </label>
               {selectedItems.length === 0 ? null : (
                 <>
@@ -619,7 +637,9 @@ export function ActivityListView({
                           )
                         }
                       >
-                        {t('activityList.batch.allow', { count: String(selectedItems.length) })}
+                        {t('activityList.batch.allow', {
+                          count: String(selectedItems.length),
+                        })}
                       </Button>
                       <Button
                         variant="outline"
@@ -707,7 +727,9 @@ export function ActivityListView({
                     <button
                       type="button"
                       className="bh-activity-list-row-open"
-                      aria-label={t('activityList.details', { title: itemTitle(item) })}
+                      aria-label={t('activityList.details', {
+                        title: itemTitle(item),
+                      })}
                       aria-expanded={
                         replySource !== undefined && itemKey(replySource) === itemKey(item)
                       }
@@ -725,7 +747,9 @@ export function ActivityListView({
                         <input
                           type="checkbox"
                           className="bh-activity-list-row-check"
-                          aria-label={t('activityList.batch.select', { title: itemTitle(item) })}
+                          aria-label={t('activityList.batch.select', {
+                            title: itemTitle(item),
+                          })}
                           checked={selected.has(itemKey(item))}
                           disabled={batchBusy}
                           onChange={() => toggleSelected(item)}
@@ -766,7 +790,9 @@ export function ActivityListView({
                       ) : null}
                       {item.kind === 'channel-unread' ? (
                         <div className="bh-activity-list-unread-meta">
-                          {t('activityList.unreadCount', { count: String(item.unreadCount ?? 0) })}
+                          {t('activityList.unreadCount', {
+                            count: String(item.unreadCount ?? 0),
+                          })}
                           {' · '}
                           {new Date(item.createdAt).toLocaleString()}
                           <p className="bh-activity-list-row-summary">{item.summary}</p>

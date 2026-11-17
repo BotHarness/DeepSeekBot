@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import type { BotHarnessKey } from './locale.js';
 import { useRef, useState } from 'react';
 import { useMountedResource } from './mounted-resource.js';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import {
   connectHealthSchema,
@@ -40,7 +40,10 @@ export function ConnectHealthCard({
   fresh?: boolean;
 } & PropsLocale<'botharness'>) {
   const mounted = useRef(false);
-  const request = useRef<{ controller: AbortController; timer: ReturnType<typeof setTimeout> }>();
+  const request = useRef<{
+    controller: AbortController;
+    timer: ReturnType<typeof setTimeout>;
+  }>();
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     return () => {
@@ -102,7 +105,10 @@ export function ConnectHealthCard({
       await reloadSnapshot();
     } catch {
       if (mounted.current)
-        setRequestFailed({ code: 'network', occurredAt: new Date().toISOString() });
+        setRequestFailed({
+          code: 'network',
+          occurredAt: new Date().toISOString(),
+        });
     } finally {
       clearTimeout(timer);
       if (request.current?.controller === controller) request.current = undefined;

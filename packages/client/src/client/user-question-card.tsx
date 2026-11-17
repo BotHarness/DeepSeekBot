@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { ActionButton } from './ds/action-button.js';
 import { useContext, useId, useRef, useState, type ReactElement } from 'react';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import { errorMessage } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -353,7 +354,6 @@ export function UserQuestionCard({
               {t('question.statusUnavailable')}
               <ActionButton
                 icon="refresh"
-
                 disabled={companionTarget !== undefined && !qualified()}
                 onClick={() => setStatusRetry((current) => current + 1)}
               >

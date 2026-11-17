@@ -1074,6 +1074,87 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/class-name.ts
+		function joinClass(...names) {
+			const joined = names.filter((name) => name !== void 0 && name !== "").join(" ");
+			return joined === "" ? void 0 : joined;
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/button.tsx
+		const styles$2 = {
+			base: {
+				kB7OPa: "bhx9f619",
+				k1xSpc: "bhx3nfvp2",
+				kGNEyG: "bhx6s0dn4",
+				kjj79g: "bhxl56j7k",
+				kOIVth: "bhx12e6dxb",
+				kmuXW: "bhx2lah0s",
+				k8WAf4: "bhxt970qd",
+				kg3NbH: "bhxq23ktl",
+				kMzoRj: "bhxc342km",
+				kaIpWk: "bhxvz6vxc",
+				kWkggS: "bhxjbqb8w",
+				kMwMTN: "bhx103lb5k",
+				kMv6JI: "bhxjb2p0i",
+				kGuDYH: "bhx1779mkw",
+				kLWn49: "bhxe5wb2f",
+				k63SB2: "bhxk50ysn",
+				khDVqt: "bhxuxw1ft",
+				kkrTdU: "bhx1ypdohk bhx1s07b3s",
+				kSiTet: "bhx1hc1fzr bhx1lfpgzf",
+				kI3sdo: "bhx1a2a7pz bhx1i94p6w",
+				kInvED: "bhx1hl8ikr",
+				$$css: true
+			},
+			sm: {
+				kZKoxP: "bhxisypcw",
+				$$css: true
+			},
+			md: {
+				kZKoxP: "bhx1cbrj4c",
+				$$css: true
+			},
+			primary: {
+				kWkggS: "bhx1rolmtn bhx1n57e5r",
+				kMwMTN: "bhx14w2d3c",
+				$$css: true
+			},
+			outline: {
+				kWkggS: "bhxooed33",
+				kGVxlE: "bhx1nopuv3",
+				kKwaWg: "bhx18o3ruo bhxfdnnug",
+				$$css: true
+			},
+			ghost: {
+				kWkggS: "bhxjbqb8w bhxqta4pg bhx9mj4i6",
+				$$css: true
+			},
+			toolbar: {
+				kWkggS: "bhxp02wjs",
+				kKwaWg: "bhx18o3ruo bhxfdnnug",
+				$$css: true
+			},
+			icon: {
+				k1xSpc: "bhx3nfvp2",
+				kzqmXN: "bhx1x2ywmj",
+				kZKoxP: "bhx6nhqxt",
+				kGNEyG: "bhx6s0dn4",
+				kjj79g: "bhxl56j7k",
+				$$css: true
+			}
+		};
+		const Button$2 = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, children, ...rest }, ref) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+				ref,
+				...rest,
+				className: joinClass(props(styles$2.base, styles$2[size], styles$2[variant]).className, className),
+				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bhx3nfvp2 bhx1x2ywmj bhx6nhqxt bhx6s0dn4 bhxl56j7k",
+					children: icon
+				}), children]
+			});
+		});
+		//#endregion
 		//#region packages/client/src/client/mounted-resource.ts
 		function useMountedResource$1(start, dependencies) {
 			const cleanup = (0, react.useRef)(void 0);
@@ -1402,7 +1483,7 @@ window.__ModuleLoader__.load({
 							opacity: .75
 						},
 						children: t("entry.noScreen")
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$2, {
 						variant: "toolbar",
 						size: "sm",
 						onClick: onRetry,
@@ -1529,7 +1610,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		function StopButton({ t, busy, stopping, onStop }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$2, {
 				variant: "ghost",
 				size: "sm",
 				disabled: busy || stopping,
@@ -1580,7 +1661,7 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
 					extraControls,
-					hideInteractiveToggle ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+					hideInteractiveToggle ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$2, {
 						variant: interactive ? "ghost" : "primary",
 						size: "sm",
 						"aria-pressed": interactive,
@@ -1595,7 +1676,7 @@ window.__ModuleLoader__.load({
 						stopping,
 						onStop
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$2, {
 						variant: "ghost",
 						size: "sm",
 						onClick: onCollapse,
@@ -2292,7 +2373,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/note.tsx
-		const styles = {
+		const styles$1 = {
 			note: {
 				kogj98: "bhx1ghz6dp",
 				kGuDYH: "bhxgowt09",
@@ -2329,33 +2410,12 @@ window.__ModuleLoader__.load({
 		function Note({ tone = "muted", inset = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 				role: tone === "danger" ? "alert" : "status",
-				...props(styles.note, inset && styles.inset, styles[tone]),
+				...props(styles$1.note, inset && styles$1.inset, styles$1[tone]),
 				children
 			});
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/pill-button.tsx
-		const pillStyles = { pill: {
-			k1xSpc: "bhx3nfvp2",
-			kGNEyG: "bhx6s0dn4",
-			kOIVth: "bhx12e6dxb",
-			ks0D6T: "bhx193iq5w",
-			kZKoxP: "bhxxevliy",
-			kg3NbH: "bhx1vid4s1",
-			kMzoRj: "bhxc342km",
-			kaIpWk: "bhx4g09nt",
-			kWkggS: "bhx1eunnl6 bhx8yp5u",
-			kMwMTN: "bhx24dycr",
-			kMv6JI: "bhxjb2p0i",
-			kGuDYH: "bhx5g6txa",
-			kLWn49: "bhx3350y7",
-			khDVqt: "bhxuxw1ft",
-			kkrTdU: "bhx1ypdohk bhxtgyt42",
-			kSiTet: "bhx1hc1fzr bhxijokvz",
-			kI3sdo: "bhx1a2a7pz bhx1m95a6t",
-			kInvED: "bhx1y3gkto",
-			$$css: true
-		} };
 		function PillButton({ children, ...rest }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				type: "button",
@@ -2414,7 +2474,19 @@ window.__ModuleLoader__.load({
 			"--tobs-style-nav-selected-fill": "var(--tobs-state-selected)",
 			"--tobs-style-nav-selected-ink": "var(--tobs-state-selected-ink)",
 			"--tobs-style-nav-selected-icon": "var(--tobs-state-selected-ink)",
-			"--tobs-style-surface-list-backdrop": "var(--tobs-layer-sheet)"
+			"--tobs-style-surface-list-backdrop": "var(--tobs-layer-sheet)",
+			"--tobs-style-on-page-field": "var(--tobs-layer-well)",
+			"--tobs-style-on-page-field-edge": "var(--tobs-layer-clear)",
+			"--tobs-style-on-page-track": "var(--tobs-layer-well)",
+			"--tobs-style-on-page-secondary": "var(--tobs-layer-well)",
+			"--tobs-style-on-page-secondary-edge": "var(--tobs-layer-clear)",
+			"--tobs-style-on-card-field": "var(--tobs-layer-field)",
+			"--tobs-style-on-card-field-edge": "var(--tobs-line-edge)",
+			"--tobs-style-on-card-track": "var(--tobs-layer-well)",
+			"--tobs-style-on-card-secondary": "var(--tobs-layer-well)",
+			"--tobs-style-on-card-secondary-edge": "var(--tobs-layer-clear)",
+			"--tobs-style-switch-width": "30px",
+			"--tobs-style-switch-height": "18px"
 		} };
 		({
 			...Object.fromEntries(Object.entries({
@@ -2617,12 +2689,12 @@ window.__ModuleLoader__.load({
 					if (active) close();
 					else setOpen(true);
 				},
-				...props(pillStyles.pill),
+				className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxisypcw bhxocwxb3 bhx1lo940d bhxc342km bhxvz6vxc bhxym0p2z bhx1ikcoup bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1g40iwv",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
 					children: current?.label
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
+					className: "bhx3nfvp2 bhx2lah0s bhx1axu3v7",
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
 				})]
 			}), active && point ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PointerMenu, {
@@ -2645,15 +2717,120 @@ window.__ModuleLoader__.load({
 			}) : null] });
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/info-tip.tsx
+		function InfoTip({ label, text }) {
+			const id = (0, react.useId)();
+			const [hover, setHover] = (0, react.useState)(false);
+			const [focus, setFocus] = (0, react.useState)(false);
+			const [pinned, setPinned] = (0, react.useState)(false);
+			const open = hover || focus || pinned;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				className: "bhx1n2onr6 bhx3nfvp2 bhx2lah0s",
+				onPointerEnter: () => {
+					setHover(true);
+				},
+				onPointerLeave: () => {
+					setHover(false);
+				},
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					type: "button",
+					"aria-label": label,
+					"aria-describedby": open ? id : void 0,
+					"aria-expanded": pinned,
+					onFocus: () => {
+						setFocus(true);
+					},
+					onBlur: () => {
+						setFocus(false);
+						setPinned(false);
+					},
+					onClick: () => {
+						setPinned((value) => !value);
+					},
+					onKeyDown: (event) => {
+						if (event.key === "Escape" && open) {
+							event.stopPropagation();
+							setPinned(false);
+							setHover(false);
+							setFocus(false);
+						}
+					},
+					className: "bhx3nfvp2 bhx6s0dn4 bhxl56j7k bhx1x2ywmj bhx6nhqxt bhx1717udv bhxc342km bhx13u8aww bhxjbqb8w bhx1axu3v7 bhx1a36vn4 bhx1146j2 bhx1a2a7pz bhx1i94p6w",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+						width: "14",
+						height: "14",
+						viewBox: "0 0 14 14",
+						"aria-hidden": "true",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+								cx: "7",
+								cy: "7",
+								r: "6",
+								fill: "none",
+								stroke: "currentColor",
+								strokeWidth: "1.2"
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+								d: "M7 6.2v3.6",
+								stroke: "currentColor",
+								strokeWidth: "1.3",
+								strokeLinecap: "round"
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+								cx: "7",
+								cy: "4.3",
+								r: "0.8",
+								fill: "currentColor"
+							})
+						]
+					})
+				}), open ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					id,
+					role: "tooltip",
+					className: "bhx10l6tqk bhx1o0tod bhx6om7eq bhx1n327nk bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhxeaf4i8 bhx47corl",
+					children: text
+				}) : null]
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/surface.ts
+		const surfaceStyles = { card: {
+			"--tobs-on-field": "bhxvn5hdi",
+			"--tobs-on-field-edge": "bhxwe5oui",
+			"--tobs-on-track": "bhxgbxpun",
+			"--tobs-on-secondary": "bhxweo6jt",
+			"--tobs-on-secondary-edge": "bhx1f506l2",
+			$$css: true
+		} };
+		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
+		const styles = {
+			rows: {
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				k7Eaqz: "bhxeuugli",
+				$$css: true
+			},
+			group: {
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				kOIVth: "bhx103m73q",
+				k7Eaqz: "bhxeuugli",
+				kg3NbH: "bhxf5xh8h bhx1qyef7o",
+				k8WAf4: "bhxggp0jn bhxvz3fld",
+				kaIpWk: "bhxdylm0v bhxtm8dy7",
+				kWkggS: "bhx18mhnxz bhxu7tw00",
+				$$css: true
+			}
+		};
 		function SettingsRows({ children, rootRef }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				ref: rootRef,
-				className: "bhx78zum5 bhxdt5ytf bhx103m73q bhxeuugli bhxf5xh8h bhx1qyef7o bhxggp0jn bhxvz3fld bhxdylm0v bhxtm8dy7 bhx18mhnxz bhxu7tw00",
+				...props(styles.rows, styles.group, surfaceStyles.card),
 				children
 			});
 		}
-		function SettingsRow({ title, description, control, children, rootRef, data }) {
+		function SettingsRow({ title, description, info, control, children, rootRef, data }) {
 			const id = (0, react.useId)();
 			const titleId = `${id}-title`;
 			const descriptionId = `${id}-description`;
@@ -2667,10 +2844,16 @@ window.__ModuleLoader__.load({
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
 					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							id: titleId,
-							className: "bhx24dycr bhx5g6txa bhx3350y7 bhx1knm1co bhxj0a0fe",
-							children: title
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "bhx78zum5 bhx6s0dn4 bhx12e6dxb bhxeuugli",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								id: titleId,
+								className: "bhx24dycr bhx5g6txa bhx3350y7 bhx1knm1co bhxj0a0fe",
+								children: title
+							}), info === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(InfoTip, {
+								label: info.label,
+								text: info.text
+							})]
 						}),
 						description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							id: descriptionId,
@@ -2739,14 +2922,14 @@ window.__ModuleLoader__.load({
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "bhx78zum5 bhx12e6dxb bhx1a02dak",
 						children: [
-							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$2, {
 								size: "sm",
 								variant: "primary",
 								disabled: busy,
 								onClick: onInstall,
 								children: labels.install
 							}) : null,
-							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$2, {
 								size: "sm",
 								variant: "outline",
 								onClick: copy,
@@ -3583,7 +3766,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/stylex-css.ts
-		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}\n.bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}\n.bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}\n.bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhxpd76p7:not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxf5xh8h:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-group-padding-inline)}\n.bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}\n.bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}\n.bhxvz3fld:has(> section):not(#\\#):not(#\\#){padding-block:0}\n.bhx1qyef7o:has(> section):not(#\\#):not(#\\#){padding-inline:0}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1kwkzks.bhx1kwkzks:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}\n.bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx1knm1co:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-line-divider)}\n.bhx19o0gr8:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1kkor1i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxexzqx0:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
+		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhxvn5hdi{--tobs-on-field:var(--tobs-style-on-card-field)}\n.bhxwe5oui{--tobs-on-field-edge:var(--tobs-style-on-card-field-edge)}\n.bhxweo6jt{--tobs-on-secondary:var(--tobs-style-on-card-secondary)}\n.bhx1f506l2{--tobs-on-secondary-edge:var(--tobs-style-on-card-secondary-edge)}\n.bhxgbxpun{--tobs-on-track:var(--tobs-style-on-card-track)}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1717udv:not(#\\#){padding:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}\n.bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}\n.bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}\n.bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxt970qd:not(#\\#):not(#\\#){padding-block:0}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}\n.bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}\n.bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhxpd76p7:not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxf5xh8h:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-group-padding-inline)}\n.bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}\n.bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}\n.bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}\n.bhxvz3fld:has(> section):not(#\\#):not(#\\#){padding-block:0}\n.bhx1qyef7o:has(> section):not(#\\#):not(#\\#){padding-inline:0}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1kwkzks.bhx1kwkzks:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}\n.bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}\n.bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxp02wjs:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-well)}\n.bhxym0p2z:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-field, var(--tobs-style-on-page-field))}\n.bhxooed33:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-secondary, var(--tobs-style-on-page-secondary))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}\n.bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}\n.bhx18o3ruo:not(#\\#):not(#\\#):not(#\\#){background-image:none}\n.bhx1ikcoup:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-field-edge, var(--tobs-style-on-page-field-edge))}\n.bhx1nopuv3:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-secondary-edge, var(--tobs-style-on-page-secondary-edge))}\n.bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}\n.bhx103lb5k:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhx1axu3v7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}\n.bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx1knm1co:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhx1o0tod:not(#\\#):not(#\\#):not(#\\#){inset-inline-start:0}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}\n.bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}\n.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhx1n327nk:not(#\\#):not(#\\#):not(#\\#){z-index:10}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}\n.bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}\n.bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx1n57e5r:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid-hover)}\n.bhxqta4pg:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxfdnnug:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-image:linear-gradient(var(--tobs-state-hover),var(--tobs-state-hover))}\n.bhx9mj4i6:active:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-pressed)}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-line-divider)}\n.bhx19o0gr8:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1kkor1i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}\n.bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhx6nhqxt:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-size)}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhx1jkqq1h:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:280px}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxexzqx0:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhx6om7eq:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:calc(100% + 4px)}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}\n.bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
 		//#endregion
 		//#region packages/computer/src/client/index.tsx
 		const ACCESS_STYLE = `

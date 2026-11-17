@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import { Button, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Combobox } from './combobox.js';
 import type { ApprovalMessagingSnapshot } from '../../../core/src/messaging/approval-messaging.js';
 import type { FailureAlertSnapshot } from '../../../core/src/messaging/failure-alerts.js';

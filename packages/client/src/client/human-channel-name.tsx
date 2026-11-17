@@ -1,10 +1,7 @@
+import { Button } from './ds/button.js';
 import { Menu } from './appearance-primitives.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
-import {
-  Button,
-  IconTrashOutlineRegular,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconTrashOutlineRegular, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { ChannelSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -129,7 +126,13 @@ export function ChannelHeaderMenu({
   const items: MenuEntry[] = [
     ...(primaryAction === undefined
       ? []
-      : [{ id: 'primary', label: primaryAction.label, icon: primaryAction.icon }]),
+      : [
+          {
+            id: 'primary',
+            label: primaryAction.label,
+            icon: primaryAction.icon,
+          },
+        ]),
     ...(primaryAction === undefined || optionItems.length === 0
       ? []
       : [{ type: 'separator' as const, id: 'primary-separator' }]),
@@ -152,7 +155,11 @@ export function ChannelHeaderMenu({
         open={menuOpen}
         portal
         dense
-        anchor={anchor({ open: menuOpen, attention, toggle: () => setMenuOpen((open) => !open) })}
+        anchor={anchor({
+          open: menuOpen,
+          attention,
+          toggle: () => setMenuOpen((open) => !open),
+        })}
         items={items}
         onClose={() => setMenuOpen(false)}
         onSelect={(id) => {

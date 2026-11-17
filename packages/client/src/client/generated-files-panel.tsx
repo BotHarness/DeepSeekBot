@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import {
-  Button,
   IconPaperclipOutlineRegular,
   IconCheckOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';

@@ -7,6 +7,12 @@ const captured = vi.hoisted(() => ({
   inputs: [] as Array<Record<string, unknown>>,
 }));
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: (props: Record<string, unknown>) => {
     captured.buttons.push(props);

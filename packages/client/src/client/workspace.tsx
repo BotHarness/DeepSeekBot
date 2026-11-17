@@ -1,3 +1,4 @@
+import { SegmentedControl } from './ds/segmented.js';
 import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
 import { BugReportEntry } from './bug-report-entry.js';
@@ -17,7 +18,6 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
 import { workspaceMoveColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
 import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
-import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { LayoutMode } from './layout-mode.js';
 import { ActionButton } from './ds/action-button.js';
 import { Tooltip } from './ds/tooltip.js';
@@ -251,7 +251,11 @@ function WorkspaceRail({
   const indicator = activityIndicator(indicatorMenu.scope, attention);
   const attentionLabel = [
     ...(attention.unreadCount > 0
-      ? [t('activityList.unreadCount', { count: unreadCountLabel(attention.unreadCount) })]
+      ? [
+          t('activityList.unreadCount', {
+            count: unreadCountLabel(attention.unreadCount),
+          }),
+        ]
       : []),
     ...(attention.hasAction ? [t('activityList.action')] : []),
     ...(indicator === 'unknown' ? [t('activityIndicator.unavailable')] : []),
@@ -420,12 +424,20 @@ function WorkspaceRail({
                   label={t('workspace.layoutMode')}
                   value={layoutMode.mode}
                   options={[
-                    { value: 'simple', label: t('workspace.layoutMode.simple') },
-                    { value: 'advanced', label: t('workspace.layoutMode.advanced') },
+                    {
+                      value: 'simple',
+                      label: t('workspace.layoutMode.simple'),
+                    },
+                    {
+                      value: 'advanced',
+                      label: t('workspace.layoutMode.advanced'),
+                    },
                   ]}
                   onChange={(mode) => {
                     layoutMode.setMode(mode as LayoutMode);
-                    options.actions.telemetryEvent('layout:mode_select', { mode });
+                    options.actions.telemetryEvent('layout:mode_select', {
+                      mode,
+                    });
                   }}
                 />
               }

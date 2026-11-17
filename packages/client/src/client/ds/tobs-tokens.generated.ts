@@ -269,6 +269,18 @@ export const TOBS_STYLES = {
     '--tobs-style-nav-selected-ink': 'var(--tobs-state-selected-ink)',
     '--tobs-style-nav-selected-icon': 'var(--tobs-state-selected-ink)',
     '--tobs-style-surface-list-backdrop': 'var(--tobs-layer-sheet)',
+    '--tobs-style-on-page-field': 'var(--tobs-layer-well)',
+    '--tobs-style-on-page-field-edge': 'var(--tobs-layer-clear)',
+    '--tobs-style-on-page-track': 'var(--tobs-layer-well)',
+    '--tobs-style-on-page-secondary': 'var(--tobs-layer-well)',
+    '--tobs-style-on-page-secondary-edge': 'var(--tobs-layer-clear)',
+    '--tobs-style-on-card-field': 'var(--tobs-layer-field)',
+    '--tobs-style-on-card-field-edge': 'var(--tobs-line-edge)',
+    '--tobs-style-on-card-track': 'var(--tobs-layer-well)',
+    '--tobs-style-on-card-secondary': 'var(--tobs-layer-well)',
+    '--tobs-style-on-card-secondary-edge': 'var(--tobs-layer-clear)',
+    '--tobs-style-switch-width': '30px',
+    '--tobs-style-switch-height': '18px',
   },
 } as const;
 

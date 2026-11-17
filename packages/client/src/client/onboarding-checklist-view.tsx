@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import { selectConversationSending, useClientStore } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
@@ -53,7 +53,10 @@ export function OnboardingLauncher({
   if (state.receipt === undefined || state.receipt.journey) return null;
   const total = CHECKLIST_ITEMS.length;
   const done = checklistDone(state.evidence);
-  const label = t('onboarding.launcher.progress', { done: String(done), total: String(total) });
+  const label = t('onboarding.launcher.progress', {
+    done: String(done),
+    total: String(total),
+  });
   return (
     <span
       className="bh-onboarding-launcher"

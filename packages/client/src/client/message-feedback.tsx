@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { FormDialog } from './ds/form-dialog.js';
 import { NumberStepper } from './ds/number-stepper.js';
 import { TextAreaField } from './ds/field.js';
@@ -45,8 +45,18 @@ type Preview = {
   uploadEvidence?: string;
 };
 const styles = stylex.create({
-  body: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
-  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x3,
+  },
   choices: {
     display: 'flex',
     flexDirection: 'column',
@@ -55,7 +65,11 @@ const styles = stylex.create({
     borderWidth: 0,
     margin: 0,
   },
-  note: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  note: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   content: {
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
@@ -327,7 +341,10 @@ export function MessageFeedbackDialog({
                     type="checkbox"
                     checked={scope[category]}
                     onChange={(event) => {
-                      setScope((current) => ({ ...current, [category]: event.target.checked }));
+                      setScope((current) => ({
+                        ...current,
+                        [category]: event.target.checked,
+                      }));
                       setDirty(true);
                     }}
                   />

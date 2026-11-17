@@ -2,12 +2,20 @@ import { useId, type ReactElement, type ReactNode, type Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { style } from './tobs.stylex.js';
+import { InfoTip } from './info-tip.js';
+import { surfaceStyles } from './surface.js';
 import { border, color, space, text } from './tokens.stylex.js';
 
 const NARROW = '@media (max-width: 648px)';
 const COMPACT = '@container bh-settings (max-width: 480px)';
 
 const styles = stylex.create({
+  titleLine: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x2,
+    minWidth: 0,
+  },
   rows: {
     display: 'flex',
     flexDirection: 'column',
@@ -24,10 +32,19 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: style.listGap,
     minWidth: 0,
-    paddingInline: { default: style.listGroupPaddingInline, ':has(> section)': 0 },
-    paddingBlock: { default: style.listGroupPaddingBlock, ':has(> section)': 0 },
+    paddingInline: {
+      default: style.listGroupPaddingInline,
+      ':has(> section)': 0,
+    },
+    paddingBlock: {
+      default: style.listGroupPaddingBlock,
+      ':has(> section)': 0,
+    },
     borderRadius: { default: style.listGroupRadius, ':has(> section)': 0 },
-    backgroundColor: { default: style.listGroupFill, ':has(> section)': 'transparent' },
+    backgroundColor: {
+      default: style.listGroupFill,
+      ':has(> section)': 'transparent',
+    },
   },
   sectionHead: {
     display: 'flex',
@@ -45,7 +62,11 @@ const styles = stylex.create({
   },
   row: {
     display: 'flex',
-    alignItems: { default: 'center', [NARROW]: 'stretch', [COMPACT]: 'stretch' },
+    alignItems: {
+      default: 'center',
+      [NARROW]: 'stretch',
+      [COMPACT]: 'stretch',
+    },
     flexDirection: { default: 'row', [NARROW]: 'column', [COMPACT]: 'column' },
     gap: { default: space.x4, [NARROW]: space.x3, [COMPACT]: space.x3 },
     minWidth: 0,
@@ -57,7 +78,10 @@ const styles = stylex.create({
     backgroundColor: style.listItemFill,
     borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: { default: style.listSeparator, ':last-child': 'transparent' },
+    borderBottomColor: {
+      default: style.listSeparator,
+      ':last-child': 'transparent',
+    },
   },
   text: {
     display: 'flex',
@@ -85,7 +109,11 @@ const styles = stylex.create({
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: { default: 'flex-end', [NARROW]: 'flex-start', [COMPACT]: 'flex-start' },
+    justifyContent: {
+      default: 'flex-end',
+      [NARROW]: 'flex-start',
+      [COMPACT]: 'flex-start',
+    },
     gap: space.x3,
     flexShrink: 0,
     minWidth: 0,
@@ -108,7 +136,7 @@ export function SettingsRows({
   readonly rootRef?: Ref<HTMLDivElement> | undefined;
 }): ReactElement {
   return (
-    <div ref={rootRef} {...stylex.props(styles.rows, styles.group)}>
+    <div ref={rootRef} {...stylex.props(styles.rows, styles.group, surfaceStyles.card)}>
       {children}
     </div>
   );
@@ -141,7 +169,7 @@ export function SettingsSection({
           )}
         </div>
       )}
-      <div {...stylex.props(styles.group)}>{children}</div>
+      <div {...stylex.props(styles.group, surfaceStyles.card)}>{children}</div>
     </section>
   );
 }
@@ -149,6 +177,7 @@ export function SettingsSection({
 export interface SettingsRowProps {
   readonly title: ReactNode;
   readonly description?: ReactNode;
+  readonly info?: { readonly label: string; readonly text: string } | undefined;
   readonly control?: ReactNode;
   readonly children?: ReactNode;
   readonly rootRef?: Ref<HTMLDivElement> | undefined;
@@ -158,6 +187,7 @@ export interface SettingsRowProps {
 export function SettingsRow({
   title,
   description,
+  info,
   control,
   children,
   rootRef,
@@ -176,8 +206,11 @@ export function SettingsRow({
       {...stylex.props(styles.row)}
     >
       <div {...stylex.props(styles.text)}>
-        <div id={titleId} {...stylex.props(styles.title)}>
-          {title}
+        <div {...stylex.props(styles.titleLine)}>
+          <div id={titleId} {...stylex.props(styles.title)}>
+            {title}
+          </div>
+          {info === undefined ? null : <InfoTip label={info.label} text={info.text} />}
         </div>
         {description === undefined ? null : (
           <div id={descriptionId} {...stylex.props(styles.description)}>

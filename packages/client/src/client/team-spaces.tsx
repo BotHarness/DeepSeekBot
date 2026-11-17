@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { Field, FieldStack, TextField } from './ds/field.js';
@@ -30,13 +30,22 @@ import {
 } from './team-spaces-bridge.js';
 
 const styles = stylex.create({
-  checks: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  checks: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
 });
 
 type Load =
   | { state: 'loading' }
   | { state: 'failed' }
-  | { state: 'ready'; spaces: readonly TeamSpace[]; directory?: AudienceDirectory };
+  | {
+      state: 'ready';
+      spaces: readonly TeamSpace[];
+      directory?: AudienceDirectory;
+    };
 
 export function SpacesSection({
   call,
@@ -64,7 +73,11 @@ export function SpacesSection({
     ])
       .then(([spaces, directory]) => {
         if (!controller.signal.aborted)
-          setLoad({ state: 'ready', spaces, ...(directory === undefined ? {} : { directory }) });
+          setLoad({
+            state: 'ready',
+            spaces,
+            ...(directory === undefined ? {} : { directory }),
+          });
       })
       .catch(() => {
         if (!controller.signal.aborted) setLoad({ state: 'failed' });
@@ -111,7 +124,9 @@ export function SpacesSection({
                   item.canManage ? (
                     <Button
                       variant="outline"
-                      aria-label={t('team.spaces.editNamed', { name: item.name })}
+                      aria-label={t('team.spaces.editNamed', {
+                        name: item.name,
+                      })}
                       onClick={() => setEditing(item)}
                     >
                       {t('team.spaces.edit')}

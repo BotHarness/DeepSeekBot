@@ -1,9 +1,10 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import {
   relationshipListSchema,
   relationshipReplySchema,
 } from '../../../core/src/devices/relationship-contract.js';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 import { keyBytes } from '@botharness/host-client/encrypted-carrier';
 import { parsePairingLink } from '@botharness/host-client/pairing';
@@ -145,7 +146,12 @@ export function RelationshipSettings({
     try {
       if (action === 'disconnect' && !(await hostSettingsDrafts.prepare(item.peer.id))) return;
       await relationshipRequest(
-        { action, id: item.id, confirmedKey: item.peer.publicKey, confirm: true },
+        {
+          action,
+          id: item.id,
+          confirmedKey: item.peer.publicKey,
+          confirm: true,
+        },
         abort.current?.signal,
       );
       if (action === 'approve') approved.current = item.id;
@@ -331,7 +337,9 @@ export function RelationshipSettings({
       {routeTarget ? (
         <FormDialog
           title={t('relationships.recoverRoute')}
-          description={t('relationships.routeHint', { name: routeTarget.peer.name })}
+          description={t('relationships.routeHint', {
+            name: routeTarget.peer.name,
+          })}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           submitLabel={t('relationships.verifyRoute')}
           submitDisabled={!routeLink.trim()}
@@ -373,7 +381,9 @@ export function RelationshipSettings({
       {enrolling ? (
         <FormDialog
           title={t('relationships.useClient')}
-          description={t('relationships.clientHint', { name: enrolling.peer.name })}
+          description={t('relationships.clientHint', {
+            name: enrolling.peer.name,
+          })}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           submitLabel={t('relationships.open')}
           submitDisabled={!clientName.trim()}

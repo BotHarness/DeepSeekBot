@@ -3,6 +3,12 @@ import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'r
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/switch.js', async () => ({
+  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Button: ({

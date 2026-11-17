@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { TextField } from './ds/field.js';
@@ -45,7 +45,11 @@ const styles = stylex.create({
     backgroundColor: color.well,
     minWidth: 0,
   },
-  meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  meta: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   body: {
     color: color.fg,
     fontSize: text.bodySize,
@@ -53,7 +57,12 @@ const styles = stylex.create({
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
-  group: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
   title: {
     margin: 0,
     color: color.muted,
@@ -68,7 +77,10 @@ function time(at: string): string {
   const language = typeof document === 'undefined' ? undefined : document.documentElement.lang;
   return Number.isNaN(date.getTime())
     ? at
-    : date.toLocaleString(language || undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    : date.toLocaleString(language || undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
 }
 
 export function AuditLogSection({
@@ -145,7 +157,10 @@ export function AuditLogSection({
                   description={
                     row.reason === undefined
                       ? time(row.at)
-                      : t('team.audit.entryReason', { at: time(row.at), reason: row.reason })
+                      : t('team.audit.entryReason', {
+                          at: time(row.at),
+                          reason: row.reason,
+                        })
                   }
                 />
               </div>
@@ -274,7 +289,9 @@ function PrivateContentDialog({
     return (
       <FormDialog
         title={t('team.private.confirmTitle', { name: step.object.name })}
-        description={t('team.private.confirmBody', { name: owners(step.object) })}
+        description={t('team.private.confirmBody', {
+          name: owners(step.object),
+        })}
         labels={{ close: t('common.close'), cancel: t('common.cancel') }}
         submitLabel={t('team.private.view')}
         busy={busy}
@@ -408,7 +425,9 @@ function PrivateContentDialog({
                 control={
                   <Button
                     variant="outline"
-                    aria-label={t('team.private.viewNamed', { name: object.name })}
+                    aria-label={t('team.private.viewNamed', {
+                      name: object.name,
+                    })}
                     onClick={() => {
                       setReason('');
                       setStep({ kind: 'confirm', object });

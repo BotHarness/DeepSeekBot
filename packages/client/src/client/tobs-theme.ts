@@ -1,4 +1,9 @@
-import { BUBBLE_SURFACES, readable } from '@botharness/host-client/shared/bot-name-color';
+import {
+  BUBBLE_SURFACES,
+  contrastRatio,
+  parseColor,
+  readable,
+} from '@botharness/host-client/shared/bot-name-color';
 import type { AppearanceMode, AppearancePreset } from './appearance.js';
 import {
   TOBS_ACCENT_ROLES,
@@ -34,6 +39,7 @@ export function tobsTokens(
   );
   Object.assign(tokens, {
     '--tobs-accent-solid': primary,
+    '--tobs-accent-on-solid': onSolid(primary, t['--tobs-accent-on-solid']),
     '--tobs-accent-solid-hover': `color-mix(in srgb, ${primary} 86%, ${shade})`,
     '--tobs-accent-container': container,
     '--tobs-accent-on-container': ink,
@@ -47,4 +53,15 @@ export function tobsTokens(
     '--tobs-status-info-ink': ink,
   });
   return tokens;
+}
+
+const LIGHT_ON = '#ffffff';
+const DARK_ON = '#0d1220';
+
+function onSolid(primary: string, fallback: string): string {
+  const fill = parseColor(primary)?.rgb;
+  const light = parseColor(LIGHT_ON)?.rgb;
+  const dark = parseColor(DARK_ON)?.rgb;
+  if (fill === undefined || light === undefined || dark === undefined) return fallback;
+  return contrastRatio(fill, light) >= contrastRatio(fill, dark) ? LIGHT_ON : DARK_ON;
 }

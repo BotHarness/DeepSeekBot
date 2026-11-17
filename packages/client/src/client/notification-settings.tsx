@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { useSyncExternalStore, type ReactElement } from 'react';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { DesktopNotificationPrefs } from './desktop-notifications.js';
 import { SettingsRow } from './ds/settings-row.js';

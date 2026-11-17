@@ -1,7 +1,8 @@
+import { Button } from './button.js';
 import type { ActionSymbol } from '../../shared/action-presentation.js';
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
 import { layer, state, style } from './tobs.stylex.js';
 import { actionColor, color, space, text } from './tokens.stylex.js';
@@ -39,10 +40,23 @@ const styles = stylex.create({
   },
   selected: { opacity: { default: 1, ':disabled': 1 } },
   primary: { backgroundColor: color.accent, color: color.onAccent },
-  danger: { backgroundColor: actionColor.danger, color: actionColor.dangerLabel },
-  icon: { display: 'inline-flex', flexShrink: 0, width: space.x5, height: space.x5 },
+  danger: {
+    backgroundColor: actionColor.danger,
+    color: actionColor.dangerLabel,
+  },
+  icon: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    width: space.x5,
+    height: space.x5,
+  },
   label: { minWidth: 0 },
-  group: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 },
+  group: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x3,
+  },
   stack: { flexDirection: 'column', alignItems: 'stretch' },
 });
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'style' | 'children'> & {

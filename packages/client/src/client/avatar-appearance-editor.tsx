@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useMemo, useState, type ReactElement } from 'react';
 import {
-  Button,
   IconSaveOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -177,7 +177,10 @@ const V2_ONLY = (part: string, value: string | number) =>
 
 function withPart(recipe: AvatarRecipe, key: string, value: string | number): AvatarRecipe {
   if (recipe.family !== 'illustrated')
-    return { ...(recipe as unknown as Fields), [key]: value } as unknown as AvatarRecipe;
+    return {
+      ...(recipe as unknown as Fields),
+      [key]: value,
+    } as unknown as AvatarRecipe;
   if (key === 'species')
     return withAvatarSpecies(recipe, value as Parameters<typeof withAvatarSpecies>[1]);
   if (V4_KEYS.has(key)) {
@@ -205,7 +208,9 @@ function withPart(recipe: AvatarRecipe, key: string, value: string | number): Av
   return {
     ...split,
     ...(split.assetVersion === 2
-      ? { rightSideHair: split.sideHair as NonNullable<IllustratedAvatarRecipe['rightSideHair']> }
+      ? {
+          rightSideHair: split.sideHair as NonNullable<IllustratedAvatarRecipe['rightSideHair']>,
+        }
       : {}),
     spacing: next.spacing ?? 0,
     height: next.height ?? 0,
@@ -277,7 +282,12 @@ export interface PartLibraryActions {
     | {
         added: PartLibraryEntry[];
         refused: number;
-        image?: { width: number; height: number; colors: number; slots: string[] };
+        image?: {
+          width: number;
+          height: number;
+          colors: number;
+          slots: string[];
+        };
       }
     | { error: string }
   >;
@@ -840,7 +850,12 @@ export function AvatarAppearanceEditor({
             name={bot.displayName}
             src={bot.avatar}
             appearance={
-              recipe ? { recipe, revision: bot.appearance?.revision ?? '0'.repeat(64) } : undefined
+              recipe
+                ? {
+                    recipe,
+                    revision: bot.appearance?.revision ?? '0'.repeat(64),
+                  }
+                : undefined
             }
             avatarSeed={bot.avatarSeed}
             size={160}

@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { TextField } from './ds/field.js';
@@ -33,7 +33,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     fontWeight: text.strong,
   },
-  group: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
   danger: { color: color.danger },
   secret: {
     display: 'flex',
@@ -49,7 +54,12 @@ const styles = stylex.create({
     overflowWrap: 'anywhere',
     userSelect: 'all',
   },
-  list: { margin: 0, paddingInlineStart: space.x5, color: color.fg, fontSize: text.bodySize },
+  list: {
+    margin: 0,
+    paddingInlineStart: space.x5,
+    color: color.fg,
+    fontSize: text.bodySize,
+  },
 });
 
 type Action =
@@ -304,7 +314,10 @@ function TransferDialog({
           <Select
             label={t('team.offboard.transferTo')}
             value={target}
-            options={targets.map((row) => ({ value: row.humanId, label: row.displayName }))}
+            options={targets.map((row) => ({
+              value: row.humanId,
+              label: row.displayName,
+            }))}
             onChange={setTarget}
             disabled={busy}
           />

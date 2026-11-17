@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { PluginUpdate } from '../../../core/src/release/plugins.js';
@@ -41,7 +41,10 @@ function statusText(plugin: PluginUpdate, t: BotHarnessTranslate): string {
     case 'current':
       return t('plugins.status.current', { current: plugin.current });
     case 'available':
-      return t('plugins.status.available', { current: plugin.current, latest: plugin.latest });
+      return t('plugins.status.available', {
+        current: plugin.current,
+        latest: plugin.latest,
+      });
     case 'blocked':
       return `${t('plugins.status.blocked', { current: plugin.current, latest: plugin.latest })} ${compatibilityText(plugin.compatibility, t)}`;
     case 'restart-required':
@@ -109,7 +112,10 @@ function PluginRow({
   return (
     <SettingsRow
       title={pluginTitle(plugin.name, t)}
-      data={{ 'data-plugin-update': plugin.name, 'data-plugin-status': plugin.status }}
+      data={{
+        'data-plugin-update': plugin.name,
+        'data-plugin-status': plugin.status,
+      }}
       description={
         <span role="status" aria-live="polite">
           {reloading

@@ -8,6 +8,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { PersonaBotFacepileItem } from '../src/client/avatar.js';
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({
     children,

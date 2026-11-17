@@ -1,8 +1,8 @@
+import { Button } from './ds/button.js';
 import { BotCreateSteps } from './bot-create-source.js';
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
-  Button,
   Checkbox,
   IconChevronDownOutlineRegular,
   IconChevronRightOutlineRegular,
@@ -99,7 +99,10 @@ const styles = stylex.create({
     backgroundColor: 'transparent',
     color: color.subtle,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
   },
   spacer: { cursor: 'default' },
   label: {

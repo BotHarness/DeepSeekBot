@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { QuestionNotifications } from './question-notifications.js';
 import { useState, type ReactElement } from 'react';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ReachablePostDialog } from './reachable-post.js';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 
@@ -32,7 +33,14 @@ function IdentitiesForBot({
   const composerIdentity = useClientStore((state) => state.composerIdentity);
   const bot = bots.find((b) => b.slug === slug);
   const syncChannels = [
-    ...(dm ? [{ id: dm.id, name: t('bridge.dmTarget', { name: bot?.displayName ?? slug }) }] : []),
+    ...(dm
+      ? [
+          {
+            id: dm.id,
+            name: t('bridge.dmTarget', { name: bot?.displayName ?? slug }),
+          },
+        ]
+      : []),
     ...(snapshot?.channelTargets ?? []),
   ];
   const [postIdentity, setPostIdentity] = useState<MessagingIdentityView>();
@@ -130,7 +138,12 @@ function IdentitiesForBot({
             await actions.channelBridge(
               channelId,
               route
-                ? { ...input, kind: 'update', routeId: route.id, expectedRevision: route.revision }
+                ? {
+                    ...input,
+                    kind: 'update',
+                    routeId: route.id,
+                    expectedRevision: route.revision,
+                  }
                 : { ...input, kind: 'add' },
             );
           } catch (error) {

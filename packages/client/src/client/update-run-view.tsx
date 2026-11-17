@@ -1,7 +1,6 @@
+import { Button } from './ds/button.js';
 import { useLayoutEffect, useRef, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { UpdateRun } from '../../../core/src/release/update-runs.js';
 import { StepProgress } from './ds/step-progress.js';
@@ -50,7 +49,12 @@ const styles = stylex.create({
   status: { margin: 0, color: color.muted, overflowWrap: 'anywhere' },
   failed: { color: color.danger },
   done: { color: color.success },
-  note: { margin: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  note: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   logLabel: {
     margin: 0,
     color: color.muted,

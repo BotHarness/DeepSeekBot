@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import { useMessageHost } from './message-host.js';
 import { useRef, useState, type ReactElement } from 'react';
 import {
-  Button,
   IconRefreshOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
