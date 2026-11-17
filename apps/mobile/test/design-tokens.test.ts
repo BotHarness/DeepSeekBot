@@ -53,7 +53,9 @@ describe('mobile design tokens', () => {
   it('keep every Web colour role', () => {
     expect(Object.keys(palette.light).sort()).toEqual(
       [
-        ...Object.keys(webConsts('color')).filter((role) => role !== 'navSelected'),
+        ...Object.keys(webConsts('color')).filter(
+          (role) => role !== 'navSelected' && role !== 'navSelectedInk',
+        ),
         ...DSH_LAYER_ROLES,
       ].sort(),
     );

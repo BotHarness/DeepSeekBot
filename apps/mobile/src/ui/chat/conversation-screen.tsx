@@ -56,7 +56,10 @@ import {
 import { ChatBackground } from './chat-background';
 import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { visibleDmActivity } from '../../host/dm-activity';
-import { latestTurnMessageId } from '@botharness/host-client/session-failure';
+import {
+  collapseRepeatedFailures,
+  latestTurnMessageId,
+} from '@botharness/host-client/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
@@ -698,8 +701,16 @@ function ChatConversation({
 
   const visible = useMemo(() => {
     const shown = snapshot.messages.filter(shownInChat);
-    return dm ? visibleDmActivity(shown, hiddenActivity) : shown;
-  }, [snapshot.messages, dm, hiddenActivity]);
+    return collapseRepeatedFailures(
+      dm ? visibleDmActivity(shown, hiddenActivity) : shown,
+      (message) => ({ bot: message.bot, failure: message.sessionFailure }),
+      (message, repeated) => ({
+        ...message,
+        sessionFailure: { ...message.sessionFailure!, repeated },
+      }),
+      (message) => message.id === focus,
+    );
+  }, [snapshot.messages, dm, hiddenActivity, focus]);
   const latestMessageId = latestTurnMessageId(snapshot.messages);
   const chronological = useMemo(
     () =>

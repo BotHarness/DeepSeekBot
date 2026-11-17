@@ -45,9 +45,6 @@ export const CSS =
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `
-.bh-settings-search-input input { color: ${color.fg}; }
-.bh-settings-search-input { width: 100%; box-sizing: border-box; color: ${color.fg}; }
-.bh-settings-search-input input::placeholder { color: ${color.muted}; }
 .bh-settings-search-results { display: flex; flex-direction: column; gap: ${space.x2}; max-height: 45vh; overflow-y: auto; }
 .bh-settings-search-results button { display: flex; flex-direction: column; gap: ${space.x2}; padding: ${space.x3}; text-align: start; border: 0; border-radius: ${radius.xs}; background: transparent; color: ${color.fg}; cursor: pointer; font: inherit; }
 .bh-settings-search-results button:hover { background: ${color.hover}; }
@@ -3783,7 +3780,7 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   padding: ${space.x3} ${space.x4};
 }
 .bh-bubble {
-  --bh-bubble-radius: ${radius.lg};
+  --bh-bubble-radius: var(--tobs-style-radius-bubble);
   border-radius: var(--bh-bubble-radius);
 }
 .bh-bubble[data-group-position='solo'],

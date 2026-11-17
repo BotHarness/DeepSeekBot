@@ -1,5 +1,5 @@
 {
-  "$description": "Style A, quiet: dense flat lists, neutral selection, small radii. Every value aliases a shared scale or colour role.",
+  "$description": "Style A, quiet: one grouped card per section on the raised layer with inset hairlines, neutral selection, small radii. Every value aliases a shared scale or colour role.",
   "web": {
     "style": {
       "text": {
@@ -45,7 +45,7 @@
         },
         "list": {
           "$type": "dimension",
-          "$value": "{web.size.row-medium}"
+          "$value": "{web.size.row-comfortable}"
         }
       },
       "icon": {
@@ -68,11 +68,45 @@
         },
         "group-radius": {
           "$type": "dimension",
-          "$value": "{core.radius.0}"
+          "$value": "{core.radius.10}"
+        },
+        "group-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.raised}"
         },
         "item-radius": {
           "$type": "dimension",
-          "$value": "{core.radius.6}"
+          "$value": "{core.radius.0}"
+        },
+        "item-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "item-padding": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "separator": {
+          "$type": "color",
+          "$value": "{web.color.line.divider}"
+        },
+        "item-padding-block": {
+          "$type": "dimension",
+          "$value": {
+            "value": 6,
+            "unit": "px"
+          }
+        },
+        "group-padding-inline": {
+          "$type": "dimension",
+          "$value": "{web.space.4}"
+        },
+        "group-padding-block": {
+          "$type": "dimension",
+          "$value": "{web.space.2}"
         }
       },
       "radius": {
@@ -115,6 +149,14 @@
         "bubble": {
           "$type": "dimension",
           "$value": "{core.radius.14}"
+        },
+        "card": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        },
+        "sheet": {
+          "$type": "dimension",
+          "$value": "{core.radius.14}"
         }
       },
       "chip": {
@@ -131,6 +173,16 @@
         "selected-ink": {
           "$type": "color",
           "$value": "{web.color.state.selected-ink}"
+        },
+        "selected-icon": {
+          "$type": "color",
+          "$value": "{web.color.state.selected-ink}"
+        }
+      },
+      "surface": {
+        "list-backdrop": {
+          "$type": "color",
+          "$value": "{web.color.layer.sheet}"
         }
       }
     }

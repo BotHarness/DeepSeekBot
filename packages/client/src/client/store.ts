@@ -208,6 +208,7 @@ export interface SessionFailureCard {
   context?: string;
   progress?: import('@botharness/host-client/shared/turn-continuation').SessionFailureProgress;
   autoContinue?: import('@botharness/host-client/shared/turn-continuation').SessionFailureAutoContinue;
+  repeated?: number;
 }
 
 export interface ChannelReaction {

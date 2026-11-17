@@ -17,7 +17,7 @@ ADR-0348 gave Tobs its own tokens for one look, direction A. The owner wants thr
 - UI text size: 13/20 for A and B, 14/20 for C.
 - Control height: 28 for A and B, 40 for C. The 24px minimum stays.
 - Row heights for navigation and lists.
-- List model: flat (A), one grouped card with hairline separators (B), separate tiles with 2px gaps (C).
+- List model: one grouped card per section with inset hairline separators, on the raised layer with no edge (A) or on an elevated layer with a hairline edge over a grey backdrop (B); separate tiles with 2px gaps (C). Rows use UI text, not title text, as in the prototypes.
 - Radius by role (`control`, `field`, `container`, `overlay`, `list-group`, `list-item`, `nav-selected`, `composer`, `bubble`) over the primitive scale 0/4/6/10/12/14/16/20/28/full.
 - Selected-navigation fill and ink: neutral fill (A), accent fill with white ink (B), tonal accent container (C).
 - Icon size and slot, segmented control, switch and chip shapes.
@@ -33,7 +33,7 @@ Colour roles, spacing, font families, motion, breakpoints and z-order are shared
 
 **Interaction rules.**
 
-- Selection never shifts layout. It changes only colour: the fill, plus the text and icon ink (secondary to primary, icon to accent). Selected fills reach at least 1.5:1 against their surface. No border or weight change marks a selection.
+- Selection never shifts layout. A selected item takes the selected fill, primary ink for text and icon, and medium weight, as in the prototypes (revised 2026-11-17 after review: the earlier accent icon, regular weight and 1.5:1 fill read worse than the prototype). The fill stays at least 1.1:1 against its surface. The label fills the row and truncates, so the weight change does not move the trailing content. No border marks a selection.
 - Surfaces are separated by gaps that show the canvas, not by lines. Borders are kept for inputs, focus rings and the row separators inside style B's grouped cards. Lint flags new borders elsewhere.
 - Focus rings are 2px in every style: drawn outside controls and inset on list rows, with an `edge.focus-offset` token.
 - Icon stroke is defined in rendered pixels, starting at 1.5px.

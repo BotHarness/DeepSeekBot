@@ -12,8 +12,8 @@ export const space = stylex.defineConsts({
 export const text = stylex.defineConsts({
   metaSize: '12px',
   metaLine: '16px',
-  bodySize: '13px',
-  bodyLine: '20px',
+  bodySize: 'var(--tobs-style-text-ui-size)',
+  bodyLine: 'var(--tobs-style-text-ui-line)',
   titleSize: '15px',
   titleLine: '24px',
   regular: '400',
@@ -22,10 +22,10 @@ export const text = stylex.defineConsts({
 
 export const radius = stylex.defineConsts({
   xs: '4px',
-  sm: '6px',
-  md: '10px',
-  lg: '14px',
-  panel: '20px',
+  sm: 'var(--tobs-style-radius-control)',
+  md: 'var(--tobs-style-radius-container)',
+  lg: 'var(--tobs-style-radius-card)',
+  panel: 'var(--tobs-style-radius-sheet)',
   round: '50%',
 });
 
@@ -36,8 +36,8 @@ export const border = stylex.defineConsts({
 
 export const size = stylex.defineConsts({
   inlineIcon: '26px',
-  icon: '28px',
-  row: '32px',
+  icon: 'var(--tobs-style-control-height)',
+  row: 'var(--tobs-style-control-height-large)',
   nav: '40px',
 });
 
@@ -64,7 +64,8 @@ export const color = stylex.defineConsts({
   borderStrong: 'var(--tobs-line-strong)',
   hover: 'var(--tobs-state-hover)',
   selected: 'var(--tobs-state-pressed)',
-  navSelected: 'var(--tobs-state-selected)',
+  navSelected: 'var(--tobs-style-nav-selected-fill)',
+  navSelectedInk: 'var(--tobs-style-nav-selected-ink)',
   accent: 'var(--tobs-accent-solid)',
   accentText: 'var(--tobs-accent-ink)',
   onAccent: 'var(--tobs-accent-on-solid)',

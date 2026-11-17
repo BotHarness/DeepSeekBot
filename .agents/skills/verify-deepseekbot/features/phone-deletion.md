@@ -2,6 +2,18 @@
 
 The Expo app exposes existing Host Bot deletion, Group Disband and Channel-section removal from long-press menus. ADR-0274 governs Group Disband; ADR-0130 governs the other deletion paths. The phone does not own a separate lifecycle.
 
+## Sources
+
+- `apps/mobile/src/host/{deletion,deletion-preview}.ts`
+- `apps/mobile/src/ui/chat/deletion-sheet.tsx`
+- `packages/core/src/bots/deletion.ts`
+
+## Terms
+
+- PersonaBot Deletion
+- Group Disband
+- Channel section
+
 ## Sub-features
 
 - `bot-menu`: ordinary Bot DMs expose Delete Bot; Tob does not. iOS retains Link.Preview. Existing pin, mute/read and section-placement actions remain available.

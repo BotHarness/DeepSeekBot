@@ -1,5 +1,14 @@
 # Native mobile message composer
 
+## Sources
+
+- `apps/mobile/src/ui/chat/{composer,composer-*,native-composer-*}.{ts,tsx}`
+
+## Terms
+
+- Composer
+- Conversation screen
+
 ## Sub-features
 
 Integrated iOS attachment control and taller island, compact and multiline drafts, native attachment menu, dictation controls, expanded editing, local draft save failure and retry, system text and keyboard clearance. Android retains its separate attachment button.
