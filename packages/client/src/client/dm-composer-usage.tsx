@@ -51,11 +51,16 @@ export function DmComposerUsagePopover({
         const rect = trigger.current?.getBoundingClientRect();
         if (rect === undefined) return;
         const width = Math.min(360, window.innerWidth - 32);
-        setPosition({
-          width,
-          left: Math.max(16, Math.min(rect.right - width, window.innerWidth - width - 16)),
-          bottom: Math.max(8, window.innerHeight - rect.top + 8),
-        });
+        const left = Math.max(16, Math.min(rect.right - width, window.innerWidth - width - 16));
+        setPosition(
+          rect.top < window.innerHeight / 2
+            ? {
+                width,
+                left: Math.max(16, Math.min(rect.left, window.innerWidth - width - 16)),
+                top: rect.bottom + 8,
+              }
+            : { width, left, bottom: Math.max(8, window.innerHeight - rect.top + 8) },
+        );
       };
       place();
       node.focus();

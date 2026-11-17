@@ -86,6 +86,7 @@ import {
   subscribeBotModeSidebarViewport,
 } from './bot-mode-sidebar-viewport.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ComposerContextPlacementContext } from './composer-context-placement.js';
 import {
   clampChannelSidebarWidth,
   channelSidebarPrefs,
@@ -136,6 +137,7 @@ const styles = stylex.create({
     lineHeight: text.titleLine,
   },
   breadcrumbIcon: { display: 'inline-flex', alignItems: 'center', flexShrink: 0 },
+  info: { display: 'inline-flex', alignItems: 'center', minWidth: 0, marginInlineStart: space.x2 },
   identity: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
   identityButton: {
     gap: space.x3,
@@ -195,6 +197,7 @@ export interface ChannelHeaderView {
   status?: ReactNode;
   icon?: ReactNode;
   profile?: { label: string; open(): void; expanded?: boolean | undefined } | undefined;
+  info?: ReactNode;
   actions: ReactNode;
 }
 
@@ -347,6 +350,18 @@ function ChannelBreadcrumb(): ReactElement | null {
         </button>
       )}
       {header.status}
+      {header.info === undefined ? null : (
+        <span
+          data-channel-header-info=""
+          {...stylex.props(styles.info)}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <ComposerContextPlacementContext.Provider value="header">
+            {header.info}
+          </ComposerContextPlacementContext.Provider>
+        </span>
+      )}
     </span>
   );
 }

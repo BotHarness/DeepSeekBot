@@ -2227,12 +2227,14 @@ function ConversationView({
       run: sidebar.toggle,
     },
   ];
+  const contextInHeader = docked && workspaceEnabled && channel !== undefined;
   const composerContext =
     baseComposerContext === undefined
       ? undefined
       : {
           ...baseComposerContext,
           shortcuts: [...baseComposerContext.shortcuts, ...conversationShortcuts],
+          ...(contextInHeader ? { content: undefined } : {}),
         };
 
   const loadOlderAtTop = (retry = false): void => {
@@ -3889,6 +3891,9 @@ function ConversationView({
                   ? {
                       title,
                       ...(dmWorking ? { label: <WorkingSummary rows={workingRows} t={t} /> } : {}),
+                      ...(baseComposerContext === undefined
+                        ? {}
+                        : { info: baseComposerContext.content }),
                       status: (
                         <ConversationSessionStop
                           channel={channel}

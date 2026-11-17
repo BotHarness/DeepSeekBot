@@ -10,6 +10,7 @@ import {
   defaultFooterPreferences,
   saveFooterPreferences,
 } from '../src/client/composer-footer-preferences.js';
+import { ComposerContextPlacementContext } from '../src/client/composer-context-placement.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
@@ -172,4 +173,45 @@ it('collapses even when all items are hidden from keyboard arrangement mode', as
   await act(async () => handle.current!.open());
   await act(async () => host.querySelector<HTMLInputElement>('[role=switch]')!.click());
   expect(host.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(true);
+});
+
+it('joins the items into one header chip that keeps their actions and drops the layout editor', async () => {
+  saveFooterPreferences({
+    ...defaultFooterPreferences(),
+    left: ['model', 'workspace'],
+    right: ['usage'],
+  });
+  await act(async () =>
+    root.render(
+      h(
+        ComposerContextPlacementContext.Provider,
+        { value: 'header' },
+        h(ComposerContextBar, {
+          label: 'footer',
+          t,
+          settingsRef: handle,
+          trailing: h('button', { 'data-composer-chip': 'usage' }, 'usage'),
+          children: [
+            h('button', { key: 'w', 'data-composer-chip': 'workspace' }, 'workspace'),
+            h('button', { key: 'm', 'data-composer-chip': 'model', onClick: clicked }, 'model'),
+          ],
+        }),
+      ),
+    ),
+  );
+  const chip = host.querySelector<HTMLElement>('[data-composer-context-placement="header"]')!;
+  expect(
+    [...chip.querySelectorAll('[data-footer-item]')].map((item) =>
+      item.getAttribute('data-footer-item'),
+    ),
+  ).toEqual(['model', 'workspace', 'usage']);
+  expect(host.querySelectorAll('[data-composer-context]')).toHaveLength(1);
+  await act(async () =>
+    chip.querySelector<HTMLButtonElement>('[data-composer-chip="model"]')!.click(),
+  );
+  expect(clicked).toHaveBeenCalledOnce();
+  await act(async () => handle.current!.open());
+  expect(
+    [...host.querySelectorAll('button')].some((b) => b.textContent === t('footer.layout')),
+  ).toBe(false);
 });
