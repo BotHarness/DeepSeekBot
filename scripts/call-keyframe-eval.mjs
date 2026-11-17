@@ -7,6 +7,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs, promisify } from 'node:util';
 
+import { mulberry32 } from './seeded-random.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 
@@ -38,17 +40,6 @@ Options:
 Exit status is 1 when a selected case fails.`;
 
 const SAMPLE_MS = 500;
-
-export function mulberry32(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const FONT = 'DejaVu Sans, Helvetica, Arial, sans-serif';
 const MONO = 'DejaVu Sans Mono, Menlo, Consolas, monospace';

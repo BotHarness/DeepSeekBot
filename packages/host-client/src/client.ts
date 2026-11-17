@@ -135,6 +135,7 @@ export interface RosterArrangement {
 export interface RosterView {
   bots: RosterBot[];
   channels: RosterChannel[];
+  people?: RosterChannel[];
   activityChannels?: ChannelListItem[];
   arrangement?: RosterArrangement;
   sorting?: RosterSorting;
@@ -472,10 +473,14 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const shareRoster = (next: RosterView, previous: RosterView | undefined): RosterView => {
     const bots = next.bots.map((bot) => share(`bot:${bot.slug}`, bot));
     const channels = next.channels.map((channel) => share(`channel:${channel.id}`, channel));
+    const people = next.people?.map((person) => share(`person:${person.id}`, person));
     const roster: RosterView = {
       ...next,
       bots: sameList(bots, previous?.bots) ? previous!.bots : bots,
       channels: sameList(channels, previous?.channels) ? previous!.channels : channels,
+      ...(people === undefined
+        ? {}
+        : { people: sameList(people, previous?.people) ? previous!.people! : people }),
       ...(next.activityChannels === undefined
         ? {}
         : {
@@ -536,9 +541,18 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const view = (list: PersonaBotSummary[]): RosterView => {
     const dms = new Map<string, ChannelListItem>();
     const groups: RosterChannel[] = [];
+    const people: RosterChannel[] = [];
     for (const channel of channels.values()) {
       if (channel.deletedAt !== undefined) continue;
       if (channel.type === 'dm' && channel.botSlug !== undefined) dms.set(channel.botSlug, channel);
+      else if (channel.type === 'dm' && channel.humanParticipants?.length === 2)
+        people.push({
+          id: channel.id,
+          name: channel.name,
+          memberCount: channel.humanParticipants.length,
+          members: channel.members,
+          ...previewOf(channel),
+        });
       else if (channel.type === 'group')
         groups.push({
           id: channel.id,
@@ -599,6 +613,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
         }),
       channels: groups,
+      ...(people.length === 0 ? {} : { people }),
       activityChannels: [...channels.values()].filter((channel) => channel.deletedAt === undefined),
       ...(arrangement === undefined ? {} : { arrangement }),
       ...(sorting === undefined ? {} : { sorting }),

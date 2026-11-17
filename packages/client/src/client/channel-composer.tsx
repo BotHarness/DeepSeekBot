@@ -828,6 +828,31 @@ export function ChannelComposer({
     },
     [scheduleSync, value],
   );
+  const shellMount = useMountedResource<HTMLDivElement>((shell) => {
+    const pane = shell.closest<HTMLElement>('.bh-chat-pane');
+    if (pane === null || typeof ResizeObserver === 'undefined') return;
+    const timeline = pane.querySelector<HTMLElement>('.bh-chat-body');
+    const sync = (): void => {
+      const shellBounds = shell.getBoundingClientRect();
+      const overlay =
+        shellBounds.height === 0
+          ? 0
+          : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
+      const atLatest =
+        timeline !== null &&
+        timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
+      pane.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
+      if (atLatest) timeline.scrollTop = timeline.scrollHeight;
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(shell);
+    observer.observe(pane);
+    return () => {
+      observer.disconnect();
+      pane.style.removeProperty('--bh-composer-overlay');
+    };
+  }, []);
   const replyId = reply?.id;
   const bodyMount = useMountedResource<HTMLDivElement>(
     (body) => {
@@ -1073,7 +1098,12 @@ export function ChannelComposer({
   };
 
   return (
-    <div className="bh-composer-shell" data-bh-tour="composer" data-companion-avoid>
+    <div
+      ref={shellMount}
+      className="bh-composer-shell"
+      data-bh-tour="composer"
+      data-companion-avoid
+    >
       {skillPeek.layer}
       {dictation === undefined ? null : (
         <span className="bh-sr-only" role="status" aria-live="polite">
@@ -1268,7 +1298,12 @@ export function ChannelComposer({
         className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
         data-dictation={voice.snapshot.status}
-        style={{ '--bh-composer-body-height': `${fit.height}px` } as CSSProperties}
+        style={
+          {
+            '--bh-composer-body-height': `${fit.height}px`,
+            ...(hasFooter ? { '--bh-composer-padding': 'var(--bh-composer-footer-padding)' } : {}),
+          } as CSSProperties
+        }
       >
         {reply === undefined ? null : (
           <div className="bh-composer-reply">

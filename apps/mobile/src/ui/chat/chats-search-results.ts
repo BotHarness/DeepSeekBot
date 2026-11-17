@@ -1,4 +1,5 @@
 import type { ChatsSearchResult } from '../shell/chats-search-bar';
+import { humanInitial } from '../shell/human-avatar-initial';
 import type { MessageSearchHit } from '../../host/message-search';
 import { avatarFile } from '../../host/notification-avatars';
 import { previewText, shortTime, titleOf, type Conversation } from './conversations';
@@ -34,6 +35,12 @@ function avatarOfConversation(
   title: string,
   image: AvatarImage,
 ): Pick<ChatsSearchResult, 'initial' | 'image' | 'dimmed'> {
+  if (conversation.kind === 'channel' && conversation.person === true)
+    return {
+      initial: humanInitial(title) ?? '#',
+      image: '',
+      dimmed: false,
+    };
   if (conversation.kind === 'channel')
     return {
       initial: '#',
@@ -44,7 +51,7 @@ function avatarOfConversation(
       dimmed: false,
     };
   return {
-    initial: (Array.from(title.trim())[0] ?? '#').toLocaleUpperCase(),
+    initial: humanInitial(title) ?? '#',
     image: image(hostId, avatarFile('bot', conversation.bot.slug)) ?? '',
     dimmed: conversation.bot.paused === true,
   };

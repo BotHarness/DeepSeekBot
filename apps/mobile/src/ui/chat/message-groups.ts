@@ -59,6 +59,7 @@ export function chatRows(
       message.author !== 'system' &&
       previous.author === message.author &&
       previous.bot === message.bot &&
+      previous.person?.humanId === message.person?.humanId &&
       gap < GROUP_MS;
     if (joins && before?.kind === 'message') before.last = false;
     rows.push({ kind: 'message', key: message.id, message, first: !joins, last: true });

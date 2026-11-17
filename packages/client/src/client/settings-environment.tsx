@@ -17,6 +17,7 @@ import { RemoteNotificationSettings } from './remote-notification-settings.js';
 import { remoteHostActions, remoteHostSettings } from './remote-host-actions.js';
 import { AutoApprovalSection, PromptsSection, VoiceSection } from './bot-settings-sections.js';
 import { useMountedResource } from './mounted-resource.js';
+import { RemoteMessagingSettings } from './remote-messaging-settings.js';
 import { StorageSettings } from './storage-settings.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import { TargetName } from './target-name.js';
@@ -65,6 +66,7 @@ export const REMOTE_SETTINGS_SECTIONS = {
   hostNotifications: 'environment-notifications',
   hostApprovals: 'environment-approvals',
   hostPrompts: 'environment-prompts',
+  hostMessaging: 'environment-messaging',
   hostVoice: 'environment-voice',
   hostUsage: 'environment-usage',
   hostStorage: 'environment-storage',
@@ -80,6 +82,7 @@ export const REMOTE_SECTION_ICONS: Readonly<Record<RemoteSettingsSection, string
   [REMOTE_SETTINGS_SECTIONS.hostNotifications]: 'bell',
   [REMOTE_SETTINGS_SECTIONS.hostApprovals]: 'shield-check',
   [REMOTE_SETTINGS_SECTIONS.hostPrompts]: 'file-text',
+  [REMOTE_SETTINGS_SECTIONS.hostMessaging]: 'message-square',
   [REMOTE_SETTINGS_SECTIONS.hostVoice]: 'audio-lines',
   [REMOTE_SETTINGS_SECTIONS.hostUsage]: 'gauge',
   [REMOTE_SETTINGS_SECTIONS.hostStorage]: 'files',
@@ -100,6 +103,10 @@ export function remoteSettingsRows(
     },
     { id: REMOTE_SETTINGS_SECTIONS.hostPrompts, label: t('botSettings.section.prompts') },
     { id: REMOTE_SETTINGS_SECTIONS.hostVoice, label: t('botSettings.section.voice') },
+    {
+      id: REMOTE_SETTINGS_SECTIONS.hostMessaging,
+      label: t('botSettings.section.messaging'),
+    },
     {
       id: REMOTE_SETTINGS_SECTIONS.hostAppearance,
       label: t('environment.settings.appearance'),
@@ -251,6 +258,8 @@ function RemoteHostData({
     return <PromptsSection actions={remoteHostActions(client)} t={t} />;
   if (section === REMOTE_SETTINGS_SECTIONS.hostVoice)
     return <VoiceSection actions={remoteHostActions(client)} t={t} />;
+  if (section === REMOTE_SETTINGS_SECTIONS.hostMessaging)
+    return <RemoteMessagingSettings client={client} t={t} />;
   if (section === REMOTE_SETTINGS_SECTIONS.hostStorage)
     return (
       <StorageSettings

@@ -137,6 +137,20 @@
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
       "fix": "answer each CodeRabbit pre-merge warning: fix the root cause instead of a symptom patch, update or supersede the ADR you contradict, reuse the existing module, use the GLOSSARY.md term, and name a verification run for each touched feature (node scripts/feature-impact.mjs --base=origin/main). The checks are advisory; a finding that recurs becomes an L2 rule.",
       "check": ".coderabbit.yaml"
+    },
+    {
+      "id": "ui-monkey",
+      "layer": "L5 nightly",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "run the replay command from the failing run's JSON in nightly-evidence on a freshly launched Host, find the uncaught page error or blank shell at that step and fix its root cause. Skip a control only when it is destructive or leaves the Host.",
+      "check": ".github/workflows/health.yml"
+    },
+    {
+      "id": "perf-trend",
+      "layer": "L5 nightly",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "a metric more than 20% over its 7-night median raises a warning in the nightly summary: bisect the nights between with scripts/perf-idle-timeline.mjs (A/B protocol in the verify-deepseekbot performance guide) and fix the change that caused it.",
+      "check": "scripts/health-trend.mjs"
     }
   ]
 }

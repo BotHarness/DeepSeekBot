@@ -161,8 +161,9 @@ export interface ConversationMessage {
   id: string;
   revision?: number;
   at: string;
-  author: 'human' | 'bot' | 'system';
+  author: 'human' | 'person' | 'bot' | 'system';
   bot?: string;
+  person?: { humanId: string; name: string };
   body: string;
   mentions?: WireMention[];
   skillInvocations?: WireSkillInvocation[];
@@ -317,6 +318,7 @@ export interface ConversationOptions {
   messageId?: () => string;
   draftDelayMs?: number;
   cacheWaitMs?: number;
+  selfHumanId?: string;
 }
 
 const MAX_PAGE = 200;
@@ -622,13 +624,39 @@ function withReplyThumbnail(thumbnail: ReplyThumbnail | undefined): {
   return thumbnail === undefined ? {} : { replyThumbnail: thumbnail };
 }
 
+function previewFor(
+  preview: WireReplyPreview | null,
+  selfHumanId: string | undefined,
+): WireReplyPreview | null {
+  if (preview?.author.kind !== 'human') return preview;
+  const { humanId, displayName } = preview.author;
+  return {
+    ...preview,
+    author:
+      selfHumanId !== undefined &&
+      humanId !== undefined &&
+      humanId !== selfHumanId &&
+      displayName !== undefined
+        ? { kind: 'human', humanId, displayName }
+        : { kind: 'human' },
+  };
+}
+
 function present(
   entry: JournalEntry,
   resolve: (path: string) => RemoteSource,
   picked: readonly (OutgoingFile | undefined)[],
+  selfHumanId: string | undefined,
 ): ConversationMessage {
   const message = entry.message;
   const kind = message.author.kind;
+  const person =
+    message.author.kind === 'human' &&
+    selfHumanId !== undefined &&
+    message.author.humanId !== undefined &&
+    message.author.humanId !== selfHumanId
+      ? { humanId: message.author.humanId, name: message.author.displayName ?? '' }
+      : undefined;
   const card = cardOf(entry.channelId, message);
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
@@ -641,8 +669,16 @@ function present(
     source: entry,
     revision: entry.revision,
     at: message.at,
-    author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',
+    author:
+      person !== undefined
+        ? 'person'
+        : kind === 'human'
+          ? 'human'
+          : kind === 'bot'
+            ? 'bot'
+            : 'system',
     ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
+    ...(person === undefined ? {} : { person }),
     body: message.body,
     ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
     ...(kind !== 'human' || message.skillInvocations === undefined
@@ -652,7 +688,7 @@ function present(
       ? {}
       : {
           replyTo: message.replyTo,
-          replyPreview: message.replyToPreview ?? null,
+          replyPreview: previewFor(message.replyToPreview ?? null, selfHumanId),
           ...withReplyThumbnail(
             replyThumbnailOf(entry.channelId, message.replyTo, message.replyToPreview, resolve),
           ),
@@ -731,7 +767,12 @@ export function createConversation(options: ConversationOptions): Conversation {
   function presentEntry(entry: JournalEntry): ConversationMessage {
     let message = presented.get(entry);
     if (message === undefined) {
-      message = present(entry, options.host.resource, sentFiles.get(entry.message.id) ?? []);
+      message = present(
+        entry,
+        options.host.resource,
+        sentFiles.get(entry.message.id) ?? [],
+        options.selfHumanId ?? LOCAL_HUMAN,
+      );
       presented.set(entry, message);
       if (entry.message.contentPurge !== undefined)
         forgetGenuiDocumentViews(options.host, entry.channelId, entry.message.id);
@@ -749,7 +790,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   function quote(
     replyTo: string,
   ): Pick<ConversationMessage, 'replyTo' | 'replyPreview' | 'replyThumbnail'> {
-    const preview = replyPreview(replyTo);
+    const preview = previewFor(replyPreview(replyTo), options.selfHumanId ?? LOCAL_HUMAN);
     return {
       replyTo,
       replyPreview: preview,

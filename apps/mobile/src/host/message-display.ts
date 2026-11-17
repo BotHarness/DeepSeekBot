@@ -10,7 +10,13 @@ export function messageForDisplay(message: ConversationMessage): ChannelWireMess
       author:
         message.author === 'bot'
           ? { kind: 'bot', slug: message.bot ?? '' }
-          : { kind: message.author },
+          : message.author === 'person'
+            ? {
+                kind: 'human',
+                humanId: message.person?.humanId ?? '',
+                displayName: message.person?.name ?? '',
+              }
+            : { kind: message.author },
     }
   );
 }

@@ -61,7 +61,7 @@ export function SheetFrame({
   const room = { window: height, top: insets.top, bottom: insets.bottom, touch: theme.touch };
   return (
     <Host
-      key={`${theme.scheme}-${round}`}
+      key={round}
       colorScheme={theme.scheme}
       pointerEvents="none"
       style={{ position: 'absolute' }}

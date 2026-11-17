@@ -203,7 +203,9 @@ export function SelectionScreenshot({
                       : 'Bot'
                     : message.author === 'human'
                       ? t.activityRow.human
-                      : t.feedback.system}{' '}
+                      : message.person !== undefined
+                        ? message.person.name || t.reply.member
+                        : t.feedback.system}{' '}
                   · {new Date(message.at).toLocaleString()}
                 </Text>
                 <View pointerEvents="none" key={attempt}>

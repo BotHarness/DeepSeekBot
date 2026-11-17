@@ -308,7 +308,7 @@ export const zh = {
   'connections.botPrompt.copied': '已复制，发给 Bot 即可',
   'connections.botPrompt.failed': '没能复制。选中下面的提示词，发给 Bot。',
   'connections.botPrompt.method':
-    '帮我选手机连接这台电脑的方式：运行 `deepseekbot phone-route` 和 `deepseekbot devices`，告诉我哪些连接方式已就绪、推荐用哪个。需要打开局域网连接时先问我，我同意后再运行 `deepseekbot device-lan enable --confirm`。',
+    '帮我选手机连接本机 Host 的方式：运行 `deepseekbot phone-route` 和 `deepseekbot devices`，告诉我哪些连接方式已就绪、推荐用哪个。需要打开局域网连接时先问我，我同意后再运行 `deepseekbot device-lan enable --confirm`。',
   'connections.botPrompt.prepare':
     '帮我生成手机配对邀请：运行 `deepseekbot device-offer --out <新的私有文件绝对路径>`。链接只写进那个文件，不要贴到聊天里。告诉我邀请几点过期，然后用 `deepseekbot device-offer-status <receipt>` 等我在手机上打开。',
   'connections.botPrompt.approve':
@@ -6024,7 +6024,8 @@ export const zh = {
   'team.audit.action.changed': '{viewer} 修改了 Bot「{object}」的设置',
   'team.error.roleInUse': '还有共享文件夹在用这个角色。请先从这些文件夹的受众里移除它。',
   'team.isolation.trial': '试用阶段：成员的 Bot 在技术上可以读取这台 Host 上其他 Bot 的数据。',
-  'team.isolation.enforced': '成员之间已隔离：每个 Bot 只能访问自己的数据和被授权的文件夹。',
+  'team.isolation.enforced':
+    '成员之间已隔离：每个 Bot 只能访问自己的数据和被授权的文件夹。公共 Bot 的记忆和 Skill 由所有成员共享，任何人在对话里让它记住或装上的内容，其他成员的对话里也会用到。',
   'approval.masked.tool-approval': '有 Bot 在等待审批',
   'approval.masked.user-question': '有 Bot 提了一个问题',
   'approval.masked.private-input': '有 Bot 请求填写私密信息',
@@ -6388,7 +6389,7 @@ export const en = {
   'connections.botPrompt.copied': 'Copied. Send it to a Bot',
   'connections.botPrompt.failed': 'Couldn’t copy. Select the prompt below and send it to a Bot.',
   'connections.botPrompt.method':
-    'Help me choose how my phone connects to this computer: run `deepseekbot phone-route` and `deepseekbot devices`, then tell me which connection methods are ready and which you recommend. If the local network connection needs turning on, ask me first, and only after I agree run `deepseekbot device-lan enable --confirm`.',
+    'Help me choose how my phone connects to This Host: run `deepseekbot phone-route` and `deepseekbot devices`, then tell me which connection methods are ready and which you recommend. If the local network connection needs turning on, ask me first, and only after I agree run `deepseekbot device-lan enable --confirm`.',
   'connections.botPrompt.prepare':
     'Help me create a phone pairing invitation: run `deepseekbot device-offer --out <absolute path to a new private file>`. The link goes only into that file; do not paste it into the chat. Tell me when the invitation expires, then use `deepseekbot device-offer-status <receipt>` to wait for me to open it on the phone.',
   'connections.botPrompt.approve':
@@ -12465,7 +12466,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'A shared folder still uses this role. Remove it from those folders’ audiences first.',
   'team.isolation.trial': 'Trial: member Bots can technically read other Bots’ data on this Host.',
   'team.isolation.enforced':
-    'Members are isolated: each Bot reaches only its own data and the folders it was granted.',
+    'Members are isolated: each Bot reaches only its own data and the folders it was granted. A public Bot’s memory and Skills are shared by every member: what anyone has it remember or install in a chat also applies in everyone else’s chats.',
   'approval.masked.tool-approval': 'A Bot is waiting for approval',
   'approval.masked.user-question': 'A Bot asked a question',
   'approval.masked.private-input': 'A Bot asked for private input',

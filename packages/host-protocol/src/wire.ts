@@ -13,7 +13,7 @@ export interface WireMessage {
 }
 
 export type WireAuthor =
-  | { kind: 'human' }
+  | { kind: 'human'; humanId?: string; displayName?: string }
   | { kind: 'bot'; slug: string }
   | { kind: 'remote-bot'; hostId: string; slug: string }
   | { kind: 'bridged'; source: string }
@@ -392,6 +392,7 @@ export interface ChannelListItem {
   name: string;
   members: string[];
   botSlug?: string;
+  humanParticipants?: string[];
   avatar?: string;
   ownerBotSlug?: string;
   invitations?: WireGroupInvitation[];

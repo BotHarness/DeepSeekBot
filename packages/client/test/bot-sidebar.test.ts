@@ -5,9 +5,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
-const environmentProbe = vi.hoisted((): { snapshot: RemoteHostsSnapshot } => ({
-  snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
-}));
+const environmentProbe = vi.hoisted(
+  (): { snapshot: RemoteHostsSnapshot; dock?: boolean | undefined } => ({
+    snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
+  }),
+);
 vi.mock('../src/client/host-tabs.js', async (original) => ({
   ...(await original<typeof import('../src/client/host-tabs.js')>()),
   useRemoteHosts: () => environmentProbe.snapshot,
@@ -15,7 +17,7 @@ vi.mock('../src/client/host-tabs.js', async (original) => ({
 
 vi.mock('../src/client/channel-dock.js', async (original) => ({
   ...(await original<typeof import('../src/client/channel-dock.js')>()),
-  useChannelDockActive: () => environmentProbe.snapshot.hosts.length > 0,
+  useChannelDockActive: () => environmentProbe.dock ?? environmentProbe.snapshot.hosts.length > 0,
 }));
 
 const captured = vi.hoisted(() => ({
@@ -737,6 +739,7 @@ function menuWithItem(id: string): {
 beforeEach(() => {
   captured.dock = false;
   environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'local' };
+  environmentProbe.dock = undefined;
   captured.menus.length = 0;
   store.setMode('dsh');
   store.setQuery('');
@@ -797,6 +800,8 @@ describe('bot sidebar rows', () => {
       vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
       Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
       captured.dock = true;
+      environmentProbe.dock = true;
+      environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'all' };
       const remote = vi
         .spyOn(hostTabs, 'useRemoteHosts')
         .mockReturnValue({ hosts: [], avatars: new Map(), tab: 'all' });
@@ -822,6 +827,10 @@ describe('bot sidebar rows', () => {
           ),
         );
         expect(host.querySelector('.bh-section-name')?.textContent).toContain('工作流');
+        expect(host.querySelector('[data-environment-channel]')).toBeNull();
+        expect(
+          host.querySelector('[data-section-id="s1"] [data-channel-id="c-section"]'),
+        ).not.toBeNull();
         expect(host.querySelector('.bh-pin-zone')).not.toBeNull();
         expect(host.querySelector('[data-channel-id="c-section"]')?.getAttribute('draggable')).toBe(
           'true',

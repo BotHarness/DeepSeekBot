@@ -1904,7 +1904,10 @@ function ConversationView({
       const element = scrollRef.current;
       if (currentChannel.current !== channelId || element === null) return;
       const committedIds = committedMessageIds(messages);
-      const viewport = element.getBoundingClientRect();
+      const bounds = element.getBoundingClientRect();
+      const overlay =
+        Number.parseFloat(getComputedStyle(element).getPropertyValue('--bh-composer-overlay')) || 0;
+      const viewport = { top: bounds.top, bottom: bounds.bottom - overlay };
       const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
         .filter((candidate) => {
           const id = candidate.dataset['messageId'];
@@ -3593,6 +3596,15 @@ function ConversationView({
               <button
                 type="button"
                 className="bh-timeline-new"
+                data-unseen={unseen > 0 ? '' : undefined}
+                style={
+                  unseen > 0
+                    ? ({
+                        '--bh-timeline-new-bg': color.accent,
+                        '--bh-timeline-new-fg': color.onAccent,
+                      } as CSSProperties)
+                    : undefined
+                }
                 aria-label={t('messages.latest')}
                 aria-description={
                   unseen > 0
@@ -3601,12 +3613,13 @@ function ConversationView({
                 }
                 onClick={jumpToLatest}
               >
-                <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
                 {unseen > 0 ? (
                   <span className="bh-timeline-new-count" aria-hidden="true">
                     {unseen > 99 ? '99+' : unseen}
                   </span>
-                ) : null}
+                ) : (
+                  <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
+                )}
               </button>
             </div>
           ) : null}

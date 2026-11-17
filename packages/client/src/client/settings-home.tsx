@@ -29,6 +29,7 @@ const PIN_ALIASES: Readonly<Record<string, string>> = {
   'environment-approvals': 'auto-approval',
   'environment-prompts': 'prompts',
   'environment-voice': 'voice',
+  'environment-messaging': 'messaging',
 };
 
 export function settingsPinId(sectionId: string): string {

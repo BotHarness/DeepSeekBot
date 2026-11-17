@@ -3463,7 +3463,7 @@ button.bh-profile-heat-cell:focus-visible {
   position: relative;
 }
 .bh-chat-body {
-  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - ${space.x3}), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - var(--bh-composer-overlay, 0px)), transparent 100%);
   mask-mode: alpha;
   position: relative;
   z-index: 1;
@@ -3472,7 +3472,8 @@ button.bh-profile-heat-cell:focus-visible {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px));
+  margin-bottom: calc(-1 * var(--bh-composer-overlay, 0px));
+  padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
   transition: padding-bottom 160ms ease;
 }
@@ -4209,42 +4210,37 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   bottom: ${space.x3};
   right: ${space.x4};
   max-width: calc(100% - ${space.x4} * 2);
-  border: ${border.hairline} solid ${color.border};
-  border-radius: 999px;
+  border: 0;
+  border-radius: calc(${radius.panel} + ${space.x3});
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: ${size.row};
+  min-width: ${size.row};
   height: ${size.row};
-  padding: 0;
-  color: ${color.fg};
-  background: ${color.elevated};
+  box-sizing: border-box;
+  padding: 0 ${space.x3};
+  color: var(--bh-timeline-new-fg, var(--tobs-ink-secondary));
+  background: var(--bh-timeline-new-bg, var(--tobs-layer-raised));
   opacity: 1;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--tobs-ink-primary) 12%, transparent);
   cursor: pointer;
+  transition:
+    background-color 200ms var(--ds-ease-in-out),
+    color 200ms var(--ds-ease-in-out);
 }
 .bh-timeline-new:hover {
-  color: ${color.accentText};
-  background: color-mix(in srgb, ${color.fg} 8%, ${color.elevated});
+  color: var(--bh-timeline-new-fg, var(--tobs-ink-primary));
+  background: color-mix(in srgb, var(--tobs-ink-primary) 6%, var(--bh-timeline-new-bg, var(--tobs-layer-raised)));
 }
 .bh-timeline-new:active {
-  color: ${color.accentText};
-  background: color-mix(in srgb, ${color.fg} 16%, ${color.elevated});
+  color: var(--bh-timeline-new-fg, var(--tobs-ink-primary));
+  background: color-mix(in srgb, var(--tobs-ink-primary) 12%, var(--bh-timeline-new-bg, var(--tobs-layer-raised)));
 }
 .bh-timeline-new-count {
-  position: absolute;
-  top: calc(-1 * ${space.x2});
-  right: calc(-1 * ${space.x2});
-  min-width: ${space.x5};
-  height: ${text.metaLine};
-  box-sizing: border-box;
-  padding-inline: ${space.x1};
-  border-radius: 999px;
-  color: ${color.onAccent};
-  background: ${color.accent};
+  color: inherit;
   font-size: ${text.metaSize};
+  font-weight: ${text.strong};
   line-height: ${text.metaLine};
-  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .bh-timeline-new:focus-visible { outline: ${border.focus} solid ${color.accent}; }
 
@@ -4596,13 +4592,13 @@ a[href^="https://session.tobs.invalid/"] {
   min-height: 50px;
   box-sizing: border-box;
   overflow: hidden;
-  padding: ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left);
-  border: ${border.hairline} solid ${color.border};
-  border-radius: ${radius.panel};
+  --bh-composer-footer-padding: 10px 12px 48px;
+  padding: var(--bh-composer-padding, ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left));
+  border: ${border.hairline} solid transparent;
+  border-radius: calc(${radius.panel} + ${space.x3});
   background: var(--tobs-layer-raised);
-  box-shadow: 0 8px 24px
-    color-mix(in srgb, var(--tobs-ink-primary) 9%, transparent);
   transition:
+    padding 220ms var(--ds-ease-in-out),
     border-color 160ms var(--ds-ease-in-out),
     box-shadow 160ms var(--ds-ease-in-out);
 }
@@ -4657,7 +4653,7 @@ a[href^="https://session.tobs.invalid/"] {
 }
 
 .bh-composer-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.bh-composer-add-file { position: absolute; left: 9px; bottom: 9px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: ${radius.control}; background: transparent; color: var(--tobs-ink-secondary); cursor: pointer; }
+.bh-composer-add-file { position: absolute; left: 9px; bottom: 9px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: ${radius.round}; corner-shape: round; background: transparent; color: var(--tobs-ink-secondary); cursor: pointer; }
 .bh-composer-add-file:hover { background: var(--tobs-state-hover); color: var(--tobs-ink-primary); }
 .bh-composer-add-file:focus-visible { outline: ${border.focus} solid var(--tobs-line-focus); outline-offset: 2px; }
 .bh-composer-add-file:disabled { opacity: .5; cursor: default; }
@@ -4773,13 +4769,13 @@ a[href^="https://session.tobs.invalid/"] {
   align-items: center;
   justify-content: flex-end;
 }
-.bh-composer .bh-send-btn {
+.bh-composer .bh-send-btn:not(#\\#):not(#\\#) {
   width: 32px;
   min-width: 32px;
   height: 32px;
   min-height: 32px;
   padding: 0;
-  border-radius: ${radius.control};
+  border-radius: ${radius.round}; corner-shape: round;
 }
 .bh-composer-has-mic { --bh-composer-compact-padding-right: 88px; }
 .bh-composer-has-mic .bh-composer-footer { gap: ${space.x2}; }
@@ -4791,7 +4787,7 @@ a[href^="https://session.tobs.invalid/"] {
   height: 32px;
   padding: 0;
   border: 0;
-  border-radius: ${radius.control};
+  border-radius: ${radius.round}; corner-shape: round;
   background: transparent;
   color: var(--tobs-ink-secondary);
   cursor: pointer;
@@ -4831,7 +4827,8 @@ a[href^="https://session.tobs.invalid/"] {
 html[data-botharness-motion='reduce'] .bh-composer,
 html[data-botharness-motion='reduce'] .bh-composer-body,
 html[data-botharness-motion='reduce'] .bh-composer-add-file,
-html[data-botharness-motion='reduce'] .bh-composer-footer {
+html[data-botharness-motion='reduce'] .bh-composer-footer,
+html[data-botharness-motion='reduce'] .bh-timeline-new {
   transition: none;
 }
 

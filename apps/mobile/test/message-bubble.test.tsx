@@ -1304,6 +1304,31 @@ describe('replies', () => {
     expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
       'reply-quote',
     );
+    const person = document.createElement('div');
+    person.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bob-1',
+          replyPreview: {
+            author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+            body: 'hi alice',
+          },
+        })}
+      />,
+    );
+    expect(person.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe('Bob');
+    const unnamed = document.createElement('div');
+    unnamed.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bob-1',
+          replyPreview: { author: { kind: 'human', humanId: 'human-bob' }, body: 'hi alice' },
+        })}
+      />,
+    );
+    expect(unnamed.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe(
+      t.reply.member,
+    );
   });
 
   it('jumps to the original when its quote is tapped', () => {

@@ -18,6 +18,7 @@ import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
+import { humanInitial } from '../shell/human-avatar-initial';
 import {
   countBadge,
   previewText,
@@ -97,12 +98,7 @@ export function ConversationRow({
                 : 'bell',
       run: () => act(action.key),
     }));
-  const avatar =
-    row.kind === 'bot' ? (
-      <ConversationBotAvatar bot={row.bot} />
-    ) : (
-      <ConversationGroupAvatar avatar={row.channel.avatar} />
-    );
+  const avatar = <ConversationAvatar row={row} />;
   const frame = (
     <ConversationRowFrame
       testID={`conversation-row-${row.key}`}
@@ -168,6 +164,27 @@ export function ConversationGroupAvatar({ avatar }: { avatar?: string | undefine
       <GroupMark avatar={avatar} size={AVATAR} corner={radius.md} variant="title" strong={false} />
     </AvatarSlot>
   );
+}
+
+export function ConversationPersonAvatar({ name }: { name: string }) {
+  return (
+    <AvatarSlot>
+      <GroupMark
+        avatar={undefined}
+        initial={humanInitial(name) ?? '#'}
+        size={AVATAR}
+        corner={radius.md}
+        variant="title"
+        strong={false}
+      />
+    </AvatarSlot>
+  );
+}
+
+export function ConversationAvatar({ row }: { row: Conversation }) {
+  if (row.kind === 'bot') return <ConversationBotAvatar bot={row.bot} />;
+  if (row.person === true) return <ConversationPersonAvatar name={row.channel.name} />;
+  return <ConversationGroupAvatar avatar={row.channel.avatar} />;
 }
 
 export function ConversationRowFrame({
