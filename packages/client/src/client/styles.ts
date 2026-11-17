@@ -13,6 +13,9 @@ import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 import { font } from './ds/tobs.stylex.js';
+import { ASSIGNMENT_SESSION_ICON, channelSidebarIconMask } from './channel-sidebar-icon.js';
+
+const ASSIGNMENT_SESSION_MASK = channelSidebarIconMask(ASSIGNMENT_SESSION_ICON);
 
 export const CSS =
   WORKSPACE_CSS +
@@ -4294,6 +4297,20 @@ a[href^="https://session.tobs.invalid/"] {
   text-decoration: none;
   font: inherit;
   cursor: pointer;
+}
+a[href^="https://session.tobs.invalid/"] > svg:first-child {
+  display: none;
+}
+a[href^="https://session.tobs.invalid/"]::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: ${space.x1};
+  vertical-align: -2px;
+  background: currentColor;
+  -webkit-mask: ${ASSIGNMENT_SESSION_MASK} center / contain no-repeat;
+  mask: ${ASSIGNMENT_SESSION_MASK} center / contain no-repeat;
 }
 .bh-inline-mention-link:hover,
 .bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"]:hover {

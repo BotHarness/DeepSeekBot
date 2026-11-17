@@ -99,6 +99,7 @@ import {
 } from './use-client-store.js';
 import { MessageHostContext, type MessageHost } from './message-host.js';
 import { SessionOpenContext } from './session-links.js';
+import { useComposerSessionOptions } from './composer-session-options.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { conversationKey } from './remote-hosts.js';
 import { useRemoteNativeConversation } from './remote-native-conversation.js';
@@ -1978,6 +1979,13 @@ function ConversationView({
         ? state.bots.find((bot) => entry.owner.kind === 'bot' && bot.slug === entry.owner.botSlug)
         : undefined,
   }));
+  const composerSessions = useComposerSessionOptions({
+    channel: botDm ? undefined : channel,
+    bots: state.bots,
+    dmSessions: sessionItems,
+    readSessions: actions.readSessions,
+    refreshDmSessions: actions.refreshSessions,
+  });
   const [searchTop, setSearchTop] = useScopedState<number | undefined>(scopeKey, undefined);
   const searchAvailable = useScopedRef(scopeKey, false);
   const searchReturnFocus = useScopedRef<HTMLElement | null>(scopeKey, null);
@@ -3727,6 +3735,8 @@ function ConversationView({
                     skills={skillTokens}
                     skillOptions={skillOptions}
                     readSkill={actions.skillDetail}
+                    sessionOptions={composerSessions.options}
+                    onSessionMenu={composerSessions.refresh}
                     channelCandidates={
                       channel?.type === 'dm' && channel.botSlug !== undefined
                         ? state.channels.filter((candidate) => candidate.type === 'group')
@@ -3907,8 +3917,8 @@ function ConversationView({
     ) : (
       conversationPane
     );
-  const openSession = (botSlug: string, sessionId: string, title: string): void => {
-    if (botSlug !== dockBotSlug) return;
+  const openSession = (botSlug: string | undefined, sessionId: string, title: string): void => {
+    if (dockBotSlug === undefined || (botSlug ?? dockBotSlug) !== dockBotSlug) return;
     setDetail({
       sessionId,
       title:

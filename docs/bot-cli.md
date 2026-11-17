@@ -219,6 +219,7 @@ deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <name> --owner bot:<bot-id>
 deepseekbot skills-remove <name> --bot <bot-id> --confirm
 deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
+deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <receipt-message-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <card-id>
@@ -240,6 +241,8 @@ deepseekbot workspace-options
 deepseekbot folder-browse [<folder-path>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
+
+The composer's `/` menu also cites an Assignment Session: with an empty filter it lists the Channel Bots' live Sessions, and once the person types it searches all of them, archived and finished included. The same list comes from `assignments <bot-id> [--search <text>] [--include-archived]`. Picking one inserts `[<title>](session:<session-id>)`, the link form Bots already write, so `send --body` with that link sends the same message, and the bubble shows it as a Session chip that opens Session detail.
 
 Trusted effect declarations describe tool calls on approval cards; they do not by themselves require approval or override Full Access. `bot-tool` uses the same Host admission without a model; a valid saved authorization is checked before any Reviewer call. Read `toolApprovalRequest.effects` and bilingual `effectLabels.en` / `effectLabels.zh` on approval messages from online `channel-messages`. These labels describe trusted declarations, not claims in tool input or output. Management operations still require their dedicated explicit authorization (ADR-0249).
 
