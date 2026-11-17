@@ -1,4 +1,4 @@
-import { MethodRefused, type HostClient } from './client';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
 
 export type Loadable<T> =
   | { status: 'loading' }
@@ -55,6 +55,9 @@ export interface BotModel {
   models: ModelCatalogEntry[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
+  rawModelCount?: number;
+  owner?: boolean;
+  allowed?: number;
 }
 
 export interface WorkspaceGrant {
@@ -163,19 +166,13 @@ function planResult(value: unknown, method: string): ModelPlan {
 
 function catalogEntry(value: unknown): ModelCatalogEntry | undefined {
   const row = record(value);
-  if (
-    !text(row?.['provider']) ||
-    !text(row['model']) ||
-    !text(row['providerName']) ||
-    !text(row['modelName'])
-  )
-    return undefined;
+  if (!text(row?.['provider']) || !text(row['model'])) return undefined;
   const credential = row['credential'];
   return {
     provider: row['provider'],
-    providerName: row['providerName'],
+    providerName: text(row['providerName']) ? row['providerName'] : row['provider'],
     model: row['model'],
-    modelName: row['modelName'],
+    modelName: text(row['modelName']) ? row['modelName'] : row['model'],
     ...(Array.isArray(row['efforts'])
       ? {
           efforts: some(row['efforts'], (value) => {
@@ -232,10 +229,14 @@ export async function loadBotModel(
   ]);
   const models = record(catalog)?.['models'];
   if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
+  const rawModels = record(catalog)?.['models'];
+  const raw = Array.isArray(rawModels) ? rawModels.length : 0;
   const current = record(state);
   const saved = plan(current?.['plan']);
   const repair = record(current?.['repair']);
   const fallback = route(record(catalog)?.['default']);
+  const owner = record(catalog)?.['owner'];
+  const allowed = record(catalog)?.['allowed'];
   return {
     revision:
       typeof current?.['revision'] === 'number' ? current['revision'] : (saved?.revision ?? 0),
@@ -244,6 +245,9 @@ export async function loadBotModel(
     models: some(models, catalogEntry),
     ...(fallback === undefined ? {} : { fallback }),
     presets: some(record(presets)?.['presets'], preset),
+    rawModelCount: raw,
+    owner: owner === true,
+    allowed: typeof allowed === 'number' ? allowed : owner === true ? models.length : 0,
   };
 }
 
@@ -258,6 +262,10 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
   ]);
   const models = record(catalog)?.['models'];
   if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
+  const raw = models.length;
+  const parsed = some(models, catalogEntry).length;
+  const owner = record(catalog)?.['owner'];
+  const allowed = record(catalog)?.['allowed'];
   const fallback = route(record(catalog)?.['default']);
   const defaultRevision = record(catalog)?.['defaultRevision'];
   return {
@@ -270,6 +278,9 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     models: some(models, catalogEntry),
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),
+    rawModelCount: raw,
+    owner: owner === true,
+    allowed: typeof allowed === 'number' ? allowed : owner === true ? raw : 0,
   };
 }
 

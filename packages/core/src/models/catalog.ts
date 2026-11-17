@@ -44,9 +44,9 @@ export function createModelCatalog(
               const exact = await llm.resolveModelInfo(provider.id, model.id);
               return {
                 provider: provider.id,
-                providerName: provider.name,
+                providerName: provider.name || provider.id,
                 model: model.id,
-                modelName: model.name,
+                modelName: model.name || model.id,
                 efforts: (exact.reasoning?.efforts ?? []).map((effort) => ({
                   id: effort.id,
                   name: effort.name,

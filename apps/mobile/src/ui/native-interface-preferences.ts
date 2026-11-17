@@ -4,6 +4,8 @@ import { useSyncExternalStore } from 'react';
 import { AppState, Appearance } from 'react-native';
 
 import { interfacePreferences } from './interface-preferences';
+import { readAppearanceDocument, writeAppearanceDocument } from './appearance-document';
+import { appearanceStore } from './appearance-store';
 import { alertBanners } from '../host/alert-banners';
 
 const syncAlertPresentation = () => {
@@ -26,6 +28,19 @@ void interfacePreferences.restore({
     const stored = file();
     if (!stored.exists) stored.create();
     stored.writeSync(JSON.stringify(value));
+  },
+});
+
+void appearanceStore.restore({
+  async read() {
+    try {
+      return await readAppearanceDocument();
+    } catch {
+      throw Error('appearance-storage-unreadable');
+    }
+  },
+  write(value) {
+    writeAppearanceDocument(value);
   },
 });
 

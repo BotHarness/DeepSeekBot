@@ -821,6 +821,8 @@ export interface BridgeMethods extends TeamBridgeMethods {
       models: ModelCatalogEntry[];
       default?: ModelRoute;
       defaultRevision?: number;
+      owner?: boolean;
+      allowed?: number;
     }>
   >;
   modelPresets(payload: unknown): BridgeResult<{ presets: ModelPreset[] }>;
@@ -3863,6 +3865,8 @@ function buildBridgeMethods(
                     allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`),
                 )
                 .map(({ credential: _credential, ...route }) => route),
+              owner: false,
+              allowed: allowed.all ? models.length : allowed.routes.length,
             },
           };
         }
@@ -3876,6 +3880,8 @@ function buildBridgeMethods(
           ok: true,
           value: {
             models,
+            owner: true,
+            allowed: models.length,
             ...(defaultRoute === undefined ? {} : { default: defaultRoute }),
             ...(defaultRevision === undefined ? {} : { defaultRevision }),
           },

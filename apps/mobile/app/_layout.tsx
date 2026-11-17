@@ -43,6 +43,7 @@ import { nativeHostStoreOpener } from '../src/host/native-local-store';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
 import { nativeBackgroundCatchUp } from '../src/host/native-background-support';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
+import { AppWallpaper, useWallpaperActive } from '../src/ui/app-wallpaper';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
@@ -77,6 +78,7 @@ function RootNavigator() {
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
+  const wallpaperActive = useWallpaperActive();
   const reducedMotion = useSystemReducedMotion();
   const [routingPending, setRoutingPending] = useState(false);
   const routing = usePushRouting(setRoutingPending, hostDrawer.captureChosenWorkspace);
@@ -93,9 +95,23 @@ function RootNavigator() {
     ['model-preset', undefined],
     ['notifications', t.notifications],
     ['storage', t.storage.title],
+    ['host-settings', undefined],
+    ['credentials', undefined],
+    ['cloud-connections', undefined],
+    ['app-setup', undefined],
     ['app-icon', t.appIcon],
     ['activity-count', t.activityCountSettings.title],
+    ['appearance', t.themeSettings.title],
     ['chat-background', t.chatBackground.global],
+    ['capability', t.profilePermissions.access],
+    ['connections', t.settingsHome.connections],
+    ['data-privacy', t.settingsHome.dataPrivacy],
+    ['about', t.settingsHome.about],
+    ['model-runtime', t.settingsHome.models],
+    ['advanced', t.settingsHome.advanced],
+    ['general', t.settingsHome.general],
+    ['auto-approval', t.settingsHome.autoApproval],
+    ['messaging', t.settingsHome.messaging],
   ];
   const profileListeners = swipeEntryListeners(
     profileScreenOptions(design, reducedMotion).animation,
@@ -121,6 +137,7 @@ function RootNavigator() {
               </SafeAreaView>
             ) : null}
             <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
+              <AppWallpaper />
               <SafeAreaProvider>
                 <Stack
                   UNSTABLE_router={channelStackRouter}
@@ -131,7 +148,9 @@ function RootNavigator() {
                     headerShadowVisible: false,
                     headerBackButtonDisplayMode: 'minimal',
                     headerBackTitle: t.back,
-                    contentStyle: { backgroundColor: theme.background },
+                    contentStyle: {
+                      backgroundColor: wallpaperActive ? 'transparent' : theme.background,
+                    },
                     unstable_nativeProps:
                       Platform.OS === 'android'
                         ? {
@@ -192,7 +211,13 @@ function RootNavigator() {
                       name={`settings/${name}`}
                       options={{
                         ...(title === undefined ? {} : { title }),
-                        ...(name === 'profile-name' ? { headerShown: false } : {}),
+                        ...(name === 'profile-name' ||
+                        name === 'host-settings' ||
+                        name === 'credentials' ||
+                        name === 'cloud-connections' ||
+                        name === 'app-setup'
+                          ? { headerShown: false }
+                          : {}),
                         headerStyle: { backgroundColor: design.overlay.fill },
                         contentStyle: { backgroundColor: design.overlay.fill },
                       }}

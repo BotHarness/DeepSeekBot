@@ -297,3 +297,38 @@ export async function saveModelPreset(
     throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
   return presetAnswer.id;
 }
+
+export type ModelSource = 'catalog.models' | 'plan.default';
+export type ModelSourceRecord = { source: ModelSource; count: number; at: number };
+
+const MAX_SOURCE_RECORDS = 20;
+const sourceListeners = new Set<() => void>();
+let sourceRecords: readonly ModelSourceRecord[] = [];
+
+export function getModelSourceSnapshot(): readonly ModelSourceRecord[] {
+  return sourceRecords;
+}
+
+export function subscribeModelSource(listener: () => void): () => void {
+  sourceListeners.add(listener);
+  return () => {
+    sourceListeners.delete(listener);
+  };
+}
+
+export function recordModelSource(source: ModelSource, count: number): void {
+  sourceRecords = [...sourceRecords, { source, count, at: Date.now() }].slice(-MAX_SOURCE_RECORDS);
+  for (const listener of sourceListeners) listener();
+}
+
+export type ModelListState = 'ok' | 'empty' | 'single' | 'failed';
+
+export function classifyModelList(count: number, failed = false): ModelListState {
+  if (failed) return 'failed';
+  return count === 0 ? 'empty' : count === 1 ? 'single' : 'ok';
+}
+
+export function modelSourceText(record: ModelSourceRecord | undefined): string {
+  if (record === undefined) return '';
+  return `${record.source} · ${record.count}`;
+}
