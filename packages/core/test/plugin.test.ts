@@ -959,6 +959,7 @@ describe('plugin entry', () => {
       'sessionStop',
       'botStop',
       'modelCatalog',
+      'modelFavoriteSet',
       'modelPresets',
       'modelPresetCreate',
       'modelPresetUpdate',
