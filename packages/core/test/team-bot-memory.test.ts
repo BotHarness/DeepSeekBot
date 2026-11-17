@@ -326,6 +326,7 @@ describe('members manage their own Bot Memory', () => {
       'assignment',
       'assignmentTimeline',
       'sessionSubagents',
+      'sessionProgress',
       'sessionArchiveSet',
       'botToolTrace',
       'botTurnInput',

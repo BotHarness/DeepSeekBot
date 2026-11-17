@@ -177,6 +177,7 @@ import type {
   ProfileActivity,
   ProfileSessionUsage,
   SkillDetail,
+  SessionProgressEntry,
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
@@ -2519,6 +2520,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
   }
 
+  sessionProgress(
+    slug: string,
+    sessionIds: readonly string[],
+  ): Promise<{ sessions: SessionProgressEntry[] }> {
+    return unwrapAsync(this.methods.sessionProgress({ slug, sessionIds }));
+  }
+
   workspaceOptions(): {
     workspaces: { id: string; path: string; title: string }[];
   } {
@@ -3481,6 +3489,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignment',
   'assignmentTimeline',
   'sessionSubagents',
+  'sessionProgress',
   'workspaceOptions',
   'messageAttachmentTarget',
   'channelMediaTarget',

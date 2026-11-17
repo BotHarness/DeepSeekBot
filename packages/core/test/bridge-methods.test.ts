@@ -513,6 +513,24 @@ describe('bridge methods', () => {
     expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'sub-1' })).ok).toBe(false);
     expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
     expect((await methods.sessionSubagents({ slug: 'ada' })).ok).toBe(false);
+    const progress = await methods.sessionProgress({
+      slug: 'ada',
+      sessionIds: ['asg-1', 'sub-1', 'nope'],
+    });
+    expect(progress).toEqual({
+      ok: true,
+      value: {
+        sessions: [
+          { sessionId: 'asg-1', lastEventAt: expect.any(Number) },
+          { sessionId: 'sub-1', error: 'not-found' },
+          { sessionId: 'nope', error: 'not-found' },
+        ],
+      },
+    });
+    expect((await methods.sessionProgress({ slug: 'ada', sessionIds: [] })).ok).toBe(false);
+    expect((await methods.sessionProgress({ slug: 'nobody', sessionIds: ['asg-1'] })).ok).toBe(
+      false,
+    );
     expect((await methods.assignmentTimeline({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'ada' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'nobody', sessionId: 'asg-1' })).ok).toBe(

@@ -421,6 +421,7 @@ export const CLI_EFFECTS = {
   'sender-access': { effects: management, brokerRead: false },
   'session-archive-set': { effects: write, brokerRead: false },
   'session-ids': { effects: read, brokerRead: true },
+  'session-progress': { effects: read, brokerRead: true },
   'session-owner': { effects: read, brokerRead: true },
   'session-stop': { effects: destructive, brokerRead: false },
   'session-subagents': { effects: read, brokerRead: true },

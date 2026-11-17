@@ -939,22 +939,22 @@
       .iband {
         display: flex;
         flex-direction: column;
-        gap: 2px;
       }
       .iband.top {
-        margin: -2px -4px 6px;
+        margin: -4px -4px 2px;
       }
       .iband.bottom {
-        margin: 6px -4px -2px;
+        margin: 2px -4px -4px;
       }
       .ilink {
         display: flex;
         align-items: center;
         gap: 6px;
+        min-height: 24px;
+        padding: 0 4px;
         font-size: 12px;
-        line-height: 18px;
+        line-height: 16px;
         color: var(--tobs-ink-tertiary);
-        padding: 2px 4px;
         border-radius: 6px;
         cursor: pointer;
       }
@@ -964,7 +964,8 @@
       }
       .ilink .curve {
         width: 14px;
-        height: 12px;
+        height: 24px;
+        align-self: stretch;
         color: var(--tobs-ink-quiet);
         flex: none;
       }
@@ -986,10 +987,18 @@
       .ilink .cnt {
         font-variant-numeric: tabular-nums;
       }
+      .ilink .chev {
+        display: inline-grid;
+        color: var(--tobs-ink-quiet);
+        transform: rotate(-90deg);
+      }
+      .ilink .chev.open {
+        transform: none;
+      }
       .igroup {
         display: flex;
         flex-direction: column;
-        padding-left: 18px;
+        padding-left: 20px;
       }
       /* card variant: attached session cards at the bottom of the bubble */
       .cards {
@@ -1489,10 +1498,21 @@
         '<svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
       const FWD =
         '<svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>';
-      function innerRow(id, dir) {
+      const ICURVE_DOWN =
+        '<svg class="curve" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 0v7a5 5 0 0 0 5 5h7"/></svg>';
+      const ICURVE_UP =
+        '<svg class="curve" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 24v-7a5 5 0 0 1 5-5h7"/></svg>';
+      function innerItem(id) {
         const x = byId[id],
           c = count(x);
-        return `<div class="ilink ${dir}" data-open="${id}" role="button" tabindex="0">${dir === 'down' ? CURVE_DOWN : CURVE_UP}${glyph(x.state, stateLabel(x))}<span class="name">${x.title}</span>${c.total ? `<span class="cnt">${c.done}/${c.total}</span>` : ''}${x.state === 'needs' ? `<span class="tag warning">${NEED[x.need]}</span>` : ''}</div>`;
+        return `${glyph(x.state, stateLabel(x))}<span class="name">${x.title}</span>${c.total ? `<span class="cnt">${c.done}/${c.total}</span>` : ''}${x.state === 'needs' ? `<span class="tag warning">${NEED[x.need]}</span>` : ''}`;
+      }
+      function innerGroup(ids, dir, verb, key) {
+        const curve = dir === 'down' ? ICURVE_DOWN : ICURVE_UP;
+        if (ids.length === 1)
+          return `<div class="ilink" data-open="${ids[0]}" role="button" tabindex="0">${curve}${innerItem(ids[0])}</div>`;
+        const open = pop;
+        return `<div class="ilink" data-pop="${key}" role="button" tabindex="0" aria-expanded="${open}">${curve}<span class="verb">${verb}</span><span class="name">${ids.length} 个会话</span><span class="chev ${open ? 'open' : ''}">${ic('chev', 's14')}</span></div>${open ? `<div class="igroup">${ids.map((id) => `<div class="ilink" data-open="${id}" role="button" tabindex="0">${innerItem(id)}</div>`).join('')}</div>` : ''}`;
       }
       function cardRow(id, kind) {
         const x = byId[id],
@@ -1501,11 +1521,13 @@
       }
       function bubble(text, { up = [], down = [] } = {}) {
         if (links === 'inner') {
-          const top =
-            up.length > 1
-              ? `<div class="ilink up" data-pop role="button" tabindex="0" aria-expanded="${pop}">${CURVE_UP}<span class="verb">转给</span><span class="name">${up.length} 个会话</span>${ic('chev', 's14')}</div>${pop ? `<div class="igroup">${up.map((id) => innerRow(id, '')).join('')}</div>` : ''}`
-              : up.map((id) => innerRow(id, 'up')).join('');
-          return `<div class="bubble">${top ? `<div class="iband top">${top}</div>` : ''}<div>${text}</div>${down.length ? `<div class="iband bottom">${down.map((id) => innerRow(id, 'down')).join('')}</div>` : ''}</div>`;
+          const top = up.length
+            ? `<div class="iband top">${innerGroup(up, 'up', '转给', 'up')}</div>`
+            : '';
+          const bottom = down.length
+            ? `<div class="iband bottom">${innerGroup(down, 'down', '新建', 'down')}</div>`
+            : '';
+          return `<div class="bubble">${top}<div>${text}</div>${bottom}</div>`;
         }
         if (links === 'card') {
           const rows = [
@@ -1526,10 +1548,11 @@
       function chat() {
         return `<div class="msgs">
     <div class="m me"><div><div class="bubble">Safari 上导出按钮点了没反应，帮我修一下，带回归测试。</div></div></div>
-    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:01</div>${bubble('好，我开了一个 Assignment 去修，修好会附截图。', { down: ['a1'] })}</div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:01</div>${bubble('好，我开了两个 Assignment：一个修导出按钮，一个补 bot-cli 的 todo 命令。', { down: ['a1', 'a4'] })}</div></div>
     <div class="m me"><div><div class="bubble">发布说明里「语音输入」算亮点。另外虚拟滚动记得录前后对比。</div></div></div>
     <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:10</div>${bubble('两件事都转过去了：发布说明按亮点写，虚拟滚动那边会附录屏。', { up: ['a2', 'a3'] })}</div></div>
     <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:14</div>${bubble('发布说明的 Assignment 又问了一句：亮点要放几条？我先让它放 3 条。', { up: ['a2'] })}</div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:20</div>${bubble('Lark 签名那边我另开了一个去调研。', { down: ['a5'] })}</div></div>
   </div>
   <div class="composer">给 Tobs 发消息…<span style="flex:1"></span>${ic('send')}</div>`;
       }
