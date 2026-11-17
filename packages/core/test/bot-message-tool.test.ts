@@ -2,6 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import type { ChannelMessage } from '../src/channels/channel.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -364,6 +365,45 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
       });
       expect(prompt).toContain('- Message human-1: (unavailable)');
       expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('returns a committed quoting send on retry after its target is purged', async () => {
+    const f = await inboxFixture();
+    try {
+      const at = () => new Date().toISOString();
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: at(),
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      const send = (run: OrchestratorAgentRun, text: string) =>
+        run.channels.send({
+          channelId: f.dm.id,
+          body: 'Noted.',
+          deliveryKey: 'quote-retry',
+          quotes: [{ messageId: 'human-1', text }],
+        });
+      let first: ChannelMessage | undefined;
+      let retry: ChannelMessage | undefined;
+      let changed: unknown;
+      await f.send('Secret plan: launch on Friday.', async (run) => {
+        first = await send(run, 'launch on Friday');
+        const read = f.core.channels.message.bind(f.core.channels);
+        f.core.channels.message = (channelId, messageId) => {
+          const found = read(channelId, messageId);
+          return messageId === 'human-1' && found !== undefined
+            ? ({ ...found, body: '', contentPurge: { at: at() } } as typeof found)
+            : found;
+        };
+        retry = await send(run, 'launch on Friday');
+        changed = await send(run, 'Secret plan').catch((error: unknown) => error);
+      });
+      expect(retry?.id).toBe(first?.id);
+      expect(changed).toMatchObject({ code: 'quote-text-mismatch' });
     } finally {
       await f.close();
     }

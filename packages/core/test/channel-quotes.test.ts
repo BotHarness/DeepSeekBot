@@ -52,6 +52,19 @@ describe('Channel quotes', () => {
     );
   });
 
+  it('refuses more than eight quotes before a store writes them', () => {
+    const lookup = (id: string) => ({ body: id });
+    const quotes = Array.from({ length: 9 }, (_, index) => ({ messageId: `m${index}` }));
+    expect(() => assertQuoteTargets(quotes.slice(0, 8), lookup)).not.toThrow();
+    expect(() => assertQuoteTargets(quotes, lookup)).toThrow('At most 8 quotes are supported');
+  });
+
+  it('matches an excerpt against the text a reader sees for entity references', () => {
+    expect(quoteTextMatches('Fish &amp; chips', 'Fish & chips')).toBe(true);
+    expect(quoteTextMatches('Un &#233;t&#xE9; chaud', 'été chaud')).toBe(true);
+    expect(quoteTextMatches('Fish &amp; chips', 'Fish & fries')).toBe(false);
+  });
+
   it('projects previews and hides the excerpt of a message that is gone', () => {
     const author = { kind: 'human' as const };
     const projected = projectQuotes(

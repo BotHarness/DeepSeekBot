@@ -88,13 +88,37 @@ function comparable(text: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
-export function quoteTextMatches(body: string, text: string): boolean {
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/giu, (whole, name: string) => {
+    const lower = name.toLowerCase();
+    if (!lower.startsWith('#')) return NAMED_ENTITIES[lower] ?? whole;
+    const code = lower.startsWith('#x')
+      ? Number.parseInt(lower.slice(2), 16)
+      : Number.parseInt(lower.slice(1), 10);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+}
+
+function bodyMatches(body: string, text: string): boolean {
   const needle = comparable(text);
   if (needle.length === 0) return body.includes(text.trim());
   return (
     comparable(body.replace(/\]\([^)\s]*(?:\s+"[^"]*")?\)/gu, ']')).includes(needle) ||
     comparable(body).includes(needle)
   );
+}
+
+export function quoteTextMatches(body: string, text: string): boolean {
+  return bodyMatches(body, text) || bodyMatches(decodeEntities(body), text);
 }
 
 function purged(target: object): boolean {
@@ -105,6 +129,11 @@ export function assertQuoteTargets(
   quotes: readonly ChannelQuote[] | undefined,
   lookup: (messageId: string) => { body: string } | undefined,
 ): void {
+  if ((quotes?.length ?? 0) > MAX_CHANNEL_QUOTES)
+    throw new ChannelQuoteError(
+      'invalid-quotes',
+      `At most ${MAX_CHANNEL_QUOTES} quotes are supported`,
+    );
   for (const quote of quotes ?? []) {
     const target = lookup(quote.messageId);
     if (target === undefined)

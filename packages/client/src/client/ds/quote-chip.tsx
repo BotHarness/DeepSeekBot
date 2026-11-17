@@ -317,7 +317,7 @@ export const QuoteCard = forwardRef<
       <button
         ref={ref}
         type="button"
-        aria-label={jumpLabel}
+        aria-label={jumpLabel === undefined ? undefined : `${jumpLabel}: ${body}`}
         data-bubble-quote={kind}
         data-quote-part={part ? '' : undefined}
         data-bubble-quote-media={media}

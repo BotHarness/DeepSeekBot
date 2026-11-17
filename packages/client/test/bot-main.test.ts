@@ -2415,6 +2415,7 @@ describe('B2 chat bubbles', () => {
       const mine = quote('h1');
       expect(mine.tagName).toBe('BUTTON');
       expect(mine.getAttribute('aria-label')).toContain('Ada');
+      expect(mine.getAttribute('aria-label')).toContain('the question');
       expect(mine.querySelector('[data-bubble-quote-author]')?.textContent).toBe('Ada');
       expect(mine.textContent).toContain('the question');
       expect(mine.hasAttribute('data-bot-name-color')).toBe(false);
@@ -2440,6 +2441,69 @@ describe('B2 chat bubbles', () => {
     } finally {
       await act(async () => root.unmount());
       container.remove();
+      restore(previous);
+    }
+  });
+
+  it('restores the quote of a failed message whose target is not loaded', async () => {
+    const previous = store.getSnapshot();
+    const identity = previous.composerIdentity;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    try {
+      store.setComposerIdentity({ hostId: 'host', profileId: 'restore', humanId: 'human' });
+      store.setRoster([ada, bob], [group]);
+      store.select({ kind: 'channel', channelId: group.id });
+      store.setConversation({
+        status: 'ready',
+        channel: group,
+        sending: false,
+        messages: [
+          {
+            id: 'local-failed-q',
+            at,
+            author: { kind: 'human' },
+            body: 'Still true?',
+            failed: 'network disconnected',
+            quotes: [
+              {
+                messageId: 'old-1',
+                text: 'ship Friday',
+                note: 'Is it?',
+                preview: { author: { kind: 'bot', slug: 'ada' }, body: 'We ship Friday.' },
+              },
+            ],
+          },
+        ],
+      });
+      const actions = {
+        modelPlanState: async () => ({}),
+        listWorkspaceGrants: async () => [],
+        botSourcePolicies: async () => [],
+        skillCatalog: async () => [],
+        allBotPreview: async () => ({ recipients: [], excluded: [] }),
+        listWorkspaceOptions: async () => [],
+        markRead: async () => undefined,
+        ...inertSubmissionActions,
+        dismissFailedMessage: () => true,
+      } as unknown as BridgeActions;
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('button.bh-bubble-failed-action')!.click(),
+      );
+      const chip = container.querySelector('[data-quote-chip]');
+      expect(chip?.textContent).toContain('Ada');
+      expect(chip?.textContent).toContain('ship Friday');
+      expect(chip?.querySelector('input')?.value).toBe('Is it?');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setComposerIdentity(identity);
+      localStorage.clear();
       restore(previous);
     }
   });

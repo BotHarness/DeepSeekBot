@@ -3,6 +3,7 @@ import {
   assertQuoteTargets,
   ChannelQuoteError,
   quotePromptBlock,
+  sameQuoteIntent,
   type ChannelQuote,
 } from '../channels/quotes.js';
 import { hasIrreversibleExternalEffect, toolEffects } from '../workspaces/tool-effects.js';
@@ -9211,10 +9212,11 @@ class BotRuntimeImplementation implements BotRuntime {
         if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo)) {
           throw new ChannelReplyTargetError();
         }
-        assertQuoteTargets(input.quotes, (id) => this.#channels.message(channel.id, id));
+        const messageId = this.#deliveryMessageId(sessionId, input.deliveryKey);
+        this.#assertQuoteTargets(channel.id, messageId, input.quotes);
         beforeSend();
         const message: ChannelMessage = {
-          id: this.#deliveryMessageId(sessionId, input.deliveryKey),
+          id: messageId,
           at: this.#now().toISOString(),
           author: { kind: 'bot', slug: botSlug },
           body,
@@ -9364,9 +9366,10 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#channels.assertAttachmentRefs(input.attachments ?? []);
     if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo))
       throw new ChannelReplyTargetError();
-    assertQuoteTargets(input.quotes, (id) => this.#channels.message(channel.id, id));
+    const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
+    this.#assertQuoteTargets(channel.id, messageId, input.quotes);
     const message: ChannelMessage = {
-      id: this.#deliveryMessageId(input.sessionId, input.deliveryKey),
+      id: messageId,
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       body,
@@ -9553,6 +9556,19 @@ class BotRuntimeImplementation implements BotRuntime {
       parentSourceEventId: sourceEventId,
       hop: inheritedHop + 1,
     };
+  }
+
+  #assertQuoteTargets(
+    channelId: string,
+    messageId: string,
+    quotes: readonly ChannelQuote[] | undefined,
+  ): void {
+    if (
+      quotes?.length &&
+      sameQuoteIntent(this.#channels.storedQuotes(channelId, messageId), quotes)
+    )
+      return;
+    assertQuoteTargets(quotes, (id) => this.#channels.message(channelId, id));
   }
 
   #deliveryMessageId(sessionId: string, deliveryKey?: string): string {
@@ -9805,7 +9821,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#channels.assertAttachmentRefs(input.attachments ?? []);
     if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo))
       throw new ChannelReplyTargetError();
-    assertQuoteTargets(input.quotes, (id) => this.#channels.message(channel.id, id));
+    const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
+    this.#assertQuoteTargets(channel.id, messageId, input.quotes);
     const sender = this.#registry.get(botSlug);
     if (this.#team) this.#team.bots.requireChannel(botSlug, channel, true);
     else if (sender && botOwner(sender) !== botOwner(recipient))
@@ -9826,7 +9843,6 @@ class BotRuntimeImplementation implements BotRuntime {
         input.sourceEventId,
     );
     this.#requireBotHop(botCausation);
-    const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
     const message: ChannelMessage = {
       id: messageId,
       at: this.#now().toISOString(),

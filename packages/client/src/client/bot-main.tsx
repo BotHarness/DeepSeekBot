@@ -2430,9 +2430,12 @@ function ConversationView({
     );
     setQuoteTargets(
       (message.quotes ?? []).flatMap((quote) => {
-        const target = messages.find((candidate) => candidate.id === quote.messageId);
-        if (target === undefined) return [];
-        const excerpt = Array.from((quote.text ?? target.body).replace(/\s+/gu, ' ').trim())
+        const target =
+          messages.find((candidate) => candidate.id === quote.messageId) ??
+          (quote.preview == null
+            ? undefined
+            : { ...message, author: quote.preview.author, body: quote.preview.body });
+        const excerpt = Array.from((quote.text ?? target?.body ?? '').replace(/\s+/gu, ' ').trim())
           .slice(0, 140)
           .join('');
         return [
@@ -2440,7 +2443,10 @@ function ConversationView({
             messageId: quote.messageId,
             ...(quote.text === undefined ? {} : { text: quote.text }),
             ...(quote.note === undefined ? {} : { note: quote.note }),
-            author: authorLabel(target, state.bots, t, channelHumanName(channel)),
+            author:
+              target === undefined
+                ? t('message.replyUnavailable')
+                : authorLabel(target, state.bots, t, channelHumanName(channel)),
             excerpt,
           },
         ];
@@ -2990,6 +2996,7 @@ function ConversationView({
             ),
             channelRefs: submittedRefs,
             ...(submittedReplyTo === undefined ? {} : { replyTo: submittedReplyTo }),
+            ...(submittedQuotes.length === 0 ? {} : { quotes: submittedQuotes }),
             ...(submittedAttachments.length === 0 ? {} : { attachments: submittedAttachments }),
           });
     setSubmissionNotice(

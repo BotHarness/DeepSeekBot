@@ -48,6 +48,22 @@ const styles = stylex.create({
   below: { transform: 'translate(-50%, 0)' },
 });
 
+const VIEWPORT_GAP = 8;
+
+function keepInViewport(element: HTMLDivElement | null): void {
+  if (element === null) return;
+  element.style.marginLeft = '0px';
+  const { left, right } = element.getBoundingClientRect();
+  const limit = document.documentElement.clientWidth - VIEWPORT_GAP;
+  const shift =
+    left < VIEWPORT_GAP
+      ? VIEWPORT_GAP - left
+      : right > limit
+        ? Math.max(limit - right, VIEWPORT_GAP - left)
+        : 0;
+  element.style.marginLeft = `${shift}px`;
+}
+
 export function SelectionToolbar({
   x,
   y,
@@ -66,6 +82,7 @@ export function SelectionToolbar({
       role="toolbar"
       aria-label={label}
       data-selection-toolbar=""
+      ref={keepInViewport}
       onMouseDown={(event) => event.preventDefault()}
       {...stylex.props(styles.bar, below ? styles.below : styles.above)}
       style={{ left: x, top: y }}
