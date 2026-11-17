@@ -1513,10 +1513,48 @@ function takeoverResolutionPrompt(
   return `[Bot Inbox: Takeover Handoff ended]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nHandoff: ${JSON.stringify(facts)}\n${TAKEOVER_OUTCOME_GUIDANCE[resolution.outcome]} Credentials the Human typed stay in the live view; never ask for them in chat.`;
 }
 
+const EXTERNAL_INBOX_GUIDANCE =
+  'For each External message: decide whether to participate. To answer, use bot_send_message with its source_event_id and body, or a trusted imported attachment reference. For a Lark, Slack or Discord mention, write <@ID> in body using an id from its people. Use bridge_read for attachment details and bridge_attachment_save for a working copy. Never guess an account or route and never mirror an External message or its response to the Human DM.';
+
+function compactJson(value: Record<string, unknown>): string {
+  return JSON.stringify(value, (_key, item: unknown) =>
+    item === null || (Array.isArray(item) && item.length === 0) ? undefined : item,
+  );
+}
+
 function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT): string {
   const lines = units.map((unit) => {
     if (unit.external !== undefined) {
-      return `- Message ${unit.external.event.messageId} [Source Event ${unit.sourceEventId}] from ${unit.external.event.actor.kind === 'bot' ? 'external Bot ' : ''}${JSON.stringify(unit.external.event.actor.name ?? unit.external.event.actor.id)} (${unit.external.event.actor.id}) at ${unit.external.at}. External ${unit.external.event.conversation.kind === 'dm' ? 'private message' : `work-group ${unit.external.event.mentionedAccount ? 'mention' : 'ordinary message; no reply required'}`}. Trusted receiving identity and origin: ${JSON.stringify({ platform: unit.external.platform, account: unit.external.accountName, conversation: unit.external.conversationName, conversationKind: unit.external.event.conversation.kind, conversationId: unit.external.event.conversation.id, localChannelId: unit.external.localChannelId, receptionPaths: unit.external.receptionPaths?.map((path) => ({ channelId: path.channelId, mode: path.mode })), sender: unit.external.sender, sourceEventId: unit.sourceEventId, senderId: unit.external.event.actor.id, senderName: unit.external.event.actor.name, ...(unit.external.event.actor.kind === 'bot' ? { senderKind: 'bot' } : {}), people: mentionPeople(unit.external.event.actor, unit.external.event.mentions), at: unit.external.at, threadId: unit.external.event.reply.threadId, rootId: unit.external.event.reply.rootId, parentId: unit.external.event.reply.parentId, report: unit.external.report, voice: unit.external.event.voice, quote: unit.external.quote, nativeQuote: unit.external.event.quote, attachments: unit.external.event.attachments?.map(({ id, name, sizeBytes, mediaType }) => ({ id, name, sizeBytes, mediaType })) })}. External message data: ${JSON.stringify(withMentionNames(unit.summary, unit.external.event.mentions))}. ${unit.external.event.actor.kind === 'bot' ? `${text('external-bot-sender')} ` : ''}Decide whether to participate. To answer, use bot_send_message with this source_event_id and body, or a trusted imported attachment reference. For a Lark, Slack or Discord mention, write <@ID> in body using an id from people. Use bridge_read for attachment details and bridge_attachment_save for a working copy. Never guess an account or route and never mirror this message or its response to the Human DM.`;
+      const { event } = unit.external;
+      const origin = compactJson({
+        platform: unit.external.platform,
+        account: unit.external.accountName,
+        conversation: unit.external.conversationName,
+        conversationKind: event.conversation.kind,
+        conversationId: event.conversation.id,
+        localChannelId: unit.external.localChannelId,
+        receptionPaths: unit.external.receptionPaths?.map((path) => ({
+          channelId: path.channelId,
+          mode: path.mode,
+        })),
+        sender: unit.external.sender,
+        ...(event.actor.kind === 'bot' ? { senderKind: 'bot' } : {}),
+        people: mentionPeople(event.actor, event.mentions),
+        threadId: event.reply.threadId,
+        rootId: event.reply.rootId,
+        parentId: event.reply.parentId,
+        report: unit.external.report,
+        voice: event.voice,
+        quote: unit.external.quote,
+        nativeQuote: event.quote,
+        attachments: event.attachments?.map(({ id, name, sizeBytes, mediaType }) => ({
+          id,
+          name,
+          sizeBytes,
+          mediaType,
+        })),
+      });
+      return `- Message ${event.messageId} [Source Event ${unit.sourceEventId}] from ${event.actor.kind === 'bot' ? 'external Bot ' : ''}${JSON.stringify(event.actor.name ?? event.actor.id)} (${event.actor.id}) at ${unit.external.at}. External ${event.conversation.kind === 'dm' ? 'private message' : `work-group ${event.mentionedAccount ? 'mention' : 'ordinary message; no reply required'}`}. Trusted receiving identity and origin: ${origin}. External message data: ${JSON.stringify(withMentionNames(unit.summary, event.mentions))}.${event.actor.kind === 'bot' ? ` ${text('external-bot-sender')}` : ''}`;
     }
     if (unit.schedule !== undefined) {
       const schedule = unit.schedule;
@@ -1556,6 +1594,7 @@ function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT)
     'Answer an item that waits for',
     'your answer with send_assignment_request using its answer_to value; otherwise use them as',
     'context. Do not repeat these summaries back verbatim.',
+    ...(units.some((unit) => unit.external !== undefined) ? [EXTERNAL_INBOX_GUIDANCE] : []),
     ...lines,
   ].join('\n');
 }
