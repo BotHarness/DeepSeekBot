@@ -1744,7 +1744,7 @@ Channel through the Host and preserve that ID in send receipts and lookups.
 
 ### 无模型私密工具的审批来源
 
-直接调用私密工具时复用 DSH 原生的存活 Orchestrator Agent，应用定义的审批来源则按 Host 生成的 direct call ID 登记。BotRuntime 同时保存预期 Agent Session、Bot 与认证调用方的 DM；ChannelToolApproval 用保留原生 ID 类型的命名查询取得本次来源及 direct／turn 类别，私密工具的调用方 DM 绑定不依赖其效果是否为不可撤销。Session 不匹配或调用方 DM 不可用时拒绝路由。普通回合仍使用自己的入站 Channel 和混合 steering 检查。调用结束时只释放本次进程内来源记录，不释放借用的 Agent，也不为私密输入伪造 Human Source Event。直接调用的 Reviewer 不读取借用 Session 的历史，只收到模板与本次调用输入；普通回合仍沿用原有有界历史。
+直接调用私密工具时复用 DSH 原生的存活 Orchestrator Agent，应用定义的审批来源则按 Host 生成的 direct call ID 登记。BotRuntime 同时保存预期 Agent Session、Bot 与认证调用方的 HumanContext，仅在需要审批来源时解析 DM；ChannelToolApproval 用保留原生 ID 类型的命名查询取得本次来源及 direct／turn 类别，私密工具的调用方 DM 绑定不依赖其效果是否为不可撤销。Session 不匹配或调用方 DM 不可用时拒绝路由。普通回合仍使用自己的入站 Channel 和混合 steering 检查。调用结束时只释放本次进程内来源记录，不释放借用的 Agent，也不为私密输入伪造 Human Source Event。直接调用的 Reviewer 不读取借用 Session 的历史，只收到模板与本次调用输入；普通回合仍沿用原有有界历史。
 
 ## Tool effect declarations (E1)
 

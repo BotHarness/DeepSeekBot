@@ -30,6 +30,14 @@ const http = {
   method: 'GET',
   path: '/audit/approval-reviewer.json',
 };
+const secretCli = {
+  account: 'synthetic-missing',
+  references: ['token'],
+  program: 'git',
+  args: ['--version'],
+  env: [{ name: 'TOKEN', value: '{{token}}' }],
+};
+
 const protectedCli = {
   consumer: 'http-status-v1',
   account: 'synthetic-missing/approval-reviewer.json',
@@ -164,6 +172,36 @@ async function fixture() {
     return release;
   };
   return { core, agent, native, ownerDm, caller, broker, holdTurn, created };
+}
+
+async function rememberSecretCli({ core, caller, broker }: Awaited<ReturnType<typeof fixture>>) {
+  const dm = core.channels.getOrCreateDm(caller, 'helper', 'Helper')!;
+  const controller = new AbortController();
+  const seed = core.runtime.runDirectBotTool!(
+    'helper',
+    'secret_cli',
+    secretCli,
+    controller.signal,
+    undefined,
+    undefined,
+    caller,
+  ).catch(() => undefined);
+  try {
+    const card = await vi.waitFor(() => {
+      const message = core.channels
+        .readMessages(dm.id)
+        .find((message) => message.toolApprovalRequest);
+      if (!message) throw new Error('Missing seed approval');
+      return message;
+    });
+    expect(await broker().decide(caller, 'helper', card.id, 'allowed-always-exact')).toBe(true);
+  } finally {
+    controller.abort();
+    await seed;
+  }
+  const [rule] = core.toolRules.list('helper').filter((rule) => rule.revokedAt === undefined);
+  if (!rule) throw new Error('The real Human card did not save an active rule');
+  return { dm, rule };
 }
 
 describe('Private tool approval through the registered native executor', () => {
@@ -317,40 +355,9 @@ describe('Private tool approval through the registered native executor', () => {
   });
 
   it('refuses a callerless saved rule without consuming it and keeps authenticated reuse', async () => {
-    const { core, native, caller, broker } = await fixture();
-    const privateArgs = {
-      account: 'synthetic-missing',
-      references: ['token'],
-      program: 'git',
-      args: ['--version'],
-      env: [{ name: 'TOKEN', value: '{{token}}' }],
-    };
-    const dm = core.channels.getOrCreateDm(caller, 'helper', 'Helper')!;
-    const seedController = new AbortController();
-    const seed = core.runtime.runDirectBotTool!(
-      'helper',
-      'secret_cli',
-      privateArgs,
-      seedController.signal,
-      undefined,
-      undefined,
-      caller,
-    ).catch(() => undefined);
-    try {
-      const card = await vi.waitFor(() => {
-        const message = core.channels
-          .readMessages(dm.id)
-          .find((message) => message.toolApprovalRequest);
-        if (!message) throw new Error('Missing seed approval');
-        return message;
-      });
-      expect(await broker().decide(caller, 'helper', card.id, 'allowed-always-exact')).toBe(true);
-    } finally {
-      seedController.abort();
-      await seed;
-    }
-    const [rule] = core.toolRules.list('helper').filter((rule) => rule.revokedAt === undefined);
-    if (!rule) throw new Error('The real Human card did not save an active rule');
+    const state = await fixture();
+    const { core, native, caller } = state;
+    const { dm, rule } = await rememberSecretCli(state);
     const nativeRequest = vi.spyOn(native, 'request');
     const firstController = new AbortController();
     const secondController = new AbortController();
@@ -358,7 +365,7 @@ describe('Private tool approval through the registered native executor', () => {
     const first = core.runtime.runDirectBotTool!(
       'helper',
       'secret_cli',
-      privateArgs,
+      secretCli,
       firstController.signal,
     ).then(
       () => {
@@ -378,7 +385,7 @@ describe('Private tool approval through the registered native executor', () => {
       second = core.runtime.runDirectBotTool!(
         'helper',
         'secret_cli',
-        privateArgs,
+        secretCli,
         secondController.signal,
         undefined,
         undefined,
@@ -397,18 +404,55 @@ describe('Private tool approval through the registered native executor', () => {
     }
   });
 
+  it('honors a saved rule for an ordinary native call without an inbound Channel', async () => {
+    const state = await fixture();
+    const { core, agent } = state;
+    const { dm, rule } = await rememberSecretCli(state);
+    const controller = new AbortController();
+    expect(
+      core.runtime.toolApprovalOrigin?.({
+        sessionId: agent.session.id,
+        callId: ToolCallId('resumed-native'),
+      }),
+    ).toBeUndefined();
+    agent.session.append('turn/start', { turn: 999 });
+    const run = executeNativeTool(agent.ctx, {
+      agent,
+      name: 'secret_cli',
+      arguments: secretCli,
+      callId: ToolCallId('resumed-native'),
+      signal: controller.signal,
+    });
+    try {
+      await vi.waitFor(() =>
+        expect(
+          core.toolRules.list('helper').find((row) => row.id === rule.id)?.autoApprovedCount,
+        ).toBe(1),
+      );
+      expect(
+        core.channels.readMessages(dm.id).filter((message) => message.toolApprovalRequest),
+      ).toHaveLength(1);
+    } finally {
+      controller.abort();
+      await run;
+      agent.session.append('turn/end', { turn: 999, reason: { kind: 'completed' } });
+    }
+  });
+
   it('does not create a DM for an ungoverned direct read', async () => {
     const { core, caller } = await fixture();
     const channelsBefore = core.channels.list().map((channel) => channel.id);
-    await core.runtime.runDirectBotTool!(
-      'helper',
-      'secret_http',
-      { ...http, path: '/ordinary-read' },
-      new AbortController().signal,
-      undefined,
-      undefined,
-      caller,
-    ).catch(() => undefined);
+    await expect(
+      core.runtime.runDirectBotTool!(
+        'helper',
+        'secret_http',
+        { ...http, path: '/ordinary-read' },
+        new AbortController().signal,
+        undefined,
+        undefined,
+        caller,
+      ),
+    ).rejects.toThrow('references must include the endpoint field');
     expect(core.channels.list().map((channel) => channel.id)).toEqual(channelsBefore);
   });
 

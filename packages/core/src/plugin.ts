@@ -2704,6 +2704,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
     core.team.approvals,
+    (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
