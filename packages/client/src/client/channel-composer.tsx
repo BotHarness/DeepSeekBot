@@ -1331,6 +1331,13 @@ export function ChannelComposer({
                 else skillPeek.show(chip.peek, chip.element);
               }}
               onPointerLeave={skillPeek.hide}
+              onMouseDown={(event) => {
+                if (
+                  readSkill !== undefined &&
+                  chipSkill(event.target, skillOptions, t) !== undefined
+                )
+                  event.preventDefault();
+              }}
               onClick={(event) => {
                 const target = event.target;
                 if (!(target instanceof Element)) return;

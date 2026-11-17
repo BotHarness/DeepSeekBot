@@ -124,7 +124,7 @@ describe('Skill preview helpers', () => {
   it('summarizes the first paragraph of a Skill body without frontmatter or markers', () => {
     expect(
       skillSummary('---\nname: x\ndescription: y\n---\n\n# Title\n\nFirst line\n- second'),
-    ).toBe('Title');
+    ).toBe('First line second');
     expect(skillSummary('Read the PR.\nThen reply.\n\nMore')).toBe('Read the PR. Then reply.');
     expect(skillSummary('x'.repeat(400))).toHaveLength(280);
   });
@@ -231,6 +231,7 @@ describe('Skill chip preview', () => {
     await act(async () => chip.click());
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.textContent).toContain('notes-project · as sent');
+    expect(dialog.querySelector('.bh-skill-detail-description')).toBeNull();
     expect(dialog.querySelector('[data-markdown]')?.textContent).toBe(
       'Keep notes short.\n\nSecond paragraph.',
     );

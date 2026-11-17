@@ -819,6 +819,7 @@ export function ChannelMessageBody({
           skillPeek.open({
             ...peek,
             owner: t('composer.skillSnapshot', { owner }),
+            description: '',
             load: () => Promise.resolve({ description: '', content: skill.content }),
           })
         }

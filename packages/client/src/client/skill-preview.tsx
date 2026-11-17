@@ -55,6 +55,7 @@ export function skillSummary(content: string): string {
   const paragraph =
     markdownBody(content)
       .split(/\n\s*\n/u)
+      .filter((block) => !block.split('\n').every((line) => /^\s*(?:#|$)/u.test(line)))
       .map((block) =>
         block
           .split('\n')
