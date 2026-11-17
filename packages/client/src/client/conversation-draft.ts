@@ -95,10 +95,12 @@ export function useComposerRecovery(
             channelId,
             uploaded,
             restored.reply?.id,
-            restored.quotes.map(({ messageId, text }) => ({
-              messageId,
-              ...(text === undefined ? {} : { text }),
-            })),
+            restored.quotes.length === 0
+              ? undefined
+              : restored.quotes.map(({ messageId, text }) => ({
+                  messageId,
+                  ...(text === undefined ? {} : { text }),
+                })),
           )
           .then((checked) => {
             if (disposed || manager.read(scope).draft !== restored) return;

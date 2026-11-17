@@ -69,7 +69,7 @@ describe('composer recovery integration', () => {
     }
     await act(async () => root.render(createElement(View)));
     expect(container.firstElementChild?.getAttribute('data-blocked')).toBe('true');
-    expect(validate).toHaveBeenCalledWith('group', [], 'deleted-reply', []);
+    expect(validate).toHaveBeenCalledWith('group', [], 'deleted-reply', undefined);
     await act(async () => finish?.({ attachments: [] }));
     expect(container.textContent).toBe('@Gone #Gone|0|0||error');
     expect(container.firstElementChild?.getAttribute('data-blocked')).toBe('false');
