@@ -2725,6 +2725,9 @@ export const zh = {
   'message.sending': '发送中',
   'message.perf.speed': '{tps} tps',
   'footer.settings': '底部栏设置',
+  'composerHeader.settings': '顶部栏设置',
+  'composerHeader.restoreHint':
+    '全部隐藏后，可在输入框输入 /header 重新打开设置，也可以右键或长按顶部栏的标签。',
   'footer.restoreHint': '全部隐藏后，可在输入框输入 /footer 重新打开设置。',
   'footer.usage': 'Token 用量',
   'footer.speed': '生成速度',
@@ -8978,6 +8981,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.sending': 'Sending',
   'message.perf.speed': '{tps} tps',
   'footer.settings': 'Footer settings',
+  'composerHeader.settings': 'Header bar settings',
+  'composerHeader.restoreHint':
+    'Right-click or long-press the header chip to open these settings. When all items are hidden, type /header in the composer.',
   'footer.restoreHint':
     'When all items are hidden, type /footer in the composer to reopen these settings.',
   'footer.usage': 'Token usage',

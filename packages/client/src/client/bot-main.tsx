@@ -2254,7 +2254,16 @@ function ConversationView({
       ? undefined
       : {
           ...baseComposerContext,
-          shortcuts: [...baseComposerContext.shortcuts, ...conversationShortcuts],
+          shortcuts: [
+            ...(contextInHeader
+              ? baseComposerContext.shortcuts.map((shortcut) =>
+                  shortcut.id === 'footer'
+                    ? { ...shortcut, id: 'header' as const, label: t('composerHeader.settings') }
+                    : shortcut,
+                )
+              : baseComposerContext.shortcuts),
+            ...conversationShortcuts,
+          ],
           ...(contextInHeader ? { content: undefined } : {}),
         };
 
