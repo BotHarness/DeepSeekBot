@@ -1,7 +1,12 @@
 import { MethodRefused, type HostClient } from './client';
-import { parseModelCatalog, type ModelCatalogEntry } from './model-catalog';
+import {
+  modelChoice as favoriteChoice,
+  parseModelCatalog,
+  type ModelCatalogEntry,
+  type ModelChoice,
+} from './model-catalog';
 
-export type { ModelCatalogEntry };
+export type { ModelCatalogEntry, ModelChoice };
 
 export type Loadable<T> =
   | { status: 'loading' }
@@ -46,6 +51,7 @@ export interface BotModel {
   plan?: ModelPlan;
   repair?: string;
   models: ModelCatalogEntry[];
+  favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
 }
@@ -199,7 +205,7 @@ export async function loadBotModel(
       return { presets: [] };
     }),
   ]);
-  const { models, default: fallback } = catalogAnswer(catalog);
+  const { models, default: fallback, favorites } = catalogAnswer(catalog);
   const current = record(state);
   const saved = plan(current?.['plan']);
   const repair = record(current?.['repair']);
@@ -209,6 +215,7 @@ export async function loadBotModel(
     ...(saved === undefined ? {} : { plan: saved }),
     ...(text(repair?.['code']) ? { repair: repair['code'] } : {}),
     models,
+    ...(favorites === undefined ? {} : { favorites }),
     ...(fallback === undefined ? {} : { fallback }),
     presets: some(record(presets)?.['presets'], preset),
   };
@@ -223,14 +230,26 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     client.call('modelCatalog', {}),
     client.call('modelPresets', {}),
   ]);
-  const { models, default: fallback, defaultRevision } = catalogAnswer(catalog);
+  const { models, default: fallback, defaultRevision, favorites } = catalogAnswer(catalog);
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
     models,
+    ...(favorites === undefined ? {} : { favorites }),
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),
   };
+}
+
+export async function setModelFavorite(
+  client: ModelSettingsClient,
+  choice: ModelChoice,
+  favorite: boolean,
+): Promise<ModelChoice[]> {
+  const answer = record(await client.call('modelFavoriteSet', { choice, favorite }));
+  if (!Array.isArray(answer?.['favorites']))
+    throw new HostAnswerInvalid('modelFavoriteSet returned no favorites.');
+  return some(answer['favorites'], favoriteChoice);
 }
 
 export function sameModel(

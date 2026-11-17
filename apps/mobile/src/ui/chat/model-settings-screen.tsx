@@ -7,8 +7,10 @@ import {
   applyModelPreset,
   errorText,
   sameModel,
+  type ModelChoice,
   type ModelRoute,
 } from '@botharness/host-client/bot-settings';
+import { modelChoiceKey } from '@botharness/host-client/model-catalog';
 import type { HostClient } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
 import {
@@ -28,6 +30,7 @@ import { modelFamilies } from '@botharness/host-client/shared/model-brand';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Chip } from '../primitives/chip';
+import { FavoriteButton } from '../primitives/favorite-button';
 import { modelEntryLabel, modelFamilyKey } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
@@ -40,13 +43,18 @@ import { useStrings, t } from '../strings';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
+const FAVORITES = 'favorites';
+const ALL = 'all';
+
 function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, key]);
   const [value, setValue] = useState(resource.peek);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [starred, setStarred] = useState<ModelChoice[]>();
   const pending = useRef(false);
+  const starring = useRef(0);
   const generation = useRef(0);
   const refresh = useCallback(() => {
     const request = generation.current;
@@ -99,7 +107,28 @@ function useModels(client: HostClient, scope: ModelScope) {
         setBusy(false);
       });
   };
-  return { value, error, busy, refresh, run };
+  const favorites = starred ?? value?.favorites ?? [];
+  const favorite = (choice: ModelChoice, on: boolean) => {
+    const key = modelChoiceKey(choice);
+    const rest = favorites.filter((entry) => modelChoiceKey(entry) !== key);
+    setStarred(on ? [...rest, choice] : rest);
+    setError(undefined);
+    starring.current += 1;
+    void resource.favorite(choice, on).then(
+      (list) => {
+        starring.current -= 1;
+        if (starring.current > 0) return;
+        setValue((current) => (current === undefined ? current : { ...current, favorites: list }));
+        setStarred(undefined);
+      },
+      (cause: unknown) => {
+        starring.current -= 1;
+        if (starring.current === 0) setStarred(undefined);
+        setError(errorText(cause));
+      },
+    );
+  };
+  return { value, error, busy, refresh, run, favorites, favorite };
 }
 
 function routeLabel(value: ModelSettingsState, route: ModelRoute | undefined): string {
@@ -247,12 +276,39 @@ function ModelsView({
         name: entry.modelName,
       })),
     );
-    const shownFamily = families.some((entry) => (entry.brand ?? 'other') === family)
-      ? family
-      : undefined;
-    const entries = searchModels(value.models, query).filter(
-      (entry) => shownFamily === undefined || modelFamilyKey(entry) === shownFamily,
+    const starredKeys = new Set(models.favorites.map(modelChoiceKey));
+    const starredModel = (entry: ModelRoute) =>
+      starredKeys.has(
+        modelChoiceKey({ kind: 'model', provider: entry.provider, model: entry.model }),
+      );
+    const favoriteCount = value.models.filter(starredModel).length;
+    const showFavorites = !picker.endsWith('-effort') && favoriteCount > 0;
+    const filter =
+      family === FAVORITES || (family === undefined && showFavorites)
+        ? showFavorites
+          ? FAVORITES
+          : ALL
+        : family === undefined
+          ? ALL
+          : family;
+    const shownFamily = families.some((entry) => (entry.brand ?? 'other') === filter)
+      ? filter
+      : filter === FAVORITES
+        ? FAVORITES
+        : ALL;
+    const found = searchModels(value.models, query).filter((entry) =>
+      shownFamily === FAVORITES
+        ? starredModel(entry)
+        : shownFamily === ALL || modelFamilyKey(entry) === shownFamily,
     );
+    const entries =
+      shownFamily === FAVORITES
+        ? found
+        : [...found.filter(starredModel), ...found.filter((entry) => !starredModel(entry))];
+    const star = (entry: ModelRoute, on: boolean) => {
+      if (family === undefined) setFamily(shownFamily);
+      models.favorite({ kind: 'model', provider: entry.provider, model: entry.model }, on);
+    };
     return frame(
       <>
         <SearchField
@@ -261,7 +317,7 @@ function ModelsView({
           placeholder={t.modelSettings.search}
           onChangeText={setQuery}
         />
-        {families.length > 1 ? (
+        {families.length > 1 || showFavorites ? (
           <ScrollView
             horizontal
             testID="model-family-filters"
@@ -275,26 +331,37 @@ function ModelsView({
               paddingVertical: space.x2,
             }}
           >
+            {showFavorites ? (
+              <Chip
+                testID="model-family-favorites"
+                label={t.modelSettings.favorites}
+                count={favoriteCount}
+                selected={shownFamily === FAVORITES}
+                onPress={() => setFamily(FAVORITES)}
+              />
+            ) : null}
             <Chip
               testID="model-family-all"
               label={t.modelSettings.allFamilies}
               count={value.models.length}
-              selected={shownFamily === undefined}
-              onPress={() => setFamily(undefined)}
+              selected={shownFamily === ALL}
+              onPress={() => setFamily(ALL)}
             />
-            {families.map((entry) => {
-              const key = entry.brand ?? 'other';
-              return (
-                <Chip
-                  key={key}
-                  testID={`model-family-${key}`}
-                  label={entry.title ?? t.modelSettings.otherFamily}
-                  count={entry.count}
-                  selected={shownFamily === key}
-                  onPress={() => setFamily(shownFamily === key ? undefined : key)}
-                />
-              );
-            })}
+            {families.length > 1
+              ? families.map((entry) => {
+                  const key = entry.brand ?? 'other';
+                  return (
+                    <Chip
+                      key={key}
+                      testID={`model-family-${key}`}
+                      label={entry.title ?? t.modelSettings.otherFamily}
+                      count={entry.count}
+                      selected={shownFamily === key}
+                      onPress={() => setFamily(shownFamily === key ? ALL : key)}
+                    />
+                  );
+                })
+              : null}
           </ScrollView>
         ) : null}
         {banner}
@@ -316,6 +383,7 @@ function ModelsView({
                 : sameModel(item, current);
             const usable = item.credential === undefined;
             const required = picker === 'allowed' && sameModel(item, routes.assignmentDefault);
+            const isFavorite = starredModel(item);
             return (
               <SettingsGroupItem
                 first={index === 0}
@@ -343,6 +411,18 @@ function ModelsView({
                   tone={usable ? 'fg' : 'muted'}
                   selected={selected}
                   control={selected ? { kind: 'check' } : undefined}
+                  accessory={
+                    <FavoriteButton
+                      testID={`model-favorite-${item.provider}-${item.model}`}
+                      label={
+                        isFavorite
+                          ? t.modelSettings.favoriteRemove(item.modelName)
+                          : t.modelSettings.favoriteAdd(item.modelName)
+                      }
+                      favorite={isFavorite}
+                      onPress={() => star(item, !isFavorite)}
+                    />
+                  }
                   onPress={
                     models.busy || (!usable && !(picker === 'allowed' && selected)) || required
                       ? undefined

@@ -732,6 +732,9 @@ const en = {
     families: 'Model families',
     allFamilies: 'All',
     otherFamily: 'Other',
+    favorites: 'Favorites',
+    favoriteAdd: (name: string) => `Add ${name} to favorites`,
+    favoriteRemove: (name: string) => `Remove ${name} from favorites`,
     name: 'Preset name',
     create: 'Save as new preset',
     rename: 'Save preset name',
@@ -1725,6 +1728,11 @@ const en = {
   interface: 'Interface',
   hapticFeedback: {
     title: 'Haptic feedback',
+    storageError: 'Could not save this choice. Toggle again to retry.',
+  },
+  headerModel: {
+    title: 'Show model in chat header',
+    detail: 'Off keeps the header to the Bot name and status.',
     storageError: 'Could not save this choice. Toggle again to retry.',
   },
   sendJump: {
@@ -3347,6 +3355,9 @@ const zh: typeof en = {
     families: '模型系列',
     allFamilies: '全部',
     otherFamily: '其他',
+    favorites: '收藏',
+    favoriteAdd: (name: string) => `收藏 ${name}`,
+    favoriteRemove: (name: string) => `取消收藏 ${name}`,
     name: '预设名称',
     create: '另存为新预设',
     rename: '保存预设名称',
@@ -4267,6 +4278,11 @@ const zh: typeof en = {
   interface: '界面',
   hapticFeedback: {
     title: '触感反馈',
+    storageError: '未能保存此选择，再切换一次。',
+  },
+  headerModel: {
+    title: '在聊天顶部显示模型',
+    detail: '关闭后，顶部只显示 Bot 名称和状态。',
     storageError: '未能保存此选择，再切换一次。',
   },
   sendJump: {

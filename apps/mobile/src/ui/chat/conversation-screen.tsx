@@ -208,6 +208,7 @@ import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
 import { LatestAnchor } from './latest-anchor';
 import { sendJumpPreferences } from '../../host/native-send-jump';
+import { useHeaderModelPreferences } from '../../host/native-header-model';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
 import { createSpeakerRegistry, SpeakerAvatar, SpeakerStageContext } from './speaker-row';
@@ -1699,8 +1700,9 @@ function ChatConversation({
       ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
       : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
+  const showHeaderModel = useHeaderModelPreferences().enabled;
   const headerModel = useHeaderModel(
-    dm && saved !== undefined && !hostRefused && !missing ? client : undefined,
+    dm && showHeaderModel && saved !== undefined && !hostRefused && !missing ? client : undefined,
     slug,
     focused,
     bot === undefined

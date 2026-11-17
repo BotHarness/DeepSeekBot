@@ -93,6 +93,11 @@ export function ModelSheet({
   else {
     const value = model.value;
     const current = currentModel(value).route;
+    const favorites = (value.favorites ?? []).flatMap((choice) => {
+      if (choice.kind !== 'model') return [];
+      const entry = value.models.find((item) => sameModel(item, choice));
+      return entry === undefined ? [] : [entry];
+    });
     const sections = [
       ...(value.presets.length === 0
         ? []
@@ -103,6 +108,18 @@ export function ModelSheet({
                 kind: 'preset',
                 key: `preset:${preset.id}`,
                 preset,
+              })),
+            },
+          ]),
+      ...(favorites.length === 0
+        ? []
+        : [
+            {
+              title: t.modelSettings.favorites,
+              data: favorites.map((entry): Row => ({
+                kind: 'model',
+                key: `favorite:${entry.provider}:${entry.model}`,
+                entry,
               })),
             },
           ]),
