@@ -43,6 +43,7 @@ import {
 } from './mentions.js';
 import {
   insertRichPlainText,
+  normalizeRichInput,
   readRichMentionDraft,
   renderRichMentionDraft,
   richSelectionOffsets,
@@ -106,6 +107,7 @@ export interface ChannelComposerUpload {
 }
 
 export interface ChannelComposerProps {
+  onOverlayResize?: ((timeline: HTMLElement) => void) | undefined;
   context?: ComposerContext | undefined;
   sendKey?: ComposerSendKey | undefined;
   value: string;
@@ -440,9 +442,12 @@ export function ChannelComposer({
   onRecall,
   onSubmit,
   onStop,
+  onOverlayResize,
 }: ChannelComposerProps): ReactElement {
   const locked = sending || disabled;
   const stops = onStop !== undefined && !hasVisibleText(value) && attachments.length === 0;
+  const overlayResize = useRef(onOverlayResize);
+  overlayResize.current = onOverlayResize;
   const skillPeek = useSkillPeek(t);
   const voice = useComposerVoice({
     port: dictation,
@@ -691,7 +696,7 @@ export function ChannelComposer({
       }
       return {
         ...nextFit,
-        animateFirstExpand: !current.expanded && nextFit.expanded,
+        animateFirstExpand: current.expanded !== nextFit.expanded,
       };
     });
   }, []);
@@ -830,19 +835,20 @@ export function ChannelComposer({
   );
   const shellMount = useMountedResource<HTMLDivElement>((shell) => {
     const pane = shell.closest<HTMLElement>('.bh-chat-pane');
-    if (pane === null || typeof ResizeObserver === 'undefined') return;
-    const timeline = pane.querySelector<HTMLElement>('.bh-chat-body');
+    const timeline = pane?.querySelector<HTMLElement>('.bh-chat-body') ?? null;
+    if (pane === null || timeline === null || typeof ResizeObserver === 'undefined') return;
+    let applied: number | undefined;
     const sync = (): void => {
       const shellBounds = shell.getBoundingClientRect();
       const overlay =
         shellBounds.height === 0
           ? 0
           : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
-      const atLatest =
-        timeline !== null &&
-        timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
-      pane.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
-      if (atLatest) timeline.scrollTop = timeline.scrollHeight;
+      if (overlay !== applied) {
+        applied = overlay;
+        timeline.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
+      }
+      overlayResize.current?.(timeline);
     };
     sync();
     const observer = new ResizeObserver(sync);
@@ -850,7 +856,7 @@ export function ChannelComposer({
     observer.observe(pane);
     return () => {
       observer.disconnect();
-      pane.style.removeProperty('--bh-composer-overlay');
+      timeline.style.removeProperty('--bh-composer-overlay');
     };
   }, []);
   const replyId = reply?.id;
@@ -878,7 +884,7 @@ export function ChannelComposer({
   );
 
   const emitRichChange = (editor: HTMLDivElement): void => {
-    if (editor.innerHTML === '<br>') editor.replaceChildren();
+    normalizeRichInput(editor);
     const next = readRichMentionDraft(editor);
     scheduleSync(editor);
     onChange(next.value, next.mentions, next.channelRefs, next.skills);

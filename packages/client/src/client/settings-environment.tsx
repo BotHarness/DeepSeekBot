@@ -60,78 +60,15 @@ export function EnvironmentSwitcher({
   );
 }
 
-export const REMOTE_SETTINGS_SECTIONS = {
-  hostModels: 'environment-models',
-  hostAppearance: 'environment-appearance',
-  hostNotifications: 'environment-notifications',
-  hostApprovals: 'environment-approvals',
-  hostPrompts: 'environment-prompts',
-  hostMessaging: 'environment-messaging',
-  hostVoice: 'environment-voice',
-  hostUsage: 'environment-usage',
-  hostStorage: 'environment-storage',
-  hostConnections: 'environment-connections',
-} as const;
-
-export type RemoteSettingsSection =
-  (typeof REMOTE_SETTINGS_SECTIONS)[keyof typeof REMOTE_SETTINGS_SECTIONS];
-
-export const REMOTE_SECTION_ICONS: Readonly<Record<RemoteSettingsSection, string>> = {
-  [REMOTE_SETTINGS_SECTIONS.hostModels]: 'cpu',
-  [REMOTE_SETTINGS_SECTIONS.hostAppearance]: 'paintbrush',
-  [REMOTE_SETTINGS_SECTIONS.hostNotifications]: 'bell',
-  [REMOTE_SETTINGS_SECTIONS.hostApprovals]: 'shield-check',
-  [REMOTE_SETTINGS_SECTIONS.hostPrompts]: 'file-text',
-  [REMOTE_SETTINGS_SECTIONS.hostMessaging]: 'message-square',
-  [REMOTE_SETTINGS_SECTIONS.hostVoice]: 'audio-lines',
-  [REMOTE_SETTINGS_SECTIONS.hostUsage]: 'gauge',
-  [REMOTE_SETTINGS_SECTIONS.hostStorage]: 'files',
-  [REMOTE_SETTINGS_SECTIONS.hostConnections]: 'plug',
-};
-
-export function remoteSettingsRows(
-  t: BotHarnessTranslate,
-): readonly { id: RemoteSettingsSection; order: number; label: string }[] {
-  return [
-    {
-      id: REMOTE_SETTINGS_SECTIONS.hostModels,
-      label: t('remoteHosts.settings.models'),
-    },
-    {
-      id: REMOTE_SETTINGS_SECTIONS.hostApprovals,
-      label: t('botSettings.section.autoApproval'),
-    },
-    { id: REMOTE_SETTINGS_SECTIONS.hostPrompts, label: t('botSettings.section.prompts') },
-    { id: REMOTE_SETTINGS_SECTIONS.hostVoice, label: t('botSettings.section.voice') },
-    {
-      id: REMOTE_SETTINGS_SECTIONS.hostMessaging,
-      label: t('botSettings.section.messaging'),
-    },
-    {
-      id: REMOTE_SETTINGS_SECTIONS.hostAppearance,
-      label: t('environment.settings.appearance'),
-    },
-    {
-      id: REMOTE_SETTINGS_SECTIONS.hostNotifications,
-      label: t('remoteHosts.notifications'),
-    },
-    { id: REMOTE_SETTINGS_SECTIONS.hostUsage, label: t('overviewUsage.title') },
-    { id: REMOTE_SETTINGS_SECTIONS.hostStorage, label: t('storage.title') },
-    {
-      id: REMOTE_SETTINGS_SECTIONS.hostConnections,
-      label: t('connections.remote.title'),
-    },
-  ].map((row, order) => ({ ...row, order }));
-}
-
-export const REMOTE_DEVICE_SECTIONS: ReadonlySet<string> = new Set([
-  REMOTE_SETTINGS_SECTIONS.hostAppearance,
-  REMOTE_SETTINGS_SECTIONS.hostNotifications,
-]);
-
-export function isRemoteSettingsSection(id: string): id is RemoteSettingsSection {
-  return Object.hasOwn(REMOTE_SECTION_ICONS, id);
-}
+export {
+  REMOTE_DEVICE_SECTIONS,
+  REMOTE_SECTION_ICONS,
+  REMOTE_SETTINGS_SECTIONS,
+  isRemoteSettingsSection,
+  remoteSettingsRows,
+  type RemoteSettingsSection,
+} from './remote-settings-rows.js';
+import { REMOTE_SETTINGS_SECTIONS, type RemoteSettingsSection } from './remote-settings-rows.js';
 
 export function RemoteEnvironmentSection({
   environments,

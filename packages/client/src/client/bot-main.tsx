@@ -3712,6 +3712,13 @@ function ConversationView({
                 >
                   <ChannelComposer
                     key={channelId}
+                    onOverlayResize={(timeline) => {
+                      if (
+                        followingLatest.current &&
+                        !store.getSnapshot().conversation.timeline.hasNewer
+                      )
+                        pinTimelineToLatest(timeline);
+                    }}
                     context={composerContext}
                     sendKey={sendKey}
                     value={draft}

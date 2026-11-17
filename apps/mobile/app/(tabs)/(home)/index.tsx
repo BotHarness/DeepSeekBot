@@ -450,7 +450,7 @@ const HomeContent = memo(function HomeContent({
   const refusedHost =
     selectedHost?.snapshot.connection.status === 'refused'
       ? selectedHost
-      : selectedHost === undefined
+      : selectedHost === undefined && effectiveFilter === 'all'
         ? hosts.find(
             (host) =>
               host.snapshot.connection.status === 'refused' &&

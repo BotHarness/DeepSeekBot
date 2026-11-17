@@ -27,6 +27,11 @@ export const CSS =
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `
+@property --bh-composer-overlay {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
 .bh-settings-search-results { display: flex; flex-direction: column; gap: ${space.x2}; max-height: 45vh; overflow-y: auto; }
 .bh-settings-search-results button { display: flex; flex-direction: column; gap: ${space.x2}; padding: ${space.x3}; text-align: start; border: 0; border-radius: ${radius.xs}; background: transparent; color: ${color.fg}; cursor: pointer; font: inherit; }
 .bh-settings-search-results button:hover { background: ${color.hover}; }
@@ -3477,9 +3482,7 @@ button.bh-profile-heat-cell:focus-visible {
   --bh-code-sticky-top: calc(var(--bh-chat-mask-top, ${space.x6}) - var(--bh-chat-top-inset));
   padding: var(--bh-chat-top-inset) ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
-  transition: padding-bottom 160ms ease;
 }
-html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .md-code-block > :first-child {
   top: var(--bh-code-sticky-top, 0px);
 }
@@ -4328,7 +4331,7 @@ a[href^="https://session.tobs.invalid/"] {
   white-space: pre-wrap;
   cursor: text;
 }
-.bh-composer-rich-input::after {
+.bh-composer-rich-input:not(:has(> br[data-rich-placeholder]:last-child))::after {
   content: '\\200b';
 }
 .bh-composer-rich-input:empty::before {
@@ -4608,9 +4611,8 @@ a[href^="https://session.tobs.invalid/"] {
   border-radius: calc(${radius.panel} + ${space.x3});
   background: var(--tobs-layer-raised);
   transition:
-    padding 220ms var(--ds-ease-in-out),
-    border-color 160ms var(--ds-ease-in-out),
-    box-shadow 160ms var(--ds-ease-in-out);
+    padding 180ms var(--bh-ease-out),
+    border-color 160ms var(--ds-ease-in-out);
 }
 .bh-composer-reply {
   display: flex;
@@ -4745,7 +4747,7 @@ a[href^="https://session.tobs.invalid/"] {
   overflow: hidden;
 }
 .bh-composer-first-expand .bh-composer-body {
-  transition: height 220ms var(--ds-ease-in-out);
+  transition: height 180ms var(--bh-ease-out);
 }
 .bh-composer-input {
   display: block;
