@@ -565,24 +565,33 @@ async function shot(options, paths) {
   });
 }
 
+export function monkeyReplay(options, label, seed, failedAt) {
+  return [
+    `node scripts/verify-app.mjs monkey ${label} --name ${options.name}`,
+    `--seed ${seed} --steps ${Math.max(1, failedAt ?? options.steps)}`,
+    `--locale ${options.locale} --theme ${options.theme} --size ${options.width}x${options.height}`,
+    ...(options.botMode ? ['--bot-mode'] : []),
+    ...(options.keepOverlays ? ['--keep-overlays'] : []),
+  ].join(' ');
+}
+
 async function monkey(options, paths) {
   const label = evidenceLabel(options, 'monkey');
   const seed = options.seed ?? Math.floor(Math.random() * 2 ** 31);
-  return withClient(options, paths, label, async ({ page, instance }) => {
+  return withClient(options, paths, label, async ({ page, instance, consoleLines }) => {
     const run = await runMonkey(page, {
       seed,
       steps: options.steps,
       origin: new URL(instance.url).origin,
+      setupErrors: consoleLines
+        .filter((line) => line.startsWith('pageerror: '))
+        .map((line) => line.slice('pageerror: '.length)),
     });
     const screenshot = join(paths.evidence, `${label}.png`);
     await page.screenshot({ path: screenshot, waitForFonts: false }).catch(() => undefined);
     const report = join(paths.evidence, `${label}.monkey.json`);
-    writeFileSync(report, `${JSON.stringify(run, null, 2)}\n`);
-    const replay = [
-      `node scripts/verify-app.mjs monkey ${label} --name ${options.name}`,
-      `--seed ${seed} --steps ${run.failedAt ?? options.steps}`,
-      ...(options.botMode ? ['--bot-mode'] : []),
-    ].join(' ');
+    const replay = monkeyReplay(options, label, seed, run.failedAt);
+    writeFileSync(report, `${JSON.stringify({ ...run, replay }, null, 2)}\n`);
     return {
       label,
       ok: run.ok,

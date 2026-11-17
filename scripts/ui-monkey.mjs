@@ -1,3 +1,5 @@
+import { mulberry32 } from './seeded-random.mjs';
+
 export const UNSAFE =
   /\b(?:delete|remove|reset|clear|erase|uninstall|install|disconnect|revoke|sign out|log ?out|quit|stop|restart|shut ?down|send|submit|report|publish|share|purchase|buy|pay)\b|删除|移除|重置|清空|清除|卸载|安装|断开|撤销|退出|停止|重启|发送|提交|反馈|报告|发布|分享|购买|支付/iu;
 
@@ -18,30 +20,25 @@ export const TEXTS = [
   '1e309',
 ];
 
-export function mulberry32(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 export const safeTargets = (targets) =>
   targets.filter((target) => !target.external && !UNSAFE.test(target.name));
 
 const pick = (random, list) => list[Math.floor(random() * list.length)];
 
-export function pickAction(random, targets) {
+const ACTIVATION = new Set(['Space']);
+
+export function pickAction(random, targets, focused) {
   const safe = safeTargets(targets);
+  const keys =
+    focused && safeTargets([focused]).length === 0
+      ? KEYS.filter((key) => !ACTIVATION.has(key))
+      : KEYS;
   const fields = safe.filter((target) => target.editable);
   const clickable = safe.filter((target) => !target.editable);
   const roll = random();
   if (fields.length > 0 && roll < 0.2)
     return { kind: 'type', target: pick(random, fields), text: pick(random, TEXTS) };
-  if (roll < 0.3 || clickable.length === 0) return { kind: 'press', key: pick(random, KEYS) };
+  if (roll < 0.3 || clickable.length === 0) return { kind: 'press', key: pick(random, keys) };
   return { kind: 'click', target: pick(random, clickable) };
 }
 
@@ -88,7 +85,7 @@ function collectTargets() {
     );
   });
   window.__bhMonkey = nodes;
-  return nodes.map((node, index) => ({
+  const describe = (node, index) => ({
     index,
     role: node.getAttribute('role') ?? node.tagName.toLowerCase(),
     name: (
@@ -105,8 +102,15 @@ function collectTargets() {
     external:
       node.tagName === 'A' &&
       (node.target === '_blank' || new URL(node.href, location.href).origin !== location.origin),
-  }));
+  });
+  const active = document.activeElement;
+  return {
+    targets: nodes.map(describe),
+    focused: active && active !== document.body ? describe(active, -1) : undefined,
+  };
 }
+
+const STALLED = Symbol('stalled');
 
 const settle = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -157,13 +161,19 @@ const shellAlive = (page) =>
       document.querySelector('button') !== null,
   );
 
-export async function runMonkey(page, { seed, steps, origin, pause = 250 }) {
+export const STALL_MS = 10_000;
+
+export async function runMonkey(
+  page,
+  { seed, steps, origin, pause = 250, setupErrors = [], stallMs = STALL_MS },
+) {
   const random = mulberry32(seed);
   const actions = [];
-  const pageErrors = [];
+  const pageErrors = setupErrors.map((message) => ({ step: 0, message }));
   const consoleErrors = [];
   let step = 0;
   let blankAt;
+  let stalledAt;
   const onPageError = (error) => pageErrors.push({ step, message: error.message });
   const onConsole = (message) => {
     if (message.type() === 'error') consoleErrors.push({ step, text: message.text() });
@@ -174,15 +184,21 @@ export async function runMonkey(page, { seed, steps, origin, pause = 250 }) {
     for (step = 1; step <= steps; step += 1) {
       if (new URL(page.url()).origin !== origin)
         await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => undefined);
-      const targets = await page.evaluate(collectTargets);
-      const action = pickAction(random, targets);
+      const { targets, focused } = await page.evaluate(collectTargets);
+      const action = pickAction(random, targets, focused);
       const entry = { step, action: describeAction(action) };
-      try {
-        await within(5000, perform(page, action));
-      } catch (error) {
-        entry.skipped = error.message.split('\n')[0];
-      }
+      const work = perform(page, action).then(
+        () => undefined,
+        (error) => error.message.split('\n')[0],
+      );
+      const outcome = await within(stallMs, work).catch(() => STALLED);
       actions.push(entry);
+      if (outcome === STALLED) {
+        entry.stalled = true;
+        stalledAt = step;
+        break;
+      }
+      if (outcome !== undefined) entry.skipped = outcome;
       await settle(pause);
       if (!(await shellAlive(page).catch(() => false))) {
         await settle(1500);
@@ -196,13 +212,18 @@ export async function runMonkey(page, { seed, steps, origin, pause = 250 }) {
     page.off('pageerror', onPageError);
     page.off('console', onConsole);
   }
-  const failedAt = Math.min(blankAt ?? Infinity, pageErrors[0]?.step ?? Infinity);
+  const failedAt = Math.min(
+    blankAt ?? Infinity,
+    stalledAt ?? Infinity,
+    pageErrors[0]?.step ?? Infinity,
+  );
   return {
     seed,
     steps: actions.length,
     ok: failedAt === Infinity,
     failedAt: failedAt === Infinity ? undefined : failedAt,
     blankAt,
+    stalledAt,
     pageErrors,
     consoleErrors,
     actions,

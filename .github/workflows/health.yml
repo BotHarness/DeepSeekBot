@@ -60,6 +60,7 @@ jobs:
       - if: always()
         run: node scripts/verify-app.mjs stop --name nightly
       - name: Fetch the previous trend
+        id: previous_trend
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -70,14 +71,14 @@ jobs:
             gh api "$url" > "$RUNNER_TEMP/trend.zip"
             unzip -o "$RUNNER_TEMP/trend.zip" -d .humanlayer/nightly/previous
           fi
-      - if: always()
+      - if: always() && steps.previous_trend.outcome == 'success'
         run: >-
           node scripts/health-trend.mjs --previous .humanlayer/nightly/previous/trend.json
           --perf .humanlayer/perf/nightly/nightly.json
           --monkey .humanlayer/nightly/monkey-shell.json
           --monkey .humanlayer/nightly/monkey-bot-mode.json
           --out .humanlayer/nightly/trend.json
-      - if: always()
+      - if: always() && steps.previous_trend.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: health-trend
@@ -99,6 +100,7 @@ jobs:
           SHELL_RUN: ${{ steps.monkey_shell.outcome }}
           BOT_RUN: ${{ steps.monkey_bot.outcome }}
           PERF_RUN: ${{ steps.perf.outcome }}
+          TREND_FETCH: ${{ steps.previous_trend.outcome }}
         run: >-
-          node -e 'const failed = ["SHELL_RUN", "BOT_RUN", "PERF_RUN"].filter((key) => process.env[key] !== "success");
+          node -e 'const failed = ["SHELL_RUN", "BOT_RUN", "PERF_RUN", "TREND_FETCH"].filter((key) => process.env[key] !== "success");
           if (failed.length) throw Error(`${failed.join(", ")} failed; the replay command is in its JSON in nightly-evidence`)'

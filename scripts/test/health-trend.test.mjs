@@ -29,9 +29,15 @@ describe('health trend', () => {
 
   it(`keeps the last ${KEEP} nights`, () => {
     let trend = [];
-    for (let index = 0; index < KEEP + 5; index += 1) trend = appendEntry(trend, { run: index });
+    for (let index = 0; index < KEEP + 5; index += 1)
+      trend = appendEntry(trend, { date: `night-${index}`, run: index });
     expect(trend).toHaveLength(KEEP);
     expect(trend[0].run).toBe(5);
+  });
+
+  it('keeps one entry per night, the latest run', () => {
+    const trend = appendEntry(appendEntry([], { date: 'd1', run: 1 }), { date: 'd1', run: 2 });
+    expect(trend).toEqual([{ date: 'd1', run: 2 }]);
   });
 
   it('takes the middle value', () => {
@@ -45,6 +51,16 @@ describe('health trend', () => {
     expect(report([...steady, night(2.3)]).warnings).toEqual([]);
     expect(report([...steady, night(2.6)]).warnings).toEqual([
       'Idle main-thread busy (%) is 2.6, over 7-night median 2',
+    ]);
+  });
+
+  it('warns when a metric leaves a zero baseline', () => {
+    const zero = (count) => ({
+      ...night(2),
+      health: { ...night(2).health, tscExclude: count },
+    });
+    expect(report([zero(0), zero(0), zero(1)]).warnings).toEqual([
+      'Files excluded from tsc is 1, over 7-night median 0',
     ]);
   });
 

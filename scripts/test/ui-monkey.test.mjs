@@ -1,7 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { describeAction, mulberry32, pickAction, runMonkey, safeTargets } from '../ui-monkey.mjs';
+import { mulberry32 } from '../seeded-random.mjs';
+import { describeAction, pickAction, runMonkey, safeTargets } from '../ui-monkey.mjs';
 
 const target = (name, extra = {}) => ({
   index: 0,
@@ -12,13 +13,14 @@ const target = (name, extra = {}) => ({
   ...extra,
 });
 
-function fakePage({ throwOnClick, blankAfterClick } = {}) {
+function fakePage({ throwOnClick, blankAfterClick, hangOnClick } = {}) {
   const listeners = { pageerror: new Set(), console: new Set() };
   let clicks = 0;
   let blank = false;
   const element = {
     click: async () => {
       clicks += 1;
+      if (clicks === hangOnClick) await new Promise(() => {});
       if (clicks === throwOnClick)
         for (const listener of listeners.pageerror) listener(new Error('boom'));
       if (clicks === blankAfterClick) blank = true;
@@ -36,13 +38,15 @@ function fakePage({ throwOnClick, blankAfterClick } = {}) {
     url: () => 'http://127.0.0.1:1/',
     keyboard,
     evaluate: async (work) =>
-      work.name === 'collectTargets' ? [target('Settings'), target('Channels')] : !blank,
+      work.name === 'collectTargets'
+        ? { targets: [target('Settings'), target('Channels')], focused: undefined }
+        : !blank,
     evaluateHandle: async () => ({ asElement: () => element }),
   };
 }
 
-const run = (page) =>
-  runMonkey(page, { seed: 3, steps: 30, origin: 'http://127.0.0.1:1', pause: 0 });
+const run = (page, options = {}) =>
+  runMonkey(page, { seed: 3, steps: 30, origin: 'http://127.0.0.1:1', pause: 0, ...options });
 
 const arbitraryTarget = fc.record({
   index: fc.nat(50),
@@ -120,5 +124,30 @@ describe('ui monkey', () => {
     expect(result.ok).toBe(false);
     expect(result.blankAt).toBe(result.steps);
     expect(result.actions.at(-1).action).toMatch(/^click /u);
+  });
+
+  it('never presses an activation key while a destructive control has focus', () => {
+    fc.assert(
+      fc.property(fc.nat(), fc.array(arbitraryTarget, { maxLength: 10 }), (seed, targets) => {
+        const random = mulberry32(seed);
+        for (let step = 0; step < 20; step += 1) {
+          const action = pickAction(random, targets, target('Delete Bot'));
+          if (action.kind === 'press') expect(action.key).not.toBe('Space');
+        }
+      }),
+    );
+  });
+
+  it('fails a run whose setup already raised a page error', async () => {
+    const result = await run(fakePage(), { setupErrors: ['setup boom'] });
+    expect([result.ok, result.failedAt]).toEqual([false, 0]);
+    expect(result.pageErrors[0]).toEqual({ step: 0, message: 'setup boom' });
+  });
+
+  it('stops at an action that never finishes instead of acting over it', async () => {
+    const result = await run(fakePage({ hangOnClick: 1 }), { stallMs: 20 });
+    expect(result.ok).toBe(false);
+    expect(result.stalledAt).toBe(result.steps);
+    expect(result.actions.at(-1)).toMatchObject({ stalled: true });
   });
 });

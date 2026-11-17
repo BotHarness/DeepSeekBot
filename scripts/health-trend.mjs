@@ -53,7 +53,8 @@ export function entryOf({ date, sha, run, perf, monkeys, health }) {
   };
 }
 
-export const appendEntry = (trend, entry) => [...trend, entry].slice(-KEEP);
+export const appendEntry = (trend, entry) =>
+  [...trend.filter((night) => night.date !== entry.date), entry].slice(-KEEP);
 
 const valueAt = (entry, key) => {
   const value = key.split('.').reduce((node, part) => node?.[part], entry);
@@ -78,7 +79,7 @@ export function report(trend) {
     const typical = median(
       prior.map((entry) => valueAt(entry, key)).filter((v) => v !== undefined),
     );
-    if (value !== undefined && typical > 0 && value > typical * (1 + REGRESSION))
+    if (value !== undefined && typical !== undefined && value > typical * (1 + REGRESSION))
       warnings.push(`${label} is ${show(value)}, over ${WINDOW}-night median ${show(typical)}`);
     return `| ${label} | ${show(valueAt(prior.at(-1), key))} | ${show(value)} | ${show(typical)} |`;
   });
