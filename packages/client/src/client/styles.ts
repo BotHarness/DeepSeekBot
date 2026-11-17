@@ -4209,42 +4209,34 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   bottom: ${space.x3};
   right: ${space.x4};
   max-width: calc(100% - ${space.x4} * 2);
-  border: ${border.hairline} solid ${color.border};
-  border-radius: 999px;
+  border: 0;
+  border-radius: ${radius.panel};
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: ${size.row};
+  min-width: ${size.row};
   height: ${size.row};
-  padding: 0;
-  color: ${color.fg};
-  background: ${color.elevated};
+  box-sizing: border-box;
+  padding: 0 ${space.x3};
+  color: var(--tobs-ink-secondary);
+  background: var(--tobs-layer-raised);
   opacity: 1;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--tobs-ink-primary) 12%, transparent);
   cursor: pointer;
 }
 .bh-timeline-new:hover {
-  color: ${color.accentText};
-  background: color-mix(in srgb, ${color.fg} 8%, ${color.elevated});
+  color: var(--tobs-ink-primary);
+  background: color-mix(in srgb, var(--tobs-ink-primary) 6%, var(--tobs-layer-raised));
 }
 .bh-timeline-new:active {
-  color: ${color.accentText};
-  background: color-mix(in srgb, ${color.fg} 16%, ${color.elevated});
+  color: var(--tobs-ink-primary);
+  background: color-mix(in srgb, var(--tobs-ink-primary) 12%, var(--tobs-layer-raised));
 }
 .bh-timeline-new-count {
-  position: absolute;
-  top: calc(-1 * ${space.x2});
-  right: calc(-1 * ${space.x2});
-  min-width: ${space.x5};
-  height: ${text.metaLine};
-  box-sizing: border-box;
-  padding-inline: ${space.x1};
-  border-radius: 999px;
-  color: ${color.onAccent};
-  background: ${color.accent};
+  color: ${color.accentText};
   font-size: ${text.metaSize};
+  font-weight: ${text.strong};
   line-height: ${text.metaLine};
-  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .bh-timeline-new:focus-visible { outline: ${border.focus} solid ${color.accent}; }
 
@@ -4576,11 +4568,9 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   box-sizing: border-box;
   overflow: hidden;
   padding: ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left);
-  border: ${border.hairline} solid ${color.border};
+  border: ${border.hairline} solid transparent;
   border-radius: ${radius.panel};
   background: var(--tobs-layer-raised);
-  box-shadow: 0 8px 24px
-    color-mix(in srgb, var(--tobs-ink-primary) 9%, transparent);
   transition:
     border-color 160ms var(--ds-ease-in-out),
     box-shadow 160ms var(--ds-ease-in-out);

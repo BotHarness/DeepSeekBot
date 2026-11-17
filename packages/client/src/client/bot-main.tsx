@@ -3583,12 +3583,13 @@ function ConversationView({
                 }
                 onClick={jumpToLatest}
               >
-                <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
                 {unseen > 0 ? (
                   <span className="bh-timeline-new-count" aria-hidden="true">
                     {unseen > 99 ? '99+' : unseen}
                   </span>
-                ) : null}
+                ) : (
+                  <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
+                )}
               </button>
             </div>
           ) : null}
