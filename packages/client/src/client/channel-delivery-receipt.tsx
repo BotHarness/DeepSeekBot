@@ -124,6 +124,7 @@ export function MessageReading({
   bots,
   motion,
   onShown,
+  onEntered,
   onLeft,
   t,
 }: {
@@ -131,6 +132,7 @@ export function MessageReading({
   bots: readonly BotSummary[];
   motion?: 'enter' | 'leave' | undefined;
   onShown?: (() => void) | undefined;
+  onEntered?: (() => void) | undefined;
   onLeft?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
@@ -153,7 +155,9 @@ export function MessageReading({
         if (motion === 'enter' && event.target === event.currentTarget) onShown?.();
       }}
       onAnimationEnd={(event) => {
-        if (motion === 'leave' && event.target === event.currentTarget) onLeft?.();
+        if (event.target !== event.currentTarget) return;
+        if (motion === 'enter') onEntered?.();
+        if (motion === 'leave') onLeft?.();
       }}
     >
       {shown.map((botSlug) => (

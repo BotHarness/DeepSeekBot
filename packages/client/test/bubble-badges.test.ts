@@ -122,6 +122,19 @@ describe('BubbleBadges', () => {
     expect(motion('[data-message-reading]')).toBeUndefined();
   });
 
+  it('keeps the reading entrance running until it ends', async () => {
+    await render([], []);
+    await render([], ['ada']);
+    await start(container.querySelector('[data-message-reading]'));
+    expect(motion('[data-message-reading]')).toBe('enter');
+    await render([], ['ada', 'bob']);
+    expect(motion('[data-message-reading]')).toBe('enter');
+    await finish(container.querySelector('[data-message-reading]'));
+    expect(motion('[data-message-reading]')).toBeUndefined();
+    await render([], ['ada']);
+    expect(motion('[data-message-reading]')).toBeUndefined();
+  });
+
   it('keeps a faded-in reading chip in place when reading resumes', async () => {
     await render([], []);
     await render([], ['ada']);

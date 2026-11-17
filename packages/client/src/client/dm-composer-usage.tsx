@@ -353,7 +353,7 @@ const sourceStyles = stylex.create({
   list: { marginTop: space.x3 },
   bar: {
     display: 'flex',
-    gap: '2px',
+    gap: space.x1,
     height: '8px',
     marginBottom: space.x3,
     overflow: 'hidden',
@@ -365,7 +365,7 @@ const sourceStyles = stylex.create({
     width: '8px',
     height: '8px',
     marginInlineEnd: space.x2,
-    borderRadius: '2px',
+    borderRadius: radius.xs,
     verticalAlign: 'middle',
   },
   toolRow: {

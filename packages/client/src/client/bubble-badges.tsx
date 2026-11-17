@@ -45,6 +45,8 @@ export function BubbleBadges({
   if (readingStill && readers.length === 0) setReadingStill(false);
   const [shownReaders, setShownReaders] = useState(readers);
   const [readingSeen, setReadingSeen] = useState(readers.length > 0);
+  const [readingEntered, setReadingEntered] = useState(readers.length > 0);
+  if (readers.length === 0 && readingSeen && !readingEntered) setReadingEntered(true);
   if (readers.length > 0 && readers.join('\n') !== shownReaders.join('\n'))
     setShownReaders(readers);
   if (readers.length === 0 && shownReaders.length > 0 && !readingSeen) setShownReaders(NO_READERS);
@@ -67,11 +69,15 @@ export function BubbleBadges({
       <MessageReading
         readers={shownReaders}
         bots={bots}
-        motion={readers.length === 0 ? 'leave' : readingStill || readingSeen ? undefined : 'enter'}
+        motion={
+          readers.length === 0 ? 'leave' : readingStill || readingEntered ? undefined : 'enter'
+        }
         onShown={() => setReadingSeen(true)}
+        onEntered={() => setReadingEntered(true)}
         onLeft={() => {
           setShownReaders(NO_READERS);
           setReadingSeen(false);
+          setReadingEntered(false);
         }}
         t={t}
       />

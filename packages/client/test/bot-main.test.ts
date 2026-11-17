@@ -770,6 +770,90 @@ describe('Bot main Sessions pane', () => {
     store.select(previous.selection);
     store.setConversation(previous.conversation);
   });
+  it('opens the message menu in a read-only DM with only the time and copy', async () => {
+    const previous = store.getSnapshot();
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    store.setRoster(
+      [
+        {
+          slug: 'ada',
+          displayName: 'Ada',
+          roles: [],
+          aggregateState: 'idle',
+          workspaces: [],
+          createdAt: '2026-09-21T00:00:00.000Z',
+          deleted: true,
+          paused: true,
+        },
+      ],
+      [channel],
+    );
+    store.select({ kind: 'channel', channelId: channel.id });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      messages: [
+        {
+          id: 'b1',
+          at: '2026-09-21T00:01:00.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Ready',
+          channelRevision: 1,
+        },
+      ],
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions: {
+              profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+              listWorkspaceGrants: async () => [],
+              modelPlanState: async () => undefined,
+              botSourcePolicies: async () => [],
+              reactToMessage: vi.fn().mockResolvedValue(undefined),
+              ...inertSubmissionActions,
+            } as unknown as BridgeActions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      menus.length = 0;
+      await act(async () =>
+        container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: 40,
+            clientY: 60,
+          }),
+        ),
+      );
+      const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'copy'));
+      const ids = menu?.items?.map((item) => item.id);
+      expect(ids?.slice(0, 2)).toEqual(['time', 'copy']);
+      expect(ids).not.toContain('reply');
+      expect(ids).not.toContain('react');
+      expect(ids).not.toContain('feedback');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
   it('labels a deleted Bot DM as read-only history', () => {
     const previous = store.getSnapshot();
     const channel = {
