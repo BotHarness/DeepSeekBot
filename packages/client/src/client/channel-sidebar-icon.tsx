@@ -153,6 +153,8 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
     ['path', { d: 'M19 12H5' }],
   ],
   'chevron-right': [['path', { d: 'm9 18 6-6-6-6' }]],
+  'chevron-up': [['path', { d: 'm18 15-6-6-6 6' }]],
+  'chevron-down': [['path', { d: 'm6 9 6 6 6-6' }]],
   store: [
     ['path', { d: 'M15 21v-5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v5' }],
     [

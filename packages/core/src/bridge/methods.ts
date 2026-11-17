@@ -847,7 +847,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelGroups(payload: unknown): BridgeResult<{ groups: RoutingGroup[] }>;
+  modelGroups(payload: unknown): BridgeResult<{
+    groups: RoutingGroup[];
+    rests: import('../models/route-rest.js').RestingRoute[];
+  }>;
   modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
   modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
   modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
@@ -1380,6 +1383,7 @@ export interface BridgeMethodsDeps {
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
   routingGroups?: RoutingGroupStore;
+  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
@@ -4143,7 +4147,10 @@ function buildBridgeMethods(
     },
     modelGroups() {
       if (deps.routingGroups === undefined) return unavailable();
-      return { ok: true, value: { groups: deps.routingGroups.list() } };
+      return {
+        ok: true,
+        value: { groups: deps.routingGroups.list(), rests: deps.routeRests?.list() ?? [] },
+      };
     },
     modelGroup(payload) {
       if (deps.routingGroups === undefined) return unavailable();
