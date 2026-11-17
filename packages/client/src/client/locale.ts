@@ -55,6 +55,15 @@ export const zh = {
   'environment.reconnect': '重新连接',
   'environment.loading': '正在加载',
   'environment.offline': '离线',
+  'environment.signedInAs': '已登录为 {name}',
+  'environment.signInRequired': '需要重新登录',
+  'environment.memberSuspended': '账号已停用',
+  'environment.signInAgain': '重新登录…',
+  'environment.switchAccount': '切换账号…',
+  'environment.signOut': '退出登录',
+  'environment.signOut.title': '退出 {name}？',
+  'environment.signOut.description':
+    '这台电脑将不再使用你在这个 Host 上的账号，它的聊天会从这里移除。之后用地址、用户名和密码重新登录即可，不需要新邀请。',
   'environment.partial': '未读数量尚未完整加载',
   'environment.unavailable': '未读数量暂时不可用',
 
@@ -5119,8 +5128,8 @@ export const zh = {
   'teamSignIn.as': '用户名：{username}',
   'teamSignIn.fingerprintHint':
     '请 Host 所有者读出这台 Host 的指纹，或与其 Team 设置中显示的指纹对照。每一组都一致时再继续。',
-  'teamSignIn.password': '一次性密码',
-  'teamSignIn.passwordHint': '使用 Host 所有者给你的密码。',
+  'teamSignIn.password': '密码',
+  'teamSignIn.passwordHint': '第一次登录时，使用 Host 所有者给你的一次性密码。',
   'teamSignIn.signIn': '登录',
   'teamSignIn.changeHint': '继续之前，请先替换一次性密码。',
   'teamSignIn.newPassword': '新密码',
@@ -5133,6 +5142,8 @@ export const zh = {
   'teamSignIn.switchTitle': '切换此 Host 上的账号？',
   'teamSignIn.switchBody':
     '此浏览器将以 {name} 的身份使用该 Host，原账号会在此浏览器上退出该 Host。',
+  'teamSignIn.switchBodyNamed':
+    '此浏览器将以 {name} 的身份使用该 Host，{current} 会在此浏览器上退出该 Host。',
   'teamSignIn.switchConfirm': '切换',
   'teamSignIn.error.generic': '无法登录，请重试。',
   'teamSignIn.error.invitation-invalid': '此邀请链接无效。',
@@ -6012,6 +6023,15 @@ export const en = {
   'environment.reconnect': 'Reconnect',
   'environment.loading': 'Loading',
   'environment.offline': 'Offline',
+  'environment.signedInAs': 'Signed in as {name}',
+  'environment.signInRequired': 'Sign in again',
+  'environment.memberSuspended': 'Account deactivated',
+  'environment.signInAgain': 'Sign in again…',
+  'environment.switchAccount': 'Switch account…',
+  'environment.signOut': 'Sign out',
+  'environment.signOut.title': 'Sign out of {name}?',
+  'environment.signOut.description':
+    'This computer stops using your account on that Host and its chats are removed here. To come back, sign in with the address, username and password; no new invitation is needed.',
   'environment.partial': 'Unread count is incomplete',
   'environment.unavailable': 'Unread count unavailable',
 
@@ -11395,8 +11415,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'teamSignIn.as': 'As {username}',
   'teamSignIn.fingerprintHint':
     "Ask the Host owner to read out this Host's fingerprint, or compare it with the one in their Team settings. Continue only if every group matches.",
-  'teamSignIn.password': 'One-time password',
-  'teamSignIn.passwordHint': 'Use the password your Host owner gave you.',
+  'teamSignIn.password': 'Password',
+  'teamSignIn.passwordHint':
+    'Signing in for the first time? Use the one-time password your Host owner gave you.',
   'teamSignIn.signIn': 'Sign in',
   'teamSignIn.changeHint': 'Replace the one-time password before you continue.',
   'teamSignIn.newPassword': 'New password',
@@ -11409,6 +11430,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'teamSignIn.switchTitle': 'Switch account on this Host?',
   'teamSignIn.switchBody':
     'This browser will use the Host as {name}. The other account on this browser is signed out of it.',
+  'teamSignIn.switchBodyNamed':
+    'This browser will use the Host as {name}. {current} is signed out of it on this browser.',
   'teamSignIn.switchConfirm': 'Switch',
   'teamSignIn.error.generic': 'Could not sign in. Try again.',
   'teamSignIn.error.invitation-invalid': 'This invitation link is not valid.',
