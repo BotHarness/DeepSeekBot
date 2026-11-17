@@ -19,12 +19,13 @@ import {
   DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
   DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
   DEFAULT_BOT_MODE_SORT,
+  DEFAULT_SETTINGS_PINS,
   type BotModeIcon,
   type BotModeMotionPreference,
   type BotModeSendKey,
   type BotModeSortMode,
   type BotModeSettings,
-} from './bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 
 export const name = 'botharness-client';
 stampReleaseComponent(apply, import.meta.url);
@@ -44,6 +45,7 @@ export interface Config {
   streamReplies: Volatile<boolean>;
   sortMode: Volatile<BotModeSortMode>;
   sortModes: Volatile<Record<string, BotModeSortMode>>;
+  settingsPins: Volatile<string[]>;
 }
 
 export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
@@ -82,6 +84,9 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
     .volatile(),
   sortModes: Schema.dict(Schema.union([...BOT_MODE_SORT_MODES]))
     .default({})
+    .volatile(),
+  settingsPins: Schema.array(Schema.string())
+    .default([...DEFAULT_SETTINGS_PINS])
     .volatile(),
 });
 

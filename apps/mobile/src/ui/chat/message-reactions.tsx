@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { reactedByMe, type ConversationReaction } from '../../host/conversation';
+import { reactedByMe, type ConversationReaction } from '@botharness/host-client/conversation';
 import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';

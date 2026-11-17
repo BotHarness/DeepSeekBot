@@ -2,7 +2,7 @@
 import { act, useLayoutEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { useMessageSourceState } from '../src/ui/chat/message-source-state';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

@@ -31,7 +31,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({ font: () => ({}) }));
 import { ConnectionFailureActions as Android } from '../src/ui/primitives/connection-failure-actions';
 import { ConnectionFailureActions as IOS } from '../src/ui/primitives/connection-failure-actions.ios';
-import { connectionDiagnostic } from '../src/host/connection-diagnostic';
+import { connectionDiagnostic } from '@botharness/host-client/connection-diagnostic';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;

@@ -7,7 +7,7 @@ import {
   loadMoreMemoryActivity,
   loadMoreUsage,
   loadUsage,
-} from '../../src/host/usage';
+} from '@botharness/host-client/usage';
 import { UsageView, type UsageSources } from '../../src/ui/usage-view';
 
 export default function UsageScreen() {

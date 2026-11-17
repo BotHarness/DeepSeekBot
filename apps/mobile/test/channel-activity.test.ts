@@ -3,14 +3,18 @@ import { describe, expect, it } from 'vitest';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
 import { visibleDmMessages } from '../../../packages/client/src/client/dm-actions';
 import { en, zh } from '../../../packages/client/src/client/locale';
-import { activityOf } from '../src/host/channel-activity';
-import { reactable, shownInChat, type ConversationMessage } from '../src/host/conversation';
-import type { RosterView } from '../src/host/client';
+import { activityOf } from '@botharness/host-client/channel-activity';
+import {
+  reactable,
+  shownInChat,
+  type ConversationMessage,
+} from '@botharness/host-client/conversation';
+import type { RosterView } from '@botharness/host-client/client';
 import { visibleDmActivity } from '../src/host/dm-activity';
-import type { ChannelWireMessage } from '../src/host/wire';
+import type { ChannelWireMessage } from '@botharness/host-protocol/wire';
 import { activityText } from '../src/ui/chat/activity-text';
 import { activityStrings } from '../src/ui/strings';
-import fixture from './fixtures/host-wire.json';
+import fixture from '../../../packages/host-client/test/fixtures/host-wire.json';
 
 const recorded = fixture.activityJournal;
 const messages = recorded.page.entries.map((entry) => entry.message) as ChannelMessage[];

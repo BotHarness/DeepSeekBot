@@ -1,13 +1,9 @@
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   parseNotificationPreferences,
-} from '../../../../apps/mobile/src/host/device-notification-preferences.js';
-import {
-  PUSH_KINDS,
-  type PushKind,
-  type PushPreferences,
-} from '../../../../apps/mobile/src/host/push.js';
-import type { HumanAttentionItem } from '../../../../apps/mobile/src/host/wire.js';
+} from '@botharness/host-client/device-notification-preferences';
+import { PUSH_KINDS, type PushKind, type PushPreferences } from '@botharness/host-client/push';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import type { RemoteHost, HostStorage, RemoteConversationTarget } from './remote-hosts.js';
 import {
   noticeBody,

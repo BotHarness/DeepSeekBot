@@ -9,8 +9,8 @@ vi.mock('../src/devices/relationship-enrollment.js', async (original) => ({
   ...(await original<typeof import('../src/devices/relationship-enrollment.js')>()),
   enrollRelationshipClient: enrollment.run,
 }));
-vi.mock('../../../apps/mobile/src/host/pairing.js', async (original) => ({
-  ...(await original<typeof import('../../../apps/mobile/src/host/pairing.js')>()),
+vi.mock('@botharness/host-client/pairing', async (original) => ({
+  ...(await original<typeof import('@botharness/host-client/pairing')>()),
   revokePairing: revocation.run,
 }));
 import { runRelationshipCommand } from '../src/bots/cli-relationships.js';

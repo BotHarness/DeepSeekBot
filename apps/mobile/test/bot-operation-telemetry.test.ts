@@ -5,9 +5,13 @@ import {
   type BotCreationPort,
   type CreationReceipt,
   type CreationRecord,
-} from '../src/host/bot-creation';
-import { createMobileTelemetry } from '../src/telemetry/mobile-telemetry';
-import { sanitizeEvent, type BotOperationKind, type TelemetryEvent } from '../src/telemetry/schema';
+} from '@botharness/host-client/bot-creation';
+import { createMobileTelemetry } from '@botharness/host-client/telemetry/mobile-telemetry';
+import {
+  sanitizeEvent,
+  type BotOperationKind,
+  type TelemetryEvent,
+} from '@botharness/host-client/telemetry/schema';
 
 const dispose: (() => void)[] = [];
 afterEach(() => dispose.splice(0).forEach((close) => close()));

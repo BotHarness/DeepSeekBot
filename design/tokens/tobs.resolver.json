@@ -2,7 +2,7 @@
   "$schema": "https://www.designtokens.org/schemas/2025.10/resolver.json",
   "name": "Tobs",
   "version": "2025.10",
-  "description": "Tobs design tokens (#4282, ADR-0350). Three independent modifiers: colour mode, style and accent preset. Accent role sets (solid, container, ink, focus, selection…) are derived per accent and mode by scripts/generate-tokens.mjs; run it after any change.",
+  "description": "Tobs design tokens (#4282, ADR-0351). Three independent modifiers: colour mode, style and accent preset. Accent role sets (solid, container, ink, focus, selection…) are derived per accent and mode by scripts/generate-tokens.mjs; run it after any change.",
   "sets": {
     "core": {
       "sources": [

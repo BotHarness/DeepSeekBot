@@ -20,13 +20,13 @@ import {
   type LocalVideoClientState,
 } from '../../../../../packages/computer/src/local-video-client';
 import { videoPointerClick, videoPointerScroll } from '../../host/local-video-pointer';
-import type { StageZoom } from '../../host/browser-viewer';
+import type { StageZoom } from '@botharness/host-client/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
 import { computerCanvas, space } from '../design/tokens';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../design/theme';
 import { useHostLook } from '../../host/native-host-look';
-import { shownHostName } from '../design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import type { ComputerClickFeedback } from './computer-click-ripple';
 import { ComputerPointerControls } from './computer-pointer-controls.ios';
 import { ComputerVideoControls } from './computer-video-controls.ios';

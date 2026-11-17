@@ -1,5 +1,5 @@
 import PostHog, { PostHogPersistedProperty } from 'posthog-react-native';
-import { sanitizeEvent, type TelemetryEvent } from './schema';
+import { sanitizeEvent, type TelemetryEvent } from '@botharness/host-client/telemetry/schema';
 
 const HOST = 'https://t.botharness.ai';
 type FetchOptions = Parameters<PostHog['fetch']>[1];

@@ -2,7 +2,7 @@
 import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ConversationMessage, MessageAttachment } from '../src/host/conversation';
+import type { ConversationMessage, MessageAttachment } from '@botharness/host-client/conversation';
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),

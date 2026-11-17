@@ -1,13 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { HostCarrier, HostSocketEvents } from '../src/host/carrier';
+import type { HostCarrier, HostSocketEvents } from '@botharness/host-protocol/carrier';
 import {
   DIRECT_RETRY_MAX_MS,
   DIRECT_RETRY_MIN_MS,
   encryptedCarrier,
-} from '../src/host/encrypted-carrier';
-import { ConnectChannel } from '../../../packages/core/src/devices/noise/channel';
-import { noisePublicKey } from '../../../packages/core/src/devices/noise/xk';
+} from '@botharness/host-client/encrypted-carrier';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 
 const ORIGIN = 'https://host.deepseekbot.dev';
 

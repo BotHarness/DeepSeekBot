@@ -3,7 +3,7 @@ import {
   creationTags,
   type CreationTagDraft,
   type CreationTagEdit,
-} from '../../host/bot-creation-tags';
+} from '@botharness/host-client/bot-creation-tags';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { CloseIcon } from '../shell/icons';

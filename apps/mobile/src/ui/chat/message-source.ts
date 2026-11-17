@@ -1,4 +1,4 @@
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 export function messageSource(message: ConversationMessage): string {
   const html = message.genuiDocument?.html;

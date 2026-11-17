@@ -3,7 +3,7 @@ import type {
   ApprovalOutcome,
   ApprovalRule,
 } from '../../host/approval-records';
-import { readableInput } from '../../host/requests';
+import { readableInput } from '@botharness/host-client/requests';
 import { t } from '../strings';
 
 const SUMMARY = 120;

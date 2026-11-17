@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { RosterBot, RosterChannel, RosterView } from '../src/host/client';
+import type { RosterBot, RosterChannel, RosterView } from '@botharness/host-client/client';
 import {
   avatarFile,
   avatarInputs,

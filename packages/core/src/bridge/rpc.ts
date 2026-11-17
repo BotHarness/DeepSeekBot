@@ -573,6 +573,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
       );
     return unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers }));
   }
+  memberInvitation(humanId: string) {
+    return unwrapAsync(this.methods.memberInvitation({ humanId }));
+  }
+  memberPairingOffer() {
+    return unwrapAsync(this.methods.memberPairingOffer({}));
+  }
   memberPasswordReset(humanId: string) {
     return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
   }
@@ -3299,6 +3305,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'ownerTransfer',
   'memberPasswordChange',
   'memberPasswordReset',
+  'memberInvitation',
+  'memberPairingOffer',
   'channelRoleDirectory',
   'channelVisibilitySet',
   'channelAdminsSet',

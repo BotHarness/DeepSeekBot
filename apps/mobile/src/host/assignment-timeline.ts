@@ -1,4 +1,4 @@
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 import type { ProfileAssignment } from './bot-profile';
 
 export type AssignmentTimelineStatus = 'running' | 'done' | 'failed' | 'denied' | 'cancelled';

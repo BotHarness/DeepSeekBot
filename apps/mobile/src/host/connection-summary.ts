@@ -1,5 +1,5 @@
-import type { HostSnapshot } from './client';
-import type { InboxSnapshot } from './inbox';
+import type { HostSnapshot } from '@botharness/host-client/client';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 
 export interface ConnectionSummary {
   hosts: number;

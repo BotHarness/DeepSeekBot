@@ -23,7 +23,7 @@ import {
   loadAssignmentTimeline,
   parseAssignmentTimeline,
 } from '../src/host/assignment-timeline';
-import { MethodRefused, type HostClient } from '../src/host/client';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
 import { AssignmentDetail, AssignmentScreenBody } from '../src/ui/chat/assignment-screen';
 import { t } from '../src/ui/strings';
 

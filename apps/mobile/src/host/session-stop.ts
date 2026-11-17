@@ -1,5 +1,5 @@
-import type { HostClient, RosterBot } from './client';
-import type { WireSessionActivity } from './wire';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
+import type { WireSessionActivity } from '@botharness/host-protocol/wire';
 
 export type RunningSession = WireSessionActivity & { role: 'orchestrator' | 'assignment' };
 

@@ -1,4 +1,4 @@
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import type { ColorRole } from '../design/theme';
 
 export function botStateTone(bot: RosterBot): ColorRole {

@@ -147,10 +147,33 @@ describe('source policy', () => {
       const result = spawnSync(process.execPath, ['scripts/check-source-policy.mjs'], {
         cwd: root,
         encoding: 'utf8',
+        windowsHide: true,
       });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain(`${relativePath}:2:19 comment`);
       expect(result.stderr).toContain(`${relativePath}:2:1 useEffect`);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('checks only the files it is given, as the pre-commit hook does', () => {
+    const directory = mkdtempSync(join(root, 'scripts', 'source-policy-probe-'));
+    const bad = join(directory, 'bad.ts');
+    const clean = join(directory, 'clean.ts');
+    try {
+      writeFileSync(bad, 'export const a = 1; // forbidden\n');
+      writeFileSync(clean, 'export const b = 2;\n');
+      const run = (...paths) =>
+        spawnSync(process.execPath, ['scripts/check-source-policy.mjs', ...paths], {
+          cwd: root,
+          encoding: 'utf8',
+          windowsHide: true,
+        });
+      expect(run(clean).status).toBe(0);
+      const result = run(clean, bad);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`${relative(root, bad).replaceAll('\\', '/')}:1:21 comment`);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

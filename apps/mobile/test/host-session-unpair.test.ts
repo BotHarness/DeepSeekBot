@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computerEnvironmentKey } from '../src/host/conversation-environments';
-import { parseSavedHosts } from '../src/host/hosts';
+import { parseSavedHosts } from '@botharness/host-client/hosts';
 import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
 
 const secure = new Map<string, string>();
@@ -59,7 +59,7 @@ vi.mock('../src/host/native-source-drafts', () => ({
     removePersistedWhere: clearDrafts,
   },
 }));
-vi.mock('../src/host/conversation', () => ({ createConversation: vi.fn() }));
+vi.mock('@botharness/host-client/conversation', () => ({ createConversation: vi.fn() }));
 vi.mock('../src/host/conversation-playback', () => ({ createConversationPlayback: vi.fn() }));
 vi.mock('../src/host/native-cache', () => ({
   clearHostConversationCache: clearCache,
@@ -103,10 +103,10 @@ vi.mock('../src/host/native-notification-preferences', () => ({
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { foreground: () => undefined, send: () => undefined },
 }));
-vi.mock('../src/telemetry/connection', () => ({
+vi.mock('@botharness/host-client/telemetry/connection', () => ({
   createConnectionTelemetry: () => ({}),
 }));
-vi.mock('../src/host/client', () => ({
+vi.mock('@botharness/host-client/client', () => ({
   createHostClient: () => ({
     start() {},
     stop: clientStops,
@@ -119,7 +119,7 @@ vi.mock('../src/host/client', () => ({
     getSnapshot: () => connection.snapshot,
   }),
 }));
-vi.mock('../src/host/inbox', () => ({
+vi.mock('@botharness/host-client/inbox', () => ({
   createInbox: () => ({
     stop() {},
     subscribe: () => () => {},
@@ -197,7 +197,7 @@ it('clears the saved chats when the Computer revokes this phone', async () => {
 
 it('stops the revoked Host conversations so no write recreates its store', async () => {
   const { hostSession } = await session('old', ['old']);
-  const { createConversation } = await import('../src/host/conversation');
+  const { createConversation } = await import('@botharness/host-client/conversation');
   const stop = vi.fn();
   vi.mocked(createConversation).mockReturnValue({
     start: () => undefined,
@@ -579,7 +579,7 @@ it.each([false, true])(
     };
     const { hostSession } = await import('../src/host/host-session');
     await vi.waitFor(() => expect(hostSession.getState().saved).toBeNull());
-    const { createConnectAccount } = await import('../src/host/connect-account');
+    const { createConnectAccount } = await import('@botharness/host-client/connect-account');
     let storedAccount: string | null = JSON.stringify({
       clientId: owner.clientId,
       refreshToken: 'fixture',

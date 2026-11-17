@@ -1,4 +1,4 @@
-import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
@@ -13,8 +13,8 @@ import {
   type CallChannelDiagnostic,
 } from '../src/devices/encrypted-gateway.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
-import { ConnectChannel } from '../src/devices/noise/channel.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';

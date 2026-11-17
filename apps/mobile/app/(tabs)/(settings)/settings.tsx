@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react';
 
 import { accountProfile } from '../../../src/account/native-account-profile';
 import { useHostSession } from '../../../src/host/host-session';
-import { loadUsage } from '../../../src/host/usage';
+import { loadUsage } from '@botharness/host-client/usage';
 import { appBuildLabel } from '../../../src/ui/app-build';
 import { copyMessage } from '../../../src/ui/chat/message-menu';
 import { currentAppBuild } from '../../../src/ui/native-app-build';

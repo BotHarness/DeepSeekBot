@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 import {
   connectionDiagnosticReport,
   type ConnectionDiagnostic,
-} from '../../host/connection-diagnostic';
+} from '@botharness/host-client/connection-diagnostic';
 
 export interface ConnectionFailureActionsProps {
   failure: ConnectionDiagnostic;

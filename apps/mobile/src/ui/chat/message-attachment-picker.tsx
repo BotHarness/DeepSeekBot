@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 
-import type { MessageAttachment } from '../../host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { edge, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';

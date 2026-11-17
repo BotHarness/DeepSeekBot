@@ -1,8 +1,8 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-import type { MessageAttachment } from './conversation';
-import { cacheMedia, mediaCacheAvailable } from './media-cache';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
+import { cacheMedia, mediaCacheAvailable } from '@botharness/host-client/media-cache';
 
 function folderName(key: string): string {
   return key.replace(/[^a-z0-9-]/giu, '_');

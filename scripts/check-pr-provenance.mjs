@@ -8,6 +8,7 @@ const AGENT_MARK =
 const SOURCE = 'https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893';
 const KINDS = ['harness', 'model'];
 const INTERNAL = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+const WRITERS = new Set(['admin', 'maintain', 'write']);
 const EXAMPLE = { harness: 'claude-code', model: 'claude-opus-5-5' };
 
 const slug = (value) =>
@@ -81,21 +82,42 @@ async function repoLabels(repo) {
   }
 }
 
+export const isInternal = (association, permission) =>
+  INTERNAL.has(association) || WRITERS.has(permission);
+
+async function permission(repo, login) {
+  try {
+    return (await github(`/repos/${repo}/collaborators/${login}/permission`)).permission;
+  } catch {
+    return 'none';
+  }
+}
+
 async function main() {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const item = event.pull_request ?? event.issue;
   const repo = event.repository.full_name;
   const labels = item.labels.map((label) => label.name);
+  const fork = (event.pull_request?.head.repo?.full_name ?? repo) !== repo;
   const result = plan({
     body: item.body,
     labels,
     existing: await repoLabels(repo),
-    external: !INTERNAL.has(item.author_association),
+    external: !isInternal(
+      item.author_association,
+      INTERNAL.has(item.author_association) ? 'none' : await permission(repo, item.user.login),
+    ),
   });
   if (result.add.length)
     await github(`/repos/${repo}/issues/${item.number}/labels`, {
       method: 'POST',
       body: JSON.stringify({ labels: result.add }),
+    }).catch((error) => {
+      if (!fork) throw error;
+      result.warnings.push(
+        `a fork's token cannot label; a maintainer adds ${result.add.join(', ')} (${error.message})`,
+      );
+      result.add = [];
     });
   for (const warning of result.warnings) console.log(`::warning::${warning}`);
   for (const error of result.errors) console.log(`::error::${error}`);

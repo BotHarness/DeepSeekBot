@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createBotCreationController, type CreationRecord } from '../src/host/bot-creation';
-import { botCreationTransport } from '../src/host/bot-creation-transport';
-import { parsePairingLink, redeemPairing } from '../src/host/pairing';
-import { keyBytes } from '../src/host/encrypted-carrier';
-import { noiseFingerprint } from '../../../packages/core/src/devices/noise/xk';
+import {
+  createBotCreationController,
+  type CreationRecord,
+} from '@botharness/host-client/bot-creation';
+import { botCreationTransport } from '@botharness/host-client/bot-creation-transport';
+import { parsePairingLink, redeemPairing } from '@botharness/host-client/pairing';
+import { keyBytes } from '@botharness/host-client/encrypted-carrier';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 import { nodeCarrier } from './node-carrier';
 
 const live = process.env['MOBILE_LIVE_HOST_URL'];

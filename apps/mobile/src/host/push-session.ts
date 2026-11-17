@@ -1,6 +1,6 @@
-import type { SavedHost } from './hosts';
-import type { HostPush } from './push';
-import { parsePushData } from './push';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { HostPush } from '@botharness/host-client/push';
+import { parsePushData } from '@botharness/host-client/push';
 
 export type PermissionState = 'granted' | 'denied' | 'undetermined';
 

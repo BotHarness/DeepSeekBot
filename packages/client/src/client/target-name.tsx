@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { space } from './ds/tokens.stylex.js';
 import { HostGlyph } from './host-glyph.js';
 import { useHostLook } from './host-looks.js';

@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { createHostLooks } from '../../../apps/mobile/src/host/host-look.js';
-import { DEFAULT_HOST_LOOK, type HostLook } from '../../../apps/mobile/src/ui/design/host-look.js';
+import { createHostLooks } from '@botharness/host-client/host-look';
+import { DEFAULT_HOST_LOOK, type HostLook } from '@botharness/host-client/ui/design/host-look';
 import { runHostLook } from '../../core/src/bots/cli-host-look.js';
 import { controlHostLook } from '../src/client/host-look-control.js';
 

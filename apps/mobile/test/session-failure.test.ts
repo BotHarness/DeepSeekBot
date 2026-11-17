@@ -3,7 +3,7 @@ import {
   sessionFailure,
   createFailureContinuation,
   createFailureMaintenance,
-} from '../src/host/session-failure';
+} from '@botharness/host-client/session-failure';
 
 it('preserves failure identity for recovery without interpreting max-tokens as overflow', () => {
   const failure = sessionFailure({

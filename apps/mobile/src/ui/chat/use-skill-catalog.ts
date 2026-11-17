@@ -1,8 +1,8 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 import type { SkillCatalogEntry } from '../../../../../packages/core/src/skills/entries';
-import type { HostClient } from '../../host/client';
-import { loadSkillCatalog } from '../../host/skill-catalog';
+import type { HostClient } from '@botharness/host-client/client';
+import { loadSkillCatalog } from '@botharness/host-client/skill-catalog';
 
 interface Entry {
   skills: readonly SkillCatalogEntry[];

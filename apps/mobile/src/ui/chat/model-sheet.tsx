@@ -9,7 +9,7 @@ import {
   type Loadable,
   type ModelCatalogEntry,
   type ModelPreset,
-} from '../../host/bot-settings';
+} from '@botharness/host-client/bot-settings';
 import {
   SettingsGroupItem,
   SettingsRow,

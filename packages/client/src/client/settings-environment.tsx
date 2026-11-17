@@ -1,8 +1,8 @@
 import { useMemo, useRef, type ReactElement } from 'react';
 
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import type { HostClient } from '@botharness/host-client/client';
 
-import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { useHostLook } from './host-looks.js';

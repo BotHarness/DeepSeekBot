@@ -1,4 +1,4 @@
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import type { HostClient } from '@botharness/host-client/client';
 import { createActions, type BridgeActions } from './actions.js';
 import type { BridgeCall } from './bridge.js';
 import { hostBridgeCall } from './host-bridge-call.js';

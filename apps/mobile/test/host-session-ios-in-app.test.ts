@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 interface Reconciled {
   inApp?: boolean;

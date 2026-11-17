@@ -1,16 +1,16 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import {
   createFailureContinuation,
   createFailureMaintenance,
   type SessionFailure,
-} from '../../host/session-failure';
+} from '@botharness/host-client/session-failure';
 import {
   autoContinueSeconds,
   readSeconds,
   subscribeNever,
   subscribeSeconds,
-} from '../../../../../packages/client/src/shared/turn-continuation';
+} from '@botharness/host-client/shared/turn-continuation';
 import { Button } from '../primitives/button';
 import { t } from '../strings';
 import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './action-card';

@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { WebSocket } from 'ws';
-import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { requestConnectIdentity } from './connect-identity-fetch.js';
 import { createTunnelLookup } from './tunnel-dns.js';
-import { networkDiagnosticReason } from '../../../../apps/mobile/src/host/connection-diagnostic.js';
+import { networkDiagnosticReason } from '@botharness/host-client/connection-diagnostic';
 
 export function nodeDeviceCarrier(): HostCarrier {
   return {

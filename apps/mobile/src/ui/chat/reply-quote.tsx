@@ -1,9 +1,9 @@
 import { useContext, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { botNameColor } from '../../../../../packages/client/src/client/bot-name-color';
-import type { RosterBot } from '../../host/client';
-import type { WireReplyPreview } from '../../host/wire';
+import { botNameColor } from '@botharness/host-client/shared/bot-name-color';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { WireReplyPreview } from '@botharness/host-protocol/wire';
 import { botColor } from '../bot-color';
 import { pressTint, quoteFill, useDesignTheme, type DesignTheme } from '../design/theme';
 import { radius, space, swipeReply } from '../design/tokens';

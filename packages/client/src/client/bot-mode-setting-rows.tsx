@@ -12,7 +12,7 @@ import {
   type BotModeMotionPreference,
   type BotModeSendKey,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import { BotHopLimitSetting } from './bot-hop-limit-setting.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
 import { BotIcon } from './bot-icon.js';

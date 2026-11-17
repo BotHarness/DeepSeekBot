@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { expect, it } from 'vitest';
 import { setup, CLIENT_ID } from '../../../packages/connect-relay/test/support';
-import { createConnectAccount } from '../src/host/connect-account';
+import { createConnectAccount } from '@botharness/host-client/connect-account';
 
 it('releases an offline slot through the mobile owner and HTTP relay without clearing local data', async () => {
   const revoked: string[] = [];

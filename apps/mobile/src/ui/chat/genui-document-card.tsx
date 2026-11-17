@@ -24,10 +24,10 @@ import {
   rememberGenuiHeight,
   type GenuiDocument,
   type GenuiDocumentReply,
-} from '../../genui/document';
+} from '@botharness/host-client/genui/document';
 import { genuiStartQueue } from '../../genui/start-queue';
 import { genuiWebViewPolicy } from '../../genui/webview-policy';
-import { genuiDocumentView, type GenuiDocumentViewModel } from '../../genui/view';
+import { genuiDocumentView, type GenuiDocumentViewModel } from '@botharness/host-client/genui/view';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';

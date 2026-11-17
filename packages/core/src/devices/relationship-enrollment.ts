@@ -1,35 +1,31 @@
 import { z } from 'zod';
-import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
-import {
-  keyBytes,
-  keyHex,
-  secureRandom,
-} from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { redeemPairing, revokePairing } from '../../../../apps/mobile/src/host/pairing.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { keyBytes, keyHex, secureRandom } from '@botharness/host-client/encrypted-carrier';
+import { redeemPairing, revokePairing } from '@botharness/host-client/pairing';
 import {
   checkRoute,
   isEncryptedRoute,
   isTailscaleRoute,
   isLoopbackRoute,
   privateRouteOrigins,
-} from '../../../../apps/mobile/src/host/route.js';
+} from '@botharness/host-protocol/route';
 import {
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
   type PrivateAdmission,
-} from '../../../../apps/mobile/src/host/hosts.js';
+} from '@botharness/host-client/hosts';
 import {
   relationshipTransportPeerSchema,
   relationshipAdmissionForRoutes,
   type ClientRelationship,
   pendingRelationshipEnrollmentSchema,
 } from './relationship-contract.js';
-import { noiseFingerprint, noisePublicKey } from './noise/xk.js';
+import { noiseFingerprint, noisePublicKey } from '@botharness/host-protocol/noise/xk';
 export type RelationshipSavedHost = SavedHost & z.infer<typeof pendingRelationshipEnrollmentSchema>;
 export function parseRelationshipSavedHost(input: unknown): RelationshipSavedHost | undefined {
   const host = parseSavedHost(input);
-  if (!host) return undefined;
+  if (!host || host.member || host.credential.startsWith('member.')) return undefined;
   const parsed = pendingRelationshipEnrollmentSchema.safeParse(input);
   if (!parsed.success) return undefined;
   const pending = parsed.data.relationshipEnrollment;
@@ -207,6 +203,10 @@ export async function enrollRelationshipClient(options: {
         },
       },
     });
+    if (result.ok && (result.host.member || result.host.credential.startsWith('member.'))) {
+      await revokePairing({ host: result.host, carrier: options.carrier });
+      return { ok: false, code: 'owner-required' } satisfies { ok: false; code: 'owner-required' };
+    }
     if (result.ok && options.accountGeneration !== undefined) {
       try {
         if (options.signal?.aborted) throw new Error('cancelled');

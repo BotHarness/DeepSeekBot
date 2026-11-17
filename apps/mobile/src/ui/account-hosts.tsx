@@ -2,11 +2,15 @@ import {
   connectionDiagnostic,
   networkDiagnosticReason,
   type ConnectionDiagnostic,
-} from '../host/connection-diagnostic';
+} from '@botharness/host-client/connection-diagnostic';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import type { ConnectAccount, ConnectHost, ConnectResult } from '../host/connect-account';
-import type { SavedHost } from '../host/hosts';
+import type {
+  ConnectAccount,
+  ConnectHost,
+  ConnectResult,
+} from '@botharness/host-client/connect-account';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { accountHostAdded } from '../host/account-pairing';
 import { confirmDestructive } from './primitives/app-dialog';
 import { AccountPanel, type AccountPairResult } from './primitives/account-panel';

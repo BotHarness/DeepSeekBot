@@ -82,13 +82,13 @@ vi.mock('expo-file-system', () => {
   return { Directory, File, Paths: { cache: 'cache' } };
 });
 
-const { installMediaStore, cacheMedia } = await import('../src/host/media-cache');
+const { installMediaStore, cacheMedia } = await import('@botharness/host-client/media-cache');
 const { nativeMediaStore } = await import('../src/host/native-media-store');
 const { cachedAttachmentUri } = await import('../src/host/share-attachment');
 const { nativeConversationCache } = await import('../src/host/native-cache');
 const { createPurgeCaches, purgedPlacements } = await import('../src/host/purge-caches');
 const { nativePurgeTargets } = await import('../src/host/native-purge-targets');
-const { mediaCacheKey } = await import('../src/host/conversation');
+const { mediaCacheKey } = await import('@botharness/host-client/conversation');
 installMediaStore(nativeMediaStore);
 
 const signal = new AbortController().signal;

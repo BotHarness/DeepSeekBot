@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 import { hostStore, hostStoreAvailable } from './host-store';
 import { searchStoredMessages } from './local-message-search';
 

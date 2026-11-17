@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import { space } from '../design/tokens';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Segmented } from '../primitives/segmented';

@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import type { HostClient } from '@botharness/host-client/client';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 
 export interface MessageHost {

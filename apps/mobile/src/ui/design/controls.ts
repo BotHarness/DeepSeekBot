@@ -1,5 +1,5 @@
 import type { DesignTheme } from './resolve-theme';
-import { readable as readableColor } from '../../../../../packages/client/src/client/bot-name-color';
+import { readable as readableColor } from '@botharness/host-client/shared/bot-name-color';
 import { distance, over, SEPARATION, tint, type LayerName } from './layers';
 
 export const BUTTON_TONES = ['primary', 'secondary', 'tonal', 'danger'] as const;

@@ -14,7 +14,7 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import type { ComponentProps } from 'react';
 
-import { toggleOption, typeCustom } from '../../host/requests';
+import { toggleOption, typeCustom } from '@botharness/host-client/requests';
 import { materialType, useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';

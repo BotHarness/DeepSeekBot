@@ -11,8 +11,8 @@ vi.mock('../src/ui/shell/icons', async () => ({
   ChevronRightIcon: () => null,
 }));
 
-import type { HostClient } from '../src/host/client';
-import type { BotInboxItem } from '../src/host/wire';
+import type { HostClient } from '@botharness/host-client/client';
+import type { BotInboxItem } from '@botharness/host-protocol/wire';
 import { BotInboxScreen } from '../src/ui/chat/bot-inbox-screen';
 import { t } from '../src/ui/strings';
 

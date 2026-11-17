@@ -14,7 +14,7 @@ import {
   loadQuestion,
   type ApprovalChoice,
   type RequestRef,
-} from '../../src/host/requests';
+} from '@botharness/host-client/requests';
 import { ApprovalView } from '../../src/ui/approval-view';
 import { ATTENTION_KINDS, AttentionItemView } from '../../src/ui/attention-item';
 import { GrantRequestCard } from '../../src/ui/chat/grant-request-card';

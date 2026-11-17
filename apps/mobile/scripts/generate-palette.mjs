@@ -3,7 +3,9 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../../../', import.meta.url);
-const OUTPUT = fileURLToPath(new URL('apps/mobile/src/ui/design/palette.generated.ts', root));
+const OUTPUT = fileURLToPath(
+  new URL('packages/host-client/src/ui/design/palette.generated.ts', root),
+);
 
 export const ROLES = {
   fg: 'alias-label-primary',

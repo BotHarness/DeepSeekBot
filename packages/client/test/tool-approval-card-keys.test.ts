@@ -8,7 +8,7 @@ import {
   approvalFileChange,
   approvalShellCommand,
   diffLines,
-} from '../src/client/approval-diff.js';
+} from '@botharness/host-client/shared/approval-diff';
 import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { ToolApprovalCard } from '../src/client/tool-approval-card.js';

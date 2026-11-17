@@ -1,3 +1,5 @@
+import { memberRoutes as eligibleMemberRoutes } from '../team/member-urls.js';
+import { createMemberDevices } from '../team/devices.js';
 import { createConnectHealth } from './connect-health.js';
 import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
 import { mountTeamGateway } from '../team/mount.js';
@@ -19,7 +21,7 @@ import { createActivityDelivery, type ActivityDelivery } from '../live-activity/
 import type { ChannelSendStatus } from '../channels/store.js';
 import { createNoiseIdentity } from './noise-identity.js';
 import { createEncryptedGateway, type CallChannelDiagnostic } from './encrypted-gateway.js';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { createDeviceLan } from './lan.js';
@@ -92,6 +94,7 @@ interface ConnectionLike {
 
 interface WebServerLike {
   readonly port: number;
+  getOrigin?(): string;
   register(route: {
     kind: 'exact' | 'prefix';
     path: string;
@@ -183,6 +186,23 @@ export function mountDevicePairing(
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
+    ...(options.team
+      ? {
+          members: {
+            redeem: (humanId: string, name: string, publicKey?: string) =>
+              options.team!.createDeviceGrant(humanId, name, publicKey),
+            admit: (authorization: string | undefined, publicKey?: string) => {
+              const peer = options.team!.admitDevice(authorization, publicKey);
+              return peer?.principal.kind === 'botharness-member'
+                ? options.team!.device(peer.principal.grantId)
+                : undefined;
+            },
+            check: (deviceId: string) => options.team!.device(deviceId),
+            attach: (deviceId: string, close: () => void) =>
+              options.team!.attachDeviceStream(deviceId, close),
+          },
+        }
+      : {}),
     ...(options.team ? { ownerHumanId: () => options.team!.ownerContext().humanId } : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
@@ -221,6 +241,17 @@ export function mountDevicePairing(
   );
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
+  let memberRoutes: () => Promise<string[]> = async () => [];
+  const memberDevices = options.team
+    ? createMemberDevices({
+        team: options.team,
+        pairing,
+        encryption: identity.publicIdentity,
+        routes: () => memberRoutes(),
+      })
+    : undefined;
+  if (options.team && memberDevices)
+    ctx.effect(() => options.team!.bindDevices(memberDevices), 'botharness: member invitations');
   const botNetworks = createBotNetworkRoutes({
     withdrawn: async (hostId) => options.botNetwork?.withdrawNetworkMembership(hostId),
   });
@@ -459,6 +490,7 @@ export function mountDevicePairing(
       gateway: () =>
         createEncryptedGateway({
           pairing,
+          ...(memberDevices ? { memberDevices } : {}),
           relationship: relationshipControl.receive,
           key: identity.key,
           port: () => webServer.port,
@@ -602,6 +634,7 @@ export function mountDevicePairing(
     webCtx.effect(() => () => directPeers.close(), 'botharness: direct device peers');
     const encrypted = createEncryptedGateway({
       pairing,
+      ...(memberDevices ? { memberDevices } : {}),
       relationship: relationshipControl.receive,
       key: identity.key,
       port: () => webServer.port,
@@ -817,6 +850,7 @@ export function mountDevicePairing(
     const publishKey = credentialKey('botharness-core', 'device-tailscale');
     const publishing = createManagedPhoneRoute({
       port: webServer.port,
+      tls: webServer.getOrigin?.().startsWith('https:') ?? false,
       read: async () => {
         const credentials = options.credentials?.();
         if (!credentials) throw new Error('publishing-storage-unavailable');
@@ -887,6 +921,16 @@ export function mountDevicePairing(
       const loopback = status.routes.filter((route) => route.kind === 'loopback');
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
+    };
+    memberRoutes = async () => {
+      await publishingReady;
+      const status = await publishing.status();
+      const tunnel = connect.route();
+      if (tunnel) status.routes.push(tunnel);
+      return eligibleMemberRoutes(
+        webServer.getOrigin?.() ?? `http://127.0.0.1:${webServer.port}`,
+        status,
+      );
     };
     webCtx.effect(
       () =>
@@ -971,6 +1015,7 @@ export function mountDevicePairing(
             teamCtx,
             teamService,
             () => pairing.host().name,
+            memberDevices!,
             (phase, facts) =>
               write(
                 'team',
@@ -995,6 +1040,9 @@ export function mountDevicePairing(
       });
     const team = teamService
       ? {
+          get device() {
+            return memberGateway?.device;
+          },
           async handle(request: IncomingMessage, response: ServerResponse) {
             if (memberGateway) return memberGateway.handle(request, response);
             response.writeHead(503, {

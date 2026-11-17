@@ -21,6 +21,9 @@ import { useThisHost, getThisHost } from './this-host.js';
 import { useMountedResource } from './mounted-resource.js';
 import { createConnectionControl, type ConnectionAttempt } from './connection-control.js';
 import { ConnectionProgress } from './connection-progress.js';
+import { TeamSignInDialog, teamSignInErrorText } from './team-sign-in-dialog.js';
+import { parseTeamInvitation } from '@botharness/host-protocol/team-invitation';
+import type { TeamSignInTarget } from '@botharness/host-client/team-sign-in';
 export { useThisHost } from './this-host.js';
 import { HostGlyph } from './host-glyph.js';
 export { HostGlyph } from './host-glyph.js';
@@ -28,7 +31,7 @@ import {
   DEFAULT_HOST_LOOK,
   shownHostName,
   type HostLook,
-} from '../../../../apps/mobile/src/ui/design/host-look.js';
+} from '@botharness/host-client/ui/design/host-look';
 import { hostLooks, unusedHostLook, useHostLook, useHostName } from './host-looks.js';
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
@@ -332,6 +335,18 @@ const PAIR_ERRORS: Partial<Record<string, BotHarnessKey>> = {
   'this-host': 'remoteHosts.error.this-host',
 };
 
+export function teamInvitationLink(
+  link: string,
+): ReturnType<typeof parseTeamInvitation> | undefined {
+  try {
+    const url = new URL(link.trim());
+    if (url.protocol !== 'deepseekbot:' || url.hostname !== 'team') return undefined;
+  } catch {
+    return undefined;
+  }
+  return parseTeamInvitation(link.trim());
+}
+
 export function AddRemoteHostDialog({
   onClose,
   onBack,
@@ -353,6 +368,8 @@ export function AddRemoteHostDialog({
   const [error, setError] = useState<string>();
   const control = useRef<ReturnType<typeof createConnectionControl>>();
   const attemptId = useRef<string>();
+  const [team, setTeam] = useState<TeamSignInTarget>();
+  const [manual, setManual] = useState<{ route: string; username: string }>();
   const mount = useMountedResource<HTMLDivElement>(() => {
     const sources = remoteHosts();
     const owner = createConnectionControl(sources, getThisHost);
@@ -407,6 +424,12 @@ export function AddRemoteHostDialog({
           request,
         );
       } else {
+        const invitation = teamInvitationLink(link);
+        if (invitation !== undefined) {
+          if (invitation.ok) setTeam({ kind: 'invitation', link: link.trim() });
+          else setError(teamSignInErrorText(t, invitation.code));
+          return;
+        }
         attemptId.current = crypto.randomUUID();
         owner.execute({ action: 'start', attemptId: attemptId.current, link }, request);
       }
@@ -415,6 +438,58 @@ export function AddRemoteHostDialog({
     }
   };
   const failed = attempt?.state === 'failed' || attempt?.state === 'cancelled';
+  if (team !== undefined)
+    return (
+      <div ref={mount}>
+        <TeamSignInDialog
+          target={team}
+          inline={inline}
+          footerContainer={footerContainer}
+          onClose={onClose}
+          onDone={() => onClose()}
+          t={t}
+        />
+      </div>
+    );
+  if (manual !== undefined) {
+    const route = manual.route.trim();
+    const username = manual.username.trim();
+    return (
+      <div ref={mount}>
+        <FormDialog
+          title={t('teamSignIn.titleGeneric')}
+          description={t('teamSignIn.manualHint')}
+          inline={inline}
+          showCancel={!inline}
+          footerContainer={footerContainer}
+          labels={{ close: t('common.close'), cancel: t('connections.back') }}
+          submitLabel={t('teamSignIn.continue')}
+          submitDisabled={route.length === 0 || username.length === 0}
+          onCancel={() => setManual(undefined)}
+          onClose={onClose}
+          onSubmit={() => setTeam({ kind: 'address', route, username })}
+          submitData={{ 'data-team-manual-submit': '' }}
+        >
+          <TextField
+            label={t('teamSignIn.address')}
+            hint={t('teamSignIn.addressHint')}
+            placeholder="https://"
+            inputMode="url"
+            autoComplete="url"
+            value={manual.route}
+            onChange={(value) => setManual({ ...manual, route: value })}
+            initialFocus
+          />
+          <TextField
+            label={t('teamSignIn.username')}
+            autoComplete="username"
+            value={manual.username}
+            onChange={(value) => setManual({ ...manual, username: value })}
+          />
+        </FormDialog>
+      </div>
+    );
+  }
   return (
     <FormDialog
       title={t('connections.join')}
@@ -512,6 +587,14 @@ export function AddRemoteHostDialog({
               onClick={() => imageInput.current?.click()}
             >
               {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
+            </Button>
+            <Button
+              variant="ghost"
+              data-team-manual=""
+              icon={<ChannelSidebarIcon name="user" size={16} />}
+              onClick={() => setManual({ route: '', username: '' })}
+            >
+              {t('teamSignIn.useUsername')}
             </Button>
           </>
         ) : (

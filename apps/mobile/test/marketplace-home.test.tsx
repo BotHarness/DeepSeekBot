@@ -2,7 +2,7 @@
 import { act, createElement, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBotCreationController } from '../src/host/bot-creation';
+import { createBotCreationController } from '@botharness/host-client/bot-creation';
 
 const fixture = vi.hoisted(() => {
   const fetch = vi.fn<typeof globalThis.fetch>();
@@ -53,7 +53,7 @@ vi.mock('../src/host/native-bot-creation', () => ({
 }));
 
 import { digestCoverLayout } from '../src/marketplace/digest';
-import { setFeatureSink } from '../src/telemetry/features';
+import { setFeatureSink } from '@botharness/host-client/telemetry/features';
 import { DigestCover } from '../src/ui/shell/marketplace-cover';
 import { MarketplaceDigestScreen } from '../src/ui/shell/marketplace-digest-screen';
 import { MarketplacePastPicksScreen } from '../src/ui/shell/marketplace-past-picks-screen';

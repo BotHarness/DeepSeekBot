@@ -10,8 +10,8 @@ import {
   rankSkillEntries,
   type SkillCatalogEntry,
 } from '../../../../../packages/core/src/skills/entries';
-import type { RosterBot } from '../../host/client';
-import type { WireSkillInvocation } from '../../host/wire';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { WireSkillInvocation } from '@botharness/host-protocol/wire';
 
 export { activeSkillQuery, rebaseSkills, selectSkill, type SelectedSkill, type SkillQuery };
 

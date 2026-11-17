@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
-import type { WorkspaceOption } from '../../host/bot-settings';
-import type { DecisionResult, GrantRequest } from '../../host/requests';
+import type { WorkspaceOption } from '@botharness/host-client/bot-settings';
+import type { DecisionResult, GrantRequest } from '@botharness/host-client/requests';
 import { haptic } from '../haptics';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';

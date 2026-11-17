@@ -11,8 +11,8 @@ import {
   type DecisionResult,
   type QuestionDraft,
   type QuestionRequest,
-} from '../host/requests';
-import type { QuestionAnswer, QuestionItem } from '../host/wire';
+} from '@botharness/host-client/requests';
+import type { QuestionAnswer, QuestionItem } from '@botharness/host-protocol/wire';
 import {
   ActionButton,
   errorText,

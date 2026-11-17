@@ -9,13 +9,17 @@ import {
   redactLocalConversations,
 } from '../src/host/local-conversation-cache';
 import { searchStoredMessages } from '../src/host/local-message-search';
-import { LOCAL_STORE_MIGRATIONS, openLocalStore, type LocalStore } from '../src/host/local-store';
+import {
+  LOCAL_STORE_MIGRATIONS,
+  openLocalStore,
+  type LocalStore,
+} from '@botharness/host-client/local-store';
 import {
   mergeMessageHits,
   searchLocalMessages,
   type MessageSearchHit,
 } from '../src/host/message-search';
-import type { JournalEntry } from '../src/host/wire';
+import type { JournalEntry } from '@botharness/host-protocol/wire';
 import { nodeSqlConnection } from './node-sql-connection';
 
 const CHANNEL = 'group-notes';

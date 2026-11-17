@@ -1,4 +1,4 @@
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 const GROUP_MS = 5 * 60 * 1000;
 const SEPARATOR_MS = 30 * 60 * 1000;

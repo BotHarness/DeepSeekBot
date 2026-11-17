@@ -1,5 +1,5 @@
-import type { ConversationMessage } from './conversation';
-import type { ChannelWireMessage } from './wire';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
+import type { ChannelWireMessage } from '@botharness/host-protocol/wire';
 
 export function messageForDisplay(message: ConversationMessage): ChannelWireMessage {
   return (

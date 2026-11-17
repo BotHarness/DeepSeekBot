@@ -1,6 +1,6 @@
-import type { ConnectHost } from './connect-account';
-import type { SavedHost } from './hosts';
-import { isConnectRoute } from './route';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import { isConnectRoute } from '@botharness/host-protocol/route';
 
 export interface ConnectFollow {
   hostId: string;

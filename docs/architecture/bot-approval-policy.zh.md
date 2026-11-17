@@ -41,6 +41,8 @@ Profile 有一个可选的全局默认模板，来源是共享 Approval Template
 
 实现切片 #4210 将可信声明的不可撤销外部效果送入统一审批，Full Access 不豁免。确定性授权先于 Reviewer，审批记录保存本次效果供呈现；管理操作继续使用 ADR-0249 的专用显式授权范围。具体效果声明与准入机制见 [E1 #4205](https://github.com/BotHarness/DeepSeekBot/issues/4205)、[E2 #4210](https://github.com/BotHarness/DeepSeekBot/issues/4210) 与 [E4 #4212](https://github.com/BotHarness/DeepSeekBot/issues/4212)；不声称能从任意命令文本可靠推断全部行为。
 
+`bot_send_message` 只回复 Bot 自身 Source Event、不指定其他目标时，是在回答发起请求的会话，声明为本地效果，不出审批卡。指定 Channel、Human、Bot、binding 或 Grant 的主动发送仍是外部效果，继续审批。
+
 卡片 Always allow 保存的 Tool Approval Rule 是确定性授权，继续绑定具体 Bot、角色、授权范围及执行检查。Bot 权限表标注“来自卡片”、角色、作用范围及撤销入口；独立展示不会将它们变成模板编辑器中的自然语言 Always allow 行。它不写入共享模板，不授权使用同模板的其他 Bot，也不随模板复制。已经命中确定性规则时，模板中的自然语言不会覆盖它；需要重新审核时，由 Human 撤销该规则。
 
 当前所有权、Workspace Grant、设备目标及授权撤销检查独立于模型判断。生效中的策略管理跳过 Reviewer 与 Full Access，须由 Human 决定，或使用 ADR-0249 独立管理范围中确实覆盖该操作的显式已保存授权。旧普通规则不因此获得管理权限。管理审批展示受影响的 Bot。

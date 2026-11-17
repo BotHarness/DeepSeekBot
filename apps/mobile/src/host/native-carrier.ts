@@ -1,7 +1,9 @@
+import { installedAppVersion } from './app-version';
+import { noiseKeyAgreement } from './noise-key-agreement';
 import { requireOptionalNativeModule } from 'expo';
 import { getRandomBytes } from 'expo-crypto';
-import type { HostCarrier } from './carrier';
-import { isLanRoute } from './route';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { isLanRoute } from '@botharness/host-protocol/route';
 import { localNetworkStatus, openLanSocket } from './native-lan-socket';
 import { openDirectChannel, type DirectNative } from './direct-channel';
 
@@ -33,7 +35,10 @@ const directNative = requireOptionalNativeModule<DirectNative>('LocalComputerVid
 const directSupported = typeof directNative?.directOffer === 'function';
 
 export function nativeCarrier(): HostCarrier {
+  const appVersion = installedAppVersion();
   return {
+    ...(appVersion === undefined ? {} : { appVersion }),
+    ...(noiseKeyAgreement === undefined ? {} : { keyAgreement: noiseKeyAgreement }),
     randomBytes: () => getRandomBytes(32),
     localNetworkStatus,
     transportFailure,

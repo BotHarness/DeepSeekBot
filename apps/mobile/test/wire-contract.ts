@@ -52,7 +52,7 @@ import type {
   MuxServerFrame,
   PersonaBotSummary,
   RosterLiveFrame,
-} from '../src/host/wire.js';
+} from '@botharness/host-protocol/wire';
 
 type Assert<T extends true> = T;
 type Accepts<App, Host> = [Host] extends [App] ? true : false;

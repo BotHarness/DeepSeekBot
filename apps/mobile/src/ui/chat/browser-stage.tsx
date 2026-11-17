@@ -17,7 +17,7 @@ import {
   stagePoint,
   type BrowserFrame,
   type BrowserInput,
-} from '../../host/browser-viewer';
+} from '@botharness/host-client/browser-viewer';
 import { spring } from '../design/motion';
 import { pointer, radius, edge } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';

@@ -4,7 +4,7 @@ import { SourceMark, SourceName } from './source-name';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
-import type { HostLook } from '../design/host-look';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
 import {
   chatList,
   conversationType,

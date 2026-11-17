@@ -7,15 +7,15 @@ import { createDeviceLan } from '../src/devices/lan.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createDevicesHttp } from '../src/devices/http.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
-import { pairHost, revokePairing } from '../../../apps/mobile/src/host/pairing.js';
-import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
-import type { SavedHost } from '../../../apps/mobile/src/host/hosts.js';
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import { pairHost, revokePairing } from '@botharness/host-client/pairing';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 it('opens only after opt-in, never serves operator HTTP, persists its port and releases it on disable', async () => {
   let saved: number | undefined;

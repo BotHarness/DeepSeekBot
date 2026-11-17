@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
-import { palette } from '../src/ui/design/palette.generated';
+import { palette } from '@botharness/host-client/ui/design/palette.generated';
 import {
   BUTTON_TONES,
   buttonColors,
@@ -40,7 +40,13 @@ function px(value: string): number {
 describe('mobile design tokens', () => {
   it('match the DSH theme the Web Client paints with', () => {
     expect(render(dshPalette())).toBe(
-      readFileSync(new URL('../src/ui/design/palette.generated.ts', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL(
+          '../../../packages/host-client/src/ui/design/palette.generated.ts',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
     );
   });
 

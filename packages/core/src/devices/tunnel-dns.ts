@@ -1,6 +1,6 @@
 import { lookup, Resolver } from 'node:dns';
 import type { LookupFunction } from 'node:net';
-import { CONNECT_HOSTNAME } from './connect-zones.js';
+import { CONNECT_HOSTNAME } from '@botharness/host-protocol/connect-zones';
 
 type QueryIpv4 = (
   hostname: string,

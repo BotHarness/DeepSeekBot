@@ -1,6 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import {
+  createHostClient,
+  type HostClient,
+  type HostSnapshot,
+} from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const PRIMARY = 'https://studio.tailnet-example.ts.net';
 const SECONDARY = 'https://studio.alternate.ts.net';

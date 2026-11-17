@@ -2,9 +2,9 @@ import { decodeHTML } from 'entities';
 import type { Token } from 'marked';
 import { Linking, View } from 'react-native';
 
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import type { MemoryPreviewIO } from '../../host/memory-preview';
-import type { MemoryMarkdown } from '../../host/wire';
+import type { MemoryMarkdown } from '@botharness/host-protocol/wire';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { renderMarkdownInline } from '../markdown-inline';

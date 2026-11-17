@@ -12,9 +12,13 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-import type { ApprovalRequest, DecisionResult, QuestionRequest } from '../src/host/requests';
+import type {
+  ApprovalRequest,
+  DecisionResult,
+  QuestionRequest,
+} from '@botharness/host-client/requests';
 import { ApprovalView, type ApprovalPort } from '../src/ui/approval-view';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { JoinRequestView } from '../src/ui/attention-view';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
 import { GrantRequestCard, type GrantRequestPort } from '../src/ui/chat/grant-request-card';

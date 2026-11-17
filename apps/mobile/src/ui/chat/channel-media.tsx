@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { ChannelFile } from '../../host/channel-files';
-import type { MessageAttachment } from '../../host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { useDesignTheme } from '../design/theme';
 import { channelMedia, radius, space } from '../design/tokens';
 import { ResourceImage as Image } from '../primitives/resource-image';

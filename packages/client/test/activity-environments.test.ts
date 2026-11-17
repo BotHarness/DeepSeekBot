@@ -5,7 +5,7 @@ import {
 } from '../src/client/activity-environments.js';
 import type { ActivityQuery } from '../src/client/activity-feed.js';
 import type { ActivityListState, HumanAttentionItem } from '../src/client/store.js';
-import type { InboxSnapshot } from '../../../apps/mobile/src/host/inbox.js';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 
 const query: ActivityQuery = {
   category: 'all',

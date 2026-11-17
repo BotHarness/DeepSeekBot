@@ -1,6 +1,6 @@
 import { showAppDialog } from '../primitives/app-dialog';
 import { useRef, useState } from 'react';
-import { ActivityRequestFailed } from '../../host/live-activity';
+import { ActivityRequestFailed } from '@botharness/host-client/live-activity';
 import type { ActivityTarget } from '../../host/live-activity-session';
 import { requestActivitySession, useRequestActivity } from '../../host/native-live-activity';
 import { useStrings } from '../strings';

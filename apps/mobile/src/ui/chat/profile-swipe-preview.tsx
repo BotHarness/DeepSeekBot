@@ -1,7 +1,7 @@
 import { Platform, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
 import { profileShell, radius, space } from '../design/tokens';
 import { ListSkeleton } from '../primitives/list-skeleton';

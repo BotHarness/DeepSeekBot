@@ -626,5 +626,9 @@
   {
     "id": "channel-auto-join",
     "sha256": "5d422321b7046732e306247388f17cfa26a199c25d8a05cedaced59340d42d71"
+  },
+  {
+    "id": "member-devices",
+    "sha256": "63577e6e969b47333e63638be4a362adaa11961a520b232413c7a85685ba0301"
   }
 ]

@@ -3780,6 +3780,20 @@ const CHANNEL_AUTO_JOIN_MIGRATION: SchemaMigration = {
   },
 };
 
+const MEMBER_DEVICES_MIGRATION: SchemaMigration = {
+  id: 'member-devices',
+  module: 'team',
+  description: 'Member grants distinguish browser sessions and paired devices',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE member_grants ADD COLUMN kind TEXT NOT NULL DEFAULT 'browser-session'
+        CHECK (kind IN ('browser-session', 'paired-device'));
+      ALTER TABLE member_grants ADD COLUMN device_name TEXT;
+      ALTER TABLE member_grants ADD COLUMN public_key TEXT;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3938,4 +3952,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   BOT_VISIBILITY_MIGRATION,
   HUMAN_ROSTER_ARRANGEMENTS_MIGRATION,
   CHANNEL_AUTO_JOIN_MIGRATION,
+  MEMBER_DEVICES_MIGRATION,
 ]);

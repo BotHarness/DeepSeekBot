@@ -9,7 +9,7 @@ import {
   type ComposerDictation,
   type ComposerDictationStatus,
 } from '../../../../packages/core/src/voice/dictation-client';
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 import { createDictationMic } from './dictation-mic';
 import { hostDictationReady } from './host-dictation';
 import { createOsRecognizer, type OsRecognizer } from './os-dictation';

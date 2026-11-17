@@ -1,8 +1,8 @@
 import { useMemo, useRef, type RefCallback } from 'react';
 
-import type { HostClient } from '../../host/client';
-import type { Conversation, ConversationMessage } from '../../host/conversation';
-import type { Inbox } from '../../host/inbox';
+import type { HostClient } from '@botharness/host-client/client';
+import type { Conversation, ConversationMessage } from '@botharness/host-client/conversation';
+import type { Inbox } from '@botharness/host-client/inbox';
 import { useMounted } from '../mounted';
 
 const SETTLE_MS = 250;

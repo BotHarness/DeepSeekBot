@@ -5,10 +5,10 @@ import {
   SavedHostsWriteError,
   serializeSavedHost,
   type SavedHosts,
-} from './hosts';
+} from '@botharness/host-client/hosts';
 
-export { SavedHostsWriteError } from './hosts';
-export type { SavedHost, SavedHosts } from './hosts';
+export { SavedHostsWriteError } from '@botharness/host-client/hosts';
+export type { SavedHost, SavedHosts } from '@botharness/host-client/hosts';
 
 const KEY = 'deepseekbot.hosts.v3';
 const STAGED_KEY = 'deepseekbot.hosts.v3.staged';

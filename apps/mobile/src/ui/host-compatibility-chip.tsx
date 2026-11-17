@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-import type { HostCompatibility } from '../host/client';
+import type { HostCompatibility } from '@botharness/host-client/client';
 import { StatusChip } from './primitives/status-chip';
 import { useStrings } from './strings';
 

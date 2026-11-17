@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import {
   createHostChannelFollow,
   hostChannelItems,

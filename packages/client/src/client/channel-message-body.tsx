@@ -7,7 +7,7 @@ import {
   useNow,
   useTurnContinuation,
 } from './turn-continuation.js';
-import { autoContinueSeconds } from '../shared/turn-continuation.js';
+import { autoContinueSeconds } from '@botharness/host-client/shared/turn-continuation';
 import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';

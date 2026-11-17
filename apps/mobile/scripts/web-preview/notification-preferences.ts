@@ -1,6 +1,6 @@
-import { createDeviceNotificationPreferences } from '../../src/host/device-notification-preferences';
+import { createDeviceNotificationPreferences } from '@botharness/host-client/device-notification-preferences';
 import { nativeCarrier } from '../../src/host/native-carrier';
-import { createHostPush } from '../../src/host/push';
+import { createHostPush } from '@botharness/host-client/push';
 
 const key = 'deepseekbot.notification-preferences.v1';
 

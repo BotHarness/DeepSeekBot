@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import {
   activeMentionQuery,
   chooseMention,

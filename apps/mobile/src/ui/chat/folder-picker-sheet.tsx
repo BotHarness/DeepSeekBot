@@ -8,7 +8,7 @@ import {
   type HostFolderListing,
   type Loadable,
   type WorkspaceOption,
-} from '../../host/bot-settings';
+} from '@botharness/host-client/bot-settings';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';

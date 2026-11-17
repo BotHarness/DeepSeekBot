@@ -9,9 +9,9 @@ import {
   loadAssignmentContext,
   replyToAssignment,
   type AttentionRef,
-} from '../host/attention-actions';
-import type { HostClient } from '../host/client';
-import type { HumanAttentionItem } from '../host/wire';
+} from '@botharness/host-client/attention-actions';
+import type { HostClient } from '@botharness/host-client/client';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { AssignmentView, AutoRejectionView, JoinRequestView, RepairView } from './attention-view';
 import { useMounted } from './mounted';
 import { errorText, LoadFailed, Loading } from './request-parts';

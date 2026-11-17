@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approvalContent } from '../src/host/requests';
+import { approvalContent } from '@botharness/host-client/requests';
 
 describe('approval display content boundary', () => {
   const request = {

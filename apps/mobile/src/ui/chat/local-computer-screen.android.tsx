@@ -32,7 +32,7 @@ import {
 } from '../../../../../packages/computer/src/local-video-client';
 import { videoPointerClick, videoPointerScroll } from '../../host/local-video-pointer';
 import type { DesktopInput } from '../../../../../packages/computer/src/desktop-view';
-import type { StageZoom } from '../../host/browser-viewer';
+import type { StageZoom } from '@botharness/host-client/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
 import { computerCanvas, space } from '../design/tokens';

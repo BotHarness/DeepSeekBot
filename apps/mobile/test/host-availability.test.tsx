@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it } from 'vitest';
-import type { ConnectionState } from '../src/host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 import { hostAvailabilitySource } from '../src/host/host-availability';
 import { useVisibleSnapshot } from '../src/host/use-visible-snapshot';
 

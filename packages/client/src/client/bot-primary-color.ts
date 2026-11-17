@@ -16,7 +16,7 @@ import {
   REFERENCE_SURFACES,
   type Rgb,
   type ThemeName,
-} from './bot-name-color.js';
+} from '@botharness/host-client/shared/bot-name-color';
 export {
   BUBBLE_SURFACES,
   BUBBLE_SEPARATION,
@@ -29,7 +29,7 @@ export {
   REFERENCE_SURFACES,
   type Rgb,
   type ThemeName,
-} from './bot-name-color.js';
+} from '@botharness/host-client/shared/bot-name-color';
 
 export const CHART_CONTRAST = 3;
 export const CHART_TONE_LEVELS = {

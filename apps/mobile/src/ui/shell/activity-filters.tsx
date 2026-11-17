@@ -2,7 +2,11 @@ import type { ReactNode } from 'react';
 import { FlatList, Modal, Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { INBOX_SECTIONS, type InboxSection, type InboxSetAside } from '../../host/inbox';
+import {
+  INBOX_SECTIONS,
+  type InboxSection,
+  type InboxSetAside,
+} from '@botharness/host-client/inbox';
 import { Sheet } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
 import { androidSettings, edge, radius, space } from '../design/tokens';

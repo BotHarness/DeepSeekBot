@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { NoiseXk, type NoiseTransport } from './noise/xk.js';
+import { NoiseXk, type NoiseTransport } from '@botharness/host-protocol/noise/xk';
 
 const MAX_PAYLOAD = 128 * 1024;
 const FRAME_BYTES = 48 * 1024;

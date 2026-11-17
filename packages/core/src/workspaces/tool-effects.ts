@@ -141,6 +141,24 @@ function inputText(args: unknown): string {
   }
 }
 
+const PROACTIVE_DESTINATIONS = [
+  'channel_id',
+  'human_id',
+  'bot_id',
+  'binding_id',
+  'conversation_id',
+  'grant_id',
+] as const;
+
+function repliesToSource(operation: object): boolean {
+  return (
+    'source_event_id' in operation &&
+    typeof operation.source_event_id === 'string' &&
+    operation.source_event_id.trim() !== '' &&
+    PROACTIVE_DESTINATIONS.every((key) => !(key in operation))
+  );
+}
+
 export function toolEffects(name: string, args: unknown): ToolEffects | undefined {
   if (name === 'deepseekbot_cli') {
     if (
@@ -181,6 +199,8 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
     operation.method.toUpperCase() === 'GET'
   )
     return { ...effects, changes: 'none' };
+  if (name === 'bot_send_message' && operation && repliesToSource(operation))
+    return { ...effects, reach: 'local' };
   if (name === 'browser_tabs' && operation && 'action' in operation && operation.action === 'close')
     return { ...effects, reach: 'local' };
   if (

@@ -10,8 +10,8 @@ vi.mock('react-native', async () => ({
   Platform: { OS: 'android' },
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
-vi.mock('../src/host/pairing', () => ({ DEVICE_PREFIX: '/botharness-device' }));
-vi.mock('../src/host/encrypted-carrier', () => ({ encryptedCarrier: vi.fn() }));
+vi.mock('@botharness/host-client/pairing', () => ({ DEVICE_PREFIX: '/botharness-device' }));
+vi.mock('@botharness/host-client/encrypted-carrier', () => ({ encryptedCarrier: vi.fn() }));
 vi.mock(
   '../src/ui/primitives/settings-list-item',
   () => import('../src/ui/primitives/settings-list-item.android'),
@@ -34,9 +34,9 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
   };
 });
 
-import { createDeviceNotificationPreferences } from '../src/host/device-notification-preferences';
-import type { SavedHost } from '../src/host/hosts';
-import type { PushSettings } from '../src/host/push';
+import { createDeviceNotificationPreferences } from '@botharness/host-client/device-notification-preferences';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { PushSettings } from '@botharness/host-client/push';
 import { NotificationSettings } from '../src/ui/notification-settings';
 import { t } from '../src/ui/strings';
 

@@ -1,6 +1,6 @@
 import { FlatList, Pressable, View } from 'react-native';
 
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { receiptGroups, receiptRecipients } from '../../host/delivery-receipt';
 import { useDesignTheme } from '../design/theme';
 import { radius, rowGlyph, space } from '../design/tokens';

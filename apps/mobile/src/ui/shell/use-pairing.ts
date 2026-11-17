@@ -1,10 +1,13 @@
-import { connectionDiagnostic, type ConnectionDiagnostic } from '../../host/connection-diagnostic';
+import {
+  connectionDiagnostic,
+  type ConnectionDiagnostic,
+} from '@botharness/host-client/connection-diagnostic';
 import Constants from 'expo-constants';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 
-import type { AccountOwner } from '../../host/account-owner';
+import type { AccountOwner } from '@botharness/host-client/account-owner';
 import { accountHostLookId } from '../../host/account-host-look';
 import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
@@ -12,10 +15,10 @@ import { connectAccount } from '../../host/native-connect-account';
 import { hostLooks } from '../../host/native-host-look';
 import { conversationFilter } from '../../host/native-conversation-filter';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
-import { pairHost, type PairingFailure } from '../../host/pairing';
+import { pairHost, type PairingFailure } from '@botharness/host-client/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
-import type { PairingMethod } from '../../telemetry/schema';
-import { hostLookName } from '../design/host-look';
+import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
+import { hostLookName } from '@botharness/host-client/ui/design/host-look';
 import { clearsPastedLink } from '../pairing-failure';
 import { openPairedHostSetup } from './workspace-navigation';
 

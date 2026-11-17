@@ -2,8 +2,8 @@
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { HostClient } from '../../../apps/mobile/src/host/client.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import type { HostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { ConnectionHosts, HostDetails } from '../src/client/connection-hosts.js';
 import {
   createRemoteHosts,

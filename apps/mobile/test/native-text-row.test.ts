@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import type { ChatRow } from '../src/ui/chat/message-groups';
 import { nativeMarkdown, nativeTextRow, plainText } from '../src/ui/chat/native-text-row';
 

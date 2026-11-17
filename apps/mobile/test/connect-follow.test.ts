@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
-import type { ConnectHost } from '../src/host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { followConnectHosts } from '../src/host/connect-follow';
 import { accountHostAdded } from '../src/host/account-pairing';
-import { parseSavedHost, type SavedHost } from '../src/host/hosts';
+import { parseSavedHost, type SavedHost } from '@botharness/host-client/hosts';
 
 const owner = {
   issuer: 'https://api.workos.com' as const,

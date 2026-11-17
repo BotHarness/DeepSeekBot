@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
+import { createHostClient } from '@botharness/host-client/client';
 import { en, zhTranslate } from '../src/client/locale.js';
 import type { RemoteHostViewerState } from '../src/client/remote-host-viewer.js';
 import { RemoteHostViewerPanel } from '../src/client/remote-host-viewer-panel.js';

@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 let client: HostClient | undefined;
 afterEach(() => {

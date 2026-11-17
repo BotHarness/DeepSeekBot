@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createAppearanceControl } from '../../core/src/appearance/control.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import { Appearance } from '../src/client/appearance.js';

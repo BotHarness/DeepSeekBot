@@ -1,4 +1,4 @@
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 
 export function humanNameOf(identity: unknown): string | undefined {
   const name =

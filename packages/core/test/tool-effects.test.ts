@@ -29,6 +29,28 @@ describe('public tool effects', () => {
       secrets: true,
     });
   });
+  it('admits a reply to its own Source Event without a card and keeps proactive sends under approval', () => {
+    const reply = { source_event_id: 'event-1', body: 'pong', end_turn: true };
+    expect(toolEffects('bot_send_message', reply)).toEqual({
+      changes: 'irreversible',
+      reach: 'local',
+      personalData: true,
+    });
+    expect(toolApprovalRequired('bot_send_message', reply, false)).toBe(false);
+    for (const destination of [
+      { channel_id: 'group-1' },
+      { human_id: 'alice' },
+      { bot_id: 'bot-2' },
+      { binding_id: 'lark-1', conversation_id: 'chat-1' },
+      { grant_id: 'grant-1' },
+    ]) {
+      const proactive = { ...reply, ...destination };
+      expect(toolEffects('bot_send_message', proactive)?.reach).toBe('external');
+      expect(toolApprovalRequired('bot_send_message', proactive, false)).toBe(true);
+    }
+    for (const missing of [{ body: 'hello' }, { source_event_id: ' ', body: 'hello' }])
+      expect(toolApprovalRequired('bot_send_message', missing, false)).toBe(true);
+  });
   it('includes request delivery when restoring an Assignment with a message', () => {
     expect(toolEffects('unarchive_assignment', { session_id: 'assignment-1' })).toEqual({
       changes: 'reversible',

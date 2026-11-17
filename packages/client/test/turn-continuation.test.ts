@@ -6,7 +6,7 @@ import {
   parseFailureAutoContinue,
   parseFailureProgress,
   turnContinuationFor,
-} from '../src/shared/turn-continuation.js';
+} from '@botharness/host-client/shared/turn-continuation';
 
 const dmFailure = {
   channelId: 'dm-ada',

@@ -1,8 +1,8 @@
 import { expect, it, vi } from 'vitest';
 
-import { noiseFingerprint } from '../../../packages/core/src/devices/noise/xk';
-import type { HostCarrier } from '../src/host/carrier';
-import { pairHost } from '../src/host/pairing';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { pairHost } from '@botharness/host-client/pairing';
 
 function imageLink(expiresAt = '2099-01-01T00:00:00Z'): string {
   return (
