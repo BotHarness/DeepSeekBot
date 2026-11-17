@@ -100,7 +100,6 @@ import {
   PromptsSection,
   VoiceSection,
 } from './bot-settings-sections.js';
-import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
 import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
@@ -1157,24 +1156,11 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.plugins,
-          order: 65,
-          label: () => t('botSettings.section.plugins'),
-          locale: LOCALE_NS,
-          inject: () => ({ call, updateRuns }),
-        },
-        PluginsSection,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.about,
           order: 70,
           label: () => t('botSettings.section.about'),
           locale: LOCALE_NS,
-          inject: () => ({ releaseNotes }),
+          inject: () => ({ releaseNotes, call, updateRuns }),
         },
         AboutSection,
       ),

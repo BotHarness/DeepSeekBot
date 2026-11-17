@@ -104,7 +104,10 @@ const SECTION_SLOT = 'botharness.settings.section';
 
 const COMPUTER_SECTION = 'computer';
 const BROWSER_SECTION = 'browser';
-const SECTION_ALIASES: Readonly<Record<string, string>> = { [BROWSER_SECTION]: COMPUTER_SECTION };
+const SECTION_ALIASES: Readonly<Record<string, string>> = {
+  [BROWSER_SECTION]: COMPUTER_SECTION,
+  plugins: 'about',
+};
 
 export interface BotSettingsSectionRow {
   readonly id: string;

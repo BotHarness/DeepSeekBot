@@ -44,6 +44,8 @@ import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
 import { ProfileBackupSettings } from './profile-backup.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import { ReleaseSettings } from './release-notes-view.js';
+import { PluginsSettings } from './plugin-updates-view.js';
+import type { UpdateRunsController } from './update-runs.js';
 import type { ClientStore } from './store.js';
 import { TelemetrySettings } from './telemetry-settings.js';
 import type { WindowCompanions } from './window-companions.js';
@@ -256,14 +258,28 @@ export function AdvancedSection(
 
 export function AboutSection({
   releaseNotes,
+  call,
+  updateRuns,
   t,
-}: SectionProps<{ releaseNotes: ReleaseNotesController }>): ReactElement {
+}: SectionProps<{
+  releaseNotes: ReleaseNotesController;
+  call: BridgeCall;
+  updateRuns?: UpdateRunsController;
+}>): ReactElement {
   return (
     <Rows>
-      <ReleaseSettings releaseNotes={releaseNotes} t={t} />
-      <SettingsRow
-        title={t('build.row.title')}
-        description={<span data-build-id>{buildLabel(clientBuild())}</span>}
+      <SettingsSection title={t('about.section.version')}>
+        <ReleaseSettings releaseNotes={releaseNotes} t={t} />
+        <SettingsRow
+          title={t('build.row.title')}
+          description={<span data-build-id>{buildLabel(clientBuild())}</span>}
+        />
+      </SettingsSection>
+      <PluginsSettings
+        call={call}
+        updateRuns={updateRuns}
+        title={t('about.section.plugins')}
+        t={t}
       />
     </Rows>
   );

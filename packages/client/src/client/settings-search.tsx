@@ -176,8 +176,13 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'devices.tailscale.title',
     'privateTunnel.ingressLan',
   ],
-  plugins: ['plugins.row.title'],
-  about: ['release.row.title', 'build.row.title'],
+  about: [
+    'about.section.version',
+    'release.row.title',
+    'build.row.title',
+    'about.section.plugins',
+    'plugins.row.title',
+  ],
   'data-privacy': [
     'backup.title',
     'telemetry.row.title',
@@ -310,7 +315,6 @@ const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
   devices: 'botSettings.section.devices',
   'data-privacy': 'botSettings.section.dataPrivacy',
   advanced: 'botSettings.section.advanced',
-  plugins: 'botSettings.section.plugins',
   about: 'botSettings.section.about',
 };
 
@@ -326,8 +330,7 @@ const SECTION_ALIASES: Readonly<Record<string, string>> = {
   notifications: '提醒 alert',
   'im-apps': '飞书 Lark Feishu Slack Discord',
   devices: '设备 手机 配对 devices phone mobile pair',
-  plugins: '插件 plugin',
-  about: '版本 关于 version about',
+  about: '版本 关于 插件 version about plugin plugins',
   'data-privacy': '备份 隐私 存储 空间 清理 backup privacy storage cleanup',
 };
 

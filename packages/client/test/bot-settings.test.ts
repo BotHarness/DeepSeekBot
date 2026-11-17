@@ -978,3 +978,13 @@ it('folds the Host look into Account and opens it from the old page id', () => {
   expect(shownSection()).toBe('account');
   expect(navLabels()).not.toContain('本应用中的外观');
 });
+
+it('opens About from the old Plugins page id', () => {
+  const settings = new BotSettings();
+  mount(settings, ROWS);
+  act(() => {
+    settings.open('plugins');
+  });
+  expect(current()).toBe('关于');
+  expect(shownSection()).toBe('about');
+});
