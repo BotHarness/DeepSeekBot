@@ -30,6 +30,7 @@ import {
   SessionDetailPrefsContext,
   type SessionDetailPrefs,
 } from '../src/client/session-detail.js';
+import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
 import {
   clearSessionDetailCache,
   prefetchSessionDetail,
@@ -585,9 +586,7 @@ it('names the Skill DSH loaded for a /name request', async () => {
 
 it('puts the goal and to-do chips in the panel header when it offers a slot', async () => {
   const panel = document.createElement('aside');
-  panel.setAttribute('data-session-aside', '');
   const slot = document.createElement('span');
-  slot.setAttribute('data-session-header-chips', '');
   const body = document.createElement('div');
   panel.append(slot, body);
   document.body.append(panel);
@@ -598,17 +597,21 @@ it('puts the goal and to-do chips in the panel header when it offers a slot', as
   });
   await act(async () => {
     root.render(
-      createElement(SessionDetail, {
-        actions: {
-          sessionTranscript: vi.fn(async () => transcript('assignment')),
-          sessionProgress: vi.fn(async () => ({
-            'asg-1': { todos: [{ content: 'Fix', status: 'completed' as const }] },
-          })),
-        } as unknown as BridgeActions,
-        botSlug: 'tobs',
-        sessionId: 'asg-1',
-        t: zhTranslate,
-      }),
+      createElement(
+        SessionHeaderSlot.Provider,
+        { value: slot },
+        createElement(SessionDetail, {
+          actions: {
+            sessionTranscript: vi.fn(async () => transcript('assignment')),
+            sessionProgress: vi.fn(async () => ({
+              'asg-1': { todos: [{ content: 'Fix', status: 'completed' as const }] },
+            })),
+          } as unknown as BridgeActions,
+          botSlug: 'tobs',
+          sessionId: 'asg-1',
+          t: zhTranslate,
+        }),
+      ),
     );
   });
   await act(async () => {});

@@ -30,6 +30,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
+import { SessionHeaderSlot } from './session-header-slot.js';
 import { SessionJump } from './session-jump.js';
 import type { SelectedSkill } from './skill-refs.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
@@ -644,15 +645,7 @@ export function SessionDetail({
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
   const [away, setAway] = useState(false);
-  const [chipSlot, setChipSlot] = useState<HTMLElement | null>(null);
-  const rootMount = useMountedResource<HTMLDivElement>((root) => {
-    setChipSlot(
-      root
-        .closest('[data-channel-subpanel], [data-session-aside]')
-        ?.querySelector<HTMLElement>('[data-session-header-chips]') ?? null,
-    );
-    return () => setChipSlot(null);
-  }, []);
+  const chipSlot = useContext(SessionHeaderSlot);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const running = transcript?.running === true || live.length > 0;
@@ -858,7 +851,7 @@ export function SessionDetail({
       <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
     );
   return (
-    <div ref={rootMount} data-session-detail={sessionId} {...stylex.props(styles.root)}>
+    <div data-session-detail={sessionId} {...stylex.props(styles.root)}>
       {chips === null ? null : chipSlot === null ? (
         <div {...stylex.props(styles.chips)}>{chips}</div>
       ) : (

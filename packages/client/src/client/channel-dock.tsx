@@ -1,5 +1,6 @@
 import { mountWorkspaceChrome, updateWorkspaceChrome } from './workspace-chrome.js';
 import { AppearancePanelHeader } from './appearance-panel-header.js';
+import { SessionHeaderSlot } from './session-header-slot.js';
 import { AppearanceContext } from './appearance-context.js';
 import { PanelAppearanceSettings } from './appearance-panel-settings.js';
 import { panelTargetId } from './appearance-panels.js';
@@ -420,6 +421,7 @@ function workspaceState(dock: DockContextValue, id: string): SubpanelState | und
 
 function ChannelBodyPanel(): ReactElement {
   const dock = useDock();
+  const [sessionSlot, setSessionSlot] = useState<HTMLElement | null>(null);
   if (dock.column) return <>{dock.conversation(<SimpleMessageContent column={dock.column} />)}</>;
   const panels: Record<string, { label: string; header?: ReactNode; content: ReactNode }> = {
     [MESSAGE_LEAF]: { label: dock.t('workspace.messages'), content: <ChannelMessageContent /> },
@@ -438,8 +440,12 @@ function ChannelBodyPanel(): ReactElement {
   if (dock.channel !== undefined && dock.session !== undefined)
     panels[SESSION_DETAIL] = {
       label: dock.session.title,
-      header: <SessionDetailHeader dock={dock} session={dock.session} />,
-      content: dock.session.content,
+      header: <SessionDetailHeader dock={dock} session={dock.session} slot={setSessionSlot} />,
+      content: (
+        <SessionHeaderSlot.Provider value={sessionSlot}>
+          {dock.session.content}
+        </SessionHeaderSlot.Provider>
+      ),
     };
   return (
     <>
@@ -618,9 +624,11 @@ interface SubpanelReorderApi {
 function SessionDetailHeader({
   dock,
   session,
+  slot,
 }: {
   dock: DockContextValue;
   session: ChannelSessionView;
+  slot(node: HTMLElement | null): void;
 }): ReactElement {
   const label = dock.t('dock.close', { label: session.title });
   return (
@@ -629,7 +637,9 @@ function SessionDetailHeader({
       onHide={session.close}
       hideLabel={label}
       hideHint={dock.t('dock.headHintHide')}
-      badge={<span data-session-header-chips="" {...stylex.props(styles.sessionChips)} />}
+      badge={
+        <span ref={slot} data-session-header-chips="" {...stylex.props(styles.sessionChips)} />
+      }
       action={
         <Tooltip label={label} side="bottom">
           <IconButton aria-label={label} onClick={session.close}>
@@ -650,6 +660,7 @@ function SessionDetailAside({
 }): ReactElement {
   const members = dock.members;
   const ratio = members?.ratio ?? 0.4;
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
     <>
       <div
@@ -687,10 +698,10 @@ function SessionDetailAside({
         style={{ width: `${ratio * 100}%` }}
       >
         <AppearancePanelHeader id={SESSION_DETAIL} label={session.title} t={dock.t}>
-          <SessionDetailHeader dock={dock} session={session} />
+          <SessionDetailHeader dock={dock} session={session} slot={setSlot} />
         </AppearancePanelHeader>
         <div className="bh-channel-subpanel-body" data-appearance-body={SESSION_DETAIL}>
-          {session.content}
+          <SessionHeaderSlot.Provider value={slot}>{session.content}</SessionHeaderSlot.Provider>
         </div>
       </aside>
     </>
