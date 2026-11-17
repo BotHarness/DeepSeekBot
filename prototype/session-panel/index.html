@@ -841,6 +841,158 @@
         gap: 8px;
         align-items: center;
       }
+      /* ---------- detail: transcript first, summary as chips ---------- */
+      .ph .dt {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+      .dchips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 0 12px 10px;
+        align-items: center;
+      }
+      .dchip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 6px 0 8px;
+        border-radius: 13px;
+        background: var(--tobs-layer-raised);
+        color: var(--tobs-ink-secondary);
+        max-width: 240px;
+        font-size: 12px;
+      }
+      .dchip:hover {
+        background: var(--tobs-state-hover);
+      }
+      .dchip.on {
+        background: var(--tobs-accent-tint);
+        color: var(--tobs-ink-primary);
+      }
+      .dchip .cl {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .dchip .num {
+        font-variant-numeric: tabular-nums;
+      }
+      .dchip .cv {
+        color: var(--tobs-ink-quiet);
+        transition: transform 160ms ease;
+      }
+      .dchip.on .cv {
+        transform: rotate(180deg);
+      }
+      .dmeta {
+        display: inline-flex;
+        gap: 4px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--tobs-ink-quiet);
+      }
+      .dpanel {
+        margin: 0 12px 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--tobs-layer-raised);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 40%;
+        overflow: auto;
+        flex: none;
+      }
+      .tx {
+        padding: 4px 16px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        border-top: 1px solid var(--tobs-line-divider);
+      }
+      .tx-in {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        align-self: flex-end;
+        max-width: 88%;
+        align-items: flex-end;
+        margin-top: 6px;
+      }
+      .tx-who {
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--tobs-ink-tertiary);
+      }
+      .tx-bub {
+        padding: 8px 12px;
+        border-radius: 14px;
+        background: var(--tobs-accent-tint);
+      }
+      .tx-say {
+        white-space: pre-wrap;
+      }
+      .tx-think {
+        align-self: flex-start;
+        display: inline-flex;
+        gap: 4px;
+        align-items: center;
+        color: var(--tobs-ink-tertiary);
+        font-size: 12px;
+      }
+      .tx-tool {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: var(--tobs-layer-raised);
+        font-size: 12px;
+        line-height: 18px;
+      }
+      .tx-tool > span:first-child {
+        display: inline-flex;
+      }
+      .tx-tool .nm {
+        font-weight: 500;
+        color: var(--tobs-ink-secondary);
+      }
+      .tx-tool .ds {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--tobs-ink-tertiary);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .tx-tool .rot,
+      .tx-think .rot {
+        transform: rotate(-90deg);
+        color: var(--tobs-ink-quiet);
+      }
+      .sec.pin {
+        margin: 8px 12px 0;
+        flex: none;
+      }
+      .dcomp {
+        flex: none;
+        padding-top: 8px;
+      }
+      .dcomp .composer {
+        margin: 0 12px 4px;
+      }
+      .dnote {
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--tobs-ink-quiet);
+        padding: 0 16px 12px;
+      }
       /* variant C: drill-in inside the sessions panel */
       .crumb {
         display: flex;
@@ -1118,6 +1270,7 @@
         ? params.get('links')
         : 'inner';
       let pop = params.get('pop') === '1';
+      let chipOpen = params.get('chip') || null;
       if (selected === 'none') selected = null;
       if (params.has('shot')) document.body.classList.add('shot');
 
@@ -1471,71 +1624,154 @@
           })
           .join('')}</ul>`;
       }
-      function detail(s, { drill = false } = {}) {
-        if (!s) return '';
-        const { done, total } = count(s);
-        const stateTag = `<span class="tag ${s.state === 'needs' ? 'warning' : STATE[s.state].tone}">${stateLabel(s)}</span>`;
-        const head = `<div class="ph">
-      ${drill ? `<button class="ib" aria-label="返回会话列表" data-back>${ic('back')}</button>` : ''}
-      <span class="t">${s.role === 'orchestrator' ? 'Orchestrator' : 'Assignment'}</span><span class="sp"></span>
-      <button class="ib" aria-label="在 DeepSeek Harness 中打开" title="在 DeepSeek Harness 中打开">${ic('ext')}</button>
-      <button class="ib" aria-label="更多">${ic('menu')}</button>
-      ${drill ? '' : `<button class="ib" aria-label="关闭" data-close>${ic('x')}</button>`}
-    </div>`;
-        const header = `<div class="dh">
-      <div style="display:flex;gap:8px;align-items:center">${glyph(s.state, stateLabel(s))}<h2>${s.title}</h2></div>
-      <div class="meta">${stateTag}<span>${ic('folder', 's14')}${s.workspace}</span><span>${ic('cpu', 's14')}${s.model}</span><span>${ic('clock', 's14')}${s.time}</span></div>
-      ${s.description ? `<div style="color:var(--tobs-ink-secondary)">${s.description}</div>` : ''}
-    </div>`;
-        let attn = '';
-        if (s.state === 'needs' && s.need === 'approval')
-          attn = `<div class="sec attn"><h3>${ic('shield', 's14')}等待你审批 · ${s.approval.tool}</h3>
-      <code style="font:12px/18px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap">${s.approval.command}</code>
-      <div class="btns"><button class="btn primary">${ic('check', 's14')}允许</button><button class="btn">本会话都允许</button><button class="btn">拒绝</button></div></div>`;
-        if (s.state === 'needs' && s.need === 'question')
-          attn = `<div class="sec attn"><h3>${ic('msg', 's14')}等你回复</h3><div>「语音输入」要不要算这次的亮点？还是放到「其他改进」里？</div>
-      <div class="btns"><button class="btn primary">算亮点</button><button class="btn">放到其他改进</button><button class="btn">回复…</button></div></div>`;
-        if (s.state === 'stuck')
-          attn = `<div class="sec attn"><h3>${ic('clock', 's14')}18 分钟没有新进展</h3><div>最后一步是 <code>pnpm build</code>，还在运行。</div>
-      <div class="btns"><button class="btn">让 Tobs 去问一下</button><button class="btn">${ic('stop', 's14')}停止</button></div></div>`;
-        const goal = s.goal
-          ? `<div class="sec"><h3>${ic('target', 's14')}目标<span class="sp"></span><span class="tag ${s.goal.phase === 'complete' ? 'success' : 'info'}">${s.goal.phase === 'complete' ? '已达成' : '进行中'}</span></h3>
-      <div class="objective">${s.goal.objective}</div>
-      <div class="meta"><span>第 ${s.goal.rounds} 轮 · 上限 ${s.goal.max}</span></div></div>`
-          : '';
-        const todos = total
-          ? `<div class="sec"><h3>${ic('list', 's14')}任务<span class="sp"></span><span style="font-variant-numeric:tabular-nums">${done}/${total}</span></h3>
-      <div class="bar ${done === total ? 'done' : ''}" style="flex:none"><i style="width:${(done / total) * 100}%"></i></div>
-      ${todoList(s)}</div>`
-          : '';
-        const subs =
-          s.subagents && s.subagents.length
-            ? `<div class="sec"><h3>${ic('users', 's14')}Subagents</h3>${s.subagents.map((a) => `<div class="subrow">${glyph('working', '运行中')}<span class="t">${a.title}</span><span class="tag info">运行中</span></div>`).join('')}</div>`
-            : '';
-        let activity = '';
-        if (s.rounds)
-          activity = s.rounds
+      const TRANSCRIPT = {
+        a1: [
+          ['in', 'Tobs', '13:02', 'Safari 上导出按钮点了没反应，查一下并修好，带回归测试。', 1],
+          ['think', '12 秒'],
+          ['say', '先复现。我看一下导出按钮的实现，再找 createObjectURL 的用法。'],
+          ['tool', 'done', 'read_file', 'src/export/export-button.tsx'],
+          ['tool', 'done', 'grep', 'createObjectURL · 3 处'],
+          [
+            'say',
+            '原因找到了：下载在 await 之后才调用 window.open，Safari 把它当成弹窗拦掉了。改成在点击里同步触发一个 a[download]。',
+          ],
+          ['todo', '3/6'],
+          ['tool', 'done', 'str_replace', 'src/export/export-button.tsx  +18 −9'],
+          ['tool', 'done', 'write_file', 'e2e/export.spec.ts  +42'],
+          ['say', '修改完成，补了 webkit 的回归用例。下面跑一下 Safari e2e。'],
+          ['tool', 'wait', 'bash', 'pnpm e2e:safari --project=webkit export.spec.ts'],
+        ],
+        a2: [
+          ['in', 'Tobs', '12:40', '整理 1.7.0 的发布说明，从合并的 PR 里挑亮点，中英文各一份。', 1],
+          ['tool', 'done', 'bash', 'gh pr list --state merged --base main --limit 60'],
+          ['say', '共 47 个 PR，按功能归成 6 组。先写中文版。'],
+          ['tool', 'done', 'write_file', 'changes/release-1.7.0.zh.md  +96'],
+          ['in', 'Tobs', '13:10', '发布说明里「语音输入」算亮点。', 2],
+          ['say', '好，已移到亮点。还有一个问题需要确认：亮点放几条？'],
+          ['ask', '「语音输入」要不要算这次的亮点？还是放到「其他改进」里？'],
+        ],
+      };
+      function transcript(s) {
+        const items =
+          TRANSCRIPT[s.id] ||
+          (s.rounds && s.rounds.length
+            ? s.rounds.flatMap((r) => [
+                ['in', 'Tobs', r.at, r.instruction, r.index],
+                ...r.steps.map(([st, d, tool]) => [
+                  'tool',
+                  st === 'done' ? 'done' : 'run',
+                  tool,
+                  d,
+                ]),
+              ])
+            : [
+                ['in', 'Tobs', s.time, s.description || s.title, 1],
+                ['say', s.line],
+              ]);
+        return items
+          .map((it) => {
+            if (it[0] === 'in')
+              return `<div class="tx-in"><div class="tx-who">${it[1]} 的指示 · 第 ${it[4]} 轮 · ${it[2]}</div><div class="tx-bub">${it[3]}</div></div>`;
+            if (it[0] === 'me')
+              return `<div class="tx-in me"><div class="tx-who">你 · 直接发送 · ${it[1]}</div><div class="tx-bub">${it[2]}</div></div>`;
+            if (it[0] === 'think')
+              return `<button class="tx-think">${ic('chev', 's14 rot')}思考了 ${it[1]}</button>`;
+            if (it[0] === 'say') return `<div class="tx-say">${it[1]}</div>`;
+            if (it[0] === 'todo')
+              return `<div class="tx-tool">${ic('list', 's14')}<span class="nm">todo_write</span><span class="ds">更新任务 · ${it[1]}</span></div>`;
+            if (it[0] === 'ask') return '';
+            const icon =
+              it[1] === 'done'
+                ? `<span class="ck-done">${ic('check', 's14')}</span>`
+                : it[1] === 'wait'
+                  ? `<span style="color:var(--tobs-status-warning-base)">${ic('shield', 's14')}</span>`
+                  : `<span class="g-working glyph" style="width:14px;height:14px">${GLYPH.working}</span>`;
+            return `<div class="tx-tool ${it[1]}">${icon}<span class="nm">${it[2]}</span><span class="ds">${it[3]}</span>${ic('chev', 's14 rot')}</div>`;
+          })
+          .join('');
+      }
+      function chipPanel(s, key) {
+        if (key === 'goal' && s.goal)
+          return `<div class="objective">${s.goal.objective}</div><div class="meta"><span class="tag ${s.goal.phase === 'complete' ? 'success' : 'info'}">${s.goal.phase === 'complete' ? '已达成' : '进行中'}</span><span>第 ${s.goal.rounds} 轮 · 上限 ${s.goal.max}</span></div>`;
+        if (key === 'todos') {
+          const { done, total } = count(s);
+          return `<div class="bar ${done === total ? 'done' : ''}" style="flex:none"><i style="width:${(done / total) * 100}%"></i></div>${todoList(s)}`;
+        }
+        if (key === 'subs')
+          return s.subagents
             .map(
-              (r) => `<div class="sec"><h3>第 ${r.index} 轮 · ${r.kind} · ${r.at}</h3>
-      <blockquote class="instr"><b>Tobs 的指示</b>${r.instruction}</blockquote>
-      <ul class="tl">${r.steps.map(([st, d, tool, at]) => `<li>${st === 'done' ? `<span class="ck-done">${ic('check', 's14')}</span>` : `<span class="g-working glyph" style="width:14px;height:14px">${GLYPH.working}</span>`}<span><div>${d}</div><div class="tool">${tool}</div></span><time>${at}</time></li>`).join('')}</ul></div>`,
+              (a) =>
+                `<div class="subrow">${glyph('working', '运行中')}<span class="t">${a.title}</span><span class="tag info">运行中</span></div>`,
             )
             .join('');
-        else if (s.role === 'orchestrator') {
+        if (key === 'managed') {
           const a = SESSIONS.filter((x) => x.role === 'assignment' && x.state !== 'done');
-          activity = `<div class="sec"><h3>${ic('sessions', 's14')}正在管理的 Assignment · ${a.length}</h3>${a
+          return a
             .map((x) => {
               const c = count(x);
               return `<div class="subrow" data-open="${x.id}" style="cursor:pointer">${glyph(x.state, stateLabel(x))}<span class="t">${x.title}</span>${c.total ? `<span class="cap">${c.done}/${c.total}</span>` : ''}</div>`;
             })
-            .join('')}</div>`;
-        } else activity = `<div class="sec"><h3>最新动态</h3><div>${s.line}</div></div>`;
-        const foot = `<div class="foot">
-      ${s.state === 'working' || s.state === 'stuck' ? `<button class="btn">${ic('stop', 's14')}停止</button>` : ''}
-      ${s.state === 'done' || s.state === 'idle' ? `<button class="btn">${ic('archive', 's14')}${s.state === 'done' ? '取消归档' : '归档'}</button>` : ''}
-      <span class="sp"></span>
-      <button class="linkbtn">${ic('ext', 's14')}在 DeepSeek Harness 中打开</button></div>`;
-        return `${head}<div class="body">${header}${attn}${goal}${todos}${subs}${activity}</div>${foot}`;
+            .join('');
+        }
+        return '';
+      }
+      function detail(s, { drill = false } = {}) {
+        if (!s) return '';
+        const { done, total } = count(s);
+        const running = s.state === 'working' || s.state === 'stuck' || s.state === 'needs';
+        const head = `<div class="ph">
+      ${drill ? `<button class="ib" aria-label="返回会话列表" data-back>${ic('back')}</button>` : ''}
+      ${glyph(s.state, stateLabel(s))}<span class="t dt">${s.title}</span><span class="sp"></span>
+      ${running ? `<button class="ib" aria-label="停止" title="停止">${ic('stop')}</button>` : ''}
+      <button class="ib" aria-label="在 DeepSeek Harness 中打开" title="在 DeepSeek Harness 中打开">${ic('ext')}</button>
+      <button class="ib" aria-label="更多">${ic('menu')}</button>
+      ${drill ? '' : `<button class="ib" aria-label="关闭" data-close>${ic('x')}</button>`}
+    </div>`;
+        const chips = [];
+        if (s.goal)
+          chips.push([
+            'goal',
+            `${ic('target', 's14')}<span class="cl">${s.goal.objective}</span>`,
+            '目标',
+          ]);
+        if (total)
+          chips.push([
+            'todos',
+            `${ring(done, total)}<span class="num">${done}/${total}</span>`,
+            '任务',
+          ]);
+        if (s.subagents && s.subagents.length)
+          chips.push([
+            'subs',
+            `${ic('users', 's14')}${s.subagents.length} 个 Subagent`,
+            'Subagent',
+          ]);
+        if (s.role === 'orchestrator') {
+          const n = SESSIONS.filter((x) => x.role === 'assignment' && x.state !== 'done').length;
+          chips.push(['managed', `${ic('sessions', 's14')}${n} 个 Assignment`, 'Assignment']);
+        }
+        const meta = `<span class="dmeta">${ic('folder', 's14')}${s.workspace}</span><span class="dmeta">${ic('cpu', 's14')}${s.model}</span>`;
+        const open = chips.some(([k]) => k === chipOpen) ? chipOpen : null;
+        const strip = `<div class="dchips">${chips
+          .map(
+            ([k, html, label]) =>
+              `<button class="dchip ${open === k ? 'on' : ''}" data-chip="${k}" aria-expanded="${open === k}" aria-label="${label}">${html}${ic('chev', 's14 cv')}</button>`,
+          )
+          .join('')}${meta}</div>${open ? `<div class="dpanel">${chipPanel(s, open)}</div>` : ''}`;
+        let attn = '';
+        if (s.state === 'needs' && s.need === 'approval')
+          attn = `<div class="sec attn pin"><h3>${ic('shield', 's14')}等待你审批 · ${s.approval.tool}</h3>
+      <code style="font:12px/18px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap">${s.approval.command}</code>
+      <div class="btns"><button class="btn primary">${ic('check', 's14')}允许</button><button class="btn">本会话都允许</button><button class="btn">拒绝</button></div></div>`;
+        if (s.state === 'needs' && s.need === 'question')
+          attn = `<div class="sec attn pin"><h3>${ic('msg', 's14')}等你回复</h3><div>「语音输入」要不要算这次的亮点？还是放到「其他改进」里？</div>
+      <div class="btns"><button class="btn primary">算亮点</button><button class="btn">放到其他改进</button></div></div>`;
+        if (s.state === 'stuck')
+          attn = `<div class="sec attn pin"><h3>${ic('clock', 's14')}18 分钟没有新进展</h3><div>最后一步是 <code>pnpm build</code>，还在运行。</div>
+      <div class="btns"><button class="btn">让 Tobs 去问一下</button><button class="btn">${ic('stop', 's14')}停止</button></div></div>`;
+        const who = s.role === 'orchestrator' ? '给 Tobs 发消息…' : '直接发消息给这个 Assignment…';
+        const composer = `<div class="dcomp"><div class="composer">${who}<span style="flex:1"></span>${ic('send')}</div>${s.role === 'orchestrator' ? '' : '<div class="dnote">会直接进入这个会话，Tobs 会在 Inbox 收到通知</div>'}</div>`;
+        return `${head}${strip}<div class="body tx">${transcript(s)}</div>${attn}${composer}`;
       }
 
       /* ---------- page ---------- */
@@ -1644,13 +1880,18 @@
       .join('')}
     <button data-theme-toggle>${theme === 'light' ? '深色' : '浅色'}</button>
   </div>`;
+        document.querySelectorAll('.tx').forEach((el) => (el.scrollTop = el.scrollHeight));
       }
       document.addEventListener('click', (e) => {
         const t = e.target.closest(
-          '[data-open],[data-close],[data-back],[data-variant],[data-theme-toggle],[data-links],[data-pop]',
+          '[data-chip],[data-open],[data-close],[data-back],[data-variant],[data-theme-toggle],[data-links],[data-pop]',
         );
         if (!t) return;
-        if (t.dataset.open) selected = t.dataset.open;
+        if (t.dataset.chip) chipOpen = chipOpen === t.dataset.chip ? null : t.dataset.chip;
+        if (t.dataset.open) {
+          selected = t.dataset.open;
+          chipOpen = null;
+        }
         if (t.hasAttribute('data-close') || t.hasAttribute('data-back')) selected = null;
         if (t.dataset.variant) variant = t.dataset.variant;
         if (t.dataset.links) links = t.dataset.links;
@@ -1667,6 +1908,7 @@
           theme,
           open: selected || 'none',
           links,
+          ...(chipOpen ? { chip: chipOpen } : {}),
         });
         history.replaceState(null, '', '?' + q);
         render();
