@@ -46,6 +46,13 @@
       "check": "scripts/check-regression-proof.mjs"
     },
     {
+      "id": "pr-body",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "edit the PR description: `Closes #N` or `Refs #N` as plain text, a `Merge risk:` line (revert, blast radius, review focus) and a `Verification:` line (checks run, results, what was not run), as .github/pull_request_template.md asks.",
+      "check": "scripts/check-pr-body.mjs"
+    },
+    {
       "id": "file-length",
       "layer": "L1 health",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
