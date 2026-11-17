@@ -149,6 +149,9 @@ Use component ablation (not Git history bisect) when a profile leaves several pl
   `emptyInView` all 0) and `scripts/e2e-timeline-navigation.mjs` must pass.
 - **Run the budget.** `--budget scripts/perf-budgets/timeline.json` must pass. Add
   `--strict-timing` on a quiet machine to fail on timing budgets too.
+- **Measure the journey, not a proxy.** Measure opening latency separately from frame pacing;
+  rAF cadence alone does not prove presented FPS. Do not infer end-to-end wins from parser or
+  query microbenchmarks.
 - **Say what did not run.** Headless Chromium does not cover the desktop shell paths or native
   mobile; name them as not verified.
 
