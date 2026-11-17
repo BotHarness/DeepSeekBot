@@ -464,7 +464,7 @@ export function MemberWakePolicyModal({
   const [mode, setMode] = useState<'all' | 'mentions' | 'digest' | 'silent'>(
     saved?.mode ?? 'digest',
   );
-  const [count, setCount] = useState(saved?.count ?? 5);
+  const [count, setCount] = useState(saved?.count ?? 10);
   const [seconds, setSeconds] = useState(saved?.intervalSeconds ?? 30);
   const submission = useSubmission();
   const busy = submission.state === 'busy';
@@ -480,7 +480,7 @@ export function MemberWakePolicyModal({
       await submission.run(() =>
         actions.setGroupWakePolicy(group.id, slug, {
           mode: inherit ? (saved?.mode ?? 'digest') : mode,
-          count: inherit ? (saved?.count ?? 5) : count,
+          count: inherit ? (saved?.count ?? 10) : count,
           intervalSeconds: inherit ? (saved?.intervalSeconds ?? 30) : seconds,
           ...(inherit ? { inherit } : {}),
         }),

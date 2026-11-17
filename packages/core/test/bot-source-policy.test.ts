@@ -22,7 +22,7 @@ describe('per-PersonaBot source policy defaults', () => {
       const initial = database.diagnostics().metrics.transactionsCommitted;
       expect(store.readGroupOrdinary('fresh-bot')).toMatchObject({
         wake: 'digest',
-        digestCount: 5,
+        digestCount: 10,
         digestIntervalSeconds: 30,
         overrideActive: false,
       });
@@ -194,7 +194,7 @@ describe('per-PersonaBot source policy defaults', () => {
         });
       }
       expect(policy.find((rule) => rule.sourceClass === 'group-ordinary')).toMatchObject({
-        digestCount: 5,
+        digestCount: 10,
         digestIntervalSeconds: 30,
       });
       expect(core.sourcePolicy.list('bea')).toHaveLength(policy.length);
@@ -440,7 +440,7 @@ describe('per-PersonaBot source policy defaults', () => {
         value: {
           policy: {
             wake: 'digest',
-            digestCount: 5,
+            digestCount: 10,
             digestIntervalSeconds: 30,
             revision: 4,
             overrideActive: false,

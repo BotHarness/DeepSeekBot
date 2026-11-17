@@ -45,7 +45,7 @@ export function ThreadReceptionSettings({
     setSelected(row);
     setMode(row.mode);
     setWake(row.wake?.wake ?? 'inherit');
-    setCount(row.wake?.count ?? 5);
+    setCount(row.wake?.count ?? 10);
     setSeconds(row.wake?.intervalSeconds ?? 30);
   };
   return (
