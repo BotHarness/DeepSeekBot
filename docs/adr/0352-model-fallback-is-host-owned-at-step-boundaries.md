@@ -1,7 +1,7 @@
 ---
 Status: Proposed
 Date: 2026-11-18
-Issues: (spec issue, linked on creation)
+Issues: [#4410](https://github.com/BotHarness/DeepSeekBot/issues/4410)
 ---
 
 # ADR-0352: Model Fallback is Host-owned and moves a Session at a step boundary
