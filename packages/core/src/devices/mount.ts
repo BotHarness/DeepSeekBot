@@ -1,3 +1,5 @@
+import { memberRoutes as eligibleMemberRoutes } from '../team/member-urls.js';
+import { createMemberDevices } from '../team/devices.js';
 import { createConnectHealth } from './connect-health.js';
 import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
 import { mountTeamGateway } from '../team/mount.js';
@@ -7,6 +9,16 @@ import { createDirectPeers } from './direct.js';
 import { createHostRelationships } from './relationships.js';
 import { createRelationshipControl } from './relationship-control.js';
 import { createRelationshipHttp, RELATIONSHIPS_PATH } from './relationship-http.js';
+import { createRemoteCustody } from './remote-custody.js';
+import {
+  createRemoteCustodyHttp,
+  createRemoteCustodyStream,
+  REMOTE_CUSTODY_PATH,
+  REMOTE_CUSTODY_STREAM_PATH,
+} from './remote-custody-http.js';
+import { nodeDeviceCarrier } from './node-carrier.js';
+import { createHash } from 'node:crypto';
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
@@ -19,7 +31,7 @@ import { createActivityDelivery, type ActivityDelivery } from '../live-activity/
 import type { ChannelSendStatus } from '../channels/store.js';
 import { createNoiseIdentity } from './noise-identity.js';
 import { createEncryptedGateway, type CallChannelDiagnostic } from './encrypted-gateway.js';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { createDeviceLan } from './lan.js';
@@ -92,6 +104,7 @@ interface ConnectionLike {
 
 interface WebServerLike {
   readonly port: number;
+  getOrigin?(): string;
   register(route: {
     kind: 'exact' | 'prefix';
     path: string;
@@ -183,6 +196,23 @@ export function mountDevicePairing(
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
+    ...(options.team
+      ? {
+          members: {
+            redeem: (humanId: string, name: string, publicKey?: string) =>
+              options.team!.createDeviceGrant(humanId, name, publicKey),
+            admit: (authorization: string | undefined, publicKey?: string) => {
+              const peer = options.team!.admitDevice(authorization, publicKey);
+              return peer?.principal.kind === 'botharness-member'
+                ? options.team!.device(peer.principal.grantId)
+                : undefined;
+            },
+            check: (deviceId: string) => options.team!.device(deviceId),
+            attach: (deviceId: string, close: () => void) =>
+              options.team!.attachDeviceStream(deviceId, close),
+          },
+        }
+      : {}),
     ...(options.team ? { ownerHumanId: () => options.team!.ownerContext().humanId } : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
@@ -221,6 +251,17 @@ export function mountDevicePairing(
   );
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
+  let memberRoutes: () => Promise<string[]> = async () => [];
+  const memberDevices = options.team
+    ? createMemberDevices({
+        team: options.team,
+        pairing,
+        encryption: identity.publicIdentity,
+        routes: () => memberRoutes(),
+      })
+    : undefined;
+  if (options.team && memberDevices)
+    ctx.effect(() => options.team!.bindDevices(memberDevices), 'botharness: member invitations');
   const botNetworks = createBotNetworkRoutes({
     withdrawn: async (hostId) => options.botNetwork?.withdrawNetworkMembership(hostId),
   });
@@ -459,6 +500,7 @@ export function mountDevicePairing(
       gateway: () =>
         createEncryptedGateway({
           pairing,
+          ...(memberDevices ? { memberDevices } : {}),
           relationship: relationshipControl.receive,
           key: identity.key,
           port: () => webServer.port,
@@ -602,6 +644,7 @@ export function mountDevicePairing(
     webCtx.effect(() => () => directPeers.close(), 'botharness: direct device peers');
     const encrypted = createEncryptedGateway({
       pairing,
+      ...(memberDevices ? { memberDevices } : {}),
       relationship: relationshipControl.receive,
       key: identity.key,
       port: () => webServer.port,
@@ -817,6 +860,7 @@ export function mountDevicePairing(
     const publishKey = credentialKey('botharness-core', 'device-tailscale');
     const publishing = createManagedPhoneRoute({
       port: webServer.port,
+      tls: webServer.getOrigin?.().startsWith('https:') ?? false,
       read: async () => {
         const credentials = options.credentials?.();
         if (!credentials) throw new Error('publishing-storage-unavailable');
@@ -888,6 +932,16 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
+    memberRoutes = async () => {
+      await publishingReady;
+      const status = await publishing.status();
+      const tunnel = connect.route();
+      if (tunnel) status.routes.push(tunnel);
+      return eligibleMemberRoutes(
+        webServer.getOrigin?.() ?? `http://127.0.0.1:${webServer.port}`,
+        status,
+      );
+    };
     webCtx.effect(
       () =>
         connection.fetch.register({
@@ -898,6 +952,54 @@ export function mountDevicePairing(
         }),
       'botharness: local Host relationship management',
     );
+    webCtx.effect(() => {
+      const secretKey = (handle: string) =>
+        credentialKey(
+          'botharness-private',
+          'remote-host-' + createHash('sha256').update(handle).digest('hex').slice(0, 40),
+        );
+      const store = () => {
+        const credentials = options.credentials?.();
+        if (!credentials) throw new Error('custody-storage-unavailable');
+        return credentials;
+      };
+      const custody = createRemoteCustody({
+        database: attachOperationalModule(options.database, 'remote-host-custody'),
+        secrets: {
+          read: async (handle) => {
+            const record = await store().readRecord(secretKey(handle));
+            return record?.kind === 'grant' ? record.payload : undefined;
+          },
+          write: async (handle, secret) => {
+            await store().modifyRecord(secretKey(handle), async () => ({
+              kind: 'grant',
+              payload: secret,
+            }));
+          },
+          delete: (handle) => store().deleteRecord(secretKey(handle)),
+        },
+        ownerHumanId: () => (options.team?.ownerContext() ?? OWNER_HUMAN_CONTEXT).humanId,
+        carrier: nodeDeviceCarrier,
+      });
+      const offs = [
+        connection.fetch.register({
+          path: REMOTE_CUSTODY_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: createRemoteCustodyHttp(custody),
+        }),
+        connection.fetch.register({
+          path: REMOTE_CUSTODY_STREAM_PATH,
+          methods: ['GET'],
+          requestBody: 'buffered',
+          fetch: createRemoteCustodyStream(custody),
+        }),
+      ];
+      return async () => {
+        custody.close();
+        for (const off of offs) await off();
+      };
+    }, 'botharness: Remote Host credentials kept by the local Host');
     const http = createDevicesHttp({
       privateConnection,
       privateTunnel,
@@ -971,6 +1073,7 @@ export function mountDevicePairing(
             teamCtx,
             teamService,
             () => pairing.host().name,
+            memberDevices!,
             (phase, facts) =>
               write(
                 'team',
@@ -995,6 +1098,9 @@ export function mountDevicePairing(
       });
     const team = teamService
       ? {
+          get device() {
+            return memberGateway?.device;
+          },
           async handle(request: IncomingMessage, response: ServerResponse) {
             if (memberGateway) return memberGateway.handle(request, response);
             response.writeHead(503, {

@@ -10,8 +10,8 @@ import {
   parseRelationshipSavedHost,
   updateRelationshipClientRoute,
 } from '../devices/relationship-enrollment.js';
-import { serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
-import { revokePairing, parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
+import { serializeSavedHost } from '@botharness/host-client/hosts';
+import { revokePairing, parsePairingLink } from '@botharness/host-client/pairing';
 import {
   relationshipListSchema,
   relationshipReplySchema,

@@ -1,12 +1,22 @@
 import { PointerMenu, type MenuPoint } from './pointer-menu.js';
-import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+import {
+  Fragment,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   IconChevronDownOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { Modal } from '../modal.js';
+import { Dialog } from './dialog.js';
+import { NavGroupHeading, NavItem } from './nav-item.js';
+import { layer, ink, style, type as tobsType } from './tobs.stylex.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const NARROW_QUERY = '(max-width: 648px)';
@@ -36,7 +46,7 @@ export function useNarrowSettings(): boolean {
   return useSyncExternalStore(subscribeNarrow, isNarrow, () => false);
 }
 
-const VIEWPORT_CSS = `body > :has(> .bh-settings-dialog) {
+const VIEWPORT_CSS = `[data-tobs-dialog-viewport]:has(> .bh-settings-dialog) {
   padding: max(calc(${space.x6} / var(--bh-window-zoom, 1)), calc(var(--dsh-frame-overlay-top, ${space.x6}) / var(--bh-window-zoom, 1))) calc(${space.x6} / var(--bh-window-zoom, 1));
 }
 .bh-settings-dialog input[type="file"] { min-width: 0; max-width: 100%; }`;
@@ -48,8 +58,8 @@ const styles = stylex.create({
     width: 'min(760px, 100%)',
     height: 'min(640px, 100%)',
     padding: 0,
-    '--dsh-scrollbar-thumb': 'var(--dsw-alias-scrollbar-bg-l2)',
-    '--dsh-scrollbar-thumb-hover': 'var(--dsw-alias-scrollbar-hover-l2)',
+    '--dsh-scrollbar-thumb': 'var(--tobs-line-strong)',
+    '--dsh-scrollbar-thumb-hover': 'var(--tobs-ink-tertiary)',
   },
   nav: {
     flexShrink: 0,
@@ -62,14 +72,16 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     borderRightWidth: border.hairline,
     borderRightStyle: 'solid',
-    borderRightColor: color.divider,
+    borderRightColor: style.surfaceNavEdge,
+    backgroundColor: style.surfaceNav,
+    fontFamily: 'inherit',
   },
   navTitle: {
     paddingInline: space.x3,
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
+    color: ink.primary,
+    fontSize: tobsType.titleSize,
+    lineHeight: tobsType.titleLine,
+    fontWeight: tobsType.titleWeight,
   },
   navList: {
     display: 'flex',
@@ -78,42 +90,11 @@ const styles = stylex.create({
     overflowY: 'auto',
     paddingBottom: space.x4,
   },
-  navCell: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    height: size.row,
-    paddingInline: space.x3,
-    boxSizing: 'border-box',
-    borderWidth: 0,
-    borderRadius: radius.sm,
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': color.hover,
-      ':is([aria-current=page])': color.selected,
-    },
-    color: { default: color.muted, ':is([aria-current=page])': color.fg, ':hover': color.fg },
-    fontFamily: 'inherit',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    fontWeight: { default: 400, ':is([aria-current=page])': text.strong },
-    textAlign: 'start',
-    cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
-    outlineOffset: '-2px',
-  },
-  navIcon: {
+  navGroupList: {
     flexShrink: 0,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navLabel: {
-    flexGrow: 1,
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
   },
   dot: {
     flexShrink: 0,
@@ -134,6 +115,7 @@ const styles = stylex.create({
     minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
+    backgroundColor: style.surfaceListBackdrop,
   },
   captionNarrow: {
     marginTop: space.x5,
@@ -162,6 +144,24 @@ const styles = stylex.create({
     lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
+  heading: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  scope: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x1,
+    minWidth: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   actions: {
     flexShrink: 0,
     display: 'inline-flex',
@@ -176,7 +176,7 @@ const styles = stylex.create({
     height: size.icon,
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.sm,
+    borderRadius: radius.control,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: color.fg,
     cursor: 'pointer',
@@ -190,7 +190,7 @@ const styles = stylex.create({
     height: size.row,
     paddingInline: `${space.x4} ${space.x3}`,
     borderWidth: 0,
-    borderRadius: radius.sm,
+    borderRadius: radius.control,
     backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
     fontFamily: 'inherit',
@@ -221,6 +221,12 @@ export interface SettingsDialogSection {
   readonly label: string;
   readonly icon?: ReactNode;
   readonly attention?: boolean;
+  readonly group?: string;
+}
+
+export interface SettingsDialogGroup {
+  readonly id: string;
+  readonly label?: ReactNode;
 }
 
 export interface SettingsDialogLabels {
@@ -233,14 +239,16 @@ export interface SettingsDialogLabels {
 export interface SettingsDialogProps {
   readonly title: string;
   readonly navTitle?: ReactNode;
-  readonly caption?: ReactNode;
+  readonly caption?: ReactNode | undefined;
   readonly navigationSearch?: ReactNode;
   readonly navigationResults?: ReactNode;
   readonly sections: readonly SettingsDialogSection[];
+  readonly groups?: readonly SettingsDialogGroup[] | undefined;
+  readonly scope?: ReactNode | undefined;
   readonly activeId: string | undefined;
   readonly onSelect: (id: string) => void;
   readonly onClose: () => void;
-  readonly headerAction?: ReactNode;
+  readonly headerAction?: ReactNode | undefined;
   readonly labels: SettingsDialogLabels;
   readonly className?: string;
   readonly children: ReactNode;
@@ -332,6 +340,8 @@ export function SettingsDialog({
   navigationSearch,
   navigationResults,
   sections,
+  groups,
+  scope,
   activeId,
   onSelect,
   onClose,
@@ -341,15 +351,30 @@ export function SettingsDialog({
   children,
 }: SettingsDialogProps): ReactElement {
   const narrow = useNarrowSettings();
+  const groupId = useId();
   const active = sections.find((section) => section.id === activeId);
   const close = (): void => {
     onClose();
   };
-  const dialogClass = ['bh-settings-dialog', className, stylex.props(styles.dialog).className]
-    .filter(Boolean)
-    .join(' ');
+  const navCell = (section: SettingsDialogSection): ReactElement => (
+    <NavItem
+      key={section.id}
+      data={{
+        'data-settings-section': section.id,
+        'data-modal-autofocus': section.id === active?.id ? '' : undefined,
+      }}
+      current={section.id === active?.id}
+      icon={section.icon}
+      label={section.label}
+      attention={section.attention === true ? (labels.attention ?? '') : undefined}
+      onSelect={() => {
+        onSelect(section.id);
+      }}
+    />
+  );
+  const dialogClass = ['bh-settings-dialog', className].filter(Boolean).join(' ');
   return (
-    <Modal open headless onClose={close} title={title} className={dialogClass}>
+    <Dialog open onClose={close} title={title} className={dialogClass} xstyle={styles.dialog}>
       <style data-plugin="@botharness/ui" data-plugin-css="@botharness/ui/settings-viewport">
         {VIEWPORT_CSS}
       </style>
@@ -360,27 +385,31 @@ export function SettingsDialog({
           {navigationSearch}
           <div {...stylex.props(styles.navList)}>
             {navigationResults ??
-              sections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  data-settings-section={section.id}
-                  aria-current={section.id === active?.id ? 'page' : undefined}
-                  data-modal-autofocus={section.id === active?.id ? '' : undefined}
-                  onClick={() => {
-                    onSelect(section.id);
-                  }}
-                  {...stylex.props(styles.navCell)}
-                >
-                  {section.icon === undefined ? null : (
-                    <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
-                      {section.icon}
-                    </span>
-                  )}
-                  <span {...stylex.props(styles.navLabel)}>{section.label}</span>
-                  {section.attention === true ? <AttentionDot label={labels.attention} /> : null}
-                </button>
-              ))}
+              (groups === undefined
+                ? sections.map(navCell)
+                : groups.map((group) => {
+                    const members = sections.filter((section) => section.group === group.id);
+                    if (members.length === 0) return null;
+                    if (group.label === undefined)
+                      return (
+                        <div key={group.id} {...stylex.props(styles.navGroupList)}>
+                          {members.map(navCell)}
+                        </div>
+                      );
+                    const headingId = `${groupId}-${group.id}`;
+                    return (
+                      <Fragment key={group.id}>
+                        <NavGroupHeading id={headingId} label={group.label} />
+                        <div
+                          role="group"
+                          aria-labelledby={headingId}
+                          {...stylex.props(styles.navGroupList)}
+                        >
+                          {members.map(navCell)}
+                        </div>
+                      </Fragment>
+                    );
+                  }))}
           </div>
         </nav>
       )}
@@ -395,16 +424,23 @@ export function SettingsDialog({
           <div {...stylex.props(styles.captionNarrow)}>{caption}</div>
         ) : null}
         <div {...stylex.props(styles.header, narrow && styles.headerNarrow)}>
-          {narrow ? (
-            <SectionPicker
-              sections={sections}
-              activeId={activeId}
-              labels={labels}
-              onSelect={onSelect}
-            />
-          ) : (
-            <h2 {...stylex.props(styles.title)}>{active?.label}</h2>
-          )}
+          <span {...stylex.props(styles.heading)}>
+            {narrow ? (
+              <SectionPicker
+                sections={sections}
+                activeId={activeId}
+                labels={labels}
+                onSelect={onSelect}
+              />
+            ) : (
+              <h2 {...stylex.props(styles.title)}>{active?.label}</h2>
+            )}
+            {scope === undefined ? null : (
+              <span data-settings-scope="" {...stylex.props(styles.scope)}>
+                {scope}
+              </span>
+            )}
+          </span>
           <span {...stylex.props(styles.actions)}>
             {headerAction}
             <button
@@ -421,6 +457,6 @@ export function SettingsDialog({
           {children}
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }

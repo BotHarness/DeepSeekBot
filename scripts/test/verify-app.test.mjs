@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   collectObservation,
+  monkeyReplay,
   parseVerifyArgs,
   verifyPaths,
   inspectInstanceRuntime,
@@ -19,6 +20,30 @@ describe('verify-app arguments', () => {
       '0.2.1-rc.99',
     );
     expect(() => parseVerifyArgs(['launch', '--dsh-version', 'latest'])).toThrow('API floor');
+  });
+  it('reads a monkey seed and step count', () => {
+    const options = parseVerifyArgs(['monkey', 'shell', '--seed', '7', '--steps', '40']);
+    expect([options.seed, options.steps, options.positional]).toEqual([7, 40, ['shell']]);
+    expect(parseVerifyArgs(['monkey', 'shell']).steps).toBe(100);
+    expect(() => parseVerifyArgs(['monkey', 'shell', '--seed', '-1'])).toThrow('non-negative');
+    expect(() => parseVerifyArgs(['monkey', 'shell', '--steps', '0'])).toThrow('positive');
+  });
+  it('replays a monkey run with the browser options it used', () => {
+    const options = parseVerifyArgs([
+      'monkey',
+      'shell',
+      '--name',
+      'night',
+      '--locale',
+      'zh',
+      '--size',
+      '390x844',
+      '--keep-overlays',
+      '--bot-mode',
+    ]);
+    expect(monkeyReplay(options, 'shell', 9, 0)).toBe(
+      'node scripts/verify-app.mjs monkey shell --name night --seed 9 --steps 1 --locale zh --theme light --size 390x844 --bot-mode --keep-overlays',
+    );
   });
   it('keeps shot actions in the order given', () => {
     const options = parseVerifyArgs([

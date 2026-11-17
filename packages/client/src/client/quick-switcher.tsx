@@ -1,3 +1,4 @@
+import { Input } from './ds/input.js';
 import {
   Fragment,
   useId,
@@ -11,7 +12,6 @@ import * as stylex from '@stylexjs/stylex';
 import {
   IconSearchOutlineRegular,
   IconSettingsOutlineRegular,
-  Input,
   ShortcutKeys,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 

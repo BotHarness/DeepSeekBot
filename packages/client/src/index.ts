@@ -19,12 +19,13 @@ import {
   DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
   DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
   DEFAULT_BOT_MODE_SORT,
+  DEFAULT_SETTINGS_PINS,
   type BotModeIcon,
   type BotModeMotionPreference,
   type BotModeSendKey,
   type BotModeSortMode,
   type BotModeSettings,
-} from './bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 
 export const name = 'botharness-client';
 stampReleaseComponent(apply, import.meta.url);
@@ -41,9 +42,12 @@ export interface Config {
   sendKey: Volatile<BotModeSendKey>;
   autoCollapseMessages: Volatile<boolean>;
   showDeliveryReceipts: Volatile<boolean>;
+  showDmAvatar: Volatile<boolean>;
+  showOwnAvatar: Volatile<boolean>;
   streamReplies: Volatile<boolean>;
   sortMode: Volatile<BotModeSortMode>;
   sortModes: Volatile<Record<string, BotModeSortMode>>;
+  settingsPins: Volatile<string[]>;
 }
 
 export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
@@ -63,6 +67,8 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
   developerMode: Schema.boolean().default(DEFAULT_BOT_MODE_DEVELOPER).volatile(),
   autoCollapseMessages: Schema.boolean().default(false).volatile(),
   showDeliveryReceipts: Schema.boolean().default(false).volatile(),
+  showDmAvatar: Schema.boolean().default(false).volatile(),
+  showOwnAvatar: Schema.boolean().default(false).volatile(),
   streamReplies: Schema.boolean().default(false).volatile(),
   showBotSessions: Schema.boolean().default(DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS).volatile(),
   showApprovalReviewSessions: Schema.boolean()
@@ -82,6 +88,9 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
     .volatile(),
   sortModes: Schema.dict(Schema.union([...BOT_MODE_SORT_MODES]))
     .default({})
+    .volatile(),
+  settingsPins: Schema.array(Schema.string())
+    .default([...DEFAULT_SETTINGS_PINS])
     .volatile(),
 });
 

@@ -1,5 +1,19 @@
 # Native Subagent presets
 
+## Sources
+
+- `packages/core/src/runtime/{native-subagent-wake,subagent-compat,subagent-model-tools}.ts`
+- `packages/core/src/models/subagent-route.ts`
+- `packages/client/src/client/session-subagents.tsx`
+- `packages/deepseekbot/src/subagent-control.mjs`
+- `scripts/verify-subagent-control.mjs`
+
+## Terms
+
+- Subagent
+- Model Preset
+- Orchestrator Session
+
 ## Sub-features
 
 - Independent child: explicit allowed preset, configured child default, current DSH default.

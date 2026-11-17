@@ -3,8 +3,8 @@ import {
   type PrivateInputDeclaration,
   type PrivateInputStatus,
 } from '../../../../packages/core/src/credentials/contracts';
-import type { HostClient } from './client';
-import type { RequestRef } from './requests';
+import type { HostClient } from '@botharness/host-client/client';
+import type { RequestRef } from '@botharness/host-client/requests';
 
 export async function loadPrivateInput(
   client: HostClient,

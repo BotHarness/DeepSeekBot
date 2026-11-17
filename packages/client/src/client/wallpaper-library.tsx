@@ -68,8 +68,8 @@ const styles = stylex.create({
     color: color.accentText,
   },
   selected: {
-    borderColor: color.accent,
-    boxShadow: `0 0 0 1px ${color.accent}`,
+    backgroundColor: color.accentTint,
+    color: color.accentText,
   },
   thumb: {
     position: 'absolute',
@@ -273,6 +273,11 @@ export function WallpaperLibrary({
         >
           <ChannelSidebarIcon name="ban" size={18} />
           {t('wallpaper.none')}
+          {snapshot.library.active ? null : (
+            <span {...stylex.props(styles.badge)}>
+              <ChannelSidebarIcon name="check" size={12} />
+            </span>
+          )}
         </button>
       </li>
       {items.map((item, index) => {

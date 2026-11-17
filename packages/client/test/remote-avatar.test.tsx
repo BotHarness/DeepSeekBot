@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { RosterBot, RosterView } from '../../../apps/mobile/src/host/client.js';
+import type { RosterBot, RosterView } from '@botharness/host-client/client';
 import { RemoteAvatar } from '../src/client/remote-avatar.js';
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
 import { zhTranslate } from '../src/client/locale.js';

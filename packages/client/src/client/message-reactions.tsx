@@ -22,8 +22,7 @@ const styles = stylex.create({
     display: 'flex',
     gap: space.x1,
     padding: space.x2,
-    '--dsw-elevation-stroke-color': color.divider,
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   pick: {
     display: 'grid',
@@ -62,7 +61,7 @@ const styles = stylex.create({
     paddingInline: `calc(${space.x3} + ${space.x1})`,
     borderWidth: border.focus,
     borderStyle: 'solid',
-    borderColor: 'var(--dsw-alias-bg-base)',
+    borderColor: 'var(--tobs-layer-canvas)',
     borderRadius: radius.lg,
     backgroundColor: color.surface,
     backgroundImage: {

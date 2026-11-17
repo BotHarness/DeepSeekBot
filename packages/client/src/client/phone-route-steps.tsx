@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -14,12 +14,13 @@ const SIGN_IN_COMMAND = 'tailscale up';
 
 export interface PhoneRouteStatus {
   staleRoutes?: { url: string; targetPort: number }[];
-  managed?: { enabled: boolean; owned: boolean };
+  managed?: { enabled: boolean; owned: boolean; trustedIngress?: boolean };
   routes: {
     url: string;
     kind: 'lan' | 'tailscale' | 'connect' | 'loopback' | 'private';
     ready: boolean;
     issue?: string;
+    memberSignIn?: 'managed-tls' | 'untrusted';
   }[];
   tailscale: 'running' | 'stopped' | 'missing';
   serveCommand: string;

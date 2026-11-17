@@ -9,7 +9,7 @@ import {
   reactedByMe,
   type ConversationMessage,
   type MessageAttachment,
-} from '../../host/conversation';
+} from '@botharness/host-client/conversation';
 import { spring } from '../design/motion';
 import { edge, radius, space } from '../design/tokens';
 import { islandStyle } from '../design/island';

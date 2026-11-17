@@ -1,4 +1,5 @@
-import { hasIrreversibleExternalEffect, toolEffects } from './workspaces/tool-effects.js';
+import { contextSources } from './runtime/context-sources.js';
+import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
 import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
 import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
@@ -352,6 +353,7 @@ import {
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
 import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
+import { installMemberConfinement, MemberConfinement } from './execution/member-confinement.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
   createAssignmentAccessStore,
@@ -1127,6 +1129,7 @@ function initializeCore(
             'member-purged',
             'assignment-report',
             'bot-ownership',
+            'team',
           ].includes(topic),
         )
       )
@@ -2251,6 +2254,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
     diagnosticEvents,
   );
+  const memberConfinement = new MemberConfinement(core, dshHome);
+  installMemberConfinement(ctx, memberConfinement);
+  core.team.bindConfinement(() =>
+    process.platform === 'linux' ? memberConfinement.status() : undefined,
+  );
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   mountTakeoverTools(ctx, core, takeovers);
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
@@ -2765,9 +2773,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'tools/pre-execute',
     async (execution, next) => {
-      const irreversibleExternal = hasIrreversibleExternalEffect(
-        toolEffects(execution.name, execution.arguments),
-      );
       const agent = execution.agent;
       if (agent === undefined || core.ownership.resolve(agent.session.id) === undefined)
         return next();
@@ -2809,7 +2814,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.session.id,
           sessionHasFullAccess(core, agent.session.id),
         );
-        if (computerAuthorization === 'authorized' && !irreversibleExternal) return next();
+        if (computerAuthorization === 'authorized') return next();
         if (computerAuthorization === 'changed')
           return {
             kind: 'deny',
@@ -2843,7 +2848,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             approval: computerApproval,
             channelApproval: toolApproval,
             ownership: core.ownership,
-            forceChannel: irreversibleExternal,
+            forceChannel: false,
             request: {
               agent,
               toolName: execution.name,
@@ -2915,7 +2920,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.session.id,
           sessionHasFullAccess(core, agent.session.id),
         );
-        if (browserAuthorization === 'authorized' && !irreversibleExternal) return next();
+        if (browserAuthorization === 'authorized') return next();
         if (browserAuthorization === 'changed')
           return {
             kind: 'deny',
@@ -2950,7 +2955,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             approval: browserApproval,
             channelApproval: toolApproval,
             ownership: core.ownership,
-            forceChannel: irreversibleExternal,
+            forceChannel: false,
             request: {
               agent,
               toolName: execution.name,
@@ -3031,9 +3036,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           channelApproval: toolApproval,
           ownership: core.ownership,
           forceChannel:
-            eachUse ||
-            irreversibleExternal ||
-            toolEffects(execution.name, execution.arguments)?.authority === 'management',
+            eachUse || toolEffects(execution.name, execution.arguments)?.authority === 'management',
           request: {
             agent,
             toolName: execution.name,
@@ -3436,11 +3439,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         defaultModel.currentSelection();
       const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
       const capacity = contextCapacity(info.context?.contextWindow);
+      const measurement = agent?.ctx.get('tokenMeter')?.measure(agent.session);
       return {
         sessionId,
-        usedTokens: agent
-          ? (agent.ctx.get('tokenMeter')?.measure(agent.session).totalTokens ?? null)
-          : null,
+        usedTokens: measurement?.totalTokens ?? null,
+        ...(agent === undefined || measurement === undefined
+          ? {}
+          : {
+              sources: contextSources({
+                nodes: measurement.nodes,
+                totalTokens: measurement.totalTokens,
+                eventAt: (seq) => agent.session.eventAt(seq),
+              }),
+            }),
         ...capacity,
         thresholdTokens: compactionThresholdTokens(
           compactionPolicy(),

@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
-import type { HumanAssignmentContext, HumanAttentionItem } from '../host/wire';
+import type { HumanAssignmentContext, HumanAttentionItem } from '@botharness/host-protocol/wire';
 import {
   ActionCard,
   CardButtons,

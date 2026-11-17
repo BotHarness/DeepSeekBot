@@ -1,11 +1,11 @@
+import { Button } from './ds/button.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { PluginUpdate } from '../../../core/src/release/plugins.js';
 import type { BridgeCall } from './bridge.js';
-import { SettingsRow, SettingsRows } from './ds/settings-row.js';
+import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { PluginUpdatesController, type PluginRowState } from './plugin-updates.js';
@@ -41,7 +41,10 @@ function statusText(plugin: PluginUpdate, t: BotHarnessTranslate): string {
     case 'current':
       return t('plugins.status.current', { current: plugin.current });
     case 'available':
-      return t('plugins.status.available', { current: plugin.current, latest: plugin.latest });
+      return t('plugins.status.available', {
+        current: plugin.current,
+        latest: plugin.latest,
+      });
     case 'blocked':
       return `${t('plugins.status.blocked', { current: plugin.current, latest: plugin.latest })} ${compatibilityText(plugin.compatibility, t)}`;
     case 'restart-required':
@@ -109,7 +112,10 @@ function PluginRow({
   return (
     <SettingsRow
       title={pluginTitle(plugin.name, t)}
-      data={{ 'data-plugin-update': plugin.name, 'data-plugin-status': plugin.status }}
+      data={{
+        'data-plugin-update': plugin.name,
+        'data-plugin-status': plugin.status,
+      }}
       description={
         <span role="status" aria-live="polite">
           {reloading
@@ -171,7 +177,20 @@ function PluginRow({
 export type PluginsSectionProps = PropsLocale<'botharness'> &
   InjectFace<{ call: BridgeCall; updateRuns?: UpdateRunsController }>;
 
-export function PluginsSection({ call, updateRuns, t }: PluginsSectionProps): ReactElement {
+export function PluginsSection(props: PluginsSectionProps): ReactElement {
+  return (
+    <SettingsRows>
+      <PluginsSettings {...props} />
+    </SettingsRows>
+  );
+}
+
+export function PluginsSettings({
+  call,
+  updateRuns,
+  title,
+  t,
+}: PluginsSectionProps & { readonly title?: string }): ReactElement {
   const controller = useMemo(
     () => new PluginUpdatesController(call, undefined, updateRuns),
     [call, updateRuns],
@@ -189,8 +208,9 @@ export function PluginsSection({ call, updateRuns, t }: PluginsSectionProps): Re
   const staged = snapshot.plugins.some((plugin) => plugin.status === 'restart-required');
   const restarting = snapshot.restart === 'restarting';
   return (
-    <SettingsRows rootRef={mount}>
+    <SettingsSection title={title}>
       <SettingsRow
+        rootRef={mount}
         title={t('plugins.row.title')}
         description={
           <span role="status" aria-live="polite">
@@ -266,6 +286,6 @@ export function PluginsSection({ call, updateRuns, t }: PluginsSectionProps): Re
           }
         />
       ) : null}
-    </SettingsRows>
+    </SettingsSection>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RosterView } from '../src/host/client';
+import type { RosterView } from '@botharness/host-client/client';
 import { profilePageTarget } from '../src/ui/chat/profile-page-target';
 
 const roster: RosterView = {

@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { TextField } from './ds/field.js';
@@ -22,6 +22,7 @@ import {
   type TransferPreview,
 } from './team-offboarding-bridge.js';
 import { teamErrorText } from './team-settings.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   actions: { display: 'flex', flexWrap: 'wrap', gap: space.x2, minWidth: 0 },
@@ -32,7 +33,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     fontWeight: text.strong,
   },
-  group: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
   danger: { color: color.danger },
   secret: {
     display: 'flex',
@@ -41,14 +47,19 @@ const styles = stylex.create({
     padding: space.x4,
     borderRadius: radius.md,
     backgroundColor: color.well,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     color: color.fg,
     overflowWrap: 'anywhere',
     userSelect: 'all',
   },
-  list: { margin: 0, paddingInlineStart: space.x5, color: color.fg, fontSize: text.bodySize },
+  list: {
+    margin: 0,
+    paddingInlineStart: space.x5,
+    color: color.fg,
+    fontSize: text.bodySize,
+  },
 });
 
 type Action =
@@ -303,7 +314,10 @@ function TransferDialog({
           <Select
             label={t('team.offboard.transferTo')}
             value={target}
-            options={targets.map((row) => ({ value: row.humanId, label: row.displayName }))}
+            options={targets.map((row) => ({
+              value: row.humanId,
+              label: row.displayName,
+            }))}
             onChange={setTarget}
             disabled={busy}
           />

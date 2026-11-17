@@ -3,7 +3,7 @@ import {
   type BotModel,
   type Loadable,
   type WorkspaceGrant,
-} from '../../host/bot-settings';
+} from '@botharness/host-client/bot-settings';
 import { t } from '../strings';
 
 export function modelLabel(model: Loadable<BotModel>): string {

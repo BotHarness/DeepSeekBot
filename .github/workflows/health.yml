@@ -1,0 +1,106 @@
+name: nightly health
+
+on:
+  schedule:
+    - cron: '17 19 * * *'
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: UI monkey seed (default is the run number)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: nightly-health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: UI monkey, performance and codebase trend
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BH_E2E_INSTANCE: .humanlayer/verify/nightly/instance.json
+      DEEPSEEK_API_KEY: nightly-health-placeholder
+      SEED: ${{ inputs.seed || github.run_number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          mkdir -p .humanlayer/nightly
+          node scripts/verify-app.mjs launch --name nightly --build > /dev/null
+      - id: monkey_shell
+        continue-on-error: true
+        run: >-
+          node scripts/verify-app.mjs monkey shell --name nightly --seed "$SEED" --steps 300
+          > .humanlayer/nightly/monkey-shell.json
+      - id: monkey_bot
+        continue-on-error: true
+        run: >-
+          node scripts/verify-app.mjs monkey bot-mode --name nightly --seed "$SEED" --steps 300
+          --bot-mode > .humanlayer/nightly/monkey-bot-mode.json
+      - id: perf
+        continue-on-error: true
+        run: >-
+          node scripts/perf-idle-timeline.mjs --messages 600 --label nightly
+          --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/nightly > /dev/null
+      - if: always()
+        run: node scripts/verify-app.mjs stop --name nightly
+      - name: Fetch the previous trend
+        id: previous_trend
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=health-trend&per_page=1" \
+            --jq '.artifacts[0].archive_download_url // empty')
+          if [ -n "$url" ]; then
+            gh api "$url" > "$RUNNER_TEMP/trend.zip"
+            unzip -o "$RUNNER_TEMP/trend.zip" -d .humanlayer/nightly/previous
+          fi
+      - if: always() && steps.previous_trend.outcome == 'success'
+        run: >-
+          node scripts/health-trend.mjs --previous .humanlayer/nightly/previous/trend.json
+          --perf .humanlayer/perf/nightly/nightly.json
+          --monkey .humanlayer/nightly/monkey-shell.json
+          --monkey .humanlayer/nightly/monkey-bot-mode.json
+          --out .humanlayer/nightly/trend.json
+      - if: always() && steps.previous_trend.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-trend
+          path: .humanlayer/nightly/trend.json
+          retention-days: 90
+          if-no-files-found: ignore
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-evidence
+          path: |
+            .humanlayer/nightly/*.json
+            .humanlayer/verify/nightly/evidence/
+            .humanlayer/perf/nightly/*.json
+            .humanlayer/perf/nightly/*.png
+          if-no-files-found: ignore
+      - if: always()
+        env:
+          SHELL_RUN: ${{ steps.monkey_shell.outcome }}
+          BOT_RUN: ${{ steps.monkey_bot.outcome }}
+          PERF_RUN: ${{ steps.perf.outcome }}
+          TREND_FETCH: ${{ steps.previous_trend.outcome }}
+        run: >-
+          node -e 'const failed = ["SHELL_RUN", "BOT_RUN", "PERF_RUN", "TREND_FETCH"].filter((key) => process.env[key] !== "success");
+          if (failed.length) throw Error(`${failed.join(", ")} failed; the replay command is in its JSON in nightly-evidence`)'

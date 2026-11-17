@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
+import {
+  createHostClient,
+  type HostClient,
+  type HostSnapshot,
+} from '@botharness/host-client/client';
 import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 

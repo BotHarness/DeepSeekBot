@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import { confirmBotDeletion, previewDeletion } from '../src/host/deletion';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 it('carries the reviewed deletion scope through the paired-device client and rejects malformed previews', async () => {
   const host = new FakeHost();

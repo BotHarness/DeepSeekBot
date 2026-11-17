@@ -63,7 +63,7 @@ vi.mock('expo-file-system', () => {
   return { Directory, File, Paths: { cache: 'cache' } };
 });
 
-const { installMediaStore } = await import('../src/host/media-cache');
+const { installMediaStore } = await import('@botharness/host-client/media-cache');
 const { nativeMediaStore } = await import('../src/host/native-media-store');
 const { cachedAttachmentUri, shareAttachment } = await import('../src/host/share-attachment');
 installMediaStore(nativeMediaStore);

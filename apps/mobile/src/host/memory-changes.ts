@@ -1,5 +1,5 @@
 import { dmChannel, type ProfileBotRef } from './bot-profile';
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 
 export type MemoryChangeStatus = 'accepted' | 'pending' | 'needs-repair';
 

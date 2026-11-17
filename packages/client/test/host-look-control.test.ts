@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createHostLooks } from '../../../apps/mobile/src/host/host-look.js';
-import { shownHostName, type HostLook } from '../../../apps/mobile/src/ui/design/host-look.js';
+import { createHostLooks } from '@botharness/host-client/host-look';
+import { shownHostName, type HostLook } from '@botharness/host-client/ui/design/host-look';
 import { controlHostLook } from '../src/client/host-look-control.js';
 
 async function setup() {

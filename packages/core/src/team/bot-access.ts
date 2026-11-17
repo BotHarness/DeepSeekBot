@@ -71,6 +71,7 @@ export function privateBotRegistry(
     'setVoice',
     'setAsr',
     'setMarketplaceListing',
+    'setMarketplaceUpload',
     'setPromptSettings',
     'setStandingLimits',
     'inheritModel',

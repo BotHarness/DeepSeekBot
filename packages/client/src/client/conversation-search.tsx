@@ -34,7 +34,7 @@ const styles = stylex.create({
     borderColor: color.border,
     borderRadius: radius.md,
     backgroundColor: color.base,
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    boxShadow: 'var(--tobs-elevation-2)',
     overflow: 'hidden',
   },
   bar: {

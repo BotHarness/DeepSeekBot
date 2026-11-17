@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ConnectionState, HostClient } from '../src/host/client';
+import type { ConnectionState, HostClient } from '@botharness/host-client/client';
 import { createHostGlances, glanceHost, liveGlance } from '../src/host/host-glance';
-import type { SavedHost } from '../src/host/hosts';
-import type { InboxSnapshot } from '../src/host/inbox';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import {
   addressLines,
   createHostDrawer,

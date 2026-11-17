@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
-import { createHostLooks } from '../../src/host/host-look';
-import type { HostLook } from '../../src/ui/design/host-look';
+import { createHostLooks } from '@botharness/host-client/host-look';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
 
 const KEY = 'deepseekbot-host-looks';
 

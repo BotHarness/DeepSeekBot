@@ -11,7 +11,7 @@ vi.mock('../src/ui/primitives/resource-image', () => ({
   ),
 }));
 
-import type { MessageAttachment } from '../src/host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { ChatOffline } from '../src/ui/chat/chat-offline';
 import { MessageAlbum } from '../src/ui/chat/message-attachments';
 import { t } from '../src/ui/strings';

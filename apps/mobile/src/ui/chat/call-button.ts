@@ -3,7 +3,7 @@ import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { readCallReadiness } from '../../../../../packages/core/src/voice/call-client';
 import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import { callMediaSupported } from '../../host/call-media';
 import { showAppDialog } from '../primitives/app-dialog';
 import { useStrings } from '../strings';

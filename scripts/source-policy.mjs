@@ -225,15 +225,16 @@ export async function scanSource(path, source) {
   return [...unique.values()].sort((a, b) => a.line - b.line || a.column - b.column);
 }
 
-export async function scanRepository(root) {
-  const paths = execFileSync(
-    'git',
-    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-    { cwd: root, maxBuffer: 64 * 1024 * 1024 },
-  )
-    .toString('utf8')
-    .split('\0')
-    .filter(isPolicySource);
+export async function scanRepository(root, only) {
+  const paths = (
+    only ??
+    execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+      cwd: root,
+      maxBuffer: 64 * 1024 * 1024,
+    })
+      .toString('utf8')
+      .split('\0')
+  ).filter(isPolicySource);
   const found = [];
   for (const path of paths)
     found.push(...(await scanSource(path, readFileSync(join(root, path), 'utf8'))));

@@ -1,5 +1,19 @@
 # Settings during first-Tob preparation
 
+## Sources
+
+- `packages/core/src/models/catalog.ts`
+- `packages/core/src/prompts/prompt-presets.ts`
+- `packages/client/src/client/{prompt-preset-settings,voice-settings}.tsx`
+- `packages/core/src/onboarding/service.ts`
+
+## Terms
+
+- Tob
+- Approval Template
+- Prompt Preset
+- Credential reference
+
 ## Sub-features
 
 - Approval Templates, Prompt Presets and Voice settings must remain responsive while a new Profile prepares its first Tob Memory.

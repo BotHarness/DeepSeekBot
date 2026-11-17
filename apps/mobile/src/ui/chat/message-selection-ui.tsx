@@ -6,7 +6,7 @@ import { Modal, ScrollView, Pressable, View, type ViewInstance } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { islandStyle } from '../design/island';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -203,7 +203,9 @@ export function SelectionScreenshot({
                       : 'Bot'
                     : message.author === 'human'
                       ? t.activityRow.human
-                      : t.feedback.system}{' '}
+                      : message.person !== undefined
+                        ? message.person.name || t.reply.member
+                        : t.feedback.system}{' '}
                   · {new Date(message.at).toLocaleString()}
                 </Text>
                 <View pointerEvents="none" key={attempt}>

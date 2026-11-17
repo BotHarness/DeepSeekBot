@@ -1,8 +1,8 @@
+import { isLanAddress } from '@botharness/host-protocol/lan-address';
 import { toolEffectLabels } from '../workspaces/tool-effect-labels.js';
 import type { ChannelMessage } from '../channels/channel.js';
 
 export { LIVE_OPTIONS } from './cli-option-spec.js';
-import { isLanAddress } from '../devices/lan-address.js';
 import { TEAM_COMMANDS, runTeamCommand } from './cli-team.js';
 import { runDeviceActivity } from './cli-live-activity.js';
 import { GENUI_COMMANDS, runGenuiCommand } from './cli-genui.js';

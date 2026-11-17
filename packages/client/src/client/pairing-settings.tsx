@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import { Button, Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 import { Combobox } from './combobox.js';
 import { MessagingHelp } from './messaging-help.js';
@@ -61,7 +62,10 @@ function auditColumn<Row extends { createdAt?: string; updatedAt?: string }>(
               <span className="bh-muted">{label}</span>{' '}
               {valid ? (
                 <time dateTime={value}>
-                  {date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })}{' '}
+                  {date.toLocaleDateString(undefined, {
+                    month: '2-digit',
+                    day: '2-digit',
+                  })}{' '}
                   {date.toLocaleTimeString(undefined, {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -100,7 +104,10 @@ export function PairingSettings({
   bindings?: GroupBinding[];
   policy?: SenderPolicy;
   senderAccess?(input: SenderAccessInput): Promise<void>;
-  receivers?: { name: string; status: 'off' | 'connecting' | 'receiving' | 'unavailable' }[];
+  receivers?: {
+    name: string;
+    status: 'off' | 'connecting' | 'receiving' | 'unavailable';
+  }[];
   busy: boolean;
   failed?: boolean;
   refresh(): Promise<void>;
@@ -594,7 +601,10 @@ function PairingRow({
                 onSelect={setRoleId}
                 options={[
                   { value: '', label: t('pairing.selectRole') },
-                  ...roles.map((role) => ({ value: role.id, label: role.name })),
+                  ...roles.map((role) => ({
+                    value: role.id,
+                    label: role.name,
+                  })),
                 ]}
               />
               <Button

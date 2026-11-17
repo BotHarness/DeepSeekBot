@@ -1,4 +1,4 @@
-import type { AggregatedState, WireToolActivity } from '../../host/wire';
+import type { AggregatedState, WireToolActivity } from '@botharness/host-protocol/wire';
 import { t } from '../strings';
 
 export function stepLabel(activity: WireToolActivity | undefined, state: AggregatedState): string {

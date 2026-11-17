@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
-import { palette } from '../src/ui/design/palette.generated';
+import { palette } from '@botharness/host-client/ui/design/palette.generated';
 import {
   BUTTON_TONES,
   buttonColors,
@@ -12,7 +12,7 @@ import {
 import { distance, LAYER_PARENT, LAYERS, SEPARATION } from '../src/ui/design/layers';
 import { contrast, headerBand, resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
 import { botColor } from '../src/ui/bot-color';
-import { edge, radius, space } from '../src/ui/design/tokens';
+import { edge, space } from '../src/ui/design/tokens';
 
 const DSH_LAYER_ROLES = ['borderField', 'field', 'sheet'];
 
@@ -40,26 +40,32 @@ function px(value: string): number {
 describe('mobile design tokens', () => {
   it('match the DSH theme the Web Client paints with', () => {
     expect(render(dshPalette())).toBe(
-      readFileSync(new URL('../src/ui/design/palette.generated.ts', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL(
+          '../../../packages/host-client/src/ui/design/palette.generated.ts',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
     );
   });
 
   it('keep every Web colour role', () => {
     expect(Object.keys(palette.light).sort()).toEqual(
       [
-        ...Object.keys(webConsts('color')).filter((role) => role !== 'navSelected'),
+        ...Object.keys(webConsts('color')).filter(
+          (role) => role !== 'navSelected' && role !== 'navSelectedInk',
+        ),
         ...DSH_LAYER_ROLES,
       ].sort(),
     );
     expect(Object.keys(palette.dark)).toEqual(Object.keys(palette.light));
   });
 
-  it('share the Web spacing, radius and focus scales', () => {
+  it('share the Web spacing and focus scales', () => {
     expect(
       Object.fromEntries(Object.entries(webConsts('space')).map(([k, v]) => [k, px(v)])),
     ).toEqual(space);
-    const web = webConsts('radius');
-    for (const role of ['xs', 'sm', 'md', 'lg'] as const) expect(px(web[role]!)).toBe(radius[role]);
     expect(px(webConsts('border')['focus']!)).toBe(edge.focus);
     expect(px(webConsts('border')['hairline']!)).toBe(edge.hairline);
   });

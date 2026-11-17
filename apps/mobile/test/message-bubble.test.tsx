@@ -4,9 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createConversation, type ConversationMessage } from '../src/host/conversation';
-import { createHostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createConversation, type ConversationMessage } from '@botharness/host-client/conversation';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { syntheticGenuiDocument } from '../../../packages/core/test/fixtures/genui-document';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -216,7 +216,7 @@ const { t } = await import('../src/ui/strings');
 const { openMessageMenu, shareText } = await import('../src/ui/chat/message-menu');
 const { MessageActions, dismissQueue, menuTime, messageMenuActions } =
   await import('../src/ui/chat/message-actions');
-const { MENU_REACTIONS, QUICK_REACTIONS } = await import('../src/host/conversation');
+const { MENU_REACTIONS, QUICK_REACTIONS } = await import('@botharness/host-client/conversation');
 
 beforeEach(() => {
   native.os = 'ios';
@@ -260,9 +260,9 @@ describe('GenUI keyboard interaction', () => {
           />,
         ),
       );
-      act(() =>
-        container.querySelector('input')!.dispatchEvent(new Event('touchstart', { bubbles: true })),
-      );
+      act(() => {
+        container.querySelector('input')!.dispatchEvent(new Event('touchstart', { bubbles: true }));
+      });
       expect(onInteractionStart).toHaveBeenCalledTimes(os === 'ios' ? 1 : 0);
       act(() => root.unmount());
     },
@@ -1038,10 +1038,14 @@ describe('outgoing delivery presentation through Conversation', () => {
     expect(view.container.textContent).not.toContain(t.sending);
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(2_999));
+    act(() => {
+      vi.advanceTimersByTime(2_999);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(1));
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).toContain('…');
     expect(
@@ -1063,11 +1067,15 @@ describe('outgoing delivery presentation through Conversation', () => {
   it('never shows feedback for a fast committed send when its old deadline passes', async () => {
     const view = await open();
     await view.send();
-    act(() => vi.advanceTimersByTime(2_900));
+    act(() => {
+      vi.advanceTimersByTime(2_900);
+    });
     await view.settle();
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(3_100));
+    act(() => {
+      vi.advanceTimersByTime(3_100);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
     expect(view.container.textContent).not.toContain(t.sending);
@@ -1078,7 +1086,9 @@ describe('outgoing delivery presentation through Conversation', () => {
     async (delay) => {
       const view = await open();
       await view.send();
-      act(() => vi.advanceTimersByTime(delay));
+      act(() => {
+        vi.advanceTimersByTime(delay);
+      });
       const originalAt = view.target.getSnapshot().messages[0]!.at;
       await view.settle(true);
       expect(view.container.textContent).toContain('!');
@@ -1093,10 +1103,14 @@ describe('outgoing delivery presentation through Conversation', () => {
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).not.toContain('…');
       expect(view.container.textContent).not.toContain(t.notSent);
-      act(() => vi.advanceTimersByTime(2_999));
+      act(() => {
+        vi.advanceTimersByTime(2_999);
+      });
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).not.toContain('…');
-      act(() => vi.advanceTimersByTime(1));
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).toContain('…');
       await view.settle();
@@ -1116,11 +1130,15 @@ describe('outgoing delivery presentation through Conversation', () => {
   it('keeps elapsed attempt time when the bubble is virtualized and remounted', async () => {
     const view = await open();
     await view.send();
-    act(() => vi.advanceTimersByTime(2_000));
+    act(() => {
+      vi.advanceTimersByTime(2_000);
+    });
     view.remount();
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(1_000));
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).toContain('…');
     view.remount();
@@ -1285,6 +1303,31 @@ describe('replies', () => {
     );
     expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
       'reply-quote',
+    );
+    const person = document.createElement('div');
+    person.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bob-1',
+          replyPreview: {
+            author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+            body: 'hi alice',
+          },
+        })}
+      />,
+    );
+    expect(person.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe('Bob');
+    const unnamed = document.createElement('div');
+    unnamed.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bob-1',
+          replyPreview: { author: { kind: 'human', humanId: 'human-bob' }, body: 'hi alice' },
+        })}
+      />,
+    );
+    expect(unnamed.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe(
+      t.reply.member,
     );
   });
 

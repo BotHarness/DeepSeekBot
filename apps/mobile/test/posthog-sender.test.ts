@@ -4,8 +4,8 @@ const require = createRequire(import.meta.url);
 const shim = require('./posthog-native-shim.cjs');
 const { createPostHogSender } = await import('../src/telemetry/posthog-sender');
 shim.restore();
-import type { TelemetryEvent } from '../src/telemetry/schema';
-import { createMobileTelemetry } from '../src/telemetry/mobile-telemetry';
+import type { TelemetryEvent } from '@botharness/host-client/telemetry/schema';
+import { createMobileTelemetry } from '@botharness/host-client/telemetry/mobile-telemetry';
 
 const event: TelemetryEvent = {
   event: 'app:app_open',

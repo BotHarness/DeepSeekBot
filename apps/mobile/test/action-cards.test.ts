@@ -11,7 +11,7 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
   approvalContent,
   answerInChat,
@@ -21,14 +21,14 @@ import {
   loadApproval,
   loadQuestion,
   requestRef,
-} from '../src/host/requests';
-import type { HumanAttentionItem } from '../src/host/wire';
+} from '@botharness/host-client/requests';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
 import { QuestionCard } from '../src/ui/chat/question-card';
 import { t } from '../src/ui/strings';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { played } from './expo-haptics-shim';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import inboxWire from './fixtures/inbox-wire.json';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

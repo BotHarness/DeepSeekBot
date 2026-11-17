@@ -1,5 +1,17 @@
 # Durable timed-question recovery
 
+## Sources
+
+- `packages/core/src/channels/{native-timed-questions,user-questions,accepted-question-answer,question-answer-receipts}.ts`
+- `packages/client/src/client/user-question-card.tsx`
+- `scripts/experiment-timed-question*.mjs`
+
+## Terms
+
+- DM
+- Orchestrator Session
+- Host
+
 ## Sub-features
 
 - A real timed question retains its original Channel card, native Session and call after restart.

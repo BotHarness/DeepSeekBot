@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { encode } from 'uqr';
 import { decodeQrPixels, QR_IMAGE_MAX_EDGE, readQrImage } from '../src/client/qr-image.js';
 import { pairingLink } from '../../core/src/devices/http.js';
-import { parsePairingLink } from '../../../apps/mobile/src/host/pairing.js';
+import { parsePairingLink } from '@botharness/host-client/pairing';
 
 it('reads a real pairing QR image with the full identity and routes unchanged', () => {
   const link = pairingLink({

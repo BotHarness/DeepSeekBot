@@ -1,10 +1,10 @@
-import { networkDiagnosticReason } from '../../../../apps/mobile/src/host/connection-diagnostic.js';
+import { networkDiagnosticReason } from '@botharness/host-client/connection-diagnostic';
 import { createTunnelLookup } from './tunnel-dns.js';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { WebSocket } from 'ws';
 import { z } from 'zod';
-import { ConnectChannel, CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { ConnectChannel, CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { AccountStatus, ConnectedHost, ConnectedHostsResult } from './connect-account.js';
 import type { ConnectStatus } from './connect.js';
 

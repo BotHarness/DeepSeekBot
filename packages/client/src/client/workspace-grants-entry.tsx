@@ -1,3 +1,6 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { Switch } from './ds/switch.js';
 import {
   useCallback,
   useId,
@@ -8,14 +11,11 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  Button,
   IconChevronDownOutlineRegular,
   IconCloseOutlineRegular,
   IconFolderOpenOutlineRegular,
   IconPlusOutlineRegular,
   IconTrashOutlineRegular,
-  Input,
-  Switch,
   Tag,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
@@ -128,7 +128,10 @@ export function withWorkspaceActionDeadline<T>(
   });
 }
 
-function secretCliRuleLabel(input: string): { program: string; account: string } {
+function secretCliRuleLabel(input: string): {
+  program: string;
+  account: string;
+} {
   try {
     const kind = JSON.parse(input) as { program?: unknown; account?: unknown };
     return {
@@ -273,12 +276,27 @@ function pickerUnavailable(cause: unknown): boolean {
 }
 
 const accessStyles = stylex.create({
-  stack: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: space.x3 },
-  actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: space.x2 },
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: space.x3,
+  },
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: space.x2,
+  },
 });
 
 const memoryMoveStyles = stylex.create({
-  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
   grow: { flexGrow: 1, minWidth: 0 },
 });
 
@@ -353,7 +371,9 @@ export interface FolderBrowserActions {
   ): Promise<Omit<HostDirectoryListing, 'home'>>;
 }
 
-type FolderBrowserListing = Omit<HostDirectoryListing, 'home'> & { home?: string };
+type FolderBrowserListing = Omit<HostDirectoryListing, 'home'> & {
+  home?: string;
+};
 
 const FOLDER_CACHE_MS = 15_000;
 const FOLDER_PREFETCH_DELAY_MS = 150;
@@ -488,7 +508,10 @@ export function FolderBrowser({
       .then(
         (next) => {
           if (controller.signal.aborted || next.path !== listing.path) return;
-          const merged = { ...next, entries: [...listing.entries, ...next.entries] };
+          const merged = {
+            ...next,
+            entries: [...listing.entries, ...next.entries],
+          };
           rememberFolder(actions, listing.path, merged);
           setListing(merged);
         },
@@ -700,7 +723,10 @@ export function WorkspaceGrantsEntry({
   const [rules, setRules] = useState<ToolApprovalRuleView[]>(cached?.rules ?? []);
   const [access, setAccess] = useState<AssignmentAccessPresetView | undefined>(cached?.access);
   const [confirmDanger, setConfirmDanger] = useState(false);
-  const [pendingGrant, setPendingGrant] = useState<{ path: string; workspaceId?: string }>();
+  const [pendingGrant, setPendingGrant] = useState<{
+    path: string;
+    workspaceId?: string;
+  }>();
   const [memoryDir, setMemoryDir] = useState<string | undefined>(cached?.memoryDir);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPath, setManualPath] = useState('');
@@ -1064,7 +1090,9 @@ export function WorkspaceGrantsEntry({
                                     const next = current.map((row) =>
                                       row.id === updated.id ? updated : row,
                                     );
-                                    rememberWorkspace(actions, botSlug, { grants: next });
+                                    rememberWorkspace(actions, botSlug, {
+                                      grants: next,
+                                    });
                                     if (activeSlug.current === botSlug) setGrants(next);
                                   })
                                 }
@@ -1091,7 +1119,9 @@ export function WorkspaceGrantsEntry({
                             const next = current.map((row) =>
                               row.id === revokedGrant.id ? revokedGrant : row,
                             );
-                            rememberWorkspace(actions, botSlug, { grants: next });
+                            rememberWorkspace(actions, botSlug, {
+                              grants: next,
+                            });
                             if (activeSlug.current === botSlug) setGrants(next);
                           })
                         }
@@ -1100,7 +1130,10 @@ export function WorkspaceGrantsEntry({
                   </>
                 }
                 onChoose={(path, workspaceId) =>
-                  setPendingGrant({ path, ...(workspaceId === undefined ? {} : { workspaceId }) })
+                  setPendingGrant({
+                    path,
+                    ...(workspaceId === undefined ? {} : { workspaceId }),
+                  })
                 }
               />
             ) : (
@@ -1229,7 +1262,9 @@ export function WorkspaceGrantsEntry({
                                 const next = current.map((row) =>
                                   row.id === updated.id ? updated : row,
                                 );
-                                rememberWorkspace(actions, botSlug, { grants: next });
+                                rememberWorkspace(actions, botSlug, {
+                                  grants: next,
+                                });
                                 if (activeSlug.current === botSlug) setGrants(next);
                               })
                             }
@@ -1327,7 +1362,10 @@ export function WorkspaceGrantsEntry({
                           disabled={busy !== undefined}
                           onClick={() => {
                             if (composerOnly)
-                              setPendingGrant({ path: workspace.path, workspaceId: workspace.id });
+                              setPendingGrant({
+                                path: workspace.path,
+                                workspaceId: workspace.id,
+                              });
                             else
                               mutate(workspace.id, async () =>
                                 showGrant(
@@ -1435,7 +1473,10 @@ export function WorkspaceGrantsEntry({
                       disabled={loading || busy !== undefined}
                       options={[
                         { value: 'chat', label: t('access.scopeChat') },
-                        { value: 'assignments', label: t('access.scopeAssignments') },
+                        {
+                          value: 'assignments',
+                          label: t('access.scopeAssignments'),
+                        },
                       ]}
                       onChange={(scope) =>
                         mutate('access-scope', () =>
@@ -1513,7 +1554,9 @@ export function WorkspaceGrantsEntry({
                   <pre className="bh-tool-approval-input">{rule.scopeKey}</pre>
                   {rule.externalCreator ? (
                     <div className="bh-note">
-                      {t('approval.externalCreator', { actor: rule.externalCreator.actorId })}
+                      {t('approval.externalCreator', {
+                        actor: rule.externalCreator.actorId,
+                      })}
                     </div>
                   ) : null}
                   {rule.kind !== 'all-opaque' && rule.kind !== 'tool' ? (
@@ -1527,7 +1570,9 @@ export function WorkspaceGrantsEntry({
       )}
       {pendingGrant === undefined ? null : (
         <WorkspaceGrantConfirmation
-          title={t('composerContext.confirmGrant', { name: botName ?? botSlug })}
+          title={t('composerContext.confirmGrant', {
+            name: botName ?? botSlug,
+          })}
         >
           <p>{t('composerContext.grantScope', { path: pendingGrant.path })}</p>
           <Button

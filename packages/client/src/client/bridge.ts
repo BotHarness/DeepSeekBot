@@ -14,7 +14,10 @@ import {
   isTakeoverRequestCard,
   isTakeoverResolution,
 } from '../../../core/src/takeover/contracts.js';
-import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
+import {
+  parseFailureAutoContinue,
+  parseFailureProgress,
+} from '@botharness/host-client/shared/turn-continuation';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
 import {
@@ -720,6 +723,12 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
     ...(typeof record['paused'] === 'boolean' ? { paused: record['paused'] } : {}),
     ...(record['deleted'] === true ? { deleted: true } : {}),
     ...(record['modelAllowed'] === false ? { modelAllowed: false as const } : {}),
+    ...(typeof record['uploadedListing'] === 'string'
+      ? { uploadedListing: record['uploadedListing'] }
+      : {}),
+    ...(typeof record['installedListing'] === 'string'
+      ? { installedListing: record['installedListing'] }
+      : {}),
     ...(parseStandingLimits(record['standingLimits']) ?? {}),
   };
 }

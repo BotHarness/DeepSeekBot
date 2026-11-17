@@ -1,5 +1,16 @@
 # Global search (quick switcher)
 
+## Sources
+
+- `packages/client/src/client/quick-switcher*.{ts,tsx}`
+- `packages/client/src/client/settings-search.tsx`
+
+## Terms
+
+- Channel
+- PersonaBot
+- Settings
+
 ## Sub-features
 
 - S1: Alt+K (Option+K on macOS) opens the search in Bot mode on Web and Desktop; Ctrl+K / Command+K still opens it where the browser delivers the key. On Desktop macOS and Windows, DSH owns Command/Ctrl+K for its own session search and consumes it in the Electron main process, so only Alt/Option+K reaches DeepSeekBot there.

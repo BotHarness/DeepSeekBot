@@ -45,10 +45,10 @@ vi.mock('../src/host/native-conversation-filter', () => ({
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { pairing: () => ({ finish: () => {} }) },
 }));
-vi.mock('../src/host/pairing', () => ({ pairHost: mocks.pairHost }));
+vi.mock('@botharness/host-client/pairing', () => ({ pairHost: mocks.pairHost }));
 
-import type { pairHost } from '../src/host/pairing';
-import type { SavedHost } from '../src/host/hosts';
+import type { pairHost } from '@botharness/host-client/pairing';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { computerEnvironmentKey } from '../src/host/conversation-environments';
 import { PairingVerification } from '../src/ui/shell/pairing-verification';
 import { usePairing } from '../src/ui/shell/use-pairing';
@@ -238,7 +238,10 @@ it.each([false, true])(
     await act(async () => {
       await pairing.pair('new-link', 'paste');
     });
-    if (batch) act(() => pairing.finishSetup());
+    if (batch)
+      act(() => {
+        pairing.finishSetup();
+      });
     expect(history.state.routes.map((route) => route.name)).toEqual([
       '(tabs)',
       '(bot-creation)',
@@ -316,7 +319,9 @@ it('refuses an alternate registration of an already saved Host before opening a 
   mocks.getState.mockReturnValue({
     hosts: [{ hostId: 'already-saved', encryption: { hostKey: '11'.repeat(32) } }],
   });
-  const actual = await vi.importActual<typeof import('../src/host/pairing')>('../src/host/pairing');
+  const actual = await vi.importActual<typeof import('@botharness/host-client/pairing')>(
+    '@botharness/host-client/pairing',
+  );
   mocks.pairHost.mockImplementation(actual.pairHost);
   await act(async () => {
     expect(

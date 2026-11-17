@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 import type { MessagingReachablePage } from '../../../core/src/messaging/provider.js';
 import type { BridgeActions } from './actions.js';
@@ -253,7 +254,10 @@ export function ReachablePostDialog({
                 placeholder={t('proactive.chooseGroup')}
                 emptyLabel={t('proactive.empty')}
                 disabled={loading || busy}
-                options={groups.map((value) => ({ value: value.id, label: value.name }))}
+                options={groups.map((value) => ({
+                  value: value.id,
+                  label: value.name,
+                }))}
               />
             </div>
             {loading ? <p role="status">{t('im.loading')}</p> : null}

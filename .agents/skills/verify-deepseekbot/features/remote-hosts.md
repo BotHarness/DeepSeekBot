@@ -2,6 +2,19 @@
 
 The browser reads each Remote Host Feed through its own Paired Device and the shared mobile Host client. Manual computer enrollment first establishes an explicitly approved reciprocal Host relationship; independent phone pairing stays separate. This Host remains the default management context.
 
+## Sources
+
+- `packages/client/src/client/remote-host*.{ts,tsx}`
+- `packages/client/src/client/relationship{s,-settings}.{ts,tsx}`
+- `packages/core/src/devices/relationship*.ts`
+
+## Terms
+
+- Remote Host
+- Host Feed
+- Paired Device
+- Host Relationship
+
 ## Reciprocal relationship (E1)
 
 Use fresh schema144 Homes after published Team141–143; do not launch internal Environment141–143 preview databases with this source. Relationship management is current-Owner-only: member/Admin HTTP carriers and CLI `--as` must refuse list/initiate/approve/enroll/disconnect. Transfer Owner and require old derived credentials and pending old-Owner offers to refuse; a newly enrolled Client records the new Owner Human. A valid current-Owner credential still cannot bypass inactive-relationship admission. Retain private Source Event Human readback, spoofed Human rejection and private-Bot access refusals through the same per-Human bridge factory.

@@ -6,15 +6,15 @@ import {
   MAX_RECONNECT_DELAY_MS,
   type HostClient,
   type HostSnapshot,
-} from '../src/host/client';
-import { parsePairingLink, redeemPairing } from '../src/host/pairing';
-import { checkRoute } from '../src/host/route';
+} from '@botharness/host-client/client';
+import { parsePairingLink, redeemPairing } from '@botharness/host-client/pairing';
+import { checkRoute } from '@botharness/host-protocol/route';
 import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
-import { openLocalStore, type LocalStore } from '../src/host/local-store';
-import { FakeHost } from './fake-host';
+import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { createConnectionLifetime } from '../src/host/connection-lifetime';
 import { nodeSqlConnection } from './node-sql-connection';
-import wire from './fixtures/host-wire.json';
+import wire from '../../../packages/host-client/test/fixtures/host-wire.json';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const recordedBot = wire.rpc.list.at(-1)!.body as {
@@ -686,6 +686,18 @@ describe('Host client', () => {
     expect(count('settings/describe')).toBe(2);
   });
 
+  it('stays connected with the Host default sorting when the Host refuses settings to a member', async () => {
+    const host = new FakeHost();
+    host.methods.set('settings/describe', () => {
+      throw Object.assign(new Error('remote access: settings/describe: access denied'), {
+        code: 'remote-access/denied',
+      });
+    });
+    const target = connect(host);
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(target.getSnapshot().roster?.sorting).toBeUndefined();
+  });
+
   it('does not reuse a roster arrangement whose last read failed', async () => {
     const host = new FakeHost();
     const target = connect(host);
@@ -835,6 +847,33 @@ describe('Host client', () => {
     const snapshot = await until(connect(host), (state) => state.connection.status === 'connected');
     expect(snapshot.roster?.activityChannels).toEqual(wire.activityJournal.channels);
     expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+  });
+  it('lists a DM between two people apart from the groups, named for the other person', async () => {
+    const host = new FakeHost();
+    const people = {
+      id: 'dm-humans-ab',
+      type: 'dm',
+      name: 'Bob',
+      members: [],
+      humanParticipants: ['human-alice', 'human-bob'],
+      latestMessage: {
+        id: 'm1',
+        body: 'hi',
+        at: '2026-11-17T08:00:00.000Z',
+        author: { kind: 'human', id: 'human-bob' },
+      },
+    };
+    host.methods.set('channels', () => ({ channels: [...wire.activityJournal.channels, people] }));
+    const snapshot = await until(connect(host), (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+    expect(snapshot.roster?.people).toEqual([
+      expect.objectContaining({
+        id: 'dm-humans-ab',
+        name: 'Bob',
+        preview: 'hi',
+        previewAt: '2026-11-17T08:00:00.000Z',
+      }),
+    ]);
   });
   it('keeps the channel list in the local store and later asks only for what changed (C3)', async () => {
     const store: LocalStore = await openLocalStore(nodeSqlConnection());

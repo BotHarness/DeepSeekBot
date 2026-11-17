@@ -1,7 +1,10 @@
 import { router, Stack } from 'expo-router';
 import { View } from 'react-native';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
-import { creationAvatarRecipe, type BotAvatarChoice } from '../../host/bot-avatar-choice';
+import {
+  creationAvatarRecipe,
+  type BotAvatarChoice,
+} from '@botharness/host-client/bot-avatar-choice';
 import { type AvatarRecipe } from '../../../../../packages/core/src/bots/avatar-appearance';
 import { useStrings } from '../strings';
 import { useDesignTheme } from '../design/theme';

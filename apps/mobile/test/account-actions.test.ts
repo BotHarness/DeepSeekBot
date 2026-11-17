@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAccountActionFixture } from '../src/host/account-action-fixture';
-import { createConnectAccount, type ConnectRuntime } from '../src/host/connect-account';
+import { createConnectAccount, type ConnectRuntime } from '@botharness/host-client/connect-account';
 import { removeAccountConnections } from '../src/host/account-connections';
-import { parseSavedHosts, withHost, type SavedHosts } from '../src/host/hosts';
-import type { AccountOwner } from '../src/host/account-owner';
+import { parseSavedHosts, withHost, type SavedHosts } from '@botharness/host-client/hosts';
+import type { AccountOwner } from '@botharness/host-client/account-owner';
 
 const owner: AccountOwner = {
   issuer: 'https://api.workos.com',

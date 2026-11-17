@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
@@ -36,7 +37,12 @@ const styles = stylex.create({
   },
   image: { width: '100%', height: '100%', objectFit: 'cover' },
   file: { display: 'none' },
-  field: { boxSizing: 'border-box', width: '200px', maxWidth: '100%', minWidth: 0 },
+  field: {
+    boxSizing: 'border-box',
+    width: '200px',
+    maxWidth: '100%',
+    minWidth: 0,
+  },
 });
 
 export function validAccountName(name: string): boolean {
@@ -60,11 +66,13 @@ export type AccountProfileSettingsProps = PropsLocale<'botharness'> &
       'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAuthorAvatarSet'
     >;
     startSignIn(): Promise<ConnectSignInCode>;
+    uploads?: ReactNode;
   }>;
 
 export function AccountProfileSettings({
   actions,
   startSignIn,
+  uploads,
   t,
 }: AccountProfileSettingsProps): ReactElement {
   const [state, setState] = useState<State>({ status: 'loading' });
@@ -217,7 +225,9 @@ export function AccountProfileSettings({
             }
           : {})}
         onSignIn={() => void beginSignIn()}
-        data={{ 'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in' }}
+        data={{
+          'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in',
+        }}
         codeMarker="data-account-sign-in-code"
       >
         {signIn === undefined && state.account.issue === undefined ? null : (
@@ -337,6 +347,7 @@ export function AccountProfileSettings({
           }
         />
       )}
+      {uploads}
       {cropFile ? (
         <GroupAvatarCropModal
           file={cropFile}

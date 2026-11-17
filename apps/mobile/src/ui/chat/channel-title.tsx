@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
 
-import type { RosterBot, RosterChannel } from '../../host/client';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -18,6 +18,7 @@ import {
   glassHeader,
 } from './native-header';
 import { GroupMark } from './group-mark';
+import { humanInitial } from '../shell/human-avatar-initial';
 
 const MARK = 28;
 
@@ -27,9 +28,11 @@ export function ChannelTitle({
   connectionLabel,
   bots = [],
   sessions = 0,
+  person = false,
   onPress,
 }: {
   channel: RosterChannel | undefined;
+  person?: boolean;
   fallback: string;
   bots?: readonly RosterBot[];
   sessions?: number;
@@ -42,7 +45,7 @@ export function ChannelTitle({
   const avatarSize = MARK * contentScale;
   const headerStatus = useHeaderStatus(undefined, channel, bots);
   const name = channel?.name ?? fallback;
-  const members = channel === undefined ? undefined : t.members(channel.memberCount);
+  const members = channel === undefined || person ? undefined : t.members(channel.memberCount);
   const chip = (press: () => void) => (
     <HeaderTitleButton
       testID="channel-details-chip"
@@ -58,8 +61,8 @@ export function ChannelTitle({
         .filter(Boolean)
         .join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
-      accessibilityHint={t.groupInfoHint}
-      disabled={channel === undefined}
+      {...(person ? {} : { accessibilityHint: t.groupInfoHint })}
+      disabled={channel === undefined || person}
       onPress={press}
       style={({ pressed }) => ({
         flexShrink: 1,
@@ -75,7 +78,8 @@ export function ChannelTitle({
       })}
     >
       <GroupMark
-        avatar={channel?.avatar}
+        avatar={person ? undefined : channel?.avatar}
+        {...(person ? { initial: humanInitial(name) ?? '#' } : {})}
         size={avatarSize}
         labelScale={contentScale}
         corner={radius.round}

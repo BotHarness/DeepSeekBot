@@ -8,7 +8,7 @@ import {
   type BackgroundCatchUpOptions,
 } from '../src/host/background-catch-up';
 import { createCatchUp, type CatchUpHost } from '../src/host/catch-up';
-import { openLocalStore, type LocalStore } from '../src/host/local-store';
+import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
 import { nodeSqlConnection } from './node-sql-connection';
 
 type Saved = { hostId: string; routes: string[] };

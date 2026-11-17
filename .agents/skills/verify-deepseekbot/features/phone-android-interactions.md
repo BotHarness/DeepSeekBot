@@ -1,5 +1,18 @@
 # Android launch, sheets, shell and chat presentation
 
+## Sources
+
+- `apps/mobile/src/ui/chat/{chat-header-surface.android,chat-header-row,dictation,dictation-problem,zoom-math}.{ts,tsx}`
+- `apps/mobile/src/ui/primitives/environment-picker.android.tsx`
+- `apps/mobile/src/ui/shell/{chats-sheet-root.android,chats-search-bar.android}.tsx`
+
+## Terms
+
+- Navigation bar
+- Native component
+- Conversation screen
+- Chats
+
 ## Image pinch worklet regression (#3337)
 
 Run `pnpm exec vitest run apps/mobile/test/zoom-math.test.ts` to execute the installed Expo Babel development and production worklet output in an isolated runtime, including default pinch bounds, explicit canvas limits, double-tap and settling. In the assigned Android QA batch, open the same JPEG and record single tap, double tap, two-finger zoom in/out, release, pan and close before/after. Preserve the native error stack, app PID, build SHA and device/OS identity; distinguish a visible runtime error from process death. The pinch must change scale without `MAX_SCALE` errors and settle to the existing bounds. Repeat on a second image and after reopening. The Node runtime proves transformed closure behavior, not physical multitouch or native rendering.

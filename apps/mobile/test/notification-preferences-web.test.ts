@@ -2,8 +2,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
-vi.mock('../src/host/push', async (original) => ({
-  ...(await original<typeof import('../src/host/push')>()),
+vi.mock('@botharness/host-client/push', async (original) => ({
+  ...(await original<typeof import('@botharness/host-client/push')>()),
   createHostPush: () => ({ settings: vi.fn(), setPreferences: vi.fn() }),
 }));
 

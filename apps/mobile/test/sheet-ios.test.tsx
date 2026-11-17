@@ -10,7 +10,9 @@ const native = vi.hoisted(() => ({
   dismiss: undefined as (() => void) | undefined,
   swipe: undefined as (() => void) | undefined,
   layout: undefined as ((height: number) => void) | undefined,
+  hostMounts: 0,
 }));
+const design = vi.hoisted(() => ({ scheme: 'light' as 'light' | 'dark' }));
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
@@ -45,31 +47,36 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   presentationDetents: (detents: unknown) => ({ detents }),
   presentationDragIndicator: (visibility: unknown) => ({ dragIndicator: visibility }),
 }));
-vi.mock('@expo/ui/swift-ui', () => ({
-  Host: ({ children }: { children: ReactNode }) =>
-    createElement('div', { 'data-testid': 'host' }, children),
-  BottomSheet: ({
-    children,
-    isPresented,
-    onIsPresentedChange,
-    onDismiss,
-  }: {
-    children: ReactNode;
-    isPresented: boolean;
-    onIsPresentedChange(presented: boolean): void;
-    onDismiss?: () => void;
-  }) => {
-    native.swipe = () => onIsPresentedChange(false);
-    native.dismiss = onDismiss;
-    return createElement('dialog', { open: isPresented }, children);
-  },
-  Group: ({ children, modifiers }: { children: ReactNode; modifiers: unknown[] }) =>
-    createElement('article', { 'data-modifiers': JSON.stringify(modifiers) }, children),
-  RNHostView: ({ children, matchContents }: { children: ReactNode; matchContents?: unknown }) =>
-    createElement('section', { 'data-match': JSON.stringify(matchContents) }, children),
-}));
+vi.mock('@expo/ui/swift-ui', async () => {
+  const { useState } = await import('react');
+  return {
+    Host: function Host({ children, colorScheme }: { children: ReactNode; colorScheme?: string }) {
+      useState(() => (native.hostMounts += 1));
+      return createElement('div', { 'data-testid': 'host', 'data-scheme': colorScheme }, children);
+    },
+    BottomSheet: ({
+      children,
+      isPresented,
+      onIsPresentedChange,
+      onDismiss,
+    }: {
+      children: ReactNode;
+      isPresented: boolean;
+      onIsPresentedChange(presented: boolean): void;
+      onDismiss?: () => void;
+    }) => {
+      native.swipe = () => onIsPresentedChange(false);
+      native.dismiss = onDismiss;
+      return createElement('dialog', { open: isPresented }, children);
+    },
+    Group: ({ children, modifiers }: { children: ReactNode; modifiers: unknown[] }) =>
+      createElement('article', { 'data-modifiers': JSON.stringify(modifiers) }, children),
+    RNHostView: ({ children, matchContents }: { children: ReactNode; matchContents?: unknown }) =>
+      createElement('section', { 'data-match': JSON.stringify(matchContents) }, children),
+  };
+});
 vi.mock('../src/ui/design/theme', () => ({
-  useDesignTheme: () => ({ scheme: 'light', touch: 44, overlay: { fill: '#fff' } }),
+  useDesignTheme: () => ({ scheme: design.scheme, touch: 44, overlay: { fill: '#fff' } }),
 }));
 vi.mock('../src/ui/strings', () => ({ useStrings: () => ({ cancel: 'Cancel' }) }));
 vi.mock('../src/ui/primitives/drawer-header', () => ({
@@ -90,7 +97,8 @@ let root: Root | undefined;
 afterEach(() => {
   act(() => root?.unmount());
   Object.assign(keyboard, { isVisible: false, height: 0 });
-  Object.assign(native, { dismiss: undefined, swipe: undefined, layout: undefined });
+  Object.assign(native, { dismiss: undefined, swipe: undefined, layout: undefined, hostMounts: 0 });
+  design.scheme = 'light';
 });
 async function mount(node: ReactNode) {
   const host = document.createElement('div');
@@ -166,6 +174,23 @@ it('presents again when the caller refuses to close a busy sheet', async () => {
   await act(async () => native.dismiss?.());
   expect(view.querySelector('dialog')?.hasAttribute('open')).toBe(true);
   expect(onDismissed).not.toHaveBeenCalled();
+});
+
+it('keeps an open sheet presented when the system theme changes', async () => {
+  const onClose = vi.fn();
+  const sheet = () => (
+    <Sheet visible label="Statistics" onClose={onClose}>
+      <p>body</p>
+    </Sheet>
+  );
+  const view = await mount(sheet());
+  expect(native.hostMounts).toBe(1);
+  design.scheme = 'dark';
+  await act(async () => root!.render(sheet()));
+  expect(native.hostMounts).toBe(1);
+  expect(view.querySelector('[data-testid="host"]')?.getAttribute('data-scheme')).toBe('dark');
+  expect(view.querySelector('dialog')?.hasAttribute('open')).toBe(true);
+  expect(onClose).not.toHaveBeenCalled();
 });
 
 it('renders nothing while hidden', async () => {

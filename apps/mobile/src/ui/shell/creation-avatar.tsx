@@ -4,8 +4,8 @@ import { useMemo } from 'react';
 import { Image, View } from 'react-native';
 
 import { avatarSvg } from '../../../../../packages/core/src/bots/avatar-appearance';
-import { creationAvatarRecipe, randomAvatarSeed } from '../../host/bot-avatar-choice';
-import type { BotAvatarChoice } from '../../host/bot-creation';
+import { creationAvatarRecipe, randomAvatarSeed } from '@botharness/host-client/bot-avatar-choice';
+import type { BotAvatarChoice } from '@botharness/host-client/bot-creation';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { useDesignTheme } from '../design/theme';
 import { creationAvatar, space } from '../design/tokens';

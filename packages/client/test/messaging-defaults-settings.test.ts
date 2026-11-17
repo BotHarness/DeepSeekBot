@@ -13,6 +13,12 @@ const enTranslate: typeof zhTranslate = (key, params) => {
   return message;
 };
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/switch.js', async () => ({
+  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
   IconChevronDownOutlineRegular: () => null,

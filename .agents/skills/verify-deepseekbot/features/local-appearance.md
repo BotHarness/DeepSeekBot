@@ -1,5 +1,16 @@
 # DeepSeekBot device-local appearance (T1)
 
+## Sources
+
+- `packages/client/src/client/appearance{,-context,-control,-scope,-settings,-pickers,-primitives,-native-tokens}.{ts,tsx}`
+- `packages/core/src/appearance/**`
+- `packages/core/src/bots/cli-appearance.ts`
+
+## Terms
+
+- Settings
+- Panel
+
 ## Sub-features
 
 - Theme cards (Follow system / Light / Dark) with mini previews; palette cards apply one preset to both modes; a Primary override is still saved separately for each mode.

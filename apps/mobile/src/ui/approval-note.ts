@@ -1,4 +1,4 @@
-import type { ApprovalRequest } from '../host/requests';
+import type { ApprovalRequest } from '@botharness/host-client/requests';
 import { t } from './strings';
 
 export function alwaysNote(request: Pick<ApprovalRequest, 'toolName' | 'allowAlways'>): string {

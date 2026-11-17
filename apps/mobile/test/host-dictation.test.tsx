@@ -42,7 +42,7 @@ vi.mock('../src/host/dictation-mic', () => ({
 
 const { useDictation } = await import('../src/host/speech');
 const { hostDictationReady } = await import('../src/host/host-dictation');
-type HostClient = import('../src/host/client').HostClient;
+type HostClient = import('@botharness/host-client/client').HostClient;
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

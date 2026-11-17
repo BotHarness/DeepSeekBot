@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { messageSource } from '../src/ui/chat/message-source';
 import { messageMenuActions, runAction } from '../src/ui/chat/message-sheet';
 

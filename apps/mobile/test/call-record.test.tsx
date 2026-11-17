@@ -4,8 +4,8 @@ import { vi, expect, it } from 'vitest';
 vi.mock('react-native', async () => await import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
 
-import { activityOf } from '../src/host/channel-activity';
-import type { ChannelWireMessage } from '../src/host/wire';
+import { activityOf } from '@botharness/host-client/channel-activity';
+import type { ChannelWireMessage } from '@botharness/host-protocol/wire';
 import { callRecordLines, callRecordPreview } from '../src/ui/chat/call-record-text';
 import { callStrings } from '../src/ui/strings';
 

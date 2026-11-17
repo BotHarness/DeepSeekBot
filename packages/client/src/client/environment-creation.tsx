@@ -7,8 +7,8 @@ import { remoteHosts } from './remote-hosts.js';
 import { memberPage } from './member-page.js';
 import { useThisHost } from './this-host.js';
 import { hostLooks, useHostName } from './host-looks.js';
-import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
+import type { HostClient } from '@botharness/host-client/client';
 import {
   bindBotCreationOwner,
   localCreationOwner,

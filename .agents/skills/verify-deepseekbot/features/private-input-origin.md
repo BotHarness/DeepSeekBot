@@ -1,5 +1,23 @@
 # Private input in mixed local and IM turns
 
+## Sources
+
+- `packages/core/src/credentials/{im-origin,private-inputs}.ts`
+- `packages/core/src/runtime/bot-runtime.ts`
+- `packages/core/src/workspaces/tool-approval.ts`
+- `packages/client/src/client/private-input-*`
+- `apps/mobile/src/host/private-input.ts`
+- `apps/mobile/src/ui/chat/private-input-card.tsx`
+- `apps/mobile/src/ui/private-input-form.tsx`
+- `apps/mobile/app/private-input.tsx`
+
+## Terms
+
+- Credential reference
+- Source Event
+- App
+- DM
+
 ## Sub-features
 
 - Local Human DM and Group interaction can reuse an account with accepted IM context in the same turn.

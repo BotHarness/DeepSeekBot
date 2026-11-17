@@ -1,9 +1,9 @@
+import { Button } from './ds/button.js';
 import type { ReleaseCompatibility } from '../../../core/src/release/compatibility.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
-  Button,
   IconCloseOutlineRegular,
   IconDownloadOutlineRegular,
   MarkdownText,
@@ -120,7 +120,10 @@ export function ReleaseNotesList({
   const language = t('releaseNotes.language') === 'en' ? 'en' : 'zh';
   const labels = useMemo<MarkdownLabels>(
     () => ({
-      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
+      code: {
+        copyLabel: t('message.code.copy'),
+        copiedLabel: t('message.code.copied'),
+      },
       footnotes: t('message.footnotes'),
     }),
     [t],
@@ -393,7 +396,9 @@ function UpdateNotice({
         {update.status === 'blocked' ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
         {update.status === 'available' && update.blockedLatest ? (
           <p>
-            {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
+            {t('release.notice.blockedLatest', {
+              version: update.blockedLatest.version,
+            })}{' '}
             {compatibilityText(update.blockedLatest.compatibility, t)}
           </p>
         ) : null}
@@ -408,7 +413,9 @@ function UpdateNotice({
           <div {...stylex.props(styles.failure)} data-release-notice-failure>
             {install.status === 'failed' && !shown ? (
               <p role="alert" {...stylex.props(styles.failureText)}>
-                {t('release.install.failedWith', { reason: failureReason(install, t) })}
+                {t('release.install.failedWith', {
+                  reason: failureReason(install, t),
+                })}
               </p>
             ) : null}
             <ManualUpdate latest={update.latest} compact t={t} />
@@ -482,7 +489,10 @@ function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): str
     case 'current':
       return t('release.status.current', { version });
     case 'restart-required':
-      return t('release.status.restart', { version, installed: update.installed });
+      return t('release.status.restart', {
+        version,
+        installed: update.installed,
+      });
     case 'unavailable':
       return t('release.status.unavailable', { version });
     default:
@@ -498,7 +508,12 @@ function releaseView(snapshot: ReleaseNotesSnapshot): {
 } {
   const identity = snapshot.identity;
   if (snapshot.version === undefined)
-    return { state: 'loading', icon: 'package', tone: 'neutral', title: 'release.panel.checking' };
+    return {
+      state: 'loading',
+      icon: 'package',
+      tone: 'neutral',
+      title: 'release.panel.checking',
+    };
   if (identity?.kind === 'development' || snapshot.update.status === 'development')
     return {
       state: 'development',
@@ -507,10 +522,20 @@ function releaseView(snapshot: ReleaseNotesSnapshot): {
       title: 'release.panel.development',
     };
   if (identity === undefined || identity.kind === 'unknown')
-    return { state: 'problem', icon: 'info', tone: 'warning', title: 'release.panel.problem' };
+    return {
+      state: 'problem',
+      icon: 'info',
+      tone: 'warning',
+      title: 'release.panel.problem',
+    };
   switch (snapshot.update.status) {
     case 'current':
-      return { state: 'current', icon: 'check', tone: 'success', title: 'release.panel.current' };
+      return {
+        state: 'current',
+        icon: 'check',
+        tone: 'success',
+        title: 'release.panel.current',
+      };
     case 'available':
       return {
         state: 'available',
@@ -528,7 +553,12 @@ function releaseView(snapshot: ReleaseNotesSnapshot): {
     case 'unknown':
     case 'unavailable':
     case 'blocked':
-      return { state: 'problem', icon: 'info', tone: 'warning', title: 'release.panel.problem' };
+      return {
+        state: 'problem',
+        icon: 'info',
+        tone: 'warning',
+        title: 'release.panel.problem',
+      };
     default:
       return {
         state: 'checking',
@@ -738,7 +768,9 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
             {update.compatibility ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
             {update.blockedLatest ? (
               <p>
-                {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
+                {t('release.notice.blockedLatest', {
+                  version: update.blockedLatest.version,
+                })}{' '}
                 {compatibilityText(update.blockedLatest.compatibility, t)}
               </p>
             ) : null}

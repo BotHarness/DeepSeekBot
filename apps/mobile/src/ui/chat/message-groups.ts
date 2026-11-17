@@ -1,4 +1,4 @@
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 const GROUP_MS = 5 * 60 * 1000;
 const SEPARATOR_MS = 30 * 60 * 1000;
@@ -59,6 +59,7 @@ export function chatRows(
       message.author !== 'system' &&
       previous.author === message.author &&
       previous.bot === message.bot &&
+      previous.person?.humanId === message.person?.humanId &&
       gap < GROUP_MS;
     if (joins && before?.kind === 'message') before.last = false;
     rows.push({ kind: 'message', key: message.id, message, first: !joins, last: true });

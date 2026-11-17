@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import type { SocialProvider } from '../../host/connect-account';
+import type { SocialProvider } from '@botharness/host-client/connect-account';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, signInBrand, space } from '../design/tokens';
 import { Text } from '../primitives/text';

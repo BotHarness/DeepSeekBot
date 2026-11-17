@@ -1,4 +1,4 @@
-import type { ConnectionDiagnostic } from '../../host/connection-diagnostic';
+import type { ConnectionDiagnostic } from '@botharness/host-client/connection-diagnostic';
 import { ReadFailure } from '../primitives/read-failure';
 import { watchAccountHosts } from '../../host/watch-account-hosts';
 import { closeWorkspacePage } from './workspace-paging';
@@ -38,11 +38,11 @@ import {
 import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { conversationFilter, useConversationFilter } from '../../host/native-conversation-filter';
 
-import type { ConnectHost } from '../../host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { accountHostLookId } from '../../host/account-host-look';
 import { connectAccount } from '../../host/native-connect-account';
 import { liveGlance, type HostGlance, type HostStatus } from '../../host/host-glance';
-import { SavedHostsWriteError } from '../../host/hosts';
+import { SavedHostsWriteError } from '@botharness/host-client/hosts';
 import {
   hostSession,
   useHostSession,
@@ -52,7 +52,11 @@ import {
 } from '../../host/host-session';
 
 import { useHostLook } from '../../host/native-host-look';
-import { hostColorInk, hostTileFill, shownHostName } from '../design/host-look';
+import {
+  hostColorInk,
+  hostTileFill,
+  shownHostName,
+} from '@botharness/host-client/ui/design/host-look';
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { spring } from '../design/motion';

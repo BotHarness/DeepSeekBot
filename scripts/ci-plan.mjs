@@ -1,8 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { isBuiltin } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pnpmCommand } from './dev-package-manager.mjs';
 import { parse as parseJavaScript } from '@babel/parser';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -121,6 +122,7 @@ export const RULES = [
   related('.github/workflows/readme-status.yml', 'README status collection and publication'),
   related('docs/assets/readme/pixel/source/**', 'README renderer source geometry and licenses'),
   related('scripts/fixtures/**', 'Script test fixtures'),
+  related('scripts/lint-rules/**', 'Repository oxlint rules'),
   related('scripts/product-provider/**', 'Product provider scripts'),
   related('scripts/perf-budgets/**', 'Performance budgets, checked by the timeline budget job'),
   related('scripts/*', 'Repository scripts'),
@@ -136,7 +138,12 @@ export const RULES = [
   none('.github/pr-assets/**', 'PR evidence assets'),
   none('.github/{ISSUE_TEMPLATE,DISCUSSION_TEMPLATE}/**', 'Issue and discussion templates'),
   none('.github/pull_request_template.md', 'PR template'),
+  none('.coderabbit.yaml', 'CodeRabbit review config'),
   none('.github/workflows/*.yml', 'Release workflows'),
+  related(
+    'design/tokens/**',
+    'Tobs design token source, generated into the client and checked by lint',
+  ),
   none('{prototype,dsh_research,design}/**', 'Prototypes and research notes'),
   none('*.md', 'Root prose'),
   none(
@@ -678,7 +685,24 @@ function githubPlan(changesFile) {
   console.log(JSON.stringify(result, null, 2));
 }
 
-function localPlan(base) {
+export function localCommands(result) {
+  const commands = [];
+  if (result.tests === 'full') commands.push(['vitest', 'run', '--exclude', DOCS_SITE_TEST]);
+  if (result.tests === 'affected')
+    commands.push([
+      'vitest',
+      'related',
+      '--run',
+      '--passWithNoTests',
+      '--exclude',
+      DOCS_SITE_TEST,
+      ...result.related,
+    ]);
+  if (result.docsSite) commands.push(['slides:build'], ['vitest', 'run', DOCS_SITE_TEST]);
+  return commands;
+}
+
+function localPlan(base, run) {
   const changes = gitChanges(base);
   const files = [...new Set([...trackedFiles(), ...changes.map((change) => change.path)])].filter(
     (file) => existsSync(join(ROOT, file)),
@@ -688,12 +712,19 @@ function localPlan(base) {
   const mobile = mobileVerification({ event: 'pull_request', changes, index });
   console.log(`${result.tests}: ${result.reason}`);
   console.log(`mobile: ${mobile.run ? 'yes' : 'no'} (${mobile.reason})`);
-  if (result.tests === 'full') console.log(`pnpm vitest run --exclude ${DOCS_SITE_TEST}`);
-  if (result.tests === 'affected')
-    console.log(
-      `pnpm vitest related --run --passWithNoTests --exclude ${DOCS_SITE_TEST} ${result.related.join(' ')}`,
-    );
-  if (result.docsSite) console.log(`pnpm slides:build && pnpm vitest run ${DOCS_SITE_TEST}`);
+  for (const args of localCommands(result)) {
+    console.log(`pnpm ${args.join(' ')}`);
+    if (!run) continue;
+    const [command, commandArgs] = pnpmCommand(args);
+    const child = spawnSync(command, commandArgs, {
+      cwd: ROOT,
+      stdio: 'inherit',
+      shell: false,
+      windowsHide: true,
+    });
+    if (child.status !== 0) return child.status ?? 1;
+  }
+  return 0;
 }
 
 if (
@@ -717,6 +748,6 @@ if (
   } else if (args.includes('--github')) {
     githubPlan(option('--changes'));
   } else {
-    localPlan(option('--base') ?? 'origin/main');
+    process.exitCode = localPlan(option('--base') ?? 'origin/main', args.includes('--run'));
   }
 }

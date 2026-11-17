@@ -51,6 +51,8 @@ export interface PersonaBotRecord {
 
   marketplaceListing?: MarketplaceListingRef;
 
+  marketplaceUpload?: MarketplaceListingRef;
+
   promptPreset?: string;
   promptOverrides?: PromptPartOverrides;
   promptLimits?: PromptLimitValues;
@@ -277,6 +279,11 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (
     record['marketplaceListing'] !== undefined &&
     !isMarketplaceListingRef(record['marketplaceListing'])
+  )
+    return false;
+  if (
+    record['marketplaceUpload'] !== undefined &&
+    !isMarketplaceListingRef(record['marketplaceUpload'])
   )
     return false;
   return true;

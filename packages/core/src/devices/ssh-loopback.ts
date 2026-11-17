@@ -1,7 +1,7 @@
 import { createServer as createHttpServer } from 'node:http';
 import { connect, createServer, type Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 
 export async function freeLoopbackPort(): Promise<number> {
   const server = createServer();

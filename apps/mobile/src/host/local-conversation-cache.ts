@@ -1,12 +1,12 @@
-import type { JournalEntry } from './wire';
+import type { JournalEntry } from '@botharness/host-protocol/wire';
 import type {
   CachedChanges,
   CachedConversation,
   ChangeCursor,
   ConversationCache,
   OlderPage,
-} from './conversation';
-import type { LocalStore, SqlWriter } from './local-store';
+} from '@botharness/host-client/conversation';
+import type { LocalStore, SqlWriter } from '@botharness/host-client/local-store';
 
 const TAIL = 50;
 

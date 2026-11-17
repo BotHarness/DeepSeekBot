@@ -72,8 +72,8 @@ vi.mock('../src/ui/shell/icons', async () => ({
 
 import type { BotProfile } from '../src/host/bot-profile';
 import { shiftDay, today as localToday, trailingDays } from '../src/host/usage-days';
-import type { ProfileActivity } from '../src/host/wire';
-import type { RosterBot } from '../src/host/client';
+import type { ProfileActivity } from '@botharness/host-protocol/wire';
+import type { RosterBot } from '@botharness/host-client/client';
 import { BotProfilePage } from '../src/ui/chat/bot-profile';
 import { createProfileTabMemory, type ProfileTab } from '../src/ui/chat/profile-tabs';
 import { t } from '../src/ui/strings';

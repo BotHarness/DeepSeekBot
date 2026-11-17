@@ -6,7 +6,7 @@ import {
   installHostStoreOpener,
   retryHostStoreDeletes,
 } from '../src/host/host-store';
-import type { LocalStore } from '../src/host/local-store';
+import type { LocalStore } from '@botharness/host-client/local-store';
 
 afterEach(() => installHostStoreOpener(undefined));
 

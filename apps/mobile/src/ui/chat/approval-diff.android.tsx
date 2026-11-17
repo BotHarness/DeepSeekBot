@@ -10,7 +10,7 @@ import {
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
 
-import type { ApprovalFileChange } from '../../../../../packages/client/src/client/approval-diff';
+import type { ApprovalFileChange } from '@botharness/host-client/shared/approval-diff';
 import { materialType, useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';

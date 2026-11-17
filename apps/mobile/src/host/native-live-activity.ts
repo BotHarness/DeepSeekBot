@@ -7,7 +7,7 @@ import type { LiveActivity } from 'expo-widgets';
 import { useSyncExternalStore } from 'react';
 import { hostSession, onHostRemoval } from './host-session';
 import { nativeCarrier } from './native-carrier';
-import { ActivityRequestFailed, createHostActivity } from './live-activity';
+import { ActivityRequestFailed, createHostActivity } from '@botharness/host-client/live-activity';
 import { subscribeActivityHost } from './live-activity-routing';
 import {
   createActivitySession,

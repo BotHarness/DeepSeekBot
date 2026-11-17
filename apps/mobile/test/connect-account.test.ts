@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createConnectAccount } from '../src/host/connect-account';
-import { redeemPairing } from '../src/host/pairing';
+import { createConnectAccount } from '@botharness/host-client/connect-account';
+import { redeemPairing } from '@botharness/host-client/pairing';
 
 const RELAY = 'https://relay.test';
 const REDIRECT = 'ai.botharness.deepseekbot.dev:/oauth2redirect';

@@ -8,7 +8,7 @@ import {
   type EmailCodeRefusal,
   type PasswordOutcome,
   type SocialProvider,
-} from '../../host/connect-account';
+} from '@botharness/host-client/connect-account';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, signInBrand, space } from '../design/tokens';
 import { Button } from '../primitives/button';

@@ -1,4 +1,4 @@
-import type { HostSocket, HostSocketEvents } from './carrier';
+import type { HostSocket, HostSocketEvents } from '@botharness/host-protocol/carrier';
 
 export const DIRECT_STUN = ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'];
 

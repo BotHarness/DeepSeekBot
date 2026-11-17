@@ -1,13 +1,10 @@
+import { Button } from './ds/button.js';
+import { SegmentedControl } from './ds/segmented.js';
+import { Switch } from './ds/switch.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  Button,
-  IconPlusOutlineRegular,
-  SegmentedControl,
-  Switch,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconPlusOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -89,12 +86,15 @@ const styles = stylex.create({
     },
     color: {
       default: color.muted,
-      ':is([aria-pressed=true])': 'var(--dsw-alias-bg-base)',
+      ':is([aria-pressed=true])': 'var(--tobs-layer-canvas)',
     },
     fontFamily: 'inherit',
     fontSize: text.metaSize,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '1px',
   },
   preview: {
@@ -811,7 +811,10 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
     () => (botSlug === undefined ? 0 : (createRequests.get(botSlug) ?? 0)),
     () => 0,
   );
-  const [seenCreate, setSeenCreate] = useState({ botSlug, revision: createRevision });
+  const [seenCreate, setSeenCreate] = useState({
+    botSlug,
+    revision: createRevision,
+  });
   if (seenCreate.botSlug !== botSlug) {
     setSeenCreate({ botSlug, revision: createRevision });
     if (editor !== undefined) setEditor(undefined);

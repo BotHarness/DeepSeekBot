@@ -3,7 +3,7 @@ import {
   createConnectAccount,
   type EmailCodeFlow,
   type EmailCodeOutcome,
-} from '../src/host/connect-account';
+} from '@botharness/host-client/connect-account';
 
 function setup(
   collect: (flow: EmailCodeFlow) => Promise<EmailCodeOutcome>,

@@ -6,8 +6,50 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 let member = false;
 vi.mock('../src/client/team-state.js', () => ({ useTeamMember: () => member }));
 
+vi.mock('../src/client/target-name.js', () => ({
+  TargetName: ({ name }: { name: string }) => name,
+}));
+vi.mock('../src/client/settings-environment.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  EnvironmentSwitcher: ({
+    here,
+    remotes,
+    value,
+    onChange,
+  }: {
+    here: { hostId: string; name: string };
+    remotes: { hostId: string; name: string }[];
+    value: string;
+    onChange(hostId: string): void;
+  }) =>
+    createElement(
+      'div',
+      { 'data-switcher': value },
+      [here, ...remotes].map((option) =>
+        createElement(
+          'button',
+          {
+            key: option.hostId,
+            'data-env': option.hostId,
+            onClick: () => onChange(option.hostId),
+          },
+          option.name,
+        ),
+      ),
+    ),
+  RemoteEnvironmentSection: ({ hostId, section }: { hostId: string; section: string }) =>
+    createElement('p', {
+      'data-remote-models': hostId,
+      'data-remote-section': section,
+    }),
+}));
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  useModalLayer: () => undefined,
   Input: (props: object) => createElement('input', props),
+  Button: ({ children, size: _size, ...rest }: { children?: ReactNode; size?: string }) =>
+    createElement('button', { type: 'button', ...rest }, children),
+  IconRefreshOutlineRegular: () => null,
   Modal: ({
     open,
     onClose,
@@ -15,6 +57,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     headless,
     className,
     children,
+    footer,
   }: {
     open: boolean;
     onClose(): void;
@@ -22,6 +65,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     headless?: boolean;
     className?: string;
     children?: ReactNode;
+    footer?: ReactNode;
   }) =>
     open
       ? createElement(
@@ -37,6 +81,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
               className,
             },
             children,
+            footer,
           ),
         )
       : null,
@@ -63,7 +108,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
         ? items.map((item) =>
             createElement(
               'button',
-              { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
+              {
+                key: item.id,
+                role: 'menuitem',
+                onClick: () => onSelect(item.id),
+              },
               item.label,
             ),
           )
@@ -75,9 +124,13 @@ import {
   BOT_SETTINGS_SECTIONS,
   BotSettings,
   BotSettingsView,
+  DEVICE_SETTINGS_SECTIONS,
   type BotSettingsSectionRow,
 } from '../src/client/bot-settings.js';
+import { hostSettingsDrafts } from '../src/client/host-settings-drafts.js';
+import type { SettingsEnvironments } from '../src/client/settings-environment.js';
 import { zhTranslate } from '../src/client/locale.js';
+import type { SettingsPins } from '../src/client/settings-home.js';
 
 const ROWS: readonly BotSettingsSectionRow[] = [
   { id: 'about', order: 70, label: '关于' },
@@ -92,6 +145,7 @@ let rendered: {
   id: string | undefined;
   close: (() => void) | undefined;
   clientOnly?: boolean | undefined;
+  pairPhone?: boolean | undefined;
 }[];
 
 beforeEach(() => {
@@ -110,7 +164,12 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function mount(settings: BotSettings, rows: readonly BotSettingsSectionRow[] = ROWS): void {
+function mount(
+  settings: BotSettings,
+  rows: readonly BotSettingsSectionRow[] = ROWS,
+  environments?: SettingsEnvironments,
+  pins?: SettingsPins,
+): void {
   const sections = {
     getSnapshot: () => rows,
     subscribe: () => () => undefined,
@@ -120,13 +179,20 @@ function mount(settings: BotSettings, rows: readonly BotSettingsSectionRow[] = R
       createElement(BotSettingsView, {
         botSettings: settings,
         sections,
+        environments,
+        pins,
         t: zhTranslate,
         renderSlot: ((
           _name: string,
-          owner: { close(): void; clientOnly?: boolean },
+          owner: { close(): void; clientOnly?: boolean; pairPhone?: boolean },
           options?: { only?: string },
         ) => {
-          rendered.push({ id: options?.only, close: owner.close, clientOnly: owner.clientOnly });
+          rendered.push({
+            id: options?.only,
+            close: owner.close,
+            clientOnly: owner.clientOnly,
+            pairPhone: owner.pairPhone,
+          });
           return createElement('p', { 'data-section': options?.only }, `section:${options?.only}`);
         }) as never,
       }),
@@ -136,6 +202,59 @@ function mount(settings: BotSettings, rows: readonly BotSettingsSectionRow[] = R
 
 function navLabels(): string[] {
   return [...document.querySelectorAll('nav button')].map((button) => button.textContent ?? '');
+}
+
+function groupHeadings(): string[] {
+  return [...document.querySelectorAll('nav [role="group"]')].map(
+    (group) =>
+      document.getElementById(group.getAttribute('aria-labelledby') ?? '')?.textContent ?? '',
+  );
+}
+
+function groupOf(label: string): string | undefined {
+  const button = [...document.querySelectorAll('nav button')].find(
+    (item) => item.textContent === label,
+  );
+  const group = button?.closest('[role="group"]');
+  return (
+    document.getElementById(group?.getAttribute('aria-labelledby') ?? '')?.textContent ?? undefined
+  );
+}
+
+async function click(selector: string): Promise<void> {
+  await act(async () => {
+    document.querySelector<HTMLButtonElement>(selector)?.click();
+  });
+}
+
+function remoteEnvironments(): SettingsEnvironments & { unpair(): void } {
+  const listeners = new Set<() => void>();
+  let snapshot = {
+    hosts: [{ host: { hostId: 'studio', hostName: 'Studio' } }],
+    avatars: new Map(),
+    tab: '',
+  } as unknown as ReturnType<SettingsEnvironments['getSnapshot']>;
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    client: () => undefined,
+    notifications: {} as SettingsEnvironments['notifications'],
+    unpair: () => {
+      snapshot = { ...snapshot, hosts: [] };
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
+function fullRows(): BotSettingsSectionRow[] {
+  return Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+    id,
+    order,
+    label: id,
+  }));
 }
 
 function current(): string | null {
@@ -156,7 +275,7 @@ it('stays closed until opened and lists sections in order', () => {
   });
   const dialog = document.querySelector('[role="dialog"]');
   expect(dialog?.getAttribute('aria-label')).toBe('Bot 设置');
-  expect(dialog?.getAttribute('data-headless')).toBe('true');
+  expect(dialog?.getAttribute('aria-modal')).toBe('true');
   expect(navLabels()).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);
   expect(current()).toBe('通用');
   expect(shownSection()).toBe('general');
@@ -174,14 +293,19 @@ it('leads every sidebar section with its own glyph and keeps the label as the na
     settings.open('general');
   });
   const buttons = [...document.querySelectorAll('nav button')];
-  expect(buttons.map((button) => button.textContent)).toEqual(ids);
+  expect(buttons.map((button) => button.textContent)).toEqual([
+    ...ids.filter((id) => DEVICE_SETTINGS_SECTIONS.has(id)),
+    ...ids
+      .filter((id) => !DEVICE_SETTINGS_SECTIONS.has(id) && id !== 'browser')
+      .map((id) => (id === 'computer' ? '电脑与浏览器' : id)),
+  ]);
   const glyphs = buttons.map((button) => {
     const icon = button.firstElementChild;
     expect(icon?.getAttribute('aria-hidden')).toBe('true');
     expect(icon?.querySelector('svg')).not.toBeNull();
     return icon?.innerHTML;
   });
-  expect(new Set(glyphs).size).toBe(ids.length);
+  expect(new Set(glyphs).size).toBe(ids.length - 1);
   expect(current()).toBe('general');
 });
 
@@ -275,7 +399,7 @@ it('closes from the close button, the mask, and the section itself', () => {
     settings.open();
   });
   act(() => {
-    document.querySelector<HTMLButtonElement>('[data-testid="mask"]')?.click();
+    document.querySelector<HTMLElement>('[data-tobs-dialog-scrim]')?.click();
   });
   expect(isOpen()).toBe(false);
 
@@ -424,27 +548,29 @@ it('routes the phone entry to Connections while keeping ordinary settings indepe
     pairPhone: false,
   });
   settings.select('general');
-  expect(settings.getSnapshot()).toMatchObject({ sectionId: 'general', pairPhone: false });
+  expect(settings.getSnapshot()).toMatchObject({
+    sectionId: 'general',
+    pairPhone: false,
+  });
 });
 
-it('opens Connections outside the settings sidebar and passes the phone intent to its shared surface', () => {
+it('opens Connections as a settings page and passes the phone intent to it', () => {
   const settings = new BotSettings();
   mount(settings, [...ROWS, { id: 'devices', order: 45, label: '连接' }]);
   act(() => settings.open('pair-phone'));
   expect(shownSection()).toBe('devices');
-  expect(document.querySelector('nav')).toBeNull();
-  act(() => rendered.at(-1)!.close!());
-  expect(settings.getSnapshot().open).toBe(false);
+  expect(current()).toBe('连接');
+  expect(rendered.at(-1)).toMatchObject({ id: 'devices', pairPhone: true });
 });
 
-it('returns to ordinary settings after closing the standalone Connections dialog', () => {
+it('drops the pairing intent when Connections is opened again', () => {
   const settings = new BotSettings();
   settings.open('pair-phone');
   settings.close();
   settings.open();
   expect(settings.getSnapshot()).toMatchObject({
     open: true,
-    sectionId: 'general',
+    sectionId: 'devices',
     pairPhone: false,
   });
 });
@@ -466,13 +592,14 @@ it('limits App preferences navigation and section mounting to Client-local owner
   act(() => settings.select('voice'));
   expect(shownSection()).toBe('appearance');
   act(() => settings.select('notifications'));
-  expect(rendered.at(-1)).toMatchObject({ id: 'notifications', clientOnly: true });
+  expect(rendered.at(-1)).toMatchObject({
+    id: 'notifications',
+    clientOnly: true,
+  });
   act(() => settings.open('models'));
   expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Bot 设置');
   expect(navLabels()).toContain('voice');
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-    '主机选项只作用于本机 Host',
-  );
+  expect(groupHeadings()).toEqual(['此设备', '本机']);
   expect(shownSection()).toBe('models');
   expect(rendered.at(-1)).toMatchObject({ id: 'models', clientOnly: false });
 });
@@ -482,7 +609,11 @@ it('intersects member access with Client preferences for navigation, search and 
   const settings = new BotSettings();
   mount(
     settings,
-    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({ id, order, label: id })),
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
   );
   act(() => settings.openClientPreferences());
   expect(navLabels()).toEqual(['appearance', 'notifications', 'shortcuts']);
@@ -499,4 +630,363 @@ it('intersects member access with Client preferences for navigation, search and 
     });
     expect(document.querySelectorAll('.bh-settings-search-results button')).toHaveLength(0);
   }
+});
+
+it('lists device preferences under This device and Host options under the current Host', () => {
+  const settings = new BotSettings();
+  mount(
+    settings,
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
+  );
+  act(() => settings.open('appearance'));
+  expect(groupHeadings()).toEqual(['此设备', '本机']);
+  for (const id of ['appearance', 'notifications', 'shortcuts', 'companions'])
+    expect(groupOf(id)).toBe('此设备');
+  for (const id of ['account', 'general', 'models', 'team', 'about'])
+    expect(groupOf(id)).toBe('本机');
+  expect(document.querySelector('[data-switcher]')).toBeNull();
+  expect(document.querySelector('[data-settings-scope]')).toBeNull();
+});
+
+it('switches the Host group to a remote Host from the top-right switcher and keeps device sections', async () => {
+  const settings = new BotSettings();
+  mount(
+    settings,
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
+    remoteEnvironments(),
+  );
+  act(() => settings.open('models'));
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('local');
+  expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('保存在 本机');
+  await click('[data-env="studio"]');
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+  expect(groupHeadings()).toEqual(['此设备', 'Studio']);
+  expect(navLabels()).toEqual([
+    'appearance',
+    'notifications',
+    'shortcuts',
+    'companions',
+    '模型',
+    '自动审批',
+    '提示词',
+    '语音',
+    '聊天',
+    '本应用中的外观',
+    '通知',
+    'Token 用量',
+    '存储空间',
+    '连接',
+  ]);
+  expect(current()).toBe('模型');
+  expect(document.querySelector('[data-remote-models]')?.getAttribute('data-remote-models')).toBe(
+    'studio',
+  );
+  expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('保存在 Studio');
+
+  await click('[data-settings-section="appearance"]');
+  expect(shownSection()).toBe('appearance');
+  expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('只保存在这台设备');
+
+  await click('[data-settings-section="environment-storage"]');
+  expect(document.querySelector('[data-remote-section]')?.getAttribute('data-remote-section')).toBe(
+    'environment-storage',
+  );
+  expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('保存在 Studio');
+
+  await click('[data-settings-section="environment-notifications"]');
+  expect(document.querySelector('[data-settings-scope]')?.textContent).toBe('只保存在这台设备');
+
+  await click('[data-settings-section="environment-models"]');
+  await click('[data-env="local"]');
+  expect(groupHeadings()).toEqual(['此设备', '本机']);
+  expect(shownSection()).toBe('models');
+});
+
+it('asks before leaving a remote Host with unsaved model changes', async () => {
+  const settings = new BotSettings();
+  mount(
+    settings,
+    Object.values(BOT_SETTINGS_SECTIONS).map((id, order) => ({
+      id,
+      order,
+      label: id,
+    })),
+    remoteEnvironments(),
+  );
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  let dirty = true;
+  const discard = vi.fn(() => {
+    dirty = false;
+  });
+  const release = hostSettingsDrafts.register('studio', {
+    dirty: () => dirty,
+    save: async () => true,
+    discard,
+  });
+  try {
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('[data-env="local"]')?.click();
+    });
+    expect(document.body.textContent).toContain('保存并切换');
+    expect(document.querySelector('[data-remote-models]')).not.toBeNull();
+    const discardButton = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === '放弃更改',
+    );
+    await act(async () => {
+      discardButton?.click();
+    });
+    expect(discard).toHaveBeenCalledOnce();
+    expect(document.querySelector('[data-remote-models]')).toBeNull();
+    expect(shownSection()).toBe('models');
+  } finally {
+    release();
+  }
+});
+
+it('returns to the local Host when a local page is opened directly while a remote is selected', async () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), remoteEnvironments());
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  expect(shownSection()).toBeNull();
+  act(() => settings.close());
+  act(() => settings.open('voice'));
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('local');
+  expect(shownSection()).toBe('voice');
+});
+
+it('keeps a selected remote Host open after it leaves the paired list', async () => {
+  const settings = new BotSettings();
+  const environments = remoteEnvironments();
+  mount(settings, fullRows(), environments);
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  const release = hostSettingsDrafts.register('studio', {
+    dirty: () => true,
+    save: async () => true,
+    discard: () => undefined,
+  });
+  try {
+    act(() => environments.unpair());
+    expect(document.querySelector('[data-remote-models]')?.getAttribute('data-remote-models')).toBe(
+      'studio',
+    );
+    expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+    expect(hostSettingsDrafts.hasDirty('studio')).toBe(true);
+    await click('[data-env="local"]');
+    expect(document.body.textContent).toContain('保存并切换');
+    expect(document.querySelector('[data-remote-models]')).not.toBeNull();
+  } finally {
+    release();
+  }
+});
+
+it('drops an open unsaved-changes prompt when Settings closes from elsewhere', async () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), remoteEnvironments());
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  const release = hostSettingsDrafts.register('studio', {
+    dirty: () => true,
+    save: async () => true,
+    discard: () => undefined,
+  });
+  try {
+    await click('[data-env="local"]');
+    expect(document.body.textContent).toContain('保存并切换');
+    act(() => settings.close());
+    act(() => settings.open('appearance'));
+    expect(document.body.textContent).not.toContain('保存并切换');
+  } finally {
+    release();
+  }
+});
+
+it('opens a chosen Host from outside the dialog and returns to this Host when asked', () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), remoteEnvironments());
+  act(() => settings.openHost({ hostId: 'studio', hostName: 'Studio' }));
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+  expect(document.querySelector('[data-remote-section]')?.getAttribute('data-remote-section')).toBe(
+    'environment-models',
+  );
+  act(() => settings.close());
+  act(() => settings.openHost());
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('local');
+  expect(shownSection()).toBe('models');
+});
+
+function memoryPins(initial: readonly string[]): SettingsPins & { saved: string[][] } {
+  const listeners = new Set<() => void>();
+  let pins = initial;
+  const saved: string[][] = [];
+  return {
+    saved,
+    getSnapshot: () => pins,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    set: (next) => {
+      pins = next;
+      saved.push([...next]);
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
+it('opens on Pinned, which leads the sidebar and opens each pinned page from its card', async () => {
+  const settings = new BotSettings();
+  const pins = memoryPins(['models', 'appearance', 'missing']);
+  mount(settings, fullRows(), undefined, pins);
+  act(() => settings.open());
+  expect(navLabels()[0]).toBe('常用');
+  expect(groupHeadings()).toEqual(['此设备', '本机']);
+  expect(current()).toBe('常用');
+  expect(
+    [...document.querySelectorAll('[data-settings-pin]')].map((card) =>
+      card.getAttribute('data-settings-pin'),
+    ),
+  ).toEqual(['models', 'appearance']);
+  expect(document.querySelector('[data-settings-pin-toggle]')).toBeNull();
+
+  await click('[data-settings-pin="appearance"] button');
+  expect(current()).toBe('appearance');
+  expect(shownSection()).toBe('appearance');
+});
+
+it('pins the open page from the header star and unpins it from its card', async () => {
+  const settings = new BotSettings();
+  const pins = memoryPins(['models']);
+  mount(settings, fullRows(), undefined, pins);
+  act(() => settings.open('about'));
+  const toggle = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>('[data-settings-pin-toggle]');
+  expect(toggle()?.getAttribute('aria-pressed')).toBe('false');
+  expect(toggle()?.getAttribute('aria-label')).toBe('固定到常用');
+  await click('[data-settings-pin-toggle]');
+  expect(pins.saved).toEqual([['models', 'about']]);
+  expect(toggle()?.getAttribute('aria-pressed')).toBe('true');
+
+  await click('[data-settings-section="home"]');
+  await click('[data-settings-pin="models"] [aria-label="从常用移除models"]');
+  expect(pins.saved.at(-1)).toEqual(['about']);
+  expect(document.querySelector('[data-settings-pin="models"]')).toBeNull();
+});
+
+it('shows pinned Host pages for the chosen remote Host and keeps one pin per page', async () => {
+  const settings = new BotSettings();
+  const pins = memoryPins(['models', 'appearance']);
+  mount(settings, fullRows(), remoteEnvironments(), pins);
+  act(() => settings.open('models'));
+  await click('[data-env="studio"]');
+  await click('[data-settings-section="home"]');
+  expect(
+    [...document.querySelectorAll('[data-settings-pin]')].map((card) =>
+      card.getAttribute('data-settings-pin'),
+    ),
+  ).toEqual(['environment-models', 'appearance']);
+  await click('[data-settings-pin="environment-models"] button');
+  expect(document.querySelector('[data-settings-pin-toggle]')?.getAttribute('aria-pressed')).toBe(
+    'true',
+  );
+  await click('[data-settings-pin-toggle]');
+  expect(pins.saved).toEqual([['appearance']]);
+});
+
+it('keeps App preferences free of Pinned', () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), undefined, memoryPins(['appearance']));
+  act(() => settings.openClientPreferences());
+  expect(navLabels()).not.toContain('常用');
+  expect(document.querySelector('[data-settings-pin-toggle]')).toBeNull();
+});
+
+it('opens the phone and computer connection steps straight from their Pinned cards', async () => {
+  const settings = new BotSettings();
+  mount(settings, fullRows(), undefined, memoryPins(['pair-phone', 'join-computer']));
+  act(() => settings.open());
+  expect(
+    [...document.querySelectorAll('[data-settings-pin]')].map((card) => card.textContent),
+  ).toEqual(['连接手机', '连接其他电脑']);
+  await click('[data-settings-pin="join-computer"] button');
+  expect(settings.getSnapshot()).toMatchObject({
+    sectionId: 'devices',
+    joinComputer: true,
+    pairPhone: false,
+  });
+  expect(shownSection()).toBe('devices');
+  act(() => settings.close());
+  act(() => settings.open());
+  await click('[data-settings-section="home"]');
+  await click('[data-settings-pin="pair-phone"] button');
+  expect(settings.getSnapshot()).toMatchObject({ pairPhone: true, joinComputer: false });
+});
+
+it('restores the default pins from Pinned after they change', async () => {
+  const settings = new BotSettings();
+  const pins = memoryPins([]);
+  mount(settings, fullRows(), undefined, pins);
+  act(() => settings.open());
+  expect(document.querySelector('[data-settings-pin]')).toBeNull();
+  await click('[data-settings-pins-restore]');
+  expect(pins.saved.at(-1)).toEqual([
+    'models',
+    'appearance',
+    'pair-phone',
+    'join-computer',
+    'auto-approval',
+    'notifications',
+    'im-apps',
+  ]);
+  expect(document.querySelector('[data-settings-pins-restore]')).toBeNull();
+});
+
+it('shows Computer and Browser as one page and keeps the old ids as aliases', () => {
+  const settings = new BotSettings();
+  mount(settings, [
+    ...ROWS,
+    { id: 'computer', order: 30, label: '电脑控制' },
+    { id: 'browser', order: 32, label: '浏览器控制' },
+  ]);
+  act(() => {
+    settings.open('browser');
+  });
+  expect(current()).toBe('电脑与浏览器');
+  expect(
+    [...document.querySelectorAll('[data-section]')].map((node) =>
+      node.getAttribute('data-section'),
+    ),
+  ).toEqual(['computer', 'browser']);
+  expect(navLabels()).not.toContain('浏览器控制');
+});
+
+it('folds the Host look into Account and opens it from the old page id', () => {
+  const settings = new BotSettings();
+  mount(settings, [...ROWS, { id: 'account', order: -5, label: '个人资料' }]);
+  act(() => {
+    settings.open('environment-appearance');
+  });
+  expect(current()).toBe('个人资料');
+  expect(shownSection()).toBe('account');
+  expect(navLabels()).not.toContain('本应用中的外观');
+});
+
+it('opens About from the old Plugins page id', () => {
+  const settings = new BotSettings();
+  mount(settings, ROWS);
+  act(() => {
+    settings.open('plugins');
+  });
+  expect(current()).toBe('关于');
+  expect(shownSection()).toBe('about');
 });

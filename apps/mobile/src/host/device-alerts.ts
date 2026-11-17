@@ -1,5 +1,5 @@
-import type { HumanAttentionItem } from './wire';
-import type { PushKind, PushPreferences } from './push';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
+import type { PushKind, PushPreferences } from '@botharness/host-client/push';
 
 const kinds: Record<string, PushKind> = {
   'tool-approval': 'approval',

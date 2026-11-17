@@ -8,6 +8,15 @@ const menus = vi.hoisted(
   () => [] as Array<{ items?: Array<{ id: string }>; onSelect?(id: string): void }>,
 );
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
+vi.mock('../src/client/ds/segmented.js', async () => ({
+  SegmentedControl: (await import('@deepseek-ai/dsh-client-ui-primitives')).SegmentedControl,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
@@ -761,6 +770,90 @@ describe('Bot main Sessions pane', () => {
     store.select(previous.selection);
     store.setConversation(previous.conversation);
   });
+  it('opens the message menu in a read-only DM with only the time and copy', async () => {
+    const previous = store.getSnapshot();
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    store.setRoster(
+      [
+        {
+          slug: 'ada',
+          displayName: 'Ada',
+          roles: [],
+          aggregateState: 'idle',
+          workspaces: [],
+          createdAt: '2026-09-21T00:00:00.000Z',
+          deleted: true,
+          paused: true,
+        },
+      ],
+      [channel],
+    );
+    store.select({ kind: 'channel', channelId: channel.id });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      messages: [
+        {
+          id: 'b1',
+          at: '2026-09-21T00:01:00.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Ready',
+          channelRevision: 1,
+        },
+      ],
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions: {
+              profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+              listWorkspaceGrants: async () => [],
+              modelPlanState: async () => undefined,
+              botSourcePolicies: async () => [],
+              reactToMessage: vi.fn().mockResolvedValue(undefined),
+              ...inertSubmissionActions,
+            } as unknown as BridgeActions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      menus.length = 0;
+      await act(async () =>
+        container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: 40,
+            clientY: 60,
+          }),
+        ),
+      );
+      const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'copy'));
+      const ids = menu?.items?.map((item) => item.id);
+      expect(ids?.slice(0, 2)).toEqual(['time', 'copy']);
+      expect(ids).not.toContain('reply');
+      expect(ids).not.toContain('react');
+      expect(ids).not.toContain('feedback');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
   it('labels a deleted Bot DM as read-only history', () => {
     const previous = store.getSnapshot();
     const channel = {
@@ -1014,7 +1107,7 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
     }
   });
-  it('renders a time inside each bubble and individual inline actions for adjacent Bot messages', () => {
+  it('keeps times out of adjacent Bot bubbles and mounts no toolbar until hover', () => {
     const bot = {
       slug: 'ada',
       displayName: 'Ada',
@@ -1072,10 +1165,10 @@ describe('Bot main Sessions pane', () => {
     expect(group).not.toMatch(/class="bh-persona-avatar"[^>]*title=/);
     expect(markup).not.toContain('bh-bubble-time');
     expect(markup).not.toContain('bh-bubble-meta');
-    expect(markup.match(/<time[^>]*dateTime="2026-09-21T00:01:00.000Z"/g)).toHaveLength(1);
+    expect(markup).not.toMatch(/<time[^>]*dateTime="2026-09-21T00:01:00.000Z"/);
     expect(markup).not.toContain('bh-bubble-toolbar');
     expect(markup).toContain('bh-bubble-focused');
-    expect(markup.match(/<time[^>]*dateTime="2026-09-21T00:01:05.000Z"/g)).toHaveLength(1);
+    expect(markup).not.toMatch(/<time[^>]*dateTime="2026-09-21T00:01:05.000Z"/);
     expect(markup).not.toContain('data-unread-divider');
   });
   it('draws the new-messages divider after the read anchor and splits the group there', () => {
@@ -1373,7 +1466,9 @@ describe('Bot main Sessions pane', () => {
       ),
     );
     const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'react'));
+    expect(menu?.items?.[0]).toMatchObject({ type: 'label', text: expect.stringMatching(/\S/) });
     expect(menu?.items?.map((item) => item.id)).toEqual([
+      'time',
       'reply',
       'react',
       'copy',
@@ -1735,6 +1830,7 @@ describe('return to latest messages', () => {
       expect(button()?.getAttribute('aria-label')).toBe(zhTranslate('messages.latest'));
       expect(button()?.textContent).toBe('');
       expect(button()?.querySelector('.bh-timeline-new-count')).toBeNull();
+      expect(button()?.hasAttribute('data-unseen')).toBe(false);
       await act(async () => {
         store.setConversation({
           messages: [message('first'), message('second'), message('third')],
@@ -1895,7 +1991,11 @@ describe('B2 chat bubbles', () => {
     createdAt: at,
     updatedAt: at,
   };
-  const show = (channel: typeof dm | typeof group, messages: ChannelMessage[]): HTMLElement => {
+  const show = (
+    channel: typeof dm | typeof group,
+    messages: ChannelMessage[],
+    avatars = { dm: false, own: false },
+  ): HTMLElement => {
     store.setRoster([ada, bob], [channel]);
     store.select(
       channel.type === 'dm'
@@ -1903,11 +2003,15 @@ describe('B2 chat bubbles', () => {
         : { kind: 'channel', channelId: channel.id },
     );
     store.setConversation({ status: 'ready', channel, sending: false, messages });
+    const prefs = new BotModePrefs();
+    prefs.setShowDmAvatar(avatars.dm);
+    prefs.setShowOwnAvatar(avatars.own);
     const host = document.createElement('div');
     host.innerHTML = renderToStaticMarkup(
       createElement(BotMain, {
         actions: { ...inertSubmissionActions } as BridgeActions,
         channelSidebar: sidebarRegistry(),
+        prefs,
       }),
     );
     return host;
@@ -1920,7 +2024,7 @@ describe('B2 chat bubbles', () => {
     store.setConversation(previous.conversation);
   };
 
-  it('shows each committed message time inside its bubble and no avatar or name in a DM', () => {
+  it('keeps message times out of the timeline and shows no avatar or name in a DM by default', () => {
     const previous = store.getSnapshot();
     try {
       const host = show(dm, [
@@ -1933,13 +2037,35 @@ describe('B2 chat bubbles', () => {
       expect(timeline.querySelector('.bh-message-identity')).toBeNull();
       expect(timeline.querySelector('.bh-message-group-avatar')).toBeNull();
       expect(timeline.textContent).not.toContain('Ada');
-      for (const id of ['h1', 'b1', 'b2']) {
-        const time = bubble(host, id)?.querySelector('time[data-bubble-time]');
-        expect(time?.getAttribute('datetime')).toBe(at);
-        expect(time?.textContent).toMatch(/\d{1,2}:\d{2}/);
-      }
-      expect(bubble(host, 'h2')?.querySelector('[data-bubble-time]')).toBeNull();
-      expect(timeline.querySelectorAll('time')).toHaveLength(3);
+      expect(timeline.querySelectorAll('time')).toHaveLength(0);
+      expect(CSS).not.toMatch(/bh-bubble-stamp/);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('shows the DM avatar and my avatar only when those settings are on', () => {
+    const previous = store.getSnapshot();
+    const messages: ChannelMessage[] = [
+      { id: 'h1', at, author: { kind: 'human' }, body: 'hello' },
+      { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'hi there' },
+    ];
+    const avatarIn = (host: HTMLElement, mine: boolean) =>
+      host.querySelector(
+        `.bh-message-group${mine ? '.bh-message-group-me' : ':not(.bh-message-group-me)'} > .bh-message-group-avatar`,
+      );
+    try {
+      const peer = show(dm, messages, { dm: true, own: false });
+      expect(avatarIn(peer, false)).not.toBeNull();
+      expect(avatarIn(peer, true)).toBeNull();
+      expect(peer.querySelector('.bh-message-identity')).toBeNull();
+      const own = show(dm, messages, { dm: false, own: true });
+      expect(avatarIn(own, false)).toBeNull();
+      const mine = avatarIn(own, true)!;
+      expect(mine.previousElementSibling?.classList.contains('bh-message-stack')).toBe(true);
+      const both = show(group, messages, { dm: false, own: true });
+      expect(avatarIn(both, false)).not.toBeNull();
+      expect(avatarIn(both, true)).not.toBeNull();
     } finally {
       restore(previous);
     }
@@ -1957,8 +2083,6 @@ describe('B2 chat bubbles', () => {
       expect(identities[0]!.textContent).toBe('Ada');
       expect(identities[0]!.querySelector('time')).toBeNull();
       expect(host.querySelectorAll('.bh-message-group-avatar')).toHaveLength(1);
-      expect(bubble(host, 'b1')?.querySelector('[data-bubble-time]')).not.toBeNull();
-      expect(bubble(host, 'b2')?.querySelector('[data-bubble-time]')).not.toBeNull();
     } finally {
       restore(previous);
     }
@@ -1982,7 +2106,6 @@ describe('B2 chat bubbles', () => {
       badges.remove();
       expect(surface(reading).outerHTML).toBe(surface(idle).outerHTML);
       expect(CSS).toMatch(/\n\.bh-bubble-badges \{\s*position: absolute;/);
-      expect(CSS).toMatch(/\n\.bh-bubble-stamp \{\s*position: absolute;\s*right: /);
       expect(CSS).toMatch(
         /\n\.bh-message-group-me \.bh-bubble-badges \.bh-reading \{\s*margin-right: auto;/,
       );
@@ -2112,7 +2235,6 @@ describe('B2 chat bubbles', () => {
       const bare = bubble(host, 'h1')!;
       expect(bare.dataset['bubbleMedia']).toBe('bare');
       expect(bare.querySelector('[data-album-count="1"]')).not.toBeNull();
-      expect(bare.querySelector('[data-bubble-time]')).not.toBeNull();
       const captioned = bubble(host, 'h2')!;
       expect(captioned.dataset['bubbleMedia']).toBe('captioned');
       const album = captioned.querySelector('.bh-message-album')!;
@@ -2123,9 +2245,6 @@ describe('B2 chat bubbles', () => {
       expect(bubble(host, 'h3')!.hasAttribute('data-bubble-media')).toBe(false);
       expect(CSS).toMatch(
         /\.bh-bubble\[data-bubble-media\] \{[^}]*padding: 0;[^}]*overflow: hidden;/,
-      );
-      expect(CSS).toMatch(
-        /\.bh-bubble\[data-bubble-media='bare'\] \.bh-bubble-stamp \{[^}]*background: color-mix\(in srgb, black 45%, transparent\);[^}]*color: white;/,
       );
     } finally {
       restore(previous);
@@ -2218,7 +2337,7 @@ describe('B2 chat bubbles', () => {
     }
   });
 
-  it('puts the delivery check after the Human time and no label above the Human in a group', () => {
+  it('puts no label above the Human in a group', () => {
     const previous = store.getSnapshot();
     try {
       const host = show(group, [
@@ -2229,10 +2348,7 @@ describe('B2 chat bubbles', () => {
       const identities = host.querySelectorAll('.bh-message-identity');
       expect([...identities].map((node) => node.textContent)).toEqual(['Ada']);
       expect(host.querySelector('.bh-message-group-me .bh-bubble-author')).toBeNull();
-      const stamp = bubble(host, 'h1')!.querySelector('.bh-bubble-stamp')!;
-      expect(stamp.querySelector('[data-bubble-check]')?.getAttribute('aria-hidden')).toBe('true');
-      expect(bubble(host, 'b1')!.querySelector('[data-bubble-check]')).toBeNull();
-      expect(bubble(host, 'h2')!.querySelector('[data-bubble-check]')).toBeNull();
+      expect(host.querySelector('[data-bubble-check]')).toBeNull();
     } finally {
       restore(previous);
     }

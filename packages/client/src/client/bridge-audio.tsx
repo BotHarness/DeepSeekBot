@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useMessageHost } from './message-host.js';
 import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { MessageAudio } from './message-audio.js';
 import { downloadFromUrl, useAttachmentDownloadMenu } from './attachment-download-menu.js';
 import { createBridgeAudioResource } from './bridge-audio-resource.js';

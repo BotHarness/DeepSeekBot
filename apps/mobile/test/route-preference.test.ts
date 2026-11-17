@@ -1,7 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createHostClient, type HostClient, type HostClientOptions } from '../src/host/client';
-import { parseSavedHost, serializeSavedHost } from '../src/host/hosts';
-import { FakeHost } from './fake-host';
+import {
+  createHostClient,
+  type HostClient,
+  type HostClientOptions,
+} from '@botharness/host-client/client';
+import { parseSavedHost, serializeSavedHost } from '@botharness/host-client/hosts';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const A = 'https://first.example.ts.net';
 const B = 'https://second.example.ts.net';

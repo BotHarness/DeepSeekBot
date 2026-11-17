@@ -37,7 +37,8 @@ export function GitSettings({ call, t }: GitSettingsProps): ReactElement {
     <SettingsRow
       rootRef={mount}
       title={t('git.settings.title')}
-      description={t('git.settings.description')}
+      description={t('git.settings.summary')}
+      info={{ label: t('git.settings.title'), text: t('git.settings.description') }}
       data={{
         'data-git-setting': git === undefined ? 'loading' : git.available ? git.source : git.reason,
       }}

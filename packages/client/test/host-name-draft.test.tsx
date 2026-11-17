@@ -2,7 +2,7 @@
 import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { DEFAULT_HOST_LOOK, type HostLook } from '../../../apps/mobile/src/ui/design/host-look.js';
+import { DEFAULT_HOST_LOOK, type HostLook } from '@botharness/host-client/ui/design/host-look';
 
 let look: HostLook = { ...DEFAULT_HOST_LOOK, name: 'Old alias' };
 const update = vi.fn(async (_hostId: string, transform: (value: HostLook) => HostLook) => {

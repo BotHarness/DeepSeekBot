@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
-import type { SavedHost } from '../../../apps/mobile/src/host/hosts.js';
-import type { HostClient } from '../../../apps/mobile/src/host/client.js';
+import { FakeHost } from '../../host-client/test/fake-host.js';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { HostClient } from '@botharness/host-client/client';
 import type { ConnectionMutation } from '../../core/src/devices/connection-operation.js';
 import {
   connectionMutationSchema,

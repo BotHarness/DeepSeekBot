@@ -1,5 +1,14 @@
 # Composer footer and reply speed
 
+## Sources
+
+- `packages/client/src/client/{composer-context-bar,composer-context-styles,composer-footer-preferences,dm-composer-context,dm-composer-usage,group-composer-context}.{ts,tsx}`
+
+## Terms
+
+- Composer
+- DM
+
 ## Sub-features
 
 - Web defaults to model/workspace on the left and token usage on the right. Generation speed, including per-reply labels, is off by default.

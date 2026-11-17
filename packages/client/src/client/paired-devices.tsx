@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { ConnectHealthCard } from './connect-health-card.js';
 import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
 import { ConnectAccountHosts } from './connect-account-hosts.js';
@@ -14,12 +16,11 @@ import {
   type PrivateTunnelStep,
   type PrivateTunnelView,
 } from './private-tunnel-settings.js';
-import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
-import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
-import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
+import { keyBytes } from '@botharness/host-client/encrypted-carrier';
+import { checkRoute, isConnectRoute, isLanRoute } from '@botharness/host-protocol/route';
+import { useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
@@ -77,7 +78,12 @@ interface DevicesSnapshot {
   lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
   devices: PairedDevice[];
-  pendingKeys?: { receipt: string; publicKey: string; name: string; approved: boolean }[];
+  pendingKeys?: {
+    receipt: string;
+    publicKey: string;
+    name: string;
+    approved: boolean;
+  }[];
   routes: RouteStatus;
   connect?: ConnectStatus;
 }
@@ -114,6 +120,15 @@ function routeKey(urls: string[]): string {
 }
 
 const styles = stylex.create({
+  page: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
+  pageBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.x3,
+  },
+  pageSpacer: { flexGrow: 1 },
   pairing: {
     display: 'flex',
     flexDirection: 'column',
@@ -128,7 +143,18 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: 'white',
   },
-  actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space.x3,
+  },
+  memberSignIn: {
+    display: 'block',
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   meta: {
     margin: 0,
     color: color.muted,
@@ -136,7 +162,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  stale: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: space.x2 },
+  stale: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: space.x2,
+  },
 });
 
 function ConnectionMethod({
@@ -169,7 +200,33 @@ function hasPhoneRoute(routes: RouteStatus): boolean {
 }
 
 function portOf(routes: RouteStatus): string {
+  const loopback = routes.routes.find((route) => route.kind === 'loopback');
+  if (loopback) {
+    const port = new URL(loopback.url).port;
+    if (port) return port;
+  }
   return /(\d+)\s*$/u.exec(routes.serveCommand)?.[1] ?? '';
+}
+
+function tailscaleBody(
+  routes: RouteStatus | undefined,
+  t: PropsLocale<'botharness'>['t'],
+): ReactNode {
+  const route = routes?.routes.find((entry) => entry.kind === 'tailscale');
+  if (!route) return t('devices.tailscale.stopped');
+  if (route.memberSignIn === undefined) return route.url;
+  return (
+    <>
+      {route.url}
+      <span {...stylex.props(styles.memberSignIn)} data-member-sign-in={route.memberSignIn}>
+        {t(
+          route.memberSignIn === 'managed-tls'
+            ? 'devices.tailscale.memberSignIn.trusted'
+            : 'devices.tailscale.memberSignIn.untrusted',
+        )}
+      </span>
+    </>
+  );
 }
 
 function onTailnet(): boolean {
@@ -194,6 +251,7 @@ export function PairedDevicesSettings({
   t,
   section = 'devices',
   standalone = false,
+  page = false,
   initialPairing = false,
   initialRemote = false,
   onDevicePaired,
@@ -203,6 +261,7 @@ export function PairedDevicesSettings({
 }: PropsLocale<'botharness'> & {
   section?: 'devices' | 'connect' | 'requests';
   standalone?: boolean;
+  page?: boolean;
   initialPairing?: boolean;
   initialRemote?: boolean;
   pairedDeviceId?: string | undefined;
@@ -718,10 +777,7 @@ export function PairedDevicesSettings({
               icon="shield-check"
               tone={tailscaleReady ? 'success' : 'neutral'}
               title="Tailscale"
-              body={
-                routes?.routes.find((route) => route.kind === 'tailscale')?.url ??
-                t('devices.tailscale.stopped')
-              }
+              body={tailscaleBody(routes, t)}
               action={
                 <>
                   {routes?.managed?.enabled || routes?.managed?.owned ? (
@@ -1146,7 +1202,9 @@ export function PairedDevicesSettings({
                         ? 'devices.tailscale.stopped'
                         : 'devices.tailscale.notice',
                     )}
-                    data={{ 'data-tailscale-setup': routes?.tailscale ?? 'unknown' }}
+                    data={{
+                      'data-tailscale-setup': routes?.tailscale ?? 'unknown',
+                    }}
                   />
                 )}
                 {routes && !tailscaleReady ? (
@@ -1319,7 +1377,9 @@ export function PairedDevicesSettings({
                       copiedLabel={t('devices.pair.copied')}
                     />
                     <p {...stylex.props(styles.meta)}>
-                      {t('devices.tailscale.localPort', { port: route.targetPort })}
+                      {t('devices.tailscale.localPort', {
+                        port: route.targetPort,
+                      })}
                     </p>
                   </div>
                 ))}
@@ -1569,6 +1629,47 @@ export function PairedDevicesSettings({
       ) : null}
     </div>
   );
+  const footer =
+    setup === 'remote' ? (
+      <div ref={setRemoteFooter} />
+    ) : overview ? (
+      <Button
+        variant="primary"
+        icon={<ChannelSidebarIcon name="plus" size={16} />}
+        onClick={() => setSetup('direction')}
+      >
+        {t('connections.add')}
+      </Button>
+    ) : undefined;
+  const back = overview
+    ? undefined
+    : (pairingBack ??
+      setupBack ?? (
+        <Button
+          variant="outline"
+          icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+          onClick={() => {
+            setReviewing(false);
+            preparingRelationshipRoute.current = false;
+            setSetup('closed');
+          }}
+        >
+          {t('connections.back')}
+        </Button>
+      ));
+  if (page)
+    return (
+      <div {...stylex.props(styles.page)} data-connections-page="">
+        {content}
+        {back === undefined && footer === undefined ? null : (
+          <div {...stylex.props(styles.pageBar)}>
+            {back}
+            <span {...stylex.props(styles.pageSpacer)} />
+            {footer}
+          </div>
+        )}
+      </div>
+    );
   return standalone ? (
     <PanelDialog
       title={t('connections.title')}

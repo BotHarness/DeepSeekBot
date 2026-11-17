@@ -14,12 +14,16 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 let navigationHistory = channelNavigationHarness();
 import { RequestActivityControl } from '../src/ui/chat/request-activity-control';
 import { useHostSession } from '../src/host/host-session';
-import type { RosterBot } from '../src/host/client';
-import type { ConversationTimelineSnapshot } from '../src/host/conversation';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { ConversationTimelineSnapshot } from '@botharness/host-client/conversation';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 import type { DialogAction } from '../src/ui/primitives/dialog-state';
 import { pickFiles, type PickedFile } from '../src/host/pick-files';
 
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+}));
+vi.mock('../src/ui/chat/skill-suggestions', () => ({ SkillSuggestions: () => null }));
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));

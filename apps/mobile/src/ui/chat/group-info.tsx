@@ -7,7 +7,7 @@ import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 
 import type { ProfileAssignment, ProfilePart } from '../../host/bot-profile';
-import { errorText } from '../../host/bot-settings';
+import { errorText } from '@botharness/host-client/bot-settings';
 import {
   GROUP_NAME_MAX,
   memberName,
@@ -16,7 +16,7 @@ import {
   type GroupMember,
   type GroupPending,
 } from '../../host/group-channel';
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { profileShell, radius, space } from '../design/tokens';

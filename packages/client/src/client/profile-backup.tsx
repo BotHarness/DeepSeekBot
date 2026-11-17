@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { SettingsRow } from './ds/settings-row.js';
 import { Note } from './ds/note.js';
@@ -222,7 +223,10 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       await work(controller.signal);
     } catch (failure) {
       if (mounted.current && !controller.signal.aborted)
-        setError({ area, code: failure instanceof Error ? failure.message : 'operation-failed' });
+        setError({
+          area,
+          code: failure instanceof Error ? failure.message : 'operation-failed',
+        });
     } finally {
       if (mounted.current && active.current === controller) {
         active.current = undefined;

@@ -1,6 +1,11 @@
+import { Button } from './ds/button.js';
+import { ChipSegmentContext } from './ds/chip-button.js';
+import { Switch } from './ds/switch.js';
+import { ComposerContextPlacementContext } from './composer-context-placement.js';
 import {
   Children,
   isValidElement,
+  useContext,
   useRef,
   useImperativeHandle,
   type Ref,
@@ -9,8 +14,8 @@ import {
   type ReactNode,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { style } from './ds/tobs.stylex.js';
 import { border, color, space, size, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -44,16 +49,28 @@ const styles = stylex.create({
     display: 'flex',
     flexWrap: 'nowrap',
     gap: space.x2,
-    minWidth: { default: 0, '@container composer-footer (max-width: 480px)': 'min-content' },
+    minWidth: {
+      default: 0,
+      '@container composer-footer (max-width: 480px)': 'min-content',
+    },
     flexShrink: 1,
     alignItems: 'center',
   },
   leading: { flexGrow: 1, flexBasis: '0%' },
   trailing: {
     justifyContent: 'flex-end',
-    maxWidth: { default: '55%', '@container composer-footer (max-width: 480px)': '100%' },
+    maxWidth: {
+      default: '55%',
+      '@container composer-footer (max-width: 480px)': '100%',
+    },
   },
-  item: { display: 'flex', flexShrink: 1, minWidth: 0, maxWidth: '100%', position: 'relative' },
+  item: {
+    display: 'flex',
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
+    position: 'relative',
+  },
   editing: {
     outline: `${border.hairline} dashed ${color.borderStrong}`,
     outlineOffset: space.x1,
@@ -64,12 +81,30 @@ const styles = stylex.create({
   drop: { boxShadow: `inset ${border.focus} 0 ${color.accent}` },
   editingSide: {
     minHeight: size.row,
-    minWidth: { default: size.row, '@container composer-footer (max-width: 480px)': 'min-content' },
+    minWidth: {
+      default: size.row,
+      '@container composer-footer (max-width: 480px)': 'min-content',
+    },
     flexGrow: 1,
     flexBasis: '0%',
     outline: `${border.hairline} dashed ${color.border}`,
   },
-  option: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x4 },
+  option: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x4,
+  },
+  pill: {
+    display: { default: 'inline-flex', ':is([hidden])': 'none' },
+    alignItems: 'stretch',
+    minWidth: 0,
+    overflow: 'hidden',
+    borderRadius: style.radiusChip,
+    backgroundColor: color.surface,
+    userSelect: 'none',
+  },
+  segment: { display: 'flex', minWidth: 0 },
   hint: {
     color: color.muted,
     fontSize: text.metaSize,
@@ -107,6 +142,7 @@ export function ComposerContextBar({
   readonly available?: readonly FooterItem[];
 }): ReactElement {
   const preferences = useFooterPreferences();
+  const placement = useContext(ComposerContextPlacementContext);
   const root = useRef<HTMLDivElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useImperativeHandle(settingsRef, () => ({ open: () => setSettingsOpen(true) }), []);
@@ -321,6 +357,42 @@ export function ComposerContextBar({
   };
   const empty =
     configurable && ![...preferences.left, ...preferences.right].some((id) => nodes.has(id));
+  const pill =
+    placement === 'header' ? (
+      <ChipSegmentContext.Provider value>
+        <div
+          ref={pressMount}
+          role="group"
+          aria-label={label}
+          hidden={hidden || empty}
+          data-composer-context=""
+          data-composer-context-placement="header"
+          {...stylex.props(styles.pill)}
+          onContextMenu={(event) => {
+            if (!configurable) return;
+            event.preventDefault();
+            setSettingsOpen(true);
+          }}
+        >
+          {configurable
+            ? [...preferences.left, ...preferences.right]
+                .filter((id) => nodes.has(id))
+                .map((id) => (
+                  <span key={id} data-footer-item={id} {...stylex.props(styles.segment)}>
+                    {nodes.get(id)}
+                  </span>
+                ))
+            : [...Children.toArray(children), ...Children.toArray(trailing)].map((child, index) => (
+                <span
+                  key={isValidElement(child) && child.key !== null ? child.key : index}
+                  {...stylex.props(styles.segment)}
+                >
+                  {child}
+                </span>
+              ))}
+        </div>
+      </ChipSegmentContext.Provider>
+    ) : undefined;
   const closeSettings = () => {
     setSettingsOpen(false);
     if (empty)
@@ -333,45 +405,47 @@ export function ComposerContextBar({
   return (
     <>
       <span ref={editMount} hidden />
-      <div
-        ref={pressMount}
-        role="group"
-        aria-label={label}
-        tabIndex={configurable ? 0 : undefined}
-        hidden={hidden || empty}
-        title={configurable ? t(editing ? 'footer.moveHint' : 'footer.customizeHint') : undefined}
-        data-composer-context=""
-        data-footer-editing={editing || undefined}
-        {...stylex.props(styles.bar)}
-        onContextMenu={(event) => {
-          if (!configurable) return;
-          event.preventDefault();
-          setSettingsOpen(true);
-        }}
-        onKeyDown={(event) => {
-          if (
-            configurable &&
-            (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))
-          ) {
+      {pill ?? (
+        <div
+          ref={pressMount}
+          role="group"
+          aria-label={label}
+          tabIndex={configurable ? 0 : undefined}
+          hidden={hidden || empty}
+          title={configurable ? t(editing ? 'footer.moveHint' : 'footer.customizeHint') : undefined}
+          data-composer-context=""
+          data-footer-editing={editing || undefined}
+          {...stylex.props(styles.bar)}
+          onContextMenu={(event) => {
+            if (!configurable) return;
             event.preventDefault();
             setSettingsOpen(true);
-          }
-        }}
-      >
-        {configurable ? (
-          <>
-            {side('left')}
-            {side('right')}
-          </>
-        ) : (
-          <>
-            <div data-composer-context-leading="" {...stylex.props(styles.side, styles.leading)}>
-              {children}
-            </div>
-            {trailing}
-          </>
-        )}
-      </div>
+          }}
+          onKeyDown={(event) => {
+            if (
+              configurable &&
+              (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))
+            ) {
+              event.preventDefault();
+              setSettingsOpen(true);
+            }
+          }}
+        >
+          {configurable ? (
+            <>
+              {side('left')}
+              {side('right')}
+            </>
+          ) : (
+            <>
+              <div data-composer-context-leading="" {...stylex.props(styles.side, styles.leading)}>
+                {children}
+              </div>
+              {trailing}
+            </>
+          )}
+        </div>
+      )}
       {!settingsOpen || t === undefined ? null : (
         <PanelDialog
           size="small"
@@ -391,17 +465,19 @@ export function ComposerContextBar({
             </Button>
           }
           actions={
-            <Button
-              size="sm"
-              disabled={empty}
-              onClick={() => {
-                setSettingsOpen(false);
-                setEditing((value) => !value);
-                root.current?.focus();
-              }}
-            >
-              {t(editing ? 'footer.done' : 'footer.layout')}
-            </Button>
+            pill !== undefined ? undefined : (
+              <Button
+                size="sm"
+                disabled={empty}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setEditing((value) => !value);
+                  root.current?.focus();
+                }}
+              >
+                {t(editing ? 'footer.done' : 'footer.layout')}
+              </Button>
+            )
           }
         >
           {available.map((id) => (

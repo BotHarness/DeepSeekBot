@@ -1,6 +1,6 @@
-import type { CachedChanges } from './conversation';
+import type { CachedChanges } from '@botharness/host-client/conversation';
 import { applyStoredChanges } from './local-conversation-cache';
-import type { LocalStore } from './local-store';
+import type { LocalStore } from '@botharness/host-client/local-store';
 
 type ChangePage = { reset: true } | (CachedChanges & { reset?: never; hasMore: boolean });
 

@@ -1,5 +1,5 @@
-import type { LocalStore } from './local-store';
-import type { JournalEntry } from './wire';
+import type { LocalStore } from '@botharness/host-client/local-store';
+import type { JournalEntry } from '@botharness/host-protocol/wire';
 
 const SNIPPET_BEFORE = 24;
 const SNIPPET_LENGTH = 120;

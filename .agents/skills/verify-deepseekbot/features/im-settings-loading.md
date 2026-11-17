@@ -1,5 +1,16 @@
 # Saved IM settings before connection checks
 
+## Sources
+
+- `packages/client/src/client/{external-identity-list,im-apps-section,thread-reception-settings,reception-status}.tsx`
+- `packages/core/src/credentials/account-bindings.ts`
+
+## Terms
+
+- Binding
+- Bridge
+- Channel settings
+
 ## Sub-features
 
 - External identities and conversations render saved configuration before bound-account checks settle.

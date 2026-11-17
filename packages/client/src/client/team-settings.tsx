@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeCall } from './bridge.js';
@@ -48,6 +49,7 @@ import {
   type TeamRole,
 } from './team-roles-bridge.js';
 import { setTeamModeSnapshot } from './team-state.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   members: { display: 'flex', flexDirection: 'column', minWidth: 0 },
@@ -56,9 +58,14 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
-  urls: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  urls: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+  },
   url: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     color: color.fg,
@@ -75,7 +82,7 @@ const styles = stylex.create({
   secretValue: {
     flex: 1,
     minWidth: 0,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     color: color.fg,
@@ -299,7 +306,9 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
                     control={
                       <Button
                         variant="outline"
-                        aria-label={t('team.members.manageNamed', { name: member.displayName })}
+                        aria-label={t('team.members.manageNamed', {
+                          name: member.displayName,
+                        })}
                         onClick={() => setDialog({ kind: 'member', humanId: member.humanId })}
                       >
                         {t('team.members.manage')}
@@ -659,7 +668,9 @@ function OwnerPasswordDialog({
           value={password}
           onChange={setPassword}
           initialFocus={!hasPassword}
-          hint={t('team.password.rule', { min: String(TEAM_PASSWORD_MIN_LENGTH) })}
+          hint={t('team.password.rule', {
+            min: String(TEAM_PASSWORD_MIN_LENGTH),
+          })}
           error={short ? t('team.error.passwordWeak') : undefined}
         />
         <TextField
@@ -703,12 +714,13 @@ function AddMemberDialog({
       onSubmit={() => {
         setBusy(true);
         setError(undefined);
-        onCreate({ username: normalized, displayName: displayName.trim() }).catch(
-          (failure: unknown) => {
-            setError(teamErrorText(t, failure));
-            setBusy(false);
-          },
-        );
+        onCreate({
+          username: normalized,
+          displayName: displayName.trim(),
+        }).catch((failure: unknown) => {
+          setError(teamErrorText(t, failure));
+          setBusy(false);
+        });
       }}
     >
       <FieldStack>
@@ -756,7 +768,9 @@ function InitialPasswordDialog({
   };
   return (
     <FormDialog
-      title={t('team.members.createdTitle', { name: created.member.displayName })}
+      title={t('team.members.createdTitle', {
+        name: created.member.displayName,
+      })}
       description={t('team.members.createdHint')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('team.done')}

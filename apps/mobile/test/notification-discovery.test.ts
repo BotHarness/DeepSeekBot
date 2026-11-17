@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
-import { createInbox, prepareNotificationBaseline } from '../src/host/inbox';
-import type { HostClient } from '../src/host/client';
-import type { HumanAttentionItem } from '../src/host/wire';
+import { createInbox, prepareNotificationBaseline } from '@botharness/host-client/inbox';
+import type { HostClient } from '@botharness/host-client/client';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 
 const item = (id: string): HumanAttentionItem => ({
   id,

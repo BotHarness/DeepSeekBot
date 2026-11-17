@@ -6,7 +6,7 @@ import {
   withHostColor,
   withHostIcon,
   withHostName,
-} from '../../../apps/mobile/src/ui/design/host-look.js';
+} from '@botharness/host-client/ui/design/host-look';
 import {
   HOST_LOOKS_STORAGE_KEY,
   browserHostLooks,

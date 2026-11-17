@@ -4,13 +4,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { syntheticGenuiDocument } from '../../../packages/core/test/fixtures/genui-document';
 import { GENUI_EXECUTION_LIMITS } from '../../../packages/core/src/channels/genui-execution-limits';
 import { genuiMobileRuntimeModule } from '../scripts/generate-genui-runtime.mjs';
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
   createConversation,
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
-} from '../src/host/conversation';
+} from '@botharness/host-client/conversation';
 import {
   genuiDocumentReply,
   GENUI_BRIDGE_BYTES,
@@ -25,10 +25,10 @@ import {
   parseGenuiBridgeMessage,
   rememberedGenuiHeight,
   rememberGenuiHeight,
-} from '../src/genui/document';
+} from '@botharness/host-client/genui/document';
 import { GENUI_RUNTIME } from '../src/genui/runtime.generated';
-import { genuiDocumentView } from '../src/genui/view';
-import { FakeHost } from './fake-host';
+import { genuiDocumentView } from '@botharness/host-client/genui/view';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const SLUG = 'bot-59296301f8d044d2b022d8784c5ed3fe';

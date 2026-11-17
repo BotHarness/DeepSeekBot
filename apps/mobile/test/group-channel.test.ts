@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
+import {
+  createHostClient,
+  type HostClient,
+  type HostSnapshot,
+} from '@botharness/host-client/client';
 import { groupActions, groupInfo, loadGroupAssignments } from '../src/host/group-channel';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const channelId = 'group-launch';

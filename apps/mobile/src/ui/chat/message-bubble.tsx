@@ -41,8 +41,8 @@ import {
   type ConversationMessage,
   type ConversationReaction,
   type MessageAttachment,
-} from '../../host/conversation';
-import type { RosterBot } from '../../host/client';
+} from '@botharness/host-client/conversation';
+import type { RosterBot } from '@botharness/host-client/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
 import { spring } from '../design/motion';
 import { doubleTap, lift, mediaBubble, motion, radius, space } from '../design/tokens';

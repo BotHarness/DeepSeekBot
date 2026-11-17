@@ -20,7 +20,7 @@ import {
   quietChannels,
   type ConnectedHost,
 } from '../../../src/host/host-session';
-import { prefetchInbox } from '../../../src/host/inbox';
+import { prefetchInbox } from '@botharness/host-client/inbox';
 import { useMessageSearch, type MessageSearchHit } from '../../../src/host/message-search';
 import { hostLooks, useHostLook } from '../../../src/host/native-host-look';
 import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
@@ -49,7 +49,7 @@ import {
   computerEnvironmentKey,
   cloudEnvironmentKey,
 } from '../../../src/host/conversation-environments';
-import { shownHostName } from '../../../src/ui/design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
@@ -61,7 +61,7 @@ import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-
 import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
 import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
-import { recordFeature } from '../../../src/telemetry/features';
+import { recordFeature } from '@botharness/host-client/telemetry/features';
 import {
   chatsSearchResults,
   messageSearchResults,
@@ -93,7 +93,7 @@ type MessageItem = {
   conversation: Conversation;
 };
 type HomeItem = EnvironmentChatItem | { type: 'message-heading'; key: string } | MessageItem;
-import type { ConnectionState } from '../../../src/host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 
 const quickRetryMs = 2_000;

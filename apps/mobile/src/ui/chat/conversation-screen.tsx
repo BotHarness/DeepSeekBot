@@ -54,9 +54,12 @@ import {
   backgroundImageUri,
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
-import type { HostClient, RosterBot } from '../../host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { visibleDmActivity } from '../../host/dm-activity';
-import { latestTurnMessageId } from '../../host/session-failure';
+import {
+  collapseRepeatedFailures,
+  latestTurnMessageId,
+} from '@botharness/host-client/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
@@ -68,9 +71,9 @@ import {
   type ConversationMessage,
   type MessageAttachment,
   type MessageCard,
-} from '../../host/conversation';
-import type { Inbox } from '../../host/inbox';
-import type { WireAllBotPreview } from '../../host/wire';
+} from '@botharness/host-client/conversation';
+import type { Inbox } from '@botharness/host-client/inbox';
+import type { WireAllBotPreview } from '@botharness/host-protocol/wire';
 import { shareAttachment } from '../../host/share-attachment';
 import {
   MAX_PICKED,
@@ -97,7 +100,7 @@ import {
   loadApproval,
   loadQuestion,
   type RequestRef,
-} from '../../host/requests';
+} from '@botharness/host-client/requests';
 import { useDictation } from '../../host/speech';
 import { showDictationProblem } from './dictation-problem';
 import { botColor } from '../bot-color';
@@ -129,6 +132,7 @@ import {
   titleChipFill,
   useChatHeaderHeight,
 } from './header-chrome';
+import { humanInitial } from '../shell/human-avatar-initial';
 import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
@@ -164,7 +168,7 @@ import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
 import { GenuiInteraction, GenuiViewHost } from './genui-view-client';
-import type { GenuiDocumentReply } from '../../genui/document';
+import type { GenuiDocumentReply } from '@botharness/host-client/genui/document';
 import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import { MessageSourcePage } from './message-source-page';
@@ -180,9 +184,24 @@ import {
   type SelectedMention,
 } from './mention-draft';
 import { MentionSuggestions } from './mention-suggestions';
+import {
+  activeSkillQuery,
+  deleteSkillBackward,
+  rebaseSkills,
+  selectSkill,
+  skillMatches,
+  skillOptions,
+  submittedSkills,
+  type SelectedSkill,
+  type SkillOption,
+} from './skill-draft';
+import { SkillSuggestions } from './skill-suggestions';
+import { useSkillCatalog } from './use-skill-catalog';
 import { PlaybackBubble, replyable, type Speaker } from './message-bubble';
 import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
+import { useHostLook } from '../../host/native-host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
@@ -249,9 +268,11 @@ export function ConversationScreen({
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
   const identityBots = useIdentityBots(roster?.bots);
+  const hostLook = useHostLook(saved?.hostId);
   const identities = useMemo(
     () => ({
       bots: identityBots ?? [],
+      ...(saved ? { host: { name: shownHostName(hostLook, saved.hostName), look: hostLook } } : {}),
       openBot: (slug: string) =>
         saved &&
         navigateChannel(navigation, {
@@ -259,7 +280,7 @@ export function ConversationScreen({
           params: { slug, hostId: saved.hostId },
         }),
     }),
-    [identityBots, navigation, saved],
+    [identityBots, hostLook, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -477,11 +498,18 @@ function ChatConversation({
   const hiddenActivity = useHiddenDmActivity(saved?.hostId, slug);
   const channelId = dm ? undefined : place.channelId;
   const bot = dm ? host.roster?.bots.find((entry) => entry.slug === slug) : undefined;
-  const channel = dm ? undefined : host.roster?.channels.find((entry) => entry.id === channelId);
+  const person = dm ? undefined : host.roster?.people?.find((entry) => entry.id === channelId);
+  const channel = dm
+    ? undefined
+    : (host.roster?.channels.find((entry) => entry.id === channelId) ?? person);
   const channelDetails = dm
     ? undefined
     : host.roster?.activityChannels?.find((entry) => entry.id === channelId);
-  const botDm = channelDetails?.type === 'dm' && channelDetails.botSlug === undefined;
+  const botDm =
+    person === undefined &&
+    channelDetails?.type === 'dm' &&
+    channelDetails.botSlug === undefined &&
+    (channelDetails.humanParticipants?.length ?? 0) === 0;
   const [lastChannelName, setLastChannelName] = useState({
     hostId: saved?.hostId,
     channelId,
@@ -558,12 +586,10 @@ function ChatConversation({
     }
   };
   const [mentions, setMentions] = useState<SelectedMention[]>([]);
+  const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
-  const [allPreview, setAllPreview] = useState<{
-    key: string;
-    preview: WireAllBotPreview;
-  }>();
+  const [allPreview, setAllPreview] = useState<{ key: string; preview: WireAllBotPreview }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
   const sentFiles = useRef<readonly PickedFile[] | undefined>(undefined);
   const [attachError, setAttachError] = useState(false);
@@ -587,10 +613,7 @@ function ChatConversation({
     select: selectSource,
     close: closeSource,
   } = useMessageSourceState(selectionScope, focused, snapshot.messages);
-  const [picked, setPicked] = useState<{
-    scope: string;
-    ids: readonly string[];
-  }>();
+  const [picked, setPicked] = useState<{ scope: string; ids: readonly string[] }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
   const [replying, setReplying] = useState<{ scope: string; message: ConversationMessage }>();
   const replyTarget = replying?.scope === selectionScope ? replying.message : undefined;
@@ -657,10 +680,7 @@ function ChatConversation({
     },
     [android],
   );
-  const focusIntent = useRef<{
-    request: string | undefined;
-    message: string | undefined;
-  }>({
+  const focusIntent = useRef<{ request: string | undefined; message: string | undefined }>({
     request: undefined,
     message: undefined,
   });
@@ -680,8 +700,16 @@ function ChatConversation({
 
   const visible = useMemo(() => {
     const shown = snapshot.messages.filter(shownInChat);
-    return dm ? visibleDmActivity(shown, hiddenActivity) : shown;
-  }, [snapshot.messages, dm, hiddenActivity]);
+    return collapseRepeatedFailures(
+      dm ? visibleDmActivity(shown, hiddenActivity) : shown,
+      (message) => ({ bot: message.bot, failure: message.sessionFailure }),
+      (message, repeated) => ({
+        ...message,
+        sessionFailure: { ...message.sessionFailure!, repeated },
+      }),
+      (message) => message.id === focus,
+    );
+  }, [snapshot.messages, dm, hiddenActivity, focus]);
   const latestMessageId = latestTurnMessageId(snapshot.messages);
   const chronological = useMemo(
     () =>
@@ -966,6 +994,12 @@ function ChatConversation({
   }, [focused, focus, focusRequest, jump]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
+  const skillCatalog = useSkillCatalog(client, activeChannel);
+  const skillQuery = skillCatalog.length === 0 ? undefined : activeSkillQuery(draft, caret, skills);
+  const skillChoices = skillMatches(
+    skillOptions(skillCatalog, host.roster?.bots ?? []),
+    skillQuery,
+  );
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);
   const candidates = mentionCandidates(members, mentionQuery, mentions, {
     label: t.mentionAll,
@@ -982,7 +1016,14 @@ function ChatConversation({
       .catch(() => undefined);
   };
 
-  const edit = (next: string) => {
+  const edit = (typed: string) => {
+    const atomic = deleteSkillBackward(draft, typed, skills);
+    const next = atomic?.value ?? typed;
+    setSkills(atomic?.skills ?? rebaseSkills(draft, next, skills));
+    if (atomic !== undefined) {
+      setCaret(atomic.caret);
+      setSelection({ start: atomic.caret, end: atomic.caret });
+    }
     setMentions((current) => rebaseMentions(draft, next, current));
     setDraft(next);
     if (!dm && next.includes('@')) loadAllPreview();
@@ -997,6 +1038,16 @@ function ChatConversation({
     setSelection({ start: chosen.caret, end: chosen.caret });
   };
 
+  const chooseSkill = (option: SkillOption) => {
+    if (skillQuery === undefined) return;
+    const chosen = selectSkill(draft, skills, skillQuery, option);
+    setMentions((current) => rebaseMentions(draft, chosen.value, current));
+    setDraft(chosen.value);
+    setSkills(chosen.skills);
+    setCaret(chosen.caret);
+    setSelection({ start: chosen.caret, end: chosen.caret });
+  };
+
   const send = () => {
     if (host.connection.status !== 'connected') return;
     if (!draftPersistence.loaded || draftPersistence.failed) return;
@@ -1004,14 +1055,17 @@ function ChatConversation({
     const submitted = submittedMessage(live, mentions);
     const body = submitted.body;
     const attached = files === sentFiles.current ? [] : files;
-    const tags =
-      replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
+    const invoked = submittedSkills(live, skills);
+    const tagged =
+      invoked.length === 0 ? submitted.tags : { ...submitted.tags, skillInvocations: invoked };
+    const tags = replyTarget === undefined ? tagged : { ...tagged, replyTo: replyTarget.id };
     if ((body === '' && attached.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
     draftPersistence.take(live);
     sentFiles.current = files;
     setMentions([]);
+    setSkills([]);
     setFiles([]);
     setReplying(undefined);
     const flight = latest.send(sendJumpPreferences.getSnapshot().enabled) ? launchFly() : undefined;
@@ -1155,6 +1209,23 @@ function ChatConversation({
     }),
     [roster, botName, groupOf],
   );
+  const personFallback = person?.name;
+  const personSpeaker = useCallback(
+    (
+      message: ConversationMessage,
+      row: { key: string; first: boolean; last: boolean },
+    ): Speaker | undefined =>
+      message.person === undefined
+        ? undefined
+        : {
+            name: message.person.name || personFallback || t.reply.member,
+            bot: undefined,
+            group: groupOf.get(row.key) ?? row.key,
+            first: row.first,
+            last: row.last,
+          },
+    [personFallback, groupOf, t],
+  );
 
   const nativeRows = nativeChatRecycler;
   const nativeRow = useCallback(
@@ -1167,11 +1238,15 @@ function ChatConversation({
             latest: newestMessageId,
             reading,
             speaker:
-              !dm && row.kind === 'message' && row.message.bot !== undefined
-                ? { name: botName(row.message.bot) }
-                : undefined,
+              dm || row.kind !== 'message'
+                ? undefined
+                : row.message.bot !== undefined
+                  ? { name: botName(row.message.bot) }
+                  : row.message.person !== undefined
+                    ? { name: personSpeaker(row.message, row)?.name ?? '' }
+                    : undefined,
           }),
-    [dm, selected, newestMessageId, reading, botName],
+    [dm, selected, newestMessageId, reading, botName, personSpeaker],
   );
   const speakerRow = useCallback(
     (row: Row): SpeakerRowSlot | undefined => {
@@ -1179,7 +1254,11 @@ function ChatConversation({
       const group = groupOf.get(row.key) ?? row.key;
       if (row.kind === 'draft')
         return { key: row.key, group, first: true, name: true, bottom: space.x2 };
-      if (row.kind !== 'message' || row.message.bot === undefined) return undefined;
+      if (
+        row.kind !== 'message' ||
+        (row.message.bot === undefined && row.message.person === undefined)
+      )
+        return undefined;
       const message = row.message;
       if (
         message.activity !== undefined ||
@@ -1201,6 +1280,11 @@ function ChatConversation({
   const speakerAvatar = useCallback(
     (group: string) => {
       const row = rows.find((entry) => (groupOf.get(entry.key) ?? entry.key) === group);
+      const human =
+        row?.kind === 'message'
+          ? personSpeaker(row.message, { key: group, first: true, last: true })
+          : undefined;
+      if (human !== undefined) return <SpeakerAvatar speaker={human} />;
       const slug =
         row?.kind === 'message'
           ? row.message.bot
@@ -1211,7 +1295,7 @@ function ChatConversation({
         <SpeakerAvatar speaker={speakerOf(slug, { key: group, first: true, last: true })} />
       );
     },
-    [rows, groupOf, speakerOf],
+    [rows, groupOf, speakerOf, personSpeaker],
   );
   const nativeStyle = useMemo(
     () =>
@@ -1445,7 +1529,11 @@ function ChatConversation({
           bots={roster?.bots}
           botName={botName}
           speaker={
-            !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
+            dm
+              ? undefined
+              : item.message.bot !== undefined
+                ? speakerOf(item.message.bot, item)
+                : personSpeaker(item.message, item)
           }
         />,
       );
@@ -1477,6 +1565,7 @@ function ChatConversation({
       online,
       botName,
       speakerOf,
+      personSpeaker,
       roster,
       botDm,
       router,
@@ -1583,7 +1672,12 @@ function ChatConversation({
   useLayoutEffect(() => {
     paging?.setActivity(profileActivity);
   }, [paging?.setActivity, profileActivity]);
-  const canSwipeProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const canSwipeProfile =
+    saved !== undefined &&
+    !hostRefused &&
+    !missing &&
+    selected === undefined &&
+    person === undefined;
   useLayoutEffect(() => {
     paging?.setEnabled(canSwipeProfile);
   }, [paging?.setEnabled, canSwipeProfile]);
@@ -1616,6 +1710,7 @@ function ChatConversation({
   ) : (
     <ChannelTitle
       channel={channel}
+      person={person !== undefined}
       bots={members}
       sessions={runningSessionCount(members)}
       connectionLabel={connectionLabel}
@@ -1623,7 +1718,12 @@ function ChatConversation({
       onPress={openProfile}
     />
   );
-  const canOpenProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const canOpenProfile =
+    saved !== undefined &&
+    !hostRefused &&
+    !missing &&
+    selected === undefined &&
+    person === undefined;
   const placeCall = useBotCall(
     canOpenProfile && dm && bot !== undefined ? client : undefined,
     slug,
@@ -1699,16 +1799,7 @@ function ChatConversation({
       />
     ) : null;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
-  const titleItem = (
-    <View
-      style={{
-        width: titleWidth,
-        maxWidth: titleWidth,
-      }}
-    >
-      {title}
-    </View>
-  );
+  const titleItem = <View style={{ width: titleWidth, maxWidth: titleWidth }}>{title}</View>;
   const notice = missingGroup
     ? undefined
     : hostRefused
@@ -1937,7 +2028,7 @@ function ChatConversation({
           <EndSheet
             open={profileOpen}
             active={focused}
-            enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
+            enabled={canOpenProfile}
             fullWidth
             onOpening={prepareProfile}
             onOpenChange={(open) => {
@@ -2029,7 +2120,9 @@ function ChatConversation({
                                 onRetry={() => void retryDraft()}
                               />
                             ) : null}
-                            {candidates.length > 0 ? (
+                            {skillChoices.length > 0 ? (
+                              <SkillSuggestions options={skillChoices} onChoose={chooseSkill} />
+                            ) : candidates.length > 0 ? (
                               <MentionSuggestions candidates={candidates} onChoose={mention} />
                             ) : clipboard.offered ? (
                               <ClipboardImageOffer
@@ -2260,7 +2353,9 @@ function ChatConversation({
                                       tone="muted"
                                       style={{ textAlign: 'center', padding: space.x5 }}
                                     >
-                                      {dm ? t.beginning : t.beginningChannel}
+                                      {dm || person !== undefined
+                                        ? t.beginning
+                                        : t.beginningChannel}
                                     </Text>
                                   ) : undefined,
                               }}
@@ -2359,7 +2454,8 @@ function ChatConversation({
                       : (channel?.name ?? channelName ?? t.groupInfo)
                 }
                 bot={dm ? bot : undefined}
-                avatar={channel?.avatar}
+                avatar={person === undefined ? channel?.avatar : undefined}
+                initial={person === undefined ? undefined : (humanInitial(person.name) ?? '#')}
                 subtitle={headerStatus.label}
                 activeBots={headerStatus.bots}
                 connectionLabel={connectionLabel}

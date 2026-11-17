@@ -4,10 +4,18 @@ Explain the user problem in one sentence / 用一句话说明要解决的问题�
 
 Issue / Discussion: write `Closes #N` as plain text when this PR delivers the feature or fixes the bug, even if release or device QA is still pending (open a separate issue for the remaining QA); use `Refs #N` only when part of the issue is still unbuilt. GitHub only closes the issue when the PR merges into `main`: once a stacked PR's parent is in `main`, retarget it to `main` before merging, or close the issue by hand after the work reaches `main` / 做完功能或修好 bug 就写 `Closes #N`（纯文本，不要写在链接里），不必等发版或真机验收，剩余验收另开 issue；只有 issue 还有未实现的部分才用 `Refs #N`。GitHub 只在合进 `main` 时关闭 issue：叠放 PR 等父 PR 进 `main` 后改回 `main` 再合，否则等工作进入 `main` 后手动关。
 
+## Harness / Model
+
+List every agent runner and model that wrote code, comma-separated; leave both empty for a hand-written change. A bot turns them into `harness:` and `model:` labels / 列出写代码用到的所有 agent 工具和模型，逗号分隔；纯手写留空。机器人会据此打标签。
+
+Harness:
+Model:
+
 ## Special things to note
 
 - Merge risk: reversibility, blast radius and review focus / 回退方式、影响范围与评审重点。
 - Verification: list exact checks and results; distinguish automated tests, runtime, visual evidence and Human QA. State what was not run / 列真实验证及缺口。
+- Fix PRs: name the test that fails without the fix and passes with it (CI checks this), or write `No regression test: <why>` / 修 bug 的 PR 写明哪个测试在去掉修复后失败、加上后通过（CI 会验证），确实无法自动测试时写 `No regression test: <原因>`。
 - CI test plan: the mode the `plan tests` job chose (affected / full / none). If this PR adds a config file, a test directory or a test that reads repo files, name the `scripts/ci-plan.mjs` rule it updated / 写明 CI 选测模式；新增配置、测试目录或读仓库文件的测试时，写明改了哪条规则。
 
 ## Change outline

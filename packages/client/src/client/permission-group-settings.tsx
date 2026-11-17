@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import { Button, Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
@@ -551,7 +552,10 @@ export function GroupDialog({
           value={bindingId}
           fallbackValue=""
           disabled={busy || !!group}
-          options={bindings.map((binding) => ({ value: binding.id, label: binding.name }))}
+          options={bindings.map((binding) => ({
+            value: binding.id,
+            label: binding.name,
+          }))}
           onSelect={(id) => {
             setBindingId(id);
             setMembers([]);

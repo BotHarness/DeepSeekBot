@@ -1,5 +1,15 @@
 # Assignment Report continuation
 
+## Sources
+
+- `packages/core/src/runtime/{assignment-report,assignment-report-reader}.ts`
+
+## Terms
+
+- Assignment Report
+- Source Event
+- Content Purge
+
 ## Sub-features
 
 - Initial read selects the latest accepted Report Source Event and returns its identity.

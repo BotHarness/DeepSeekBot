@@ -12,6 +12,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type TestMenuItem = { id: string; label?: ReactNode; disabled?: boolean; submenu?: TestMenuItem[] };
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
+vi.mock('../src/client/ds/switch.js', async () => ({
+  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const flatten = (items: TestMenuItem[]): TestMenuItem[] =>

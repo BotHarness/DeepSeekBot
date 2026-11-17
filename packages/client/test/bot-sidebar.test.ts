@@ -5,9 +5,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
-const environmentProbe = vi.hoisted((): { snapshot: RemoteHostsSnapshot } => ({
-  snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
-}));
+const environmentProbe = vi.hoisted(
+  (): { snapshot: RemoteHostsSnapshot; dock?: boolean | undefined } => ({
+    snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
+  }),
+);
 vi.mock('../src/client/host-tabs.js', async (original) => ({
   ...(await original<typeof import('../src/client/host-tabs.js')>()),
   useRemoteHosts: () => environmentProbe.snapshot,
@@ -15,7 +17,7 @@ vi.mock('../src/client/host-tabs.js', async (original) => ({
 
 vi.mock('../src/client/channel-dock.js', async (original) => ({
   ...(await original<typeof import('../src/client/channel-dock.js')>()),
-  useChannelDockActive: () => environmentProbe.snapshot.hosts.length > 0,
+  useChannelDockActive: () => environmentProbe.dock ?? environmentProbe.snapshot.hosts.length > 0,
 }));
 
 const captured = vi.hoisted(() => ({
@@ -77,6 +79,12 @@ vi.mock('../src/client/ds/pointer-menu.js', () => ({
   },
 }));
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const icon = (name: string) => (props: { className?: string }) =>
@@ -134,7 +142,7 @@ import { createQuickSwitcherLauncher } from '../src/client/quick-switcher-launch
 import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
-import { PINNED_SORT_SCOPE_ID } from '../src/bot-mode-settings.js';
+import { PINNED_SORT_SCOPE_ID } from '@botharness/host-client/shared/bot-mode-settings';
 import { zh, zhTranslate } from '../src/client/locale.js';
 import { formatChannelListTime } from '../src/client/channel-row-status.js';
 import type { RosterConfig } from '../src/client/roster-config.js';
@@ -669,6 +677,8 @@ let prefs: BotModePrefsSnapshot = {
   sendKey: 'enter' as const,
   autoCollapseMessages: false,
   showDeliveryReceipts: false,
+  showDmAvatar: false,
+  showOwnAvatar: false,
   streamReplies: false,
   autoAcceptGroupInvites: true,
   assignmentConcurrencyLimit: 3,
@@ -726,6 +736,7 @@ function menuWithItem(id: string): {
 beforeEach(() => {
   captured.dock = false;
   environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'local' };
+  environmentProbe.dock = undefined;
   captured.menus.length = 0;
   store.setMode('dsh');
   store.setQuery('');
@@ -745,6 +756,8 @@ beforeEach(() => {
     sendKey: 'enter' as const,
     autoCollapseMessages: false,
     showDeliveryReceipts: false,
+    showDmAvatar: false,
+    showOwnAvatar: false,
     streamReplies: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
@@ -781,6 +794,8 @@ describe('bot sidebar rows', () => {
       vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
       Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
       captured.dock = true;
+      environmentProbe.dock = true;
+      environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'all' };
       const remote = vi
         .spyOn(hostTabs, 'useRemoteHosts')
         .mockReturnValue({ hosts: [], avatars: new Map(), tab: 'all' });
@@ -806,6 +821,10 @@ describe('bot sidebar rows', () => {
           ),
         );
         expect(host.querySelector('.bh-section-name')?.textContent).toContain('工作流');
+        expect(host.querySelector('[data-environment-channel]')).toBeNull();
+        expect(
+          host.querySelector('[data-section-id="s1"] [data-channel-id="c-section"]'),
+        ).not.toBeNull();
         expect(host.querySelector('.bh-pin-zone')).not.toBeNull();
         expect(host.querySelector('[data-channel-id="c-section"]')?.getAttribute('draggable')).toBe(
           'true',
@@ -1765,6 +1784,8 @@ describe('bot sidebar rows', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
@@ -1824,6 +1845,8 @@ describe('bot sidebar rows', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
@@ -1920,6 +1943,8 @@ describe('bot sidebar rows', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
@@ -1942,6 +1967,8 @@ describe('bot sidebar rows', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
@@ -1980,6 +2007,8 @@ describe('bot sidebar rows', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
@@ -2003,6 +2032,8 @@ describe('bot sidebar rows', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,

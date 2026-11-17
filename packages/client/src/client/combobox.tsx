@@ -1,3 +1,4 @@
+import { Input } from './ds/input.js';
 import { useAnchoredPanel } from './anchored-panel.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
@@ -5,7 +6,6 @@ import { createPortal } from 'react-dom';
 import {
   IconChevronDownOutlineRegular,
   IconPlusOutlineRegular,
-  Input,
   MenuSurface,
   useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -26,31 +26,30 @@ export const COMBOBOX_CSS = `
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
   border: 0; border-radius: ${radius.sm}; padding: 0;
-  color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer;
+  color: var(--tobs-ink-secondary); background: transparent; cursor: pointer;
 }
-.bh-combobox-toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.bh-combobox-toggle:hover { background: var(--tobs-state-hover); }
 .bh-combobox-toggle:disabled { opacity: 0.5; cursor: default; }
 .bh-combobox-list {
   position: fixed; z-index: 1100; box-sizing: border-box;
-  background: var(--dsw-alias-bg-base);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+  background: var(--tobs-layer-canvas);
+  box-shadow: var(--tobs-elevation-2);
 }
 .bh-combobox-scroll > button {
   display: flex; align-items: baseline; justify-content: space-between; gap: ${space.x4};
   width: 100%; min-height: 34px; padding: ${space.x2} ${space.x3};
   border: 0; border-radius: ${radius.sm}; background: transparent;
-  color: var(--dsw-alias-label-primary); text-align: left; font: inherit; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; cursor: pointer;
+  color: var(--tobs-ink-primary); text-align: left; font: inherit; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; cursor: pointer;
   overflow-wrap: anywhere;
 }
 .bh-combobox-scroll > button[aria-selected="true"] { font-weight: ${text.strong}; }
-.bh-combobox-scroll > button:disabled { color: var(--dsw-alias-label-tertiary); cursor: default; }
+.bh-combobox-scroll > button:disabled { color: var(--tobs-ink-tertiary); cursor: default; }
 .bh-combobox-scroll > button:not(:disabled):hover, .bh-combobox-scroll > button[data-active] {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--tobs-state-hover);
 }
 .bh-combobox-scroll { max-height: 260px; overflow-y: auto; padding: ${space.x2}; box-sizing: border-box; }
-.bh-combobox-hint { flex: none; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; font-weight: ${text.regular}; }
-.bh-combobox-empty { padding: ${space.x2} ${space.x3}; color: var(--dsw-alias-label-secondary); font-size: ${text.bodySize}; }
+.bh-combobox-hint { flex: none; color: var(--tobs-ink-secondary); font-size: ${text.metaSize}; font-weight: ${text.regular}; }
+.bh-combobox-empty { padding: ${space.x2} ${space.x3}; color: var(--tobs-ink-secondary); font-size: ${text.bodySize}; }
 .bh-combobox-scroll > .bh-combobox-action { justify-content: flex-start; align-items: center; gap: ${space.x2}; border-top: ${border.hairline} solid ${color.divider}; border-radius: 0; margin-top: ${space.x2}; }
 `;
 
@@ -117,7 +116,14 @@ export function Combobox({
   const shown =
     action === undefined
       ? choices
-      : [...choices, { value: actionValue, label: action.label, disabled: action.disabled }];
+      : [
+          ...choices,
+          {
+            value: actionValue,
+            label: action.label,
+            disabled: action.disabled,
+          },
+        ];
   const enabled = shown.filter((option) => option.disabled !== true);
   const hasPopup = shown.length > 0 || (choices.length === 0 && emptyLabel !== undefined);
   const highlighted = shown.findIndex(

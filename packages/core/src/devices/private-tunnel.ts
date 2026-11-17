@@ -16,7 +16,7 @@ import {
   type CloudflaredSource,
 } from './cloudflared.js';
 import { validTunnelToken, type SpawnTunnel, type TunnelProcess } from './connect.js';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { PrivateRelayAdmission } from './private-relay.js';
 import { isConnectZoneHost } from './routes.js';
 
@@ -245,7 +245,7 @@ export function createTunnelOrigin(options: {
 }
 
 const spawnTunnel: SpawnTunnel = (binary, args, env) =>
-  spawnProcess(binary, [...args], { env, stdio: ['ignore', 'ignore', 'pipe'] });
+  spawnProcess(binary, [...args], { windowsHide: true, env, stdio: ['ignore', 'ignore', 'pipe'] });
 
 export function systemTrustedCertificates(): string[] {
   try {

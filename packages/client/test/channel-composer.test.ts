@@ -8,6 +8,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { PersonaBotFacepileItem } from '../src/client/avatar.js';
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({
     children,
@@ -84,6 +87,7 @@ describe('Channel composer', () => {
     );
     expect(markup).toContain('bh-composer-replying');
     expect(markup).toContain('bh-composer-with-footer');
+    expect(markup).toContain('--bh-composer-padding:var(--bh-composer-footer-padding)');
     expect(markup).toContain('bh-composer-reply-copy');
     expect(markup).toContain('original text');
     expect(markup).toContain('bh-composer-reply-cancel');

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { createCatchUp } from '../src/host/catch-up';
 import { applyStoredChanges } from '../src/host/local-conversation-cache';
-import { openLocalStore, type LocalStore } from '../src/host/local-store';
+import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
 import { nodeSqlConnection } from './node-sql-connection';
 
 const stores: LocalStore[] = [];

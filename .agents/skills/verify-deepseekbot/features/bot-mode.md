@@ -2,6 +2,19 @@
 
 Bot mode swaps the native DSH session view for the BotHarness conversation view. On structurally qualified Web/macOS/Windows windows at least 961px wide it opens the [workspace](bot-mode-dock.md); other shells retain the original Bot mode sidebar fallback (ADR-0203). On the first entry into a fresh Profile, the product prepares protected Tob; its DM is a Channel list row. See [the protected Tob DM](tob-home.md) for the current first-run journey. Existing ordinary DeepSeek Bots and their welcome letters remain unchanged.
 
+## Sources
+
+- `packages/client/src/client/{bot-mode-prefs,bot-mode-setting-rows,bot-mode-sidebar,bot-mode-sidebar-viewport,pinned-panel-cards}.{ts,tsx}`
+- `packages/client/src/client/{onboarding,onboarding-checklist,onboarding-checklist-view,onboarding-view}.{ts,tsx}`
+- `packages/core/src/onboarding/*.ts`
+
+## Terms
+
+- Tob
+- Bot mode layout
+- Workspace Control Rail
+- Roster
+
 ## Sub-features
 
 - `enter` switches from the native view to Bot mode.

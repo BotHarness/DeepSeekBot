@@ -1,13 +1,13 @@
+import { Button } from './ds/button.js';
 import { useLayoutEffect, useRef, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { UpdateRun } from '../../../core/src/release/update-runs.js';
 import { StepProgress } from './ds/step-progress.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { failureReason } from './release-notes-view.js';
+import { font } from './ds/tobs.stylex.js';
 import {
   updateRunActive,
   type UpdateRunKind,
@@ -49,7 +49,12 @@ const styles = stylex.create({
   status: { margin: 0, color: color.muted, overflowWrap: 'anywhere' },
   failed: { color: color.danger },
   done: { color: color.success },
-  note: { margin: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  note: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   logLabel: {
     margin: 0,
     color: color.muted,
@@ -65,7 +70,7 @@ const styles = stylex.create({
     borderRadius: radius.sm,
     backgroundColor: color.surface,
     color: color.muted,
-    fontFamily: 'var(--dsw-font-family-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',

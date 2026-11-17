@@ -2,8 +2,8 @@ import type { NavigationAction, NavigationState, PartialState } from 'expo-route
 import type { Stack } from 'expo-router';
 import type { ComponentProps } from 'react';
 
-import type { RosterView } from '../../host/client';
-import type { ChatHref } from '../../host/push';
+import type { RosterView } from '@botharness/host-client/client';
+import type { ChatHref } from '@botharness/host-client/push';
 import { swipeEntryOptions } from './swipe-entry';
 
 export type ChannelLink = { channelId?: string; botSlug: string; messageId?: string };

@@ -1,5 +1,5 @@
-import type { PairingFailure } from '../host/pairing';
-import type { PairingMethod } from '../telemetry/schema';
+import type { PairingFailure } from '@botharness/host-client/pairing';
+import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
 import { t } from './strings';
 
 const LINK_FAULTS = new Set<PairingFailure>([

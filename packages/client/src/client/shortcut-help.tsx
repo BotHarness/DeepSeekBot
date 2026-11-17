@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -8,10 +9,10 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
-import type { BotModeSendKey } from '../bot-mode-settings.js';
+import type { BotModeSendKey } from '@botharness/host-client/shared/bot-mode-settings';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
 import { isApplePlatform, KeyCombo, shortcutKeyLabel, type ShortcutKey } from './ds/kbd.js';
 import { IconButton } from './ds/icon-button.js';
@@ -53,9 +54,21 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         keys: [['Alt', '1 … 0']],
         label: 'shortcuts.conversationIndex',
       },
-      { id: 'quick-switcher', action: 'quick-switcher', label: 'shortcuts.quickSwitcher' },
-      { id: 'conversation-prev', action: 'conversation-prev', label: 'shortcuts.conversationPrev' },
-      { id: 'conversation-next', action: 'conversation-next', label: 'shortcuts.conversationNext' },
+      {
+        id: 'quick-switcher',
+        action: 'quick-switcher',
+        label: 'shortcuts.quickSwitcher',
+      },
+      {
+        id: 'conversation-prev',
+        action: 'conversation-prev',
+        label: 'shortcuts.conversationPrev',
+      },
+      {
+        id: 'conversation-next',
+        action: 'conversation-next',
+        label: 'shortcuts.conversationNext',
+      },
       {
         id: 'unread-prev',
         action: 'unread-prev',
@@ -107,7 +120,11 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         label: 'shortcuts.approvalAllow',
         note: 'shortcuts.approval.note',
       },
-      { id: 'approval-reject', keys: [['N'], ['Esc']], label: 'shortcuts.approvalReject' },
+      {
+        id: 'approval-reject',
+        keys: [['N'], ['Esc']],
+        label: 'shortcuts.approvalReject',
+      },
       {
         id: 'approval-always',
         keys: [['A']],
@@ -216,10 +233,28 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: { default: color.divider, ':last-child': 'transparent' },
   },
-  label: { display: 'flex', flexDirection: 'column', minWidth: 0, margin: 0, color: color.fg },
-  note: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
-  problem: { color: color.danger, fontSize: text.metaSize, lineHeight: text.metaLine },
-  saved: { color: color.success, fontSize: text.metaSize, lineHeight: text.metaLine },
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+    margin: 0,
+    color: color.fg,
+  },
+  note: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  problem: {
+    color: color.danger,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  saved: {
+    color: color.success,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   keys: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -242,7 +277,9 @@ function problemText(
     const owner = SHORTCUT_HELP_GROUPS.flatMap((group) => group.entries).find(
       (entry) => entry.action === problem.action,
     );
-    return t('shortcuts.problem.conflict', { action: owner === undefined ? '' : t(owner.label) });
+    return t('shortcuts.problem.conflict', {
+      action: owner === undefined ? '' : t(owner.label),
+    });
   }
   if (problem.kind === 'reserved') return t('shortcuts.problem.reserved');
   return t('shortcuts.problem.needs-modifier', {
@@ -261,7 +298,10 @@ type RowStatus =
   | { readonly id: string; readonly kind: 'problem'; readonly text: string }
   | { readonly id: string; readonly kind: 'saved' };
 
-const staticBindings = { subscribe: () => () => {}, getSnapshot: () => undefined };
+const staticBindings = {
+  subscribe: () => () => {},
+  getSnapshot: () => undefined,
+};
 
 export function ShortcutHelpList({
   t,
@@ -334,7 +374,11 @@ export function ShortcutHelpList({
     setStatus(
       problem === undefined
         ? { id: entry.id, kind: 'saved' }
-        : { id: entry.id, kind: 'problem', text: problemText(problem, t, apple) },
+        : {
+            id: entry.id,
+            kind: 'problem',
+            text: problemText(problem, t, apple),
+          },
     );
     if (problem === undefined) setRecording(undefined);
   };
@@ -345,7 +389,11 @@ export function ShortcutHelpList({
     setStatus(
       problem === undefined
         ? { id: entry.id, kind: 'saved' }
-        : { id: entry.id, kind: 'problem', text: problemText(problem, t, apple) },
+        : {
+            id: entry.id,
+            kind: 'problem',
+            text: problemText(problem, t, apple),
+          },
     );
   };
   return (
@@ -418,7 +466,9 @@ export function ShortcutHelpList({
                           <IconButton
                             size="inline"
                             tone="subtle"
-                            aria-label={t('shortcuts.change.label', { action: t(entry.label) })}
+                            aria-label={t('shortcuts.change.label', {
+                              action: t(entry.label),
+                            })}
                             aria-disabled
                             data-shortcut-locked=""
                             xstyle={styles.locked}
@@ -449,7 +499,9 @@ export function ShortcutHelpList({
                           <Tooltip label={t('shortcuts.change')} side="top" align="end" portal>
                             <IconButton
                               size="inline"
-                              aria-label={t('shortcuts.change.label', { action: t(entry.label) })}
+                              aria-label={t('shortcuts.change.label', {
+                                action: t(entry.label),
+                              })}
                               onClick={() => {
                                 setStatus(undefined);
                                 setRecording(entry.id);

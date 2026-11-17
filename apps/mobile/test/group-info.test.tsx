@@ -99,7 +99,7 @@ vi.mock('../src/ui/chat/sheet', () => {
 });
 
 import type { ProfileAssignment } from '../src/host/bot-profile';
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import type { GroupActions, GroupInfo } from '../src/host/group-channel';
 import { GroupProfilePage, type GroupProfileProps } from '../src/ui/chat/group-info';
 import {

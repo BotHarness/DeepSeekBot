@@ -12,6 +12,7 @@ import { genuiRuntimeAssetsPlugin } from './scripts/genui-runtime-assets.mjs';
 const ROOT_DIR = fileURLToPath(new URL('.', import.meta.url));
 
 const CLIENT_ID = '@botharness/ui';
+const SHARED_HOST_PACKAGES = /^@botharness\/host-(?:client|protocol)(?:\/|$)/;
 
 const PLATFORM_MODULES = [
   /^react$/,
@@ -39,6 +40,7 @@ function clientBundle(id: string, entry: string[], outDir: string): UserConfig {
     clean: true,
     sourcemap: true,
     external: PLATFORM_MODULES,
+    deps: { alwaysBundle: [SHARED_HOST_PACKAGES] },
     plugins: [
       {
         name: 'botharness:vfile-browser-imports',
@@ -124,7 +126,7 @@ export const coreCliBundleOptions: UserConfig = {
   dts: false,
   clean: true,
   external: ['@resvg/resvg-js', 'silk-wasm', 'opus-decoder', 'css-tree', 'sharp'],
-  deps: { alwaysBundle: [/^@deepseek-ai\//] },
+  deps: { alwaysBundle: [/^@deepseek-ai\//, SHARED_HOST_PACKAGES] },
 };
 
 function sourceBuildStamp(): { revision: string; dirty: boolean } | null {
@@ -223,7 +225,7 @@ export default defineConfig([
     platform: 'node',
     dts: true,
     clean: true,
-    noExternal: [/^pele(?:\/|$)/],
+    deps: { alwaysBundle: [/^pele(?:\/|$)/, SHARED_HOST_PACKAGES] },
     external: [
       '@resvg/resvg-js',
       'silk-wasm',

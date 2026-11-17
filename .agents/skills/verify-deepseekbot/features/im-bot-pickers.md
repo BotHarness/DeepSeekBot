@@ -1,5 +1,16 @@
 # Live IM Bot pickers
 
+## Sources
+
+- `packages/client/src/client/im-apps-section.tsx`
+- `packages/core/src/bots/cli-im-authorization.ts`
+
+## Terms
+
+- Binding
+- App
+- Bot state
+
 ## Sub-features
 
 - IM app creation and binding offer only live, unpaused Bots.

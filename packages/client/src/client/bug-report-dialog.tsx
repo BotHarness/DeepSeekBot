@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import { useId, useRef, useState, type DragEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
-  Button,
   Checkbox,
   IconCheckCircleOutlineRegular,
   IconCloseOutlineRegular,
@@ -40,9 +40,15 @@ import { Select } from './ds/select.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
-  section: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   label: { color: color.fg, fontWeight: text.strong },
   drop: {
     display: 'flex',
@@ -64,9 +70,17 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
     outlineOffset: '2px',
   },
-  dropOver: { borderColor: color.accent, backgroundColor: color.accentTint, color: color.fg },
+  dropOver: {
+    borderColor: color.accent,
+    backgroundColor: color.accentTint,
+    color: color.fg,
+  },
   dropTitle: { color: color.fg, fontWeight: text.strong },
-  meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  meta: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   files: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
@@ -100,7 +114,12 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     fontWeight: text.strong,
   },
-  fileMeta: { display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 },
+  fileMeta: {
+    display: 'flex',
+    flexDirection: 'column',
+    flexGrow: 1,
+    minWidth: 0,
+  },
   fileName: {
     overflow: 'hidden',
     color: color.fg,
@@ -129,7 +148,11 @@ const styles = stylex.create({
     borderRadius: radius.xs,
     backgroundColor: color.surface,
   },
-  fill: { height: '100%', borderRadius: radius.xs, backgroundColor: color.accent },
+  fill: {
+    height: '100%',
+    borderRadius: radius.xs,
+    backgroundColor: color.accent,
+  },
   fillOver: { backgroundColor: color.danger },
   meterRow: {
     display: 'flex',
@@ -140,7 +163,11 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     fontVariantNumeric: 'tabular-nums',
   },
-  error: { color: color.danger, fontSize: text.metaSize, lineHeight: text.metaLine },
+  error: {
+    color: color.danger,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   logs: {
     display: 'flex',
     flexDirection: 'column',
@@ -150,7 +177,12 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: color.surface,
   },
-  logRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 },
+  logRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x3,
+  },
   privacy: {
     display: 'flex',
     gap: space.x2,
@@ -170,7 +202,7 @@ const styles = stylex.create({
   },
   doneIcon: { display: 'inline-flex', color: color.success },
   mono: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     overflowWrap: 'anywhere',
   },
@@ -212,8 +244,17 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     cursor: 'pointer',
   },
-  captureRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 },
-  status: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  captureRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x3,
+  },
+  status: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
 });
 
 function saveBlob(blob: Blob, name: string) {
@@ -396,7 +437,10 @@ export function BugReportDialog({
   const copyEntry = async (entry: BugReportFile) => {
     try {
       await copyImage(entry.file);
-      setShot((value) => ({ ...value, notice: { text: t('bugReport.copied'), tone: 'info' } }));
+      setShot((value) => ({
+        ...value,
+        notice: { text: t('bugReport.copied'), tone: 'info' },
+      }));
     } catch {
       setShot((value) => ({
         ...value,
@@ -697,8 +741,12 @@ export function BugReportDialog({
                 {entry.preview === undefined ? null : (
                   <button
                     type="button"
-                    aria-label={t('bugReport.annotateFile', { name: entry.file.name })}
-                    title={t('bugReport.annotateFile', { name: entry.file.name })}
+                    aria-label={t('bugReport.annotateFile', {
+                      name: entry.file.name,
+                    })}
+                    title={t('bugReport.annotateFile', {
+                      name: entry.file.name,
+                    })}
                     data-bug-report-annotate={entry.file.name}
                     onClick={() => editEntry(entry)}
                     {...stylex.props(styles.remove)}
@@ -722,7 +770,9 @@ export function BugReportDialog({
           <div {...stylex.props(styles.bar)}>
             <div
               {...stylex.props(styles.fill, tooLarge && styles.fillOver)}
-              style={{ width: `${Math.min(100, (bytes / BUG_REPORT_MAX_BYTES) * 100)}%` }}
+              style={{
+                width: `${Math.min(100, (bytes / BUG_REPORT_MAX_BYTES) * 100)}%`,
+              }}
             />
           </div>
           <div {...stylex.props(styles.meterRow)}>

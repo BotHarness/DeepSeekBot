@@ -1,4 +1,4 @@
-import type { EmailCodeFlow, EmailCodeOutcome } from './connect-account';
+import type { EmailCodeFlow, EmailCodeOutcome } from '@botharness/host-client/connect-account';
 
 interface Pending {
   flow: EmailCodeFlow;

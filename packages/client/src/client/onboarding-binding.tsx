@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { selectConversationChannel, useClientFields, useClientStore } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { ExternalIdentityList } from './external-identity-list.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -53,7 +53,14 @@ function BindingDialog({
           await refresh();
         }}
         channels={[
-          ...(dm ? [{ id: dm.id, name: t('bridge.dmTarget', { name: botName(slug) }) }] : []),
+          ...(dm
+            ? [
+                {
+                  id: dm.id,
+                  name: t('bridge.dmTarget', { name: botName(slug) }),
+                },
+              ]
+            : []),
           ...(snapshot?.channelTargets ?? []),
         ]}
         botName={botName}

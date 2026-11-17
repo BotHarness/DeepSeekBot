@@ -1,5 +1,16 @@
 # Default Bot Browser lifecycle
 
+## Sources
+
+- `packages/browser/src/runtime/**`
+- `scripts/browser-lifecycle-report.mjs`
+
+## Terms
+
+- Bot Browser
+- Bot Tab
+- Browser Pause
+
 ## Sub-features
 
 Behavior `desktop.browser.open-observe-stop`: desktop Web + live CLI, English/dark,

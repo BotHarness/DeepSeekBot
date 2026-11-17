@@ -1,6 +1,8 @@
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import { useId, useState, type CSSProperties, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import * as stylex from '@stylexjs/stylex';
+import { color, space, radius, text } from './ds/tokens.stylex.js';
 import {
   IconChevronRightOutlineRegular,
   IconCloseOutlineRegular,
@@ -51,11 +53,22 @@ export function DmComposerUsagePopover({
         const rect = trigger.current?.getBoundingClientRect();
         if (rect === undefined) return;
         const width = Math.min(360, window.innerWidth - 32);
-        setPosition({
-          width,
-          left: Math.max(16, Math.min(rect.right - width, window.innerWidth - width - 16)),
-          bottom: Math.max(8, window.innerHeight - rect.top + 8),
-        });
+        const left = Math.max(16, Math.min(rect.right - width, window.innerWidth - width - 16));
+        setPosition(
+          rect.top < window.innerHeight / 2
+            ? {
+                width,
+                left: Math.max(16, Math.min(rect.left, window.innerWidth - width - 16)),
+                top: rect.bottom + 8,
+                maxHeight: `min(70vh, 480px, ${String(Math.max(0, window.innerHeight - rect.bottom - 24))}px)`,
+              }
+            : {
+                width,
+                left,
+                bottom: Math.max(8, window.innerHeight - rect.top + 8),
+                maxHeight: `min(70vh, 480px, ${String(Math.max(0, rect.top - 24))}px)`,
+              },
+        );
       };
       place();
       node.focus();
@@ -178,6 +191,9 @@ export function DmComposerUsagePopover({
                 )}
               </strong>
             </div>
+            {context.sources === undefined || context.sources.length === 0 ? null : (
+              <ContextSources sources={context.sources} total={context.usedTokens ?? 0} t={t} />
+            )}
             <p className="bh-composer-usage-caption">{t('composerContext.contextHint')}</p>
           </>
         )}
@@ -312,5 +328,139 @@ function UsageAction({
       <ChannelSidebarIcon name={icon} />
       <span>{children}</span>
     </button>
+  );
+}
+
+type ContextSourceRow = NonNullable<
+  Awaited<ReturnType<BridgeActions['botContext']>>['sources']
+>[number];
+
+const SOURCE_LABELS = {
+  system: 'composerContext.source.system',
+  tools: 'composerContext.source.tools',
+  human: 'composerContext.source.human',
+  'inbox-mention': 'composerContext.source.inbox-mention',
+  'inbox-schedule': 'composerContext.source.inbox-schedule',
+  'inbox-memory': 'composerContext.source.inbox-memory',
+  'inbox-assignment': 'composerContext.source.inbox-assignment',
+  host: 'composerContext.source.host',
+  skills: 'composerContext.source.skills',
+  attachments: 'composerContext.source.attachments',
+  replies: 'composerContext.source.replies',
+  thinking: 'composerContext.source.thinking',
+  'tool-use': 'composerContext.source.tool-use',
+  summary: 'composerContext.source.summary',
+  other: 'composerContext.source.other',
+} as const satisfies Record<ContextSourceRow['source'], Parameters<BotHarnessTranslate>[0]>;
+
+const TOOL_ROWS = 5;
+
+const sourceStyles = stylex.create({
+  list: { marginTop: space.x3 },
+  bar: {
+    display: 'flex',
+    gap: space.x1,
+    height: space.x3,
+    marginBottom: space.x3,
+    overflow: 'hidden',
+    borderRadius: radius.xs,
+  },
+  segment: { minWidth: space.x1, flexBasis: 0 },
+  swatch: {
+    display: 'inline-block',
+    width: space.x3,
+    height: space.x3,
+    marginInlineEnd: space.x2,
+    borderRadius: radius.xs,
+    verticalAlign: 'middle',
+  },
+  toolRow: {
+    display: 'flex',
+    gap: space.x3,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBlock: space.x1,
+    paddingInlineStart: space.x5,
+    fontSize: text.metaSize,
+    color: color.muted,
+  },
+  system: { backgroundColor: color.muted },
+  quiet: { backgroundColor: color.subtle },
+  human: { backgroundColor: color.accent },
+  inbox: { backgroundColor: color.warning },
+  bot: { backgroundColor: color.accentText, opacity: 0.55 },
+  tool_use: { backgroundColor: color.success },
+});
+
+function sourceTone(source: ContextSourceRow['source']) {
+  if (source === 'system') return sourceStyles.system;
+  if (source === 'human') return sourceStyles.human;
+  if (source.startsWith('inbox-')) return sourceStyles.inbox;
+  if (source === 'replies' || source === 'thinking') return sourceStyles.bot;
+  if (source === 'tool-use') return sourceStyles.tool_use;
+  return sourceStyles.quiet;
+}
+
+function ContextSources({
+  sources,
+  total,
+  t,
+}: {
+  sources: readonly ContextSourceRow[];
+  total: number;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const sum = Math.max(
+    1,
+    total,
+    sources.reduce((value, row) => value + row.tokens, 0),
+  );
+  const share = (tokens: number) => {
+    const percent = (tokens / sum) * 100;
+    return percent < 1 ? '<1%' : `${String(Math.round(percent))}%`;
+  };
+  const rows = [...sources].sort((a, b) => b.tokens - a.tokens);
+  return (
+    <div data-context-sources="" {...stylex.props(sourceStyles.list)}>
+      <h3>{t('composerContext.sources')}</h3>
+      <div aria-hidden="true" {...stylex.props(sourceStyles.bar)}>
+        {rows.map((row) => (
+          <span
+            key={row.source}
+            data-source={row.source}
+            {...stylex.props(sourceStyles.segment, sourceTone(row.source))}
+            style={{ flexGrow: row.tokens }}
+          />
+        ))}
+      </div>
+      {rows.map((row) => (
+        <div key={row.source}>
+          <div className="bh-composer-usage-row" data-context-source={row.source}>
+            <span>
+              <i
+                aria-hidden="true"
+                {...stylex.props(sourceStyles.swatch, sourceTone(row.source))}
+              />
+              {t(SOURCE_LABELS[row.source])}
+            </span>
+            <strong>
+              {compactTokenCount(row.tokens)} · {share(row.tokens)}
+            </strong>
+          </div>
+          {row.tools === undefined
+            ? null
+            : row.tools.slice(0, TOOL_ROWS).map((tool) => (
+                <div
+                  key={tool.name}
+                  data-context-tool={tool.name}
+                  {...stylex.props(sourceStyles.toolRow)}
+                >
+                  <span>{tool.name}</span>
+                  <strong>{compactTokenCount(tool.tokens)}</strong>
+                </div>
+              ))}
+        </div>
+      ))}
+    </div>
   );
 }

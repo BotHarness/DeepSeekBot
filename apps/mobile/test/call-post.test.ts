@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCallPost } from '../src/host/call-post';
-import { createHostClient, type HostClient } from '../src/host/client';
-import type { HostResponse } from '../src/host/carrier';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import type { HostResponse } from '@botharness/host-protocol/carrier';
 
 let client: HostClient | undefined;
 afterEach(() => {

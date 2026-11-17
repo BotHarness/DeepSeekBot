@@ -2,7 +2,7 @@
 import { act, createElement, type CSSProperties, type ReactNode, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { CreationSnapshot } from '../src/host/bot-creation';
+import type { CreationSnapshot } from '@botharness/host-client/bot-creation';
 
 const fixture = vi.hoisted(() => ({
   path: '/',

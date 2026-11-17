@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import { MessageBotDialog } from './message-bot-dialog.js';
 import { BotCreateSourceModal } from './bot-create-source.js';
 import { MEMBER_MENU_ITEMS, menuItemAllowed } from './team-menu.js';
-import { PublicChannelsDialog } from './public-channels-dialog.js';
 import { isHumanDmChannel } from './channel-kind.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
 import { useTeamMode } from './team-state.js';
@@ -51,7 +51,6 @@ import {
 import { createPortal } from 'react-dom';
 
 import {
-  Button,
   IconAgentPresetOutlineRegular,
   IconCheckOutlineRegular,
   IconChevronDownOutlineRegular,
@@ -83,7 +82,7 @@ import {
   isBotModeSortMode,
   PINNED_SORT_SCOPE_ID,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import type { BridgeActions } from './actions.js';
 import type { WindowCompanions } from './window-companions.js';
 import {
@@ -1057,7 +1056,6 @@ type CreateRequest =
     }
   | { kind: 'channel'; sectionId?: string }
   | { kind: 'marketplace' }
-  | { kind: 'public-channels' }
   | { kind: 'message-person' }
   | { kind: 'message-bot' };
 
@@ -1220,7 +1218,10 @@ export function BotSidebar({
   const [unpinZoneArmed, setUnpinZoneArmed] = useState(false);
   const [unpinZoneHovered, setUnpinZoneHovered] = useState(false);
   const [createRequest, setCreateRequest] = useState<CreateRequest | undefined>(undefined);
-  const [remoteSectionsHost, setRemoteSectionsHost] = useState<{ id: string; name: string }>();
+  const [remoteSectionsHost, setRemoteSectionsHost] = useState<{
+    id: string;
+    name: string;
+  }>();
   const createFromWelcome = useMountedResource<HTMLSpanElement>(
     () =>
       onCreationRequest((intent) =>
@@ -1360,7 +1361,7 @@ export function BotSidebar({
     if (query.length > 0) return blocks.filter((block) => block.channels.length > 0);
     return blocks;
   })();
-  const showSource = hostTabs && remoteHostsState.tab === ALL_HOSTS;
+  const showSource = hostTabs && !member && remoteHostsState.tab === ALL_HOSTS;
   const environmentChannels = showSource
     ? mixedEnvironmentChannels([...pinnedChannels, ...channels], remoteHostsState.hosts, query)
     : [];
@@ -1606,11 +1607,13 @@ export function BotSidebar({
       );
       if (member) setCreateRequest({ kind: 'section' });
       else if (hostTabs && remote)
-        setRemoteSectionsHost({ id: remote.host.hostId, name: remote.host.hostName });
+        setRemoteSectionsHost({
+          id: remote.host.hostId,
+          name: remote.host.hostName,
+        });
       else if (!hostTabs || remoteHostsState.tab === 'local') setCreateRequest({ kind: 'section' });
     }
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
-    if (id === 'public-channels') setCreateRequest({ kind: 'public-channels' });
     if (id === 'message-person') setCreateRequest({ kind: 'message-person' });
     if (id === 'message-bot') setCreateRequest({ kind: 'message-bot' });
   };
@@ -2067,7 +2070,10 @@ export function BotSidebar({
     const callbacks: RowCallbacks<ChannelMenuRequest> = {
       onActivate: (event) => activateChannel(channel, event),
       onMenu: (request) =>
-        openChannelMenu({ ...request, pinnedView: allPinnedChannelSet.has(channel.id) }),
+        openChannelMenu({
+          ...request,
+          pinnedView: allPinnedChannelSet.has(channel.id),
+        }),
       onPinDragStart: pinDragStart,
       onPinDragEnd: endPinDrag,
       drag,
@@ -2508,13 +2514,6 @@ export function BotSidebar({
         <PanelEmptyState icon="hash">
           {t('team.firstRun.empty')}
           <span className="bh-empty-actions">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setCreateRequest({ kind: 'public-channels' })}
-            >
-              {t('team.firstRun.browse')}
-            </Button>
             {menuItemAllowed('message-person', teamMode.viewer) ? (
               <Button
                 variant="outline"
@@ -3125,7 +3124,10 @@ export function BotSidebar({
                           onSelect={(id) => {
                             setSectionCreateMenuId(undefined);
                             if (id === 'bot')
-                              setCreateRequest({ kind: 'bot-source', sectionId: section.id });
+                              setCreateRequest({
+                                kind: 'bot-source',
+                                sectionId: section.id,
+                              });
                             const source = botCreateSource(id);
                             if (source !== undefined) {
                               setCreateRequest({
@@ -3233,20 +3235,6 @@ export function BotSidebar({
           }}
         />
       ) : null}
-      {createRequest?.kind === 'public-channels' && actions.teamCall !== undefined ? (
-        <PublicChannelsDialog
-          call={actions.teamCall}
-          t={t}
-          onClose={() => {
-            setCreateRequest(undefined);
-          }}
-          onJoined={(channelId) => {
-            setCreateRequest(undefined);
-            openLocalConversation();
-            void actions.refreshRoster().then(() => actions.openChannel(channelId));
-          }}
-        />
-      ) : null}
       {renameTarget !== undefined ? (
         <SectionRenameModal
           t={t}
@@ -3303,7 +3291,9 @@ export function BotSidebar({
                   search: quickSwitcherSettings.search,
                   open: (result) => {
                     setQuickSwitcherOpen(false);
-                    actions.telemetryEvent('search:result_open', { kind: 'setting' });
+                    actions.telemetryEvent('search:result_open', {
+                      kind: 'setting',
+                    });
                     quickSwitcherSettings.open(result);
                   },
                 }
@@ -3311,7 +3301,10 @@ export function BotSidebar({
           messages={
             actions.searchMessages === undefined
               ? undefined
-              : { search: actions.searchMessages, open: openQuickSwitcherMessage }
+              : {
+                  search: actions.searchMessages,
+                  open: openQuickSwitcherMessage,
+                }
           }
           bots={botBySlug}
           activityOf={(bot) => personaBotActivity(state, bot)}
@@ -4191,15 +4184,6 @@ function menuItems(
       label: t('roster.menu.createChannel'),
       icon: <IconNewChatOutlineRegular size={16} />,
     },
-    ...(team
-      ? [
-          {
-            id: 'public-channels',
-            label: t('team.channels.browse'),
-            icon: <ChannelSidebarIcon name="hash" size={16} />,
-          },
-        ]
-      : []),
     ...(people
       ? [
           {

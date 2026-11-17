@@ -1,6 +1,8 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { errorMessage } from './bridge.js';
@@ -11,7 +13,10 @@ import { SidebarCardRow } from './sidebar-card.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, StandingLimitsView } from './store.js';
 
-export const DEFAULT_STANDING_LIMITS: StandingLimitsView = { soul: 5000, coreMemory: 3000 };
+export const DEFAULT_STANDING_LIMITS: StandingLimitsView = {
+  soul: 5000,
+  coreMemory: 3000,
+};
 export const MIN_STANDING_LIMIT = 500;
 export const MAX_STANDING_LIMIT = 50_000;
 const CHARACTERS_PER_ENGLISH_WORD = 6;
@@ -164,7 +169,10 @@ export function StandingLimitsRow({
       });
       setOverride({
         base: bot.standingLimits,
-        value: updated.standingLimits ?? { soul: soulLimit, coreMemory: coreMemoryLimit },
+        value: updated.standingLimits ?? {
+          soul: soulLimit,
+          coreMemory: coreMemoryLimit,
+        },
       });
       setOpen(false);
     } catch (cause) {

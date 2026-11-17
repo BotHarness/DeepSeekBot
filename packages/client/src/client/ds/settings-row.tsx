@@ -1,12 +1,21 @@
 import { useId, type ReactElement, type ReactNode, type Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import { style } from './tobs.stylex.js';
+import { InfoTip } from './info-tip.js';
+import { surfaceStyles } from './surface.js';
 import { border, color, space, text } from './tokens.stylex.js';
 
 const NARROW = '@media (max-width: 648px)';
 const COMPACT = '@container bh-settings (max-width: 480px)';
 
 const styles = stylex.create({
+  titleLine: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x2,
+    minWidth: 0,
+  },
   rows: {
     display: 'flex',
     flexDirection: 'column',
@@ -18,29 +27,72 @@ const styles = stylex.create({
     minWidth: 0,
     paddingTop: { default: space.x5, ':first-child': 0 },
   },
+  portaled: { paddingTop: space.x5 },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: style.listGap,
+    minWidth: 0,
+    paddingInline: {
+      default: style.listGroupPaddingInline,
+      ':has(> section)': 0,
+    },
+    paddingBlock: {
+      default: style.listGroupPaddingBlock,
+      ':has(> section)': 0,
+    },
+    borderRadius: { default: style.listGroupRadius, ':has(> section)': 0 },
+    backgroundColor: {
+      default: style.listGroupFill,
+      ':has(> section)': 'transparent',
+    },
+    boxShadow: {
+      default: `0 0 0 0.5px ${style.listGroupEdge}`,
+      ':has(> section)': 'none',
+    },
+  },
   sectionHead: {
     display: 'flex',
     flexDirection: 'column',
     gap: space.x1,
-    paddingBottom: space.x2,
+    paddingBottom: space.x3,
+    paddingInline: `calc(${style.listGroupPaddingInline} + ${style.listItemPadding})`,
   },
   sectionTitle: {
     margin: 0,
-    color: color.muted,
+    color: style.textSectionTitle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     fontWeight: text.strong,
   },
   row: {
     display: 'flex',
-    alignItems: { default: 'center', [NARROW]: 'stretch', [COMPACT]: 'stretch' },
+    alignItems: {
+      default: 'center',
+      [NARROW]: 'stretch',
+      [COMPACT]: 'stretch',
+    },
     flexDirection: { default: 'row', [NARROW]: 'column', [COMPACT]: 'column' },
     gap: { default: space.x4, [NARROW]: space.x3, [COMPACT]: space.x3 },
     minWidth: 0,
-    paddingBlock: space.x4,
+    minHeight: style.rowList,
+    boxSizing: 'border-box',
+    paddingBlock: style.listItemPaddingBlock,
+    paddingInline: style.listItemPadding,
+    borderTopLeftRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
+    borderTopRightRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
+    borderBottomLeftRadius: { default: style.listItemRadius, ':last-child': style.listGroupRadius },
+    borderBottomRightRadius: {
+      default: style.listItemRadius,
+      ':last-child': style.listGroupRadius,
+    },
+    backgroundColor: style.listItemFill,
     borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: { default: color.divider, ':last-child': 'transparent' },
+    borderBottomColor: {
+      default: style.listSeparator,
+      ':last-of-type': 'transparent',
+    },
   },
   text: {
     display: 'flex',
@@ -53,13 +105,13 @@ const styles = stylex.create({
   },
   title: {
     color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    fontWeight: text.regular,
     overflowWrap: 'anywhere',
   },
   description: {
-    color: color.muted,
+    color: color.subtle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
@@ -68,7 +120,11 @@ const styles = stylex.create({
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: { default: 'flex-end', [NARROW]: 'flex-start', [COMPACT]: 'flex-start' },
+    justifyContent: {
+      default: 'flex-end',
+      [NARROW]: 'flex-start',
+      [COMPACT]: 'flex-start',
+    },
     gap: space.x3,
     flexShrink: 0,
     minWidth: 0,
@@ -91,7 +147,7 @@ export function SettingsRows({
   readonly rootRef?: Ref<HTMLDivElement> | undefined;
 }): ReactElement {
   return (
-    <div ref={rootRef} {...stylex.props(styles.rows)}>
+    <div ref={rootRef} {...stylex.props(styles.rows, styles.group, surfaceStyles.card)}>
       {children}
     </div>
   );
@@ -100,19 +156,27 @@ export function SettingsRows({
 export interface SettingsSectionProps {
   readonly title?: ReactNode;
   readonly description?: ReactNode;
+  readonly portaled?: boolean;
+  readonly rootRef?: Ref<HTMLElement> | undefined;
+  readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
   readonly children: ReactNode;
 }
 
 export function SettingsSection({
   title,
   description,
+  portaled = false,
+  rootRef,
+  data,
   children,
 }: SettingsSectionProps): ReactElement {
   const id = useId();
   return (
     <section
+      ref={rootRef}
+      {...data}
       aria-labelledby={title === undefined ? undefined : `${id}-title`}
-      {...stylex.props(styles.section)}
+      {...stylex.props(styles.section, portaled && styles.portaled)}
     >
       {title === undefined ? null : (
         <div {...stylex.props(styles.sectionHead)}>
@@ -124,7 +188,7 @@ export function SettingsSection({
           )}
         </div>
       )}
-      {children}
+      <div {...stylex.props(styles.group, surfaceStyles.card)}>{children}</div>
     </section>
   );
 }
@@ -132,6 +196,7 @@ export function SettingsSection({
 export interface SettingsRowProps {
   readonly title: ReactNode;
   readonly description?: ReactNode;
+  readonly info?: { readonly label: string; readonly text: string } | undefined;
   readonly control?: ReactNode;
   readonly children?: ReactNode;
   readonly rootRef?: Ref<HTMLDivElement> | undefined;
@@ -141,6 +206,7 @@ export interface SettingsRowProps {
 export function SettingsRow({
   title,
   description,
+  info,
   control,
   children,
   rootRef,
@@ -159,8 +225,11 @@ export function SettingsRow({
       {...stylex.props(styles.row)}
     >
       <div {...stylex.props(styles.text)}>
-        <div id={titleId} {...stylex.props(styles.title)}>
-          {title}
+        <div {...stylex.props(styles.titleLine)}>
+          <div id={titleId} {...stylex.props(styles.title)}>
+            {title}
+          </div>
+          {info === undefined ? null : <InfoTip label={info.label} text={info.text} />}
         </div>
         {description === undefined ? null : (
           <div id={descriptionId} {...stylex.props(styles.description)}>

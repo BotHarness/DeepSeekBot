@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { compactTokenCount, weekdayLabel } from '../../host/usage-days';
-import { usageWeek, type OverviewUsage } from '../../host/usage';
+import { usageWeek, type OverviewUsage } from '@botharness/host-client/usage';
 import { useDesignTheme } from '../design/theme';
 import { chart } from '../design/chart';
 import type { LayerName } from '../design/layers';

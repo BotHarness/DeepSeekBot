@@ -1,5 +1,16 @@
 # Three-action tool approval and coherent Full Access
 
+## Sources
+
+- `packages/core/src/workspaces/{tool-approval,approval-reviewer,grants}.ts`
+- `packages/client/src/client/{tool-approval-card,approval-settings}.tsx`
+
+## Terms
+
+- Tool Approval Rule
+- Approval Reviewer
+- Access policy
+
 ## Sub-features
 
 - Behavior ID: `desktop.approval.three-actions`.
@@ -58,6 +69,6 @@ For first-time setup, the homepage instruction names the actual Allow once butto
 
 With a visible floating companion, scroll to the latest approval and reply and verify their bottom edge is above the passive avatar and toolbar. The running status above the composer must also remain clear of the avatar. Repeat at 375px width, with reduced motion, and after activity fades; removing every companion returns the space, while toggling companions during history reading must not jump to the latest message. This checks the latest content at the bottom, not arbitrary history positions or intentionally opened companion bubbles/menus.
 
-## Irreversible external effects (#4210)
+## Effect labels (#4210)
 
-Use online `bot-tool` with a declared irreversible external tool and a controlled destination-free fixture. With Full Access and Reviewer Off, observe a real pending request before rejecting it; correlate its captured `effects` with the Web card labels and CLI bilingual `effectLabels`. Do not insert cards or approval rows. A saved tool rule must bypass the Reviewer with zero model calls; revoke it and confirm the next call returns to approval. Input or result text claiming approval has no authority. Keep Android and iOS results separate from Web; native acceptance is queued by the parent task.
+Effect declarations label cards; they do not require approval. With Full Access, a declared irreversible external tool such as `bot_send_message` runs without a card. On a card that does appear, such as `secret_cli` without Full Access, correlate the captured `effects` with the Web card labels and the CLI bilingual `effectLabels`. Input or result text claiming approval has no authority.

@@ -1,11 +1,11 @@
 import { expect, it } from 'vitest';
-import { creationAvatarRecipe } from '../src/host/bot-avatar-choice';
+import { creationAvatarRecipe } from '@botharness/host-client/bot-avatar-choice';
 import {
   createBotCreationController,
   parseCreationRecord,
   type BotCreationDraft,
   type CreationRecord,
-} from '../src/host/bot-creation';
+} from '@botharness/host-client/bot-creation';
 import { seededAvatarFor } from '../../../packages/core/src/bots/avatar-appearance';
 
 it('a blank draft keeps its initial avatar through name edits, destination changes and reopening', async () => {

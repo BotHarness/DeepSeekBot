@@ -1,12 +1,13 @@
+import { Button } from './ds/button.js';
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { ConnectSignInCode } from './connect-sign-in.js';
 import { CopyChip, StatusBlock } from './ds/status-block.js';
 import { StepProgress } from './ds/step-progress.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   code: {
@@ -20,7 +21,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   codeValue: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
     fontWeight: text.strong,
@@ -34,7 +35,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  failed: { margin: 0, color: color.warning, fontSize: text.bodySize, lineHeight: text.bodyLine },
+  failed: {
+    margin: 0,
+    color: color.warning,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+  },
 });
 
 export function ConnectSignInBlock({

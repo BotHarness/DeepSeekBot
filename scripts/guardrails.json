@@ -1,0 +1,156 @@
+{
+  "guardrails": [
+    {
+      "id": "floating-promise",
+      "layer": "L2 lint",
+      "rule": "typescript/no-floating-promises",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4297",
+      "fix": "await the promise, return it, end it with .catch(...) that records a Developer diagnostics log, or mark a deliberate fire-and-forget with `void`.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "bug-patterns",
+      "layer": "L2 lint",
+      "rules": [
+        "typescript/no-misused-promises",
+        "typescript/switch-exhaustiveness-check",
+        "typescript/only-throw-error",
+        "typescript/prefer-promise-reject-errors",
+        "typescript/no-implied-eval",
+        "typescript/no-unsafe-enum-comparison",
+        "eslint/preserve-caught-error",
+        "eslint/no-unsafe-finally",
+        "eslint/no-unsafe-optional-chaining",
+        "eslint/no-constant-condition",
+        "unicorn/require-post-message-target-origin"
+      ],
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "fix what the oxlint message names at its root: handle the promise, cover every union member, throw and reject Error objects with { cause }, keep control flow out of finally. Do not silence the rule.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "spawn-options",
+      "layer": "L2 lint",
+      "rule": "botharness/spawn-options",
+      "source": "AGENTS.md (Repo scripts: shell: false, windowsHide: true on every spawn)",
+      "fix": "call spawn/execFile with direct argv and an options object holding windowsHide: true (false only for a program whose window the user should see); never exec/execSync or shell: true.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "no-api-intercept",
+      "layer": "L2 lint",
+      "rule": "botharness/no-api-intercept",
+      "source": "AGENTS.md (dsh-dev: api-gateway owns the single /api interceptor)",
+      "fix": "register the route through the API gateway instead of connection.rpc.intercept('/api...').",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "package-no-console",
+      "layer": "L2 lint",
+      "rule": "eslint/no-console",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "in packages/*/src, report through the package's logger or a Developer diagnostics log instead of console.*.",
+      "check": "scripts/lint-ratchet.mjs",
+      "baseline": "scripts/lint-baseline.json"
+    },
+    {
+      "id": "pr-provenance",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893",
+      "fix": "write `Harness: <name>` and `Model: <id>` lines in the PR or issue description (several allowed, comma-separated), or add the harness:<name> and model:<id> labels.",
+      "check": "scripts/check-pr-provenance.mjs"
+    },
+    {
+      "id": "source-policy",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/pull/4329",
+      "fix": "delete the code comment and say it in the commit or PR instead; replace a React useEffect or whole client-store subscription as docs/agents/ui-state.md describes. The pre-commit hook checks staged files with node scripts/check-source-policy.mjs <files>.",
+      "check": "scripts/check-source-policy.mjs"
+    },
+    {
+      "id": "tobs-design-tokens",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4282",
+      "fix": "read a Tobs token from ds/tobs.stylex.ts and compose a ds/ component instead of a DSH --dsw-* variable, a DSH UI import or a styled raw control; when a use goes away, shrink the baseline with node scripts/check-design-tokens.mjs --write.",
+      "check": "scripts/check-design-tokens.mjs",
+      "baseline": "scripts/design-token-baseline.json"
+    },
+    {
+      "id": "tobs-token-outputs",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",
+      "fix": "edit the set files under design/tokens/ (wired by tobs.resolver.json) and run pnpm tokens; never edit ds/tobs-tokens.generated.ts or ds/tobs.stylex.ts by hand.",
+      "check": "scripts/generate-tokens.mjs"
+    },
+    {
+      "id": "regression-proof",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "a fix(...) PR adds or changes a vitest test that fails when the fix is removed and passes with it; run node scripts/check-regression-proof.mjs --base origin/main --title \"<PR title>\" locally. If no automated test can show the bug, write `No regression test: <why>` in the PR description.",
+      "check": "scripts/check-regression-proof.mjs"
+    },
+    {
+      "id": "pr-body",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "edit the PR description: `Closes #N` or `Refs #N` as plain text, a `Merge risk:` line (revert, blast radius, review focus) and a `Verification:` line (checks run, results, what was not run), as .github/pull_request_template.md asks.",
+      "check": "scripts/check-pr-body.mjs"
+    },
+    {
+      "id": "file-length",
+      "layer": "L1 health",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "keep a source file at or under 1000 lines: split it by responsibility into modules that each own one concern. Files already over 1000 are baselined; CI warns when a change makes one longer. After a file drops to 1000 lines or fewer, run node scripts/health.mjs --update.",
+      "check": "scripts/health.mjs",
+      "baseline": "scripts/health-baseline.json"
+    },
+    {
+      "id": "tsc-exclude",
+      "layer": "L1 health",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "make the file typecheck instead of adding it to the tsconfig.json exclude list; after removing an entry, run node scripts/health.mjs --update.",
+      "check": "scripts/health.mjs",
+      "baseline": "scripts/health-baseline.json"
+    },
+    {
+      "id": "agent-prose",
+      "layer": "L1 health",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "keep always-loaded agent prose (AGENTS.md, CLAUDE.md, apps/mobile/AGENTS.md) short: move a runbook into an on-demand doc or skill behind a one-line pointer, or turn the rule into a check. CI warns when a change makes them longer.",
+      "check": "scripts/health.mjs"
+    },
+    {
+      "id": "feature-sources",
+      "layer": "L4 feature map",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "give the feature file a \"## Sources\" list of globs for the code it covers and a \"## Terms\" list of GLOSSARY.md entries it uses; fix a glob that matches nothing or a term the glossary lacks; when a feature gets mapped, remove it from the baseline. Find the features a change touches with node scripts/feature-impact.mjs --base=origin/main.",
+      "check": "scripts/check-feature-map.mjs",
+      "baseline": "scripts/feature-map-baseline.json"
+    },
+    {
+      "id": "ai-review",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "answer each CodeRabbit pre-merge warning: fix the root cause instead of a symptom patch, update or supersede the ADR you contradict, reuse the existing module, use the GLOSSARY.md term, and name a verification run for each touched feature (node scripts/feature-impact.mjs --base=origin/main). The checks are advisory; a finding that recurs becomes an L2 rule.",
+      "check": ".coderabbit.yaml"
+    },
+    {
+      "id": "ui-monkey",
+      "layer": "L5 nightly",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "run the replay command from the failing run's JSON in nightly-evidence on a freshly launched Host, find the uncaught page error or blank shell at that step and fix its root cause. Skip a control only when it is destructive or leaves the Host.",
+      "check": ".github/workflows/health.yml"
+    },
+    {
+      "id": "perf-trend",
+      "layer": "L5 nightly",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "a metric more than 20% over its 7-night median raises a warning in the nightly summary: bisect the nights between with scripts/perf-idle-timeline.mjs (A/B protocol in the verify-deepseekbot performance guide) and fix the change that caused it.",
+      "check": "scripts/health-trend.mjs"
+    }
+  ]
+}

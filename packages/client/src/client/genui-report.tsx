@@ -1,3 +1,4 @@
+import { Input } from './ds/input.js';
 import {
   Component,
   useSyncExternalStore,
@@ -8,7 +9,6 @@ import {
   type ReactNode,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import {
   GENUI_LIMITS,
   type GenuiReport,
@@ -16,7 +16,7 @@ import {
   type GenuiViewState,
 } from '../../../core/src/channels/genui.js';
 import type { BridgeActions } from './actions.js';
-import { getGenuiPrivateView } from './genui-view.js';
+import { getGenuiPrivateView } from '@botharness/host-client/shared/genui-view';
 import type { BotHarnessTranslate } from './locale.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
@@ -30,7 +30,11 @@ const styles = stylex.create({
     fontWeight: text.strong,
     lineHeight: text.titleLine,
   },
-  meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  meta: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   metrics: { display: 'flex', flexWrap: 'wrap', gap: space.x5, margin: 0 },
   metric: { margin: 0, fontWeight: text.strong },
   scroll: { overflowX: 'auto', maxWidth: '100%' },
@@ -57,7 +61,13 @@ const styles = stylex.create({
     font: 'inherit',
     textAlign: 'start',
   },
-  chart: { display: 'grid', gap: space.x2, padding: 0, margin: 0, listStyle: 'none' },
+  chart: {
+    display: 'grid',
+    gap: space.x2,
+    padding: 0,
+    margin: 0,
+    listStyle: 'none',
+  },
   chartRow: { display: 'grid', gap: space.x1, overflowWrap: 'anywhere' },
   chartTrack: { display: 'block', position: 'relative', height: space.x3 },
   chartOrigin: {
@@ -185,7 +195,12 @@ function SnapshotReportCard({
     .map((row) => row.id);
   const chartAvailable = report.elements.some((element) => element.kind === 'bar-chart');
   const submissionFor = (intent: GenuiReply['intent']) => {
-    const reply: GenuiReply = { messageId, snapshotId: report.snapshotId, selectedIds, intent };
+    const reply: GenuiReply = {
+      messageId,
+      snapshotId: report.snapshotId,
+      selectedIds,
+      intent,
+    };
     const body = t(intent === 'continue' ? 'genui.continueBody' : 'genui.refreshBody', {
       title: report.title,
     });
@@ -305,7 +320,9 @@ function SnapshotReportCard({
                         aria-expanded={view.state.expandedId === row.id}
                         disabled={unavailable}
                         onClick={() =>
-                          update({ expandedId: view.state.expandedId === row.id ? null : row.id })
+                          update({
+                            expandedId: view.state.expandedId === row.id ? null : row.id,
+                          })
                         }
                         {...stylex.props(styles.sort)}
                       >

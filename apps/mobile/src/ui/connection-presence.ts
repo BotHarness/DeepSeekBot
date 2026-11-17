@@ -1,4 +1,4 @@
-import type { ConnectionState } from '../host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 
 export const CONNECTION_QUIET_MS = 4_000;
 export const CONNECTION_OFFLINE_MS = 15_000;

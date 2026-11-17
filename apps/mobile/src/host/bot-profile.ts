@@ -1,5 +1,10 @@
 import { loadProfileActivity } from './bot-activity';
-import { MethodRefused, type HostClient, type RosterChannel, type RosterView } from './client';
+import {
+  MethodRefused,
+  type HostClient,
+  type RosterChannel,
+  type RosterView,
+} from '@botharness/host-client/client';
 import type {
   BotScheduleSummary,
   MemoryFile,
@@ -7,7 +12,7 @@ import type {
   MemoryStanding,
   ProfileActivity,
   WorkspaceGrantSummary,
-} from './wire';
+} from '@botharness/host-protocol/wire';
 
 export type ProfilePart<T> =
   | { status: 'ready'; value: T; staleError?: string }

@@ -1,8 +1,8 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { useCallback, useSyncExternalStore } from 'react';
 
-import type { HostLook } from '../ui/design/host-look';
-import { createHostLooks } from './host-look';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
+import { createHostLooks } from '@botharness/host-client/host-look';
 
 const file = (): File => new File(Paths.document, 'deepseekbot-host-looks.json');
 

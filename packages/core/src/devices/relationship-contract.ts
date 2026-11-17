@@ -1,11 +1,7 @@
 import { z } from 'zod';
-import { CONNECT_HOSTNAME } from './connect-zones.js';
-import {
-  checkRoute,
-  isPrivateRoute,
-  hasPrivateOrigin,
-} from '../../../../apps/mobile/src/host/route.js';
-import type { PrivateAdmission } from '../../../../apps/mobile/src/host/hosts.js';
+import { CONNECT_HOSTNAME } from '@botharness/host-protocol/connect-zones';
+import { checkRoute, isPrivateRoute, hasPrivateOrigin } from '@botharness/host-protocol/route';
+import type { PrivateAdmission } from '@botharness/host-client/hosts';
 
 export function relationshipAdmissionForRoutes(
   admission: PrivateAdmission | undefined,

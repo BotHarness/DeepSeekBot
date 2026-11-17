@@ -1,8 +1,9 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { SegmentedControl } from './ds/segmented.js';
 import { BotCreateSteps } from './bot-create-source.js';
 import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-
-import { Button, Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage, type CreatedBot } from './bridge.js';
@@ -12,6 +13,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { TagEditor, tagsWithDraft } from './tag-editor.js';
+import { font } from './ds/tobs.stylex.js';
 
 export { normalizeRoleBadges } from './tag-editor.js';
 
@@ -68,7 +70,7 @@ const styles = stylex.create({
     borderRadius: radius.sm,
     backgroundColor: color.surface,
     color: color.fg,
-    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',
@@ -84,7 +86,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
   },
   detail: {
-    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    fontFamily: font.familyMono,
     overflowWrap: 'anywhere',
   },
   advanced: {
@@ -414,7 +416,10 @@ export function CreatePersonaBotModal({
             disabled={fieldsLocked}
             placeholder={t('bot.create.persona.placeholder')}
             onChange={(value) =>
-              setPersonaDrafts((current) => ({ ...current, [personaPreset]: value }))
+              setPersonaDrafts((current) => ({
+                ...current,
+                [personaPreset]: value,
+              }))
             }
           />
           <details data-create-advanced="" {...stylex.props(styles.advanced)}>

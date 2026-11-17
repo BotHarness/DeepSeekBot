@@ -1,5 +1,18 @@
 # Workspace request: approve read/write and continue the original file task
 
+## Sources
+
+- `packages/core/src/workspaces/grant-requests.ts`
+- `packages/core/src/channels/grant-request.ts`
+- `apps/mobile/src/ui/chat/grant-request-card.tsx`
+- `packages/client/src/client/workspace-grant-events.ts`
+
+## Terms
+
+- Workspace Grant
+- Workspace
+- Assignment
+
 ## Sub-features
 
 - Behavior ID: `desktop.grants.request-write-continue`.

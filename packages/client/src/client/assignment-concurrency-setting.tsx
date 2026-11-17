@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { isAssignmentConcurrencyLimit } from '../bot-mode-settings.js';
+import { isAssignmentConcurrencyLimit } from '@botharness/host-client/shared/bot-mode-settings';
 import { Note } from './ds/note.js';
 import { NumberStepper } from './ds/number-stepper.js';
 import { SettingsRow } from './ds/settings-row.js';
@@ -105,7 +105,8 @@ export function AssignmentConcurrencySetting({
     <SettingsRow
       rootRef={mount}
       title={t('assignmentLimit.title')}
-      description={t('assignmentLimit.description')}
+      description={t('assignmentLimit.summary')}
+      info={{ label: t('assignmentLimit.title'), text: t('assignmentLimit.description') }}
       control={stepper}
     >
       {notes}

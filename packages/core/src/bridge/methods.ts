@@ -568,6 +568,8 @@ export interface PersonaBotSummary {
   paused?: boolean;
   deleted?: boolean;
   approvalTemplate?: string;
+  uploadedListing?: string;
+  installedListing?: string;
   standingLimits: StandingLimits;
   aggregateState: AggregatedState;
   workspaces: string[];
@@ -2139,6 +2141,12 @@ function summarize(
     ...(record.browserAccess === undefined ? {} : { browserAccess: record.browserAccess }),
     ...(record.browserProfile === undefined ? {} : { browserProfile: record.browserProfile }),
     ...(record.approvalTemplate === undefined ? {} : { approvalTemplate: record.approvalTemplate }),
+    ...(record.marketplaceUpload === undefined
+      ? {}
+      : { uploadedListing: record.marketplaceUpload.id }),
+    ...(record.marketplaceListing === undefined
+      ? {}
+      : { installedListing: record.marketplaceListing.id }),
   };
 }
 
@@ -2523,7 +2531,14 @@ function buildBridgeMethods(
       deps.channels.getOrCreateDm(human, bot.slug, bot.displayName);
     if (deps.team) {
       const visible = deps.team.channelAccess.visibleIds(human);
-      return deps.channels.list().filter((channel) => visible.has(channel.id));
+      return deps.channels
+        .list()
+        .filter(
+          (channel) =>
+            visible.has(channel.id) &&
+            (channel.humanParticipants === undefined ||
+              deps.channels.latestMessage(channel.id) !== undefined),
+        );
     }
     return deps.channels
       .list()
@@ -5035,14 +5050,31 @@ function buildBridgeMethods(
       if (replaces !== undefined && (typeof replaces !== 'string' || replaces.trim().length === 0))
         return invalidInput('invalid replaces');
       const trimmedBio = bio.value?.trim();
-      return uploadResult(
-        await deps.marketplaceUploads.upload(slug, {
-          displayName: displayName.trim(),
-          ...(trimmedBio === undefined || trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
-          ...(tags === undefined ? {} : { tags: tags as string[] }),
-          ...(replaces === undefined ? {} : { replaces: replaces.trim() }),
-        }),
-      );
+      const uploaded = await deps.marketplaceUploads.upload(slug, {
+        displayName: displayName.trim(),
+        ...(trimmedBio === undefined || trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
+        ...(tags === undefined ? {} : { tags: tags as string[] }),
+        ...(replaces === undefined ? {} : { replaces: replaces.trim() }),
+      });
+      if (uploaded.ok) {
+        const { id, pushedAt } = uploaded.value.bot;
+        try {
+          deps.registry.setMarketplaceUpload(slug, { id, pushedAt });
+          for (const other of deps.registry.list())
+            if (other.slug !== slug && other.marketplaceUpload?.id === id)
+              deps.registry.setMarketplaceUpload(other.slug, undefined);
+        } catch (failure) {
+          deps.warn?.(
+            JSON.stringify({
+              module: 'marketplace',
+              initiator: 'client',
+              phase: 'upload-link-not-saved',
+              reason: failure instanceof Error ? failure.message : String(failure),
+            }),
+          );
+        }
+      }
+      return uploadResult(uploaded);
     },
     async marketplaceMine(payload) {
       if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
@@ -6089,11 +6121,11 @@ function buildBridgeMethods(
             message: 'Channel list changes are unavailable',
           },
         };
-      const listed = await listedChannels();
       const changed = deps.channels.readChangedChannels({
         sinceSeq: sinceSeq as number,
         ...(epoch === undefined ? {} : { epoch }),
       });
+      const listed = await listedChannels();
       if (changed.reset === true) return { ok: true, value: changed };
       const ids = new Set(changed.channelIds);
       const present = new Set(listed.map((channel) => channel.id));

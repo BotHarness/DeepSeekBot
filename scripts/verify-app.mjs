@@ -8,6 +8,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runMonkey } from './ui-monkey.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,6 +24,10 @@ Commands:
   observe                         Save Host health and browser-reported Client diagnostics as JSON.
   rpc <namespace/method> [json]   Call one authenticated /api method with JSON args.
   shot <label> [shot options]     Open the Web Client, act, then save a screenshot and ARIA snapshot.
+  monkey <label> [--seed <n>] [--steps <n>] [--bot-mode]
+                                  Click, type and press keys at random (seeded, destructive controls
+                                  skipped) and fail on an uncaught page error or a blank shell.
+                                  On a freshly launched Host, the same seed and steps replay the same choices.
   stop                            Stop the recorded Host and delete its temporary DSH_HOME.
 
 Shot options:
@@ -63,6 +68,8 @@ export function parseVerifyArgs(argv) {
     build: false,
     noAxModel: false,
     port: undefined,
+    seed: undefined,
+    steps: 100,
   };
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
@@ -92,6 +99,16 @@ export function parseVerifyArgs(argv) {
         break;
       case '--genui-preview-browser':
         options.genuiPreviewBrowser = value();
+        break;
+      case '--seed':
+        options.seed = Number(value());
+        if (!Number.isInteger(options.seed) || options.seed < 0)
+          throw new Error('--seed must be a non-negative integer');
+        break;
+      case '--steps':
+        options.steps = Number(value());
+        if (!Number.isInteger(options.steps) || options.steps < 1)
+          throw new Error('--steps must be a positive integer');
         break;
       case '--bot-mode':
         options.botMode = true;
@@ -395,10 +412,7 @@ function renderAria(node, depth = 0, lines = []) {
   return lines;
 }
 
-async function shot(options, paths) {
-  const [label] = options.positional;
-  if (!label || !/^[a-z0-9][a-z0-9-]*$/u.test(label))
-    throw new Error('shot needs a label of lowercase letters, digits and dashes');
+async function withClient(options, paths, label, work) {
   const instance = readInstance(paths);
   if (!alive(instance.pid))
     throw new Error('recorded Host is not running; run doctor, then launch');
@@ -450,6 +464,41 @@ async function shot(options, paths) {
     }
     if (options.theme === 'dark')
       await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', ''));
+    return await work({ page, instance, consoleLines, steps });
+  } catch (error) {
+    const failure = await saveFailure(page, paths, label, consoleLines);
+    throw new Error(`${error.message} after [${steps.join('; ')}]; see ${failure}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function saveFailure(page, paths, label, consoleLines) {
+  const failure = join(paths.evidence, `${label}.failure.png`);
+  await page?.screenshot({ path: failure, waitForFonts: false }).catch(() => undefined);
+  try {
+    const snapshot = await page?.accessibility
+      .snapshot({ interestingOnly: true })
+      .catch(() => null);
+    writeFileSync(
+      join(paths.evidence, `${label}.failure.aria.txt`),
+      `${renderAria(snapshot).join('\n')}\n`,
+    );
+    writeFileSync(join(paths.evidence, `${label}.console.txt`), consoleLines.join('\n'));
+  } catch {}
+  return failure;
+}
+
+const evidenceLabel = (options, command) => {
+  const [label] = options.positional;
+  if (!label || !/^[a-z0-9][a-z0-9-]*$/u.test(label))
+    throw new Error(`${command} needs a label of lowercase letters, digits and dashes`);
+  return label;
+};
+
+async function shot(options, paths) {
+  const label = evidenceLabel(options, 'shot');
+  return withClient(options, paths, label, async ({ page, consoleLines, steps }) => {
     for (const action of options.actions) {
       if (!options.keepOverlays) await dismissOverlays(page);
       if (action.kind === 'press') {
@@ -513,23 +562,49 @@ async function shot(options, paths) {
       console: log,
       consoleIssues: consoleLines.length,
     };
-  } catch (error) {
-    const failure = join(paths.evidence, `${label}.failure.png`);
-    await page?.screenshot({ path: failure, waitForFonts: false }).catch(() => undefined);
-    try {
-      const snapshot = await page?.accessibility
-        .snapshot({ interestingOnly: true })
-        .catch(() => null);
-      writeFileSync(
-        join(paths.evidence, `${label}.failure.aria.txt`),
-        `${renderAria(snapshot).join('\n')}\n`,
-      );
-      writeFileSync(join(paths.evidence, `${label}.console.txt`), consoleLines.join('\n'));
-    } catch {}
-    throw new Error(`${error.message} after [${steps.join('; ')}]; see ${failure}`);
-  } finally {
-    await browser.close();
-  }
+  });
+}
+
+export function monkeyReplay(options, label, seed, failedAt) {
+  return [
+    `node scripts/verify-app.mjs monkey ${label} --name ${options.name}`,
+    `--seed ${seed} --steps ${Math.max(1, failedAt ?? options.steps)}`,
+    `--locale ${options.locale} --theme ${options.theme} --size ${options.width}x${options.height}`,
+    ...(options.botMode ? ['--bot-mode'] : []),
+    ...(options.keepOverlays ? ['--keep-overlays'] : []),
+  ].join(' ');
+}
+
+async function monkey(options, paths) {
+  const label = evidenceLabel(options, 'monkey');
+  const seed = options.seed ?? Math.floor(Math.random() * 2 ** 31);
+  return withClient(options, paths, label, async ({ page, instance, consoleLines }) => {
+    const run = await runMonkey(page, {
+      seed,
+      steps: options.steps,
+      origin: new URL(instance.url).origin,
+      setupErrors: consoleLines
+        .filter((line) => line.startsWith('pageerror: '))
+        .map((line) => line.slice('pageerror: '.length)),
+    });
+    const screenshot = join(paths.evidence, `${label}.png`);
+    await page.screenshot({ path: screenshot, waitForFonts: false }).catch(() => undefined);
+    const report = join(paths.evidence, `${label}.monkey.json`);
+    const replay = monkeyReplay(options, label, seed, run.failedAt);
+    writeFileSync(report, `${JSON.stringify({ ...run, replay }, null, 2)}\n`);
+    return {
+      label,
+      ok: run.ok,
+      seed,
+      steps: run.steps,
+      failedAt: run.failedAt,
+      pageErrors: run.pageErrors.slice(0, 5),
+      consoleErrors: run.consoleErrors.length,
+      screenshot,
+      report,
+      replay,
+    };
+  });
 }
 
 async function stop(paths) {
@@ -572,6 +647,9 @@ async function main() {
     case 'shot':
       result = await shot(options, paths);
       break;
+    case 'monkey':
+      result = await monkey(options, paths);
+      break;
     case 'stop':
       result = await stop(paths);
       break;
@@ -580,7 +658,7 @@ async function main() {
       process.exit(options.command === undefined || options.command === '--help' ? 0 : 2);
   }
   console.log(JSON.stringify(result, null, 2));
-  if (options.command === 'doctor' && !result.ok) process.exit(1);
+  if (['doctor', 'monkey'].includes(options.command) && !result.ok) process.exit(1);
   if (options.command === 'observe') process.exitCode = result.exitCode;
 }
 

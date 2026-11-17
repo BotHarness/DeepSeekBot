@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import {
   useMemo,
   useRef,
@@ -33,7 +34,6 @@ import {
 } from '../../../core/src/bots/avatar-appearance.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
-  Button,
   IconEditOutlineRegular,
   IconSaveOutlineRegular,
   IconCloseOutlineRegular,
@@ -229,10 +229,21 @@ export function CustomPartEditor({
       return;
     }
     const fixed = tool === 'fill' || tool === 'noise' || tool === 'replace';
-    const current = { base: layers, future, from: point, points: [point], fixed };
+    const current = {
+      base: layers,
+      future,
+      from: point,
+      points: [point],
+      fixed,
+    };
     record();
     if (tool === 'noise') {
-      const state = { base: layers, seed: Math.random().toString(36).slice(2), layer, mirror };
+      const state = {
+        base: layers,
+        seed: Math.random().toString(36).slice(2),
+        layer,
+        mirror,
+      };
       setNoise(state);
       commit(noised(state, noiseAmount));
     } else commit(draw(current, point, false));
@@ -565,7 +576,9 @@ export function CustomPartEditor({
                   data-part-gradient-to={tone}
                   aria-label={`${t('profile.avatar.part.gradientTo')} ${tone}`}
                   aria-pressed={gradientTo === tone}
-                  style={{ background: inkColor(recipe, { color: ink.color, tone }) }}
+                  style={{
+                    background: inkColor(recipe, { color: ink.color, tone }),
+                  }}
                   onClick={() => setGradientTo(tone)}
                 />
               ))}
@@ -650,7 +663,12 @@ export function CustomPartEditor({
               className="bh-part-cursor"
               data-part-cursor={cursor.join(',')}
               aria-hidden="true"
-              style={{ left: cursor[0] * zoom, top: cursor[1] * zoom, width: zoom, height: zoom }}
+              style={{
+                left: cursor[0] * zoom,
+                top: cursor[1] * zoom,
+                width: zoom,
+                height: zoom,
+              }}
             />
           ) : null}
         </div>

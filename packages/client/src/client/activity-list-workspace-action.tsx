@@ -1,4 +1,4 @@
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
 import { GrantRequestCard } from './channel-message-body.js';

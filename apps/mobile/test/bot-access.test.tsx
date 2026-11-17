@@ -12,7 +12,7 @@ vi.mock('../src/ui/shell/icons', async () => ({
 vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 
 import { botAccess, setBotAccess } from '../src/host/bot-access';
-import type { HostClient, RosterBot } from '../src/host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { BotAccessScreen } from '../src/ui/chat/bot-access-screen';
 import { t } from '../src/ui/strings';
 

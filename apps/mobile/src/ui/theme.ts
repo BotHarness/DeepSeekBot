@@ -1,4 +1,4 @@
-import type { AggregatedState } from '../host/wire';
+import type { AggregatedState } from '@botharness/host-protocol/wire';
 import { useDesignTheme, type DesignTheme } from './design/theme';
 
 function legacy(color: DesignTheme['color']) {

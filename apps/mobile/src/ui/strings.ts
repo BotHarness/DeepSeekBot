@@ -1,13 +1,13 @@
 import { badgeCount } from './primitives/badge-count';
 import { productName } from './product-name';
 import { tapVerb } from './platform-copy';
-import type { DeviceRefusal } from '../host/client';
+import type { DeviceRefusal } from '@botharness/host-client/client';
 import { useSyncExternalStore } from 'react';
 import { interfacePreferences } from './interface-preferences';
-import type { PairingFailure } from '../host/pairing';
-import type { PushKind, PushRefusal } from '../host/push';
-import type { AggregatedState } from '../host/wire';
-import type { EmailCodeRefusal } from '../host/connect-account';
+import type { PairingFailure } from '@botharness/host-client/pairing';
+import type { PushKind, PushRefusal } from '@botharness/host-client/push';
+import type { AggregatedState } from '@botharness/host-protocol/wire';
+import type { EmailCodeRefusal } from '@botharness/host-client/connect-account';
 
 type ToolGroup = 'shell' | 'browser' | 'files' | 'other';
 
@@ -427,6 +427,17 @@ const en = {
     continueChanged: 'The Bot started a new session, so this turn cannot continue in the old one.',
     continueUnavailable: 'Nothing is left to continue in this turn.',
     continueFailed: 'Could not continue. Try again shortly.',
+    repeated: (count: number) => `Failed the same way ${count} times in a row`,
+    reasons: {
+      AUTH: 'API key is invalid',
+      MISSING_CREDENTIAL: 'API key is not configured',
+      INVALID_CREDENTIAL: 'API key configuration is invalid',
+      QUOTA: 'API balance is insufficient',
+      RATE_LIMIT: 'Too many requests',
+      TRANSPORT: 'Could not connect to the model provider',
+      TIMEOUT: 'Model provider timed out',
+      SERVER: 'Model provider is temporarily unavailable',
+    } as Record<string, string>,
     refused: {
       MEMORY_CWD_MISMATCH: [
         "The session's working directory is not this Bot's Memory directory",
@@ -1036,6 +1047,18 @@ const en = {
     loadFailed: 'Could not load your profile.',
     saveFailed: 'Could not save.',
     retry: 'Try again',
+    uploads: 'My uploaded Bots',
+    uploadsEmpty: 'You have not uploaded any Bots yet.',
+    uploadsFooter: 'To update a Bot, open My uploaded Bots in Tobs on your computer.',
+    uploadsMeta: (files: number, size: string, date: string) =>
+      `${files} files · ${size} · ${date}`,
+    uploadsBlocked: 'Taken down',
+    uploadsView: 'View in Marketplace',
+    uploadsDelete: 'Delete',
+    uploadsDeleteTitle: (name: string) => `Delete ${name}?`,
+    uploadsDeleteBody:
+      'Its files and install count are deleted for good. Copies people already installed stay.',
+    uploadsDeleteFailed: 'Could not delete. Try again.',
   },
   emailSignIn: {
     title: 'Sign in',
@@ -1130,6 +1153,55 @@ const en = {
     back: 'Back',
     step: (index: number, total: number) => `step ${index} of ${total}`,
   },
+  memberPairing: {
+    title: 'Pair another device',
+    hint: 'Scan this code with your other phone to sign it in as you. No password needed.',
+    qrLabel: 'Pairing code',
+    expires: 'Works once, until {time}.',
+    refresh: 'New code',
+    failed: 'Could not create a pairing code. Try again.',
+    signedInAs: 'Signed in as {name}',
+    pairAnother: 'Pair another device',
+    pairAnotherDetail: 'Use this account on another phone.',
+  },
+  teamSignIn: {
+    link: 'Invitation link',
+    linkHint:
+      'Paste the invitation link from your Host owner. The password is sent to you separately.',
+    continue: 'Continue',
+    title: 'Sign in to {host}',
+    as: 'As {username}',
+    password: 'One-time password',
+    passwordHint: 'Use the password your Host owner gave you.',
+    signIn: 'Sign in',
+    changeTitle: 'Choose a new password',
+    changeHint: 'Replace the one-time password before you continue.',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+    rule: 'At least {min} characters.',
+    switchTitle: 'Switch account on this Host?',
+    switchBody:
+      "This phone will sign in as {name}. The other account's chats and drafts on this phone are removed.",
+    switchConfirm: 'Switch',
+    errors: {
+      generic: 'Could not sign in. Try again.',
+      'invitation-invalid': 'This invitation link is not valid.',
+      'invitation-expired': 'This invitation has expired. Ask for a new one.',
+      'invitation-version-unsupported': 'Update the app to use this invitation.',
+      'credentials-invalid': 'Wrong password.',
+      'rate-limited': 'Too many attempts. Try again in {seconds} s.',
+      'insecure-transport':
+        'This Host cannot accept sign-in over this address. Ask for its HTTPS address.',
+      'team-mode-off': 'This Host does not accept member sign-in right now.',
+      'member-suspended': 'Your account is suspended. Ask the Host owner.',
+      'fingerprint-mismatch': 'This Host does not match the invitation. Do not sign in.',
+      'password-weak': 'Use at least 10 characters.',
+      'password-reused': 'Choose a password you have not used here.',
+      mismatch: 'Passwords do not match.',
+      unreachable: 'Could not reach the Host. Check the network and try again.',
+      'storage-failed': 'Could not save the sign-in on this phone. Try again.',
+    } as Record<string, string>,
+  },
   pairChoice: {
     private: 'Private connection',
     privateDetail: 'Recommended. No account or Docker needed.',
@@ -1147,6 +1219,8 @@ const en = {
     accountDetail: 'Pick a computer on your account.',
     lan: 'Use the same Wi-Fi',
     lanDetail: 'Scan a code. No account needed.',
+    team: 'Join with an invitation',
+    teamDetail: "Sign in as a member of someone else's Host.",
     tailscale: 'Use Tailscale',
     tailscaleDetail: 'Connect across networks.',
     tailscaleHint: 'Sign in to the same Tailscale account on both devices.',
@@ -1421,6 +1495,10 @@ const en = {
   mentionAllHint: (count: number) =>
     count === 1 ? 'Every member Bot (1)' : `Every member Bot (${count})`,
   mentionSuggestions: 'Mention a Bot',
+  skillSuggestions: 'Skills',
+  skillOwnerHost: 'Host',
+  skillOption: (name: string, owner: string) => `/${name}, ${owner}`,
+  skillChip: (name: string, owner: string) => `Skill /${name} from ${owner}`,
   openImage: (name: string) => `Open ${name}`,
   shareFile: (name: string) => `Download and share ${name}`,
   downloadAttachments: (count: number) => `Download attachments (${count})`,
@@ -1450,6 +1528,7 @@ const en = {
     to: (name: string) => `Replying to ${name}`,
     cancel: 'Cancel reply',
     you: 'You',
+    member: 'Member',
     unavailable: 'Original message unavailable',
     quote: (name: string, body: string) => `Reply to ${name}: ${body}`,
     jumpHint: 'Shows the original message',
@@ -2983,6 +3062,17 @@ const zh: typeof en = {
     continueChanged: 'Bot 已换了新会话，无法在原会话继续',
     continueUnavailable: '这一轮已经没有可继续的内容',
     continueFailed: '没能继续，请稍后再试',
+    repeated: (count: number) => `连续 ${count} 次同样失败`,
+    reasons: {
+      AUTH: 'API 密钥无效',
+      MISSING_CREDENTIAL: '尚未设置 API 密钥',
+      INVALID_CREDENTIAL: 'API 密钥配置无效',
+      QUOTA: 'API 余额不足',
+      RATE_LIMIT: '请求过于频繁',
+      TRANSPORT: '连接模型服务失败',
+      TIMEOUT: '模型服务响应超时',
+      SERVER: '模型服务暂时不可用',
+    },
     refused: {
       MEMORY_CWD_MISMATCH: [
         '会话的工作目录不是这个 Bot 的 Memory 目录',
@@ -3541,6 +3631,17 @@ const zh: typeof en = {
     loadFailed: '未能读取个人资料。',
     saveFailed: '未能保存。',
     retry: '重试',
+    uploads: '我上传的 Bot',
+    uploadsEmpty: '还没有上传过 Bot',
+    uploadsFooter: '要更新 Bot，请在电脑上的 Tobs 里打开「我上传的 Bot」。',
+    uploadsMeta: (files: number, size: string, date: string) =>
+      `${files} 个文件 · ${size} · ${date}`,
+    uploadsBlocked: '已下架',
+    uploadsView: '在市场中查看',
+    uploadsDelete: '删除',
+    uploadsDeleteTitle: (name: string) => `删除「${name}」？`,
+    uploadsDeleteBody: '文件和安装数一起删除，无法恢复。已安装的副本不受影响。',
+    uploadsDeleteFailed: '未能删除，请重试。',
   },
   emailSignIn: {
     title: '登录',
@@ -3635,6 +3736,52 @@ const zh: typeof en = {
     back: '上一步',
     step: (index: number, total: number) => `第 ${index} 步，共 ${total} 步`,
   },
+  memberPairing: {
+    title: '配对其他设备',
+    hint: '用你的另一台手机扫描此码，以你的身份登录，不需要密码。',
+    qrLabel: '配对码',
+    expires: '只能使用一次，{time} 前有效。',
+    refresh: '新配对码',
+    failed: '无法生成配对码，再试一次。',
+    signedInAs: '已登录为 {name}',
+    pairAnother: '配对其他设备',
+    pairAnotherDetail: '在另一台手机上使用此账号。',
+  },
+  teamSignIn: {
+    link: '邀请链接',
+    linkHint: '粘贴 Host 所有者发给你的邀请链接。密码会单独告诉你。',
+    continue: '继续',
+    title: '登录到 {host}',
+    as: '账号 {username}',
+    password: '一次性密码',
+    passwordHint: '使用 Host 所有者给你的密码。',
+    signIn: '登录',
+    changeTitle: '设置新密码',
+    changeHint: '继续之前，先替换一次性密码。',
+    newPassword: '新密码',
+    confirmPassword: '确认新密码',
+    rule: '至少 {min} 个字符。',
+    switchTitle: '在此 Host 上切换账号？',
+    switchBody: '这台手机将以 {name} 登录。另一个账号在本机的聊天和草稿会被移除。',
+    switchConfirm: '切换',
+    errors: {
+      generic: '登录失败，再试一次。',
+      'invitation-invalid': '邀请链接无效。',
+      'invitation-expired': '邀请已过期，请索取新的邀请。',
+      'invitation-version-unsupported': '更新 App 后才能使用此邀请。',
+      'credentials-invalid': '密码错误。',
+      'rate-limited': '尝试次数太多，{seconds} 秒后再试。',
+      'insecure-transport': '此 Host 无法通过该地址登录，请索取 HTTPS 地址。',
+      'team-mode-off': '此 Host 暂不接受成员登录。',
+      'member-suspended': '你的账号已停用，请联系 Host 所有者。',
+      'fingerprint-mismatch': '此 Host 与邀请不符，请勿登录。',
+      'password-weak': '至少使用 10 个字符。',
+      'password-reused': '换一个在这里没用过的密码。',
+      mismatch: '两次输入的密码不一致。',
+      unreachable: '无法连接 Host，检查网络后再试。',
+      'storage-failed': '无法在本机保存登录，再试一次。',
+    } as Record<string, string>,
+  },
   pairChoice: {
     private: '私有连接',
     privateDetail: '推荐。不需要账号或 Docker。',
@@ -3645,6 +3792,8 @@ const zh: typeof en = {
     accountDetail: '选择账号下的电脑。',
     lan: '使用同一 Wi-Fi',
     lanDetail: '扫码即连，不需要账号。',
+    team: '使用邀请加入',
+    teamDetail: '以成员身份登录他人的 Host。',
     tailscale: '使用 Tailscale',
     tailscaleDetail: '跨网络连接。',
     tailscaleHint: '两台设备登录同一个 Tailscale 账号。',
@@ -3897,6 +4046,10 @@ const zh: typeof en = {
   mentionAll: '所有 Bot',
   mentionAllHint: (count: number) => `频道里的每个 Bot（${count}）`,
   mentionSuggestions: '提及 Bot',
+  skillSuggestions: 'Skill',
+  skillOwnerHost: 'Host',
+  skillOption: (name: string, owner: string) => `/${name}，${owner}`,
+  skillChip: (name: string, owner: string) => `来自${owner}的 Skill /${name}`,
   openImage: (name: string) => `查看 ${name}`,
   shareFile: (name: string) => `下载并分享 ${name}`,
   downloadAttachments: (count: number) => `下载附件（${count}）`,
@@ -3926,6 +4079,7 @@ const zh: typeof en = {
     to: (name: string) => `回复 ${name}`,
     cancel: '取消回复',
     you: '你',
+    member: '成员',
     unavailable: '原消息不可用',
     quote: (name: string, body: string) => `回复 ${name}：${body}`,
     jumpHint: '跳到原消息',

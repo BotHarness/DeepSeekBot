@@ -1,7 +1,12 @@
 import { Platform, Pressable, View } from 'react-native';
-import type { ConnectHost } from '../../host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import type { HostStatus } from '../../host/host-glance';
-import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../design/host-look';
+import {
+  hostColorInk,
+  hostTileFill,
+  shownHostName,
+  type HostLook,
+} from '@botharness/host-client/ui/design/host-look';
 import { useDesignTheme, type DesignTheme } from '../design/theme';
 import { edge, radius, space, workspaceStack } from '../design/tokens';
 import { DrawerListItem } from '../primitives/drawer-list-item';

@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const native = vi.hoisted(() => ({ lifecycle: [] as Array<(state: string) => void> }));
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));

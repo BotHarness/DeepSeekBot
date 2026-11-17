@@ -2,18 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { syntheticGenuiDocument } from '../../../packages/core/test/fixtures/genui-document';
 import { initialGenuiDocumentState } from '../../../packages/core/src/channels/genui-document';
-import { MethodRefused } from '../src/host/client';
+import { MethodRefused } from '@botharness/host-client/client';
 import {
   GENUI_RETAINED_VIEWS,
   forgetGenuiDocumentViews,
   genuiDocumentView,
   type GenuiViewClient,
-} from '../src/genui/view';
+} from '@botharness/host-client/genui/view';
 import {
   genuiRestoreMessage,
   parseGenuiBridgeMessage,
   type GenuiDocumentState,
-} from '../src/genui/document';
+} from '@botharness/host-client/genui/document';
 
 const document = syntheticGenuiDocument;
 const initial = initialGenuiDocumentState(document);

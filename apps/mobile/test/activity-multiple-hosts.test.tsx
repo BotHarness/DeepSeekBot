@@ -39,9 +39,9 @@ vi.mock('../src/ui/bot-avatar', () => ({
 }));
 
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { t } from '../src/ui/strings';
-import { createHostLooks } from '../src/host/host-look';
+import { createHostLooks } from '@botharness/host-client/host-look';
 import wire from './fixtures/inbox-wire.json';
 vi.mock('expo-symbols', () => ({
   SymbolView: ({ name, tintColor }: { name: { android: string }; tintColor: string }) =>

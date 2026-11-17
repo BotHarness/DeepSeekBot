@@ -1,5 +1,5 @@
 import { dmChannel, type ProfileBotRef } from './bot-profile';
-import { MethodRefused, type HostClient } from './client';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
 
 export function memoryConflict(error: unknown): boolean {
   return error instanceof MethodRefused && error.code === 'memory-conflict';

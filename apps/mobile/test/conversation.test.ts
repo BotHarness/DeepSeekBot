@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
   createConversation,
   reactable,
@@ -8,11 +8,11 @@ import {
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
-} from '../src/host/conversation';
+} from '@botharness/host-client/conversation';
 import { createConversationPlayback } from '../src/host/conversation-playback';
 import { messageForDisplay } from '../src/host/message-display';
-import { FakeHost, type FakeChannel } from './fake-host';
-import wire from './fixtures/host-wire.json';
+import { FakeHost, type FakeChannel } from '../../../packages/host-client/test/fake-host.js';
+import wire from '../../../packages/host-client/test/fixtures/host-wire.json';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -42,9 +42,7 @@ function open(
   {
     noChannel,
     ...options
-  }: Partial<Parameters<typeof createConversation>[0]> & {
-    noChannel?: true;
-  } = {},
+  }: Partial<Parameters<typeof createConversation>[0]> & { noChannel?: true } = {},
 ): Conversation {
   client = createHostClient({
     routes: [ROUTE],
@@ -623,6 +621,66 @@ describe('DM conversation', () => {
       body: 'this one',
       messageId: id,
       replyTo: 'human-1',
+    });
+  });
+
+  it('shows another person on their own side under their name, and the signed-in person as self', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'bob-1',
+        body: 'hi alice',
+        author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+      },
+      false,
+    );
+    channel.append(
+      {
+        id: 'alice-1',
+        body: 'hi bob',
+        author: { kind: 'human', humanId: 'human-alice', displayName: 'Alice' },
+        replyTo: 'bob-1',
+        replyToPreview: {
+          author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+          body: 'hi alice',
+        },
+      },
+      false,
+    );
+    channel.append(
+      {
+        id: 'bob-2',
+        body: 'quoting you',
+        author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+        replyTo: 'alice-1',
+        replyToPreview: {
+          author: { kind: 'human', humanId: 'human-alice', displayName: 'Alice' },
+          body: 'hi bob',
+        },
+      },
+      false,
+    );
+    const target = open(host, { selfHumanId: 'human-alice' });
+    const live = await until(target, (s) => s.status === 'live' && s.messages.length === 3);
+    expect(live.messages[0]).toMatchObject({
+      author: 'person',
+      person: { humanId: 'human-bob', name: 'Bob' },
+    });
+    expect(live.messages[1]).toMatchObject({
+      author: 'human',
+      replyPreview: { author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' } },
+    });
+    expect(live.messages[1]).not.toHaveProperty('person');
+    expect(live.messages[2]).toMatchObject({
+      author: 'person',
+      replyPreview: { author: { kind: 'human' } },
+    });
+    expect(live.messages[2]?.replyPreview?.author).toEqual({ kind: 'human' });
+    expect(messageForDisplay(live.messages[0]!).author).toEqual({
+      kind: 'human',
+      humanId: 'human-bob',
+      displayName: 'Bob',
     });
   });
 

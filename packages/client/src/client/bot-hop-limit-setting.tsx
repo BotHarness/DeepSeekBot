@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactElement } from 'react';
 
-import { isBotHopLimit, MAX_BOT_HOP_LIMIT } from '../bot-mode-settings.js';
+import { isBotHopLimit, MAX_BOT_HOP_LIMIT } from '@botharness/host-client/shared/bot-mode-settings';
 import { Note } from './ds/note.js';
 import { NumberStepper } from './ds/number-stepper.js';
 import { SettingsRow } from './ds/settings-row.js';
@@ -61,7 +61,8 @@ export function BotHopLimitSetting({
     <SettingsRow
       rootRef={mount}
       title={t('botHopLimit.title')}
-      description={t('botHopLimit.description')}
+      description={t('botHopLimit.summary')}
+      info={{ label: t('botHopLimit.title'), text: t('botHopLimit.description') }}
       control={
         <NumberStepper
           label={t('botHopLimit.title')}

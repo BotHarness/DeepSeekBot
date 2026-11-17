@@ -1,3 +1,4 @@
+import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
 import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
@@ -113,7 +114,8 @@ import {
 import { insertAttachmentReferences, removeAttachmentReferences } from './attachment-refs.js';
 import { appendMention, quoteMention, rebaseMentions } from './mentions.js';
 import { AtSignIcon } from './at-sign-icon.js';
-import { liveSkills, type ComposerSkillOption } from './skill-refs.js';
+import { liveSkills } from './skill-refs.js';
+import type { ComposerSkillOption } from './channel-composer.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { rebaseChannelRefs } from './channel-refs.js';
 import { channelHumanName, humanLabel } from './actor-names.js';
@@ -269,6 +271,7 @@ import {
   type GalleryImage,
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
+import { MessageAvatarsContext } from './message-avatars.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
@@ -468,28 +471,6 @@ function bubbleStamp(message: ChannelMessage): string | undefined {
     return undefined;
   const clock = clockTime(message.at);
   return clock === '' ? undefined : clock;
-}
-
-function DeliveredCheck(): ReactElement {
-  return (
-    <svg
-      className="bh-bubble-stamp-check"
-      data-bubble-check=""
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="m4 12 5 5L20 6"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 function ReplyIcon(): ReactElement {
@@ -749,12 +730,13 @@ const MessageGroupView = memo(function MessageGroupView({
   const nameColor =
     nameSource === undefined ? undefined : botNameColor(nameSource, surface.background);
   const dm = currentDmBotSlug !== undefined;
+  const avatars = useContext(MessageAvatarsContext);
   const foreignBot =
     author.kind === 'bot' && displayBot === undefined && !dm
       ? { slug: author.slug, name: author.displayName ?? t('team.someBot') }
       : undefined;
   const avatar =
-    dm || displayBot === undefined ? undefined : (
+    (dm && !avatars.dm) || displayBot === undefined ? undefined : (
       <PersonaBotAvatar
         t={t}
         personaBotId={displayBot.slug}
@@ -913,11 +895,6 @@ const MessageGroupView = memo(function MessageGroupView({
             >
               <div
                 className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
-                style={
-                  stamp === undefined
-                    ? undefined
-                    : ({ '--bh-stamp': JSON.stringify(stamp) } as CSSProperties)
-                }
               >
                 {human && message.pending === true && message.failed === undefined ? (
                   <PendingDelivery message={message} t={t} />
@@ -949,7 +926,7 @@ const MessageGroupView = memo(function MessageGroupView({
                   </button>
                 )}
                 <div
-                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}${stamp === undefined ? '' : ' bh-bubble-stamped'}`}
+                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
                   data-group-position={position}
                   data-bubble-media={bubbleMedia(message)}
                 >
@@ -982,17 +959,6 @@ const MessageGroupView = memo(function MessageGroupView({
                       {t(message.streaming === true ? 'message.generating' : 'message.sending')}
                     </span>
                   ) : null}
-                  {stamp === undefined ? null : (
-                    <time
-                      className="bh-bubble-stamp"
-                      data-bubble-time=""
-                      dateTime={message.at}
-                      title={fullTime(message.at, t)}
-                    >
-                      {stamp}
-                      {human ? <DeliveredCheck /> : null}
-                    </time>
-                  )}
                 </div>
                 <BubbleBadges
                   reactions={message.reactions ?? NO_REACTIONS}
@@ -1009,6 +975,16 @@ const MessageGroupView = memo(function MessageGroupView({
                 />
                 <BubbleToolbar>
                   <div className="bh-bubble-actions">
+                    {stamp === undefined ? null : (
+                      <time
+                        className="bh-bubble-toolbar-time"
+                        data-bubble-time=""
+                        dateTime={message.at}
+                        title={fullTime(message.at, t)}
+                      >
+                        {stamp}
+                      </time>
+                    )}
                     {onReact !== undefined && reactableMessage(message) ? (
                       <MessageReactionPicker
                         message={message}
@@ -1052,6 +1028,13 @@ const MessageGroupView = memo(function MessageGroupView({
           );
         })}
       </div>
+      {human && avatars.own ? (
+        <span ref={follow} className="bh-message-group-avatar">
+          <span className="bh-message-group-human-avatar" aria-label={authorName}>
+            <IconUserOutlineRegular />
+          </span>
+        </span>
+      ) : null}
     </div>
   );
 });
@@ -1065,7 +1048,7 @@ function MessageActionMenu({
   onClose,
   t,
 }: {
-  onReply(message: ChannelMessage): void;
+  onReply?(message: ChannelMessage): void;
   onFeedback?(message: ChannelMessage): void;
   onSelect?(message: ChannelMessage): void;
   onReact?(request: MessageMenuRequest): void;
@@ -1094,7 +1077,12 @@ function MessageActionMenu({
         autoFocus
         anchor={<span ref={proxy} aria-hidden="true" />}
         items={[
-          ...(request.message.pending === true || request.message.streaming === true
+          ...(bubbleStamp(request.message) === undefined
+            ? []
+            : [{ type: 'label' as const, id: 'time', text: fullTime(request.message.at, t) }]),
+          ...(onReply === undefined ||
+          request.message.pending === true ||
+          request.message.streaming === true
             ? []
             : [{ id: 'reply', label: t('message.reply'), icon: <ReplyIcon /> }]),
           ...(onReact === undefined
@@ -1115,7 +1103,7 @@ function MessageActionMenu({
             : [{ id: 'feedback', label: t('feedback.title'), icon: <ReactionIcon /> }]),
         ]}
         onSelect={(id) => {
-          if (id === 'reply') onReply(request.message);
+          if (id === 'reply') onReply?.(request.message);
           else if (id === 'react') onReact?.(request);
           else if (id === 'feedback') onFeedback?.(request.message);
           else if (id === 'copy') {
@@ -1568,10 +1556,23 @@ function ConversationView({
     conversation.timeline.hasNewer || !streamReplies ? undefined : conversation.drafts;
   const visibleMessages = useMemo(
     () =>
-      visibleDmMessages(messages, hiddenActions).filter(
-        (message) => message.takeoverResolution === undefined,
+      collapseRepeatedFailures(
+        visibleDmMessages(messages, hiddenActions).filter(
+          (message) => message.takeoverResolution === undefined,
+        ),
+        (message) => ({
+          bot: message.author.kind === 'bot' ? message.author.slug : undefined,
+          failure: message.sessionFailure,
+        }),
+        (message, repeated) => ({
+          ...message,
+          sessionFailure: { ...message.sessionFailure!, repeated },
+        }),
+        (message) =>
+          message.id === conversation.focusMessageId ||
+          message.id === conversation.unreadAfterMessageId,
       ),
-    [messages, hiddenActions],
+    [messages, hiddenActions, conversation.focusMessageId, conversation.unreadAfterMessageId],
   );
   const takeoverTimeline = useMemo(
     () => ({
@@ -1887,7 +1888,10 @@ function ConversationView({
       const element = scrollRef.current;
       if (currentChannel.current !== channelId || element === null) return;
       const committedIds = committedMessageIds(messages);
-      const viewport = element.getBoundingClientRect();
+      const bounds = element.getBoundingClientRect();
+      const overlay =
+        Number.parseFloat(getComputedStyle(element).getPropertyValue('--bh-composer-overlay')) || 0;
+      const viewport = { top: bounds.top, bottom: bounds.bottom - overlay };
       const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
         .filter((candidate) => {
           const id = candidate.dataset['messageId'];
@@ -2228,12 +2232,14 @@ function ConversationView({
       run: sidebar.toggle,
     },
   ];
+  const contextInHeader = docked && workspaceEnabled && channel !== undefined;
   const composerContext =
     baseComposerContext === undefined
       ? undefined
       : {
           ...baseComposerContext,
           shortcuts: [...baseComposerContext.shortcuts, ...conversationShortcuts],
+          ...(contextInHeader ? { content: undefined } : {}),
         };
 
   const loadOlderAtTop = (retry = false): void => {
@@ -3572,6 +3578,15 @@ function ConversationView({
               <button
                 type="button"
                 className="bh-timeline-new"
+                data-unseen={unseen > 0 ? '' : undefined}
+                style={
+                  unseen > 0
+                    ? ({
+                        '--bh-timeline-new-bg': color.accent,
+                        '--bh-timeline-new-fg': color.onAccent,
+                      } as CSSProperties)
+                    : undefined
+                }
                 aria-label={t('messages.latest')}
                 aria-description={
                   unseen > 0
@@ -3580,12 +3595,13 @@ function ConversationView({
                 }
                 onClick={jumpToLatest}
               >
-                <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
                 {unseen > 0 ? (
                   <span className="bh-timeline-new-count" aria-hidden="true">
                     {unseen > 99 ? '99+' : unseen}
                   </span>
-                ) : null}
+                ) : (
+                  <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
+                )}
               </button>
             </div>
           ) : null}
@@ -3685,6 +3701,7 @@ function ConversationView({
                     channelRefs={channelRefTokens}
                     skills={skillTokens}
                     skillOptions={skillOptions}
+                    readSkill={actions.skillDetail}
                     channelCandidates={
                       channel?.type === 'dm' && channel.botSlug !== undefined
                         ? state.channels.filter((candidate) => candidate.type === 'group')
@@ -3772,15 +3789,21 @@ function ConversationView({
               </div>
             </div>
           )}
-          {activeMemoryView !== undefined || messageMenu === undefined || readOnlyDm ? null : (
+          {activeMemoryView !== undefined || messageMenu === undefined ? null : (
             <MessageActionMenu
               request={messageMenu}
               t={t}
-              {...(reactToMessage === undefined || !reactableMessage(messageMenu.message)
+              {...(readOnlyDm ||
+              reactToMessage === undefined ||
+              !reactableMessage(messageMenu.message)
                 ? {}
                 : { onReact: setReactionMenu })}
-              onReply={quoteMessage}
-              onFeedback={(message) => setFeedbackMessage(message.id)}
+              {...(readOnlyDm
+                ? {}
+                : {
+                    onReply: quoteMessage,
+                    onFeedback: (message: ChannelMessage) => setFeedbackMessage(message.id),
+                  })}
               {...(messageSelection === undefined ? {} : { onSelect: messageSelection.begin })}
               onClose={() => {
                 setMessageMenu(undefined);
@@ -3889,6 +3912,9 @@ function ConversationView({
                   ? {
                       title,
                       ...(dmWorking ? { label: <WorkingSummary rows={workingRows} t={t} /> } : {}),
+                      ...(baseComposerContext === undefined
+                        ? {}
+                        : { info: baseComposerContext.content }),
                       status: (
                         <ConversationSessionStop
                           channel={channel}
@@ -4344,6 +4370,20 @@ export function BotMain({
     () => prefs?.source.getSnapshot().showDeliveryReceipts ?? false,
     () => false,
   );
+  const showDmAvatar = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().showDmAvatar ?? false,
+    () => prefs?.source.getSnapshot().showDmAvatar ?? false,
+  );
+  const showOwnAvatar = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().showOwnAvatar ?? false,
+    () => prefs?.source.getSnapshot().showOwnAvatar ?? false,
+  );
+  const messageAvatars = useMemo(
+    () => ({ dm: showDmAvatar, own: showOwnAvatar }),
+    [showDmAvatar, showOwnAvatar],
+  );
   const streamReplies = useSyncExternalStore(
     prefs?.source.subscribe ?? subscribeWithoutPrefs,
     () => prefs?.source.getSnapshot().streamReplies ?? false,
@@ -4351,19 +4391,21 @@ export function BotMain({
   );
   return (
     <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
-      <StreamReplies.Provider value={streamReplies}>
-        <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-          <MessageDeveloperMode.Provider value={developerMode}>
-            <ComposerSendKeyContext.Provider value={sendKey}>
-              <AppearanceContext.Provider value={appearance}>
-                <Workspace options={workspace} t={props.t ?? zhTranslate}>
-                  <BotMainContent {...props} />
-                </Workspace>
-              </AppearanceContext.Provider>
-            </ComposerSendKeyContext.Provider>
-          </MessageDeveloperMode.Provider>
-        </AutoCollapseMessages.Provider>
-      </StreamReplies.Provider>
+      <MessageAvatarsContext.Provider value={messageAvatars}>
+        <StreamReplies.Provider value={streamReplies}>
+          <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+            <MessageDeveloperMode.Provider value={developerMode}>
+              <ComposerSendKeyContext.Provider value={sendKey}>
+                <AppearanceContext.Provider value={appearance}>
+                  <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                    <BotMainContent {...props} />
+                  </Workspace>
+                </AppearanceContext.Provider>
+              </ComposerSendKeyContext.Provider>
+            </MessageDeveloperMode.Provider>
+          </AutoCollapseMessages.Provider>
+        </StreamReplies.Provider>
+      </MessageAvatarsContext.Provider>
     </DeliveryReceiptsVisible.Provider>
   );
 }

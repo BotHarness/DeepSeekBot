@@ -6,6 +6,20 @@
 
 The phone app keeps every paired computer and shows one. A push notification is titled with the Channel (`#name`, or the PersonaBot's name for its DM) and its body says what the PersonaBot needs plus a short preview of the command, question or message; private input requests show no content ([ADR-0213](../../../../docs/adr/0213-phone-push-shows-the-channel-and-a-short-preview.md)). Tapping it switches to its computer and opens the request. A Tool approval notification also has Always allow, Allow once and Reject buttons (no Always allow for `secret_cli`) (long-press on iOS, expand on Android); either one unlocks the phone, opens the app, sends the decision and shows the card already decided. The app icon badge mirrors the unresolved requests of the shown computer, and banners for requests resolved elsewhere are removed ([ADR-0202](../../../../docs/adr/0202-phone-push-is-a-content-free-projection-of-the-human-inbox.md), [#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)).
 
+## Sources
+
+- `apps/mobile/modules/conversation-notifications/**`
+- `apps/mobile/app/notifications.tsx`
+- `apps/mobile/app/settings/notifications.tsx`
+- `apps/mobile/src/ui/shell/notification-screen.tsx`
+- `apps/mobile/app/*/*/notifications.tsx`
+- `apps/mobile/src/host/{notification-avatars,native-notification-avatars}.ts`
+
+## Terms
+
+- Device Notification Preference
+- Paired Device
+
 ## Sub-features
 
 - `android-notification-message-focus` (#2798): with existing conversation history cached, leave the app on Android Home and send one uniquely marked ordinary reply from the other paired Host. Tap its actual system notification once. Verify the exact target text is visible above the composer after live history replaces cached rows; inspect both immediate and settled native frames. A correct Channel, a scroll request, an XML text node behind the composer, or list viewability alone does not pass. Do not manually scroll or press the latest button before capturing the result. Check a second explicit focus, user-drag cancellation and ordinary Back separately so fixing notification entry does not take over normal reading position. Record canonical and payload identity privately. Automated: `apps/mobile/test/conversation-navigation.test.tsx`; Android pixels and iOS remain separate native gates.

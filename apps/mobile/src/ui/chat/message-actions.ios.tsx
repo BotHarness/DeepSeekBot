@@ -34,7 +34,7 @@ import { Fragment, useRef, useState } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MENU_REACTIONS, reactedByMe } from '../../host/conversation';
+import { MENU_REACTIONS, reactedByMe } from '@botharness/host-client/conversation';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { rowSymbol } from '../primitives/row-icon';

@@ -1,4 +1,4 @@
-import type { RosterSection } from '../../host/client';
+import type { RosterSection } from '@botharness/host-client/client';
 import type { DeletionTarget } from '../../host/deletion';
 import type { ItemMenuAction } from '../primitives/item-menu';
 import { t } from '../strings';
@@ -54,6 +54,7 @@ export function conversationMenu(
         run: () => options.onMove(null),
       });
   }
+  if (conversation.kind === 'channel' && conversation.person === true) return actions;
   if (conversation.kind === 'channel')
     actions.push({
       key: 'delete',

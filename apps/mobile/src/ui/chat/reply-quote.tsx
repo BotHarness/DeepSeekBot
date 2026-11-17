@@ -1,9 +1,9 @@
 import { useContext, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { botNameColor } from '../../../../../packages/client/src/client/bot-name-color';
-import type { RosterBot } from '../../host/client';
-import type { WireReplyPreview } from '../../host/wire';
+import { botNameColor } from '@botharness/host-client/shared/bot-name-color';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { WireReplyPreview } from '@botharness/host-protocol/wire';
 import { botColor } from '../bot-color';
 import { pressTint, quoteFill, useDesignTheme, type DesignTheme } from '../design/theme';
 import { radius, space, swipeReply } from '../design/tokens';
@@ -16,10 +16,11 @@ export function replyAuthor(
   preview: WireReplyPreview | null | undefined,
   you: string,
   botName: (id: string) => string,
+  member = you,
 ): string {
   switch (preview?.author.kind) {
     case 'human':
-      return you;
+      return preview.author.humanId === undefined ? you : preview.author.displayName || member;
     case 'bot':
       return botName(preview.author.slug);
     case 'bridged':
@@ -86,7 +87,7 @@ export function ReplyQuote({
   const t = useStrings();
   const theme = useDesignTheme();
   const { bots } = useContext(MessageIdentities);
-  const author = replyAuthor(preview, t.reply.you, botName);
+  const author = replyAuthor(preview, t.reply.you, botName, t.reply.member);
   const text = replyText(preview, t);
   const background = onAccent ? theme.color.accent : theme.color.surface;
   const ink = onAccent ? theme.color.onAccent : authorInk(preview, bots, theme, background);

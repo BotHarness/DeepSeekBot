@@ -1,18 +1,19 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import {
   createFailureContinuation,
   createFailureMaintenance,
   type SessionFailure,
-} from '../../host/session-failure';
+} from '@botharness/host-client/session-failure';
 import {
   autoContinueSeconds,
   readSeconds,
   subscribeNever,
   subscribeSeconds,
-} from '../../../../../packages/client/src/shared/turn-continuation';
+} from '@botharness/host-client/shared/turn-continuation';
 import { Button } from '../primitives/button';
 import { t } from '../strings';
+import { failureReason } from './failure-reason';
 import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './action-card';
 
 export function SessionFailureCard({
@@ -82,15 +83,7 @@ export function SessionFailureCard({
   return (
     <ActionCard
       category={t.sessionRecovery.failed}
-      title={
-        refusal !== undefined
-          ? refusal[0]
-          : failure.code === 'CONTEXT_WINDOW_EXCEEDED'
-            ? t.sessionRecovery.contextFull
-            : failure.code === 'OUTPUT_TOKEN_LIMIT'
-              ? t.sessionRecovery.outputLimit
-              : t.sessionRecovery.details
-      }
+      title={failureReason(failure)}
       preview={
         refusal?.[1] !== undefined ? (
           <CardPreview text={refusal[1]} well={false} variant="body" />
@@ -111,6 +104,11 @@ export function SessionFailureCard({
       }
       details={<DetailRow label={t.sessionRecovery.details} value={failure.detail} />}
     >
+      {failure.repeated === undefined || failure.repeated < 2 ? null : (
+        <CardNote testID="session-failure-repeated">
+          {t.sessionRecovery.repeated(failure.repeated)}
+        </CardNote>
+      )}
       {seconds === undefined || failure.autoContinue === undefined ? null : (
         <CardNote variant="body" live>
           {t.sessionRecovery.autoContinue(

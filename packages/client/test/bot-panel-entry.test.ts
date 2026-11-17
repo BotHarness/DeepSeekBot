@@ -45,6 +45,8 @@ const useBotModePrefs = ((selector: (value: BotModePrefsSnapshot) => unknown) =>
     sendKey: 'enter' as const,
     autoCollapseMessages: false,
     showDeliveryReceipts: false,
+    showDmAvatar: false,
+    showOwnAvatar: false,
     streamReplies: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,

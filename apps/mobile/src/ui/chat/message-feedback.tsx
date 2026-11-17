@@ -5,7 +5,7 @@ import { shareFeedbackArchive } from '../../host/share-feedback';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMounted } from '../mounted';
 import { FlatList, View, type ViewInstance } from 'react-native';
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import {
   createMessageFeedback,
   type FeedbackPreview,

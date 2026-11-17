@@ -4,7 +4,7 @@ import { AppRegistry, AppState } from 'react-native';
 
 import type { AlertSnapshot, LocalApprovalAlert } from './device-alerts';
 import { alertBanners } from './alert-banners';
-import type { PushPreferences } from './push';
+import type { PushPreferences } from '@botharness/host-client/push';
 import type { ConnectionSummary } from './connection-summary';
 import { REQUESTS_CHANNEL } from './native-notifications';
 import { t } from '../ui/strings';

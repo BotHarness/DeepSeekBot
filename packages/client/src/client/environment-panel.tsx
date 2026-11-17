@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
-  Button,
   IconEllipsisOutlineRegular,
   IconRefreshOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -15,7 +15,7 @@ import { useRemoteHosts } from './host-tabs.js';
 import { useThisHost } from './this-host.js';
 import { useHostLook, useHostName } from './host-looks.js';
 import { HostGlyph } from './host-glyph.js';
-import { HostSettings } from './host-settings.js';
+import { openHostSettings } from './environment-settings-source.js';
 import { ConnectionsDialog } from './connections-dialog.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { Select } from './ds/select.js';
@@ -57,7 +57,12 @@ export function EnvironmentOffline({
   );
 }
 const styles = stylex.create({
-  root: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    minHeight: 0,
+  },
   list: { flex: 1, minHeight: 0, overflowY: 'auto', padding: 0 },
   row: {
     display: 'flex',
@@ -85,7 +90,10 @@ const styles = stylex.create({
     paddingBlock: space.x2,
     paddingInline: space.x3,
     textAlign: 'start',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '-2px',
   },
   selected: { backgroundColor: color.hover },
@@ -122,7 +130,12 @@ const styles = stylex.create({
     maxWidth: '100%',
     lineHeight: text.bodyLine,
   },
-  pickerName: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  pickerName: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   status: { paddingBlock: space.x2, paddingInline: space.x3 },
 });
 
@@ -193,7 +206,10 @@ function EnvironmentRow({
         onClick={() => remoteHosts().select(id)}
         onContextMenu={(event) => {
           event.preventDefault();
-          setMenu({ kind: 'pointer', point: { x: event.clientX, y: event.clientY } });
+          setMenu({
+            kind: 'pointer',
+            point: { x: event.clientX, y: event.clientY },
+          });
         }}
         onKeyDown={(event) => {
           if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
@@ -330,7 +346,6 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
       : undefined,
   );
   const localStatus = useClientStore((state) => state.activityList.attentionStatus);
-  const [settings, setSettings] = useState<{ hostId: string; name: string; local: boolean }>();
   return (
     <div {...stylex.props(styles.root)} data-environment-panel="">
       <div {...stylex.props(styles.list)}>
@@ -356,13 +371,9 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
               : t(localStatus === 'error' ? 'environment.unavailable' : 'environment.loading')
           }
           selected={snapshot.tab === THIS_HOST}
-          onManage={() =>
-            setSettings({
-              hostId: local.id ?? THIS_HOST,
-              name: local.name ?? t('remoteHosts.this'),
-              local: true,
-            })
-          }
+          onManage={() => {
+            openHostSettings();
+          }}
           t={t}
         />
         {snapshot.hosts.map((remote) => (
@@ -393,21 +404,16 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
                       )
                   : t('environment.offline')
             }
-            onManage={() =>
-              setSettings({ hostId: remote.host.hostId, name: remote.host.hostName, local: false })
-            }
+            onManage={() => {
+              openHostSettings({
+                hostId: remote.host.hostId,
+                hostName: remote.host.hostName,
+              });
+            }}
             t={t}
           />
         ))}
       </div>
-      {settings ? (
-        <HostSettings
-          key={settings.hostId}
-          {...settings}
-          t={t}
-          onClose={() => setSettings(undefined)}
-        />
-      ) : null}
     </div>
   );
 }

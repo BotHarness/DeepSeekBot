@@ -6,7 +6,7 @@ import {
   CATCH_UP_TASK,
   runBackgroundCatchUp,
 } from './background-catch-up';
-import { createHostClient, deviceRefusal } from './client';
+import { createHostClient, deviceRefusal } from '@botharness/host-client/client';
 import { liveConversationKeys } from './host-session';
 import { nativeCarrier } from './native-carrier';
 import { catchUpInBackground } from './native-conversations';

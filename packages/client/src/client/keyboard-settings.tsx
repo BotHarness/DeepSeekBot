@@ -1,11 +1,12 @@
+import { Button } from './ds/button.js';
 import { useState, useSyncExternalStore, type KeyboardEvent, type ReactElement } from 'react';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { Shortcuts, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { PropsLocale, InjectFace } from '@deepseek-ai/dsh-client-ui-slots';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
 import { ShortcutHelpList } from './shortcut-help.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { SearchField } from './ds/field.js';
 import { useMountedResource } from './mounted-resource.js';
 
 let workShortcutNotice = false;
@@ -29,7 +30,10 @@ export function KeyboardSettings({
   shortcuts,
 }: PropsLocale<'botharness'> &
   InjectFace<
-    BotModePrefsFace & { shortcutBindings: ShortcutBindings; shortcuts: Shortcuts }
+    BotModePrefsFace & {
+      shortcutBindings: ShortcutBindings;
+      shortcuts: Shortcuts;
+    }
   >): ReactElement {
   const migrationNotice = useSyncExternalStore(subscribeNotice, noticeSnapshot, noticeSnapshot);
   const [query, setQuery] = useState('');
@@ -127,14 +131,11 @@ export function KeyboardSettings({
           <Button onClick={() => setWorkShortcutNotice(false)}>{t('common.close')}</Button>
         </p>
       ) : null}
-      <Input
-        className="bh-settings-search-input"
-        type="search"
-        aria-label={t('settings.shortcuts.search')}
-        placeholder={t('settings.shortcuts.search')}
+      <SearchField
+        label={t('settings.shortcuts.search')}
         value={query}
-        onChange={(event) => {
-          setQuery(event.target.value);
+        onChange={(value) => {
+          setQuery(value);
           setRecording(undefined);
         }}
       />
@@ -151,7 +152,9 @@ export function KeyboardSettings({
                     size="sm"
                     variant="outline"
                     disabled={busy}
-                    aria-label={t('shortcuts.change.label', { action: row.label })}
+                    aria-label={t('shortcuts.change.label', {
+                      action: row.label,
+                    })}
                     data-shortcut-recorder={recording === row.id ? '' : undefined}
                     onClick={() => {
                       setRecording(recording === row.id ? undefined : row.id);

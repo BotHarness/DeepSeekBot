@@ -1,4 +1,4 @@
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 
 import type { BridgeActions } from './actions.js';
@@ -49,7 +49,9 @@ export function ActivityListReply({
         : isGrant
           ? 'activityList.grant.title'
           : 'activityList.reply.title',
-    { channel: isNativeAction ? botName(source.botSlug) : (source.channelName ?? '') },
+    {
+      channel: isNativeAction ? botName(source.botSlug) : (source.channelName ?? ''),
+    },
   );
   const channelId = source.channelId!;
   const messageId = source.messageId!;
@@ -80,7 +82,12 @@ export function ActivityListReply({
     try {
       const initial = await actions.activityListContextPage(
         channelId,
-        { direction: 'around', around: messageId, olderLimit: 2, newerLimit: 2 },
+        {
+          direction: 'around',
+          around: messageId,
+          olderLimit: 2,
+          newerLimit: 2,
+        },
         controller.signal,
       );
       const messages = initial.entries;
@@ -199,7 +206,12 @@ export function ActivityListReply({
       const next = await actions.activityListContextPage(
         channelId,
         cursor === null
-          ? { direction: 'around', around: context.at(-1)!.id, olderLimit: 0, newerLimit: 10 }
+          ? {
+              direction: 'around',
+              around: context.at(-1)!.id,
+              olderLimit: 0,
+              newerLimit: 10,
+            }
           : { direction, cursor, limit: 10 },
         controller.signal,
       );

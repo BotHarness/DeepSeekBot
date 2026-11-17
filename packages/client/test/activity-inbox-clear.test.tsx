@@ -57,7 +57,7 @@ import { ActivityInboxMenu } from '../src/client/activity-inbox-menu.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { store, type HumanAttentionItem } from '../src/client/store.js';
 import * as remoteHostModule from '../src/client/remote-hosts.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 
 const repair: HumanAttentionItem = {
   id: 'repair:e1:ada',

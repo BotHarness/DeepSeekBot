@@ -7,7 +7,7 @@ import type {
 import { botCreation } from '../../host/native-bot-creation';
 import { selectMarketplaceImport } from '../../marketplace/import-selection';
 import { marketplace } from '../../marketplace/native-catalogue';
-import { recordFeature } from '../../telemetry/features';
+import { recordFeature } from '@botharness/host-client/telemetry/features';
 import { locale } from '../strings';
 
 export type MarketplaceTarget = { entry: 'host'; hostId: string } | { entry: 'all' };

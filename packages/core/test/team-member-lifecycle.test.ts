@@ -555,8 +555,6 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     const f = fixture();
     const shared = f.core.channels.createGroup(owner, { name: 'Shared', members: [] });
     f.core.team.setPublic(owner, shared.id, true);
-    f.core.team.joinPublic(alice, shared.id);
-    f.core.team.joinPublic(bob, shared.id);
     await f.core.channels.appendMessage(bob, shared.id, {
       id: 'shared-author',
       at: new Date().toISOString(),
@@ -639,7 +637,6 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
         members: [],
       });
       f.core.team.setPublic(owner, shared.id, true);
-      f.core.team.joinPublic(human, shared.id);
       await f.core.channels.appendMessage(human, shared.id, {
         id: 'shared-member-post',
         at: new Date().toISOString(),

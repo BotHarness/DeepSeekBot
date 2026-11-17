@@ -1,4 +1,5 @@
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from './ds/button.js';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useState, type ReactElement } from 'react';
 import type {
   PairingCapability,
@@ -29,7 +30,10 @@ export function ActivityListPairing({
   actions: Pick<BridgeActions, 'messagingSnapshot' | 'pairingReview' | 'refreshActivityList'>;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [loaded, setLoaded] = useState<{ request?: PairingRequest; roles: ExternalUserRole[] }>();
+  const [loaded, setLoaded] = useState<{
+    request?: PairingRequest;
+    roles: ExternalUserRole[];
+  }>();
   const [roleId, setRoleId] = useState('');
   const [selected, setSelected] = useState<PairingCapability[]>([]);
   const [busy, setBusy] = useState(false);
@@ -61,7 +65,10 @@ export function ActivityListPairing({
       setBusy(false);
     }
   };
-  const base = request && { id: request.id, expectedRevision: request.revision };
+  const base = request && {
+    id: request.id,
+    expectedRevision: request.revision,
+  };
   return (
     <div ref={mount} className="bh-activity-list-row-actions">
       {base && request?.status === 'pending' ? (
@@ -77,7 +84,10 @@ export function ActivityListPairing({
               onSelect={setRoleId}
               options={[
                 { value: '', label: t('pairing.selectRole') },
-                ...(loaded?.roles ?? []).map((item) => ({ value: item.id, label: item.name })),
+                ...(loaded?.roles ?? []).map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                })),
               ]}
             />
           ) : (

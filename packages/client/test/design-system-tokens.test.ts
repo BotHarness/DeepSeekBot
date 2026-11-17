@@ -3,6 +3,9 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { TOBS_STYLES } from '../src/client/ds/tobs-tokens.generated.js';
+import { TOBS_DSH_BRIDGE } from '../src/client/tobs-bridge.js';
+
 const dsDir = fileURLToPath(new URL('../src/client/ds/', import.meta.url));
 const clientDir = fileURLToPath(new URL('../src/client/', import.meta.url));
 const LITERAL_COLOUR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;
@@ -314,11 +317,13 @@ const SCALED =
   /\b(fontSize|lineHeight|fontWeight|gap|rowGap|columnGap|padding\w*|margin\w*|borderRadius)\s*:\s*(['"])(?!0\2)/;
 
 describe('design-system tokens', () => {
-  it('keeps every StyleX colour on a DSH token', () => {
+  it('keeps every StyleX colour on a Tobs token', () => {
     const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
     const colours = tokens.slice(tokens.indexOf('export const color'));
     for (const value of colours.matchAll(/:\s*'([^']+)'/g))
-      expect(value[1]).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
+      expect(value[1]).toMatch(
+        /^(?:var\(--tobs-[a-z0-9-]+\)|color-mix\(in srgb, var\(--tobs-[a-z0-9-]+\) \d+%, transparent\))$/,
+      );
   });
 
   it('guards the Computer and Browser bundle StyleX sources too', () => {
@@ -360,15 +365,24 @@ describe('design-system tokens', () => {
     const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
     const block = (name: string) =>
       tokens.slice(tokens.indexOf(`export const ${name}`)).split('});')[0]!;
+    const quiet: Record<string, string> = TOBS_STYLES.a;
+    const styled = (value: string) =>
+      value.replace(
+        /^var\((--tobs-style-[a-z0-9-]+)\)$/,
+        (_, name: string) => quiet[name] ?? value,
+      );
     const entries = (name: string) =>
       Object.fromEntries(
         [...block(name).matchAll(/^\s+(\w+):\s*'([^']+)'/gm)].map((match) => [
           match[1]!,
-          match[2]!,
+          styled(match[2]!),
         ]),
       );
     const px = (name: string) =>
-      [...block(name).matchAll(/'(\d+)px'/g)].map((match) => Number(match[1]));
+      Object.values(entries(name)).flatMap((value) => {
+        const found = /^(\d+)px$/.exec(value);
+        return found ? [Number(found[1])] : [];
+      });
     expect(px('space')).toEqual([2, 4, 8, 12, 16, 24]);
     expect(px('size')).toEqual([26, 28, 32, 40]);
     expect(entries('text')).toEqual({
@@ -376,43 +390,52 @@ describe('design-system tokens', () => {
       metaLine: '16px',
       bodySize: '13px',
       bodyLine: '20px',
-      titleSize: '14px',
-      titleLine: '20px',
+      titleSize: '15px',
+      titleLine: '24px',
       regular: '400',
       strong: '500',
     });
     expect(entries('radius')).toEqual({
-      xs: 'var(--dsw-radius-xs, 4px)',
-      sm: 'var(--dsw-radius-sm, 8px)',
-      md: 'var(--dsw-radius-md, 12px)',
-      lg: 'var(--dsw-radius-lg, 16px)',
-      panel: 'var(--dsw-radius-panel)',
+      xs: '4px',
+      sm: '6px',
+      control: '6px',
+      md: '10px',
+      lg: '10px',
+      panel: '14px',
       round: '50%',
     });
+    const tobs = readFileSync(new URL('../src/client/ds/tobs.stylex.ts', import.meta.url), 'utf8');
+    const tobsRadius =
+      /export const radius = stylex\.defineConsts\(\{([^}]*)\}/.exec(tobs)?.[1] ?? '';
+    for (const value of ['4px', '6px', '10px', '14px', '20px'])
+      expect(tobsRadius, `radius ${value} is on the Tobs scale`).toContain(`'${value}'`);
     expect(entries('border')).toEqual({
       hairline: '1px',
-      focus: 'var(--dsw-focus-ring-width, 2px)',
+      focus: '2px',
     });
     const edges = Object.entries(entries('color')).filter(([name]) =>
       /^(divider|border\w*)$/.test(name),
     );
     expect(edges).toEqual([
-      ['divider', 'var(--dsw-alias-border-l1)'],
-      ['border', 'var(--dsw-alias-border-l2)'],
-      ['borderStrong', 'var(--dsw-alias-border-l3)'],
+      ['divider', 'var(--tobs-line-divider)'],
+      ['border', 'var(--tobs-line-edge)'],
+      ['borderStrong', 'var(--tobs-line-strong)'],
     ]);
     const widths = [...block('dialog').matchAll(/min\((\d+)px/g)].map((match) => Number(match[1]));
     expect(widths).toEqual([440, 760, 1060]);
   });
 });
 
-it('keeps derived action fills usable in portaled settings without Bot-mode variables', () => {
+it('keeps ds colours usable in portaled settings without Bot-mode variables', () => {
   const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
-  const actions = tokens.slice(
-    tokens.indexOf('export const actionColor'),
-    tokens.indexOf('export const color'),
-  );
-  expect(actions).not.toContain('--bh-');
-  expect(actions.match(/color-mix\(in srgb/g)).toHaveLength(4);
-  expect(actions).toContain('--dsw-alias-bg-module-platform');
+  const colours = tokens.slice(tokens.indexOf('export const actionColor'));
+  expect(colours).not.toContain('--bh-');
+  expect(colours).not.toContain('--dsw-');
+  for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g)) {
+    if (name.startsWith('--tobs-style-')) {
+      expect(TOBS_DSH_BRIDGE[name], name).toBe((TOBS_STYLES.a as Record<string, string>)[name]);
+      continue;
+    }
+    expect(TOBS_DSH_BRIDGE[name], name).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
+  }
 });

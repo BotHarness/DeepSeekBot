@@ -1,6 +1,6 @@
+import { Switch } from './ds/switch.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type {
   MessagingDefaults,
   MessagingDefaultsInput,
@@ -168,7 +168,10 @@ function PlatformDefaultsSettings({
               <Select
                 label={t('defaults.wake')}
                 value={draft.wake}
-                options={WAKE_MODES.map((mode) => ({ value: mode, label: t(`im.wake.${mode}`) }))}
+                options={WAKE_MODES.map((mode) => ({
+                  value: mode,
+                  label: t(`im.wake.${mode}`),
+                }))}
                 onChange={(wake) => apply({ wake })}
               />
             }

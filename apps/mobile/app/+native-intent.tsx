@@ -3,12 +3,15 @@ import * as SecureStore from 'expo-secure-store';
 import { cloudAvailable } from '../src/cloud/available';
 import { cloudNativeIntent } from '../src/cloud/native-intent';
 import { parseInvitationLink } from '../src/cloud/invitation-link';
-import { isConnectOAuthCallback } from '../src/host/connect-account';
+import { isConnectOAuthCallback } from '@botharness/host-client/connect-account';
 import { callLinkRedirect } from '../src/ui/chat/call-link';
 import { isSharePath } from '../src/ui/share/share-path';
+import { teamInvitationRoute } from '../src/team/team-link-path';
 export async function redirectSystemPath({ path }: { path: string; initial: boolean }) {
   if (isConnectOAuthCallback(path)) return null;
   if (isSharePath(path)) return '/share';
+  const team = teamInvitationRoute(path);
+  if (team !== undefined) return team;
   const call = callLinkRedirect(
     path,
     __DEV__ && Application.applicationId?.endsWith('.dev') === true,

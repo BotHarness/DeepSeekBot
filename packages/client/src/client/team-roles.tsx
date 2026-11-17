@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { FieldStack, TextField } from './ds/field.js';
@@ -38,7 +39,12 @@ import { PRIVATE_VIEW } from './team-audit-bridge.js';
 import { teamErrorText } from './team-settings.js';
 
 const styles = stylex.create({
-  group: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
   groupTitle: {
     margin: 0,
     color: color.muted,
@@ -46,7 +52,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     fontWeight: text.strong,
   },
-  checks: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  checks: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   hint: {
     margin: 0,
     paddingInlineStart: space.x6,
@@ -57,7 +68,12 @@ const styles = stylex.create({
   devices: { display: 'flex', flexDirection: 'column', minWidth: 0 },
   danger: { color: color.danger },
   fieldset: { borderWidth: 0, padding: 0, margin: 0, minWidth: 0 },
-  sheet: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
+  sheet: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x5,
+    minWidth: 0,
+  },
 });
 
 const GROUP_ORDER: readonly PermissionGroup[] = [
@@ -133,7 +149,9 @@ export function RolesSection({
                 canEdit && canGrantAll(viewer, role.permissions) ? (
                   <Button
                     variant="outline"
-                    aria-label={t('team.roles.editNamed', { name: roleLabel(t, role) })}
+                    aria-label={t('team.roles.editNamed', {
+                      name: roleLabel(t, role),
+                    })}
                     onClick={() => setEditing(role)}
                   >
                     {t('team.roles.edit')}
@@ -447,7 +465,10 @@ export function MemberSheet({
             t={t}
             roles={roles
               .filter((role) => chosen.has(role.roleId))
-              .map((role) => ({ name: roleLabel(t, role), policy: role.policy }))}
+              .map((role) => ({
+                name: roleLabel(t, role),
+                policy: role.policy,
+              }))}
           />
         )}
         <DeviceList
@@ -514,7 +535,9 @@ export function DeviceList({
                   description={
                     device.current && self
                       ? t('team.devices.thisDevice')
-                      : t('team.devices.lastSeen', { time: shortTime(device.lastSeenAt) })
+                      : t('team.devices.lastSeen', {
+                          time: shortTime(device.lastSeenAt),
+                        })
                   }
                   control={
                     <Button variant="outline" disabled={busy} onClick={() => setRevoking(device)}>

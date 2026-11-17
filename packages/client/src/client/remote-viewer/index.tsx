@@ -1,3 +1,4 @@
+import { Button } from '../ds/button.js';
 import {
   Fragment,
   useCallback,
@@ -9,7 +10,6 @@ import {
   type RefCallback,
 } from 'react';
 import {
-  Button,
   IconFullscreenOutlineRegular,
   Pill,
   StateDot,
@@ -36,7 +36,11 @@ import type { ViewerTranslate } from './locale.js';
 export type ViewerLifecycleEvent =
   | { readonly type: 'mount' }
   | { readonly type: 'overlay'; readonly open: boolean }
-  | { readonly type: 'phase'; readonly from: FramePhase; readonly to: FramePhase }
+  | {
+      readonly type: 'phase';
+      readonly from: FramePhase;
+      readonly to: FramePhase;
+    }
   | { readonly type: 'auto-reload'; readonly attempt: number }
   | { readonly type: 'manual-retry' }
   | { readonly type: 'loss-remount'; readonly streak: number };
@@ -88,7 +92,14 @@ export function ScreenIndicator({ label = '连接中' }: { readonly label?: stri
         color: VIDEO_SURFACE.onVideo,
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
         <svg
           width={size}
           height={size}
@@ -138,7 +149,14 @@ function ScreenEmpty({
         color: VIDEO_SURFACE.onVideo,
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
         <span style={{ fontSize: 12.5, opacity: 0.75 }}>{t('entry.noScreen')}</span>
         <Button variant="toolbar" size="sm" onClick={onRetry}>
           {t('entry.reconnect')}
@@ -214,7 +232,10 @@ function ScaledFrame({
 }: ScaledFrameProps): ReactElement {
   const DESIGN_WIDTH = design.width;
   const DESIGN_HEIGHT = design.height;
-  const [box, setBox] = useState({ width: DESIGN_WIDTH, height: DESIGN_HEIGHT });
+  const [box, setBox] = useState({
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+  });
   const resizeResource = useMountedResource<HTMLDivElement>(
     (element) => {
       const frame = element.querySelector('iframe');

@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
-import { botCreationTransport } from '../src/host/bot-creation-transport';
-import type { HostCarrier } from '../src/host/carrier';
-import type { BotCreationOperation } from '../src/host/bot-creation';
-import type { ZipImportSource } from '../src/host/zip-import-upload';
+import { botCreationTransport } from '@botharness/host-client/bot-creation-transport';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import type { BotCreationOperation } from '@botharness/host-client/bot-creation';
+import type { ZipImportSource } from '@botharness/host-client/zip-import-upload';
 
 const bytes = new Uint8Array(30).fill(4);
 const source: ZipImportSource = {

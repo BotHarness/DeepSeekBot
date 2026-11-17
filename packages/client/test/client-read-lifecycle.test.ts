@@ -3,6 +3,15 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
+vi.mock('../src/client/ds/switch.js', async () => ({
+  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),

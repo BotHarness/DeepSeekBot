@@ -22,6 +22,7 @@ import { createDeviceGateway, DEVICE_GATEWAY_PREFIX } from '../src/devices/gatew
 import { APP_VERSION_HEADER, MIN_PHONE_APP_VERSION } from '../src/devices/client-compat.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createGatewayOrigin } from '../src/devices/connect.js';
+import { createManagedTlsIngress } from '../src/devices/managed-tls-ingress.js';
 import { DEVICE_ROUTE_HEADER, isConnectRequest } from '../src/devices/route-context.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -492,6 +493,49 @@ const echo = (socket: Socket, text: string) =>
   });
 
 describe('device gateway', () => {
+  it('keeps paired Owner and Web Client HTTP and upgrade carriers through managed ingress', async () => {
+    const host = await fakeDsh();
+    const paired = await pair(host.base, host.pairing.createOffer().offer);
+    const ingress = createManagedTlsIngress({ port: host.port });
+    let device: Socket | undefined;
+    let web: Socket | undefined;
+    try {
+      const port = await ingress.start();
+      const base = `http://127.0.0.1:${port}`;
+      const headers = { 'x-forwarded-for': '192.0.2.5', 'x-forwarded-proto': 'https' };
+      const authorization = `Device ${paired.body.credential}`;
+      const ownerDevice = await fetch(`${base}/botharness-device/api/botharness/list`, {
+        method: 'POST',
+        headers: { ...headers, authorization },
+        body: '{"type":"client-request"}',
+      });
+      expect(ownerDevice.status).toBe(200);
+      expect(await ownerDevice.json()).toMatchObject({ path: '/api/botharness/list' });
+      expect(host.state.seen.at(-1)).toMatchObject({ connect: false, routeHeaderPresent: true });
+      expect(ownerDevice.headers.has('set-cookie')).toBe(false);
+      const ownerWeb = await fetch(`${base}/api/botharness/list`, {
+        method: 'POST',
+        headers: { ...headers, cookie: 'dsh=1' },
+        body: 'web-client',
+      });
+      expect(await ownerWeb.json()).toMatchObject({ body: 'web-client' });
+      const upgradedDevice = await stream(port, { ...headers, authorization });
+      device = upgradedDevice.socket;
+      expect(upgradedDevice.status).toBe(101);
+      const upgradedWeb = await stream(port, { ...headers, cookie: 'dsh=1' }, '/api/remote.mux');
+      web = upgradedWeb.socket;
+      expect(upgradedWeb.status).toBe(101);
+      if (!device || !web) throw new Error('missing-stream');
+      expect(await echo(device, 'device-frame')).toBe('device-frame');
+      expect(await echo(web, 'web-frame')).toBe('web-frame');
+      host.pairing.revoke(paired.body.deviceId ?? '');
+      expect(await echo(web, 'web-still-open')).toBe('web-still-open');
+    } finally {
+      device?.destroy();
+      web?.destroy();
+      await ingress.close();
+    }
+  });
   it('pairs once and forwards unary calls with the Host-held session only', async () => {
     const host = await fakeDsh();
     const { offer } = host.pairing.createOffer();

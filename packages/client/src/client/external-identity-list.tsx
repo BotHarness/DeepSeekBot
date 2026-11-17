@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { ReceptionStatus } from './reception-status.js';
 import { CreateAppForm } from './create-app-form.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
@@ -5,8 +7,6 @@ import { externalPlatformLabel } from './bridge-source-label.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
-  Button,
-  Switch,
   Tag,
   IconPlusOutlineRegular,
   IconRefreshOutlineRegular,
@@ -279,7 +279,11 @@ export function ExternalIdentityList({
                 ? { expectedDefaultRevision: selected.defaultRevision }
                 : {}),
             }
-          : { kind: mode, id: selected.id, expectedRevision: selected.revision },
+          : {
+              kind: mode,
+              id: selected.id,
+              expectedRevision: selected.revision,
+            },
       );
     }
   };
@@ -351,7 +355,9 @@ export function ExternalIdentityList({
                         type="button"
                         size="sm"
                         variant="ghost"
-                        aria-label={t('identity.reconnectFor', { name: row.name })}
+                        aria-label={t('identity.reconnectFor', {
+                          name: row.name,
+                        })}
                         aria-busy={busy}
                         disabled={busy}
                         onClick={() =>
@@ -797,7 +803,10 @@ export function ExternalIdentityList({
                               ),
                             }),
                     },
-                    { value: 'auto', label: t('identity.newConversations.auto') },
+                    {
+                      value: 'auto',
+                      label: t('identity.newConversations.auto'),
+                    },
                     { value: 'ask', label: t('identity.newConversations.ask') },
                   ]}
                 />

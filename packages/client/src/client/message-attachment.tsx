@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode } from 'react';
 import {
-  Button,
   FileTypeIcon,
   IconDownloadOutlineRegular,
   fileSizeText,

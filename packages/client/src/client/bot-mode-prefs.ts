@@ -15,9 +15,13 @@ import {
   BOT_MODE_SEND_KEY_FIELD,
   BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD,
   BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD,
+  BOT_MODE_SHOW_DM_AVATAR_FIELD,
+  BOT_MODE_SHOW_OWN_AVATAR_FIELD,
   BOT_MODE_STREAM_REPLIES_FIELD,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
+  BOT_MODE_SETTINGS_PINS_FIELD,
+  DEFAULT_SETTINGS_PINS,
   BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD,
   BOT_MODE_SHOW_BOT_SESSIONS_FIELD,
   DEFAULT_BOT_MODE_ICON,
@@ -35,7 +39,7 @@ import {
   type BotModeMotionPreference,
   type BotModeSendKey,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import {
   resolveEffectiveMotion,
   type EffectiveMotion,
@@ -79,10 +83,13 @@ export interface BotModePrefsSnapshot {
   sendKey: BotModeSendKey;
   autoCollapseMessages: boolean;
   showDeliveryReceipts: boolean;
+  showDmAvatar: boolean;
+  showOwnAvatar: boolean;
   streamReplies: boolean;
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
+  settingsPins?: readonly string[];
   mode: 'host' | 'memory';
   status: 'loading' | 'ready' | 'unavailable';
 }
@@ -107,6 +114,8 @@ export interface BotModePrefsFace {
   setSendKey: (sendKey: BotModeSendKey) => void;
   setAutoCollapseMessages: (enabled: boolean) => void;
   setShowDeliveryReceipts: (enabled: boolean) => void;
+  setShowDmAvatar: (enabled: boolean) => void;
+  setShowOwnAvatar: (enabled: boolean) => void;
   setStreamReplies: (enabled: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
@@ -114,12 +123,16 @@ export interface BotModePrefsFace {
   setAutoAcceptGroupInvites: (enabled: boolean) => void;
   setSortMode: (mode: BotModeSortMode) => void;
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
+  setSettingsPins: (pins: readonly string[]) => void;
 }
 
 export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
   return {
     setAssignmentConcurrencyLimit: (limit) => prefs.setAssignmentConcurrencyLimit(limit),
     setBotHopLimit: (limit) => prefs.setBotHopLimit(limit),
+    setSettingsPins: (pins) => {
+      prefs.setSettingsPins(pins);
+    },
     hooks: { botModePrefs: prefs.source },
     setAutoAcceptGroupInvites: (enabled) => prefs.setAutoAcceptGroupInvites(enabled),
     setMotionPreference: (preference) => {
@@ -133,6 +146,8 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
     },
     setAutoCollapseMessages: (enabled) => prefs.setAutoCollapseMessages(enabled),
     setShowDeliveryReceipts: (enabled) => prefs.setShowDeliveryReceipts(enabled),
+    setShowDmAvatar: (enabled) => prefs.setShowDmAvatar(enabled),
+    setShowOwnAvatar: (enabled) => prefs.setShowOwnAvatar(enabled),
     setStreamReplies: (enabled) => prefs.setStreamReplies(enabled),
     setDeveloperMode: (enabled) => {
       prefs.setDeveloperMode(enabled);
@@ -204,6 +219,8 @@ export class BotModePrefs {
       sendKey: DEFAULT_BOT_MODE_SEND_KEY,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
@@ -301,6 +318,24 @@ export class BotModePrefs {
     });
     if (this.host !== undefined)
       this.persist(this.host.set(BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD, enabled));
+  }
+
+  setShowDmAvatar(enabled: boolean): void {
+    if (this.source.getSnapshot().showDmAvatar === enabled) return;
+    this.source.update((draft) => {
+      draft.showDmAvatar = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_DM_AVATAR_FIELD, enabled));
+  }
+
+  setShowOwnAvatar(enabled: boolean): void {
+    if (this.source.getSnapshot().showOwnAvatar === enabled) return;
+    this.source.update((draft) => {
+      draft.showOwnAvatar = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_OWN_AVATAR_FIELD, enabled));
   }
 
   setStreamReplies(enabled: boolean): void {
@@ -401,6 +436,16 @@ export class BotModePrefs {
     this.persist(this.host.mutate([op]));
   }
 
+  setSettingsPins(pins: readonly string[]): void {
+    const next = [...new Set(pins)];
+    const current = this.source.getSnapshot().settingsPins ?? DEFAULT_SETTINGS_PINS;
+    if (next.length === current.length && next.every((id, index) => current[index] === id)) return;
+    this.source.update((draft) => {
+      draft.settingsPins = next;
+    });
+    if (this.host !== undefined) this.persist(this.host.set(BOT_MODE_SETTINGS_PINS_FIELD, next));
+  }
+
   async remapSectionSortModes(mapping: ReadonlyMap<string, string>): Promise<boolean> {
     const host = this.host;
     const snapshot = this.source.getSnapshot();
@@ -455,6 +500,9 @@ export class BotModePrefs {
         draft.effectiveMotion = resolveEffectiveMotion(motionPreference, this.systemReduced);
         draft.sortMode = section.sortMode;
         draft.sortModes = { ...section.sortModes };
+        const pins = settingsPins(section.settingsPins);
+        if (pins !== undefined && !samePins(draft.settingsPins ?? DEFAULT_SETTINGS_PINS, pins))
+          draft.settingsPins = pins;
         draft.botIcon = isBotModeIcon(section.botIcon) ? section.botIcon : DEFAULT_BOT_MODE_ICON;
         draft.sendKey = isBotModeSendKey(section.sendKey)
           ? section.sendKey
@@ -470,6 +518,8 @@ export class BotModePrefs {
         draft.developerMode = section.developerMode === true;
         draft.autoCollapseMessages = section.autoCollapseMessages === true;
         draft.showDeliveryReceipts = section.showDeliveryReceipts === true;
+        draft.showDmAvatar = section.showDmAvatar === true;
+        draft.showOwnAvatar = section.showOwnAvatar === true;
         draft.streamReplies = section.streamReplies === true;
         draft.showBotSessions = section.showBotSessions !== false;
         draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
@@ -521,4 +571,14 @@ export class BotModePrefs {
       },
     );
   }
+}
+
+function settingsPins(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string')
+    : undefined;
+}
+
+function samePins(current: readonly string[], next: readonly string[]): boolean {
+  return next.length === current.length && next.every((id, index) => current[index] === id);
 }

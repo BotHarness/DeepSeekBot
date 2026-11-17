@@ -1,5 +1,18 @@
 # Desktop whole-window zoom
 
+## Sources
+
+- `packages/core/src/window-zoom/**`
+- `packages/core/src/bots/cli-window-zoom.ts`
+- `packages/client/src/client/window-zoom*`
+- `packages/deepseekbot/src/desktop-zoom-*.mjs`
+- `scripts/desktop-zoom-*.mjs`
+
+## Terms
+
+- Settings
+- Layout mode
+
 ## Sub-features
 
 - S1 (#2268): one primary macOS window, settings/default/reset, owned font-shortcut handoff, device-local persistence and exact-target CLI.

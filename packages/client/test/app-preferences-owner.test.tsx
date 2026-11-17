@@ -9,6 +9,7 @@ vi.mock('../src/client/appearance-pickers.js', () => ({
     createElement('button', { onClick: () => onChange('dark') }, 'Change Client theme'),
   PrimaryColorPicker: () => null,
   ThemePresetPicker: () => null,
+  StylePicker: () => null,
   applyPreset: () => {},
 }));
 vi.mock('../src/client/bot-mode-setting-rows.js', () => ({
@@ -55,8 +56,6 @@ it('changes the existing Client appearance owner without mounting Host preferenc
   const prefs = new BotModePrefs();
   const { hooks: _hooks, ...commands } = botModePrefsFace(prefs);
   const hostWrite = vi.fn();
-  const languageWrite = vi.fn();
-  const locale = { active: 'en', locales: [], revision: 0 };
   const renderLayout = vi.fn(() => createElement('div', {}, 'Audited Client layout'));
   const container = document.createElement('div');
   document.body.append(container);
@@ -72,11 +71,6 @@ it('changes the existing Client appearance owner without mounting Host preferenc
             selector(prefs.source.getSnapshot()),
           appearance,
           wallpaper: new Wallpaper(createWallpaperStore(undefined)),
-          localeSource: {
-            getSnapshot: () => locale,
-            subscribe: () => () => {},
-            setLocale: languageWrite,
-          },
           renderSlot: renderLayout,
           clientOnly: true,
           t,
@@ -89,7 +83,6 @@ it('changes the existing Client appearance owner without mounting Host preferenc
     expect(appearance.getSnapshot().config.preference).toBe('dark');
     expect(localWrite).toHaveBeenCalled();
     expect(hostWrite).not.toHaveBeenCalled();
-    expect(languageWrite).not.toHaveBeenCalled();
     expect(renderLayout).toHaveBeenCalledWith(
       'botharness.settings.layout',
       {},
@@ -106,5 +99,8 @@ it('does not offer hidden Host-owned appearance controls in Client preference se
   expect(searchSettings(rows, 'language', t, true)).toEqual([]);
   expect(searchSettings(rows, 'motion', t, true)).toEqual([]);
   expect(searchSettings(rows, 'theme', t, true).length).toBeGreaterThan(0);
-  expect(searchSettings(rows, 'language', t).length).toBeGreaterThan(0);
+  expect(searchSettings(rows, 'language', t)).toEqual([]);
+  expect(
+    searchSettings([{ id: 'general', order: 0, label: 'General' }], 'language', t).length,
+  ).toBeGreaterThan(0);
 });

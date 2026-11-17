@@ -1,8 +1,22 @@
 import { isIPv4 } from 'node:net';
-import { isLanAddress } from '../devices/lan-address.js';
+import type { RouteStatus } from '../devices/routes.js';
 
-export function memberUrls(addresses: string[], insecureHttpAllowed: boolean): string[] {
-  return addresses.filter((address) => {
+export function memberRoutes(origin: string, status: RouteStatus): string[] {
+  return memberUrls([
+    ...(origin.startsWith('https:') ? [origin] : []),
+    ...status.routes
+      .filter(
+        (route) =>
+          route.ready &&
+          (route.kind === 'connect' ||
+            (route.kind === 'tailscale' && route.memberSignIn === 'managed-tls')),
+      )
+      .map((route) => route.url),
+  ]);
+}
+
+export function memberUrls(addresses: string[]): string[] {
+  return [...new Set(addresses)].filter((address) => {
     try {
       const url = new URL(address);
       if (url.username || url.password || url.search || url.hash) return false;
@@ -20,10 +34,7 @@ export function memberUrls(addresses: string[], insecureHttpAllowed: boolean): s
       const mappedFirst = mapped ? Number.parseInt(mapped[1] ?? '', 16) : undefined;
       if (mappedFirst !== undefined && (mappedFirst >> 8 === 127 || mappedFirst >> 8 === 0))
         return false;
-      return (
-        url.protocol === 'https:' ||
-        (insecureHttpAllowed && url.protocol === 'http:' && isLanAddress(host))
-      );
+      return url.protocol === 'https:';
     } catch {
       return false;
     }

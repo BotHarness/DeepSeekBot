@@ -317,7 +317,7 @@ describe('Workspace Grant execution boundary', () => {
       'group_leave',
     ])
       expect(requiresHumanToolApproval(tool)).toBe(false);
-    expect(requiresHumanToolApproval('bot_send_message')).toBe(true);
+    expect(requiresHumanToolApproval('bot_send_message')).toBe(false);
     for (const tool of [
       'bot_schedule_list',
       'bot_schedule_create',

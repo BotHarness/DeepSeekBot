@@ -40,14 +40,14 @@ import {
   decideJoinRequest,
   findAttentionItem,
   replyToAssignment,
-} from '../src/host/attention-actions';
-import { createHostClient, type HostClient } from '../src/host/client';
-import type { HumanAttentionItem } from '../src/host/wire';
+} from '@botharness/host-client/attention-actions';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { AttentionItemView } from '../src/ui/attention-item';
 import { PrivateInputCard } from '../src/ui/chat/private-input-card';
 import { t } from '../src/ui/strings';
 import { played } from './expo-haptics-shim';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

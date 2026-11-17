@@ -1,6 +1,6 @@
+import { Input } from './ds/input.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -42,7 +42,12 @@ const styles = stylex.create({
     cursor: 'pointer',
   },
   icon: { display: 'inline-flex', flexShrink: 0, color: color.muted },
-  meta: { flexShrink: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  meta: {
+    flexShrink: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   name: {
     flex: 1,
     minWidth: 0,
@@ -86,7 +91,10 @@ export function MessageBotDialog({
     loadReachableBots(call, controller.signal)
       .then((bots) => {
         if (!controller.signal.aborted)
-          setLoad({ state: 'ready', bots: bots.filter((bot) => bot.visibility === 'public') });
+          setLoad({
+            state: 'ready',
+            bots: bots.filter((bot) => bot.visibility === 'public'),
+          });
       })
       .catch(() => {
         if (!controller.signal.aborted) setLoad({ state: 'failed' });
@@ -133,7 +141,9 @@ export function MessageBotDialog({
                       </span>
                       <span {...stylex.props(styles.name)}>{bot.displayName}</span>
                       <span {...stylex.props(styles.meta)}>
-                        {t('team.bots.sharedBy', { name: bot.principalDisplayName })}
+                        {t('team.bots.sharedBy', {
+                          name: bot.principalDisplayName,
+                        })}
                       </span>
                     </button>
                   </li>

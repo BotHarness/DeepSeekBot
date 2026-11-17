@@ -1,7 +1,10 @@
+import { installedAppVersion } from './app-version';
+import type { TeamResult } from '@botharness/host-protocol/team-invitation';
+import { identitySwitchRequired } from '@botharness/host-client/member-identity';
 import { hostStore, hostStoreAvailable } from './host-store';
-import type { AccountOwner } from './account-owner';
+import type { AccountOwner } from '@botharness/host-client/account-owner';
 import { removeAccountConnections } from './account-connections';
-import type { ConnectHost } from './connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
@@ -9,18 +12,33 @@ import { HostScope } from './host-scope';
 import { useFocusEffect } from 'expo-router';
 import { AppState, Platform } from 'react-native';
 
-import { createHostClient, type HostClient, type HostSnapshot } from './client';
-import { createInbox, type Inbox, type InboxSnapshot } from './inbox';
-import { createConversation, type Conversation, type ConversationSnapshot } from './conversation';
+import {
+  createHostClient,
+  type HostClient,
+  type HostSnapshot,
+} from '@botharness/host-client/client';
+import { createInbox, type Inbox, type InboxSnapshot } from '@botharness/host-client/inbox';
+import {
+  createConversation,
+  type Conversation,
+  type ConversationSnapshot,
+} from '@botharness/host-client/conversation';
 import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
-import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
+import {
+  currentHost,
+  selectHost,
+  withHost,
+  withoutHost,
+  type SavedHosts,
+} from '@botharness/host-client/hosts';
 import {
   catchUpHostConversations,
   conversationCache,
   conversationCacheWaitMs,
   forgetHostConversations,
+  clearHostConversations,
   pruneHostConversations,
   warmHostConversations,
 } from './native-conversations';
@@ -32,8 +50,8 @@ import { nativeCarrier } from './native-carrier';
 import { nativeNotifications } from './native-notifications';
 import { notificationAvatars } from './native-notification-avatars';
 import { avatarInputs } from './notification-avatars';
-import { revokePairing } from './pairing';
-import { createHostPush, type PushDelivery } from './push';
+import { revokePairing } from '@botharness/host-client/pairing';
+import { createHostPush, type PushDelivery } from '@botharness/host-client/push';
 import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
 import { connectionMode } from './native-connection-mode';
@@ -45,8 +63,8 @@ import { connectionSummary } from './connection-summary';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
-import { createConnectionTelemetry } from '../telemetry/connection';
-import type { ConnectionTrigger } from '../telemetry/schema';
+import { createConnectionTelemetry } from '@botharness/host-client/telemetry/connection';
+import type { ConnectionTrigger } from '@botharness/host-client/telemetry/schema';
 import { forgetRecentChats } from '../ui/shell/recent-chats';
 import { locale, t } from '../ui/strings';
 
@@ -169,6 +187,7 @@ connectionMode.subscribe(() => {
 });
 
 const clientHosts = new WeakMap<HostClient, string>();
+const clientSelves = new WeakMap<HostClient, string>();
 const listeners = new Set<() => void>();
 const removalListeners = new Set<(host: SavedHost) => Promise<void>>();
 export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () => void {
@@ -275,7 +294,9 @@ connectionMode.onApproval(({ hostId, itemId }) => {
 
 function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   deviceAlerts.paired(saved.hostId);
+  const appVersion = installedAppVersion();
   const client = createHostClient({
+    ...(appVersion === undefined ? {} : { appVersion }),
     ...saved,
     onRoutePreferenceChanged: (routePreference) =>
       serialize(async () => {
@@ -316,8 +337,12 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
+  if (saved.member !== undefined) clientSelves.set(client, saved.member.humanId);
   warmHostConversations(saved.hostId);
-  const inbox = createInbox(client, { notifications: localAlerts });
+  const inbox = createInbox(client, {
+    notifications: localAlerts,
+    activityUpdateHost: () => t.activityUpdateHost,
+  });
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
     publishFeeds();
@@ -440,6 +465,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     const saved = next.hosts.find((host) => host.hostId === id);
     if (
       !saved ||
+      saved.member?.mustChangePassword ||
       saved.credential !== session.host.saved.credential ||
       JSON.stringify(saved.encryption) !== JSON.stringify(session.host.saved.encryption)
     ) {
@@ -449,6 +475,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     }
   }
   for (const saved of next.hosts) {
+    if (saved.member?.mustChangePassword) continue;
     const existing = sessions.get(saved.hostId);
     if (existing) {
       existing.host.saved = saved;
@@ -605,13 +632,66 @@ export const hostSession = {
     feeds.find((host) => host.saved.hostId === hostId),
   getSelectionRevision: (): number => selectionIntent,
   getSourceChangeRevision: (): number => sourceChangeRevision,
-  async pair(host: SavedHost): Promise<void> {
+  async pair(host: SavedHost, options: { confirmedIdentitySwitch?: boolean } = {}): Promise<void> {
     selectionIntent++;
     if (state.saved?.hostId !== host.hostId) sourceChangeRevision++;
     return serialize(async () => {
-      await commit(withHost(stored, host), 'pair');
+      const next = withHost(stored, host, options.confirmedIdentitySwitch === true);
+      const previous = stored.hosts.find((item) => item.hostId === host.hostId);
+      if (identitySwitchRequired(previous, host) && previous) {
+        const session = sessions.get(host.hostId);
+        sessions.delete(host.hostId);
+        session?.dispose();
+        await clearPresentations(previous);
+        try {
+          await sourceDrafts.ready;
+          await sourceDrafts.removePersistedWhere((key) => {
+            try {
+              const parts = JSON.parse(key);
+              return parts[0] === 'computer' && parts[1] === host.hostId;
+            } catch {
+              return false;
+            }
+          });
+          await clearHostConversations(host.hostId);
+          purgeCaches.forgetHost(host.hostId);
+          await forgetRecentChats(host.hostId);
+          await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
+        } catch (error) {
+          adopt(stored);
+          throw error;
+        }
+      }
+      try {
+        await commit(next, 'pair');
+      } catch (error) {
+        adopt(stored);
+        throw error;
+      }
+      if (
+        previous &&
+        identitySwitchRequired(previous, host) &&
+        previous.credential !== host.credential
+      )
+        void revokePairing({ host: previous, carrier: nativeCarrier() }).catch(() => undefined);
       void pushSession.enable(stored.hosts);
     });
+  },
+  async pairMember(
+    host: SavedHost,
+    options: { confirmedIdentitySwitch?: boolean } = {},
+  ): Promise<TeamResult<SavedHost>> {
+    if (!host.member) return { ok: false, code: 'credentials-invalid' };
+    try {
+      await hostSession.pair(host, options);
+      return { ok: true, value: host };
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      if (code === 'identity-switch-required') return { ok: false, code };
+      if (code === 'fingerprint-mismatch' || code === 'host-key-mismatch')
+        return { ok: false, code: 'fingerprint-mismatch' };
+      return { ok: false, code: 'storage-failed' };
+    }
   },
   async switchTo(hostId: string, current: () => boolean = () => true): Promise<boolean> {
     const intent = ++selectionIntent;
@@ -867,9 +947,11 @@ function conversationFor(
   if (existing !== undefined) return existing;
   const cacheWaitMs = conversationCacheWaitMs();
   const cacheWait = cacheWaitMs === undefined ? {} : { cacheWaitMs };
+  const self = clientSelves.get(client);
   const inner = createConversation({
     host: client,
     ...options,
+    ...(self === undefined ? {} : { selfHumanId: self }),
     cache: conversationCache(),
     ...cacheWait,
     cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),

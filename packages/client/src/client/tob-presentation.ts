@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { BotModeIcon } from '../bot-mode-settings.js';
+import type { BotModeIcon } from '@botharness/host-client/shared/bot-mode-settings';
 import type { BotSummary } from './store.js';
 import { useClientStore } from './use-client-store.js';
 import { useMessageHost } from './message-host.js';

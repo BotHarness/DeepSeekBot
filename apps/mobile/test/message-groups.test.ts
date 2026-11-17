@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { chatRows, messageGroups, separatorLabel } from '../src/ui/chat/message-groups';
 
 const message = (
@@ -22,6 +22,23 @@ const shape = (rows: ReturnType<typeof chatRows>) =>
   );
 
 describe('chat message groups', () => {
+  it('groups messages from one person and splits when another person speaks', () => {
+    const from = (id: string, at: string, humanId: string): ConversationMessage => ({
+      ...message(id, at, 'person'),
+      person: { humanId, name: humanId },
+    });
+    expect(
+      shape(
+        chatRows([
+          from('b1', '09:00', 'bob'),
+          from('b2', '09:01', 'bob'),
+          from('c1', '09:02', 'carol'),
+          message('me', '09:03', 'human'),
+        ]),
+      ),
+    ).toEqual(['|', 'b1^', 'b2$', 'c1^$', 'me^$']);
+  });
+
   it('folds consecutive same-day posts to one destination and keeps activity out of bubbles', () => {
     const post = (
       id: string,

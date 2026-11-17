@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconInfoOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconInfoOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import type { BotSourcePolicyEdit, BotSourcePolicyView } from './bridge.js';
@@ -63,7 +64,9 @@ function SourcePolicyEditModal({
   onSaved,
 }: {
   slug: string;
-  policy: BotSourcePolicyView & { sourceClass: BotSourcePolicyEdit['sourceClass'] };
+  policy: BotSourcePolicyView & {
+    sourceClass: BotSourcePolicyEdit['sourceClass'];
+  };
   actions: Pick<BridgeActions, 'botSourcePolicies' | 'setBotSourcePolicy' | 'resetBotSourcePolicy'>;
   t: BotHarnessTranslate;
   onClose(): void;
@@ -194,8 +197,14 @@ function SourcePolicyEditModal({
                 value={deliveryDraft}
                 disabled={busy}
                 options={[
-                  { value: 'steer', label: t('sourcePolicy.deliverySteerOption') },
-                  { value: 'turn', label: t('sourcePolicy.deliveryTurnOption') },
+                  {
+                    value: 'steer',
+                    label: t('sourcePolicy.deliverySteerOption'),
+                  },
+                  {
+                    value: 'turn',
+                    label: t('sourcePolicy.deliveryTurnOption'),
+                  },
                 ]}
                 onSelect={(value) => setDeliveryDraft(value === 'turn' ? 'turn' : 'steer')}
               />
@@ -209,14 +218,32 @@ function SourcePolicyEditModal({
                 options={
                   sourceClass === 'assignment-report'
                     ? [
-                        { value: 'conditional', label: t('sourcePolicy.conditionalOption') },
-                        { value: 'immediate', label: t('sourcePolicy.immediateOption') },
+                        {
+                          value: 'conditional',
+                          label: t('sourcePolicy.conditionalOption'),
+                        },
+                        {
+                          value: 'immediate',
+                          label: t('sourcePolicy.immediateOption'),
+                        },
                       ]
                     : [
-                        { value: 'immediate', label: t('sourcePolicy.groupAllOption') },
-                        { value: 'digest', label: t('sourcePolicy.groupDigestOption') },
-                        { value: 'mentions', label: t('sourcePolicy.groupMentionsOption') },
-                        { value: 'silent', label: t('sourcePolicy.groupSilentOption') },
+                        {
+                          value: 'immediate',
+                          label: t('sourcePolicy.groupAllOption'),
+                        },
+                        {
+                          value: 'digest',
+                          label: t('sourcePolicy.groupDigestOption'),
+                        },
+                        {
+                          value: 'mentions',
+                          label: t('sourcePolicy.groupMentionsOption'),
+                        },
+                        {
+                          value: 'silent',
+                          label: t('sourcePolicy.groupSilentOption'),
+                        },
                       ]
                 }
                 onSelect={(value) => setWakeDraft(value as BotSourcePolicyView['wake'])}

@@ -1,11 +1,12 @@
+import { Input } from './ds/input.js';
 import { ActionButton } from './ds/action-button.js';
-import { MethodRefused } from '../../../../apps/mobile/src/host/client.js';
-import { isConnectRoute } from '../../../../apps/mobile/src/host/route.js';
+import { MethodRefused } from '@botharness/host-client/client';
+import { isConnectRoute } from '@botharness/host-protocol/route';
 import { BridgeCallError } from './bridge.js';
 import { useMessageHost } from './message-host.js';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
-import { Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';

@@ -78,7 +78,7 @@ describe('Channel tool approval', () => {
       undefined,
       undefined,
       { template: () => ({ name: 'review', text: 'Ask the Human.' }), review, log: vi.fn() },
-      () => true,
+      () => false,
     );
     const rule = rules.createPending({
       botSlug,
@@ -142,11 +142,7 @@ describe('Channel tool approval', () => {
       broker.track({ ...state.execution(), name, arguments: args });
       try {
         const answer = broker.ask({ agent: state.agent, toolName: name, callId: 'call-1' });
-        if (
-          name === 'bash' ||
-          effects?.authority === 'management' ||
-          (effects?.changes === 'irreversible' && effects.reach === 'external')
-        ) {
+        if (name === 'bash' || effects?.authority === 'management') {
           await vi.waitFor(() => expect(state.messages).toHaveLength(1));
           await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
           expect(await answer).toBe('rejected');

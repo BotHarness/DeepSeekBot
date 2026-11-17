@@ -3,7 +3,7 @@ import {
   VOICE_CALL_LIMITS,
   VOICE_CALL_PATH,
 } from '../../../../packages/core/src/voice/call-contract';
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 
 export function createCallPost(api: HostClient | undefined): CallPost {
   return async (body) => {

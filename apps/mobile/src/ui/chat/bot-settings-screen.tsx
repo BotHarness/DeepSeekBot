@@ -2,7 +2,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 
-import { botSettings } from '../../host/bot-settings';
+import { botSettings } from '@botharness/host-client/bot-settings';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { SheetPage } from '../primitives/sheet-page';
 import { useStrings } from '../strings';

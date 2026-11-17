@@ -95,6 +95,7 @@ export function spawnFolderWorker(): ChildProcess {
     import.meta.url,
   );
   return fork(fileURLToPath(entry), [], {
+    windowsHide: true,
     env: { ...process.env, BOTHARNESS_FOLDER_BROWSE_WORKER: '1' },
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     execArgv: source ? ['--experimental-strip-types', '--no-warnings'] : [],

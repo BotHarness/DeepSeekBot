@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { autoApprovalTemplateTitle } from './approval-template-entry.js';

@@ -1,5 +1,5 @@
 import type { MarketplaceDetail } from '../../../../packages/core/src/marketplace/client';
-import type { createBotCreationController } from '../host/bot-creation';
+import type { createBotCreationController } from '@botharness/host-client/bot-creation';
 
 export async function selectMarketplaceImport(
   controller: ReturnType<typeof createBotCreationController>,

@@ -1,23 +1,13 @@
 import { useState, useSyncExternalStore } from 'react';
-import * as stylex from '@stylexjs/stylex';
 import { ActionButton } from './ds/action-button.js';
 import { AppearanceError, type Appearance } from './appearance.js';
 import type { Wallpaper } from './wallpaper.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { resetAppearance } from './appearance-recovery.js';
-import { SettingsSection } from './ds/settings-row.js';
+import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { Button } from './ds/button.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { space } from './ds/tokens.stylex.js';
-
-const styles = stylex.create({
-  actions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: space.x3,
-    paddingTop: space.x3,
-  },
-});
 
 export function AppearanceRecoverySettings({
   appearance,
@@ -34,51 +24,60 @@ export function AppearanceRecoverySettings({
   const [result, setResult] = useState<'done' | 'cleared' | 'partial' | 'failed'>();
   return (
     <>
-      <SettingsSection
-        title={t('recovery.title')}
-        description={t('recovery.scope', {
-          mode: t(snapshot.mode === 'light' ? 'settings.theme.light' : 'settings.theme.dark'),
-        })}
-      >
-        {result && (
-          <Note tone={result === 'partial' || result === 'failed' ? 'danger' : 'success'}>
-            {t(`recovery.${result}`)}
-          </Note>
-        )}
-        <div {...stylex.props(styles.actions)}>
-          <ActionButton
-            icon="refresh"
-
-            disabled={busy}
-            onClick={() => {
-              try {
-                appearance.update(
-                  { mode: snapshot.mode, clearPanels: true },
-                  snapshot.config.revision,
-                );
-                setResult('cleared');
-              } catch {
-                setResult('failed');
-              }
-            }}
-          >
-            {t('recovery.clear')}
-          </ActionButton>
-          <ActionButton
-            icon="refresh"
-
-            disabled={busy}
-            onClick={() => {
-              setResult(undefined);
-              setConfirmation({
-                appearance: appearance.getSnapshot().config.revision,
-                wallpaper: wallpaper.getSnapshot().revision,
-              });
-            }}
-          >
-            {t('recovery.reset')}
-          </ActionButton>
-        </div>
+      <SettingsSection title={t('recovery.title')}>
+        <SettingsRow
+          title={t('recovery.clear')}
+          description={t('recovery.scope', {
+            mode: t(snapshot.mode === 'light' ? 'settings.theme.light' : 'settings.theme.dark'),
+          })}
+          control={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                try {
+                  appearance.update(
+                    { mode: snapshot.mode, clearPanels: true },
+                    snapshot.config.revision,
+                  );
+                  setResult('cleared');
+                } catch {
+                  setResult('failed');
+                }
+              }}
+            >
+              {t('recovery.clearAction')}
+            </Button>
+          }
+        >
+          {result && (
+            <Note tone={result === 'partial' || result === 'failed' ? 'danger' : 'success'}>
+              {t(`recovery.${result}`)}
+            </Note>
+          )}
+        </SettingsRow>
+        <SettingsRow
+          title={t('recovery.reset')}
+          control={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setResult(undefined);
+                setConfirmation({
+                  appearance: appearance.getSnapshot().config.revision,
+                  wallpaper: wallpaper.getSnapshot().revision,
+                });
+              }}
+            >
+              {t('recovery.resetAction')}
+            </Button>
+          }
+        />
       </SettingsSection>
       {confirmation && (
         <PanelDialog

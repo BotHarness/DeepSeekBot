@@ -1,5 +1,6 @@
 import { ApprovalDecider, MaskedApprovalCard, OpaqueToolWarning } from './approval-mask.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { InlineTokenButton } from './ds/inline-token-button.js';
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import {
   turnContinuationText,
@@ -7,7 +8,7 @@ import {
   useNow,
   useTurnContinuation,
 } from './turn-continuation.js';
-import { autoContinueSeconds } from '../shared/turn-continuation.js';
+import { autoContinueSeconds } from '@botharness/host-client/shared/turn-continuation';
 import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
@@ -57,6 +58,7 @@ import { messagePerfView } from './message-perf.js';
 import { type BotSummary, type ChannelMessage } from './store.js';
 import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
+import { skillOwnerLabel, skillSummary, useSkillPeek } from './skill-preview.js';
 import { GenuiReportCard } from './genui-report.js';
 import { GenuiDocumentCard } from './genui-document.js';
 
@@ -185,6 +187,11 @@ function SessionFailureNotice({
       ) : null}
       {refusalHint === undefined ? null : (
         <div className="bh-session-failure-context">{t(refusalHint)}</div>
+      )}
+      {failure.repeated === undefined || failure.repeated < 2 ? null : (
+        <div className="bh-session-failure-context">
+          {t('failure.repeated', { count: String(failure.repeated) })}
+        </div>
       )}
       {failure.context === undefined ? null : (
         <div className="bh-session-failure-context">
@@ -517,6 +524,7 @@ export function ChannelMessageBody({
     [t],
   );
   const host = useMessageHost();
+  const skillPeek = useSkillPeek(t);
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
@@ -780,16 +788,14 @@ export function ChannelMessageBody({
         </span>
       );
     return (
-      <button
+      <InlineTokenButton
         key={key}
-        type="button"
-        className="bh-inline-mention bh-inline-mention-sent bh-inline-mention-link"
         data-channel-id={ref.channelId}
         aria-label={`Open channel ${ref.label}`}
         onClick={() => void actions.openChannel(ref.channelId)}
       >
         {badge}
-      </button>
+      </InlineTokenButton>
     );
   };
   const renderSkill = (
@@ -802,20 +808,26 @@ export function ChannelMessageBody({
             (bot) => skill.owner.kind === 'bot' && bot.slug === skill.owner.botSlug,
           )
         : undefined;
-    const owner =
-      skill.owner.kind === 'host'
-        ? t('composer.skillHost')
-        : skill.owner.kind === 'workspace'
-          ? skill.owner.name
-          : (ownerBot?.displayName ?? skill.owner.botSlug);
-    const preview =
-      skill.content.length > 1500 ? `${skill.content.slice(0, 1500)}…` : skill.content;
+    const owner = skillOwnerLabel(skill.owner, ownerBot, t);
+    const peek = { name: skill.name, owner, description: skillSummary(skill.content) };
     return (
-      <span
+      <InlineTokenButton
         key={key}
-        className="bh-inline-mention bh-inline-mention-sent bh-inline-skill"
+        className="bh-inline-skill"
         data-skill-owner={skillOwnerKey(skill.owner)}
-        title={`/${skill.name} · ${owner}\n\n${preview}`}
+        aria-label={`/${skill.name} · ${owner}`}
+        onPointerEnter={(event) => skillPeek.show(peek, event.currentTarget)}
+        onPointerLeave={skillPeek.hide}
+        onFocus={(event) => skillPeek.show(peek, event.currentTarget)}
+        onBlur={skillPeek.hide}
+        onClick={() =>
+          skillPeek.open({
+            ...peek,
+            owner: t('composer.skillSnapshot', { owner }),
+            description: '',
+            load: () => Promise.resolve({ description: '', content: skill.content }),
+          })
+        }
       >
         {skill.owner.kind === 'bot' && host === undefined ? (
           <span className="bh-inline-mention-avatar" aria-hidden="true">
@@ -836,7 +848,7 @@ export function ChannelMessageBody({
           </span>
         ) : null}
         <span>/{skill.name}</span>
-      </span>
+      </InlineTokenButton>
     );
   };
   const voice = message.voice;
@@ -953,6 +965,7 @@ export function ChannelMessageBody({
               </span>
             ),
           )}
+          {skillPeek.layer}
         </div>
       ) : (
         <div

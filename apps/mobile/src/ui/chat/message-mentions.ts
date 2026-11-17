@@ -1,7 +1,7 @@
 import { Lexer } from 'marked';
 import remend from 'remend';
 import { textMarkdownSupported } from '../markdown-blocks';
-import type { WireMention } from '../../host/wire';
+import type { WireMention } from '@botharness/host-protocol/wire';
 
 export function mentionMarkdownBody(body: string, streaming: boolean) {
   const normalized = body.replace(/\r\n?/g, '\n');

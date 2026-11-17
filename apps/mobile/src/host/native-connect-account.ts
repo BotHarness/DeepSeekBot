@@ -7,10 +7,13 @@ import { fetch } from 'expo/fetch';
 import { router } from 'expo-router';
 
 import { AppState } from 'react-native';
-import { isConnectRoute } from './route';
+import { isConnectRoute } from '@botharness/host-protocol/route';
 import { MOBILE_REDIRECT_URI } from '../cloud/instance-contract';
 import { hostSession } from './host-session';
-import { authorizeWithLateRedirect, createConnectAccount } from './connect-account';
+import {
+  authorizeWithLateRedirect,
+  createConnectAccount,
+} from '@botharness/host-client/connect-account';
 import { startEmailCodeSignIn } from './email-code-bridge';
 
 const KEY = 'botharness.connect-account.v1';

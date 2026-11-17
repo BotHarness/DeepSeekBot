@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.hoisted(async () => {
+await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
   const { readdirSync } = await import('node:fs');
   const { dirname } = await import('node:path');
@@ -36,10 +36,10 @@ vi.mock('../src/ui/design/theme', async () => {
   return { useDesignTheme: () => theme };
 });
 
-import type { QuestionItem } from '../src/host/wire';
-import type { ApprovalRequest } from '../src/host/requests';
+import type { QuestionItem } from '@botharness/host-protocol/wire';
+import type { ApprovalRequest } from '@botharness/host-client/requests';
 import type { ApprovalCardPort } from '../src/ui/chat/approval-card';
-import { emptyDraft } from '../src/host/requests';
+import { emptyDraft } from '@botharness/host-client/requests';
 import {
   ActionCard,
   CardButtons,

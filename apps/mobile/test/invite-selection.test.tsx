@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { useInviteSelection, type InviteSheetProps } from '../src/ui/chat/invite-selection';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
+import { SearchField } from './ds/field.js';
 import { en, zh, type BotHarnessKey, type BotHarnessTranslate } from './locale.js';
 import type { BotSettingsSectionRow } from './bot-settings.js';
 import { searchTextMatches, searchTextScore } from './search-match.js';
@@ -17,10 +17,14 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'accountProfile.name',
     'accountProfile.id',
     'accountProfile.email',
+    'market.mine.title',
   ],
   general: [
-    'environment.settings.device',
-    'remoteHosts.this',
+    'general.section.language',
+    'general.section.motion',
+    'general.section.onboarding',
+    'settings.language',
+    'motion.row.title',
     'zoom.current',
     'zoom.default',
     'zoom.setup.enable',
@@ -31,10 +35,13 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'environment.settings.device',
     'remoteHosts.this',
     'recovery.title',
+    'recovery.clear',
+    'recovery.reset',
     'settings.theme',
     'settings.theme.system',
     'settings.theme.light',
     'settings.theme.dark',
+    'appearance.style',
     'appearance.palette',
     'appearance.lightPreset',
     'appearance.lightPrimary',
@@ -50,30 +57,41 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'appearance.materialBlur',
     'appearance.body',
     'appearance.panels',
-    'motion.row.title',
     'icon.row.title',
-    'settings.language',
     'workspace.appearance',
     'workspace.layoutMode',
     'workspace.gap',
     'dock.reset',
   ],
   models: [
+    'models.section.default',
+    'models.section.context',
+    'models.section.run',
     'onboarding.defaultTitle',
     'idleCompaction.row.title',
     'compactionThreshold.row.title',
+    'compactionThreshold.ratio',
+    'compactionThreshold.headroom',
+    'compactionThreshold.reset.title',
     'assignmentLimit.title',
-    'botSessions.row.title',
-    'approvalReviewSessions.row.title',
   ],
   messaging: [
+    'messaging.section.me',
     'humanName.title',
+    'messaging.section.input',
     'sendKey.row.title',
+    'messaging.section.display',
     'messageFold.row.title',
+    'message.avatar.dm.row.title',
+    'message.avatar.own.row.title',
     'message.delivery.row.title',
     'message.stream.row.title',
+    'messaging.section.bots',
     'groupAutoAccept.row.title',
     'botHopLimit.title',
+  ],
+  'im-apps': [
+    'imApps.allApps',
     'defaults.title',
     'identity.platform',
     'bridge.condition',
@@ -95,8 +113,13 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'voice.mic.title',
     'voice.mic.threshold',
   ],
-  'im-apps': ['imApps.allApps'],
-  advanced: ['developer.row.title', 'git.settings.title'],
+  advanced: [
+    'advanced.section.developer',
+    'developer.row.title',
+    'botSessions.row.title',
+    'approvalReviewSessions.row.title',
+    'git.settings.title',
+  ],
   'auto-approval': [
     'autoApproval.globalDefault',
     'autoApproval.reviewerModel.title',
@@ -156,8 +179,13 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'devices.tailscale.title',
     'privateTunnel.ingressLan',
   ],
-  plugins: ['plugins.row.title'],
-  about: ['release.row.title', 'build.row.title'],
+  about: [
+    'about.section.version',
+    'release.row.title',
+    'build.row.title',
+    'about.section.plugins',
+    'plugins.row.title',
+  ],
   'data-privacy': [
     'backup.title',
     'telemetry.row.title',
@@ -170,10 +198,13 @@ export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessK
   appearance: [
     'environment.settings.device',
     'recovery.title',
+    'recovery.clear',
+    'recovery.reset',
     'settings.theme',
     'settings.theme.system',
     'settings.theme.light',
     'settings.theme.dark',
+    'appearance.style',
     'appearance.palette',
     'appearance.lightPreset',
     'appearance.lightPrimary',
@@ -199,8 +230,19 @@ export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessK
   companions: ['companion.speechSound', 'companion.retention'],
 };
 
+export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'idleCompaction.row.title': 'idleCompaction.row.info',
+  'botHopLimit.title': 'botHopLimit.description',
+  'git.settings.title': 'git.settings.description',
+  'compactionThreshold.ratio': 'compactionThreshold.row.description',
+  'assignmentLimit.title': 'assignmentLimit.description',
+  'botSessions.row.title': 'botSessions.row.info',
+  'approvalReviewSessions.row.title': 'approvalReviewSessions.row.info',
+};
+
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'relationships.prepareReturn': 'relationships.prepareReturnHint',
+  'market.mine.title': 'market.mine.settingsHint',
   'connections.methods': 'connections.hosts.local',
   'devices.lan.title': 'devices.lan.notice',
   'connections.hosts.preference': 'connections.hosts.preferenceScope',
@@ -214,6 +256,9 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'zoom.setup.disable': 'zoom.setup.disable.description',
   'wallpaper.title': 'wallpaper.local',
   'recovery.title': 'recovery.scope',
+  'recovery.clear': 'recovery.scope',
+  'appearance.header': 'appearance.materialMode',
+  'appearance.body': 'appearance.materialMode',
   'autoApproval.library.title': 'autoApproval.library.description',
   'autoApproval.globalDefault': 'autoApproval.unavailable',
   'defaults.title': 'defaults.lead',
@@ -226,8 +271,9 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'icon.row.title': 'icon.row.description',
   'onboarding.defaultTitle': 'onboarding.defaultDescription',
   'idleCompaction.row.title': 'idleCompaction.row.description',
-  'compactionThreshold.row.title': 'compactionThreshold.row.description',
-  'assignmentLimit.title': 'assignmentLimit.description',
+  'compactionThreshold.ratio': 'compactionThreshold.ratio.hint',
+  'compactionThreshold.headroom': 'compactionThreshold.headroom.hint',
+  'assignmentLimit.title': 'assignmentLimit.summary',
   'botSessions.row.title': 'botSessions.row.description',
   'approvalReviewSessions.row.title': 'approvalReviewSessions.row.description',
   'autoApproval.reviewerModel.title': 'autoApproval.reviewerModel.description',
@@ -236,10 +282,12 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'voice.mic.threshold': 'voice.mic.thresholdHint',
   'sendKey.row.title': 'sendKey.row.description',
   'messageFold.row.title': 'messageFold.row.description',
+  'message.avatar.dm.row.title': 'message.avatar.dm.row.description',
+  'message.avatar.own.row.title': 'message.avatar.own.row.description',
   'message.delivery.row.title': 'message.delivery.row.description',
   'message.stream.row.title': 'message.stream.row.description',
   'groupAutoAccept.row.title': 'groupAutoAccept.row.description',
-  'botHopLimit.title': 'botHopLimit.description',
+  'botHopLimit.title': 'botHopLimit.summary',
   'bridge.condition': 'defaults.collectionHint',
   'defaults.threshold': 'defaults.thresholdHint',
   'defaults.identityRow': 'defaults.enableIdentity',
@@ -253,7 +301,7 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'storage.row.title': 'storage.row.description',
   'dataReset.row.title': 'dataReset.row.description',
   'developer.row.title': 'developer.row.description',
-  'git.settings.title': 'git.settings.description',
+  'git.settings.title': 'git.settings.summary',
 };
 
 const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
@@ -273,7 +321,6 @@ const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
   devices: 'botSettings.section.devices',
   'data-privacy': 'botSettings.section.dataPrivacy',
   advanced: 'botSettings.section.advanced',
-  plugins: 'botSettings.section.plugins',
   about: 'botSettings.section.about',
 };
 
@@ -289,8 +336,7 @@ const SECTION_ALIASES: Readonly<Record<string, string>> = {
   notifications: '提醒 alert',
   'im-apps': '飞书 Lark Feishu Slack Discord',
   devices: '设备 手机 配对 devices phone mobile pair',
-  plugins: '插件 plugin',
-  about: '版本 关于 version about',
+  about: '版本 关于 插件 version about plugin plugins',
   'data-privacy': '备份 隐私 存储 空间 清理 backup privacy storage cleanup',
 };
 
@@ -355,6 +401,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'zoom.default': '缩放 放大 缩小 字体 字号 zoom scale font size',
   'zoom.setup.enable': '缩放 放大 缩小 zoom scale',
   'zoom.setup.disable': '缩放 卸载 zoom uninstall',
+  'appearance.style': '风格 样式 默认 苹果 谷歌 style default apple material google macos ios',
   'appearance.palette': '颜色 主题色 color palette',
   'appearance.panels': '面板 透明 毛玻璃 panel transparency glass',
   'voice.providers.new': '朗读 语音合成 TTS text-to-speech',
@@ -366,11 +413,14 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'privateTunnel.ingressLan': '代理 反向代理 隧道 局域网 proxy tunnel ingress LAN',
   'accountProfile.name': '名字 昵称 name nickname',
   'accountProfile.photo': '头像 avatar picture',
+  'market.mine.title': '上传 市场 发布 删除 upload marketplace publish delete',
   'appearance.primary': '颜色 强调色 color accent',
   'wallpaper.interval': '壁纸 轮播 wallpaper rotate slideshow',
   'wallpaper.shuffle': '壁纸 随机 wallpaper random',
   'sendKey.row.title': 'Enter Shift+Enter Ctrl+Enter 回车 发送 换行 newline',
   'message.stream.row.title': '流式 打字 stream streaming typing',
+  'message.avatar.dm.row.title': '头像 DM 私聊 avatar direct',
+  'message.avatar.own.row.title': '头像 自己 我的 avatar my own',
   'message.delivery.row.title': '已读 回执 read receipt receipts',
   'botHopLimit.title': '跳数 接力 循环 hop loop relay',
   'settings.language': '中文 English language 语言',
@@ -378,6 +428,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'icon.row.title': 'avatar 图标 头像',
   'onboarding.defaultTitle': '模型 默认模型 model default model',
   'idleCompaction.row.title': 'compaction context 上下文 压缩',
+  'compactionThreshold.ratio': 'compaction context 上下文 压缩 阈值 threshold',
   'compactionThreshold.row.title': 'compaction context 上下文 压缩 阈值 threshold',
   'assignmentLimit.title': '并发 任务 concurrency tasks parallel',
   'autoApproval.reviewerModel.title': '审批 复核 approval reviewer',
@@ -458,8 +509,10 @@ export function searchSettings(
       const titles = [t(key), en[key], zh[key]];
       const synonyms = (SEARCH_ALIASES[key] ?? '').split(' ').filter(Boolean);
       const descriptionKey = SETTINGS_DESCRIPTIONS[key];
-      const descriptions =
-        descriptionKey === undefined ? [] : [en[descriptionKey], zh[descriptionKey]];
+      const infoKey = SETTINGS_INFO[key];
+      const descriptions = [descriptionKey, infoKey].flatMap((note) =>
+        note === undefined ? [] : [en[note], zh[note]],
+      );
       const own = (term: string) =>
         [...titles, ...synonyms].some((text) => searchTextMatches(text, term)) ||
         descriptions.some((text) => describes(text, term));
@@ -517,14 +570,5 @@ export function SettingsSearch({
   onChange(value: string): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  return (
-    <Input
-      className="bh-settings-search-input"
-      type="search"
-      aria-label={t('settings.search')}
-      placeholder={t('settings.search')}
-      value={query}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
+  return <SearchField label={t('settings.search')} value={query} onChange={onChange} />;
 }

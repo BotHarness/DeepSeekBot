@@ -15,7 +15,7 @@ import { Button } from '../primitives/button';
 import { SheetHeader } from '../primitives/sheet-header';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
-import { recordFeature } from '../../telemetry/features';
+import { recordFeature } from '@botharness/host-client/telemetry/features';
 import { FileIcon } from '../shell/icons';
 import { conversationHref } from '../shell/open-conversation';
 import { useStrings } from '../strings';

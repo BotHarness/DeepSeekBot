@@ -1,5 +1,17 @@
 # IM conversation mirroring
 
+## Sources
+
+- `packages/client/src/client/{reception-status,thread-reception-settings,external-identity-list}.tsx`
+- `packages/core/src/messaging/{external-reception,reception-history,reception-paths}.ts`
+
+## Terms
+
+- Binding
+- Conversation ingest
+- Source Event
+- Outbox Intent
+
 ## Sub-features
 
 - Message reception is distinct from app connection and Bot activity. Temporary startup failure shows reconnecting, its reason and next retry time; permanent failure needs attention. Reconnect now uses the existing binding without changing conversation permissions.

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { channelFailure } from '../src/host/pairing';
+import { channelFailure } from '@botharness/host-client/pairing';
 import { pairingFailureText } from '../src/ui/pairing-failure';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { View } from 'react-native';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
-import type { HostSnapshot } from '../src/host/client';
+import type { HostSnapshot } from '@botharness/host-client/client';
 import { channelRouteId } from '../src/ui/shell/channel-navigation';
 import { t } from '../src/ui/strings';
 import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
@@ -54,7 +54,7 @@ vi.mock('../src/host/native-conversation-filter', async () => {
     conversationFilter: createConversationFilter({ read: async () => undefined, write() {} }),
   };
 });
-vi.mock('../src/host/client', () => ({
+vi.mock('@botharness/host-client/client', () => ({
   createHostClient: () => ({
     stop() {},
     call: async () => {

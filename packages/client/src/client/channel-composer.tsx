@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
   composerSlashQuery,
@@ -18,7 +19,6 @@ import {
 } from 'react';
 
 import {
-  Button,
   FileTypeIcon,
   IconCheckOutlineRegular,
   IconCloseOutlineRegular,
@@ -62,14 +62,22 @@ import {
 import type { ChannelAttachmentRef } from './store.js';
 import { deleteAttachmentReference, insertAttachmentReferences } from './attachment-refs.js';
 import type { ComposerSendKey } from './composer-send-key.js';
-import { rankSkillEntries, skillOwnerKey } from '../../../core/src/skills/entries.js';
+import {
+  rankSkillEntries,
+  skillOwnerKey,
+  type SkillCatalogEntry,
+} from '../../../core/src/skills/entries.js';
 import {
   activeSkillQuery,
   selectSkill,
-  type ComposerSkillOption,
   type SelectedSkill,
   type SkillQuery,
 } from './skill-refs.js';
+import { chipSkill, useSkillPeek, type SkillDocument } from './skill-preview.js';
+
+export type ComposerSkillOption = SkillCatalogEntry & {
+  bot?: BotSummary | undefined;
+};
 
 export interface ChannelComposerActivity {
   presentation?: 'group' | undefined;
@@ -120,6 +128,7 @@ export interface ChannelComposerProps {
   channelRefs?: readonly SelectedChannelRef[] | undefined;
   skillOptions?: readonly ComposerSkillOption[] | undefined;
   skills?: readonly SelectedSkill[] | undefined;
+  readSkill?: ((name: string, owner: string) => Promise<SkillDocument>) | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
   t?: BotHarnessTranslate | undefined;
   onChange(
@@ -220,7 +229,9 @@ function ComposerImageAttachment({
     setSource(nextSource);
     return () => URL.revokeObjectURL(nextSource);
   }, [item.file]);
-  const previewLabel = t('composer.previewAttachment', { name: item.file.name });
+  const previewLabel = t('composer.previewAttachment', {
+    name: item.file.name,
+  });
 
   return (
     <>
@@ -234,7 +245,9 @@ function ComposerImageAttachment({
         <button
           type="button"
           className="bh-composer-attachment-reference bh-composer-image-reference"
-          aria-label={t('composer.referenceAttachment', { name: item.file.name })}
+          aria-label={t('composer.referenceAttachment', {
+            name: item.file.name,
+          })}
           disabled={sending}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onReference}
@@ -415,6 +428,7 @@ export function ChannelComposer({
   channelRefs = [],
   skillOptions = [],
   skills = [],
+  readSkill,
   reply,
   t = zhTranslate,
   onChange,
@@ -423,6 +437,7 @@ export function ChannelComposer({
   onSubmit,
 }: ChannelComposerProps): ReactElement {
   const locked = sending || disabled;
+  const skillPeek = useSkillPeek(t);
   const voice = useComposerVoice({
     port: dictation,
     value,
@@ -807,6 +822,31 @@ export function ChannelComposer({
     },
     [scheduleSync, value],
   );
+  const shellMount = useMountedResource<HTMLDivElement>((shell) => {
+    const pane = shell.closest<HTMLElement>('.bh-chat-pane');
+    if (pane === null || typeof ResizeObserver === 'undefined') return;
+    const timeline = pane.querySelector<HTMLElement>('.bh-chat-body');
+    const sync = (): void => {
+      const shellBounds = shell.getBoundingClientRect();
+      const overlay =
+        shellBounds.height === 0
+          ? 0
+          : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
+      const atLatest =
+        timeline !== null &&
+        timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
+      pane.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
+      if (atLatest) timeline.scrollTop = timeline.scrollHeight;
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(shell);
+    observer.observe(pane);
+    return () => {
+      observer.disconnect();
+      pane.style.removeProperty('--bh-composer-overlay');
+    };
+  }, []);
   const replyId = reply?.id;
   const bodyMount = useMountedResource<HTMLDivElement>(
     (body) => {
@@ -1052,7 +1092,13 @@ export function ChannelComposer({
   };
 
   return (
-    <div className="bh-composer-shell" data-bh-tour="composer" data-companion-avoid>
+    <div
+      ref={shellMount}
+      className="bh-composer-shell"
+      data-bh-tour="composer"
+      data-companion-avoid
+    >
+      {skillPeek.layer}
       {dictation === undefined ? null : (
         <span className="bh-sr-only" role="status" aria-live="polite">
           {composerVoiceStatus(voice, t) ?? ''}
@@ -1205,7 +1251,9 @@ export function ChannelComposer({
                   <small>{t('composer.allBotsScope')}</small>
                 </span>
                 <small className="bh-mention-option-id">
-                  {t('composer.allBotsCount', { count: candidate.preview.recipients.length })}
+                  {t('composer.allBotsCount', {
+                    count: candidate.preview.recipients.length,
+                  })}
                 </small>
               </button>
             ) : (
@@ -1244,7 +1292,12 @@ export function ChannelComposer({
         className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
         data-dictation={voice.snapshot.status}
-        style={{ '--bh-composer-body-height': `${fit.height}px` } as CSSProperties}
+        style={
+          {
+            '--bh-composer-body-height': `${fit.height}px`,
+            ...(hasFooter ? { '--bh-composer-padding': 'var(--bh-composer-footer-padding)' } : {}),
+          } as CSSProperties
+        }
       >
         {reply === undefined ? null : (
           <div className="bh-composer-reply">
@@ -1315,9 +1368,30 @@ export function ChannelComposer({
               data-placeholder={placeholder}
               contentEditable={!locked && !voice.active}
               suppressContentEditableWarning
+              onPointerOver={(event) => {
+                const chip = chipSkill(event.target, skillOptions, t);
+                if (chip === undefined) skillPeek.hide();
+                else skillPeek.show(chip.peek, chip.element);
+              }}
+              onPointerLeave={skillPeek.hide}
+              onMouseDown={(event) => {
+                if (
+                  readSkill !== undefined &&
+                  chipSkill(event.target, skillOptions, t) !== undefined
+                )
+                  event.preventDefault();
+              }}
               onClick={(event) => {
                 const target = event.target;
                 if (!(target instanceof Element)) return;
+                const chip = chipSkill(target, skillOptions, t);
+                if (chip !== undefined && readSkill !== undefined) {
+                  skillPeek.open({
+                    ...chip.peek,
+                    load: () => readSkill(chip.peek.name, chip.ownerKey),
+                  });
+                  return;
+                }
                 const badge = target.closest<HTMLElement>('[data-attachment-id]');
                 if (badge === null) return;
                 const card = Array.from(

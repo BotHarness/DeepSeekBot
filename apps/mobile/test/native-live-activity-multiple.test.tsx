@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 
 const native = vi.hoisted(() => ({
@@ -38,8 +38,8 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('../src/ui/strings', () => ({ locale: 'en', t: {} }));
 vi.mock('../src/ui/shell/recent-chats', () => ({ forgetRecentChats: async () => {} }));
-vi.mock('../src/host/live-activity', async (original) => ({
-  ...(await original<typeof import('../src/host/live-activity')>()),
+vi.mock('@botharness/host-client/live-activity', async (original) => ({
+  ...(await original<typeof import('@botharness/host-client/live-activity')>()),
   createHostActivity: () => ({ request: native.remote }),
 }));
 vi.mock('../src/ui/widgets/request-activity', () => {

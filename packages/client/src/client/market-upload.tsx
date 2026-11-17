@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
@@ -58,8 +59,18 @@ type AccountState =
   | { status: 'ready'; account: MarketplaceAccount };
 
 const styles = stylex.create({
-  body: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
-  choices: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x5,
+    minWidth: 0,
+  },
+  choices: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   summary: {
     display: 'flex',
     alignItems: 'center',
@@ -69,7 +80,12 @@ const styles = stylex.create({
     backgroundColor: color.surface,
     minWidth: 0,
   },
-  summaryCopy: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  summaryCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+  },
   summaryName: {
     color: color.fg,
     fontSize: text.titleSize,
@@ -126,20 +142,30 @@ function BotChoices({
   bots,
   t,
   disabled = false,
+  original,
   onChoose,
 }: {
   bots: readonly BotSummary[];
   t: BotHarnessTranslate;
   disabled?: boolean;
+  original?: string | undefined;
   onChoose: (bot: BotSummary) => void;
 }): ReactElement {
   if (bots.length === 0) return <Note>{t('market.upload.noBots')}</Note>;
+  const ordered =
+    original === undefined
+      ? bots
+      : [
+          ...bots.filter((bot) => bot.slug === original),
+          ...bots.filter((bot) => bot.slug !== original),
+        ];
   return (
     <div {...stylex.props(styles.choices)} role="list">
-      {bots.map((bot) => (
+      {ordered.map((bot) => (
         <div key={bot.slug} role="listitem">
           <ChoiceButton
             title={bot.displayName}
+            description={bot.slug === original ? t('market.mine.original') : undefined}
             leading={<BotAvatar bot={bot} size={28} t={t} />}
             disabled={disabled}
             data={{ 'data-market-bot-choice': bot.slug }}
@@ -192,7 +218,13 @@ export function MarketUploadDialog({
 }): ReactElement {
   const roster = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
   const bots = publishable(roster);
-  const preselected = bots.find((bot) => bot.slug === initialSlug);
+  const source =
+    replacing === undefined
+      ? undefined
+      : (bots.find((bot) => bot.uploadedListing === replacing.id) ??
+        bots.find((bot) => bot.installedListing === replacing.id));
+  const listingName = replacing === undefined ? '' : (replacing.displayName ?? replacing.name);
+  const preselected = bots.find((bot) => bot.slug === initialSlug) ?? source;
   const submit = useMarketplaceSubmit(actions, (bot) => {
     onListed(bot);
     onClose();
@@ -205,7 +237,10 @@ export function MarketUploadDialog({
   const [chosen, setChosen] = useState<BotSummary | undefined>(preselected);
   const [draft, setDraft] = useState<DraftState>({ status: 'loading' });
   const [account, setAccount] = useState<AccountState>({ status: 'loading' });
-  const [signIn, setSignIn] = useState<{ userCode: string; verificationUri: string }>();
+  const [signIn, setSignIn] = useState<{
+    userCode: string;
+    verificationUri: string;
+  }>();
   const [authorName, setAuthorName] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [name, setName] = useState(
@@ -222,6 +257,7 @@ export function MarketUploadDialog({
   const [cause, setCause] = useState<unknown>();
   const mounted = useRef(true);
   const signInEpoch = useRef(0);
+  const draftFor = useRef<string | undefined>(undefined);
   const signingIn = useRef(false);
 
   const loadAccount = async (): Promise<MarketplaceAccount | undefined> => {
@@ -243,13 +279,16 @@ export function MarketUploadDialog({
   };
 
   const loadDraft = (bot: BotSummary): void => {
+    draftFor.current = bot.slug;
     setDraft({ status: 'loading' });
     void actions.shareDraftGet(bot.slug).then(
       (value) => {
-        if (mounted.current) setDraft({ status: 'ready', draft: value });
+        if (mounted.current && draftFor.current === bot.slug)
+          setDraft({ status: 'ready', draft: value });
       },
       (failure: unknown) => {
-        if (mounted.current) setDraft({ status: 'error', cause: failure });
+        if (mounted.current && draftFor.current === bot.slug)
+          setDraft({ status: 'error', cause: failure });
       },
     );
   };
@@ -338,7 +377,11 @@ export function MarketUploadDialog({
     run(async () => {
       const exported = await actions.shareDraftExport(bot.slug);
       await askTob(
-        t('market.github.message', { name: bot.displayName, path: exported.path, slug: bot.slug }),
+        t('market.github.message', {
+          name: bot.displayName,
+          path: exported.path,
+          slug: bot.slug,
+        }),
       );
     });
 
@@ -350,7 +393,7 @@ export function MarketUploadDialog({
     else if (step === 'details') go(accountDone ? beforeAccount : 'account');
     else if (step === 'account' || step === 'github') go(beforeAccount);
     else if (step === 'where') go('draft');
-    else if (step === 'draft' && preselected === undefined) go('bot');
+    else if (step === 'draft' && (preselected === undefined || replacing !== undefined)) go('bot');
     else if (replacing !== undefined) onClose();
     else setRoute('choose');
   };
@@ -392,7 +435,21 @@ export function MarketUploadDialog({
   } else {
     let content: ReactNode;
     if (step === 'bot') {
-      content = <BotChoices bots={bots} t={t} onChoose={choose} />;
+      content =
+        replacing === undefined ? (
+          <BotChoices bots={bots} t={t} onChoose={choose} />
+        ) : (
+          <>
+            <div data-market-replace-hint={source === undefined ? 'missing' : 'found'}>
+              <Note tone={source === undefined ? 'warning' : 'muted'}>
+                {t(source === undefined ? 'market.mine.sourceMissing' : 'market.mine.pickHint', {
+                  listing: listingName,
+                })}
+              </Note>
+            </div>
+            <BotChoices bots={bots} t={t} original={source?.slug} onChoose={choose} />
+          </>
+        );
     } else if (step === 'draft' && chosen !== undefined) {
       if (draft.status === 'loading') content = <Note>{t('market.direct.planLoading')}</Note>;
       else if (draft.status === 'error')
@@ -475,7 +532,9 @@ export function MarketUploadDialog({
       else if (account.status === 'error') {
         content = (
           <Note tone="danger">
-            {t('market.direct.accountFailed', { error: marketplaceError(account.cause, t) })}
+            {t('market.direct.accountFailed', {
+              error: marketplaceError(account.cause, t),
+            })}
           </Note>
         );
         primary = (
@@ -552,7 +611,10 @@ export function MarketUploadDialog({
               void run(async () => {
                 const saved = await actions.marketplaceAuthorSave(authorName.trim(), true);
                 if (mounted.current && ready !== undefined)
-                  setAccount({ status: 'ready', account: { ...ready, author: saved } });
+                  setAccount({
+                    status: 'ready',
+                    account: { ...ready, author: saved },
+                  });
               })
             }
           >
@@ -594,6 +656,25 @@ export function MarketUploadDialog({
       const files = plan.value;
       content = (
         <>
+          {replacing === undefined || chosen === undefined ? null : (
+            <div data-market-replace-summary="" {...stylex.props(styles.choices)}>
+              <Note>
+                {t('market.mine.replaceSummary', { bot: chosen.displayName, listing: listingName })}
+              </Note>
+              {chosen.slug === source?.slug ? null : (
+                <div data-market-replace-warning="">
+                  <Note tone="warning">
+                    {source === undefined
+                      ? t('market.mine.unknownSource', { bot: chosen.displayName })
+                      : t('market.mine.otherBot', {
+                          bot: chosen.displayName,
+                          original: source.displayName,
+                        })}
+                  </Note>
+                </div>
+              )}
+            </div>
+          )}
           {chosen === undefined ? null : (
             <div {...stylex.props(styles.summary)}>
               <BotAvatar bot={chosen} size={40} t={t} />
@@ -643,9 +724,8 @@ export function MarketUploadDialog({
                 tags: tagList(tags),
                 ...(replacing === undefined ? {} : { replaces: replacing.id }),
               });
-              if (!mounted.current) return;
               onListed(uploaded.bot);
-              onClose();
+              if (mounted.current) onClose();
             })
           }
         >
@@ -679,7 +759,9 @@ export function MarketUploadDialog({
       title={
         replacing === undefined
           ? t(TITLES[route])
-          : t('market.mine.updateTitle', { name: replacing.displayName ?? replacing.name })
+          : t('market.mine.updateTitle', {
+              name: replacing.displayName ?? replacing.name,
+            })
       }
       closeLabel={t('common.close')}
       onClose={onClose}

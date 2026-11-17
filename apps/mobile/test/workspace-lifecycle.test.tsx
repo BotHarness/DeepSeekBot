@@ -101,7 +101,7 @@ vi.mock('../src/account/native-account-profile', () => ({
   useAccountProfile: () => ({ status: 'signed-out' }),
 }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
-vi.mock('../src/host/client', () => ({
+vi.mock('@botharness/host-client/client', () => ({
   createHostClient: () => ({ call: async () => ({ items: [] }) }),
 }));
 vi.mock('../src/cloud/native', () => ({

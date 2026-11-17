@@ -6,6 +6,18 @@ not evidence of an unavailable Host or idle PersonaBot regression. Use
 [inline approval verification](activity-inline-approval.md) for the current entry.
 The Host activity readers remain available independently of the retired Overview.
 
+## Sources
+
+- `packages/core/src/live-activity/*.ts`
+- `packages/core/src/bots/cli-live-activity.ts`
+- `packages/core/src/state/{dsh-activity,tool-activity}.ts`
+
+## Terms
+
+- Activity
+- PersonaBot Attention
+- Bot state
+
 ## Sub-features
 
 - Behavior ID: `desktop.activity-center.idle-personabot`.

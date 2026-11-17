@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { ConnectionGuide } from './connection-guide.js';
 import { FieldStack, TextField } from './ds/field.js';
@@ -16,7 +16,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  form: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   submit: { alignSelf: 'flex-start' },
 });
 

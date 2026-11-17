@@ -1,6 +1,8 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -31,7 +33,12 @@ import { audienceOptions, audienceSummary } from './team-spaces-view.js';
 import { audienceReady, type AudienceDirectory } from './team-spaces-bridge.js';
 
 const styles = stylex.create({
-  checks: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  checks: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
 });
 
 type Choice = 'private' | 'everyone' | 'roles' | 'members';
@@ -137,7 +144,10 @@ export function BotAccessEntry({
                             ? current
                             : {
                                 ...current,
-                                switches: { ...current.switches, [key]: switches[key] },
+                                switches: {
+                                  ...current.switches,
+                                  [key]: switches[key],
+                                },
                               },
                         );
                       },
@@ -225,12 +235,16 @@ function VisibilityDialog({
             preview.dmsBecomingReadOnly === 1
               ? t('botAccess.shrinkDmsOne')
               : preview.dmsBecomingReadOnly > 1
-                ? t('botAccess.shrinkDms', { count: String(preview.dmsBecomingReadOnly) })
+                ? t('botAccess.shrinkDms', {
+                    count: String(preview.dmsBecomingReadOnly),
+                  })
                 : undefined,
             preview.channelsLeaving === 1
               ? t('botAccess.shrinkChannelsOne')
               : preview.channelsLeaving > 1
-                ? t('botAccess.shrinkChannels', { count: String(preview.channelsLeaving) })
+                ? t('botAccess.shrinkChannels', {
+                    count: String(preview.channelsLeaving),
+                  })
                 : undefined,
             memoryLine(t, preview),
           ]

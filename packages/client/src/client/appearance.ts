@@ -11,7 +11,10 @@ import {
   type AppearanceTarget,
   type AppearancePanelPatch,
 } from './appearance-panels.js';
+import { TOBS_STYLES } from './ds/tobs-tokens.generated.js';
 export const APPEARANCE_KEY = 'botharness:appearance:v1';
+export type AppearanceStyle = keyof typeof TOBS_STYLES;
+export const APPEARANCE_STYLES = Object.keys(TOBS_STYLES) as AppearanceStyle[];
 export type AppearanceMode = 'light' | 'dark';
 export type AppearancePreference = AppearanceMode | 'system';
 export type AppearancePreset = 'classic-blue' | 'mist-purple' | 'forest-green' | 'warm-amber';
@@ -31,6 +34,7 @@ export interface AppearanceConfig extends Record<string, unknown> {
   version: 1;
   revision: string;
   preference: AppearancePreference;
+  style?: AppearanceStyle;
   modes: Record<AppearanceMode, AppearanceModeConfig>;
 }
 export interface AppearanceSnapshot {
@@ -57,6 +61,8 @@ const preset = (value: unknown): value is AppearancePreset =>
   value === 'mist-purple' ||
   value === 'forest-green' ||
   value === 'warm-amber';
+const styleName = (value: unknown): value is AppearanceStyle =>
+  typeof value === 'string' && Object.hasOwn(TOBS_STYLES, value);
 const preference = (value: unknown): value is AppearancePreference =>
   value === 'system' || value === 'light' || value === 'dark';
 export function parseAppearance(raw: string | null): AppearanceConfig {
@@ -76,7 +82,12 @@ export function parseAppearance(raw: string | null): AppearanceConfig {
   } catch {
     throw new AppearanceError('appearance-storage-invalid');
   }
-  if (v.version !== 1 || !preference(v.preference) || typeof v.revision !== 'string')
+  if (
+    v.version !== 1 ||
+    !preference(v.preference) ||
+    typeof v.revision !== 'string' ||
+    (v.style !== undefined && !styleName(v.style))
+  )
     throw new AppearanceError('appearance-storage-invalid');
   const modes = object(v.modes);
   for (const mode of ['light', 'dark'] as const) {
@@ -94,6 +105,7 @@ export function parseAppearance(raw: string | null): AppearanceConfig {
 }
 export interface AppearancePatch {
   preference?: AppearancePreference;
+  style?: AppearanceStyle;
   mode?: AppearanceMode;
   preset?: AppearancePreset;
   primary?: string;
@@ -107,15 +119,23 @@ export function parseAppearancePatch(value: unknown): AppearancePatch {
     !Object.keys(v).length ||
     Object.keys(v).some(
       (k) =>
-        !['preference', 'mode', 'preset', 'primary', 'materials', 'panel', 'clearPanels'].includes(
-          k,
-        ),
+        ![
+          'preference',
+          'style',
+          'mode',
+          'preset',
+          'primary',
+          'materials',
+          'panel',
+          'clearPanels',
+        ].includes(k),
     ) ||
     (v.clearPanels !== undefined &&
       (v.clearPanels !== true ||
         v.mode === undefined ||
         Object.keys(v).some((k) => k !== 'mode' && k !== 'clearPanels'))) ||
     (v.preference !== undefined && !preference(v.preference)) ||
+    (v.style !== undefined && (!styleName(v.style) || v.panel !== undefined)) ||
     (v.mode !== undefined && v.mode !== 'light' && v.mode !== 'dark') ||
     (v.preset !== undefined && !preset(v.preset)) ||
     (v.panel !== undefined &&
@@ -231,6 +251,7 @@ export class Appearance {
       const next = structuredClone(current);
       next.revision = this.revision();
       if (patch.preference !== undefined) next.preference = patch.preference;
+      if (patch.style !== undefined) next.style = patch.style;
       if (patch.mode !== undefined) {
         const mode = next.modes[patch.mode];
         if (patch.clearPanels) delete mode.panels;

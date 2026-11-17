@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient } from '../src/host/client';
-import { createConversation, type ConversationSnapshot } from '../src/host/conversation';
+import { createHostClient } from '@botharness/host-client/client';
+import {
+  createConversation,
+  type ConversationSnapshot,
+} from '@botharness/host-client/conversation';
 import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 

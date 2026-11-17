@@ -1,5 +1,5 @@
-import type { Inbox } from './inbox';
-import type { HumanAttentionPage } from './wire';
+import type { Inbox } from '@botharness/host-client/inbox';
+import type { HumanAttentionPage } from '@botharness/host-protocol/wire';
 
 export const ACTIVITY_COUNT_KINDS = [
   'approvals',

@@ -1,5 +1,5 @@
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
-import { createWorkspace } from '../../../../apps/mobile/src/host/bot-settings.js';
+import type { HostClient } from '@botharness/host-client/client';
+import { createWorkspace } from '@botharness/host-client/bot-settings';
 import type { createActions } from './actions.js';
 import { BridgeCallError } from './bridge.js';
 

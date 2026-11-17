@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import type { HostClient } from '@botharness/host-client/client';
 import type { BotHarnessTranslate } from './locale.js';
 import { remoteHosts, type RemoteHost } from './remote-hosts.js';
 import {
@@ -24,8 +24,8 @@ import {
   isTailscaleRoute,
   isConnectRoute,
   isLoopbackRoute,
-} from '../../../../apps/mobile/src/host/route.js';
-import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
+} from '@botharness/host-protocol/route';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 
 function routeLabel(route: string, t: BotHarnessTranslate) {
   if (isLanRoute(route)) return t('connections.lan');
@@ -195,7 +195,10 @@ function HostDetailsSession({
                   ...observed.routes.map((route) => route.address),
                   ...(observed.routePreference === 'automatic' ? [] : [observed.routePreference]),
                 ]),
-              ].map((route) => ({ value: route, label: `${routeLabel(route, t)} · ${route}` })),
+              ].map((route) => ({
+                value: route,
+                label: `${routeLabel(route, t)} · ${route}`,
+              })),
             ]}
             onChange={(route) => void perform({ action: 'select-route', route, confirm: true })}
           />
@@ -210,7 +213,11 @@ function HostDetailsSession({
             size="sm"
             disabled={busy}
             onClick={() =>
-              void perform({ action: 'select-route', route: 'automatic', confirm: true })
+              void perform({
+                action: 'select-route',
+                route: 'automatic',
+                confirm: true,
+              })
             }
           >
             {t('connections.hosts.returnAutomatic')}
@@ -284,7 +291,11 @@ function HostDetailsSession({
                 size="sm"
                 disabled={mutationBlocked}
                 onClick={() =>
-                  void prepare({ action: 'revoke-device', deviceId: device.id, label: device.name })
+                  void prepare({
+                    action: 'revoke-device',
+                    deviceId: device.id,
+                    label: device.name,
+                  })
                 }
               >
                 {t('connections.hosts.revoke')}
@@ -417,7 +428,10 @@ function HostDetailsSession({
               disabled={busy}
               options={[
                 { value: '', label: t('connections.remote.disconnect') },
-                ...plan.alternatives.map((route) => ({ value: route, label: route })),
+                ...plan.alternatives.map((route) => ({
+                  value: route,
+                  label: route,
+                })),
               ]}
               onChange={setHandover}
             />

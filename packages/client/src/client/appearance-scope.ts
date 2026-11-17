@@ -1,4 +1,4 @@
-import { BUBBLE_SURFACES, readable } from './bot-name-color.js';
+import { BUBBLE_SURFACES, readable } from '@botharness/host-client/shared/bot-name-color';
 import { space } from './ds/tokens.stylex.js';
 import { panelMaterials, validTargetId } from './appearance-panels.js';
 import { appearanceMaterials } from './appearance-materials.js';
@@ -9,6 +9,8 @@ import {
   type AppearanceSnapshot,
 } from './appearance.js';
 import { NATIVE_LIGHT, NATIVE_DARK } from './appearance-native-tokens.js';
+import { DSH_RESKIN, tobsBridgeCss } from './tobs-bridge.js';
+import { tobsTokens } from './tobs-theme.js';
 export const APPEARANCE_CLASS = 'bh-appearance-scope';
 export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const { config, mode } = snapshot;
@@ -18,6 +20,7 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const tokens: Record<string, string> = {
     ...NATIVE_LIGHT,
     ...(mode === 'dark' ? NATIVE_DARK : {}),
+    ...tobsTokens(mode, selected.preset, selected.primary, config.style),
   };
   for (const part of ['header', 'body'] as const) {
     const material = materials[part];
@@ -26,13 +29,14 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
     tokens[`--bh-global-${part}-blur`] = `${material.blur}px`;
   }
   tokens['--dsw-alias-state-business-primary'] = primary;
+  for (const [role, value] of Object.entries(DSH_RESKIN)) tokens[`--dsw-${role}`] = value;
   tokens['--dsw-alias-link'] = readable(primary, BUBBLE_SURFACES[mode].surface, 4.6);
   tokens['--dsw-alias-state-business-secondary'] =
     `color-mix(in srgb, ${primary} 45%, transparent)`;
   tokens['--dsw-alias-state-business-tertiary'] = `color-mix(in srgb, ${primary} 14%, transparent)`;
   tokens['--dsw-specific-sidebar-nav-item-active'] =
     `color-mix(in srgb, ${primary} 14%, transparent)`;
-  return `.bh-root,.bh-workspace-mount[data-workspace-enabled],.${APPEARANCE_CLASS},[data-bh-appearance-owned]{color:var(--dsw-alias-label-primary);color-scheme:${mode};${Object.entries(
+  return `${tobsBridgeCss()}.bh-root,.bh-workspace-mount[data-workspace-enabled],.${APPEARANCE_CLASS},[data-bh-appearance-owned]{color:var(--dsw-alias-label-primary);color-scheme:${mode};${Object.entries(
     tokens,
   )
     .map(([k, v]) => `${k}:${v}`)
@@ -49,6 +53,7 @@ export function mountAppearance(owner: Appearance): () => void {
     style.textContent = appearanceCss(owner.getSnapshot());
     style.dataset.bhAppearance = owner.getSnapshot().mode;
     document.documentElement.dataset.bhAppearance = owner.getSnapshot().mode;
+    document.documentElement.dataset.tobsStyle = owner.getSnapshot().config.style ?? 'a';
   };
   const media = window.matchMedia('(prefers-color-scheme: dark)');
   const onStorage = (event: StorageEvent) => {
@@ -63,6 +68,7 @@ export function mountAppearance(owner: Appearance): () => void {
     off();
     style.remove();
     delete document.documentElement.dataset.bhAppearance;
+    delete document.documentElement.dataset.tobsStyle;
     media.removeEventListener('change', owner.refresh);
     window.removeEventListener('storage', onStorage);
   };

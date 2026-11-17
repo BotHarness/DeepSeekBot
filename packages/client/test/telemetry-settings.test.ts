@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 const switches = vi.hoisted(() => [] as Array<Record<string, unknown>>);
 
+vi.mock('../src/client/ds/switch.js', async () => ({
+  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement: h } = await import('react');
   return {

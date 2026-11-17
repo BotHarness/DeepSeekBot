@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PersonaBotDeletionPreview } from '../../../core/src/bots/deletion.js';
 import type { BridgeActions } from './actions.js';
@@ -12,6 +13,7 @@ import { Note } from './ds/note.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   content: {
@@ -57,7 +59,7 @@ const styles = stylex.create({
   },
   path: {
     overflowWrap: 'anywhere',
-    fontFamily: 'var(--dsw-font-family-mono)',
+    fontFamily: font.familyMono,
   },
   actions: {
     display: 'flex',

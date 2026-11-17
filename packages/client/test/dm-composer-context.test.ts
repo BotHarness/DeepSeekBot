@@ -199,7 +199,8 @@ it('keeps model, workspace and usage actions available across mobile and desktop
     expect(host.querySelector('[role="dialog"]')!.textContent).toContain('model:footer-mobile');
     await resize(false);
     expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
-    expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.textContent).toBe('0');
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
       '0 个工作区',
     );
     expect(host.querySelector('[data-composer-chip="usage"]')).not.toBeNull();
@@ -248,7 +249,9 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
     await act(async () => root.render(createElement(Harness)));
     const model = () =>
       host.querySelector<HTMLButtonElement>('[data-composer-context-leading] button')!;
-    expect(model().textContent).toBe(modelName);
+    expect(model().getAttribute('title')).toBe(modelName);
+    expect(model().textContent).toBe('V41 Flash');
+    expect(model().querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
     await act(async () =>
       rememberModelPlan(
         bot.slug,
@@ -264,7 +267,7 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
         actions,
       ),
     );
-    expect(model().textContent).toBe(alternateName);
+    expect(model().getAttribute('title')).toBe(alternateName);
     expect(model().getAttribute('aria-label')).not.toContain('继承全局');
     expect(model().getAttribute('aria-label')).not.toContain('DeepSeek Provider');
     await act(async () => model().click());
@@ -284,7 +287,7 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
         actions,
       ),
     );
-    expect(model().textContent).toBe(modelName);
+    expect(model().getAttribute('title')).toBe(modelName);
   } finally {
     await act(async () => root.unmount());
     host.remove();
@@ -527,10 +530,15 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
   try {
     await render();
     expect(host.querySelectorAll('[data-composer-context-leading] button')).toHaveLength(2);
-    expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.textContent).toBe('0');
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
       '0 个工作区',
     );
-    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('28K / 1M');
+    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('3%');
+    expect(host.querySelector('[data-composer-chip="usage"]')!.getAttribute('title')).toMatch(
+      /^28K \/ 1M\. /,
+    );
+    expect(host.querySelector('[data-composer-chip="usage"] [data-context-ring]')).not.toBeNull();
     expect(host.querySelectorAll('[data-composer-context] button svg')).toHaveLength(3);
     await clickUsage();
     expect(details).not.toHaveBeenCalled();
