@@ -1180,7 +1180,7 @@ const en = {
     signOut: 'Sign out',
     signOutTitle: 'Sign out of {host}?',
     signOutBody:
-      'Its chats and notifications leave this phone. To come back, sign in with your username and password.',
+      'Its chats and notifications leave this phone. To come back, ask the Host owner for a new invitation.',
     password: 'Password',
     passwordHint:
       'Signing in for the first time? Use the one-time password your Host owner gave you.',
@@ -3776,7 +3776,7 @@ const zh: typeof en = {
     switchHint: '用另一个成员账号登录这个 Host。',
     signOut: '退出登录',
     signOutTitle: '退出 {host}？',
-    signOutBody: '这台手机将不再显示它的聊天和通知。之后用你的用户名和密码重新登录即可。',
+    signOutBody: '这台手机将不再显示它的聊天和通知。之后要再登录，需要 Host 所有者重新发邀请。',
     password: '密码',
     passwordHint: '第一次登录时，使用 Host 所有者给你的一次性密码。',
     again: '重新登录',
