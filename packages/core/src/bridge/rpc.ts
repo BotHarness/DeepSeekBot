@@ -2302,10 +2302,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     allBotMention?: AllBotMention,
     genuiReply?: GenuiMessageReply,
     skillInvocations?: ChannelSkillInvocationToken[],
+    quotes?: ChannelMessage['quotes'],
   ): Promise<{ message: ChannelMessage }> {
     return unwrap(
       await this.methods.channelSend({
         ...(skillInvocations === undefined ? {} : { skillInvocations }),
+        ...(quotes === undefined ? {} : { quotes }),
         channelId,
         body,
         ...(allBotMention === undefined ? {} : { allBotMention }),
