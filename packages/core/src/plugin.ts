@@ -245,6 +245,7 @@ import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
+import { createRouteRests } from './models/route-rest.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
@@ -687,6 +688,8 @@ export function createCore(
     autoContinueDelaysMs?: readonly number[];
     stopSettleTimeoutMs?: number;
     closeSessionApprovals?: (sessionIds: readonly string[]) => void;
+    routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
+    sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -1375,6 +1378,8 @@ function initializeCore(
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
+    ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
+    ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
     ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
@@ -2001,7 +2006,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let privateInputs: PrivateInputs | undefined;
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
+  const routeRests = createRouteRests();
   const core = createCore({
+    routeRests,
+    sessionRoute: (botSlug, sessionId) =>
+      agentAdapter.modelSelection(sessionId) ??
+      core.registry.get(botSlug)?.modelPlan?.orchestrator ??
+      modelCatalog.defaultRoute?.(),
     startupDiagnostic: diagnosticEvents,
     databaseDiagnostic: (snapshot) => {
       recordDatabaseStartup(diagnosticEvents, snapshot);
@@ -2524,6 +2535,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'agent/request-error',
     createBotRequestRetry({
       isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+      onQuotaExhausted: (route, untilMs) => routeRests.rest(route, untilMs),
       log: (message) => ctx.logger.info(message),
     }),
     { global: true },

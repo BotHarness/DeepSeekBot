@@ -903,6 +903,9 @@ const en = {
     stoppedHeld: 'It waits until someone messages it',
     stoppedOrchestratorHeld: 'Assignments keep running',
     stoppedFailures: (count: number) => `stopped after ${count} failed runs in a row`,
+    stoppedQuota: (route: string, until: string) =>
+      `paused: ${route} is out of quota until ${until}`,
+    stoppedQuotaRetry: 'Message it after that to try again',
     stoppedRetry: 'Message it to try again',
     human: 'You',
     show: 'Show in this chat',
@@ -3507,6 +3510,8 @@ const zh: typeof en = {
     stoppedHeld: '有人给它发消息前不会继续',
     stoppedOrchestratorHeld: 'Assignment 继续运行',
     stoppedFailures: (count: number) => `连续 ${count} 次运行失败，已自动停下`,
+    stoppedQuota: (route: string, until: string) => `已暂停：${route} 额度用完，${until} 重置`,
+    stoppedQuotaRetry: '重置后给它发消息即可重试',
     stoppedRetry: '给它发消息即可重试',
     human: '你',
     show: '在此聊天中显示',

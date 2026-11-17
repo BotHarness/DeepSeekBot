@@ -36,6 +36,7 @@ import {
 } from '../../../core/src/channels/genui-document.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
+import { isChannelTurnStopRests } from '../../../core/src/channels/turn-stop.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
@@ -1650,10 +1651,13 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
             }
           : {}),
       ...(stop['held'] === true ? { held: true } : {}),
-      ...(stop['cause'] === 'failures' || stop['cause'] === 'human-stop'
+      ...(stop['cause'] === 'failures' ||
+      stop['cause'] === 'human-stop' ||
+      stop['cause'] === 'quota'
         ? { cause: stop['cause'] }
         : {}),
       ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
+      ...(isChannelTurnStopRests(stop['rests']) ? { rests: stop['rests'] } : {}),
     };
   } else if (author.kind === 'system' && asRecord(record['onboardingWelcome'])?.['version'] !== 1) {
     return undefined;
