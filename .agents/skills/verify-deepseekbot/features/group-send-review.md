@@ -3,6 +3,17 @@
 An opt-in local Group holds a Bot reply when formal conversation content changed after its
 observed basis. The Human sees only committed replies in canonical history.
 
+## Sources
+
+- `packages/core/src/channels/send-review.ts`
+- `scripts/group-send-review-report.mjs`
+
+## Terms
+
+- Channel
+- Reply
+- Source Revision
+
 ## Sub-features
 
 - Observe: full inbound content or bounded `channel_read` supplies a Host-issued basis.

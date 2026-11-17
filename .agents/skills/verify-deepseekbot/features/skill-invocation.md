@@ -2,6 +2,22 @@
 
 A Human types `/` in a PersonaBot DM or Group Channel, picks a Skill, and sends it. The Host stores the Skill's text with the message and the Bot reads it as a `<skill_invocation>` block ([ADR-0346](../../../../docs/adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)).
 
+## Sources
+
+- `packages/core/src/skills/**`
+- `packages/core/src/bots/cli-skills.ts`
+- `packages/client/src/client/skill-refs.ts`
+- `packages/host-client/src/skill-catalog.ts`
+- `apps/mobile/src/ui/chat/{skill-*,use-skill-catalog}.{ts,tsx}`
+
+## Terms
+
+- Skill Invocation
+- Host Skill
+- Project Skill
+- DM
+- Channel
+
 ## Sub-features
 
 - `menu` lists composer commands first, then Skills: Host Skills and the Project Skills under each conversation member Bot's Memory Repository `.agents/skills` or `.dsh/skills`. Each row shows its owner (Bot avatar or Skill icon), `/name` and a one-line description.

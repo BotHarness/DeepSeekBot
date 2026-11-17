@@ -1,5 +1,24 @@
 # Bot Marketplace
 
+## Sources
+
+- `packages/market/**`
+- `packages/core/src/marketplace/**`
+- `packages/client/src/client/{marketplace,market-panel}.tsx`
+- `apps/mobile/src/marketplace/**`
+- `apps/mobile/src/ui/shell/marketplace-*`
+- `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
+- `apps/mobile/app/marketplace*.tsx`
+
+## Terms
+
+- Bot Marketplace
+- Marketplace Digest
+- Marketplace Ranking
+- Install Receipt
+- Share Draft
+- Listing
+
 ## Sub-features
 
 - Flat borderless cards show the indexed Bot banner (pixel recipe or uploaded image) and a primary Import action. No banner keeps a neutral strip.

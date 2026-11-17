@@ -1,5 +1,16 @@
 # Anonymous Bot token telemetry
 
+## Sources
+
+- `packages/core/src/telemetry/**`
+- `packages/client/src/client/telemetry-*.{ts,tsx}`
+
+## Terms
+
+- Telemetry
+- Install ID
+- Active Day
+
 ## Sub-features
 
 - `projection`: deterministic owned, child and Assignment SessionEvents match the token snapshot wire; unowned native Sessions and replay do not increase totals.
