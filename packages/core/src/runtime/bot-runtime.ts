@@ -880,6 +880,7 @@ export interface BotRuntime {
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
   askChannel?(sessionId: string): string | undefined;
   toolApprovalOrigin?(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined;
+  hasDirectToolInvocation?(query: ToolApprovalOriginQuery): boolean;
   bindPrivateInputOrigin?(
     sessionId: string,
     sourceEventId?: string,
@@ -4611,6 +4612,10 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#askOrigin({ sessionId })?.channelId;
   }
 
+  hasDirectToolInvocation({ sessionId, callId }: ToolApprovalOriginQuery): boolean {
+    return !this.#closed && this.#activeDirectTools.get(callId)?.agentSessionId === sessionId;
+  }
+
   toolApprovalOrigin(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined {
     return this.#askOrigin(query);
   }
@@ -5347,13 +5352,14 @@ class BotRuntimeImplementation implements BotRuntime {
     ) {
       if (human !== undefined)
         approvalChannelId = this.#channels.getOrCreateDm(human, botSlug, bot.displayName)?.id;
-      this.#ownership.claim({
-        sessionId,
-        botSlug,
-        rootRole: 'orchestrator',
-        provenance: 'created',
-        at: this.#now().toISOString(),
-      });
+      if (!PRIVATE_INPUT_TOOLS.has(tool))
+        this.#ownership.claim({
+          sessionId,
+          botSlug,
+          rootRole: 'orchestrator',
+          provenance: 'created',
+          at: this.#now().toISOString(),
+        });
     }
     const started = this.#now();
     const record = (outcome: 'ok' | 'error', result: string) => {

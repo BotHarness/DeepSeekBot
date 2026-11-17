@@ -35,11 +35,15 @@ There are only two model outcomes:
 
 The target removes autonomous model reject. Consequently, the current model-rejection counters and rejection-triggered pause/resume mechanism do not apply. Existing historical decisions are implementation evidence, not proof that this target has shipped.
 
+## Later confirmed admission boundary (2026-11-18)
+
+The Human confirmed that [#4337](https://github.com/BotHarness/BotHarness/pull/4337) takes precedence over the earlier E2 mandatory-effect admission target. Effect declarations label approval cards; irreversible/external metadata alone does not add approval or override Full Access. Existing admission rules determine which requests reach the Reviewer or Human. Authorized Browser and Computer sessions keep their existing per-session behavior.
+
 ## Deterministic authorization and effect admission
 
 The target first uses deterministic code to determine whether the action needs approval and resolve valid deterministic authorization. A covered request does not incur a model call. An uncovered request uses the effective Reviewer policy or goes to the Human when the Reviewer is disabled.
 
-Trusted effect declarations from #4210 participate in admission and appear on approval cards. Full Access alone cannot approve an irreversible external-effect call: valid deterministic authorization or an approval decision is still required. Secrets, Bot creation, attachment writes and protected management retain their decision boundaries; Browser and Computer use per-session authorization. Full Access answers only the remaining ordinary calls without cards. Management retains ADR-0249's dedicated scope.
+Trusted effect declarations from #4210 describe each tool call and appear on approval cards; they do not by themselves require approval. Admission keeps the earlier rules: secrets, Bot creation, attachment writes and protected management need a decision, Browser and Computer use their per-session authorization, and Full Access answers other ordinary calls without cards. Management keeps ADR-0249's dedicated scope.
 
 Card-created Tool Approval Rules remain deterministic, Bot-scoped authorizations with their existing role, authority scope and execution checks. The Bot permissions table shows their source such as “From approval card”, role, scope and revoke action. This separate display does not turn them into the template editor's natural-language Always allow rows. They are not written into the shared template, granted to other Bots using it, or included in template copies. A natural-language row cannot override an already matched deterministic rule; the Human must revoke that rule to return those requests to review.
 
@@ -72,14 +76,14 @@ Missing or unreadable selected templates, unavailable models, timeouts and malfo
 
 The source baseline inspected was fc29d448467392b1e9ed2f3d048d3d1df0b14381. These are static observations, not a live-Host verification:
 
-| Aspect              | Existing fact or specification                                                          | Confirmed target                                                                                  |
-| ------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Selection           | Single optional Bot field; no global default in plugin.ts:2491                          | Global inheritance, specific selection or Off                                                     |
-| Policy shape        | ADR-0207 specifies whole Markdown; #4203 and E3 specify three parts plus Bot extra rows | Three parts in one selected template; no extra Bot layer                                          |
-| Reviewer output     | approval-reviewer.ts:189 has allow/reject/ask-human                                     | allow/ask-human only                                                                              |
-| Rule precedence     | tool-approval.ts:306–349 resolves Full Access and saved rules before Reviewer           | Keep deterministic authorization first; Full Access does not exempt irreversible external effects |
-| Card rules          | #4203 and E3 AC-3 retain deterministic execution and source labels                      | Preserve that requirement and Bot ownership                                                       |
-| Referenced deletion | Previously unresolved in this interview                                                 | Confirm once, disclose effects and fall back to inheritance                                       |
+| Aspect              | Existing fact or specification                                                          | Confirmed target                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Selection           | Single optional Bot field; no global default in plugin.ts:2491                          | Global inheritance, specific selection or Off                                             |
+| Policy shape        | ADR-0207 specifies whole Markdown; #4203 and E3 specify three parts plus Bot extra rows | Three parts in one selected template; no extra Bot layer                                  |
+| Reviewer output     | approval-reviewer.ts:189 has allow/reject/ask-human                                     | allow/ask-human only                                                                      |
+| Rule precedence     | tool-approval.ts:306–349 resolves Full Access and saved rules before Reviewer           | Keep deterministic authorization first; effect admission follows the later #4337 decision |
+| Card rules          | #4203 and E3 AC-3 retain deterministic execution and source labels                      | Preserve that requirement and Bot ownership                                               |
+| Referenced deletion | Previously unresolved in this interview                                                 | Confirm once, disclose effects and fall back to inheritance                               |
 
 Source files: [Bot record](../../packages/core/src/bots/persona-bot.ts), [template lookup](../../packages/core/src/plugin.ts), [Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts), [approval owner](../../packages/core/src/workspaces/tool-approval.ts), [rules](../../packages/core/src/workspaces/tool-approval-rules.ts). ADR-0205/0207/0239/0249 explain the historical evolution; ADR-0207 alone is not the current complete pipeline.
 

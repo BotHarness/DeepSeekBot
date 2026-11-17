@@ -3036,7 +3036,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           channelApproval: toolApproval,
           ownership: core.ownership,
           forceChannel:
-            eachUse || toolEffects(execution.name, execution.arguments)?.authority === 'management',
+            eachUse ||
+            toolEffects(execution.name, execution.arguments)?.authority === 'management' ||
+            core.runtime.hasDirectToolInvocation?.({
+              sessionId: agent.session.id,
+              callId: execution.callId,
+            }) === true,
           request: {
             agent,
             toolName: execution.name,
