@@ -4255,14 +4255,21 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   color: var(--tobs-ink-primary);
   box-shadow: 0 0 0 1px var(--tobs-state-pressed);
 }
-.bh-inline-mention-sent,
-.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"] {
+.bh-inline-mention-sent {
   display: inline-flex;
   align-items: center;
   gap: ${space.x1};
   vertical-align: middle;
   border-radius: ${radius.sm};
   padding: ${space.x1} ${space.x3};
+}
+a[href^="https://session.tobs.invalid/"] {
+  display: inline;
+  padding: 0 ${space.x2};
+  border-radius: ${radius.xs};
+  line-height: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .bh-inline-mention-avatar {
   display: inline-flex;

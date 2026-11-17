@@ -18,6 +18,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
   IconSkillOutlineRegular: () => null,
+  IconStopFillRegular: () => null,
   MarkdownText: ({ text }: { text: string }) => createElement('div', null, text),
 }));
 
@@ -45,8 +46,16 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
       turn: 1,
       source: 'user',
     },
-    { kind: 'reasoning', text: 'Check the click handler.', at: '2026-11-17T00:00:02.000Z' },
-    { kind: 'reply', text: 'The download runs after an await.', at: '2026-11-17T00:00:03.000Z' },
+    {
+      kind: 'reasoning',
+      text: 'Check the click handler.',
+      at: '2026-11-17T00:00:02.000Z',
+    },
+    {
+      kind: 'reply',
+      text: 'The download runs after an await.',
+      at: '2026-11-17T00:00:03.000Z',
+    },
     {
       kind: 'tool',
       id: 'c1',
@@ -72,7 +81,6 @@ async function render(actions: Partial<BridgeActions>): Promise<HTMLElement> {
       createElement(SessionDetail, {
         actions: actions as BridgeActions,
         botSlug: 'tobs',
-        botName: 'Tobs',
         sessionId: 'asg-1',
         t: zhTranslate,
       }),
@@ -119,9 +127,8 @@ it('shows the full conversation with summary chips that expand in place', async 
   expect(host.querySelector('[data-session-panel="goal"]')?.textContent).toContain(
     'Export works on Safari 17',
   );
-  expect(host.querySelector('[data-session-composer]')?.textContent).toContain(
-    'Tobs 会在 Inbox 收到通知',
-  );
+  expect(host.querySelector('[data-session-composer]')).not.toBeNull();
+  expect(host.querySelector('[data-session-composer]')?.textContent).not.toContain('Inbox');
 });
 
 it('has no composer for the Orchestrator conversation', async () => {
@@ -147,7 +154,10 @@ it('sends a direct request into the Assignment and reports a refusal', async () 
   const calls: [string, Record<string, unknown>][] = [];
   const delivered = vi.fn(async (endpoint: string, payload: Record<string, unknown>) => {
     calls.push([endpoint, payload]);
-    return { ok: true as const, value: { slug: 'tobs', result: '{"delivery":"steer"}' } };
+    return {
+      ok: true as const,
+      value: { slug: 'tobs', result: '{"delivery":"steer"}' },
+    };
   });
   await sendSessionRequest(delivered, 'tobs', 'asg-1', 'Also cover Firefox.', true);
   expect(calls).toEqual([
@@ -156,13 +166,19 @@ it('sends a direct request into the Assignment and reports a refusal', async () 
       {
         slug: 'tobs',
         tool: 'send_assignment_request',
-        args: { session_id: 'asg-1', text: 'Also cover Firefox.', mode: 'next-step' },
+        args: {
+          session_id: 'asg-1',
+          text: 'Also cover Firefox.',
+          mode: 'next-step',
+        },
       },
     ],
   ]);
   const refused = vi.fn(async () => ({
     ok: true as const,
-    value: { result: { code: 'assignment-ended', message: 'Assignment is archived' } },
+    value: {
+      result: { code: 'assignment-ended', message: 'Assignment is archived' },
+    },
   }));
   await expect(sendSessionRequest(refused, 'tobs', 'asg-1', 'Hi', false)).rejects.toThrow(
     'Assignment is archived',
@@ -182,4 +198,27 @@ it('sends a direct request into the Assignment and reports a refusal', async () 
   const parsed = await loadSessionTranscript(read, 'tobs', 'asg-1');
   expect(parsed.running).toBe(true);
   expect(parsed.items).toHaveLength(5);
+});
+
+it('stops a running Assignment from an empty composer', async () => {
+  const stopSession = vi.fn(async () => {});
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment', true)),
+    sendSessionRequest: vi.fn(async () => {}),
+    stopSession,
+  });
+  const stop = host.querySelector<HTMLButtonElement>('[data-composer-stop]')!;
+  expect(stop.getAttribute('aria-label')).toBe('停止');
+  await act(async () => stop.click());
+  expect(stopSession).toHaveBeenCalledWith('tobs', 'asg-1');
+});
+
+it('keeps send for an idle Assignment', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+    sendSessionRequest: vi.fn(async () => {}),
+    stopSession: vi.fn(async () => {}),
+  });
+  expect(host.querySelector('[data-session-composer]')).not.toBeNull();
+  expect(host.querySelector('[data-composer-stop]')).toBeNull();
 });

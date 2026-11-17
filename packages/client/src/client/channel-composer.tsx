@@ -26,6 +26,7 @@ import {
   IconPaperclipOutlineRegular,
   IconSendOutlineRegular,
   IconSkillOutlineRegular,
+  IconStopFillRegular,
   ImageLightbox,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -140,6 +141,7 @@ export interface ChannelComposerProps {
   onCancelReply?(): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
+  onStop?: (() => void) | undefined;
 }
 
 const IMAGE_ATTACHMENT_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
@@ -435,8 +437,10 @@ export function ChannelComposer({
   onCancelReply,
   onRecall,
   onSubmit,
+  onStop,
 }: ChannelComposerProps): ReactElement {
   const locked = sending || disabled;
+  const stops = onStop !== undefined && !hasVisibleText(value) && attachments.length === 0;
   const skillPeek = useSkillPeek(t);
   const voice = useComposerVoice({
     port: dictation,
@@ -1493,29 +1497,42 @@ export function ChannelComposer({
 
         <div className="bh-composer-footer">
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
-          <Button
-            className="bh-send-btn"
-            variant="primary"
-            size="sm"
-            icon={<IconSendOutlineRegular size={16} />}
-            aria-label={sending ? t('message.sending') : t('composer.send')}
-            disabled={
-              (!hasVisibleText(value) && attachments.length === 0) ||
-              locked ||
-              voice.active ||
-              mentions.some(
-                (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
-              ) ||
-              attachments.length > 10 ||
-              attachments.some((item) => item.status !== 'ready')
-            }
-            onClick={() => {
-              if (shortcutOptions.length > 0) {
-                const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
-                if (shortcut !== undefined) chooseShortcut(shortcut);
-              } else if (!hasShortcutArgument) void onSubmit();
-            }}
-          />
+          {stops ? (
+            <Button
+              className="bh-send-btn"
+              variant="primary"
+              size="sm"
+              data-composer-stop=""
+              icon={<IconStopFillRegular size={12} />}
+              aria-label={t('sessions.stop')}
+              disabled={disabled}
+              onClick={onStop}
+            />
+          ) : (
+            <Button
+              className="bh-send-btn"
+              variant="primary"
+              size="sm"
+              icon={<IconSendOutlineRegular size={16} />}
+              aria-label={sending ? t('message.sending') : t('composer.send')}
+              disabled={
+                (!hasVisibleText(value) && attachments.length === 0) ||
+                locked ||
+                voice.active ||
+                mentions.some(
+                  (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
+                ) ||
+                attachments.length > 10 ||
+                attachments.some((item) => item.status !== 'ready')
+              }
+              onClick={() => {
+                if (shortcutOptions.length > 0) {
+                  const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
+                  if (shortcut !== undefined) chooseShortcut(shortcut);
+                } else if (!hasShortcutArgument) void onSubmit();
+              }}
+            />
+          )}
         </div>
       </div>
       {context?.content}

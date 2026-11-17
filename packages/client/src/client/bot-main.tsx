@@ -3721,11 +3721,7 @@ function ConversationView({
                             )
                           : []
                     }
-                    placeholder={
-                      channel?.readOnly === true
-                        ? t('composer.readOnly')
-                        : t('composer.placeholder', { name: title })
-                    }
+                    placeholder={channel?.readOnly === true ? t('composer.readOnly') : ''}
                     holdPlaceholder={t('composer.holdToTalk', { name: title })}
                     dictation={dictationPort}
                     dictating={dictating}
@@ -4061,7 +4057,6 @@ function ConversationView({
                             key={sessionDetail.sessionId}
                             actions={actions}
                             botSlug={dockBotSlug}
-                            botName={botNames.get(dockBotSlug) ?? dockBotSlug}
                             sessionId={sessionDetail.sessionId}
                             t={t}
                           />

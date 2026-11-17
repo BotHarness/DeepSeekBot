@@ -17,7 +17,12 @@ const RUNNING_REFRESH_MS = 4_000;
 const IDLE_REFRESH_MS = 30_000;
 
 const styles = stylex.create({
-  root: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    minHeight: 0,
+  },
   chips: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -52,7 +57,11 @@ const styles = stylex.create({
     paddingInline: space.x5,
     paddingBlock: space.x4,
   },
-  quiet: { color: color.subtle, fontSize: text.metaSize, lineHeight: text.metaLine },
+  quiet: {
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   input: {
     alignSelf: 'flex-end',
     maxWidth: '88%',
@@ -84,7 +93,11 @@ const styles = stylex.create({
     cursor: 'pointer',
   },
   reply: { overflowWrap: 'anywhere', minWidth: 0 },
-  reasoning: { color: color.subtle, fontSize: text.metaSize, lineHeight: text.metaLine },
+  reasoning: {
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   reasoningBody: { whiteSpace: 'pre-wrap', marginTop: space.x2 },
   tool: {
     display: 'flex',
@@ -112,9 +125,12 @@ const styles = stylex.create({
   bad: { color: color.danger, display: 'inline-flex' },
   run: { color: color.accent, display: 'inline-flex' },
   end: { textAlign: 'center' },
-  composer: { flexShrink: 0, paddingTop: space.x3 },
-  note: { paddingInline: space.x5, paddingBottom: space.x3 },
-  error: { color: color.danger, paddingInline: space.x5, paddingBottom: space.x2 },
+  composer: { flexShrink: 0, paddingBlock: space.x3 },
+  error: {
+    color: color.danger,
+    paddingInline: space.x5,
+    paddingBottom: space.x2,
+  },
 });
 
 function ToolStatus({
@@ -200,13 +216,11 @@ function TranscriptItem({
 export function SessionDetail({
   actions,
   botSlug,
-  botName,
   sessionId,
   t,
 }: {
   actions: BridgeActions;
   botSlug: string;
-  botName: string;
   sessionId: string;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -264,10 +278,26 @@ export function SessionDetail({
       setDraft('');
       setRevision((value) => value + 1);
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : String(error));
+      setSendError(
+        t('sessions.detail.sendFailed', {
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
     } finally {
       setSending(false);
     }
+  };
+  const stop = (): void => {
+    setSendError(undefined);
+    void actions.stopSession(botSlug, sessionId).then(
+      () => setRevision((value) => value + 1),
+      (error: unknown) =>
+        setSendError(
+          t('sessions.detail.stopFailed', {
+            message: error instanceof Error ? error.message : String(error),
+          }),
+        ),
+    );
   };
   const goal = progress?.goal;
   const todos = progress?.todos;
@@ -307,7 +337,10 @@ export function SessionDetail({
           <div>{goal.objective}</div>
           <div {...stylex.props(styles.quiet)}>
             {t(`sessions.goal.${goal.phase}`)} ·{' '}
-            {t('sessions.detail.rounds', { rounds: goal.roundsStarted, max: goal.maxGoalRounds })}
+            {t('sessions.detail.rounds', {
+              rounds: goal.roundsStarted,
+              max: goal.maxGoalRounds,
+            })}
           </div>
           {goal.blockedReason === undefined ? null : <div>{goal.blockedReason}</div>}
         </div>
@@ -372,20 +405,18 @@ export function SessionDetail({
         <div data-session-composer="" {...stylex.props(styles.composer)}>
           {sendError === undefined ? null : (
             <div role="alert" {...stylex.props(styles.quiet, styles.error)}>
-              {t('sessions.detail.sendFailed', { message: sendError })}
+              {sendError}
             </div>
           )}
           <ChannelComposer
             value={draft}
-            placeholder={t('sessions.detail.placeholder')}
+            placeholder=""
             sending={sending}
             t={t}
             onChange={(value) => setDraft(value)}
             onSubmit={send}
+            onStop={running ? stop : undefined}
           />
-          <div {...stylex.props(styles.quiet, styles.note)}>
-            {t('sessions.detail.note', { bot: botName })}
-          </div>
         </div>
       ) : null}
     </div>
