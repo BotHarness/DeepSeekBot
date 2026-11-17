@@ -634,7 +634,7 @@ export function SessionDetail({
   t: BotHarnessTranslate;
 }): ReactElement {
   const prefs = useContext(SessionDetailPrefsContext);
-  const [cached] = useState(() => cachedSessionDetail(botSlug, sessionId));
+  const [cached] = useState(() => cachedSessionDetail({ botSlug, sessionId }));
   const [transcript, setTranscript] = useState<SessionTranscript | undefined>(cached?.transcript);
   const [live, setLive] = useState<SessionTranscriptItem[]>([]);
   const [progress, setProgress] = useState<SessionProgress | undefined>(cached?.progress);
@@ -686,7 +686,7 @@ export function SessionDetail({
               const wasPinned = pinned();
               durableSeq = next.seq;
               busy = next.running;
-              rememberSessionDetail(botSlug, sessionId, { transcript: next });
+              rememberSessionDetail({ botSlug, sessionId }, { transcript: next });
               setTranscript(next);
               setFailed(false);
               if (latest.seq <= durableSeq) setLive(liveOf(latest.items));
@@ -707,7 +707,7 @@ export function SessionDetail({
           (next) => {
             if (abort.signal.aborted) return;
             const value = next[sessionId];
-            if (value !== undefined) rememberSessionDetail(botSlug, sessionId, { progress: value });
+            rememberSessionDetail({ botSlug, sessionId }, { progress: value });
             setProgress(value);
           },
           () => {},

@@ -378,7 +378,7 @@ function SessionsPanel({
         }
         onIntent={
           openable && botSlug !== undefined
-            ? () => prefetchSessionDetail(actions, botSlug, row.sessionId)
+            ? () => prefetchSessionDetail(actions, { botSlug, sessionId: row.sessionId })
             : undefined
         }
         badge={
