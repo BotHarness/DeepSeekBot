@@ -235,13 +235,17 @@ export type DeviceRefusal =
   | 'device-revoked'
   | 'device-unknown'
   | 'device-credential-missing'
-  | 'host-key-changed';
+  | 'host-key-changed'
+  | 'sign-in-required'
+  | 'member-suspended';
 
 const REFUSALS: Record<DeviceRefusal, string> = {
   'device-revoked': 'This phone was removed from the paired devices on your computer.',
   'device-unknown': 'Your computer no longer knows this phone.',
   'device-credential-missing': 'This phone has no pairing for your computer.',
   'host-key-changed': 'This computer no longer accepts this pairing. Remove it, then pair again.',
+  'sign-in-required': 'Your password changed or you were signed out. Sign in again.',
+  'member-suspended': 'Your account on this Host was deactivated.',
 };
 
 class CredentialRefused extends Error {
@@ -257,6 +261,7 @@ export function deviceRefusal(error: unknown): DeviceRefusal | undefined {
 function refusalOf(text: string): DeviceRefusal | undefined {
   try {
     const code = record(JSON.parse(text))['code'];
+    if (code === 'credentials-invalid') return 'sign-in-required';
     return typeof code === 'string' && code in REFUSALS ? (code as DeviceRefusal) : undefined;
   } catch {
     return undefined;
@@ -757,7 +762,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         headers: jsonAuthorization,
         signal,
       });
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
@@ -797,7 +802,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           signal,
         },
       );
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
@@ -856,7 +861,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return { status: response.status, body: await response.bytes() };
         }
         const text = await response.text();
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
           const code = refusalOf(text);
           if (code !== undefined) throw new CredentialRefused(code);
         }

@@ -72,7 +72,9 @@ export type ConnectionReason =
   | 'device-revoked'
   | 'device-unknown'
   | 'device-credential-missing'
-  | 'host-key-changed';
+  | 'host-key-changed'
+  | 'sign-in-required'
+  | 'member-suspended';
 export interface EventProperties {
   'bot_library:create_attempt_start': {
     kind: BotOperationKind;
@@ -223,6 +225,8 @@ export const MOBILE_EVENT_FIELDS: Record<
       'device-unknown',
       'device-credential-missing',
       'host-key-changed',
+      'sign-in-required',
+      'member-suspended',
     ),
     attempt_id: isUuid,
     duration_bucket: duration,

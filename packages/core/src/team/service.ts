@@ -784,6 +784,24 @@ export class TeamService {
     return peer;
   }
 
+  deviceRefusal(authorization: string | undefined): 'sign-in-required' | 'member-suspended' {
+    const match = /^Device member\.([A-Za-z0-9_-]{43})$/u.exec(authorization ?? '');
+    if (!match) return 'sign-in-required';
+    const row = z
+      .object({ status: z.string() })
+      .optional()
+      .parse(
+        this.db.read((db) =>
+          db
+            .prepare(
+              "SELECT h.status FROM member_grants g JOIN humans h ON h.human_id = g.human_id WHERE g.token_hash = ? AND g.kind = 'paired-device'",
+            )
+            .get(tokenHash(match[1]!)),
+        ),
+      );
+    return row !== undefined && row.status !== 'active' ? 'member-suspended' : 'sign-in-required';
+  }
+
   device(deviceId: string) {
     const row = z
       .object({
