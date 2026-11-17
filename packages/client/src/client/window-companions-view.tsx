@@ -1,9 +1,6 @@
+import { Switch } from './ds/switch.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
-import {
-  Switch,
-  IconPinFillRegular,
-  IconPinOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconPinFillRegular, IconPinOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { NumberStepper } from './ds/number-stepper.js';
 import { SettingsRow } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -154,7 +151,10 @@ export function CompanionSettings({
             decreaseLabel={t('common.decrease')}
             increaseLabel={t('common.increase')}
             onChange={(retention) =>
-              companion.configureCapacity({ layers: state.capacity.layers, retention })
+              companion.configureCapacity({
+                layers: state.capacity.layers,
+                retention,
+              })
             }
           />
         }

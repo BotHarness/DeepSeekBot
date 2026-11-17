@@ -77,6 +77,12 @@ vi.mock('../src/client/ds/pointer-menu.js', () => ({
   },
 }));
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const icon = (name: string) => (props: { className?: string }) =>

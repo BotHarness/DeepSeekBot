@@ -1,6 +1,6 @@
+import { Input } from './ds/input.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';

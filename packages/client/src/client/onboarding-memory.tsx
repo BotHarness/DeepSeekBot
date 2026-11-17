@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import {
   selectConversationChannel,
   selectConversationSending,
@@ -12,7 +14,6 @@ import {
   useSyncExternalStore,
   type ReactElement,
 } from 'react';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { MemoryWorkingChange } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -122,7 +123,9 @@ export function OnboardingMemory({
                   variant="primary"
                   disabled={!preference.trim() || state.busy || sending}
                   onClick={() => {
-                    const body = t('onboarding.memory.request', { preference: preference.trim() });
+                    const body = t('onboarding.memory.request', {
+                      preference: preference.trim(),
+                    });
                     close();
                     void controller.request(channelId, body);
                   }}

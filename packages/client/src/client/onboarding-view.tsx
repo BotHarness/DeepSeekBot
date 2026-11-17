@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import {
   selectConversationChannel,
   selectConversationSending,
@@ -5,7 +6,7 @@ import {
   useClientStore,
 } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Button, Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -145,7 +146,11 @@ export function OnboardingModelDialog({
           }))}
           onChange={({ key, effort }) => {
             const [provider, model] = JSON.parse(key) as [string, string];
-            setRoute({ provider, model, ...(effort ? { reasoningEffort: effort } : {}) });
+            setRoute({
+              provider,
+              model,
+              ...(effort ? { reasoningEffort: effort } : {}),
+            });
           }}
           disabled={busy}
           t={t}
@@ -532,7 +537,9 @@ export function OnboardingOverlay({
     let active = true;
     let key = '';
     markBotModeEntered();
-    actions.telemetryEvent('app:bot_mode_enter', { layout: readLayoutMode().mode });
+    actions.telemetryEvent('app:bot_mode_enter', {
+      layout: readLayoutMode().mode,
+    });
     const returned = takeSessionsTourReturn();
     void enter(() => active).then(() => {
       if (active && returned && !controller.getSnapshot().receipt?.journey)

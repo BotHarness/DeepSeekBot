@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { useState, type ComponentProps, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { ConnectionGuide } from './connection-guide.js';
 import { ChoiceButton } from './ds/choice-button.js';
@@ -38,7 +39,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  form: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   submit: { alignSelf: 'flex-start' },
 });
 
@@ -126,7 +132,9 @@ function PrivateTunnelRouteSettings({
           confirm: true,
         }),
       });
-      const result = (await response.json().catch(() => ({}))) as { code?: string };
+      const result = (await response.json().catch(() => ({}))) as {
+        code?: string;
+      };
       if (!response.ok) {
         setFailure(result.code ?? 'private-tunnel-failed');
         return;
@@ -191,7 +199,10 @@ function PrivateTunnelRouteSettings({
                   port: port!,
                 })
           }
-          data={{ 'data-private-tunnel': status.state, 'data-private-tunnel-forward': '' }}
+          data={{
+            'data-private-tunnel': status.state,
+            'data-private-tunnel-forward': '',
+          }}
         >
           {status.mode === 'ingress' && status.lan ? null : chip(t, local!)}
           <p {...stylex.props(styles.meta)}>

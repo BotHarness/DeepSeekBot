@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconCopyOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconCopyOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import {
   ANNOTATION_TEXT_CHARS,
@@ -31,8 +32,18 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
-  body: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
-  tools: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  tools: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
   spacer: { flexGrow: 1 },
   stage: {
     display: 'grid',
@@ -42,7 +53,12 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: color.well,
   },
-  frame: { position: 'relative', display: 'grid', maxWidth: '100%', minWidth: 0 },
+  frame: {
+    position: 'relative',
+    display: 'grid',
+    maxWidth: '100%',
+    minWidth: 0,
+  },
   label: {
     position: 'absolute',
     zIndex: 1,
@@ -70,7 +86,11 @@ const styles = stylex.create({
     cursor: 'crosshair',
     touchAction: 'none',
   },
-  hint: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  hint: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   tool: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -88,7 +108,10 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '-2px',
   },
   toolIcon: { display: 'block', flexShrink: 0 },
@@ -412,7 +435,10 @@ export function AnnotateDialog({
                   setCount(done.current.length);
                   const canvas = canvasRef.current;
                   if (finished.tool === 'box' && canvas !== null)
-                    setLabel({ at: boxNoteAnchor(finished, canvas), value: '' });
+                    setLabel({
+                      at: boxNoteAnchor(finished, canvas),
+                      value: '',
+                    });
                 }
                 paint();
               }}

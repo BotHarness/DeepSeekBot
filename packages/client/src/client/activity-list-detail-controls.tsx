@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import {
-  Button,
   IconCloseOutlineRegular,
   IconChevronDownOutlineRegular,
   IconRightUpOutlineRegular,

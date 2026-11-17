@@ -184,6 +184,64 @@
           "$type": "color",
           "$value": "{web.color.layer.sheet}"
         }
+      },
+      "on": {
+        "page-field": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-field-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "page-track": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-secondary": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-secondary-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "card-field": {
+          "$type": "color",
+          "$value": "{web.color.layer.field}"
+        },
+        "card-field-edge": {
+          "$type": "color",
+          "$value": "{web.color.line.edge}"
+        },
+        "card-track": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "card-secondary": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "card-secondary-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        }
+      },
+      "switch": {
+        "width": {
+          "$type": "dimension",
+          "$value": {
+            "value": 30,
+            "unit": "px"
+          }
+        },
+        "height": {
+          "$type": "dimension",
+          "$value": {
+            "value": 18,
+            "unit": "px"
+          }
+        }
       }
     }
   }

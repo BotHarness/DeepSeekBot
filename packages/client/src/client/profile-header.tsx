@@ -1,9 +1,9 @@
+import { Button } from './ds/button.js';
 import { Menu } from './appearance-primitives.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { BANNER_SCENES, seededBannerRecipe } from '@botharness/pixel-banner';
 import {
-  Button,
   IconEditOutlineRegular,
   IconEllipsisOutlineRegular,
   IconShareOutlineRegular,
@@ -52,7 +52,10 @@ const styles = stylex.create({
     fontFamily: 'inherit',
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '1px',
   },
   hint: {
@@ -127,7 +130,10 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     textAlign: 'center',
     cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.fg}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.fg}`,
+    },
   },
   sceneOn: {
     borderColor: color.fg,
@@ -172,8 +178,14 @@ function EditProfileModal({
     nextTags.length > MAX_BOT_TAGS || nextTags.some((tag) => [...tag].length > MAX_BOT_TAG_LENGTH);
   const bioInvalid = bioLength > MAX_BOT_BIO_LENGTH;
   const invalid = name.trim().length === 0 || bioInvalid || tagsInvalid;
-  const tagsLimit = t('profile.tags.limit', { max: MAX_BOT_TAGS, length: MAX_BOT_TAG_LENGTH });
-  const bioCount = t('profile.bio.count', { count: bioLength, max: MAX_BOT_BIO_LENGTH });
+  const tagsLimit = t('profile.tags.limit', {
+    max: MAX_BOT_TAGS,
+    length: MAX_BOT_TAG_LENGTH,
+  });
+  const bioCount = t('profile.bio.count', {
+    count: bioLength,
+    max: MAX_BOT_BIO_LENGTH,
+  });
 
   const save = async (): Promise<void> => {
     if (invalid || busy) return;

@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { FormDialog } from './ds/form-dialog.js';
 import { hostSettingsDrafts, type HostDraftChoice } from './host-settings-drafts.js';

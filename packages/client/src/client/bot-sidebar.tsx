@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import { MessageBotDialog } from './message-bot-dialog.js';
 import { BotCreateSourceModal } from './bot-create-source.js';
 import { MEMBER_MENU_ITEMS, menuItemAllowed } from './team-menu.js';
@@ -50,7 +51,6 @@ import {
 import { createPortal } from 'react-dom';
 
 import {
-  Button,
   IconAgentPresetOutlineRegular,
   IconCheckOutlineRegular,
   IconChevronDownOutlineRegular,
@@ -1218,7 +1218,10 @@ export function BotSidebar({
   const [unpinZoneArmed, setUnpinZoneArmed] = useState(false);
   const [unpinZoneHovered, setUnpinZoneHovered] = useState(false);
   const [createRequest, setCreateRequest] = useState<CreateRequest | undefined>(undefined);
-  const [remoteSectionsHost, setRemoteSectionsHost] = useState<{ id: string; name: string }>();
+  const [remoteSectionsHost, setRemoteSectionsHost] = useState<{
+    id: string;
+    name: string;
+  }>();
   const createFromWelcome = useMountedResource<HTMLSpanElement>(
     () =>
       onCreationRequest((intent) =>
@@ -1604,7 +1607,10 @@ export function BotSidebar({
       );
       if (member) setCreateRequest({ kind: 'section' });
       else if (hostTabs && remote)
-        setRemoteSectionsHost({ id: remote.host.hostId, name: remote.host.hostName });
+        setRemoteSectionsHost({
+          id: remote.host.hostId,
+          name: remote.host.hostName,
+        });
       else if (!hostTabs || remoteHostsState.tab === 'local') setCreateRequest({ kind: 'section' });
     }
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
@@ -2064,7 +2070,10 @@ export function BotSidebar({
     const callbacks: RowCallbacks<ChannelMenuRequest> = {
       onActivate: (event) => activateChannel(channel, event),
       onMenu: (request) =>
-        openChannelMenu({ ...request, pinnedView: allPinnedChannelSet.has(channel.id) }),
+        openChannelMenu({
+          ...request,
+          pinnedView: allPinnedChannelSet.has(channel.id),
+        }),
       onPinDragStart: pinDragStart,
       onPinDragEnd: endPinDrag,
       drag,
@@ -3115,7 +3124,10 @@ export function BotSidebar({
                           onSelect={(id) => {
                             setSectionCreateMenuId(undefined);
                             if (id === 'bot')
-                              setCreateRequest({ kind: 'bot-source', sectionId: section.id });
+                              setCreateRequest({
+                                kind: 'bot-source',
+                                sectionId: section.id,
+                              });
                             const source = botCreateSource(id);
                             if (source !== undefined) {
                               setCreateRequest({
@@ -3279,7 +3291,9 @@ export function BotSidebar({
                   search: quickSwitcherSettings.search,
                   open: (result) => {
                     setQuickSwitcherOpen(false);
-                    actions.telemetryEvent('search:result_open', { kind: 'setting' });
+                    actions.telemetryEvent('search:result_open', {
+                      kind: 'setting',
+                    });
                     quickSwitcherSettings.open(result);
                   },
                 }
@@ -3287,7 +3301,10 @@ export function BotSidebar({
           messages={
             actions.searchMessages === undefined
               ? undefined
-              : { search: actions.searchMessages, open: openQuickSwitcherMessage }
+              : {
+                  search: actions.searchMessages,
+                  open: openQuickSwitcherMessage,
+                }
           }
           bots={botBySlug}
           activityOf={(bot) => personaBotActivity(state, bot)}

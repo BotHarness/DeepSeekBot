@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { createBridgeVideoResource } from './bridge-video-resource.js';
 import { BridgeFile } from './bridge-file.js';
 import { formatAudioTime } from './message-audio.js';

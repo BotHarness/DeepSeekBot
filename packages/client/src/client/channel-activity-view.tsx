@@ -1,7 +1,7 @@
+import { Button } from './ds/button.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement } from 'react';
 import {
-  Button,
   IconRefreshOutlineRegular,
   IconRightUpOutlineRegular,
   IconChevronDownOutlineRegular,

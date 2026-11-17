@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import type { ReactElement, ReactNode, RefCallback } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';

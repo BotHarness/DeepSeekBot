@@ -1,6 +1,8 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 
-import { Button, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PrivateAccountSummary } from '../../../core/src/credentials/contracts.js';
 import { useClientStore } from './use-client-store.js';
@@ -189,7 +191,9 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
                             .map((field) =>
                               field.required
                                 ? field.label
-                                : t('privateAccounts.optional', { label: field.label }),
+                                : t('privateAccounts.optional', {
+                                    label: field.label,
+                                  }),
                             )
                             .join(' · '),
                         })}
@@ -287,7 +291,9 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
                     checked={server.enabled === true}
                     disabled={busy !== undefined}
                     onChange={(checked) => toggleServer(server.serverName, checked)}
-                    label={t('privateAccounts.mcpEnable', { server: server.serverName })}
+                    label={t('privateAccounts.mcpEnable', {
+                      server: server.serverName,
+                    })}
                   />
                 ) : undefined
               }
@@ -299,11 +305,15 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
                     })}
                   </span>
                   <span className="bh-card-meta-line">
-                    {t('privateAccounts.mcpAccount', { account: server.account })}
+                    {t('privateAccounts.mcpAccount', {
+                      account: server.account,
+                    })}
                   </span>
                   <span className="bh-card-meta-line">
                     {server.own === false
-                      ? t('privateAccounts.mcpSharedBy', { bot: server.ownerName ?? '' })
+                      ? t('privateAccounts.mcpSharedBy', {
+                          bot: server.ownerName ?? '',
+                        })
                       : t('privateAccounts.mcpShared')}
                   </span>
                   <span

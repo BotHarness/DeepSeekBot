@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
 import type { ReactElement } from 'react';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { QuestionDelivery } from '../../../core/src/messaging/question-messaging.js';
 import type { BotHarnessTranslate } from './locale.js';
 

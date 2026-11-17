@@ -1,6 +1,6 @@
+import { Switch } from './ds/switch.js';
 import { useMountedResource } from './mounted-resource.js';
 import { useState, useSyncExternalStore } from 'react';
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import { PUSH_KINDS, type PushKind } from '@botharness/host-client/push';
 import type { RemoteNotifications } from './remote-notifications.js';
 import type { BotHarnessTranslate, BotHarnessKey } from './locale.js';

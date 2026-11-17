@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import { remoteChannelRows } from './environment-channels.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -7,7 +8,6 @@ import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
 import { UnreadCount } from './unread-count.js';
 import { HostLookSettings } from './host-look-settings.js';
 import { readQrImage } from './qr-image.js';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { openHostSettings } from './environment-settings-source.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { RemoteAvatar } from './remote-avatar.js';
@@ -34,7 +34,10 @@ import {
 } from '@botharness/host-client/ui/design/host-look';
 import { hostLooks, unusedHostLook, useHostLook, useHostName } from './host-looks.js';
 
-const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
+const focusRing = {
+  default: 'none',
+  ':focus-visible': `${border.focus} solid ${color.accent}`,
+};
 
 const styles = stylex.create({
   strip: {
@@ -291,7 +294,13 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
               { id: 'settings', label: t('remoteHosts.settings') },
               ...(menuRemote === undefined
                 ? []
-                : [{ id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true }]),
+                : [
+                    {
+                      id: 'remove',
+                      label: t('remoteHosts.remove.confirm'),
+                      danger: true,
+                    },
+                  ]),
             ]}
             onSelect={(id) => {
               setMenu(undefined);
@@ -412,7 +421,10 @@ export function AddRemoteHostDialog({
     if (!owner) return;
     setError(undefined);
     try {
-      const request = { expiresAt: Date.now() + 8000, signal: new AbortController().signal };
+      const request = {
+        expiresAt: Date.now() + 8000,
+        signal: new AbortController().signal,
+      };
       if (attempt?.state === 'verify-host') {
         owner.execute(
           {

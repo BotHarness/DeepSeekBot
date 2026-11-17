@@ -1,8 +1,9 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { SegmentedControl } from './ds/segmented.js';
 import { BotCreateSteps } from './bot-create-source.js';
 import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-
-import { Button, Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage, type CreatedBot } from './bridge.js';
@@ -415,7 +416,10 @@ export function CreatePersonaBotModal({
             disabled={fieldsLocked}
             placeholder={t('bot.create.persona.placeholder')}
             onChange={(value) =>
-              setPersonaDrafts((current) => ({ ...current, [personaPreset]: value }))
+              setPersonaDrafts((current) => ({
+                ...current,
+                [personaPreset]: value,
+              }))
             }
           />
           <details data-create-advanced="" {...stylex.props(styles.advanced)}>

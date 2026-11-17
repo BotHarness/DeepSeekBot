@@ -1,5 +1,7 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useState, type ReactElement } from 'react';
-import { Button, Checkbox, Input } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import {
   flexRender,
   getCoreRowModel,

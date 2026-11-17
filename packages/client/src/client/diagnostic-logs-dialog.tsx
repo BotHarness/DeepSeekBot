@@ -1,10 +1,10 @@
+import { Button } from './ds/button.js';
+import { SegmentedControl } from './ds/segmented.js';
 import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
-  Button,
   IconCopyOutlineRegular,
   IconDownloadOutlineRegular,
-  SegmentedControl,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { clientLog, DIAGNOSTIC_LOGS_ENDPOINT, logClient } from './diagnostic-log.js';

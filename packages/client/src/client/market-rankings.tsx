@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceEntry,

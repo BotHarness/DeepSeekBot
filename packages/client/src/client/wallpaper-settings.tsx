@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { Appearance } from './appearance.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { Note } from './ds/note.js';

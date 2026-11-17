@@ -4,6 +4,9 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/client/ds/segmented.js', async () => ({
+  SegmentedControl: (await import('@deepseek-ai/dsh-client-ui-primitives')).SegmentedControl,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const { createElement: element } = await import('react');

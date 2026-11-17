@@ -8,6 +8,15 @@ const menus = vi.hoisted(
   () => [] as Array<{ items?: Array<{ id: string }>; onSelect?(id: string): void }>,
 );
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
+vi.mock('../src/client/ds/segmented.js', async () => ({
+  SegmentedControl: (await import('@deepseek-ai/dsh-client-ui-primitives')).SegmentedControl,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);

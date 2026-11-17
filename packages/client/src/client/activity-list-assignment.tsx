@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { ActionButton } from './ds/action-button.js';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRef, useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
 import type { HumanAssignmentContext } from './bridge.js';
@@ -167,7 +167,9 @@ export function ActivityListAssignment({
       if (!controller.signal.aborted) setEdgeBusy(false);
     }
   };
-  const title = t('activityList.assignment.title', { bot: botName(source.botSlug) });
+  const title = t('activityList.assignment.title', {
+    bot: botName(source.botSlug),
+  });
   return (
     <section className="bh-activity-list-reply" ref={mount} aria-label={title}>
       <div className="bh-activity-list-reply-header">

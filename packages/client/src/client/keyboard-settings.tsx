@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useState, useSyncExternalStore, type KeyboardEvent, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { Shortcuts, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { PropsLocale, InjectFace } from '@deepseek-ai/dsh-client-ui-slots';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
@@ -30,7 +30,10 @@ export function KeyboardSettings({
   shortcuts,
 }: PropsLocale<'botharness'> &
   InjectFace<
-    BotModePrefsFace & { shortcutBindings: ShortcutBindings; shortcuts: Shortcuts }
+    BotModePrefsFace & {
+      shortcutBindings: ShortcutBindings;
+      shortcuts: Shortcuts;
+    }
   >): ReactElement {
   const migrationNotice = useSyncExternalStore(subscribeNotice, noticeSnapshot, noticeSnapshot);
   const [query, setQuery] = useState('');
@@ -149,7 +152,9 @@ export function KeyboardSettings({
                     size="sm"
                     variant="outline"
                     disabled={busy}
-                    aria-label={t('shortcuts.change.label', { action: row.label })}
+                    aria-label={t('shortcuts.change.label', {
+                      action: row.label,
+                    })}
                     data-shortcut-recorder={recording === row.id ? '' : undefined}
                     onClick={() => {
                       setRecording(recording === row.id ? undefined : row.id);

@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 
-import { Button, closeTopModal, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { closeTopModal, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
@@ -190,13 +191,19 @@ export function ImAppsSection({
           disabled={busy}
           value={botSlug}
           onSelect={setBotSlug}
-          options={bindableBots.map((bot) => ({ value: bot.slug, label: bot.displayName }))}
+          options={bindableBots.map((bot) => ({
+            value: bot.slug,
+            label: bot.displayName,
+          }))}
         />
       )}
     </Field>
   );
   const error = failed ? t('imApps.failed') : undefined;
-  const labels: DialogLabels = { close: t('common.close'), cancel: t('common.cancel') };
+  const labels: DialogLabels = {
+    close: t('common.close'),
+    cancel: t('common.cancel'),
+  };
   const canCreate =
     imApps.appSetup !== undefined && loaded.status === 'ready' && loaded.setups.length > 0;
   return (

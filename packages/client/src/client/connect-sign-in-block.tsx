@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { ConnectSignInCode } from './connect-sign-in.js';
@@ -35,7 +35,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  failed: { margin: 0, color: color.warning, fontSize: text.bodySize, lineHeight: text.bodyLine },
+  failed: {
+    margin: 0,
+    color: color.warning,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+  },
 });
 
 export function ConnectSignInBlock({

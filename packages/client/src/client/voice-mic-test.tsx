@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import {
   micOptions,
@@ -121,7 +121,10 @@ export function VoiceMicTest({
   const readout = useRef<HTMLSpanElement | null>(null);
   const speech = useRef<HTMLSpanElement | null>(null);
   const labels = useRef({ speech: '', quiet: '' });
-  labels.current = { speech: t('voice.mic.speech'), quiet: t('voice.mic.quiet') };
+  labels.current = {
+    speech: t('voice.mic.speech'),
+    quiet: t('voice.mic.quiet'),
+  };
   const meterMount = useMountedResource<HTMLDivElement>(() => {
     if (!running) return;
     let stopped = false;
@@ -222,7 +225,10 @@ export function VoiceMicTest({
                   label={t('voice.mic.device')}
                   value={device ?? SYSTEM_DEFAULT}
                   options={[
-                    { value: SYSTEM_DEFAULT, label: t('voice.mic.systemDefault') },
+                    {
+                      value: SYSTEM_DEFAULT,
+                      label: t('voice.mic.systemDefault'),
+                    },
                     ...devices.map((item, index) => ({
                       value: item.id,
                       label: item.label || t('voice.mic.unnamed', { number: index + 1 }),

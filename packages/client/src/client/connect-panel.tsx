@@ -1,8 +1,8 @@
+import { Button } from './ds/button.js';
 import { ConnectHealthCard } from './connect-health-card.js';
 import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { ConnectAccountHosts } from './connect-account-hosts.js';
@@ -36,7 +36,11 @@ export interface ConnectAccountStatus {
   issue?: string;
   recovery?: 'automatic' | 'sign-in';
   pool?: ConnectPool;
-  wait?: { reason: 'pool-full' | 'zone-full' | 'queued'; position: number; since: string };
+  wait?: {
+    reason: 'pool-full' | 'zone-full' | 'queued';
+    position: number;
+    since: string;
+  };
   protectedUntil?: string;
 }
 
@@ -54,7 +58,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  body: { margin: 0, color: color.muted, fontSize: text.bodySize, lineHeight: text.bodyLine },
+  body: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+  },
   stats: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
@@ -69,7 +78,11 @@ const styles = stylex.create({
     backgroundColor: color.base,
     minWidth: 0,
   },
-  label: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  label: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   statValue: {
     color: color.fg,
     fontSize: text.titleSize,
@@ -77,7 +90,13 @@ const styles = stylex.create({
     fontWeight: text.strong,
     fontVariantNumeric: 'tabular-nums',
   },
-  grow: { display: 'flex', flexDirection: 'column', gap: space.x1, flexGrow: 1, minWidth: 0 },
+  grow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    flexGrow: 1,
+    minWidth: 0,
+  },
   meter: {
     height: '4px',
     borderRadius: radius.xs,
@@ -98,7 +117,10 @@ function Stat({ label, value, data }: { label: string; value: string; data?: str
 }
 
 const clock = (iso: string) =>
-  new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  new Date(iso).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 function issueKey(account: ConnectAccountStatus) {
   const issue = account.issue;
@@ -179,7 +201,9 @@ export function ConnectPanel({
     );
   const rule = (
     <p {...stylex.props(styles.meta)}>
-      {t('devices.connect.poolRule', { minutes: pool?.guaranteedMinutes ?? 30 })}
+      {t('devices.connect.poolRule', {
+        minutes: pool?.guaranteedMinutes ?? 30,
+      })}
     </p>
   );
 
@@ -195,7 +219,10 @@ export function ConnectPanel({
         t={t}
         code={
           account.state === 'signing-in'
-            ? { userCode: account.userCode!, verificationUri: account.verificationUri! }
+            ? {
+                userCode: account.userCode!,
+                verificationUri: account.verificationUri!,
+              }
             : undefined
         }
         title={t('devices.connect.panel.offTitle')}
@@ -227,7 +254,9 @@ export function ConnectPanel({
             ? t('devices.connect.full.zone')
             : account.wait === undefined
               ? t('devices.connect.relayDown')
-              : t('devices.connect.full.queued', { position: account.wait.position })
+              : t('devices.connect.full.queued', {
+                  position: account.wait.position,
+                })
         }
         data={{ 'data-connect-wait': account.wait?.reason ?? 'pool-full' }}
       >
@@ -235,7 +264,9 @@ export function ConnectPanel({
           {account.wait === undefined ? null : (
             <Stat
               label={t('devices.connect.panel.place')}
-              value={t('devices.connect.panel.placeValue', { position: account.wait.position })}
+              value={t('devices.connect.panel.placeValue', {
+                position: account.wait.position,
+              })}
             />
           )}
           {pool?.nextFreeAt === undefined ? null : (
@@ -295,7 +326,9 @@ export function ConnectPanel({
         {meter}
         {full && account.protectedUntil !== undefined ? (
           <p data-connect-protected="" {...stylex.props(styles.body)}>
-            {t('devices.connect.protected', { time: clock(account.protectedUntil) })}
+            {t('devices.connect.protected', {
+              time: clock(account.protectedUntil),
+            })}
           </p>
         ) : null}
         {full ? rule : null}

@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { ConnectHealthCard } from './connect-health-card.js';
 import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
 import { ConnectAccountHosts } from './connect-account-hosts.js';
@@ -19,7 +21,6 @@ import { keyBytes } from '@botharness/host-client/encrypted-carrier';
 import { checkRoute, isConnectRoute, isLanRoute } from '@botharness/host-protocol/route';
 import { useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
@@ -77,7 +78,12 @@ interface DevicesSnapshot {
   lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
   devices: PairedDevice[];
-  pendingKeys?: { receipt: string; publicKey: string; name: string; approved: boolean }[];
+  pendingKeys?: {
+    receipt: string;
+    publicKey: string;
+    name: string;
+    approved: boolean;
+  }[];
   routes: RouteStatus;
   connect?: ConnectStatus;
 }
@@ -128,7 +134,12 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: 'white',
   },
-  actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space.x3,
+  },
   memberSignIn: {
     display: 'block',
     color: color.muted,
@@ -142,7 +153,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  stale: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: space.x2 },
+  stale: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: space.x2,
+  },
 });
 
 function ConnectionMethod({
@@ -1175,7 +1191,9 @@ export function PairedDevicesSettings({
                         ? 'devices.tailscale.stopped'
                         : 'devices.tailscale.notice',
                     )}
-                    data={{ 'data-tailscale-setup': routes?.tailscale ?? 'unknown' }}
+                    data={{
+                      'data-tailscale-setup': routes?.tailscale ?? 'unknown',
+                    }}
                   />
                 )}
                 {routes && !tailscaleReady ? (
@@ -1348,7 +1366,9 @@ export function PairedDevicesSettings({
                       copiedLabel={t('devices.pair.copied')}
                     />
                     <p {...stylex.props(styles.meta)}>
-                      {t('devices.tailscale.localPort', { port: route.targetPort })}
+                      {t('devices.tailscale.localPort', {
+                        port: route.targetPort,
+                      })}
                     </p>
                   </div>
                 ))}

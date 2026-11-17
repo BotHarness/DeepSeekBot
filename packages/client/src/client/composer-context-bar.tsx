@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import {
   Children,
   isValidElement,
@@ -9,7 +11,6 @@ import {
   type ReactNode,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, space, size, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -44,16 +45,28 @@ const styles = stylex.create({
     display: 'flex',
     flexWrap: 'nowrap',
     gap: space.x2,
-    minWidth: { default: 0, '@container composer-footer (max-width: 480px)': 'min-content' },
+    minWidth: {
+      default: 0,
+      '@container composer-footer (max-width: 480px)': 'min-content',
+    },
     flexShrink: 1,
     alignItems: 'center',
   },
   leading: { flexGrow: 1, flexBasis: '0%' },
   trailing: {
     justifyContent: 'flex-end',
-    maxWidth: { default: '55%', '@container composer-footer (max-width: 480px)': '100%' },
+    maxWidth: {
+      default: '55%',
+      '@container composer-footer (max-width: 480px)': '100%',
+    },
   },
-  item: { display: 'flex', flexShrink: 1, minWidth: 0, maxWidth: '100%', position: 'relative' },
+  item: {
+    display: 'flex',
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
+    position: 'relative',
+  },
   editing: {
     outline: `${border.hairline} dashed ${color.borderStrong}`,
     outlineOffset: space.x1,
@@ -64,12 +77,20 @@ const styles = stylex.create({
   drop: { boxShadow: `inset ${border.focus} 0 ${color.accent}` },
   editingSide: {
     minHeight: size.row,
-    minWidth: { default: size.row, '@container composer-footer (max-width: 480px)': 'min-content' },
+    minWidth: {
+      default: size.row,
+      '@container composer-footer (max-width: 480px)': 'min-content',
+    },
     flexGrow: 1,
     flexBasis: '0%',
     outline: `${border.hairline} dashed ${color.border}`,
   },
-  option: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.x4 },
+  option: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x4,
+  },
   hint: {
     color: color.muted,
     fontSize: text.metaSize,

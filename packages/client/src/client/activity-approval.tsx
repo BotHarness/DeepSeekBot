@@ -1,5 +1,5 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { ToolApprovalCard } from './tool-approval-card.js';
@@ -185,7 +185,10 @@ export function useActivityRows(
     if (enabled && state.scope === scope) {
       state.rows.forEach((row, index) => {
         if (!currentIds.has(identify(row.item)) && row.item.kind === 'tool-approval')
-          rows.splice(Math.min(index, rows.length), 0, { ...row, leaving: true });
+          rows.splice(Math.min(index, rows.length), 0, {
+            ...row,
+            leaving: true,
+          });
       });
     }
     setState({ items, scope, rows });
@@ -194,7 +197,10 @@ export function useActivityRows(
     if (!rows.some((row) => row.leaving)) return;
     const timer = setTimeout(
       () =>
-        setState((current) => ({ ...current, rows: current.rows.filter((row) => !row.leaving) })),
+        setState((current) => ({
+          ...current,
+          rows: current.rows.filter((row) => !row.leaving),
+        })),
       220,
     );
     return () => clearTimeout(timer);

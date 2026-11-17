@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceAuthoredBot,
@@ -25,7 +26,12 @@ import {
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
-  list: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   row: {
     display: 'flex',
     alignItems: 'center',
@@ -35,7 +41,13 @@ const styles = stylex.create({
     backgroundColor: color.surface,
     minWidth: 0,
   },
-  copy: { display: 'flex', flexDirection: 'column', gap: space.x1, flexGrow: 1, minWidth: 0 },
+  copy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    flexGrow: 1,
+    minWidth: 0,
+  },
   name: {
     color: color.fg,
     fontSize: text.titleSize,
@@ -156,7 +168,9 @@ export function MyUploadsDialog({
       const { item } = screen;
       return (
         <FormDialog
-          title={t('market.mine.deleteTitle', { name: marketplaceName(item.bot) })}
+          title={t('market.mine.deleteTitle', {
+            name: marketplaceName(item.bot),
+          })}
           size="small"
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           submitLabel={t('market.mine.deleteConfirm')}
@@ -217,7 +231,9 @@ export function MyUploadsDialog({
                   <Button
                     size="sm"
                     variant="outline"
-                    aria-label={t('market.mine.updateLabel', { name: marketplaceName(item.bot) })}
+                    aria-label={t('market.mine.updateLabel', {
+                      name: marketplaceName(item.bot),
+                    })}
                     onClick={() => go({ kind: 'update', item })}
                   >
                     {t('market.mine.update')}
@@ -225,7 +241,9 @@ export function MyUploadsDialog({
                   <Button
                     size="sm"
                     variant="ghost"
-                    aria-label={t('market.mine.deleteLabel', { name: marketplaceName(item.bot) })}
+                    aria-label={t('market.mine.deleteLabel', {
+                      name: marketplaceName(item.bot),
+                    })}
                     onClick={() => go({ kind: 'delete', item })}
                   >
                     {t('market.mine.delete')}

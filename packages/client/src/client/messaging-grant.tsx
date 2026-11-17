@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { ReceptionStatus } from './reception-status.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import * as stylex from '@stylexjs/stylex';
@@ -13,7 +15,7 @@ import type {
   GroupReceptionPolicy,
 } from '../../../core/src/messaging/group-policy.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { OutboxState } from '../../../core/src/messaging/outbound.js';
 import type { MessagingTarget } from '../../../core/src/messaging/provider.js';
 import type { BridgeActions } from './actions.js';
@@ -435,7 +437,10 @@ export function MessagingGrantRow({
                       value={targetRef}
                       disabled={busy || !account}
                       onSelect={setTargetRef}
-                      options={targets.map((item) => ({ value: item.ref, label: item.name }))}
+                      options={targets.map((item) => ({
+                        value: item.ref,
+                        label: item.name,
+                      }))}
                     />
                   </div>
                   <Button
@@ -487,7 +492,11 @@ export function MessagingGrantRow({
                   <Tag tone="neutral">{stateLabel(report.state)}</Tag>
                 </div>
                 <strong>{origin?.targetName}</strong>
-                <span>{t('im.sentAs', { name: origin?.accountName ?? report.botSlug })}</span>
+                <span>
+                  {t('im.sentAs', {
+                    name: origin?.accountName ?? report.botSlug,
+                  })}
+                </span>
                 <p className="bh-external-context-hint">{t('im.externalOnly')}</p>
               </header>
               <article className="bh-external-message">
@@ -629,7 +638,11 @@ export function GroupReceptionSettings({
           onSelect={(value) => setCollection(value === 'all' ? 'all' : 'mentions')}
           options={[
             { value: 'mentions', label: t('im.collection.mentions') },
-            { value: 'all', label: t('im.collection.all'), disabled: !verified },
+            {
+              value: 'all',
+              label: t('im.collection.all'),
+              disabled: !verified,
+            },
           ]}
         />
       </div>

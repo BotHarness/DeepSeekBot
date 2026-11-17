@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement, type RefCallback } from 'react';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
@@ -36,8 +37,18 @@ import {
 } from './voice-options.js';
 
 const styles = stylex.create({
-  page: { display: 'flex', flexDirection: 'column', minWidth: 0, paddingBottom: space.x6 },
-  sections: { display: 'flex', flexDirection: 'column', gap: space.x6, minWidth: 0 },
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+    paddingBottom: space.x6,
+  },
+  sections: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x6,
+    minWidth: 0,
+  },
 });
 
 type VoiceActions = Pick<
@@ -158,7 +169,10 @@ function ChoiceField({
             value={state.choice}
             align="start"
             options={[
-              ...values.map((value) => ({ value, label: names?.[value] ?? value })),
+              ...values.map((value) => ({
+                value,
+                label: names?.[value] ?? value,
+              })),
               { value: CUSTOM_CHOICE, label: t('voice.choice.custom') },
             ]}
             onChange={(choice) => onChange({ ...state, choice })}
@@ -302,7 +316,10 @@ export function VoiceProviderSettings({
         setVoiceEdit(undefined);
       })
       .catch((cause: unknown) =>
-        setDefaultError((current) => ({ ...current, [kind]: errorMessage(cause) })),
+        setDefaultError((current) => ({
+          ...current,
+          [kind]: errorMessage(cause),
+        })),
       )
       .finally(() => setBusy(false));
   };
@@ -333,7 +350,10 @@ export function VoiceProviderSettings({
                 disabled={busy || actions.setVoiceDefault === undefined}
                 options={[
                   { value: NONE, label: t('voice.default.none') },
-                  ...providers.map((entry) => ({ value: entry.id, label: entry.name })),
+                  ...providers.map((entry) => ({
+                    value: entry.id,
+                    label: entry.name,
+                  })),
                 ]}
                 onChange={(next) => setDefault(kind, next === NONE ? null : next)}
               />
@@ -357,7 +377,10 @@ export function VoiceProviderSettings({
                         ? `${t('voice.default.providerVoice')} · ${provider.defaultVoice}`
                         : t('voice.default.providerVoice'),
                     },
-                    ...voices.map((voice) => ({ value: voice.id, label: voice.name })),
+                    ...voices.map((voice) => ({
+                      value: voice.id,
+                      label: voice.name,
+                    })),
                     { value: CUSTOM_CHOICE, label: t('voice.choice.custom') },
                   ]}
                   onChange={(choice) => {
@@ -725,7 +748,11 @@ export function BotVoiceSettings({
             ? current
             : {
                 ...current,
-                bot: { slug, selected: current.bot?.selected ?? null, asr: next },
+                bot: {
+                  slug,
+                  selected: current.bot?.selected ?? null,
+                  asr: next,
+                },
               },
         );
         setSaved(true);
@@ -743,7 +770,10 @@ export function BotVoiceSettings({
         setView((current) =>
           current === undefined
             ? current
-            : { ...current, bot: { slug, selected: next, asr: current.bot?.asr ?? null } },
+            : {
+                ...current,
+                bot: { slug, selected: next, asr: current.bot?.asr ?? null },
+              },
         );
         setVoiceId(next?.voiceId ?? '');
         setSaved(true);

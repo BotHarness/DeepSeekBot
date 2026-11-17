@@ -1,7 +1,7 @@
+import { Button } from './button.js';
 import { useId, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Modal } from '../modal.js';
 import { color, dialog, space, text } from './tokens.stylex.js';
@@ -36,7 +36,11 @@ const styles = stylex.create({
     width: '100%',
   },
   spacer: { flexGrow: 1 },
-  scroll: { maxHeight: dialog.bodyMax, overflowY: 'auto', overscrollBehavior: 'contain' },
+  scroll: {
+    maxHeight: dialog.bodyMax,
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+  },
   danger: {
     backgroundColor: { default: color.danger, ':hover': color.danger },
     borderColor: 'transparent',

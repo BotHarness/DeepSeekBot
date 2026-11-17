@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { ReceptionStatus } from './reception-status.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
@@ -149,7 +150,12 @@ export function ExternalConversations({
       confirmBlock(
         grant.id,
         name,
-        () => void change({ kind: 'block', grantId: grant.id, expectedRevision: grant.revision }),
+        () =>
+          void change({
+            kind: 'block',
+            grantId: grant.id,
+            expectedRevision: grant.revision,
+          }),
       ) ??
       (open === `sync:${grant.id}` && sync ? (
         <ConversationChannelSync
@@ -274,7 +280,9 @@ export function ExternalConversations({
     const reason =
       held.reason === 'ask'
         ? t('conversation.reason.ask')
-        : t(`conversation.reason.${held.reason}`, { count: LIMITS[held.reason] });
+        : t(`conversation.reason.${held.reason}`, {
+            count: LIMITS[held.reason],
+          });
     return (
       <SidebarCardRow
         key={key}
@@ -283,7 +291,10 @@ export function ExternalConversations({
         chips={<span className="bh-conversation-reason">{reason}</span>}
         meta={[
           kind(held.conversation.kind),
-          t('conversation.seen', { count: held.count, time: time(held.lastSeenAt) }),
+          t('conversation.seen', {
+            count: held.count,
+            time: time(held.lastSeenAt),
+          }),
         ].join(' · ')}
         detail={actions(
           held.name,
@@ -449,7 +460,10 @@ function ConversationChannelSync({
             toggleLabel={t('conversation.syncTitle')}
             value={channelId}
             disabled={busy}
-            options={channels.map((channel) => ({ value: channel.id, label: channel.name }))}
+            options={channels.map((channel) => ({
+              value: channel.id,
+              label: channel.name,
+            }))}
             onSelect={setChannelId}
           />
           <Button
@@ -460,7 +474,9 @@ function ConversationChannelSync({
               selected === undefined ||
               active.some((route) => route.channelId === channelId)
             }
-            aria-label={t('conversation.syncApply', { name: selected?.name ?? '' })}
+            aria-label={t('conversation.syncApply', {
+              name: selected?.name ?? '',
+            })}
             onClick={() => void sync(grant, channelId, true)}
           >
             {t('conversation.sync')}

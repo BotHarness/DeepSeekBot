@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { TextAreaField, TextField } from './ds/field.js';
 import { Select } from './ds/select.js';
@@ -9,7 +9,12 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { PolicyItem } from './team-roles-bridge.js';
 
 const styles = stylex.create({
-  list: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   item: {
     display: 'flex',
     flexDirection: 'column',
@@ -32,7 +37,12 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     fontWeight: text.strong,
   },
-  hint: { margin: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  hint: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
 });
 
 export const POLICY_LIMIT = 100;

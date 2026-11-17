@@ -1,3 +1,4 @@
+import { Input } from './input.js';
 import {
   useId,
   type InputHTMLAttributes,
@@ -6,7 +7,6 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, space, text } from './tokens.stylex.js';
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
@@ -75,7 +75,10 @@ const styles = stylex.create({
     borderRadius: style.radiusControl,
     backgroundColor: layer.well,
     color: ink.tertiary,
-    outline: { default: 'none', ':focus-within': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-within': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: `-${border.focus}`,
   },
   searchInput: {

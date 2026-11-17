@@ -1,5 +1,5 @@
+import { SegmentedControl } from './ds/segmented.js';
 import { useId, type ReactElement, type ReactNode } from 'react';
-import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { ModelCatalogEntryView } from './bridge.js';
 import { Combobox, type ComboboxOption } from './combobox.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -34,7 +34,10 @@ export function ModelPicker({
   const entry = catalog.find((item) => JSON.stringify([item.provider, item.model]) === choice.key);
   const efforts = [
     { value: '', label: t('modelPreset.providerDefault') },
-    ...(entry?.efforts ?? []).map((effort) => ({ value: effort.id, label: effort.name })),
+    ...(entry?.efforts ?? []).map((effort) => ({
+      value: effort.id,
+      label: effort.name,
+    })),
   ];
   const heading = (
     <div className="bh-model-picker-heading">

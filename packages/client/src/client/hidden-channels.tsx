@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useMemo, type ReactElement } from 'react';
-
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { PanelDialog } from './ds/panel-dialog.js';
 import { PersonaBotAvatar, type PersonaBotActivityState } from './avatar.js';

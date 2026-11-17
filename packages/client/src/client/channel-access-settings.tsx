@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { FormDialog } from './ds/form-dialog.js';
@@ -30,7 +31,12 @@ import { useTeamMode } from './team-state.js';
 import { roleChoiceLabel, visibilitySummary } from './channel-access.js';
 
 const styles = stylex.create({
-  checks: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
+  checks: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
   inline: { display: 'flex', alignItems: 'flex-start' },
 });
 
@@ -187,7 +193,10 @@ export function ChannelAccessSettings({
           title={t('channelAccess.rolesTitle')}
           description={t('channelAccess.rolesBody')}
           empty={t('channelAccess.rolesEmpty')}
-          options={roles.map((role) => ({ id: role.roleId, label: roleChoiceLabel(t, role) }))}
+          options={roles.map((role) => ({
+            id: role.roleId,
+            label: roleChoiceLabel(t, role),
+          }))}
           initial={current.visibility.kind === 'roles' ? current.visibility.roleIds : []}
           requireOne
           busy={busy}
@@ -232,7 +241,10 @@ export function ChannelAccessSettings({
                   ...current,
                   admins: humans
                     .filter((human) => humanIds.includes(human.humanId))
-                    .map((human) => ({ humanId: human.humanId, displayName: human.displayName })),
+                    .map((human) => ({
+                      humanId: human.humanId,
+                      displayName: human.displayName,
+                    })),
                 };
               },
               () => setDialog(undefined),

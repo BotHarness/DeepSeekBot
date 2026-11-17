@@ -1,4 +1,4 @@
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from './ds/button.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';

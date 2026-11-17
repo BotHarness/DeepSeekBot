@@ -1,6 +1,7 @@
+import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   ConversationIngestRow,
@@ -133,7 +134,10 @@ export function ConversationIngestRows({
   const close = () => {
     if (!busy) setMode(undefined);
   };
-  const labels: DialogLabels = { close: t('common.close'), cancel: t('common.cancel') };
+  const labels: DialogLabels = {
+    close: t('common.close'),
+    cancel: t('common.cancel'),
+  };
   const stateTone = (row: ConversationIngestRow) =>
     row.state === 'receiving' ? 'success' : row.state === 'unavailable' ? 'warning' : 'neutral';
   return (

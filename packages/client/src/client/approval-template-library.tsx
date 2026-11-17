@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import {
   decodeApprovalTemplateGuidance,
   encodeApprovalTemplateGuidance,
@@ -6,7 +8,7 @@ import {
 import type { ApprovalTemplateDeletionPreview } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 import { useClientFields, useStoreSlice } from './use-client-store.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 
 import { templateDescription, templateTitle } from './approval-template-entry.js';
@@ -51,7 +53,12 @@ const TEMPLATE_LIBRARY_FIELDS = ['bots'] as const;
 const NAME = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
 
 const styles = stylex.create({
-  meta: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  meta: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
   ruleSection: { margin: 0, padding: 0, borderWidth: 0, minWidth: 0 },
   ruleLegend: { width: '100%', padding: 0, marginBottom: space.x3 },
   ruleHeader: {
@@ -116,7 +123,10 @@ function GuidanceFields({
   onChange(text: string): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const focusAddedRow = useRef<{ section: 'alwaysAsk' | 'alwaysAllow'; index: number }>();
+  const focusAddedRow = useRef<{
+    section: 'alwaysAsk' | 'alwaysAllow';
+    index: number;
+  }>();
   const parts = decodeApprovalTemplateGuidance(text);
   const update = (next: ApprovalTemplateGuidance): void =>
     onChange(encodeApprovalTemplateGuidance(next));
@@ -481,7 +491,11 @@ export function ApprovalTemplateLibrarySettings({
           onCancel={cancelDeletion}
           onConfirm={confirmDeletion}
         >
-          <Note>{t('autoApproval.library.deleteBody', { name: deleting.template.name })}</Note>
+          <Note>
+            {t('autoApproval.library.deleteBody', {
+              name: deleting.template.name,
+            })}
+          </Note>
           {deleting.kind === 'loading' ? <Note>{t('autoApproval.loading')}</Note> : null}
           {preview === undefined ? null : (
             <>
@@ -492,12 +506,16 @@ export function ApprovalTemplateLibrarySettings({
               ) : null}
               {direct.length === 0 ? null : (
                 <Callout tone="warning">
-                  {t('autoApproval.library.deleteDirect', { names: botNames(store, direct) })}
+                  {t('autoApproval.library.deleteDirect', {
+                    names: botNames(store, direct),
+                  })}
                 </Callout>
               )}
               {inherited.length === 0 ? null : (
                 <Callout tone="warning">
-                  {t('autoApproval.library.deleteInherited', { names: botNames(store, inherited) })}
+                  {t('autoApproval.library.deleteInherited', {
+                    names: botNames(store, inherited),
+                  })}
                 </Callout>
               )}
               {preview.globalDefaultBefore === preview.name ? (
@@ -513,7 +531,11 @@ export function ApprovalTemplateLibrarySettings({
               {preview.affectedBots.length === 0 && preview.hiddenBotCount === 0 ? (
                 <Note>{t('autoApproval.library.deleteUnused')}</Note>
               ) : (
-                <Note>{t('autoApproval.library.deleteEffective', { template: effective })}</Note>
+                <Note>
+                  {t('autoApproval.library.deleteEffective', {
+                    template: effective,
+                  })}
+                </Note>
               )}
               <Note>{t('autoApproval.library.deleteRulesUnchanged')}</Note>
             </>
@@ -543,7 +565,10 @@ export function ApprovalTemplateLibrarySettings({
             label={t('autoApproval.library.source')}
             value="@choose"
             options={[
-              { value: '@choose', label: t('autoApproval.library.chooseSource') },
+              {
+                value: '@choose',
+                label: t('autoApproval.library.chooseSource'),
+              },
               { value: '@blank', label: t('autoApproval.library.blank') },
               ...list.map((template) => ({
                 value: template.name,
@@ -560,7 +585,11 @@ export function ApprovalTemplateLibrarySettings({
                 name: template === undefined ? '' : copyName(template.name, list),
                 text:
                   template?.text ??
-                  encodeApprovalTemplateGuidance({ alwaysAsk: [], alwaysAllow: [], freeText: '' }),
+                  encodeApprovalTemplateGuidance({
+                    alwaysAsk: [],
+                    alwaysAllow: [],
+                    freeText: '',
+                  }),
               });
             }}
           />
@@ -578,7 +607,9 @@ export function ApprovalTemplateLibrarySettings({
             : [
                 {
                   value: currentBot.slug,
-                  label: t('autoApproval.library.saveApply', { name: currentBot.displayName }),
+                  label: t('autoApproval.library.saveApply', {
+                    name: currentBot.displayName,
+                  }),
                 },
               ]),
         ]}
@@ -762,13 +793,20 @@ export function ApprovalTemplateLibrarySettings({
                   disabled={busy || globalDefault === undefined}
                   options={[
                     ...(globalDefault === undefined
-                      ? [{ value: '@unknown', label: t('autoApproval.unreadable') }]
+                      ? [
+                          {
+                            value: '@unknown',
+                            label: t('autoApproval.unreadable'),
+                          },
+                        ]
                       : globalDefault !== null &&
                           !list.some((template) => template.name === globalDefault)
                         ? [
                             {
                               value: globalDefault,
-                              label: t('autoApproval.templateMissing', { name: globalDefault }),
+                              label: t('autoApproval.templateMissing', {
+                                name: globalDefault,
+                              }),
                             },
                           ]
                         : []),
@@ -779,7 +817,10 @@ export function ApprovalTemplateLibrarySettings({
                     })),
                   ]}
                   onChange={(value) =>
-                    updateGlobal({ kind: 'select', name: value === '@off' ? null : value })
+                    updateGlobal({
+                      kind: 'select',
+                      name: value === '@off' ? null : value,
+                    })
                   }
                 />
                 {globalError ? (
@@ -867,7 +908,11 @@ export function ApprovalTemplateLibrarySettings({
                       setEditor(
                         template.builtIn
                           ? { mode: 'view', template }
-                          : { mode: 'edit', template, text: template.text ?? '' },
+                          : {
+                              mode: 'edit',
+                              template,
+                              text: template.text ?? '',
+                            },
                       );
                     }}
                   >

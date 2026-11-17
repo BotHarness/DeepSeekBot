@@ -7,6 +7,15 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { WorkspaceGrantsEntry } from '../src/client/workspace-grants-entry.js';
 
+vi.mock('../src/client/ds/button.js', async () => ({
+  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
+}));
+vi.mock('../src/client/ds/input.js', async () => ({
+  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
+}));
+vi.mock('../src/client/ds/switch.js', async () => ({
+  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),

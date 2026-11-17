@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
   composerSlashQuery,
@@ -18,7 +19,6 @@ import {
 } from 'react';
 
 import {
-  Button,
   FileTypeIcon,
   IconCheckOutlineRegular,
   IconCloseOutlineRegular,
@@ -75,7 +75,9 @@ import {
 } from './skill-refs.js';
 import { chipSkill, useSkillPeek, type SkillDocument } from './skill-preview.js';
 
-export type ComposerSkillOption = SkillCatalogEntry & { bot?: BotSummary | undefined };
+export type ComposerSkillOption = SkillCatalogEntry & {
+  bot?: BotSummary | undefined;
+};
 
 export interface ChannelComposerActivity {
   presentation?: 'group' | undefined;
@@ -227,7 +229,9 @@ function ComposerImageAttachment({
     setSource(nextSource);
     return () => URL.revokeObjectURL(nextSource);
   }, [item.file]);
-  const previewLabel = t('composer.previewAttachment', { name: item.file.name });
+  const previewLabel = t('composer.previewAttachment', {
+    name: item.file.name,
+  });
 
   return (
     <>
@@ -241,7 +245,9 @@ function ComposerImageAttachment({
         <button
           type="button"
           className="bh-composer-attachment-reference bh-composer-image-reference"
-          aria-label={t('composer.referenceAttachment', { name: item.file.name })}
+          aria-label={t('composer.referenceAttachment', {
+            name: item.file.name,
+          })}
           disabled={sending}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onReference}
@@ -1215,7 +1221,9 @@ export function ChannelComposer({
                   <small>{t('composer.allBotsScope')}</small>
                 </span>
                 <small className="bh-mention-option-id">
-                  {t('composer.allBotsCount', { count: candidate.preview.recipients.length })}
+                  {t('composer.allBotsCount', {
+                    count: candidate.preview.recipients.length,
+                  })}
                 </small>
               </button>
             ) : (

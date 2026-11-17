@@ -1,11 +1,8 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { SegmentedControl } from './ds/segmented.js';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  Button,
-  Checkbox,
-  Input,
-  SegmentedControl,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
@@ -62,7 +59,11 @@ const modelKey = (route: Pick<ModelRouteView, 'provider' | 'model'>): string =>
 
 function routeOfKey(key: string, effort: string): ModelRouteView {
   const [provider, model] = JSON.parse(key) as [string, string];
-  return { provider, model, ...(effort === '' ? {} : { reasoningEffort: effort }) };
+  return {
+    provider,
+    model,
+    ...(effort === '' ? {} : { reasoningEffort: effort }),
+  };
 }
 
 interface ModelChoice {
@@ -92,7 +93,10 @@ function allowedOf(
         defaultEffort: assignmentDefault.reasoningEffort ?? '',
       },
     ]
-  ).map((option) => ({ ...option, allowedEfforts: [...option.allowedEfforts] }));
+  ).map((option) => ({
+    ...option,
+    allowedEfforts: [...option.allowedEfforts],
+  }));
 }
 
 function draftOf(
@@ -130,7 +134,10 @@ function withNote(
 function assignmentChoice(draft: ModelDraft): ModelChoice {
   if (!draft.advanced) return draft.assignment;
   const option = draft.allowed.find((item) => modelKey(item) === draft.assignment.key);
-  return { key: draft.assignment.key, effort: option?.defaultEffort ?? draft.assignment.effort };
+  return {
+    key: draft.assignment.key,
+    effort: option?.defaultEffort ?? draft.assignment.effort,
+  };
 }
 
 function assignmentRoute(draft: ModelDraft): ModelRouteView {
@@ -145,7 +152,14 @@ function finalAllowed(draft: ModelDraft): AssignmentModelOptionView[] {
     model,
     reasoningEffort = '',
   } = routeOfKey(draft.assignment.key, draft.assignment.effort);
-  return [{ provider, model, allowedEfforts: [reasoningEffort], defaultEffort: reasoningEffort }];
+  return [
+    {
+      provider,
+      model,
+      allowedEfforts: [reasoningEffort],
+      defaultEffort: reasoningEffort,
+    },
+  ];
 }
 
 function withAdvanced(draft: ModelDraft, advanced: boolean): ModelDraft {
@@ -417,9 +431,13 @@ export function ModelPresetProfile({
       {repair !== undefined && (
         <span className="bh-profile-error" role="alert">
           {repair.code === 'legacy-ambiguous'
-            ? t('modelPreset.legacyAmbiguous', { model: repair.legacyModel ?? '' })
+            ? t('modelPreset.legacyAmbiguous', {
+                model: repair.legacyModel ?? '',
+              })
             : repair.code === 'legacy-missing'
-              ? t('modelPreset.legacyMissing', { model: repair.legacyModel ?? '' })
+              ? t('modelPreset.legacyMissing', {
+                  model: repair.legacyModel ?? '',
+                })
               : t('modelPreset.routeRepair')}
         </span>
       )}
@@ -536,7 +554,10 @@ export function ModelPresetProfile({
             <SegmentedControl
               id={`bh-model-card-effort-${key}`}
               value={option.defaultEffort}
-              options={allowedEfforts.map((effort) => ({ value: effort.id, label: effort.name }))}
+              options={allowedEfforts.map((effort) => ({
+                value: effort.id,
+                label: effort.name,
+              }))}
               onChange={(defaultEffort) => editAllowed(key, (item) => ({ ...item, defaultEffort }))}
               label={`${name} · ${t('modelPreset.defaultEffort')}`}
               disabled={busy}
@@ -816,7 +837,9 @@ export function ModelPresetProfile({
                   <Note>
                     {currentPreset === undefined
                       ? t('modelPreset.noPreset')
-                      : t('modelPreset.usingPreset', { name: currentPreset.name })}
+                      : t('modelPreset.usingPreset', {
+                          name: currentPreset.name,
+                        })}
                   </Note>
                   {presets.length === 0 && <Note>{t('modelPreset.emptyPresets')}</Note>}
                 </div>

@@ -1,3 +1,4 @@
+import { Input } from './ds/input.js';
 import { useAnchoredPanel } from './anchored-panel.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
@@ -5,7 +6,6 @@ import { createPortal } from 'react-dom';
 import {
   IconChevronDownOutlineRegular,
   IconPlusOutlineRegular,
-  Input,
   MenuSurface,
   useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -116,7 +116,14 @@ export function Combobox({
   const shown =
     action === undefined
       ? choices
-      : [...choices, { value: actionValue, label: action.label, disabled: action.disabled }];
+      : [
+          ...choices,
+          {
+            value: actionValue,
+            label: action.label,
+            disabled: action.disabled,
+          },
+        ];
   const enabled = shown.filter((option) => option.disabled !== true);
   const hasPopup = shown.length > 0 || (choices.length === 0 && emptyLabel !== undefined);
   const highlighted = shown.findIndex(

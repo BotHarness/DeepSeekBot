@@ -1097,6 +1097,87 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/class-name.ts
+		function joinClass(...names) {
+			const joined = names.filter((name) => name !== void 0 && name !== "").join(" ");
+			return joined === "" ? void 0 : joined;
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/button.tsx
+		const styles$3 = {
+			base: {
+				kB7OPa: "bhx9f619",
+				k1xSpc: "bhx3nfvp2",
+				kGNEyG: "bhx6s0dn4",
+				kjj79g: "bhxl56j7k",
+				kOIVth: "bhx12e6dxb",
+				kmuXW: "bhx2lah0s",
+				k8WAf4: "bhxt970qd",
+				kg3NbH: "bhxq23ktl",
+				kMzoRj: "bhxc342km",
+				kaIpWk: "bhxvz6vxc",
+				kWkggS: "bhxjbqb8w",
+				kMwMTN: "bhx103lb5k",
+				kMv6JI: "bhxjb2p0i",
+				kGuDYH: "bhx1779mkw",
+				kLWn49: "bhxe5wb2f",
+				k63SB2: "bhxk50ysn",
+				khDVqt: "bhxuxw1ft",
+				kkrTdU: "bhx1ypdohk bhx1s07b3s",
+				kSiTet: "bhx1hc1fzr bhx1lfpgzf",
+				kI3sdo: "bhx1a2a7pz bhx1i94p6w",
+				kInvED: "bhx1hl8ikr",
+				$$css: true
+			},
+			sm: {
+				kZKoxP: "bhxisypcw",
+				$$css: true
+			},
+			md: {
+				kZKoxP: "bhx1cbrj4c",
+				$$css: true
+			},
+			primary: {
+				kWkggS: "bhx1rolmtn bhx1n57e5r",
+				kMwMTN: "bhx14w2d3c",
+				$$css: true
+			},
+			outline: {
+				kWkggS: "bhxooed33",
+				kGVxlE: "bhx1nopuv3",
+				kKwaWg: "bhx18o3ruo bhxfdnnug",
+				$$css: true
+			},
+			ghost: {
+				kWkggS: "bhxjbqb8w bhxqta4pg bhx9mj4i6",
+				$$css: true
+			},
+			toolbar: {
+				kWkggS: "bhxp02wjs",
+				kKwaWg: "bhx18o3ruo bhxfdnnug",
+				$$css: true
+			},
+			icon: {
+				k1xSpc: "bhx3nfvp2",
+				kzqmXN: "bhx1x2ywmj",
+				kZKoxP: "bhx6nhqxt",
+				kGNEyG: "bhx6s0dn4",
+				kjj79g: "bhxl56j7k",
+				$$css: true
+			}
+		};
+		const Button$4 = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, children, ...rest }, ref) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+				ref,
+				...rest,
+				className: joinClass(props(styles$3.base, styles$3[size], styles$3[variant]).className, className),
+				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bhx3nfvp2 bhx1x2ywmj bhx6nhqxt bhx6s0dn4 bhxl56j7k",
+					children: icon
+				}), children]
+			});
+		});
+		//#endregion
 		//#region packages/client/src/client/mounted-resource.ts
 		function useMountedResource(start, dependencies) {
 			const cleanup = (0, react.useRef)(void 0);
@@ -1421,7 +1502,7 @@ window.__ModuleLoader__.load({
 							opacity: .75
 						},
 						children: t("entry.noScreen")
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
 						variant: "toolbar",
 						size: "sm",
 						onClick: onRetry,
@@ -1548,7 +1629,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		function StopButton({ t, busy, stopping, onStop }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
 				variant: "ghost",
 				size: "sm",
 				disabled: busy || stopping,
@@ -1599,7 +1680,7 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
 					extraControls,
-					hideInteractiveToggle ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+					hideInteractiveToggle ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
 						variant: interactive ? "ghost" : "primary",
 						size: "sm",
 						"aria-pressed": interactive,
@@ -1614,7 +1695,7 @@ window.__ModuleLoader__.load({
 						stopping,
 						onStop
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
 						variant: "ghost",
 						size: "sm",
 						onClick: onCollapse,
@@ -2301,7 +2382,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/note.tsx
-		const styles$1 = {
+		const styles$2 = {
 			note: {
 				kogj98: "bhx1ghz6dp",
 				kGuDYH: "bhxgowt09",
@@ -2338,7 +2419,7 @@ window.__ModuleLoader__.load({
 		function Note({ tone = "muted", inset = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 				role: tone === "danger" ? "alert" : "status",
-				...props(styles$1.note, inset && styles$1.inset, styles$1[tone]),
+				...props(styles$2.note, inset && styles$2.inset, styles$2[tone]),
 				children
 			});
 		}
@@ -2377,14 +2458,14 @@ window.__ModuleLoader__.load({
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "bhx78zum5 bhx12e6dxb bhx1a02dak",
 						children: [
-							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
 								size: "sm",
 								variant: "primary",
 								disabled: busy,
 								onClick: onInstall,
 								children: labels.install
 							}) : null,
-							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
 								size: "sm",
 								variant: "outline",
 								onClick: copy,
@@ -2548,6 +2629,21 @@ window.__ModuleLoader__.load({
 				}) })]
 			});
 		}
+		//#endregion
+		//#region packages/client/src/client/ds/input.tsx
+		const Input$2 = (0, react.forwardRef)(function Input({ icon, className, ...rest }, ref) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				className: joinClass({ className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhxisypcw bhx14i569m bhxvz6vxc bhxym0p2z bhx1ikcoup bhx1a2a7pz bhxay4pf5 bhx1g40iwv bhx1hc1fzr bhxozmhvb" }.className, className),
+				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bhx3nfvp2 bhx2lah0s bhx1x2ywmj bhx6nhqxt bhx6s0dn4 bhxl56j7k bhx1axu3v7",
+					children: icon
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+					ref,
+					...rest,
+					className: "bhx1iyjqo2 bhxeuugli bhx1717udv bhxc342km bhx1a2a7pz bhxjbqb8w bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1t6c47z"
+				})]
+			});
+		});
 		//#endregion
 		//#region packages/client/src/client/anchored-panel.ts
 		const useLegacyPosition = "useAnchoredPosition" in _deepseek_ai_dsh_client_ui_primitives ? _deepseek_ai_dsh_client_ui_primitives.useAnchoredPosition : void 0;
@@ -2713,7 +2809,7 @@ window.__ModuleLoader__.load({
 				className: className === void 0 ? "bh-combobox" : `bh-combobox ${className}`,
 				ref: root,
 				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Input, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Input$2, {
 						className: "bh-combobox-input",
 						role: "combobox",
 						"aria-label": label,
@@ -2867,7 +2963,19 @@ window.__ModuleLoader__.load({
 			"--tobs-style-nav-selected-fill": "var(--tobs-state-selected)",
 			"--tobs-style-nav-selected-ink": "var(--tobs-state-selected-ink)",
 			"--tobs-style-nav-selected-icon": "var(--tobs-state-selected-ink)",
-			"--tobs-style-surface-list-backdrop": "var(--tobs-layer-sheet)"
+			"--tobs-style-surface-list-backdrop": "var(--tobs-layer-sheet)",
+			"--tobs-style-on-page-field": "var(--tobs-layer-well)",
+			"--tobs-style-on-page-field-edge": "var(--tobs-layer-clear)",
+			"--tobs-style-on-page-track": "var(--tobs-layer-well)",
+			"--tobs-style-on-page-secondary": "var(--tobs-layer-well)",
+			"--tobs-style-on-page-secondary-edge": "var(--tobs-layer-clear)",
+			"--tobs-style-on-card-field": "var(--tobs-layer-field)",
+			"--tobs-style-on-card-field-edge": "var(--tobs-line-edge)",
+			"--tobs-style-on-card-track": "var(--tobs-layer-well)",
+			"--tobs-style-on-card-secondary": "var(--tobs-layer-well)",
+			"--tobs-style-on-card-secondary-edge": "var(--tobs-layer-clear)",
+			"--tobs-style-switch-width": "30px",
+			"--tobs-style-switch-height": "18px"
 		} };
 		({
 			...Object.fromEntries(Object.entries({
@@ -3005,29 +3113,6 @@ window.__ModuleLoader__.load({
 			}), container);
 		}
 		//#endregion
-		//#region packages/client/src/client/ds/pill-button.tsx
-		const pillStyles = { pill: {
-			k1xSpc: "bhx3nfvp2",
-			kGNEyG: "bhx6s0dn4",
-			kOIVth: "bhx12e6dxb",
-			ks0D6T: "bhx193iq5w",
-			kZKoxP: "bhxxevliy",
-			kg3NbH: "bhx1vid4s1",
-			kMzoRj: "bhxc342km",
-			kaIpWk: "bhx4g09nt",
-			kWkggS: "bhx1eunnl6 bhx8yp5u",
-			kMwMTN: "bhx24dycr",
-			kMv6JI: "bhxjb2p0i",
-			kGuDYH: "bhx5g6txa",
-			kLWn49: "bhx3350y7",
-			khDVqt: "bhxuxw1ft",
-			kkrTdU: "bhx1ypdohk bhxtgyt42",
-			kSiTet: "bhx1hc1fzr bhxijokvz",
-			kI3sdo: "bhx1a2a7pz bhx1m95a6t",
-			kInvED: "bhx1y3gkto",
-			$$css: true
-		} };
-		//#endregion
 		//#region packages/client/src/client/ds/select.tsx
 		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false, reselect = false }) {
 			const [open, setOpen] = (0, react.useState)(false);
@@ -3093,12 +3178,12 @@ window.__ModuleLoader__.load({
 					if (active) close();
 					else setOpen(true);
 				},
-				...props(pillStyles.pill),
+				className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxisypcw bhxocwxb3 bhx1lo940d bhxc342km bhxvz6vxc bhxym0p2z bhx1ikcoup bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1g40iwv",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
 					children: current?.label
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
+					className: "bhx3nfvp2 bhx2lah0s bhx1axu3v7",
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
 				})]
 			}), active && point ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PointerMenu, {
@@ -3121,15 +3206,120 @@ window.__ModuleLoader__.load({
 			}) : null] });
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/info-tip.tsx
+		function InfoTip({ label, text }) {
+			const id = (0, react.useId)();
+			const [hover, setHover] = (0, react.useState)(false);
+			const [focus, setFocus] = (0, react.useState)(false);
+			const [pinned, setPinned] = (0, react.useState)(false);
+			const open = hover || focus || pinned;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				className: "bhx1n2onr6 bhx3nfvp2 bhx2lah0s",
+				onPointerEnter: () => {
+					setHover(true);
+				},
+				onPointerLeave: () => {
+					setHover(false);
+				},
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					type: "button",
+					"aria-label": label,
+					"aria-describedby": open ? id : void 0,
+					"aria-expanded": pinned,
+					onFocus: () => {
+						setFocus(true);
+					},
+					onBlur: () => {
+						setFocus(false);
+						setPinned(false);
+					},
+					onClick: () => {
+						setPinned((value) => !value);
+					},
+					onKeyDown: (event) => {
+						if (event.key === "Escape" && open) {
+							event.stopPropagation();
+							setPinned(false);
+							setHover(false);
+							setFocus(false);
+						}
+					},
+					className: "bhx3nfvp2 bhx6s0dn4 bhxl56j7k bhx1x2ywmj bhx6nhqxt bhx1717udv bhxc342km bhx13u8aww bhxjbqb8w bhx1axu3v7 bhx1a36vn4 bhx1146j2 bhx1a2a7pz bhx1i94p6w",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+						width: "14",
+						height: "14",
+						viewBox: "0 0 14 14",
+						"aria-hidden": "true",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+								cx: "7",
+								cy: "7",
+								r: "6",
+								fill: "none",
+								stroke: "currentColor",
+								strokeWidth: "1.2"
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+								d: "M7 6.2v3.6",
+								stroke: "currentColor",
+								strokeWidth: "1.3",
+								strokeLinecap: "round"
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+								cx: "7",
+								cy: "4.3",
+								r: "0.8",
+								fill: "currentColor"
+							})
+						]
+					})
+				}), open ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					id,
+					role: "tooltip",
+					className: "bhx10l6tqk bhx1o0tod bhx6om7eq bhx1n327nk bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhxeaf4i8 bhx47corl",
+					children: text
+				}) : null]
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/surface.ts
+		const surfaceStyles = { card: {
+			"--tobs-on-field": "bhxvn5hdi",
+			"--tobs-on-field-edge": "bhxwe5oui",
+			"--tobs-on-track": "bhxgbxpun",
+			"--tobs-on-secondary": "bhxweo6jt",
+			"--tobs-on-secondary-edge": "bhx1f506l2",
+			$$css: true
+		} };
+		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
+		const styles$1 = {
+			rows: {
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				k7Eaqz: "bhxeuugli",
+				$$css: true
+			},
+			group: {
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				kOIVth: "bhx103m73q",
+				k7Eaqz: "bhxeuugli",
+				kg3NbH: "bhxf5xh8h bhx1qyef7o",
+				k8WAf4: "bhxggp0jn bhxvz3fld",
+				kaIpWk: "bhxdylm0v bhxtm8dy7",
+				kWkggS: "bhx18mhnxz bhxu7tw00",
+				$$css: true
+			}
+		};
 		function SettingsRows({ children, rootRef }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				ref: rootRef,
-				className: "bhx78zum5 bhxdt5ytf bhx103m73q bhxeuugli bhxf5xh8h bhx1qyef7o bhxggp0jn bhxvz3fld bhxdylm0v bhxtm8dy7 bhx18mhnxz bhxu7tw00",
+				...props(styles$1.rows, styles$1.group, surfaceStyles.card),
 				children
 			});
 		}
-		function SettingsRow({ title, description, control, children, rootRef, data }) {
+		function SettingsRow({ title, description, info, control, children, rootRef, data }) {
 			const id = (0, react.useId)();
 			const titleId = `${id}-title`;
 			const descriptionId = `${id}-description`;
@@ -3143,10 +3333,16 @@ window.__ModuleLoader__.load({
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
 					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							id: titleId,
-							className: "bhx24dycr bhx5g6txa bhx3350y7 bhx1knm1co bhxj0a0fe",
-							children: title
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "bhx78zum5 bhx6s0dn4 bhx12e6dxb bhxeuugli",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								id: titleId,
+								className: "bhx24dycr bhx5g6txa bhx3350y7 bhx1knm1co bhxj0a0fe",
+								children: title
+							}), info === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(InfoTip, {
+								label: info.label,
+								text: info.text
+							})]
 						}),
 						description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							id: descriptionId,
@@ -3629,15 +3825,24 @@ window.__ModuleLoader__.load({
 .bh-browser-failure-details pre { overflow-x: auto; white-space: pre-wrap; font-size: ${text.metaSize}; }
 
 .bhx-level-0{}
+.bhxvn5hdi{--tobs-on-field:var(--tobs-style-on-card-field)}
+.bhxwe5oui{--tobs-on-field-edge:var(--tobs-style-on-card-field-edge)}
+.bhxweo6jt{--tobs-on-secondary:var(--tobs-style-on-card-secondary)}
+.bhx1f506l2{--tobs-on-secondary-edge:var(--tobs-style-on-card-secondary-edge)}
+.bhxgbxpun{--tobs-on-track:var(--tobs-style-on-card-track)}
 .bhx-level-1:not(#\\#){}
 .bhx1ghz6dp:not(#\\#){margin:0}
+.bhx1717udv:not(#\\#){padding:0}
 .bhx1tsjn1a:not(#\\#){padding:16px}
 .bhx-level-2:not(#\\#):not(#\\#){}
 .bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}
+.bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}
 .bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}
 .bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}
 .bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}
 .bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
+.bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
+.bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}
 .bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}
 .bhxc342km:not(#\\#):not(#\\#){border-width:0}
 .bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}
@@ -3649,17 +3854,21 @@ window.__ModuleLoader__.load({
 .bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}
 .bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}
 .bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}
+.bhxt970qd:not(#\\#):not(#\\#){padding-block:0}
 .bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}
 .bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}
+.bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}
 .bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}
 .bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}
-.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}
+.bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}
 .bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}
 .bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}
+.bhx14i569m:not(#\\#):not(#\\#){padding-inline:8px}
 .bhxpd76p7:not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}
 .bhxf5xh8h:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-group-padding-inline)}
 .bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}
-.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}
+.bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
+.bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
 .bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}
 .bhxvz3fld:has(> section):not(#\\#):not(#\\#){padding-block:0}
 .bhx1qyef7o:has(> section):not(#\\#):not(#\\#){padding-inline:0}
@@ -3668,17 +3877,30 @@ window.__ModuleLoader__.load({
 .bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}
 .bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}
 .bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}
-.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}
+.bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
+.bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}
+.bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}
+.bhxp02wjs:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-well)}
+.bhxym0p2z:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-field, var(--tobs-style-on-page-field))}
+.bhxooed33:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-secondary, var(--tobs-style-on-page-secondary))}
 .bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
 .bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}
 .bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}
+.bhx18o3ruo:not(#\\#):not(#\\#):not(#\\#){background-image:none}
+.bhx1ikcoup:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-field-edge, var(--tobs-style-on-page-field-edge))}
+.bhx1nopuv3:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-secondary-edge, var(--tobs-style-on-page-secondary-edge))}
+.bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}
 .bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}
+.bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}
+.bhx103lb5k:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}
 .bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}
 .bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}
+.bhx1axu3v7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}
 .bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}
 .bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}
 .bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}
 .bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}
+.bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}
 .bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}
 .bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}
 .bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}
@@ -3693,33 +3915,52 @@ window.__ModuleLoader__.load({
 .bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}
 .bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
+.bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx1knm1co:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
+.bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
 .bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
+.bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
+.bhx1o0tod:not(#\\#):not(#\\#):not(#\\#){inset-inline-start:0}
 .bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}
 .bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}
 .bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}
 .bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
+.bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}
-.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}
+.bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}
+.bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
+.bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}
+.bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
 .bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}
 .bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
+.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}
 .bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}
+.bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}
 .bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}
 .bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}
 .bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}
+.bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
 .bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
+.bhx1n327nk:not(#\\#):not(#\\#):not(#\\#){z-index:10}
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
+.bhxozmhvb:has(input:disabled):not(#\\#):not(#\\#):not(#\\#){opacity:.5}
 .bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}
+.bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}
+.bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}
 .bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}
-.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}
+.bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}
 @media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}
 @media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}
+.bhx1n57e5r:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid-hover)}
+.bhxqta4pg:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
+.bhxfdnnug:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-image:linear-gradient(var(--tobs-state-hover),var(--tobs-state-hover))}
+.bhx9mj4i6:active:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-pressed)}
 @container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}
 @container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}
@@ -3730,9 +3971,12 @@ window.__ModuleLoader__.load({
 .bhx1kkor1i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}
 .bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}
 .bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
-.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
+.bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}
+.bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
+.bhx6nhqxt:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-size)}
 .bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}
 .bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}
+.bhx1jkqq1h:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:280px}
 .bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}
 .bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}
 .bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}
@@ -3740,13 +3984,21 @@ window.__ModuleLoader__.load({
 .bhxexzqx0:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}
 .bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}
 .bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}
+.bhx6om7eq:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:calc(100% + 4px)}
 .bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}
 .bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}
 .bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}
+.bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}
+.bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}
 .bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}
 .bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}
 @media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
 @container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
+.bhx-level-5:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}
+.bhx-level-6:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}
+.bhx-level-7:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}
+.bhx-level-8:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}
+.bhx1t6c47z:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#)::placeholder{color:var(--tobs-ink-tertiary)}
 `;
 		//#endregion
 		//#region packages/browser/src/client/access-power-icon.tsx

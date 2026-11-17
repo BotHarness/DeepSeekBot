@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import {
-  Button,
   IconCheckOutlineRegular,
   IconInfoOutlineRegular,
   Tag,
@@ -51,10 +51,25 @@ const BUILT_IN = 'built-in';
 const FOLLOW = 'global';
 
 const styles = stylex.create({
-  page: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
   check: { display: 'inline-flex', color: color.fg },
-  meta: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
-  heading: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  meta: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
+  heading: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
   info: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -91,7 +106,12 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
   },
-  body: { display: 'flex', flexDirection: 'column', gap: space.x2, marginTop: space.x3 },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    marginTop: space.x3,
+  },
   actions: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   block: {
     margin: 0,
@@ -205,7 +225,9 @@ function PartsEditor({
                         size="sm"
                         onClick={() => setDraft({ ...draft, [part.id]: fallback.text })}
                       >
-                        {t('prompts.reset', { source: sourceLabel(t, fallback.source) })}
+                        {t('prompts.reset', {
+                          source: sourceLabel(t, fallback.source),
+                        })}
                       </Button>
                     ) : null}
                     {defaultChanged ? (
@@ -331,7 +353,10 @@ function LimitsEditor({
                   })}
                   error={
                     invalid
-                      ? t('prompts.limits.invalid', { min: limit.min, max: limit.max })
+                      ? t('prompts.limits.invalid', {
+                          min: limit.min,
+                          max: limit.max,
+                        })
                       : undefined
                   }
                   inputMode="numeric"
@@ -344,7 +369,9 @@ function LimitsEditor({
                     size="sm"
                     onClick={() => setDraft({ ...draft, [limit.id]: String(fallback.value) })}
                   >
-                    {t('prompts.reset', { source: sourceLabel(t, fallback.source) })}
+                    {t('prompts.reset', {
+                      source: sourceLabel(t, fallback.source),
+                    })}
                   </Button>
                 ) : null}
               </div>
@@ -381,7 +408,13 @@ async function loadLibrary(actions: PromptActions): Promise<Library> {
 
 type Editor =
   | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft }
-  | { mode: 'edit'; preset: PresetView; name: string; draft: Draft; limits: LimitDraft };
+  | {
+      mode: 'edit';
+      preset: PresetView;
+      name: string;
+      draft: Draft;
+      limits: LimitDraft;
+    };
 
 export function PromptPresetSettings({
   actions,
@@ -547,7 +580,10 @@ export function PromptPresetSettings({
 
   const options = [
     { value: BUILT_IN, label: t('prompts.builtIn') },
-    ...(library?.presets ?? []).map((preset) => ({ value: preset.id, label: preset.name })),
+    ...(library?.presets ?? []).map((preset) => ({
+      value: preset.id,
+      label: preset.name,
+    })),
   ];
   return (
     <div ref={mount} data-prompt-preset-settings="">
@@ -593,7 +629,12 @@ export function PromptPresetSettings({
                   size="sm"
                   onClick={() => {
                     setError(undefined);
-                    setEditor({ mode: 'create', name: '', draft: {}, limits: {} });
+                    setEditor({
+                      mode: 'create',
+                      name: '',
+                      draft: {},
+                      limits: {},
+                    });
                   }}
                 >
                   {t('prompts.create')}
@@ -765,7 +806,9 @@ export function BotPromptSettingsEntry({
     {
       id: FOLLOW,
       title: t('prompts.bot.follow'),
-      meta: t('prompts.bot.followHint', { name: globalPreset?.name ?? t('prompts.builtIn') }),
+      meta: t('prompts.bot.followHint', {
+        name: globalPreset?.name ?? t('prompts.builtIn'),
+      }),
     },
     ...library.presets.map((preset) => ({
       id: preset.id,
@@ -822,7 +865,9 @@ export function BotPromptSettingsEntry({
                 }
                 {...(active
                   ? {}
-                  : { onClick: () => run({ presetId: card.id === FOLLOW ? null : card.id }) })}
+                  : {
+                      onClick: () => run({ presetId: card.id === FOLLOW ? null : card.id }),
+                    })}
               />
             );
           })}

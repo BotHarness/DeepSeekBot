@@ -1,3 +1,4 @@
+import { Switch } from './ds/switch.js';
 import { ReceptionStatus } from './reception-status.js';
 import { readSavedThenStatus } from './progressive-settings.js';
 import { MessagingHelp } from './messaging-help.js';
@@ -6,7 +7,7 @@ import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type {
   ChannelBridgeInput,
   ChannelBridgeRow,
@@ -286,7 +287,10 @@ export function ChannelBridgeList({
   const close = () => {
     if (!busy) setMode(undefined);
   };
-  const labels: DialogLabels = { close: t('common.close'), cancel: t('common.cancel') };
+  const labels: DialogLabels = {
+    close: t('common.close'),
+    cancel: t('common.cancel'),
+  };
   const target =
     delivery === 'inbox' ? t('bridge.inboxOnly') : t('bridge.target', { name: channelName });
   const subject = source ? (
@@ -437,7 +441,10 @@ export function ChannelBridgeList({
                   disabled={busy}
                   onSelect={(value) => setDelivery(value === 'inbox' ? 'inbox' : 'channel')}
                   options={[
-                    { value: 'channel', label: t('bridge.dmTarget', { name: channelName }) },
+                    {
+                      value: 'channel',
+                      label: t('bridge.dmTarget', { name: channelName }),
+                    },
                     { value: 'inbox', label: t('bridge.inboxOnly') },
                   ]}
                 />

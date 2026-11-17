@@ -127,6 +127,10 @@ describe('Tobs design tokens', () => {
             contrast(t['--tobs-line-focus'] ?? '', t[surface] ?? ''),
             `focus for ${primary} on ${surface} in ${scheme}`,
           ).toBeGreaterThanOrEqual(3);
+        expect(
+          contrast(t['--tobs-accent-on-solid'] ?? '', primary),
+          `text on a ${primary} fill in ${scheme}`,
+        ).toBeGreaterThanOrEqual(4.5);
       }
   });
 });
