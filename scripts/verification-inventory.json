@@ -1952,9 +1952,9 @@
       "path": "scripts/e2e-team-auto-join.mjs",
       "category": "mapped",
       "behaviors": ["team.channel-auto-join"],
-      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification.",
+      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections on the docked Web sidebar and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification.",
       "task": 4222,
-      "sha256": "3736f576db67d2cad0fa72a4a8acf7c7ed3c2595e217d43e73d4e59dd043b59d"
+      "sha256": "988869c1220788986e9be999ea5e80f72b469d3e6a40905f8f4898250ffd41bc"
     },
     {
       "path": "scripts/e2e-team-human-dm.mjs",
