@@ -25,7 +25,16 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 
 const fake = vi.hoisted(() => ({ teamSignIn: vi.fn() }));
 vi.mock('../src/client/remote-hosts.js', () => ({
-  remoteHosts: () => ({ teamSignIn: fake.teamSignIn }),
+  remoteHosts: () => ({
+    teamSignIn: fake.teamSignIn,
+    getSnapshot: () => ({
+      hosts: [
+        {
+          host: { hostId: 'h-team', member: { displayName: 'Bob', fingerprint: 'AAAA BBBB CCCC' } },
+        },
+      ],
+    }),
+  }),
 }));
 vi.mock('../src/client/this-host.js', () => ({
   getThisHost: () => ({ id: 'local', name: 'Studio' }),
@@ -162,7 +171,7 @@ describe('Team sign-in dialog', () => {
       await act(async () => submit().click());
       await settle();
       expect(document.body.textContent).toContain(
-        zhTranslate('teamSignIn.switchBody', { name: 'Alice' }),
+        zhTranslate('teamSignIn.switchBodyNamed', { name: 'Alice', current: 'Bob' }),
       );
       expect(flow.cancel).not.toHaveBeenCalled();
       expect(onDone).not.toHaveBeenCalled();

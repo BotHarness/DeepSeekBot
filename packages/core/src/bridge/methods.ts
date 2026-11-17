@@ -237,6 +237,17 @@ import {
   AssignmentReplyTargetError,
   type HumanAssignmentContext,
 } from '../runtime/assignment-human-context.js';
+import { summarizeSessionProgress, type SessionProgress } from '../runtime/session-progress.js';
+import {
+  summarizeSessionTranscript,
+  type SessionTranscript,
+} from '../runtime/session-transcript.js';
+import type { SessionLiveSnapshot, SessionLiveStreams } from '../runtime/session-live.js';
+import {
+  summarizeSessionToolDetail,
+  type PresentToolResult,
+  type SessionToolDetail,
+} from '../runtime/session-tool-detail.js';
 import {
   summarizeAssignmentTimeline,
   summarizeSubagentLanes,
@@ -986,6 +997,14 @@ export interface BridgeMethods extends TeamBridgeMethods {
       omittedSubagents: number;
     }>
   >;
+  sessionProgress(payload: unknown): Promise<BridgeResult<{ sessions: SessionProgressEntry[] }>>;
+  sessionTranscript(
+    payload: unknown,
+  ): Promise<BridgeResult<{ sessionId: string; role: SessionRootRole } & SessionTranscript>>;
+  sessionLive(payload: unknown): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>>;
+  sessionToolDetail(
+    payload: unknown,
+  ): Promise<BridgeResult<{ sessionId: string; callId: string; detail: SessionToolDetail }>>;
   workspaceOptions(payload: unknown): BridgeResult<{
     workspaces: { id: string; path: string; title: string }[];
   }>;
@@ -1373,6 +1392,8 @@ export interface BridgeMethodsDeps {
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
+  presentToolResult?: PresentToolResult;
+  sessionLive?: SessionLiveStreams;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -1925,6 +1946,13 @@ function dataResetFailure(error: unknown): BridgeResult<never> {
     },
   };
 }
+
+export const SESSION_PROGRESS_LIMIT = 30;
+
+export type SessionProgressEntry = { sessionId: string } & (
+  | SessionProgress
+  | { error: 'not-found' | 'unavailable' }
+);
 
 async function sessionLogOf(
   read: DshUsageSessionLogReader,
@@ -8888,6 +8916,114 @@ function buildBridgeMethods(
         describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
       });
       return { ok: true, value: { assignment, ...timeline } };
+    },
+    async sessionProgress(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      if (slug === undefined) return invalidInput('slug is required');
+      const ids = source?.['sessionIds'];
+      if (
+        !Array.isArray(ids) ||
+        ids.length === 0 ||
+        ids.length > SESSION_PROGRESS_LIMIT ||
+        !ids.every((id) => typeof id === 'string' && id.trim() !== '')
+      )
+        return invalidInput(`sessionIds must list 1 to ${SESSION_PROGRESS_LIMIT} Session ids`);
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const sessions = await Promise.all(
+        [...new Set(ids as string[])].map(async (sessionId): Promise<SessionProgressEntry> => {
+          const owner = deps.ownership.resolve(sessionId);
+          if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+            return { sessionId, error: 'not-found' };
+          try {
+            const log = await read(sessionId);
+            return { sessionId, ...summarizeSessionProgress(log?.events ?? []) };
+          } catch {
+            return { sessionId, error: 'unavailable' };
+          }
+        }),
+      );
+      return { ok: true, value: { sessions } };
+    },
+    async sessionTranscript(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const log = await read(sessionId);
+      return {
+        ok: true,
+        value: {
+          sessionId,
+          role: owner.rootRole,
+          ...summarizeSessionTranscript({
+            sessionId,
+            events: log?.events ?? [],
+            describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
+          }),
+        },
+      };
+    },
+    async sessionLive(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const after = source?.['after'];
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (after !== undefined && (typeof after !== 'number' || !Number.isSafeInteger(after)))
+        return invalidInput('after must be an integer');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const live = deps.sessionLive;
+      if (live === undefined) return unavailable();
+      if (after !== undefined) await live.wait(sessionId, after);
+      return { ok: true, value: { sessionId, ...live.snapshot(sessionId) } };
+    },
+    async sessionToolDetail(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const callId = asNonBlank(source, 'callId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (callId === undefined) return invalidInput('callId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const log = await read(sessionId);
+      const detail = summarizeSessionToolDetail({
+        sessionId,
+        callId,
+        events: log?.events ?? [],
+        ...(deps.presentToolResult === undefined ? {} : { present: deps.presentToolResult }),
+      });
+      if (detail === undefined)
+        return { ok: false, error: { code: 'not-found', message: `unknown tool call: ${callId}` } };
+      return { ok: true, value: { sessionId, callId, detail } };
     },
     async sessionSubagents(payload) {
       const source = asObject(payload);

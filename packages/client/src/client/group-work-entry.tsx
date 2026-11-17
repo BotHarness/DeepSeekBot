@@ -194,6 +194,7 @@ function GroupWorkPanel({
   const sectionGroup = {
     'needs-input': 'waiting',
     working: 'working',
+    stuck: 'working',
     idle: 'idle',
     resolved: 'done',
   } as const;

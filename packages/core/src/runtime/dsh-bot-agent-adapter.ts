@@ -11,7 +11,7 @@ import {
   selectNativeModel,
 } from './native-agent-compat.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
-import { createBotMessageTool } from './bot-message-tool.js';
+import { createBotMessageTool, type SessionLinkKind } from './bot-message-tool.js';
 import { createGenuiPreviewTool } from './genui-preview-tool.js';
 import { createGenuiDiagramTool } from './genui-diagram-tool.js';
 import { GENUI_STYLE_GUIDANCE } from '../channels/genui-appearance.js';
@@ -431,8 +431,22 @@ export interface DshDefaultModelHost {
 }
 
 type ActiveRun =
-  | { role: 'orchestrator'; run: OrchestratorAgentRun; direct?: true }
+  | {
+      role: 'orchestrator';
+      run: OrchestratorAgentRun;
+      direct?: true;
+      sessionLinks?: Map<string, SessionLinkKind>;
+    }
   | { role: 'assignment'; run: AssignmentAgentRun; reported: boolean };
+
+function linkSession(
+  active: Extract<ActiveRun, { role: 'orchestrator' }>,
+  sessionId: string,
+  kind: SessionLinkKind,
+): void {
+  const links = (active.sessionLinks ??= new Map());
+  if (links.get(sessionId) !== 'created') links.set(sessionId, kind);
+}
 
 function agentOptions(
   run: Pick<OrchestratorAgentRun, 'bot' | 'inboundChannelId'> | AssignmentAgentRun,
@@ -1498,6 +1512,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           settle: (channelId, body) => this.#drafts.settle(run.sessionId, channelId, body),
           discard: (channelId) => this.#drafts.discard(run.sessionId, channelId),
         },
+        () => {
+          const active = this.#runs.get(run.sessionId);
+          return active?.role === 'orchestrator' ? (active.sessionLinks ?? new Map()) : new Map();
+        },
       ),
     );
     registerTool(
@@ -1717,6 +1735,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                 }),
           });
           if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
+            linkSession(
+              active,
+              outcome.assignment.sessionId,
+              outcome.outcome === 'created' ? 'created' : 'sent',
+            );
             return JSON.stringify({
               outcome: outcome.outcome,
               sessionId: outcome.assignment.sessionId,
@@ -2098,6 +2121,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             outcome = assignments.request(input);
             unarchived = outcome.delivery !== 'refused';
           }
+          if (outcome.delivery === 'steer' || outcome.delivery === 'followup')
+            linkSession(active, args.session_id, 'sent');
           return JSON.stringify({
             ...assignmentRequestResult(outcome),
             ...(unarchived ? { unarchived: true } : {}),

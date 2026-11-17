@@ -16,9 +16,10 @@ vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
 const router = vi.hoisted(() => ({ dismissTo: vi.fn() }));
+const params = vi.hoisted(() => ({ value: { i: 'invite' } as Record<string, string> }));
 vi.mock('expo-router', () => ({
   useRouter: () => router,
-  useLocalSearchParams: () => ({ i: 'invite' }),
+  useLocalSearchParams: () => params.value,
 }));
 const bob = vi.hoisted(() => ({
   hostId: 'h',
@@ -35,6 +36,7 @@ const bob = vi.hoisted(() => ({
   },
 }));
 const session = vi.hoisted(() => ({
+  getState: () => ({ hosts: [bob] }),
   pairMember: vi.fn(async (_host: unknown, options?: { confirmedIdentitySwitch?: boolean }) =>
     options?.confirmedIdentitySwitch
       ? { ok: true as const, value: bob }
@@ -52,7 +54,11 @@ vi.mock('@botharness/host-client/team-client', () => ({
     ok: true,
     value: { host: { name: 'Studio' }, username: 'bob' },
   }),
-  signInTeamDevice: async () => ({ ok: true, value: bob }),
+  signInAgainInvitation: (host: { hostName: string; member?: { username: string } }) => ({
+    host: { name: host.hostName },
+    username: host.member?.username,
+  }),
+  signInTeamDevice: vi.fn(async () => ({ ok: true, value: bob })),
   changeTeamDevicePassword: vi.fn(),
 }));
 import TeamSignInScreen from '../app/pair/team';
@@ -108,5 +114,26 @@ it('revokes the new sign-in when the account switch is cancelled', async () => {
   } finally {
     act(() => root.unmount());
     element.remove();
+  }
+});
+
+it('signs the same member in again from a saved Host without an invitation or a switch prompt', async () => {
+  router.dismissTo.mockClear();
+  session.pairMember.mockImplementationOnce(async () => ({ ok: true as const, value: bob }));
+  params.value = { host: 'h' };
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  try {
+    await act(async () => root.render(<TeamSignInScreen />));
+    expect(element.querySelector('[data-testid="team-invitation-link"]')).toBeNull();
+    expect(element.textContent).toContain('bob');
+    await signIn(element);
+    expect(element.querySelector('[data-testid="team-switch-confirm"]')).toBeNull();
+    expect(router.dismissTo).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    element.remove();
+    params.value = { i: 'invite' };
   }
 });

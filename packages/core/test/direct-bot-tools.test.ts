@@ -430,7 +430,9 @@ describe('direct Bot tool runner', () => {
         .map((part) => ('text' in part ? part.text : ''))
         .join('\n');
       expect(turn).toContain('created this Assignment directly through the deepseekbot CLI');
-      expect(turn).toContain('sent this Assignment a request directly through the deepseekbot CLI');
+      expect(turn).toContain(
+        'sent this Assignment a request directly from its Session detail or the deepseekbot CLI',
+      );
       expect(turn).toContain('The Assignment Turn ended with an error.');
     } finally {
       await runtime.close();

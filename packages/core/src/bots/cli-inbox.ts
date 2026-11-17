@@ -47,6 +47,25 @@ export const INBOX_COMMANDS = [
     description:
       'read the DSH Subagents an Orchestrator or Assignment Session started, with model and state',
   },
+  {
+    command: 'session-progress',
+    description:
+      "read the goal and current to-do list of up to 30 of a Bot's root Sessions (--session a,b)",
+  },
+  {
+    command: 'session-transcript',
+    description: "read a root Session's history: inputs, replies, reasoning and public tool steps",
+  },
+  {
+    command: 'session-live',
+    description:
+      "read a running root Session's streaming reasoning, reply and tool calls (--after <revision> waits for the next change)",
+  },
+  {
+    command: 'session-tool',
+    description:
+      'read one tool step of a root Session in full: command and output, diff, file lines, matches or links (--call <id>)',
+  },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
@@ -99,6 +118,8 @@ export interface InboxValues {
   limit?: string;
   cursor?: string;
   session?: string;
+  call?: string;
+  after?: string;
   'source-key'?: string;
   source?: string;
   request?: string;
@@ -427,6 +448,48 @@ function prepare(
       return {
         method: 'sessionSubagents',
         args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-progress': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const sessionIds = required(values.session, 'session', command)
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (sessionIds.length === 0 || sessionIds.length > 30)
+        usage('--session must list 1 to 30 comma-separated Session ids.');
+      return { method: 'sessionProgress', args: { slug, sessionIds } };
+    }
+    case 'session-transcript': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'sessionTranscript',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-live': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const after = values.after === undefined ? undefined : Number(values.after);
+      if (after !== undefined && !Number.isSafeInteger(after))
+        usage('session-live --after needs an integer revision.');
+      return {
+        method: 'sessionLive',
+        args: {
+          slug,
+          sessionId: required(values.session, 'session', command),
+          ...(after === undefined ? {} : { after }),
+        },
+      };
+    }
+    case 'session-tool': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'sessionToolDetail',
+        args: {
+          slug,
+          sessionId: required(values.session, 'session', command),
+          callId: required(values.call, 'call', command),
+        },
       };
     }
     case 'channel-assignments': {

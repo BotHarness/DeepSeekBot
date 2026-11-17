@@ -4557,3 +4557,78 @@ it.each(['create', 'resume'] as const)(
     }
   },
 );
+
+it('links the Assignments a turn created or sent to on its Human DM message', async () => {
+  const sent: Record<string, unknown>[] = [];
+  const outcomes: Promise<unknown>[] = [];
+  const summary = (sessionId: string, title: string) => ({ sessionId, title }) as never;
+  const host = new FakeAgentHost(
+    { kind: 'completed' },
+    {
+      onAgentCreated: () => {
+        const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
+        const run = (name: string, args: Record<string, unknown>, id: string) =>
+          tools
+            .find((tool) => tool.name === name)!
+            .execute(args, {
+              callId: ToolCallId(id),
+              signal: new AbortController().signal,
+            } as ToolRunContext);
+        outcomes.push(
+          (async () => {
+            await run('send_assignment_request', { session_id: 'asg-old', text: 'Go on' }, 'a');
+            await run(
+              'create_assignment',
+              { title: 'New', description: 'New work', grant_id: 'g' },
+              'b',
+            );
+            await run('send_assignment_request', { session_id: 'asg-new', text: 'Also' }, 'c');
+            return run(
+              'bot_send_message',
+              {
+                channel_id: 'dm-test',
+                body: 'Both underway.',
+                session_ids: ['asg-new', 'asg-old'],
+              },
+              'd',
+            );
+          })(),
+        );
+      },
+    },
+  );
+  const adapter = createDshBotAgentAdapter({
+    agents: host,
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => undefined,
+  });
+  await adapter.runOrchestrator({
+    sessionId: 'orchestrator-ada',
+    resume: false,
+    bot: BOT,
+    message: 'Start both',
+    inboundChannelId: 'dm-test',
+    inbox: '',
+    channels: {
+      list: () => ({ channels: [{ id: 'dm-test', kind: 'human-dm' }] }),
+      send: async (input: Record<string, unknown>) => {
+        sent.push(input);
+        return { id: 'm1', at: '', author: { kind: 'bot', slug: 'ada' }, body: input['body'] };
+      },
+    } as never,
+    assignments: {
+      create: () => ({ outcome: 'created', assignment: summary('asg-new', 'New') }),
+      request: (input: { sessionId: string }) => ({
+        assignment: summary(input.sessionId, input.sessionId === 'asg-new' ? 'New' : 'Old'),
+        delivery: 'followup',
+      }),
+      inspect: (sessionId: string) => summary(sessionId, sessionId === 'asg-new' ? 'New' : 'Old'),
+    } as never,
+  } as never);
+  await Promise.all(outcomes);
+  expect(sent[0]?.['sessionLinks']).toEqual([
+    { sessionId: 'asg-new', kind: 'created', title: 'New' },
+    { sessionId: 'asg-old', kind: 'sent', title: 'Old' },
+  ]);
+});

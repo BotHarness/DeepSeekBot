@@ -228,14 +228,17 @@ describe('client styles', () => {
 
   it('keeps the composer island token-driven and clear of the message scroll area', () => {
     expect(source).toMatch(/\.bh-composer \{[^}]*min-height: 50px/);
-    expect(source).toMatch(/\.bh-composer \{[^}]*border-radius: var\(--tobs-style-radius-sheet\)/);
-    expect(source).not.toContain('.bh-composer-expanded {');
-    expect(source).not.toContain('.bh-composer-with-footer {');
     expect(source).toMatch(
-      /\.bh-composer \.bh-send-btn \{[^}]*width: 32px;[^}]*height: 32px;[^}]*border-radius: var\(--tobs-style-radius-control\)/,
+      /\.bh-composer \{[^}]*border-radius: calc\(var\(--tobs-style-radius-sheet\) \+ 8px\)/,
+    );
+    expect(source).toMatch(/\.bh-composer \{[^}]*--bh-composer-footer-padding: 10px 12px 48px/);
+    expect(source).toMatch(/\.bh-composer \{[^}]*padding: var\(--bh-composer-padding,/);
+    expect(source).toMatch(/\.bh-composer \{[^}]*transition:\s*padding 220ms/);
+    expect(source).toMatch(
+      /\.bh-composer \.bh-send-btn[^{]*\{[^}]*width: 32px;[^}]*height: 32px;[^}]*border-radius: 50%/,
     );
     expect(source).toMatch(
-      /\.bh-composer-add-file \{[^}]*width: 32px; height: 32px;[^}]*border-radius: var\(--tobs-style-radius-control\)/,
+      /\.bh-composer-add-file \{[^}]*width: 32px; height: 32px;[^}]*border-radius: 50%/,
     );
     expect(source).toMatch(/\.bh-composer \{[^}]*background: var\(--tobs-layer-raised\)/);
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);

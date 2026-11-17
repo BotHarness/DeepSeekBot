@@ -278,3 +278,41 @@ describe('shared desktop Team sign-in flow', () => {
     expect(test.request).not.toHaveBeenCalled();
   });
 });
+
+describe('signInAgainInvitation', () => {
+  const saved: SavedHost = {
+    hostId: 'team',
+    hostName: 'Team',
+    routes: ['http://192.168.0.2:3080', 'https://team.example'],
+    deviceId: 'grant',
+    credential: `member.${'a'.repeat(43)}`,
+    member: {
+      humanId: 'bob',
+      displayName: 'Bob',
+      username: 'bob',
+      fingerprint,
+      mustChangePassword: false,
+    },
+  };
+  it('rebuilds a sign-in for the saved member over its HTTPS routes only', async () => {
+    const { signInAgainInvitation } = await import('../src/team-client');
+    expect(signInAgainInvitation(saved, Date.parse('2030-01-01T00:00:00Z'))).toEqual({
+      v: 1,
+      host: { id: 'team', name: 'Team', fingerprint },
+      routes: ['https://team.example'],
+      username: 'bob',
+      expiresAt: '2030-01-01T00:10:00.000Z',
+    });
+  });
+  it('needs a known username and an HTTPS route', async () => {
+    const { signInAgainInvitation } = await import('../src/team-client');
+    expect(
+      signInAgainInvitation({ ...saved, member: { ...saved.member!, username: '' } }),
+    ).toBeUndefined();
+    expect(
+      signInAgainInvitation({ ...saved, routes: ['http://192.168.0.2:3080'] }),
+    ).toBeUndefined();
+    const { member: _, ...owner } = saved;
+    expect(signInAgainInvitation(owner)).toBeUndefined();
+  });
+});

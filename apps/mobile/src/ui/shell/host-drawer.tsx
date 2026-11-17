@@ -278,7 +278,10 @@ function PanHostDrawerEdge({
   );
 }
 
-function statusText(status: HostStatus): string {
+function statusText(glance: HostGlance): string {
+  if (glance.refusal === 'sign-in-required') return t.hostSignInRequired;
+  if (glance.refusal === 'member-suspended') return t.hostMemberSuspended;
+  const status = glance.status;
   return status === 'online'
     ? t.hostOnline
     : status === 'offline'
@@ -326,6 +329,18 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
 
 function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
   return [
+    ...(row.glance.refusal === 'sign-in-required'
+      ? [
+          {
+            label: t.teamSignIn.again,
+            icon: 'person' as const,
+            run: () =>
+              closeThen(() =>
+                router.push({ pathname: '/pair/team', params: { host: row.hostId } }),
+              ),
+          },
+        ]
+      : []),
     {
       label: t.connectionRoutes.title,
       icon: 'connection',
@@ -430,7 +445,7 @@ function hostRowLabel(
   return [
     name,
     selected ? t.showing : undefined,
-    statusText(row.glance.status),
+    statusText(row.glance),
     pending > 0 ? t.hostPending(pending) : undefined,
     unread > 0 ? t.hostUnread(unread) : undefined,
   ]
@@ -484,7 +499,7 @@ function HostRow({ row, selected }: { row: HostDrawerRow; selected: boolean }) {
   const android = !glass && Platform.OS === 'android';
   const look = useHostLook(row.hostId);
   const name = shownHostName(look, row.hostName);
-  const status = statusText(row.glance.status);
+  const status = statusText(row.glance);
   const dot = computerStatusDot(theme, row.glance.status);
   const tile = (
     <BadgedHostTile glance={row.glance}>
@@ -584,7 +599,7 @@ function HostFormRow({ row, selected }: { row: HostDrawerRow; selected: boolean 
     <SettingsRow
       testID={`drawer-host-${row.hostId}`}
       title={name}
-      detail={statusText(row.glance.status)}
+      detail={statusText(row.glance)}
       detailDot={computerStatusDot(theme, row.glance.status)}
       singleLine
       leading={

@@ -1830,6 +1830,7 @@ describe('return to latest messages', () => {
       expect(button()?.getAttribute('aria-label')).toBe(zhTranslate('messages.latest'));
       expect(button()?.textContent).toBe('');
       expect(button()?.querySelector('.bh-timeline-new-count')).toBeNull();
+      expect(button()?.hasAttribute('data-unseen')).toBe(false);
       await act(async () => {
         store.setConversation({
           messages: [message('first'), message('second'), message('third')],

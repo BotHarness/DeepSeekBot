@@ -41,6 +41,7 @@ export interface SidebarCardRowProps {
   chips?: ReactNode | undefined;
   meta?: ReactNode | undefined;
   trailing?: ReactNode | undefined;
+  trailingAlign?: 'start' | undefined;
   detail?: ReactNode | undefined;
   onClick?: () => void | undefined;
   disabled?: boolean | undefined;
@@ -67,6 +68,7 @@ export function SidebarCardRow({
   chips,
   meta,
   trailing,
+  trailingAlign,
   detail,
   onClick,
   disabled,
@@ -159,7 +161,11 @@ export function SidebarCardRow({
             {body}
           </button>
         )}
-        {trailing === undefined ? null : <span className="bh-card-trailing">{trailing}</span>}
+        {trailing === undefined ? null : (
+          <span className="bh-card-trailing" data-card-trailing={trailingAlign}>
+            {trailing}
+          </span>
+        )}
       </div>
       {detail === undefined ? null : (
         <div id={controls} className="bh-card-detail">

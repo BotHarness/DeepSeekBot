@@ -289,6 +289,7 @@ export interface ChannelMessage {
   grantRequest?: true;
   grantRequestResolved?: boolean;
   assignmentReply?: { sessionId: string; sourceEventId: string };
+  sessionLinks?: { sessionId: string; kind: 'created' | 'sent'; title: string }[];
   grantRequestResolution?: { requestMessageId: string; grantId: string };
   toolApprovalRequest?: ToolApprovalRequestCard;
   approval?: ApprovalCardView;
