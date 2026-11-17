@@ -37,6 +37,13 @@
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",
       "fix": "edit design/tokens/tobs.tokens.json and run pnpm tokens; never edit ds/tobs-tokens.generated.ts or ds/tobs.stylex.ts by hand.",
       "check": "scripts/generate-tokens.mjs"
+    },
+    {
+      "id": "regression-proof",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "a fix(...) PR adds or changes a vitest test that fails when the fix is removed and passes with it; run node scripts/check-regression-proof.mjs --base origin/main --title \"<PR title>\" locally. If no automated test can show the bug, write `No regression test: <why>` in the PR description.",
+      "check": "scripts/check-regression-proof.mjs"
     }
   ]
 }
