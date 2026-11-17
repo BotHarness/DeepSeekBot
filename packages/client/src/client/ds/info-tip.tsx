@@ -1,4 +1,5 @@
-import { useId, useState, type ReactElement } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 import { border, radius, space } from './tokens.stylex.js';
 import { accent, elevation, ink, layer, style } from './tobs.stylex.js';
@@ -20,10 +21,10 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${accent.focus}` },
   },
   bubble: {
-    position: 'absolute',
-    insetInlineStart: 0,
-    top: `calc(100% + ${space.x2})`,
-    zIndex: 10,
+    position: 'fixed',
+    left: 0,
+    top: 0,
+    zIndex: 1100,
     width: 'max-content',
     maxWidth: '280px',
     paddingBlock: space.x3,
@@ -51,8 +52,33 @@ export function InfoTip({ label, text }: InfoTipProps): ReactElement {
   const [focus, setFocus] = useState(false);
   const [pinned, setPinned] = useState(false);
   const open = hover || focus || pinned;
+  const anchor = useRef<HTMLSpanElement>(null);
+  const bubble = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const node = bubble.current;
+    const trigger = anchor.current;
+    if (!open || !node || !trigger) return;
+    const place = () => {
+      const target = trigger.getBoundingClientRect();
+      const gap = Number.parseFloat(getComputedStyle(trigger).fontSize) / 2 || 8;
+      node.style.left = '0px';
+      node.style.top = '0px';
+      const origin = node.getBoundingClientRect();
+      const left = Math.max(0, Math.min(target.left, window.innerWidth - origin.width));
+      node.style.left = `${left - origin.left}px`;
+      node.style.top = `${target.bottom + gap - origin.top}px`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
   return (
     <span
+      ref={anchor}
       {...stylex.props(styles.wrap)}
       onPointerEnter={() => {
         setHover(true);
@@ -92,11 +118,14 @@ export function InfoTip({ label, text }: InfoTipProps): ReactElement {
           <circle cx="7" cy="4.3" r="0.8" fill="currentColor" />
         </svg>
       </button>
-      {open ? (
-        <span id={id} role="tooltip" {...stylex.props(styles.bubble)}>
-          {text}
-        </span>
-      ) : null}
+      {open
+        ? createPortal(
+            <span ref={bubble} id={id} role="tooltip" {...stylex.props(styles.bubble)}>
+              {text}
+            </span>,
+            document.body,
+          )
+        : null}
     </span>
   );
 }

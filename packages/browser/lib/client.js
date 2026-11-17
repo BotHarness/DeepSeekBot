@@ -2040,7 +2040,32 @@ window.__ModuleLoader__.load({
 			const [focus, setFocus] = (0, react.useState)(false);
 			const [pinned, setPinned] = (0, react.useState)(false);
 			const open = hover || focus || pinned;
+			const anchor = (0, react.useRef)(null);
+			const bubble = (0, react.useRef)(null);
+			(0, react.useLayoutEffect)(() => {
+				const node = bubble.current;
+				const trigger = anchor.current;
+				if (!open || !node || !trigger) return;
+				const place = () => {
+					const target = trigger.getBoundingClientRect();
+					const gap = Number.parseFloat(getComputedStyle(trigger).fontSize) / 2 || 8;
+					node.style.left = "0px";
+					node.style.top = "0px";
+					const origin = node.getBoundingClientRect();
+					const left = Math.max(0, Math.min(target.left, window.innerWidth - origin.width));
+					node.style.left = `${left - origin.left}px`;
+					node.style.top = `${target.bottom + gap - origin.top}px`;
+				};
+				place();
+				window.addEventListener("resize", place);
+				window.addEventListener("scroll", place, true);
+				return () => {
+					window.removeEventListener("resize", place);
+					window.removeEventListener("scroll", place, true);
+				};
+			}, [open]);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				ref: anchor,
 				className: "bhx1n2onr6 bhx3nfvp2 bhx2lah0s",
 				onPointerEnter: () => {
 					setHover(true);
@@ -2100,12 +2125,13 @@ window.__ModuleLoader__.load({
 							})
 						]
 					})
-				}), open ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				}), open ? (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					ref: bubble,
 					id,
 					role: "tooltip",
-					className: "bhx10l6tqk bhx1o0tod bhx6om7eq bhx1n327nk bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhxeaf4i8 bhx47corl",
+					className: "bhxixxii4 bhxu96u03 bhx13vifvy bhxp6lfbs bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhxeaf4i8 bhx47corl",
 					children: text
-				}) : null]
+				}), document.body) : null]
 			});
 		}
 		//#endregion
@@ -4168,7 +4194,6 @@ window.__ModuleLoader__.load({
 .bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
 .bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
 .bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
-.bhx1o0tod:not(#\\#):not(#\\#):not(#\\#){inset-inline-start:0}
 .bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}
 .bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}
 .bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}
@@ -4184,7 +4209,6 @@ window.__ModuleLoader__.load({
 .bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
 .bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}
 .bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
-.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}
 .bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}
 .bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}
 .bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}
@@ -4193,7 +4217,6 @@ window.__ModuleLoader__.load({
 .bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
 .bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
-.bhx1n327nk:not(#\\#):not(#\\#):not(#\\#){z-index:10}
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
 .bhx6vyjea:has(> section):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}
@@ -4233,7 +4256,6 @@ window.__ModuleLoader__.load({
 .bhxexzqx0:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}
 .bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}
 .bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}
-.bhx6om7eq:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:calc(100% + 4px)}
 .bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}
 .bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}
 .bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}

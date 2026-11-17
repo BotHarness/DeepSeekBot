@@ -135,5 +135,6 @@ describe('settings groups', () => {
       /':(?:first|last)-child'\s*:\s*\{?\s*\w*Radius|borderStartStartRadius|borderEndEndRadius/,
     );
     expect(source).not.toMatch(/':last-of-type'/);
+    expect(source).toMatch(/:has\(~ :is\(\[data-settings-row\], \[data-settings-part\]\)\)/);
   });
 });

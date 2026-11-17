@@ -237,7 +237,7 @@ export function ImAppsSection({
           ) : null}
         </SettingsRow>
         {loaded.status === 'loading' ? null : loaded.status === 'failed' ? (
-          <SettingsRow title={t('imApps.loadFailed')} />
+          <SettingsRow title={<span role="status">{t('imApps.loadFailed')}</span>} />
         ) : loaded.apps.length === 0 ? (
           <SettingsRow
             title={t('imApps.empty')}
