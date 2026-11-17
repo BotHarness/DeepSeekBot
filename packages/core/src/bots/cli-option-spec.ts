@@ -145,6 +145,8 @@ export const INBOX_OPTIONS = {
   dismissed: { type: 'boolean' },
   activity: { type: 'string' },
   'include-archived': { type: 'boolean' },
+  call: { type: 'string' },
+  after: { type: 'string' },
 } as const;
 
 export const MESSAGING_OPTIONS = {

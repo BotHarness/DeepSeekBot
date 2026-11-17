@@ -18,6 +18,18 @@ import {
   BOT_MODE_SHOW_DM_AVATAR_FIELD,
   BOT_MODE_SHOW_OWN_AVATAR_FIELD,
   BOT_MODE_STREAM_REPLIES_FIELD,
+  BOT_MODE_SESSION_COLLAPSE_FIELD,
+  BOT_MODE_SESSION_DETAIL_LEVEL_FIELD,
+  BOT_MODE_SESSION_FOLDED_REPLIES_FIELD,
+  DEFAULT_SESSION_COLLAPSE,
+  DEFAULT_SESSION_DETAIL_LEVEL,
+  DEFAULT_SESSION_FOLDED_REPLIES,
+  isSessionCollapseMode,
+  isSessionDetailLevel,
+  isSessionFoldedReplies,
+  type SessionCollapseMode,
+  type SessionDetailLevel,
+  type SessionFoldedReplies,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
   BOT_MODE_SETTINGS_PINS_FIELD,
@@ -86,6 +98,9 @@ export interface BotModePrefsSnapshot {
   showDmAvatar: boolean;
   showOwnAvatar: boolean;
   streamReplies: boolean;
+  sessionDetailLevel: SessionDetailLevel;
+  sessionCollapse: SessionCollapseMode;
+  sessionFoldedReplies: SessionFoldedReplies;
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
@@ -117,6 +132,9 @@ export interface BotModePrefsFace {
   setShowDmAvatar: (enabled: boolean) => void;
   setShowOwnAvatar: (enabled: boolean) => void;
   setStreamReplies: (enabled: boolean) => void;
+  setSessionDetailLevel: (level: SessionDetailLevel) => void;
+  setSessionCollapse: (mode: SessionCollapseMode) => void;
+  setSessionFoldedReplies: (mode: SessionFoldedReplies) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
   setShowApprovalReviewSessions: (enabled: boolean) => void;
@@ -149,6 +167,9 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
     setShowDmAvatar: (enabled) => prefs.setShowDmAvatar(enabled),
     setShowOwnAvatar: (enabled) => prefs.setShowOwnAvatar(enabled),
     setStreamReplies: (enabled) => prefs.setStreamReplies(enabled),
+    setSessionDetailLevel: (level) => prefs.setSessionDetailLevel(level),
+    setSessionCollapse: (mode) => prefs.setSessionCollapse(mode),
+    setSessionFoldedReplies: (mode) => prefs.setSessionFoldedReplies(mode),
     setDeveloperMode: (enabled) => {
       prefs.setDeveloperMode(enabled);
     },
@@ -222,6 +243,9 @@ export class BotModePrefs {
       showDmAvatar: false,
       showOwnAvatar: false,
       streamReplies: false,
+      sessionDetailLevel: DEFAULT_SESSION_DETAIL_LEVEL,
+      sessionCollapse: DEFAULT_SESSION_COLLAPSE,
+      sessionFoldedReplies: DEFAULT_SESSION_FOLDED_REPLIES,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
       showApprovalReviewSessions: DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
@@ -345,6 +369,32 @@ export class BotModePrefs {
     });
     if (this.host !== undefined)
       this.persist(this.host.set(BOT_MODE_STREAM_REPLIES_FIELD, enabled));
+  }
+
+  setSessionDetailLevel(level: SessionDetailLevel): void {
+    if (this.source.getSnapshot().sessionDetailLevel === level) return;
+    this.source.update((draft) => {
+      draft.sessionDetailLevel = level;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SESSION_DETAIL_LEVEL_FIELD, level));
+  }
+
+  setSessionCollapse(mode: SessionCollapseMode): void {
+    if (this.source.getSnapshot().sessionCollapse === mode) return;
+    this.source.update((draft) => {
+      draft.sessionCollapse = mode;
+    });
+    if (this.host !== undefined) this.persist(this.host.set(BOT_MODE_SESSION_COLLAPSE_FIELD, mode));
+  }
+
+  setSessionFoldedReplies(mode: SessionFoldedReplies): void {
+    if (this.source.getSnapshot().sessionFoldedReplies === mode) return;
+    this.source.update((draft) => {
+      draft.sessionFoldedReplies = mode;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SESSION_FOLDED_REPLIES_FIELD, mode));
   }
 
   async setAssignmentConcurrencyLimit(limit: number): Promise<boolean> {
@@ -521,6 +571,15 @@ export class BotModePrefs {
         draft.showDmAvatar = section.showDmAvatar === true;
         draft.showOwnAvatar = section.showOwnAvatar === true;
         draft.streamReplies = section.streamReplies === true;
+        draft.sessionDetailLevel = isSessionDetailLevel(section.sessionDetailLevel)
+          ? section.sessionDetailLevel
+          : DEFAULT_SESSION_DETAIL_LEVEL;
+        draft.sessionCollapse = isSessionCollapseMode(section.sessionCollapse)
+          ? section.sessionCollapse
+          : DEFAULT_SESSION_COLLAPSE;
+        draft.sessionFoldedReplies = isSessionFoldedReplies(section.sessionFoldedReplies)
+          ? section.sessionFoldedReplies
+          : DEFAULT_SESSION_FOLDED_REPLIES;
         draft.showBotSessions = section.showBotSessions !== false;
         draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
         draft.autoAcceptGroupInvites = section.autoAcceptGroupInvites !== false;

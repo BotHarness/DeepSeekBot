@@ -23,9 +23,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
-import type { SessionTranscript } from '../src/client/bridge.js';
+import type { SessionLiveSnapshot, SessionTranscript } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { SessionDetail } from '../src/client/session-detail.js';
+import {
+  SessionDetail,
+  SessionDetailPrefsContext,
+  type SessionDetailPrefs,
+} from '../src/client/session-detail.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -38,6 +42,7 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
   role,
   running,
   omitted: 2,
+  seq: 5,
   items: [
     {
       kind: 'input',
@@ -69,7 +74,17 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
   ],
 });
 
-async function render(actions: Partial<BridgeActions>): Promise<HTMLElement> {
+function label(node: HTMLElement): string {
+  const copy = node.cloneNode(true) as HTMLElement;
+  for (const meta of copy.querySelectorAll('[data-transcript-time], [data-transcript-clock]'))
+    meta.remove();
+  return copy.textContent ?? '';
+}
+
+async function render(
+  actions: Partial<BridgeActions>,
+  prefs?: SessionDetailPrefs,
+): Promise<HTMLElement> {
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
@@ -78,13 +93,16 @@ async function render(actions: Partial<BridgeActions>): Promise<HTMLElement> {
     host.remove();
   });
   await act(async () => {
+    const detail = createElement(SessionDetail, {
+      actions: actions as BridgeActions,
+      botSlug: 'tobs',
+      sessionId: 'asg-1',
+      t: zhTranslate,
+    });
     root.render(
-      createElement(SessionDetail, {
-        actions: actions as BridgeActions,
-        botSlug: 'tobs',
-        sessionId: 'asg-1',
-        t: zhTranslate,
-      }),
+      prefs === undefined
+        ? detail
+        : createElement(SessionDetailPrefsContext.Provider, { value: prefs }, detail),
     );
   });
   await act(async () => {});
@@ -123,8 +141,9 @@ it('shows the full conversation with summary chips that expand in place', async 
   );
   expect(kinds()).toEqual(['input', 'turn-end', 'process', 'reply', 'process']);
   const groups = host.querySelectorAll<HTMLElement>('[data-transcript="process"]');
-  expect(groups[0]!.textContent).toBe('已思考');
-  expect(groups[1]!.textContent).toBe('读取了 1 个文件');
+  expect(label(groups[0]!)).toBe('已思考');
+  expect(label(groups[1]!)).toBe('读取了 1 个文件');
+  expect(groups[1]!.querySelector('[data-transcript-time]')).not.toBeNull();
   await act(async () => groups[1]!.querySelector('button')!.click());
   expect(host.querySelector('[data-tool-status="done"]')?.textContent).toContain('src/export.tsx');
   expect(host.querySelector('[data-session-panel]')).toBeNull();
@@ -255,6 +274,7 @@ it('shows the running step live and keeps the turn open', async () => {
       role: 'assignment' as const,
       running: true,
       omitted: 0,
+      seq: 2,
       items: [
         {
           kind: 'input' as const,
@@ -278,5 +298,193 @@ it('shows the running step live and keeps the turn open', async () => {
     stopSession: vi.fn(async () => {}),
   });
   expect(host.querySelector('[data-transcript="turn-end"]')).toBeNull();
-  expect(host.querySelector('[data-process-live]')?.textContent).toBe('正在运行命令node --test');
+  expect(label(host.querySelector<HTMLElement>('[data-process-live]')!)).toBe(
+    '正在运行命令node --test',
+  );
+  expect(host.querySelector('[data-process-live] [data-transcript-clock]')).not.toBeNull();
+});
+
+const editTurn = (): SessionTranscript => ({
+  role: 'assignment',
+  running: false,
+  omitted: 0,
+  seq: 9,
+  items: [
+    {
+      kind: 'input',
+      text: 'PR opened.',
+      at: '2026-11-17T00:00:01.000Z',
+      turn: 1,
+      source: 'system',
+      trigger: 'github',
+    },
+    {
+      kind: 'tool',
+      id: 'c1',
+      tool: 'edit',
+      toolKind: 'edit',
+      status: 'done',
+      path: 'src/a.ts',
+      added: 3,
+      removed: 1,
+      at: '2026-11-17T00:00:02.000Z',
+      endedAt: '2026-11-17T00:00:03.000Z',
+    },
+    { kind: 'reply', text: 'First note.', at: '2026-11-17T00:00:04.000Z' },
+    { kind: 'reasoning', text: 'Check again.', at: '2026-11-17T00:00:05.000Z' },
+    { kind: 'reply', text: 'Final answer.', at: '2026-11-17T00:00:06.000Z' },
+    {
+      kind: 'turn-end',
+      state: 'done',
+      at: '2026-11-17T00:00:11.000Z',
+      usage: { tokens: 8591, output: 230, outputMs: 5000 },
+    },
+  ],
+});
+
+it('names the notice, sums changed files and shows the turn usage', async () => {
+  const host = await render({ sessionTranscript: vi.fn(async () => editTurn()) });
+  expect(host.querySelector('[data-transcript="system"]')?.textContent).toContain(
+    '收到 GitHub 事件',
+  );
+  expect(host.querySelector('[data-transcript-usage]')?.textContent).toBe('8.6k tok · 46 tok/s');
+  const changes = host.querySelector<HTMLElement>('[data-transcript="changes"]')!;
+  expect(changes.textContent).toBe('改动了 1 个文件+3−1');
+  await act(async () => changes.querySelector('button')!.click());
+  expect(host.querySelector('[data-changed-file="src/a.ts"]')).not.toBeNull();
+  expect(
+    [...host.querySelectorAll('[data-transcript="reply"]')].map((node) => node.textContent),
+  ).toEqual(['First note.', 'Final answer.']);
+});
+
+it('follows the settings for folded replies, fold timing and detail level', async () => {
+  const final = await render(
+    { sessionTranscript: vi.fn(async () => editTurn()) },
+    { level: 'standard', collapse: 'completion', replies: 'final' },
+  );
+  expect(
+    [...final.querySelectorAll('[data-transcript="reply"]')].map((node) => node.textContent),
+  ).toEqual(['Final answer.']);
+  const later = await render(
+    { sessionTranscript: vi.fn(async () => editTurn()) },
+    { level: 'standard', collapse: 'nextInput', replies: 'all' },
+  );
+  expect(later.querySelectorAll('[data-transcript="process"]')).toHaveLength(2);
+  const verbose = await render(
+    { sessionTranscript: vi.fn(async () => editTurn()) },
+    { level: 'verbose', collapse: 'completion', replies: 'all' },
+  );
+  expect(verbose.querySelector('[data-transcript-steps]')).not.toBeNull();
+  expect(verbose.querySelector('[data-transcript="reasoning"]')?.textContent).toContain(
+    'Check again.',
+  );
+});
+
+it('opens a tool step into its command and output', async () => {
+  const sessionToolDetail = vi.fn(async () => ({
+    card: 'terminal' as const,
+    command: 'pnpm test',
+    output: '3 passed',
+    exitCode: 1,
+  }));
+  const host = await render(
+    {
+      sessionTranscript: vi.fn(async () => ({
+        ...editTurn(),
+        items: [
+          {
+            kind: 'tool' as const,
+            id: 'c9',
+            tool: 'bash',
+            toolKind: 'execute' as const,
+            status: 'done' as const,
+            command: 'pnpm test',
+            at: '2026-11-17T00:00:02.000Z',
+          },
+        ],
+      })),
+      sessionToolDetail,
+    },
+    { level: 'detailed', collapse: 'nextInput', replies: 'all' },
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="process"] button')!.click(),
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="tool"] button')!.click(),
+  );
+  expect(sessionToolDetail).toHaveBeenCalledWith('tobs', 'asg-1', 'c9');
+  const card = host.querySelector('[data-tool-detail="terminal"]');
+  expect(card?.textContent).toContain('$ pnpm test');
+  expect(card?.textContent).toContain('3 passed');
+  expect(card?.textContent).toContain('退出码 1');
+});
+
+it('streams the live reasoning and reply over the durable history', async () => {
+  let resolveSecond: (value: SessionLiveSnapshot) => void = () => {};
+  const sessionLive = vi
+    .fn()
+    .mockResolvedValueOnce({
+      revision: 1,
+      seq: 2,
+      items: [
+        {
+          kind: 'reasoning',
+          text: 'Line one\nLine two',
+          at: '2026-11-17T00:00:03.000Z',
+          live: true,
+        },
+      ],
+    })
+    .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)))
+    .mockImplementation(() => new Promise(() => {}));
+  const host = await render({
+    sessionTranscript: vi.fn(async () => ({
+      role: 'assignment' as const,
+      running: true,
+      omitted: 0,
+      seq: 2,
+      items: [
+        {
+          kind: 'input' as const,
+          text: 'Go.',
+          at: '2026-11-17T00:00:01.000Z',
+          turn: 1,
+          source: 'user' as const,
+        },
+      ],
+    })),
+    sessionLive,
+  });
+  await act(async () => {});
+  expect(host.querySelector('[data-transcript="preview"]')?.textContent).toBe('Line one\nLine two');
+  await act(async () =>
+    resolveSecond({
+      revision: 2,
+      seq: 2,
+      items: [
+        { kind: 'reasoning', text: 'Line one', at: '2026-11-17T00:00:03.000Z', live: true },
+        { kind: 'reply', text: 'Streaming answer', at: '2026-11-17T00:00:04.000Z', live: true },
+      ],
+    }),
+  );
+  expect(host.querySelector('[data-transcript="reply"]')?.textContent).toBe('Streaming answer');
+  expect(sessionLive).toHaveBeenNthCalledWith(2, 'tobs', 'asg-1', 1, expect.anything());
+});
+
+it('offers turn navigation once there are several turns', async () => {
+  const items: SessionTranscript['items'] = [1, 2, 3].flatMap((turn) => [
+    {
+      kind: 'input' as const,
+      text: `Ask ${turn}`,
+      at: `2026-11-17T00:00:0${turn}.000Z`,
+      turn,
+      source: 'user' as const,
+    },
+    { kind: 'reply' as const, text: `Answer ${turn}`, at: `2026-11-17T00:00:0${turn}.500Z` },
+  ]);
+  const host = await render({
+    sessionTranscript: vi.fn(async () => ({ ...editTurn(), items })),
+  });
+  expect(host.querySelectorAll('[data-nav-turn]')).toHaveLength(3);
 });

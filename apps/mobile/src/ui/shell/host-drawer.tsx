@@ -296,38 +296,51 @@ function closeThen(action: () => void): void {
   action();
 }
 
+function isMemberHost(hostId: string): boolean {
+  return hostSession
+    .getState()
+    .hosts.some((host) => host.hostId === hostId && host.member !== undefined);
+}
+
 function confirmUnpair(row: HostDrawerRow, name: string): void {
-  showAppDialog(t.unpairHost(name), t.unpairHostDetail, [
-    { text: t.cancel, style: 'cancel' },
-    {
-      text: t.unpair,
-      style: 'destructive',
-      onPress: () => {
-        if (hostSession.getState().hosts.length <= 1) settle(false);
-        return hostSession.unpair(row.hostId).then(
-          (result) => {
-            if (result?.current === true && row.current && router.canDismiss()) router.dismissAll();
-            noticeHostKept(result, name);
-          },
-          (error: unknown) =>
-            error instanceof SavedHostsWriteError
-              ? showAppDialog(
-                  `${t.unpairFailed} ${t.savedComputersKeychainFailed}`,
-                  t.savedComputersErrorDetail(error.message),
-                  [{ text: t.done }],
-                )
-              : showAppDialog(
-                  `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
-                  undefined,
-                  [{ text: t.done }],
-                ),
-        );
+  const member = isMemberHost(row.hostId);
+  showAppDialog(
+    member ? t.teamSignIn.signOutTitle.replace('{host}', name) : t.unpairHost(name),
+    member ? t.teamSignIn.signOutBody : t.unpairHostDetail,
+    [
+      { text: t.cancel, style: 'cancel' },
+      {
+        text: member ? t.teamSignIn.signOut : t.unpair,
+        style: 'destructive',
+        onPress: () => {
+          if (hostSession.getState().hosts.length <= 1) settle(false);
+          return hostSession.unpair(row.hostId).then(
+            (result) => {
+              if (result?.current === true && row.current && router.canDismiss())
+                router.dismissAll();
+              noticeHostKept(result, name);
+            },
+            (error: unknown) =>
+              error instanceof SavedHostsWriteError
+                ? showAppDialog(
+                    `${t.unpairFailed} ${t.savedComputersKeychainFailed}`,
+                    t.savedComputersErrorDetail(error.message),
+                    [{ text: t.done }],
+                  )
+                : showAppDialog(
+                    `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
+                    undefined,
+                    [{ text: t.done }],
+                  ),
+          );
+        },
       },
-    },
-  ]);
+    ],
+  );
 }
 
 function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
+  const member = isMemberHost(row.hostId);
   return [
     ...(row.glance.refusal === 'sign-in-required'
       ? [
@@ -364,8 +377,23 @@ function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
             run: () => closeThen(() => void hostDrawer.select(row.hostId)),
           },
         ]),
+    ...(member
+      ? [
+          {
+            label: t.teamSignIn.switchAccount,
+            icon: 'person' as const,
+            run: () =>
+              closeThen(() =>
+                router.push({
+                  pathname: '/pair/team',
+                  params: { host: row.hostId, switch: '1' },
+                }),
+              ),
+          },
+        ]
+      : []),
     {
-      label: t.unpair,
+      label: member ? t.teamSignIn.signOut : t.unpair,
       icon: 'close',
       run: () => confirmUnpair(row, name),
       destructive: true,

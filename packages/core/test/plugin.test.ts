@@ -1058,6 +1058,8 @@ describe('plugin entry', () => {
       'sessionSubagents',
       'sessionProgress',
       'sessionTranscript',
+      'sessionLive',
+      'sessionToolDetail',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',

@@ -1781,6 +1781,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       activeRequests += 1;
       try {
         return await upload(name, data);
+      } catch (error) {
+        refusedBy(error);
+        throw error;
       } finally {
         activeRequests -= 1;
         resumeLive();
