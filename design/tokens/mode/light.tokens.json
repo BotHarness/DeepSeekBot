@@ -241,10 +241,10 @@
           "$type": "color",
           "$value": {
             "colorSpace": "srgb",
-            "components": [0.7882, 0.8039, 0.8275],
-            "hex": "#c9cdd3"
+            "components": [0.902, 0.9137, 0.9333],
+            "hex": "#e6e9ee"
           },
-          "$description": "Neutral selected fill; at least 1.5:1 against canvas, nav and sheet."
+          "$description": "Neutral selected fill, as in the style A prototype; selection also sets ink and weight."
         },
         "selected-ink": {
           "$type": "color",

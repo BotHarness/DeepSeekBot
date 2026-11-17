@@ -47,6 +47,7 @@ export const size = stylex.defineConsts({
   controlLarge: '32px',
   row: '28px',
   rowMedium: '36px',
+  rowComfortable: '40px',
   rowLarge: '44px',
 });
 
@@ -148,6 +149,7 @@ export const style = stylex.defineConsts({
   listItemFill: 'var(--tobs-style-list-item-fill)',
   listItemPadding: 'var(--tobs-style-list-item-padding)',
   listSeparator: 'var(--tobs-style-list-separator)',
+  listItemPaddingBlock: 'var(--tobs-style-list-item-padding-block)',
   radiusControl: 'var(--tobs-style-radius-control)',
   radiusField: 'var(--tobs-style-radius-field)',
   radiusContainer: 'var(--tobs-style-radius-container)',

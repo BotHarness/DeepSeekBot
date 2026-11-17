@@ -90,7 +90,7 @@ describe('Tobs design tokens', () => {
       on(
         v('web.color.state.selected'),
         v(`web.color.layer.${name.slice('--tobs-layer-'.length)}`),
-        1.5,
+        1.1,
         `state.selected on ${name}`,
       );
     on(v('web.color.state.selected-ink'), v('web.color.state.selected'), 4.5, 'selected ink');

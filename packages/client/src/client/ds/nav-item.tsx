@@ -46,6 +46,7 @@ const styles = stylex.create({
   current: {
     backgroundColor: { default: style.navSelectedFill, ':hover': style.navSelectedFill },
     color: style.navSelectedInk,
+    fontWeight: type.labelWeight,
   },
   slotCurrent: { color: style.navSelectedIcon },
   label: {

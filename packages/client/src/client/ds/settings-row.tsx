@@ -32,11 +32,12 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: space.x1,
-    paddingBottom: space.x2,
+    paddingBottom: space.x3,
+    paddingInline: style.listItemPadding,
   },
   sectionTitle: {
     margin: 0,
-    color: color.muted,
+    color: color.subtle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     fontWeight: text.strong,
@@ -49,13 +50,17 @@ const styles = stylex.create({
     minWidth: 0,
     minHeight: style.rowList,
     boxSizing: 'border-box',
-    paddingBlock: space.x4,
+    paddingBlock: style.listItemPaddingBlock,
     paddingInline: style.listItemPadding,
     borderRadius: style.listItemRadius,
     backgroundColor: style.listItemFill,
-    borderBottomWidth: border.hairline,
-    borderBottomStyle: 'solid',
-    borderBottomColor: { default: style.listSeparator, ':last-child': 'transparent' },
+    backgroundImage: {
+      default: `linear-gradient(${style.listSeparator}, ${style.listSeparator})`,
+      ':last-child': 'none',
+    },
+    backgroundSize: `calc(100% - 2 * ${style.listItemPadding}) ${border.hairline}`,
+    backgroundPosition: 'center bottom',
+    backgroundRepeat: 'no-repeat',
   },
   text: {
     display: 'flex',
@@ -68,13 +73,13 @@ const styles = stylex.create({
   },
   title: {
     color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    fontWeight: text.regular,
     overflowWrap: 'anywhere',
   },
   description: {
-    color: color.muted,
+    color: color.subtle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
@@ -106,7 +111,7 @@ export function SettingsRows({
   readonly rootRef?: Ref<HTMLDivElement> | undefined;
 }): ReactElement {
   return (
-    <div ref={rootRef} {...stylex.props(styles.rows)}>
+    <div ref={rootRef} {...stylex.props(styles.rows, styles.group)}>
       {children}
     </div>
   );

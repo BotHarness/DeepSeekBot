@@ -9,7 +9,7 @@ import {
   type AppearanceSnapshot,
 } from './appearance.js';
 import { NATIVE_LIGHT, NATIVE_DARK } from './appearance-native-tokens.js';
-import { tobsBridgeCss } from './tobs-bridge.js';
+import { DSH_RESKIN, tobsBridgeCss } from './tobs-bridge.js';
 import { tobsTokens } from './tobs-theme.js';
 export const APPEARANCE_CLASS = 'bh-appearance-scope';
 export function appearanceCss(snapshot: AppearanceSnapshot): string {
@@ -29,6 +29,7 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
     tokens[`--bh-global-${part}-blur`] = `${material.blur}px`;
   }
   tokens['--dsw-alias-state-business-primary'] = primary;
+  for (const [role, value] of Object.entries(DSH_RESKIN)) tokens[`--dsw-${role}`] = value;
   tokens['--dsw-alias-link'] = readable(primary, BUBBLE_SURFACES[mode].surface, 4.6);
   tokens['--dsw-alias-state-business-secondary'] =
     `color-mix(in srgb, ${primary} 45%, transparent)`;

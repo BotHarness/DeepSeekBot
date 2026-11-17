@@ -399,8 +399,8 @@ describe('design-system tokens', () => {
       xs: '4px',
       sm: '6px',
       md: '10px',
-      lg: '14px',
-      panel: '20px',
+      lg: '10px',
+      panel: '14px',
       round: '50%',
     });
     const tobs = readFileSync(new URL('../src/client/ds/tobs.stylex.ts', import.meta.url), 'utf8');

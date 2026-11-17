@@ -49,6 +49,11 @@ const DSH_ROLE = {
   '--tobs-elevation-3': 'elevation-panel',
 } as const;
 
+export const DSH_RESKIN: Readonly<Record<string, string>> = {
+  'alias-brand-primary': 'var(--tobs-accent-solid)',
+  'alias-label-primary-foreground': 'var(--tobs-accent-on-solid)',
+};
+
 export const TOBS_DSH_BRIDGE: Readonly<Record<string, string>> = {
   ...Object.fromEntries(
     Object.entries(DSH_ROLE).map(([name, role]) => [name, `var(--dsw-${role})`]),

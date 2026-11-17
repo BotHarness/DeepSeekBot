@@ -802,9 +802,6 @@
   "packages/client/src/client/sessions-entry.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/settings-search.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/shortcut-help.tsx": {
     "dshImport": 1,
     "lineBorder": 1
