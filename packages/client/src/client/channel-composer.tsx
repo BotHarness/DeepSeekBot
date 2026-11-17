@@ -102,7 +102,7 @@ const sessionStyles = stylex.create({
   },
   icon: { display: 'inline-flex', flexShrink: 0, color: ink.secondary },
   clip: { overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
-  owner: { flexGrow: 0, flexShrink: 1, color: ink.secondary },
+  owner: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', color: ink.secondary },
 });
 
 export type ComposerSkillOption = SkillCatalogEntry & {

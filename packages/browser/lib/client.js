@@ -1024,8 +1024,11 @@ window.__ModuleLoader__.load({
 				rx: "2"
 			}]]
 		};
+		function glyph(name) {
+			return Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
+		}
 		function ChannelSidebarIcon({ name = "panels-top-left", size = 16, filled = false, strokeWidth = 2 }) {
-			const nodes = Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
+			const nodes = glyph(name);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 				width: size,
 				height: size,
