@@ -1,4 +1,7 @@
 import type { HostClient } from './client';
+import { HostAnswerInvalid } from './bot-settings';
+
+type HostCall = Pick<HostClient, 'call'>;
 
 export type StorageMediaKind = 'image' | 'video' | 'audio' | 'file';
 export const STORAGE_MEDIA_KINDS: readonly StorageMediaKind[] = ['image', 'video', 'audio', 'file'];
@@ -80,43 +83,178 @@ export function storageSize(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-export function loadStorageUsage(client: HostClient): Promise<StorageUsage> {
-  return client.call<StorageUsage>('storageUsage');
+const STORAGE_KEPT: readonly StorageKeptReason[] = [
+  'bot-working',
+  'delivery-pending',
+  'memory',
+  'migration',
+];
+const STORAGE_MESSAGES_KEPT: readonly StorageMessagesKeptReason[] = [
+  'bot-working',
+  'delivery-pending',
+  'shared',
+];
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
-export function previewStorageCleanup(
-  client: HostClient,
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function list(value: unknown): Record<string, unknown>[] {
+  return (Array.isArray(value) ? value : []).flatMap((entry: unknown) => {
+    const item = record(entry);
+    return item === undefined ? [] : [item];
+  });
+}
+
+function oneOf<T extends string>(options: readonly T[], value: unknown): value is T {
+  return (options as readonly unknown[]).includes(value);
+}
+
+function ids(value: unknown): string[] {
+  return (Array.isArray(value) ? value : []).filter((id): id is string => typeof id === 'string');
+}
+
+export function parseStorageUsage(value: unknown): StorageUsage {
+  const usage = record(value);
+  if (usage === undefined || !Array.isArray(usage['parts']) || !Array.isArray(usage['chats']))
+    throw new HostAnswerInvalid('storageUsage returned no parts or chats.');
+  return {
+    totalBytes: count(usage['totalBytes']),
+    parts: list(usage['parts']).flatMap((part) =>
+      oneOf(STORAGE_PARTS, part['kind'])
+        ? [{ kind: part['kind'], bytes: count(part['bytes']) }]
+        : [],
+    ),
+    chats: list(usage['chats']).flatMap((chat) =>
+      typeof chat['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [
+            {
+              channelId: chat['channelId'],
+              name: chat['name'],
+              type: chat['type'] === 'dm' ? ('dm' as const) : ('group' as const),
+              ...(chat['deleted'] === true ? { deleted: true as const } : {}),
+              messages: count(chat['messages']),
+              mediaBytes: count(chat['mediaBytes']),
+            },
+          ]
+        : [],
+    ),
+  };
+}
+
+export function parseStorageCleanupPreview(value: unknown): StorageCleanupPreview {
+  const preview = record(value);
+  const scope = record(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new HostAnswerInvalid('storageCleanupPreview returned no token or scope.');
+  return {
+    token,
+    scope: {
+      before: scope['before'],
+      channelIds: ids(scope['channelIds']),
+      kinds: Array.isArray(scope['kinds'])
+        ? scope['kinds'].filter((kind): kind is StorageMediaKind =>
+            oneOf(STORAGE_MEDIA_KINDS, kind),
+          )
+        : [...STORAGE_MEDIA_KINDS],
+    },
+    messages: count(preview?.['messages']),
+    files: count(preview?.['files']),
+    bytes: count(preview?.['bytes']),
+    freedBytes: count(preview?.['freedBytes']),
+    kept: list(preview?.['kept']).flatMap((item) =>
+      oneOf(STORAGE_KEPT, item['reason'])
+        ? [{ reason: item['reason'], files: count(item['files']) }]
+        : [],
+    ),
+  };
+}
+
+export function parseStorageMessagesPreview(value: unknown): StorageMessagesPreview {
+  const preview = record(value);
+  const scope = record(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new HostAnswerInvalid('storageMessagesCleanupPreview returned no token or scope.');
+  return {
+    token,
+    scope: { before: scope['before'], channelIds: ids(scope['channelIds']) },
+    messages: count(preview?.['messages']),
+    bytes: count(preview?.['bytes']),
+    files: count(preview?.['files']),
+    chats: list(preview?.['chats']).flatMap((chat) =>
+      typeof chat['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [{ channelId: chat['channelId'], name: chat['name'], messages: count(chat['messages']) }]
+        : [],
+    ),
+    kept: list(preview?.['kept']).flatMap((item) =>
+      oneOf(STORAGE_MESSAGES_KEPT, item['reason'])
+        ? [{ reason: item['reason'], messages: count(item['messages']) }]
+        : [],
+    ),
+    memoryReferences: count(preview?.['memoryReferences']),
+    more: preview?.['more'] === true,
+  };
+}
+
+export async function loadStorageUsage(host: HostCall): Promise<StorageUsage> {
+  return parseStorageUsage(await host.call<unknown>('storageUsage'));
+}
+
+export async function previewStorageCleanup(
+  host: HostCall,
   scope: StorageCleanupScope,
 ): Promise<StorageCleanupPreview> {
-  return client.call<StorageCleanupPreview>('storageCleanupPreview', { ...scope });
+  return parseStorageCleanupPreview(
+    await host.call<unknown>('storageCleanupPreview', { ...scope }),
+  );
 }
 
-export function confirmStorageCleanup(
-  client: HostClient,
-  preview: StorageCleanupPreview,
+export async function confirmStorageCleanup(
+  host: HostCall,
+  preview: Pick<StorageCleanupPreview, 'scope' | 'token'>,
 ): Promise<StorageCleanupResult> {
-  return client.call<StorageCleanupResult>('storageCleanupConfirm', {
-    before: preview.scope.before,
-    ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
-    kinds: preview.scope.kinds,
-    token: preview.token,
-  });
+  const result = record(
+    await host.call<unknown>('storageCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      kinds: preview.scope.kinds,
+      token: preview.token,
+    }),
+  );
+  return {
+    messages: count(result?.['messages']),
+    files: count(result?.['files']),
+    freedBytes: count(result?.['freedBytes']),
+  };
 }
 
-export function previewStorageMessages(
-  client: HostClient,
+export async function previewStorageMessages(
+  host: HostCall,
   scope: { before: string; channelIds?: string[] },
 ): Promise<StorageMessagesPreview> {
-  return client.call<StorageMessagesPreview>('storageMessagesCleanupPreview', { ...scope });
+  return parseStorageMessagesPreview(
+    await host.call<unknown>('storageMessagesCleanupPreview', { ...scope }),
+  );
 }
 
-export function confirmStorageMessages(
-  client: HostClient,
-  preview: StorageMessagesPreview,
+export async function confirmStorageMessages(
+  host: HostCall,
+  preview: Pick<StorageMessagesPreview, 'scope' | 'token'>,
 ): Promise<StorageMessagesResult> {
-  return client.call<StorageMessagesResult>('storageMessagesCleanupConfirm', {
-    before: preview.scope.before,
-    ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
-    token: preview.token,
-  });
+  const result = record(
+    await host.call<unknown>('storageMessagesCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      token: preview.token,
+    }),
+  );
+  return { messages: count(result?.['messages']), freedBytes: count(result?.['freedBytes']) };
 }

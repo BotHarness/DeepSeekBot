@@ -6,6 +6,11 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { MethodRefused } from '@botharness/host-client/client';
 import {
   STORAGE_MEDIA_KINDS,
+  confirmStorageCleanup,
+  confirmStorageMessages,
+  loadStorageUsage,
+  previewStorageCleanup,
+  previewStorageMessages,
   type StorageCleanupScope,
   type StorageCleanupPreview,
   type StorageCleanupResult,
@@ -16,15 +21,7 @@ import {
 } from '@botharness/host-client/storage';
 
 import { formatBotZipSize } from './bot-zip.js';
-import {
-  BridgeCallError,
-  confirmStorageCleanup,
-  confirmStorageMessages,
-  loadStorageUsage,
-  previewStorageCleanup,
-  previewStorageMessages,
-  type BridgeCall,
-} from './bridge.js';
+import { BridgeCallError, bridgeHost, type BridgeCall } from './bridge.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
@@ -253,12 +250,14 @@ function StorageSettingsView({
   title = t('storage.title'),
 }: StorageSettingsProps): ReactElement {
   const storage = source ?? {
-    usage: (signal?: AbortSignal) => loadStorageUsage(call!, signal),
-    previewMedia: (scope: StorageCleanupScope) => previewStorageCleanup(call!, scope),
-    confirmMedia: (preview: StorageCleanupPreview) => confirmStorageCleanup(call!, preview),
+    usage: (signal?: AbortSignal) => loadStorageUsage(bridgeHost(call!, signal)),
+    previewMedia: (scope: StorageCleanupScope) => previewStorageCleanup(bridgeHost(call!), scope),
+    confirmMedia: (preview: StorageCleanupPreview) =>
+      confirmStorageCleanup(bridgeHost(call!), preview),
     previewMessages: (scope: { before: string; channelIds?: string[] }) =>
-      previewStorageMessages(call!, scope),
-    confirmMessages: (preview: StorageMessagesPreview) => confirmStorageMessages(call!, preview),
+      previewStorageMessages(bridgeHost(call!), scope),
+    confirmMessages: (preview: StorageMessagesPreview) =>
+      confirmStorageMessages(bridgeHost(call!), preview),
   };
   const active = useRef(false);
   const request = useRef<AbortController | undefined>(undefined);
