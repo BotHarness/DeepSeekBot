@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { TOBS_STYLES } from '../src/client/ds/tobs-tokens.generated.js';
 import { TOBS_DSH_BRIDGE } from '../src/client/tobs-bridge.js';
 
 const dsDir = fileURLToPath(new URL('../src/client/ds/', import.meta.url));
@@ -364,15 +365,24 @@ describe('design-system tokens', () => {
     const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
     const block = (name: string) =>
       tokens.slice(tokens.indexOf(`export const ${name}`)).split('});')[0]!;
+    const quiet: Record<string, string> = TOBS_STYLES.a;
+    const styled = (value: string) =>
+      value.replace(
+        /^var\((--tobs-style-[a-z0-9-]+)\)$/,
+        (_, name: string) => quiet[name] ?? value,
+      );
     const entries = (name: string) =>
       Object.fromEntries(
         [...block(name).matchAll(/^\s+(\w+):\s*'([^']+)'/gm)].map((match) => [
           match[1]!,
-          match[2]!,
+          styled(match[2]!),
         ]),
       );
     const px = (name: string) =>
-      [...block(name).matchAll(/'(\d+)px'/g)].map((match) => Number(match[1]));
+      Object.values(entries(name)).flatMap((value) => {
+        const found = /^(\d+)px$/.exec(value);
+        return found ? [Number(found[1])] : [];
+      });
     expect(px('space')).toEqual([2, 4, 8, 12, 16, 24]);
     expect(px('size')).toEqual([26, 28, 32, 40]);
     expect(entries('text')).toEqual({
@@ -389,8 +399,8 @@ describe('design-system tokens', () => {
       xs: '4px',
       sm: '6px',
       md: '10px',
-      lg: '14px',
-      panel: '20px',
+      lg: '10px',
+      panel: '14px',
       round: '50%',
     });
     const tobs = readFileSync(new URL('../src/client/ds/tobs.stylex.ts', import.meta.url), 'utf8');
@@ -420,6 +430,11 @@ it('keeps ds colours usable in portaled settings without Bot-mode variables', ()
   const colours = tokens.slice(tokens.indexOf('export const actionColor'));
   expect(colours).not.toContain('--bh-');
   expect(colours).not.toContain('--dsw-');
-  for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g))
+  for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g)) {
+    if (name.startsWith('--tobs-style-')) {
+      expect(TOBS_DSH_BRIDGE[name], name).toBe((TOBS_STYLES.a as Record<string, string>)[name]);
+      continue;
+    }
     expect(TOBS_DSH_BRIDGE[name], name).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
+  }
 });

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
+import { SearchField } from './ds/field.js';
 import { en, zh, type BotHarnessKey, type BotHarnessTranslate } from './locale.js';
 import type { BotSettingsSectionRow } from './bot-settings.js';
 import { searchTextMatches, searchTextScore } from './search-match.js';
@@ -520,14 +520,5 @@ export function SettingsSearch({
   onChange(value: string): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  return (
-    <Input
-      className="bh-settings-search-input"
-      type="search"
-      aria-label={t('settings.search')}
-      placeholder={t('settings.search')}
-      value={query}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
+  return <SearchField label={t('settings.search')} value={query} onChange={onChange} />;
 }

@@ -1,5 +1,19 @@
 # Tobs channel groups
 
+## Sources
+
+- `packages/core/src/roster/**`
+- `packages/client/src/client/{roster,roster-config,roster-migration,roster-order,section-management}.{ts,tsx}`
+- `packages/host-client/src/roster-sorting.ts`
+
+## Terms
+
+- Channel section
+- Pinned section (置顶分区)
+- Section order (区块顺序)
+- 未分组 (Ungrouped)
+- Roster
+
 ## Sub-features
 
 - Create a channel group from the sidebar add menu or a channel move menu.

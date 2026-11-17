@@ -15,6 +15,7 @@ export interface SessionFailure {
   code?: string;
   progress?: SessionFailureProgress;
   autoContinue?: SessionFailureAutoContinue;
+  repeated?: number;
 }
 
 export function sessionFailure(value: unknown): SessionFailure | undefined {
@@ -104,4 +105,56 @@ export function createFailureMaintenance(
     compact: (slug) => client.call('botCompact', { slug }),
     newSession: (slug) => client.call('botNewSession', { slug }),
   });
+}
+
+interface RepeatableFailure {
+  role: string;
+  code?: string;
+  detail: string;
+  progress?: SessionFailureProgress;
+  repeated?: number;
+}
+
+function sameFailure(a: RepeatableFailure, b: RepeatableFailure): boolean {
+  const progressed = (failure: RepeatableFailure) =>
+    failure.progress !== undefined &&
+    (failure.progress.completedSteps > 0 || failure.progress.lastTool !== undefined);
+  if (progressed(a) || progressed(b) || a.role !== b.role) return false;
+  return a.code !== undefined || b.code !== undefined ? a.code === b.code : a.detail === b.detail;
+}
+
+export function collapseRepeatedFailures<T>(
+  items: readonly T[],
+  read: (item: T) => { bot: string | undefined; failure: RepeatableFailure | undefined },
+  annotate: (item: T, repeated: number) => T,
+  pinned: (item: T) => boolean = () => false,
+): readonly T[] {
+  const shown: T[] = [];
+  let collapsed = false;
+  let previous:
+    | { bot: string | undefined; failure: RepeatableFailure; count: number; pinned: boolean }
+    | undefined;
+  for (const item of items) {
+    const { bot, failure } = read(item);
+    if (
+      failure !== undefined &&
+      previous !== undefined &&
+      !previous.pinned &&
+      bot !== undefined &&
+      bot === previous.bot &&
+      sameFailure(previous.failure, failure)
+    ) {
+      const count = previous.count + (failure.repeated ?? 1);
+      shown[shown.length - 1] = annotate(item, count);
+      previous = { bot, failure, count, pinned: pinned(item) };
+      collapsed = true;
+      continue;
+    }
+    shown.push(item);
+    previous =
+      failure === undefined
+        ? undefined
+        : { bot, failure, count: failure.repeated ?? 1, pinned: pinned(item) };
+  }
+  return collapsed ? shown : items;
 }

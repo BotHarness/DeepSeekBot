@@ -7,6 +7,7 @@ import type {
   HostSocketEvents,
 } from '@botharness/host-protocol/carrier';
 import type { HostEncryption } from './hosts';
+import { isCustodyHandle } from './hosts';
 import {
   checkRoute,
   hasPrivateOrigin,
@@ -307,6 +308,8 @@ export function encryptedCarrier(options: {
   credential: string;
   encryption?: HostEncryption;
 }): HostCarrier {
+  if (options.raw.custody && isCustodyHandle(options.credential))
+    return options.raw.custody({ hostId: options.hostId, credential: options.credential });
   const needsEncryption = (origin: string) =>
     isEncryptedRoute(origin, options.encryption) &&
     !(

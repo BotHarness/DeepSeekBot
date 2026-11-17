@@ -1,5 +1,14 @@
 # Mobile workspace history
 
+## Sources
+
+- `apps/mobile/src/ui/shell/{native-workspace-navigation,workspace-navigation,use-workspace-panel,workspace-panel-root}.ts`
+
+## Terms
+
+- Workspace panel
+- Workspace drawer
+
 ## Sub-features
 
 Explicit Computer/All/Cloud workspace selection, stale account-route cleanup and retained tab roots (#2800; parent #2791).

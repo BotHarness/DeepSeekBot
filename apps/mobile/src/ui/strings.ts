@@ -427,6 +427,17 @@ const en = {
     continueChanged: 'The Bot started a new session, so this turn cannot continue in the old one.',
     continueUnavailable: 'Nothing is left to continue in this turn.',
     continueFailed: 'Could not continue. Try again shortly.',
+    repeated: (count: number) => `Failed the same way ${count} times in a row`,
+    reasons: {
+      AUTH: 'API key is invalid',
+      MISSING_CREDENTIAL: 'API key is not configured',
+      INVALID_CREDENTIAL: 'API key configuration is invalid',
+      QUOTA: 'API balance is insufficient',
+      RATE_LIMIT: 'Too many requests',
+      TRANSPORT: 'Could not connect to the model provider',
+      TIMEOUT: 'Model provider timed out',
+      SERVER: 'Model provider is temporarily unavailable',
+    } as Record<string, string>,
     refused: {
       MEMORY_CWD_MISMATCH: [
         "The session's working directory is not this Bot's Memory directory",
@@ -3050,6 +3061,17 @@ const zh: typeof en = {
     continueChanged: 'Bot 已换了新会话，无法在原会话继续',
     continueUnavailable: '这一轮已经没有可继续的内容',
     continueFailed: '没能继续，请稍后再试',
+    repeated: (count: number) => `连续 ${count} 次同样失败`,
+    reasons: {
+      AUTH: 'API 密钥无效',
+      MISSING_CREDENTIAL: '尚未设置 API 密钥',
+      INVALID_CREDENTIAL: 'API 密钥配置无效',
+      QUOTA: 'API 余额不足',
+      RATE_LIMIT: '请求过于频繁',
+      TRANSPORT: '连接模型服务失败',
+      TIMEOUT: '模型服务响应超时',
+      SERVER: '模型服务暂时不可用',
+    },
     refused: {
       MEMORY_CWD_MISMATCH: [
         '会话的工作目录不是这个 Bot 的 Memory 目录',

@@ -7,7 +7,7 @@ Issue [#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201), stacked on
 - `@botharness/host-protocol/*` owns the pure wire contracts, Host carrier interface, Noise XK/channel implementation, route rules, pairing link codec and Team invitation codec. It contains no React, React Native or Expo implementation.
 - `@botharness/host-client/*` owns saved Host identities, Team requests and the sign-in flow, pairing redemption, encrypted carrier, Host session, conversations, inbox, model/settings and notification clients. Shared appearance values and non-visual presentation helpers live here because desktop and mobile both consume them. The model cache uses `@tanstack/query-core`, without a React adapter.
 - `apps/mobile` owns SecureStore, native transport, app version, Android key agreement, localization and platform UI. `HostCarrier.keyAgreement` injects Android's existing key agreement implementation; `HostCarrier.appVersion` supplies the installed version. No native module is imported by either shared package. Inbox localization is supplied with the `InboxQuery.activityUpdateHost()` callback so an active inbox reads the current language.
-- `packages/client/src/client/remote-hosts.ts` adapts the shared flow to the desktop Owner's existing remote-host storage lock and connection lifecycle. This change does not deliver the stepper or H3 Host-side credential custody.
+- `packages/client/src/client/remote-hosts.ts` adapts the shared flow to the desktop Owner's existing remote-host storage lock and connection lifecycle. This change does not deliver the stepper. H3 Host-side credential custody is described in [Remote Host credential custody](remote-host-credential-custody.md).
 
 The computer-side bundles inline both private workspaces. Published plugin manifests keep them as build-time dependencies; installed plugins do not need unpublished workspace packages. Metro consumes the mobile workspace dependencies directly.
 
@@ -54,7 +54,7 @@ A returning member skips `password-change` when the Host says `mustChangePasswor
 
 One saved identity is active per Host. Replacing Owner with member, or switching Human id, needs confirmation; a changed pinned Host fingerprint is always refused, even with replacement confirmation. The desktop adapter rechecks these conditions under the storage lock, retires the old session and its viewers, installs the member session and attempts to revoke the superseded grant. Member traffic uses the M8 device grant and member Peer, never an Owner cookie. Relationship and E6 enrollment refuse member credentials and cannot manufacture a member grant.
 
-Remote-host management is available only to the local Owner Client. This is independent of being a member on the remote Host. H3's credential custody migration remains a separate issue scope; existing desktop storage remains in place for this change.
+Remote-host management is available only to the local Owner Client. This is independent of being a member on the remote Host. Member credentials saved by desktop sign-in are sealed into the local Host's custody like any other Remote Host credential; see [Remote Host credential custody](remote-host-credential-custody.md).
 
 ## Refusals
 

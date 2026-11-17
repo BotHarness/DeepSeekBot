@@ -75,6 +75,13 @@
       "fix": "give the feature file a \"## Sources\" list of globs for the code it covers and a \"## Terms\" list of GLOSSARY.md entries it uses; fix a glob that matches nothing or a term the glossary lacks; when a feature gets mapped, remove it from the baseline. Find the features a change touches with node scripts/feature-impact.mjs --base=origin/main.",
       "check": "scripts/check-feature-map.mjs",
       "baseline": "scripts/feature-map-baseline.json"
+    },
+    {
+      "id": "ai-review",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
+      "fix": "answer each CodeRabbit pre-merge warning: fix the root cause instead of a symptom patch, update or supersede the ADR you contradict, reuse the existing module, use the GLOSSARY.md term, and name a verification run for each touched feature (node scripts/feature-impact.mjs --base=origin/main). The checks are advisory; a finding that recurs becomes an L2 rule.",
+      "check": ".coderabbit.yaml"
     }
   ]
 }

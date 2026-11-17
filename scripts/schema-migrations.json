@@ -630,5 +630,9 @@
   {
     "id": "member-devices",
     "sha256": "63577e6e969b47333e63638be4a362adaa11961a520b232413c7a85685ba0301"
+  },
+  {
+    "id": "remote-host-custody",
+    "sha256": "dd021b886ab5da94cee4107b3aaf769ed7e3ffd2b150cc687806a63ac4c469e6"
   }
 ]

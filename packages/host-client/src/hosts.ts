@@ -27,6 +27,9 @@ export interface SavedHost {
   credential: string;
 }
 
+export const isCustodyHandle = (credential: string): boolean =>
+  /^custody\.[A-Za-z0-9_-]{43}$/u.test(credential);
+
 export type SavedHostIdentity =
   | { kind: 'owner' }
   | { kind: 'member'; humanId: string; username: string };
