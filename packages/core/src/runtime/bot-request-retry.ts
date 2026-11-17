@@ -1,6 +1,11 @@
 import type { RequestErrorAction } from '@deepseek-ai/dsh-agent';
 
-import { quotaRestMs } from '../models/route-rest.js';
+import {
+  DEFAULT_REST_MS,
+  quotaRestMs,
+  RATE_LIMIT_REST_MS,
+  type RestReason,
+} from '../models/route-rest.js';
 
 export const CONCURRENCY_WAIT_MS = 300_000;
 const INITIAL_DELAY_MS = 1_000;
@@ -9,6 +14,7 @@ const MAX_PROVIDER_DELAY_MS = 60_000;
 const JITTER_RATIO = 0.2;
 const CONCURRENCY_TEXT =
   /concurren(?:cy|t)[\w\s]{0,24}(?:limit|exceed)|too many (?:concurrent )?requests|server (?:is )?(?:busy|overloaded)/i;
+const CREDENTIAL_CODES = new Set(['AUTH', 'INVALID_CREDENTIAL', 'MISSING_CREDENTIAL']);
 const NEVER_RETRIED = new Set([
   'AUTH',
   'INVALID_CREDENTIAL',
@@ -49,7 +55,12 @@ export interface BotRequestRetryOptions {
   now?(): number;
   random?(): number;
   sleep?(ms: number, signal: AbortSignal): Promise<boolean>;
-  onQuotaExhausted?(route: { provider: string; model: string }, untilMs: number): void;
+  onQuotaExhausted?(
+    route: { provider: string; model: string },
+    untilMs: number,
+    reason?: RestReason,
+    sessionId?: string,
+  ): void;
 }
 
 export function isConcurrencyRefusal(failure: RequestFailure): boolean {
@@ -84,15 +95,30 @@ export function createBotRequestRetry(options: BotRequestRetryOptions) {
     next: () => Promise<RequestErrorAction>,
   ): Promise<RequestErrorAction> => {
     const sessionId = payload.agent.session.id;
-    const restMs = quotaRestMs(payload.failure);
-    if (restMs !== undefined && options.isBotSession(sessionId)) {
-      waits.delete(sessionId);
+    const restRoute = (restMs: number, reason: RestReason) => {
       const model = payload.agent.model?.current();
       if (model !== undefined && model.provider === payload.provider)
         options.onQuotaExhausted?.(
           { provider: payload.provider, model: model.model },
           now() + restMs,
+          reason,
+          sessionId,
         );
+    };
+    if (CREDENTIAL_CODES.has(payload.failure.code) && options.isBotSession(sessionId)) {
+      waits.delete(sessionId);
+      restRoute(DEFAULT_REST_MS, 'credential');
+      return next();
+    }
+    const restMs = quotaRestMs(payload.failure);
+    if (restMs !== undefined && options.isBotSession(sessionId)) {
+      waits.delete(sessionId);
+      restRoute(
+        restMs,
+        payload.failure.code === 'RATE_LIMIT' || payload.failure.status === 429
+          ? 'rate-limit'
+          : 'quota',
+      );
       options.log?.(
         `botharness: model quota exhausted; resting ${Math.round(restMs / 1000)} s; provider=${payload.provider} code=${payload.failure.code}`,
       );
@@ -122,6 +148,7 @@ export function createBotRequestRetry(options: BotRequestRetryOptions) {
     const waited = now() - wait.since;
     if (waited + delayMs > waitMs) {
       waits.delete(sessionId);
+      restRoute(RATE_LIMIT_REST_MS, 'rate-limit');
       options.log?.(
         `botharness: model request still refused after ${Math.round(waited / 1000)} s and ${wait.retry} retries; provider=${payload.provider} code=${payload.failure.code}`,
       );

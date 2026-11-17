@@ -383,6 +383,7 @@ export interface DshBotAgentAdapterOptions {
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;
+  orchestratorRoute?: (sessionId: string) => ModelRoute | undefined;
   subagentTools?: (botSlug: string) => ToolDefinition[];
   hasSession?: (sessionId: string) => Promise<boolean>;
   prepareModelRoute?: (
@@ -602,6 +603,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #defaultModel: DshDefaultModelHost;
   readonly #resolveModelPlan: ((botSlug: string) => PersonaBotModelPlan | undefined) | undefined;
   readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
+  readonly #orchestratorRoute: DshBotAgentAdapterOptions['orchestratorRoute'];
   readonly #prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
   readonly #turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
@@ -657,6 +659,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#defaultModel = options.defaultModel;
     this.#resolveModelPlan = options.resolveModelPlan;
     this.#subagentTools = options.subagentTools;
+    this.#orchestratorRoute = options.orchestratorRoute;
     this.#prepareModelRoute = options.prepareModelRoute;
     this.#observeTurnFailure = options.observeTurnFailure;
     this.#turnRefusal = options.turnRefusal;
@@ -819,7 +822,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         selection.current = agentOptions(
           run,
           this.#defaultModel.currentSelection(),
-          this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
+          this.#orchestratorPlan(run),
         );
       }
       selectNativeModel(handle.agent, selection?.current);
@@ -1279,6 +1282,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     });
   }
 
+  #orchestratorPlan(run: OrchestratorAgentRun): PersonaBotModelPlan | undefined {
+    const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+    const fallback = this.#orchestratorRoute?.(run.sessionId);
+    return fallback === undefined || plan === undefined
+      ? plan
+      : { ...plan, orchestrator: fallback };
+  }
+
   async #orchestratorHandle(run: OrchestratorAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
     signal?.throwIfAborted();
     const existing = this.#liveHandle(run.sessionId);
@@ -1286,7 +1297,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const resolvedAgentOptions = agentOptions(
       run,
       this.#defaultModel.currentSelection(),
-      this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
+      this.#orchestratorPlan(run),
     );
     const selection = {
       current: resolvedAgentOptions,

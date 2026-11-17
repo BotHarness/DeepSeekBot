@@ -278,6 +278,7 @@ export interface ChannelMessage {
     failures?: number;
     rests?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopRest[];
   };
+  modelSwitch?: import('../../../core/src/channels/model-switch.js').ChannelModelSwitch;
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
   voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;
   toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;

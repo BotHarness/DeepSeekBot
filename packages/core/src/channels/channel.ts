@@ -12,6 +12,8 @@ import {
   type ChannelTurnStopRest,
   type ChannelTurnStopTarget,
 } from './turn-stop.js';
+import { isChannelModelSwitch, type ChannelModelSwitch } from './model-switch.js';
+export type { ChannelModelSwitch } from './model-switch.js';
 import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
 import { isChannelVoiceCallRecord, type ChannelVoiceCallRecord } from './voice-call-record.js';
 
@@ -583,6 +585,7 @@ export interface ChannelMessage {
   noticeOrigin?: { channelId: string };
   memberDeparture?: ChannelMemberDeparture;
   turnStop?: ChannelTurnStop;
+  modelSwitch?: ChannelModelSwitch;
   toolAutoApproval?: ChannelToolAutoApproval;
   toolAutoApprovalPause?: ChannelToolAutoApprovalPause;
   toolAutoApprovalOverride?: ChannelToolAutoApprovalOverride;
@@ -1277,6 +1280,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (stop['failures'] !== undefined &&
         (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
+    )
+      return false;
+  } else if (message['modelSwitch'] !== undefined) {
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelModelSwitch(message['modelSwitch'])
     )
       return false;
   } else if (message['voiceCallRecord'] !== undefined) {

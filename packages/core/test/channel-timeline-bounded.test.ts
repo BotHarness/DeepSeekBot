@@ -716,6 +716,7 @@ describe('SQLite bounded timeline hydration', () => {
       memoryCommit: { botSlug: 'ada', sha: 'a'.repeat(40), message: 'm', files: [] },
       toolAutoApproval: { outcome: 'approved' },
       toolAutoApprovalPause: { until: timestamp },
+      modelSwitch: { botSlug: 'ada', from: {}, to: {} },
     } satisfies Record<(typeof CHANNEL_NOTICE_FIELDS)[number], object>;
     expect(Object.keys(notices).sort()).toEqual([...CHANNEL_NOTICE_FIELDS].sort());
     const flags = () =>
