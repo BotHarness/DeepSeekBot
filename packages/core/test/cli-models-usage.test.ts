@@ -153,6 +153,64 @@ describe('Model commands', () => {
     expect(live.calls).toHaveLength(3);
   });
 
+  it('opens or keeps listed Assignment models with --assignment-models', async () => {
+    const live = await host(() => ({ ok: true, value: { plan: { revision: 5 } } }));
+    const assignments = { assignmentDefault: route('chat', 'low'), assignmentModels: [option] };
+    await invoke(
+      [
+        'model-plan-assignments-set',
+        'ada',
+        '--plan-stdin',
+        '--expected-revision',
+        '4',
+        '--assignment-models',
+        'open',
+      ],
+      live.url,
+      JSON.stringify(assignments),
+    );
+    await invoke(
+      [
+        'model-plan-assignments-set',
+        'ada',
+        '--plan-stdin',
+        '--expected-revision',
+        '5',
+        '--assignment-models',
+        'listed',
+      ],
+      live.url,
+      JSON.stringify(assignments),
+    );
+    expect(
+      (
+        await invoke(
+          [
+            'model-plan-assignments-set',
+            'ada',
+            '--plan-stdin',
+            '--expected-revision',
+            '5',
+            '--assignment-models',
+            'any',
+          ],
+          live.url,
+          JSON.stringify(assignments),
+        )
+      ).json.error.code,
+    ).toBe('usage');
+    expect(live.calls).toEqual([
+      {
+        method: 'modelPlanAssignmentsSet',
+        args: { slug: 'ada', expectedRevision: 4, ...assignments, openAssignmentModels: true },
+      },
+      {
+        method: 'modelPlanAssignmentsSet',
+        args: { slug: 'ada', expectedRevision: 5, ...assignments, openAssignmentModels: false },
+      },
+    ]);
+  });
+
   it('keeps the Host refusal code when a plan changed meanwhile', async () => {
     const live = await host(() => ({
       ok: false,

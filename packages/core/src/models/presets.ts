@@ -27,6 +27,7 @@ export interface ModelPreset {
   orchestrator: ModelRoute;
   assignmentDefault: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
+  openAssignmentModels?: true;
   createdAt: string;
 }
 
@@ -37,6 +38,7 @@ export interface PersonaBotModelPlan {
   orchestrator: ModelRoute;
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
+  openAssignmentModels?: true;
   appliedAt: string;
 }
 
@@ -48,6 +50,7 @@ export interface ModelPresetStore {
     orchestrator: ModelRoute;
     assignmentDefault: ModelRoute;
     assignmentModels?: AssignmentModelOption[];
+    openAssignmentModels?: boolean;
   }): ModelPreset;
   update(
     id: string,
@@ -57,6 +60,7 @@ export interface ModelPresetStore {
       orchestrator: ModelRoute;
       assignmentDefault: ModelRoute;
       assignmentModels?: AssignmentModelOption[];
+      openAssignmentModels?: boolean;
     },
   ): ModelPreset | undefined;
 }
@@ -148,6 +152,15 @@ export function validateAssignmentModels(
     throw new Error('Assignment default must match one model and its default effort');
 }
 
+export function isListedAssignmentRoute(
+  plan: Pick<PersonaBotModelPlan, 'assignmentDefault' | 'assignmentModels'>,
+  route: Pick<ModelRoute, 'provider' | 'model'>,
+): boolean {
+  return assignmentModelsOf(plan).some(
+    (option) => option.provider === route.provider && option.model === route.model,
+  );
+}
+
 export function selectAssignmentRoute(plan: PersonaBotModelPlan, requested: ModelRoute): ModelRoute;
 export function selectAssignmentRoute(
   plan: PersonaBotModelPlan,
@@ -162,6 +175,14 @@ export function selectAssignmentRoute(
   const option = assignmentModelsOf(plan).find(
     (candidate) => candidate.provider === requested.provider && candidate.model === requested.model,
   );
+  if (option === undefined && plan.openAssignmentModels === true && plan.assignmentDefault)
+    return {
+      provider: requested.provider,
+      model: requested.model,
+      ...(requested.reasoningEffort === undefined || requested.reasoningEffort === ''
+        ? {}
+        : { reasoningEffort: requested.reasoningEffort }),
+    };
   if (option === undefined)
     throw new Error(`Assignment model ${requested.provider}/${requested.model} is not allowed`);
   const effort = requested.reasoningEffort ?? option.defaultEffort;
@@ -186,6 +207,8 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     typeof plan['sourcePresetName'] === 'string' &&
     typeof plan['appliedAt'] === 'string' &&
     isModelRoute(plan['orchestrator']) &&
+    (plan['openAssignmentModels'] === undefined ||
+      (plan['openAssignmentModels'] === true && plan['assignmentDefault'] !== undefined)) &&
     (plan['assignmentDefault'] === undefined
       ? plan['assignmentModels'] === undefined
       : isModelRoute(plan['assignmentDefault']) &&
@@ -214,6 +237,7 @@ function isModelPreset(value: unknown): value is ModelPreset {
     typeof preset['createdAt'] === 'string' &&
     isModelRoute(preset['orchestrator']) &&
     isModelRoute(preset['assignmentDefault']) &&
+    (preset['openAssignmentModels'] === undefined || preset['openAssignmentModels'] === true) &&
     (preset['assignmentModels'] === undefined ||
       isAssignmentModelsForDefault(preset['assignmentDefault'], preset['assignmentModels']))
   );
@@ -250,6 +274,7 @@ function presetRecord(preset: ModelPreset): ModelPreset {
             ...(option.note === undefined ? {} : { note: option.note }),
           })),
         }),
+    ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
   };
 }
 
@@ -356,6 +381,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
                 allowedEfforts: [...option.allowedEfforts],
               })),
             }),
+        ...(input.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
         createdAt: now().toISOString(),
       };
       write(preset);
@@ -381,8 +407,10 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       ) {
         throw new Error('Model Preset name already exists');
       }
+      const { openAssignmentModels: currentOpen, ...rest } = current;
+      const open = input.openAssignmentModels ?? currentOpen === true;
       const updated: ModelPreset = {
-        ...current,
+        ...rest,
         name,
         revision: current.revision + 1,
         orchestrator: { ...input.orchestrator },
@@ -395,6 +423,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
                 allowedEfforts: [...option.allowedEfforts],
               })),
             }),
+        ...(open ? { openAssignmentModels: true } : {}),
       };
       write(updated);
       return updated;

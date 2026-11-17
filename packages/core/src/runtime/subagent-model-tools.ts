@@ -12,6 +12,7 @@ import {
   type PersonaBotModelPlan,
 } from '../models/presets.js';
 import { resolveSubagentRoute } from '../models/subagent-route.js';
+import type { OpenAssignmentModel } from '../models/open-assignments.js';
 import { startCallerActivation, startParentActivation, type CallerRun } from './subagent-compat.js';
 
 declare module '@deepseek-ai/dsh-jobs' {
@@ -172,7 +173,7 @@ function createDelegationTool(
   provider: DelegationProvider,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig,
-  requireRoute?: (route: ModelRoute) => void,
+  requireRoute?: (route: ModelRoute) => void | Promise<void>,
 ): ToolDefinition {
   const name = BOT_SUBAGENT_TOOL_NAMES[provider];
   const presetDescription =
@@ -228,7 +229,7 @@ function createDelegationTool(
         parentAgentOptionsForDelegation(parent),
         args,
       );
-      requireRoute?.(decision.route);
+      await requireRoute?.(decision.route);
       const options = agentOptions(parentAgentOptionsForDelegation(parent), decision.route);
       const llm = ctx.get('llm');
       if (llm === undefined) throw new Error('DSH LLM service is unavailable');
@@ -309,14 +310,16 @@ export function createBotSubagentModelTools(
   ctx: Context,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig = {},
-  requireRoute?: (route: ModelRoute) => void,
+  requireRoute?: (route: ModelRoute) => void | Promise<void>,
+  openModels?: () => Promise<OpenAssignmentModel[]>,
 ): ToolDefinition[] {
   return [
     createDelegationTool(ctx, 'spawn', resolvePlan, config, requireRoute),
     createDelegationTool(ctx, 'fork', resolvePlan, config, requireRoute),
     defineTool({
       name: BOT_SUBAGENT_TOOL_NAMES.list,
-      description: 'List this PersonaBot current Assignment model choices for DSH Subagents.',
+      description:
+        'List this PersonaBot current Assignment model choices for DSH Subagents. When open is true, openModels lists every other model the Human allows, with its catalog name and efforts.',
       parameters: {},
       output: {
         schema: { type: 'string' },
@@ -329,6 +332,9 @@ export function createBotSubagentModelTools(
         return JSON.stringify({
           default: plan.assignmentDefault,
           allowed: assignmentModelsOf(plan),
+          ...(plan.openAssignmentModels === true
+            ? { open: true, openModels: (await openModels?.()) ?? [] }
+            : {}),
           parentSession: exec.agent?.session.id,
         });
       },
@@ -356,7 +362,7 @@ export async function installBotSubagentModelTools(
   ctx: Context,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig = {},
-  requireRoute?: (route: ModelRoute) => void,
+  requireRoute?: (route: ModelRoute) => void | Promise<void>,
 ): Promise<void> {
   await validatePresetConfig(ctx, config);
   if (ctx.get('subagents') === undefined) {

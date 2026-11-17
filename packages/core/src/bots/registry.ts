@@ -182,6 +182,7 @@ export interface PersonaBotRegistry {
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
     expectedRevision: number,
+    openAssignmentModels?: boolean,
   ): UpdatePersonaBotResult;
   setModelPlan(
     slug: string,
@@ -189,6 +190,7 @@ export interface PersonaBotRegistry {
       orchestrator: ModelRoute;
       assignmentDefault: ModelRoute;
       assignmentModels: AssignmentModelOption[];
+      openAssignmentModels?: boolean;
     },
     expectedRevision: number,
   ): UpdatePersonaBotResult;
@@ -315,6 +317,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
                 ...(option.note === undefined ? {} : { note: option.note }),
               })),
             }),
+        ...(plan.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
       };
     return result;
   };
@@ -1135,6 +1138,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
                 allowedEfforts: [...option.allowedEfforts],
               })),
             }),
+        ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
         appliedAt: now().toISOString(),
       };
       record.modelPlan = plan;
@@ -1176,13 +1180,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       write(record);
       return { ok: true, record };
     },
-    setAssignmentModels(slug, assignmentDefault, assignmentModels, expectedRevision) {
+    setAssignmentModels(
+      slug,
+      assignmentDefault,
+      assignmentModels,
+      expectedRevision,
+      openAssignmentModels,
+    ) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (record.modelPlan === undefined || record.modelPlan.revision !== expectedRevision)
         return { ok: false, reason: 'invalid-input' };
+      const { openAssignmentModels: currentOpen, ...plan } = record.modelPlan;
+      const open = openAssignmentModels ?? currentOpen === true;
       record.modelPlan = {
-        ...record.modelPlan,
+        ...plan,
+        ...(open ? { openAssignmentModels: true } : {}),
         revision: record.modelPlan.revision + 1,
         sourcePresetId: '',
         sourcePresetName: '',
@@ -1211,6 +1224,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
           ...option,
           allowedEfforts: [...option.allowedEfforts],
         })),
+        ...(routes.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
         appliedAt: now().toISOString(),
       };
       delete record.model;

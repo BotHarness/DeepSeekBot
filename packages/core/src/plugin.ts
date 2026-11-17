@@ -240,6 +240,7 @@ import {
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
+import { createOpenAssignmentRoutes } from './models/open-assignments.js';
 import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
@@ -1740,6 +1741,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
   );
+  const openAssignmentRoutes = createOpenAssignmentRoutes({
+    catalog: modelCatalog,
+    plan: (slug) => core.registry.get(slug)?.modelPlan,
+    requireAllowed: (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
+  });
   const privateExecution = new ProtectedExecution(
     privateInputLog((format, value) => ctx.logger.info(format, value), diagnosticEvents),
   );
@@ -1764,12 +1770,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    openAssignmentRoutes,
     subagentTools: (slug) =>
       createBotSubagentModelTools(
         ctx,
         () => core.registry.get(slug)?.modelPlan,
         config.subagent,
-        (route) => requireBotModel(core.team, core.registry.get(slug), route),
+        async (route) => {
+          requireBotModel(core.team, core.registry.get(slug), route);
+          await openAssignmentRoutes.require(slug, route);
+        },
+        () => openAssignmentRoutes.list(slug),
       ),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as

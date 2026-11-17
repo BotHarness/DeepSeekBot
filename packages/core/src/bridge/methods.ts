@@ -3925,8 +3925,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof name !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         (assignmentModels !== undefined &&
@@ -3951,6 +3953,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         return { ok: true, value: { preset } };
       } catch (error) {
@@ -3968,8 +3971,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof id !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         typeof expectedRevision !== 'number' ||
         !Number.isSafeInteger(expectedRevision) ||
         expectedRevision < 1 ||
@@ -4004,6 +4009,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         if (preset === undefined) return invalidInput('Model Preset was not found');
         return { ok: true, value: { preset } };
@@ -4156,8 +4162,10 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4177,6 +4185,7 @@ function buildBridgeMethods(
           assignmentDefault,
           assignmentModels,
           expectedRevision,
+          ...(openAssignmentModels === undefined ? [] : [openAssignmentModels]),
         );
         if (!result.ok)
           return result.reason === 'not-found'
@@ -4282,8 +4291,10 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
@@ -4304,7 +4315,12 @@ function buildBridgeMethods(
         requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
         const result = deps.registry.setModelPlan(
           slug,
-          { orchestrator, assignmentDefault, assignmentModels },
+          {
+            orchestrator,
+            assignmentDefault,
+            assignmentModels,
+            ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+          },
           expectedRevision,
         );
         if (!result.ok)
