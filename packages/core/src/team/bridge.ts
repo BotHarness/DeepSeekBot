@@ -143,7 +143,7 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .parse(payload);
         return service.spaces.delete(human, spaceId, confirm);
       }),
-    teamMode: (_payload: unknown) => call((service) => service.mode(human)),
+    teamMode: (_payload: unknown) => call((service) => service.modeStatus(human)),
     teamModeSet: (payload: unknown) =>
       call((service) =>
         service.setMode(human, z.object({ enabled: z.boolean() }).parse(payload).enabled),
@@ -238,6 +238,11 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
           .parse(payload);
         return service.createMember(human, username, displayName, roleIds);
       }),
+    memberInvitation: (payload: unknown) =>
+      call((service) =>
+        service.invitation(human, z.object({ humanId: z.string().min(1) }).parse(payload).humanId),
+      ),
+    memberPairingOffer: (_payload: unknown) => call((service) => service.pairingOffer(human)),
     memberPasswordReset: (payload: unknown) =>
       call((service) =>
         service.resetPassword(

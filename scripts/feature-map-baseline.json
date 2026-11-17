@@ -1,0 +1,29 @@
+{
+  "unmapped": [
+    "activity-center-idle.md",
+    "activity-inline-approval.md",
+    "assignment-report-continuation.md",
+    "bot-dm-reply.md",
+    "bot-group-mention.md",
+    "bot-mode.md",
+    "group-invitations.md",
+    "im-bot-pickers.md",
+    "im-conversation-mirroring.md",
+    "im-settings-loading.md",
+    "native-settings-handoff.md",
+    "orchestrator-model-switch.md",
+    "personabot-create.md",
+    "phone-activity.md",
+    "phone-android-interactions.md",
+    "phone-bot-create.md",
+    "phone-channel-avatars.md",
+    "phone-chat-row-actions.md",
+    "phone-multiple-hosts.md",
+    "phone-pinned-list.md",
+    "phone-qol.md",
+    "remote-bot-settings.md",
+    "settings-loading.md",
+    "tool-approval-simple.md",
+    "workspace-request-write.md"
+  ]
+}

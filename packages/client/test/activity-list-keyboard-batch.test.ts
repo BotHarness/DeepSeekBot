@@ -359,10 +359,10 @@ describe('Human Inbox snooze', () => {
 import { remoteActivityPage } from '../src/client/remote-activity.js';
 import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
 import { ActivityCenterView } from '../src/client/activity-center-view.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, zhTranslate } from '../src/client/locale.js';
-import type { InboxSnapshot } from '../../../apps/mobile/src/host/inbox.js';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
 
 async function remoteFixture(host: FakeHost) {

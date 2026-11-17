@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { expect, it } from 'vitest';
 import { createConnectBotBridge } from '../src/devices/bot-connect-bridge.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import type {
   createConnectBotNetwork,
   AuthenticatedConnectBotPeer,

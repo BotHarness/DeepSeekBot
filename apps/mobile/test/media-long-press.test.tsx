@@ -7,7 +7,7 @@ vi.mock('react-native', async () => await import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('../src/ui/primitives/resource-image', () => ({ ResourceImage: () => null }));
 
-import type { MessageAttachment } from '../src/host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { MediaLongPress } from '../src/ui/chat/media-long-press';
 import { MessageAlbum, MessageFiles } from '../src/ui/chat/message-attachments';
 

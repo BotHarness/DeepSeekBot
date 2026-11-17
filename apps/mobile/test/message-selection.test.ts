@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { selectionText, toggleMessageSelection } from '../src/ui/chat/message-selection';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 const message = (id: string, body: string): ConversationMessage => ({
   id,
   body,

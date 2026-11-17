@@ -9,7 +9,7 @@ import { BotNetworkDeliveryError, type NetworkBotMessage } from '../runtime/bot-
 import type { createLanBotMembership, LanBotCandidate } from './bot-lan-membership.js';
 import { createBotPeerChannel } from './bot-peer-channel.js';
 import { contactSchema, hostId, messageSchema, pageSchema } from './bot-network-wire.js';
-import { noisePublicKey } from './noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 
 export const BOT_LAN_PATH = '/botharness-device/lan-bots/v1';
 export interface LanBotPeer extends LanBotCandidate {

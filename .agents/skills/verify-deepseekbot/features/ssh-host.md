@@ -1,5 +1,16 @@
 # Computer CLI SSH and browser Remote Host
 
+## Sources
+
+- `packages/core/src/bots/cli-ssh.ts`
+- `packages/core/src/devices/ssh-*.ts`
+
+## Terms
+
+- Remote Host
+- Computer
+- Host Connection Route
+
 ## Sub-features
 
 - `tunnel`: `deepseekbot ssh-tunnel` owns one foreground system OpenSSH forward to an existing Linux Host.

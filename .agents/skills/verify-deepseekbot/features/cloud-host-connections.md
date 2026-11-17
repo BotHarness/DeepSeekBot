@@ -1,5 +1,17 @@
 # Cloud Agent Host connections
 
+## Sources
+
+- `packages/core/src/cloud/**`
+- `packages/core/src/bots/cli-cloud.ts`
+
+## Terms
+
+- App
+- Binding
+- Source Event
+- Bot Inbox
+
 ## Sub-features
 
 Explicit cloud credential import, existing Bot binding, typed source delivery, replay, connection removal and bounded health work.

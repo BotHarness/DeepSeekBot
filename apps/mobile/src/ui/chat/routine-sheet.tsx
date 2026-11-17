@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
-import { errorText, type Loadable } from '../../host/bot-settings';
+import { errorText, type Loadable } from '@botharness/host-client/bot-settings';
 import {
   newRoutineForm,
   routineFormOf,
@@ -15,7 +15,7 @@ import {
   type RoutineForm,
   type Routines,
 } from '../../host/routines';
-import type { BotScheduleFiring, BotScheduleSummary } from '../../host/wire';
+import type { BotScheduleFiring, BotScheduleSummary } from '@botharness/host-protocol/wire';
 import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';

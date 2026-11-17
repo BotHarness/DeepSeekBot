@@ -57,7 +57,7 @@ const styles = stylex.create({
     gap: space.x4,
   },
   unpin: { marginInlineEnd: space.x3 },
-  pinned: { color: { default: accent.base, ':hover': accent.base } },
+  pinned: { color: { default: accent.solid, ':hover': accent.solid } },
 });
 
 export function SettingsHome({

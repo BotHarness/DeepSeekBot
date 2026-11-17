@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { moveCursor, stagePoint } from '../src/host/browser-viewer';
+import { moveCursor, stagePoint } from '@botharness/host-client/browser-viewer';
 import {
   resizeVideoPreview,
   revealVideoPointer,

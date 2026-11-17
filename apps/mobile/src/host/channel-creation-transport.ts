@@ -4,9 +4,9 @@ import {
   MethodRefused,
   type HostClient,
   type RemoteSource,
-} from './client';
-import type { SavedHost } from './hosts';
-import type { HostCarrier } from './carrier';
+} from '@botharness/host-client/client';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { ChannelCreationNotAccepted, type ChannelCreationPort } from './channel-creation';
 
 export function channelCreationTransport(

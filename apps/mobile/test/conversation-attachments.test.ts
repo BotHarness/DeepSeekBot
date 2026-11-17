@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
   createConversation,
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
-} from '../src/host/conversation';
-import { installMediaStore, type MediaStore } from '../src/host/media-cache';
-import { FakeHost } from './fake-host';
+} from '@botharness/host-client/conversation';
+import { installMediaStore, type MediaStore } from '@botharness/host-client/media-cache';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const SLUG = 'bot-59296301f8d044d2b022d8784c5ed3fe';

@@ -1,6 +1,6 @@
-import type { ConnectHost } from '../../host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import type { HostGlance } from '../../host/host-glance';
-import type { SavedHost } from '../../host/hosts';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { materialDrawer, modalRail } from '../design/tokens';
 
 export const DRAWER_SHARE = 0.85;

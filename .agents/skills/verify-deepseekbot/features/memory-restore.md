@@ -1,5 +1,17 @@
 # Disposable Memory history and safe restore
 
+## Sources
+
+- `packages/core/src/memory/recovery.ts`
+- `packages/client/src/client/memory-recovery.tsx`
+- `scripts/memory-restore-report.mjs`
+
+## Terms
+
+- Memory Repository
+- Memory Recovery Checkpoint
+- Memory Commit
+
 ## Sub-features
 
 - Behavior ID: `desktop.memory.read-restore`; desktop Web + live CLI, English/dark, 1440 × 1100.

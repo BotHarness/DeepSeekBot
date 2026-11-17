@@ -1,5 +1,14 @@
 # DeepSeekBot global panel materials (T2)
 
+## Sources
+
+- `packages/client/src/client/appearance-material*.{ts,tsx}`
+
+## Terms
+
+- Global Panel
+- Panel
+
 ## Sub-features
 
 - Four independent light/dark palettes: Classic Blue, Mist Purple, Forest Green and Warm Amber.

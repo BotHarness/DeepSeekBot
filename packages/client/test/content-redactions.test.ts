@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { createStore, type ChannelMessage, type ChannelSummary } from '../src/client/store.js';
 import { createActions } from '../src/client/actions.js';
 import { getGenuiDocumentView } from '../src/client/genui-document-view.js';
-import { getGenuiPrivateView } from '../src/client/genui-view.js';
+import { getGenuiPrivateView } from '@botharness/host-client/shared/genui-view';
 import { initialGenuiView, GenuiError } from '../../core/src/channels/genui.js';
 import { initialGenuiDocumentState } from '../../core/src/channels/genui-document.js';
 import { syntheticGenuiDocument } from '../../core/test/fixtures/genui-document.js';

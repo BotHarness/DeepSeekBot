@@ -1,5 +1,20 @@
 # Storage, chat media and old message cleanup
 
+## Sources
+
+- `packages/core/src/storage/**`
+- `packages/core/src/bots/cli-storage.ts`
+- `packages/client/src/client/storage-settings.tsx`
+- `packages/host-client/src/storage.ts`
+- `apps/mobile/src/ui/storage-settings.tsx`
+- `apps/mobile/app/settings/storage.tsx`
+
+## Terms
+
+- Attachment
+- Settings
+- Channel
+
 ## Sub-features
 
 - Settings → Data & privacy → **Storage** opens a dialog with the total space used and a bar split into media and files, messages, Memory and other.

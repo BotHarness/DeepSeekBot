@@ -1,4 +1,4 @@
-import type { RosterView } from '../../host/client';
+import type { RosterView } from '@botharness/host-client/client';
 import type { ChatPlace } from './chat-place';
 
 export type ProfilePageTarget =

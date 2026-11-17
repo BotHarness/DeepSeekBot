@@ -81,6 +81,18 @@ The Windows runner uses [Android device QA](../../../docs/agents/android-device-
 Web-export checks qualify their named web paths; native-only behavior remains untested until
 its device result is recorded.
 
+## Team mode security suite
+
+For a change that affects Team mode permissions, run the real-model security suite on an isolated Host and attach its report to the PR:
+
+```bash
+pnpm build
+node scripts/e2e-team-security.mjs --launch            # every scenario
+node scripts/e2e-team-security.mjs --name <n> --scenario B   # only file and Shell boundaries
+```
+
+It sets up roles with Role Policy, members, public and private Bots, folders and Channels, then drives real model turns that try to leak finance figures (A), reach other members' folders, the Host data directory or the Host API through file tools, Shell and grants (B), and cross private Bots, Channels, Human DMs, offboarding and model allowlists (C). Hard boundaries are asserted on Host state and tool results; Role Policy scenarios pass only when no restricted value appears in any reply. Shell checks are enforced only when `team-mode status` reports `isolation: enforced` (Linux with bwrap, slirp4netns and nft); elsewhere B2 reports the known gap. The report lands in `.humanlayer/team-security/<time>/`; publish it with `pnpm evidence:publish`.
+
 ## Evidence
 
 `shot` writes `<label>.png`, `<label>.aria.txt` and `<label>.console.txt` to `.humanlayer/verify/<n>/evidence/`, and `<label>.failure.png` plus `<label>.failure.aria.txt` when a step fails. Its JSON output lists every step it performed.
@@ -108,7 +120,7 @@ children have exited, its port is free and the evidence files still exist after 
 
 ## Feature map
 
-[`features/README.md`](features/README.md) indexes the mapped features. Before you verify a change, read the file for each feature the change touches and drive every entry point it lists. When the app no longer matches a file, fix the file in the same change, or report the product regression. A journey that cannot pass keeps its failure and records the reason in `Gotchas`.
+[`features/README.md`](features/README.md) indexes the mapped features. Find the features a change touches with `node scripts/feature-impact.mjs --base=origin/main` (or `--paths <file>...`), and the likely features of a bug report with `--terms="<bug text>"`; it matches each feature's `## Sources` globs and `## Terms` (GLOSSARY.md entries). Before you verify a change, read the file for each feature the change touches and drive every entry point it lists. A new feature file lists its `## Sources` and `## Terms`; `pnpm lint` fails when a glob matches nothing or a term is not in GLOSSARY.md, and `scripts/feature-map-baseline.json` lists the features not mapped yet (it only shrinks). When the app no longer matches a file, fix the file in the same change, or report the product regression. A journey that cannot pass keeps its failure and records the reason in `Gotchas`.
 
 When changing a user entry point, add or update its feature file and index row in the same PR.
 Name every changed sub-feature and its visible/canonical proof. Run

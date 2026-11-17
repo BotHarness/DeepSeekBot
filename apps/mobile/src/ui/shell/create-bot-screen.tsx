@@ -12,7 +12,7 @@ import { useHostSession, useHostAvailability } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
 import { hostUnavailable } from '../../host/host-glance';
-import type { BotCreationDraft } from '../../host/bot-creation';
+import type { BotCreationDraft } from '@botharness/host-client/bot-creation';
 import {
   creationStepReady,
   creationSteps,
@@ -24,7 +24,7 @@ import {
 import { botCreationTargets } from '../../host/bot-creation-targets';
 import { createCreationVisibility } from '../../host/bot-creation-visibility';
 import { hostLooks } from '../../host/native-host-look';
-import { shownHostName } from '../design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { space } from '../design/tokens';
 import { useSheetContent } from '../primitives/sheet-content';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -33,7 +33,7 @@ import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
 import { CreationField as TextField } from '../primitives/creation-field';
 import { CreationTagsField } from '../primitives/creation-tags-field';
-import { editCreationTags } from '../../host/bot-creation-tags';
+import { editCreationTags } from '@botharness/host-client/bot-creation-tags';
 import { EnvironmentList } from '../primitives/environment-list';
 import { StepBar, type StepBarProps } from '../primitives/step-bar';
 import { creationCopy as copy, creationError } from './bot-creation-copy';

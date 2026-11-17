@@ -54,9 +54,9 @@ import {
   backgroundImageUri,
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
-import type { HostClient, RosterBot } from '../../host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { visibleDmActivity } from '../../host/dm-activity';
-import { latestTurnMessageId } from '../../host/session-failure';
+import { latestTurnMessageId } from '@botharness/host-client/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
@@ -68,9 +68,9 @@ import {
   type ConversationMessage,
   type MessageAttachment,
   type MessageCard,
-} from '../../host/conversation';
-import type { Inbox } from '../../host/inbox';
-import type { WireAllBotPreview } from '../../host/wire';
+} from '@botharness/host-client/conversation';
+import type { Inbox } from '@botharness/host-client/inbox';
+import type { WireAllBotPreview } from '@botharness/host-protocol/wire';
 import { shareAttachment } from '../../host/share-attachment';
 import {
   MAX_PICKED,
@@ -97,7 +97,7 @@ import {
   loadApproval,
   loadQuestion,
   type RequestRef,
-} from '../../host/requests';
+} from '@botharness/host-client/requests';
 import { useDictation } from '../../host/speech';
 import { showDictationProblem } from './dictation-problem';
 import { botColor } from '../bot-color';
@@ -164,7 +164,7 @@ import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { DeliverySheet } from './delivery-sheet';
 import { GenuiInteraction, GenuiViewHost } from './genui-view-client';
-import type { GenuiDocumentReply } from '../../genui/document';
+import type { GenuiDocumentReply } from '@botharness/host-client/genui/document';
 import { ChatOffline } from './chat-offline';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import { MessageSourcePage } from './message-source-page';
@@ -196,6 +196,8 @@ import { useSkillCatalog } from './use-skill-catalog';
 import { PlaybackBubble, replyable, type Speaker } from './message-bubble';
 import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
+import { useHostLook } from '../../host/native-host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
@@ -262,9 +264,11 @@ export function ConversationScreen({
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
   const identityBots = useIdentityBots(roster?.bots);
+  const hostLook = useHostLook(saved?.hostId);
   const identities = useMemo(
     () => ({
       bots: identityBots ?? [],
+      ...(saved ? { host: { name: shownHostName(hostLook, saved.hostName), look: hostLook } } : {}),
       openBot: (slug: string) =>
         saved &&
         navigateChannel(navigation, {
@@ -272,7 +276,7 @@ export function ConversationScreen({
           params: { slug, hostId: saved.hostId },
         }),
     }),
-    [identityBots, navigation, saved],
+    [identityBots, hostLook, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;

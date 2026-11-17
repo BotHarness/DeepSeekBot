@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { HostCarrier, HostSocketEvents } from '../src/host/carrier';
-import { channelFailure, redeemPairing, type PairingPayload } from '../src/host/pairing';
+import type { HostCarrier, HostSocketEvents } from '@botharness/host-protocol/carrier';
+import {
+  channelFailure,
+  redeemPairing,
+  type PairingPayload,
+} from '@botharness/host-client/pairing';
 import {
   channelFailureDetail,
   isPairingFailureDetail,
@@ -8,8 +12,8 @@ import {
   pairingDiagnostics,
   relayFailureDetail,
   reasonCode,
-} from '../src/host/pairing-detail';
-import { sanitizeEvent } from '../src/telemetry/schema';
+} from '@botharness/host-protocol/pairing-detail';
+import { sanitizeEvent } from '@botharness/host-client/telemetry/schema';
 
 const LAN = 'http://192.168.1.20:3080';
 const CONNECT = 'https://abc123.deepseekbot.dev';

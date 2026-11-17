@@ -2,6 +2,27 @@
 
 A paired iPhone or Android phone, or the Mac or Windows desktop Client (`desktop.bot-call`), calls a Bot. The Host's media helper carries WebRTC audio, the Host call owner cuts sentences with its built-in VAD, transcribes them through the Bot's ASR Provider and sends them to the DM, and the Bot's committed voice replies play back in the call. See [ADR-0281](../../../../docs/adr/0281-host-owned-bot-calls.md), [ADR-0284](../../../../docs/adr/0284-android-bot-calls-are-foreground-only.md) (historical Android foreground-only policy; superseded by ADR-0305), [ADR-0299](../../../../docs/adr/0299-android-call-camera.md) (Android camera) and the [CLI contract](../../../../docs/bot-cli.md#bot-calls-and-speech-recognition-asr-providers).
 
+## Sources
+
+- `packages/core/src/voice/call*.ts`
+- `packages/core/src/voice/{harvest,keyframes,vad}.ts`
+- `packages/core/src/bots/cli-call.ts`
+- `packages/client/src/client/{call-*,desktop-call,dm-call,host-bridge-call,voice-call-record}.{ts,tsx}`
+- `packages/computer/native/local-video/call-renderer.js`
+- `apps/mobile/app/call/**`
+- `apps/mobile/src/host/{call-*,native-call-*}.ts`
+- `apps/mobile/src/ui/chat/call-*`
+- `apps/mobile/src/ui/widgets/call-activity.tsx`
+- `apps/mobile/modules/local-computer-video/**/Call*`
+
+## Terms
+
+- Call screen
+- DM
+- Host
+- Paired Device
+- Turn harvest
+
 ## Sub-features
 
 - `readiness`: the chat header's call button asks the Host first and names a missing ASR or TTS Provider, media helper or unsupported Host. `deepseekbot call-readiness <bot>` returns the same `missing` list.

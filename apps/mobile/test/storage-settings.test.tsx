@@ -12,8 +12,8 @@ vi.mock('react-native', async () => ({
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-import { MethodRefused } from '../src/host/client';
-import type { StorageCleanupPreview, StorageUsage } from '../src/host/storage';
+import { MethodRefused } from '@botharness/host-client/client';
+import type { StorageCleanupPreview, StorageUsage } from '@botharness/host-client/storage';
 import { StorageSettings, type StorageSettingsPort } from '../src/ui/storage-settings';
 import { t } from '../src/ui/strings';
 

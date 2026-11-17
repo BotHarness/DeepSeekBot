@@ -1,9 +1,9 @@
 import { Pressable, View } from 'react-native';
 
 import { weekGlance, type TokenTotal } from '../../host/bot-activity';
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { dayLabel, weekdayLabel } from '../../host/usage-days';
-import type { ProfileActivity } from '../../host/wire';
+import type { ProfileActivity } from '@botharness/host-protocol/wire';
 import { botColor } from '../bot-color';
 import { chart } from '../design/chart';
 import { AccentProvider, useDesignTheme } from '../design/theme';

@@ -3,7 +3,10 @@ import { act, createElement, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ScrollViewProps } from 'react-native';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { createBotCreationController, type CreationRecord } from '../src/host/bot-creation';
+import {
+  createBotCreationController,
+  type CreationRecord,
+} from '@botharness/host-client/bot-creation';
 
 const fixture = vi.hoisted(() => {
   const fetch = vi.fn<typeof globalThis.fetch>();

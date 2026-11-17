@@ -165,6 +165,19 @@ Every run uses `opencode-go/deepseek-v4.1-flash` unless `--model` names others (
 
 The `llm e2e` workflow runs them nightly, after a push to `main` that touches a scenario's paths (only those scenarios), on manual dispatch, and on a pull request labeled `ci:llm-e2e`. It uses the OpenCode Go subscription through the `OPENCODE_GO_API_KEY` repository secret on `deepseek-v4.1-flash` (selected with `scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash`) and skips with a notice without it. It is never part of the required `verify` check. When a feature adds a model-driven flow, add a scenario with the paths it depends on.
 
+### Team mode security suite
+
+`scripts/e2e-team-security.mjs` (#4197) is the security counterpart for Team mode. It creates roles with Role Policy, members, public and private Bots, folders and Channels on an isolated Host, then drives real model turns that try to break the permission model: Role Policy leaks through direct asks, claimed permission, role-play, summaries, encodings and Bot relays (A); file tools, Shell, symlinks, `..` paths, Host API access and grant requests outside the member's folders (B); and private Bots, private Channels, Human DMs, offboarding and model allowlists (C). It asserts hard boundaries on Host state and tool results; Role Policy scenarios pass only when no restricted value appears in any reply. Shell boundaries are enforced only when `team-mode status` reports `isolation: enforced`.
+
+```bash
+pnpm build
+node scripts/e2e-team-security.mjs --launch                 # every scenario
+node scripts/e2e-team-security.mjs --name <n> --scenario A  # Role Policy only, on a running instance
+node scripts/e2e-team-security.mjs --list
+```
+
+The report (`report.json`, `report.md`, `fixture.json` and `transcripts/`) lands in `.humanlayer/team-security/<time>/`. Publish it with `pnpm evidence:publish` and link it from the PR; AGENTS.md requires it for every PR that changes Team mode permissions.
+
 > > > > > > > origin/claude/bot-mention-wake-te5p0m
 
 ## Call keyframe evaluation (VC8)

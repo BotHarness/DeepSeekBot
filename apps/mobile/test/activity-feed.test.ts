@@ -33,12 +33,12 @@ vi.mock('../src/ui/bot-avatar', () => ({
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
 
-import { createHostClient, type HostClient } from '../src/host/client';
-import { observeInbox, type InboxSnapshot } from '../src/host/inbox';
-import type { HumanAttentionItem } from '../src/host/wire';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { observeInbox, type InboxSnapshot } from '@botharness/host-client/inbox';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { ActivityFeed, feedRows } from '../src/ui/shell/activity-feed';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import inboxWire from './fixtures/inbox-wire.json';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

@@ -1,8 +1,8 @@
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
-import { pagePoint } from '../../../../apps/mobile/src/host/browser-viewer.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import { pagePoint } from '@botharness/host-client/browser-viewer';
+import type { HostClient } from '@botharness/host-client/client';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { border, color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';

@@ -1,9 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
-import {
-  ActivityRequestFailed,
-  createHostActivity,
-} from '../../../../apps/mobile/src/host/live-activity.js';
+import { parseSavedHost } from '@botharness/host-client/hosts';
+import { ActivityRequestFailed, createHostActivity } from '@botharness/host-client/live-activity';
 import { CliLiveError } from './cli-live-error.js';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
 

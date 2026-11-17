@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createHostLooks } from '../../../apps/mobile/src/host/host-look.js';
+import { createHostLooks } from '@botharness/host-client/host-look';
 import { createAppearanceControl } from '../../core/src/appearance/control.js';
 import { Appearance } from '../src/client/appearance.js';
 import { mountAppearanceControl } from '../src/client/appearance-control.js';

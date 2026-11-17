@@ -25,6 +25,8 @@
   "files": ["packages/client/src/dsh-client-context.d.ts"],
   "include": [
     "packages/client/src",
+    "packages/host-client/src",
+    "packages/host-protocol/src",
     "packages/computer/src",
     "packages/vrm-companion/src",
     "packages/core/src",

@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
-import { actionCount, createInbox, type Inbox, type InboxSnapshot } from '../src/host/inbox';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import {
+  actionCount,
+  createInbox,
+  type Inbox,
+  type InboxSnapshot,
+} from '@botharness/host-client/inbox';
 import {
   answerQuestion,
   buildAnswer,
@@ -16,12 +21,12 @@ import {
   toggleOption,
   typeCustom,
   type RequestRef,
-} from '../src/host/requests';
-import type { HumanAttentionItem, QuestionItem } from '../src/host/wire';
+} from '@botharness/host-client/requests';
+import type { HumanAttentionItem, QuestionItem } from '@botharness/host-protocol/wire';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
-import { messageHref, unreadHref } from '../src/host/push';
-import hostWire from './fixtures/host-wire.json';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { messageHref, unreadHref } from '@botharness/host-client/push';
+import hostWire from '../../../packages/host-client/test/fixtures/host-wire.json';
 import inboxWire from './fixtures/inbox-wire.json';
 
 type Recorded = keyof typeof inboxWire.rpc;

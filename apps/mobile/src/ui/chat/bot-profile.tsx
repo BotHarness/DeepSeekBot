@@ -10,10 +10,10 @@ import {
   type ProfileAssignment,
   type ProfilePart,
 } from '../../host/bot-profile';
-import type { RosterBot, RosterChannel } from '../../host/client';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
 import { runningSessions, type RunningSession, type SessionStopper } from '../../host/session-stop';
 import type { MemoryChange, MemoryChangesPage } from '../../host/memory-changes';
-import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
+import type { BotScheduleSummary, ProfileActivity } from '@botharness/host-protocol/wire';
 import { botBanner } from '../../marketplace/artwork';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';

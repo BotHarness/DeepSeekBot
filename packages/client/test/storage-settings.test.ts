@@ -55,7 +55,7 @@ vi.mock('../src/client/ds/select.js', async () => {
 
 import type { BridgeCall } from '../src/client/bridge.js';
 import { StorageSettings, type StorageSettingsSource } from '../src/client/storage-settings.js';
-import { MethodRefused } from '../../../apps/mobile/src/host/client.js';
+import { MethodRefused } from '@botharness/host-client/client';
 import { zhTranslate } from '../src/client/locale.js';
 import { buttonNamed } from './primitive-mocks.js';
 

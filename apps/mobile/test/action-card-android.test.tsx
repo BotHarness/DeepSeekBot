@@ -36,10 +36,10 @@ vi.mock('../src/ui/design/theme', async () => {
   return { useDesignTheme: () => theme };
 });
 
-import type { QuestionItem } from '../src/host/wire';
-import type { ApprovalRequest } from '../src/host/requests';
+import type { QuestionItem } from '@botharness/host-protocol/wire';
+import type { ApprovalRequest } from '@botharness/host-client/requests';
 import type { ApprovalCardPort } from '../src/ui/chat/approval-card';
-import { emptyDraft } from '../src/host/requests';
+import { emptyDraft } from '@botharness/host-client/requests';
 import {
   ActionCard,
   CardButtons,

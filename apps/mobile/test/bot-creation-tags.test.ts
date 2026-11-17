@@ -1,11 +1,11 @@
 import { expect, it } from 'vitest';
-import { creationTags, editCreationTags } from '../src/host/bot-creation-tags';
+import { creationTags, editCreationTags } from '@botharness/host-client/bot-creation-tags';
 import {
   createBotCreationController,
   normalizedBlankInput,
   parseCreationRecord,
   type CreationRecord,
-} from '../src/host/bot-creation';
+} from '@botharness/host-client/bot-creation';
 
 const draft = {
   hostId: 'A',

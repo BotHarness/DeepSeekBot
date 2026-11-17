@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-import type { CachedConversation, ConversationCache } from './conversation';
+import type { CachedConversation, ConversationCache } from '@botharness/host-client/conversation';
 
 const root = (): Directory => new Directory(Paths.cache, 'deepseekbot-conversations');
 

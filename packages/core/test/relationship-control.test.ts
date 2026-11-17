@@ -3,18 +3,22 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, it } from 'vitest';
 import { z } from 'zod';
-import { openNoiseSocket } from '../../../apps/mobile/src/host/encrypted-carrier.js';
+import { openNoiseSocket } from '@botharness/host-client/encrypted-carrier';
 import {
   accountRelationshipVerifier,
   type AccountRelationshipProof,
 } from '../src/devices/account-relationship-proof.js';
 import type { AccountRelationshipSession } from '../src/devices/connect-account.js';
 import type { CredentialRecord } from '@deepseek-ai/dsh-credentials';
-import type { PrivateAdmission } from '../../../apps/mobile/src/host/hosts.js';
+import type { PrivateAdmission } from '@botharness/host-client/hosts';
 import type { RelationshipCredentialProvider } from '../src/devices/relationship-admission.js';
 import { createNoiseIdentity } from '../src/devices/noise-identity.js';
-import { noiseFingerprint, noisePublicKey, NOISE_PROTOCOL } from '../src/devices/noise/xk.js';
-import { CONNECT_PROTOCOL } from '../src/devices/noise/channel.js';
+import {
+  noiseFingerprint,
+  noisePublicKey,
+  NOISE_PROTOCOL,
+} from '@botharness/host-protocol/noise/xk';
+import { CONNECT_PROTOCOL } from '@botharness/host-protocol/noise/channel';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { createRelationshipControl } from '../src/devices/relationship-control.js';
@@ -23,8 +27,8 @@ import { enrollRelationshipClient } from '../src/devices/relationship-enrollment
 import { nodeDeviceCarrier } from '../src/devices/node-carrier.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { pairingLink } from '../src/devices/http.js';
-import { parsePairingLink } from '../../../apps/mobile/src/host/pairing.js';
-import { parseSavedHost, serializeSavedHost } from '../../../apps/mobile/src/host/hosts.js';
+import { parsePairingLink } from '@botharness/host-client/pairing';
+import { parseSavedHost, serializeSavedHost } from '@botharness/host-client/hosts';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';

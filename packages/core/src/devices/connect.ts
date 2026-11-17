@@ -1,4 +1,4 @@
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import { spawn as spawnProcess } from 'node:child_process';
 import {

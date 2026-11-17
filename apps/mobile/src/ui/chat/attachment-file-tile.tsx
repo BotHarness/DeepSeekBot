@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import type { MessageAttachment } from '../../host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { edge, fileTile, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';

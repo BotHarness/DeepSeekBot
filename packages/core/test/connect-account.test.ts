@@ -4,7 +4,7 @@ import { credentialKey } from '@deepseek-ai/dsh-credentials';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createConnectAccount } from '../src/devices/connect-account.js';
-import { CONNECT_ZONES } from '../src/devices/connect-zones.js';
+import { CONNECT_ZONES } from '@botharness/host-protocol/connect-zones';
 import type { ConnectStatus, DeviceConnect } from '../src/devices/connect.js';
 import { runConnectCommand } from '../src/bots/cli-connect.js';
 

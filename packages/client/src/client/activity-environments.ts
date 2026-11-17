@@ -1,4 +1,4 @@
-import type { InboxSnapshot } from '../../../../apps/mobile/src/host/inbox.js';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 import type { ActivityQuery, ActivitySection } from './activity-feed.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import type { ActivityListState } from './store.js';

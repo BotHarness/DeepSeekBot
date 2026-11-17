@@ -3,9 +3,9 @@ import {
   type BrowserFrame,
   type BrowserInput,
   type BrowserViewerStatus,
-} from '../../../../apps/mobile/src/host/browser-viewer.js';
-import { createComputerViewer } from '../../../../apps/mobile/src/host/computer-viewer.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+} from '@botharness/host-client/browser-viewer';
+import { createComputerViewer } from '@botharness/host-client/computer-viewer';
+import type { HostClient } from '@botharness/host-client/client';
 
 export type RemoteViewerKind = 'browser' | 'computer';
 

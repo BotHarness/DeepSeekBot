@@ -1,4 +1,4 @@
-import type { ConnectHost } from './connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 
 export function accountHostLookId(connectHost: string): string {
   return `connect-host:${connectHost.toLowerCase()}`;

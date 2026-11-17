@@ -11,7 +11,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Button, IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
-import type { BotModeSendKey } from '../bot-mode-settings.js';
+import type { BotModeSendKey } from '@botharness/host-client/shared/bot-mode-settings';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
 import { isApplePlatform, KeyCombo, shortcutKeyLabel, type ShortcutKey } from './ds/kbd.js';
 import { IconButton } from './ds/icon-button.js';

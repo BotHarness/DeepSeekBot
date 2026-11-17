@@ -2,6 +2,20 @@
 
 A paired phone shows the current Host's token usage for the last 7 days at the top of Settings, and a Usage screen with the detail. Both read the same `overviewUsage` and `overviewMemory` bridge methods as the Web Client's activity view.
 
+## Sources
+
+- `apps/mobile/app/settings/usage.tsx`
+- `apps/mobile/src/host/usage-days.ts`
+- `apps/mobile/src/ui/shell/usage-card.tsx`
+- `apps/mobile/src/ui/usage-view.tsx`
+- `packages/core/src/bots/cli-models-usage.ts`
+
+## Terms
+
+- Settings
+- Host
+- Paired Device
+
 ## Sub-features
 
 - `card`: Settings opens with a Usage card: the 7-day total and a bar per day. An idle Host shows an empty week; a failed read shows Try again.

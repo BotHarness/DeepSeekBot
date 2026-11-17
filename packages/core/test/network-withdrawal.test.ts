@@ -6,7 +6,7 @@ import { createCore } from '../src/plugin.js';
 import { createBotNetworkRoutes } from '../src/devices/bot-network-routes.js';
 import { createTailnetBotBridge } from '../src/devices/bot-tailnet-bridge.js';
 import { createConnectBotBridge } from '../src/devices/bot-connect-bridge.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import type { AuthenticatedConnectBotPeer } from '../src/devices/connect-bot-network.js';
 import type { TailnetChange } from '../src/devices/bot-tailnet-watch.js';
 import { attachOperationalModule } from '../src/database/owner.js';

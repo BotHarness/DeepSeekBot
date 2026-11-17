@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { x25519 } from '@noble/curves/ed25519.js';
-import { NoiseXk } from '../../../packages/core/src/devices/noise/xk';
+import { NoiseXk } from '@botharness/host-protocol/noise/xk';
 import vector from '../../../packages/core/test/fixtures/noise/xk-cacophony.json';
 import { noiseKeyAgreement as android } from '../src/host/noise-key-agreement.android';
 import { noiseKeyAgreement as fallback } from '../src/host/noise-key-agreement';

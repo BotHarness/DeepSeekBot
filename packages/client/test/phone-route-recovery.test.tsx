@@ -316,3 +316,51 @@ it('failed QR creation gives an in-dialog retry action', async () => {
     'No retry action in the error dialog',
   ).toBe(true);
 });
+
+async function mountStandalone() {
+  vi.useFakeTimers();
+  await act(async () => root.render(<PairedDevicesSettings t={zhTranslate} standalone />));
+}
+
+function managedIngress(memberSignIn: 'managed-tls' | 'untrusted', ready = true) {
+  return {
+    ...devices(),
+    routes: {
+      tailscale: 'running',
+      serveCommand: 'tailscale serve --bg --https=8443 51442',
+      managed: { enabled: true, owned: true, trustedIngress: memberSignIn === 'managed-tls' },
+      routes: [
+        { url: 'https://studio.tail1.ts.net:8443', kind: 'tailscale', ready, memberSignIn },
+        { url: 'http://127.0.0.1:4100', kind: 'loopback', ready: true },
+      ],
+    },
+  };
+}
+
+it.each(['managed-tls', 'untrusted'] as const)(
+  'shows whether Team members can sign in through the %s Tailscale route',
+  async (memberSignIn) => {
+    snapshot = managedIngress(memberSignIn);
+    await mountStandalone();
+    const status = host.querySelector(`[data-member-sign-in="${memberSignIn}"]`);
+    expect(status?.textContent).toBe(
+      zhTranslate(
+        memberSignIn === 'managed-tls'
+          ? 'devices.tailscale.memberSignIn.trusted'
+          : 'devices.tailscale.memberSignIn.untrusted',
+      ),
+    );
+    expect(host.querySelectorAll('[data-member-sign-in]')).toHaveLength(1);
+  },
+);
+
+it('labels the Host port from the loopback route, not the managed ingress port', async () => {
+  snapshot = managedIngress('untrusted', false);
+  await mountStandalone();
+  await act(async () => button(zhTranslate('privateTunnel.panel.manage'))?.click());
+  const label = zhTranslate('devices.route.step.publish.title', { port: '4100' });
+  expect(host.textContent).toContain(label);
+  expect(host.textContent).not.toContain(
+    zhTranslate('devices.route.step.publish.title', { port: '51442' }),
+  );
+});

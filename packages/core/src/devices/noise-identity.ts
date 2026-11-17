@@ -1,7 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
-import { noiseFingerprint, noisePublicKey, NOISE_PROTOCOL } from './noise/xk.js';
-import { CONNECT_PROTOCOL } from './noise/channel.js';
+import {
+  noiseFingerprint,
+  noisePublicKey,
+  NOISE_PROTOCOL,
+} from '@botharness/host-protocol/noise/xk';
+import { CONNECT_PROTOCOL } from '@botharness/host-protocol/noise/channel';
 
 export interface EncryptionIdentity {
   protocol: typeof CONNECT_PROTOCOL;

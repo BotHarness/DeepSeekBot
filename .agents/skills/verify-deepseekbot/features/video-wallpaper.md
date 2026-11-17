@@ -1,5 +1,15 @@
 # DeepSeekBot video wallpaper (T6)
 
+## Sources
+
+- `packages/client/src/client/wallpaper*.{ts,tsx}`
+- `packages/core/src/bots/cli-wallpaper.ts`
+
+## Terms
+
+- Settings
+- Panel
+
 ## Sub-features
 
 - Up to 100 MB, actual decode/play validation, shared original/crop persistence and a mandatory saved poster.

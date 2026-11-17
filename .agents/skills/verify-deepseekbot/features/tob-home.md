@@ -1,5 +1,18 @@
 # The protected Tob DM
 
+## Sources
+
+- `packages/core/src/tob/**`
+- `packages/core/src/bots/cli-tob.ts`
+- `packages/client/src/client/{tob-presentation,tob-requests}.ts`
+
+## Terms
+
+- Tob
+- Steward Bot
+- Tob Delegation
+- DM
+
 ## Sub-features
 
 - Home was removed in #3089. Desktop has no Tob Mode or Tob rail switch (ADR-0268, ADR-0269): the Tob DM is a normal Channel list row. Home's stable shortcut command ID and default binding (primary+Alt+Shift+H; Linux Desktop uses O) now open the Tob DM in Messages without changing the Simple Side column (`Open Tob` / `打开托布`). Custom bindings keep working. Saved rail order and hidden-control entries for `bh:home` or `bh:tob-mode` are dropped on read.

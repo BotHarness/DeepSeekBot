@@ -12,7 +12,7 @@ import {
   installHostStoreOpener,
 } from '../src/host/host-store';
 import { redactLocalConversations } from '../src/host/local-conversation-cache';
-import { localStoreName, openLocalStore } from '../src/host/local-store';
+import { localStoreName, openLocalStore } from '@botharness/host-client/local-store';
 import { nodeSqlConnection } from './node-sql-connection';
 
 const directory = mkdtempSync(join(tmpdir(), 'host-store-'));

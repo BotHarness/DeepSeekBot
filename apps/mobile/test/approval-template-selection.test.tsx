@@ -2,10 +2,10 @@
 import { act, createElement, useState, type PropsWithChildren } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { botSettings, type ApprovalTemplates } from '../src/host/bot-settings';
-import { createHostClient } from '../src/host/client';
+import { botSettings, type ApprovalTemplates } from '@botharness/host-client/bot-settings';
+import { createHostClient } from '@botharness/host-client/client';
 import { WorkspaceSheet } from '../src/ui/chat/workspace-sheet';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { t } from '../src/ui/strings';
 
 vi.mock('react-native', async () => await import('./react-native-shim'));

@@ -3,8 +3,13 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, Keyboard, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
-import { applyModelPreset, errorText, sameModel, type ModelRoute } from '../../host/bot-settings';
-import type { HostClient } from '../../host/client';
+import {
+  applyModelPreset,
+  errorText,
+  sameModel,
+  type ModelRoute,
+} from '@botharness/host-client/bot-settings';
+import type { HostClient } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
 import {
   inheritModel,
@@ -18,7 +23,7 @@ import {
   type ModelField,
   type ModelScope,
   type ModelSettingsState,
-} from '../../host/model-settings';
+} from '@botharness/host-client/model-settings';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';

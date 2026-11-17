@@ -14,7 +14,10 @@ import {
   isTakeoverRequestCard,
   isTakeoverResolution,
 } from '../../../core/src/takeover/contracts.js';
-import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
+import {
+  parseFailureAutoContinue,
+  parseFailureProgress,
+} from '@botharness/host-client/shared/turn-continuation';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
 import {

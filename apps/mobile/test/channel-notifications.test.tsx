@@ -7,7 +7,7 @@ vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-import type { PushSettings } from '../src/host/push';
+import type { PushSettings } from '@botharness/host-client/push';
 import {
   ChannelNotifications,
   type ChannelNotificationsPort,

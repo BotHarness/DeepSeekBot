@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { WebSocket } from 'ws';
-import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import { isConnectZoneHost } from './routes.js';
 
 export interface PrivateRelayAdmission {

@@ -9,7 +9,7 @@ import {
   mediaUsage,
   previewMediaEviction,
   setAutoCleanup,
-} from '../../src/host/media-cache';
+} from '@botharness/host-client/media-cache';
 import { hostStoreAvailable, hostStoreSize } from '../../src/host/host-store';
 import { clearHostConversations } from '../../src/host/native-conversations';
 import { forgetSharedCopies } from '../../src/host/share-attachment';
@@ -19,7 +19,7 @@ import {
   loadStorageUsage,
   previewStorageCleanup,
   previewStorageMessages,
-} from '../../src/host/storage';
+} from '@botharness/host-client/storage';
 import { StorageSettings, type StorageSettingsPort } from '../../src/ui/storage-settings';
 import { useStrings } from '../../src/ui/strings';
 

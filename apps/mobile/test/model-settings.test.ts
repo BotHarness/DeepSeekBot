@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadBotModel } from '../src/host/bot-settings';
-import { createHostClient } from '../src/host/client';
+import { loadBotModel } from '@botharness/host-client/bot-settings';
+import { createHostClient } from '@botharness/host-client/client';
 import {
   inheritModel,
   modelSettingsResource,
@@ -10,8 +10,8 @@ import {
   setModelRoute,
   toggleAssignmentModel,
   type ModelSettingsState,
-} from '../src/host/model-settings';
-import { FakeHost } from './fake-host';
+} from '@botharness/host-client/model-settings';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const flash = { provider: 'deepseek', model: 'flash' };
 const pro = { provider: 'deepseek', model: 'pro' };

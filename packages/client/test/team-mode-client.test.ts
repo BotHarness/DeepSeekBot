@@ -11,7 +11,7 @@ import {
 } from '../src/client/team-bridge.js';
 import { en, zh } from '../src/client/locale.js';
 import { MEMBER_SETTINGS_SECTIONS } from '../src/client/member-settings.js';
-import { renderTeamSignInPage } from '../src/shared/team-sign-in-page.js';
+import { renderTeamSignInPage } from '@botharness/host-client/shared/team-sign-in-page';
 
 const viewer = {
   humanId: 'local-human',

@@ -17,6 +17,7 @@ export interface HostIdentity {
 export interface PairedDevice {
   id: string;
   name: string;
+  humanId?: string;
   publicKey?: string;
   pairedAt: string;
   lastSeenAt?: string;
@@ -51,7 +52,15 @@ export type OfferRefusal =
 export type DeviceRefusal = 'device-credential-missing' | 'device-unknown' | 'device-revoked';
 
 export type Redemption =
-  | { ok: true; device: PairedDevice; credential: string; host: HostIdentity }
+  | {
+      ok: true;
+      device: PairedDevice;
+      credential: string;
+      host: HostIdentity;
+      humanId?: string;
+      displayName?: string;
+      mustChangePassword?: boolean;
+    }
   | { ok: false; code: OfferRefusal };
 
 export type Admission = { ok: true; device: PairedDevice } | { ok: false; code: DeviceRefusal };
@@ -76,6 +85,7 @@ export interface DevicePairing {
   createOffer(binding?: {
     verifierHash?: string;
     name?: string;
+    humanId?: string;
     relationshipId?: string;
   }): PairingOffer;
   offerStatus(receipt: string): OfferStatus;
@@ -114,6 +124,22 @@ export interface DevicePairingOptions {
   record?: (event: DevicePairingEvent) => void;
   onRevoked?: (deviceId: string) => void;
   onPaired?: (device: PairedDevice) => void;
+  members?: {
+    redeem(
+      humanId: string,
+      name: string,
+      publicKey?: string,
+    ): {
+      deviceId: string;
+      credential: string;
+      humanId: string;
+      displayName: string;
+      mustChangePassword: boolean;
+    };
+    admit(authorization: string | undefined, publicKey?: string): PairedDevice | undefined;
+    check(deviceId: string): PairedDevice | undefined;
+    attach(deviceId: string, close: () => void): () => void;
+  };
 }
 
 interface Row {
@@ -166,6 +192,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       expiresAt: number;
       humanId: string;
       receipt: string;
+      memberHumanId?: string;
       verifierHash?: string;
       name?: string;
       publicKey?: string;
@@ -283,8 +310,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       offers.set(digest(offer).toString('hex'), {
         expiresAt,
         receipt,
-        humanId: ownerHumanId(),
         ...binding,
+        humanId: ownerHumanId(),
+        ...(binding?.humanId === undefined ? {} : { memberHumanId: binding.humanId }),
       });
       record({ phase: 'offer-created' });
       return { offer, expiresAt: iso(expiresAt), receipt };
@@ -324,6 +352,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       if (
         !open ||
         open.humanId !== ownerHumanId() ||
+        open.memberHumanId !== undefined ||
         open.publicKey !== undefined ||
         open.verifierHash !== undefined
       )
@@ -348,7 +377,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       if (open.publicKey === undefined) {
         open.publicKey = input.publicKey;
         open.name = deviceName(input.name ?? open.name);
-        open.approved = false;
+        open.approved = open.memberHumanId !== undefined;
       }
       return { ok: true, receipt: open.receipt };
     },
@@ -393,6 +422,10 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     admitKey(authorization, publicKey) {
+      if (authorization?.startsWith('Device member.')) {
+        const member = options.members?.admit(authorization, publicKey);
+        return member ? { ok: true, device: member } : { ok: false, code: 'device-unknown' };
+      }
       const admitted = this.admit(authorization);
       if (!admitted.ok) return admitted;
       if (admitted.device.publicKey !== publicKey) return { ok: false, code: 'device-unknown' };
@@ -424,6 +457,30 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         settle(open.receipt, { state: 'expired' });
         record({ phase: 'offer-expired' });
         return { ok: false, code: 'offer-expired' };
+      }
+      if (open.memberHumanId !== undefined) {
+        const result = options.members?.redeem(
+          open.memberHumanId,
+          deviceName(input.name ?? open.name),
+          input.publicKey,
+        );
+        if (!result) {
+          settle(open.receipt, { state: 'refused' });
+          return { ok: false, code: 'offer-invalid' };
+        }
+        settle(open.receipt, { state: 'redeemed', deviceId: result.deviceId });
+        record({ phase: 'offer-redeemed', deviceId: result.deviceId });
+        return {
+          ok: true,
+          ...result,
+          device: {
+            id: result.deviceId,
+            humanId: result.humanId,
+            name: deviceName(input.name ?? open.name),
+            pairedAt: iso(now()),
+          },
+          host: host(),
+        };
       }
       const id = token(16);
       const secret = token(32);
@@ -500,6 +557,10 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     admit(authorization) {
+      if (authorization?.startsWith('Device member.')) {
+        const member = options.members?.admit(authorization);
+        return member ? { ok: true, device: member } : { ok: false, code: 'device-unknown' };
+      }
       const match = CREDENTIAL.exec(authorization?.trim() ?? '');
       if (match === null) {
         record({ phase: 'device-refused', code: 'device-credential-missing' });
@@ -519,6 +580,8 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     check(deviceId) {
+      const member = options.members?.check(deviceId);
+      if (member) return { ok: true, device: member };
       const current = row(deviceId);
       if (current === undefined) {
         record({ phase: 'device-refused', code: 'device-unknown', deviceId });
@@ -581,6 +644,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       return open.length;
     },
     attachStream(deviceId, close) {
+      if (options.members?.check(deviceId)) return options.members.attach(deviceId, close);
       const open = streams.get(deviceId) ?? new Set();
       open.add(close);
       streams.set(deviceId, open);

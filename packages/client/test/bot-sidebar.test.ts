@@ -134,7 +134,7 @@ import { createQuickSwitcherLauncher } from '../src/client/quick-switcher-launch
 import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
-import { PINNED_SORT_SCOPE_ID } from '../src/bot-mode-settings.js';
+import { PINNED_SORT_SCOPE_ID } from '@botharness/host-client/shared/bot-mode-settings';
 import { zh, zhTranslate } from '../src/client/locale.js';
 import { formatChannelListTime } from '../src/client/channel-row-status.js';
 import type { RosterConfig } from '../src/client/roster-config.js';

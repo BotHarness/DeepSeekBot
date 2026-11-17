@@ -3,8 +3,8 @@ import {
   createActivitySession,
   type NativeRequestActivity,
 } from '../src/host/live-activity-session';
-import { ActivityRequestFailed } from '../src/host/live-activity';
-import type { SavedHost } from '../src/host/hosts';
+import { ActivityRequestFailed } from '@botharness/host-client/live-activity';
+import type { SavedHost } from '@botharness/host-client/hosts';
 
 function fixture() {
   const host: SavedHost = {

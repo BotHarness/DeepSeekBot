@@ -4,7 +4,7 @@ import {
   createBotCreationController,
   type BotCreationOperation,
   type CreationRecord,
-} from '../src/host/bot-creation';
+} from '@botharness/host-client/bot-creation';
 
 function setup() {
   let disk: CreationRecord | undefined;

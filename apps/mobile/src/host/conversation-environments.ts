@@ -1,5 +1,5 @@
 import type { ConversationWorkspace } from '../cloud/conversations';
-import type { HostColorId, HostIcon } from '../ui/design/host-look';
+import type { HostColorId, HostIcon } from '@botharness/host-client/ui/design/host-look';
 
 export type ConversationEnvironment = {
   key: string;

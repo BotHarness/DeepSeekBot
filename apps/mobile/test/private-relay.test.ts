@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { checkRoute } from '../src/host/route';
-import { parseEncryption, parseSavedHost, parsePrivateAdmission } from '../src/host/hosts';
-import { parsePairingLink, pairingLinkMode, redeemPairing } from '../src/host/pairing';
-import { encryptedCarrier } from '../src/host/encrypted-carrier';
-import { learnedRoutes } from '../src/host/learned-routes';
+import { checkRoute } from '@botharness/host-protocol/route';
+import {
+  parseEncryption,
+  parseSavedHost,
+  parsePrivateAdmission,
+} from '@botharness/host-client/hosts';
+import { parsePairingLink, pairingLinkMode, redeemPairing } from '@botharness/host-client/pairing';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
+import { learnedRoutes } from '@botharness/host-client/learned-routes';
 
 const admission = { origin: 'https://relay.example.com', token: 'ab'.repeat(32) };
 const encryption = {

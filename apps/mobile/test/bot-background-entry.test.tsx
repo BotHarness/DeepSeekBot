@@ -31,10 +31,10 @@ vi.mock('../src/ui/chat/dm-activity-settings', () => ({ DmActivitySettings: () =
 vi.mock('../src/ui/chat/bot-name-setting', () => ({ BotNameSetting: () => null }));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import { BotSettingsPanel } from '../src/ui/chat/bot-settings-panel';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 afterEach(() => push.mockReset());

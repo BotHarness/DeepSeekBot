@@ -2,6 +2,19 @@
 
 A Bot inherits the optional global default, selects one complete shared template, or disables its Reviewer (ADR-0342). Deterministic authorization runs first; Reviewer outcomes are allow for this call or ask-human.
 
+## Sources
+
+- `packages/client/src/client/{approval-template-*,approval-reviewer-model-setting}.tsx`
+- `packages/core/src/bots/cli-approval-{templates,reviewer}.ts`
+- `packages/core/src/workspaces/approval-{template,reviewer}*.ts`
+
+## Terms
+
+- Approval Template
+- Approval Reviewer
+- Approval Review Session
+- Tool Approval Rule
+
 ## Sub-features
 
 - `library`: Bot settings → Auto approval → Global default template (DSH Select), existing template library and Reviewer model. No global default means inherited review is off. Read failures remain errors.

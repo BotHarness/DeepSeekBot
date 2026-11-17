@@ -880,6 +880,8 @@ describe('plugin entry', () => {
       'ownerTransfer',
       'memberPasswordChange',
       'memberPasswordReset',
+      'memberInvitation',
+      'memberPairingOffer',
       'channelRoleDirectory',
       'channelVisibilitySet',
       'channelAdminsSet',

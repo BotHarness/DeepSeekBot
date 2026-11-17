@@ -1,5 +1,5 @@
 import type { ActivityItem } from '../../host/activity-sources';
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 
 export type ActivityAvatarKind =
   | { kind: 'group'; avatar: string | undefined }

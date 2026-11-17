@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { createConnectAccount } from '../../../../apps/mobile/src/host/connect-account.js';
-import { pairHost } from '../../../../apps/mobile/src/host/pairing.js';
-import { parseSavedHost, serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
-import { createHostClient } from '../../../../apps/mobile/src/host/client.js';
-import { isLanRoute, isEncryptedRoute } from '../../../../apps/mobile/src/host/route.js';
+import { createConnectAccount } from '@botharness/host-client/connect-account';
+import { pairHost } from '@botharness/host-client/pairing';
+import { parseSavedHost, serializeSavedHost } from '@botharness/host-client/hosts';
+import { createHostClient } from '@botharness/host-client/client';
+import { isLanRoute, isEncryptedRoute } from '@botharness/host-protocol/route';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
 import { CliLiveError } from './cli-live-error.js';
 import { requestConnectIdentity } from '../devices/connect-identity-fetch.js';

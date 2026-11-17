@@ -4,9 +4,9 @@ import {
   type ClientRelationship,
 } from '../../../core/src/devices/relationship-contract.js';
 export type { ClientRelationship } from '../../../core/src/devices/relationship-contract.js';
-import { parsePairingLink } from '../../../../apps/mobile/src/host/pairing.js';
-import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
+import { parsePairingLink } from '@botharness/host-client/pairing';
+import { keyBytes } from '@botharness/host-client/encrypted-carrier';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 import type { RemoteHosts, HostPairResult, RemotePairTrust } from './remote-hosts.js';
 
 export class RelationshipRequestRefused extends Error {

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { shareAsync } from 'expo-sharing';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-import type { MessageAttachment } from '../src/host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 
 const native = vi.hoisted(() => ({
   disk: new Map<string, Uint8Array>(),

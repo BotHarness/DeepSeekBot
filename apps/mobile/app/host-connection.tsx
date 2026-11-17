@@ -3,7 +3,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { installedAppVersion } from '../src/host/app-version';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
-import { isConnectRoute, isLanRoute, isLoopbackRoute, isTailscaleRoute } from '../src/host/route';
+import {
+  isConnectRoute,
+  isLanRoute,
+  isLoopbackRoute,
+  isTailscaleRoute,
+} from '@botharness/host-protocol/route';
 import { SHEET_GROUP } from '../src/ui/chat/sheet';
 import { space } from '../src/ui/design/tokens';
 import { SheetHeader } from '../src/ui/primitives/sheet-header';
@@ -69,6 +74,27 @@ export default function HostConnectionScreen() {
   return (
     <SheetScreen onMount={mount}>
       <SettingsForm header={header} testID="host-connection">
+        {host?.member ? (
+          <SettingsSection on={SHEET_GROUP}>
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="account"
+              title={t.memberPairing.signedInAs.replace('{name}', host.member.displayName)}
+              {...(host.member.username ? { detail: `@${host.member.username}` } : {})}
+            />
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="qr"
+              testID="member-pair-another"
+              title={t.memberPairing.pairAnother}
+              detail={t.memberPairing.pairAnotherDetail}
+              disclosure
+              onPress={() =>
+                router.push({ pathname: '/member-pairing', params: { hostId: host.hostId } })
+              }
+            />
+          </SettingsSection>
+        ) : null}
         {host && client ? (
           <SettingsSection on={SHEET_GROUP} footer={copy.preferenceScope}>
             {busy === 'preference' ? (

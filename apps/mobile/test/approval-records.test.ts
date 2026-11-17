@@ -6,7 +6,7 @@ import {
   revokeApprovalRule,
   type ApprovalRule,
 } from '../src/host/approval-records';
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import {
   historyDetail,
   inputSummary,
@@ -16,7 +16,7 @@ import {
   toolGlyph,
 } from '../src/ui/chat/approval-records-text';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const slug = 'ada';

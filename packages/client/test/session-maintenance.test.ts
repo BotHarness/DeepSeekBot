@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import {
   createSessionMaintenance,
   sessionMaintenanceFor,
-} from '../src/shared/session-maintenance.js';
+} from '@botharness/host-client/shared/session-maintenance';
 it('shares one in-flight operation across surfaces and keeps the result', async () => {
   const owner = {};
   let finish!: (result: unknown) => void;

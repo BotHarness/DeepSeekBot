@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactNode } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 const native = vi.hoisted(() => ({
   dismiss: () => {},

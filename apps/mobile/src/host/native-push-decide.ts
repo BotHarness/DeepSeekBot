@@ -1,7 +1,11 @@
-import { createHostClient } from './client';
-import type { SavedHost } from './hosts';
+import { createHostClient } from '@botharness/host-client/client';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { nativeCarrier } from './native-carrier';
-import { decideApproval, type ApprovalChoice, type RequestRef } from './requests';
+import {
+  decideApproval,
+  type ApprovalChoice,
+  type RequestRef,
+} from '@botharness/host-client/requests';
 
 export async function decideOverRoute(
   host: SavedHost,

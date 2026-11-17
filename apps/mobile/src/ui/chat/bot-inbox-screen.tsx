@@ -3,8 +3,8 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { FlatList, View, type ViewInstance } from 'react-native';
 
 import { createBotInbox, inboxOrder } from '../../host/bot-inbox';
-import type { HostClient } from '../../host/client';
-import type { BotInboxItem } from '../../host/wire';
+import type { HostClient } from '@botharness/host-client/client';
+import type { BotInboxItem } from '@botharness/host-protocol/wire';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';

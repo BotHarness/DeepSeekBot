@@ -23,6 +23,8 @@
     "sharp": "0.35.4"
   },
   "devDependencies": {
+    "@botharness/host-client": "workspace:*",
+    "@botharness/host-protocol": "workspace:*",
     "@deepseek-ai/cordis": "4.1.0",
     "@deepseek-ai/cordis-plugin-loader": "1.1.0",
     "@deepseek-ai/dsh-agent": "0.2.2-rc.1",

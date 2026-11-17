@@ -5,7 +5,7 @@ import {
   IconRefreshOutlineRegular,
   IconRightUpOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { OverviewUsage } from '../../../../apps/mobile/src/host/usage.js';
+import type { OverviewUsage } from '@botharness/host-client/usage';
 import {
   usageOverviewPeriods,
   type UsageOverviewPeriod,

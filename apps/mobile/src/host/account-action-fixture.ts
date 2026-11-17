@@ -1,7 +1,7 @@
-import { createConnectAccount } from './connect-account';
+import { createConnectAccount } from '@botharness/host-client/connect-account';
 import { removeAccountConnections } from './account-connections';
-import type { AccountOwner } from './account-owner';
-import { parseSavedHosts, type SavedHost, type SavedHosts } from './hosts';
+import type { AccountOwner } from '@botharness/host-client/account-owner';
+import { parseSavedHosts, type SavedHost, type SavedHosts } from '@botharness/host-client/hosts';
 
 export type AccountFixtureScenario =
   | 'connection-diagnostics'

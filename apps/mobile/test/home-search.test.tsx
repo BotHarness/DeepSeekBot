@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, memo, useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import { CONNECTION_OFFLINE_MS, CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,16 +16,16 @@ import {
 import { channelNavigationHarness } from './channel-navigation-harness';
 let channelHistory = channelNavigationHarness();
 const whoami = vi.fn(async (_id: string) => {});
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
 import { cloudViewScope } from '../src/cloud/workspace-directory';
 import { computerEnvironmentKey, cloudEnvironmentKey } from '../src/host/conversation-environments';
-import { HOST_COLORS, type HostColorId } from '../src/ui/design/host-look';
+import { HOST_COLORS, type HostColorId } from '@botharness/host-client/ui/design/host-look';
 import { Platform } from 'react-native';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
-import type { RosterView } from '../src/host/client';
+import type { RosterView } from '@botharness/host-client/client';
 import { hostDrawer } from '../src/ui/shell/host-drawer';
 
 const { push, cloudState, directoryState, hostState, call, refresh, menus, rowProps } = vi.hoisted(

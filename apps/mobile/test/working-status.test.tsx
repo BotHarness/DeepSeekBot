@@ -5,7 +5,7 @@ vi.mock('../src/ui/minute-clock', () => ({
   useMinuteClock: () => new Date('2026-11-06T10:00:00Z'),
 }));
 
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 
 vi.mock('react-native', async () => {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');

@@ -759,6 +759,8 @@ describe('bridge typert service', () => {
       'ownerTransfer',
       'memberPasswordChange',
       'memberPasswordReset',
+      'memberInvitation',
+      'memberPairingOffer',
       'channelRoleDirectory',
       'channelVisibilitySet',
       'channelAdminsSet',

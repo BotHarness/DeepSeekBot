@@ -7,7 +7,7 @@ import {
   singleImageAspect,
   type AlbumRect,
 } from '../../../../../packages/client/src/client/album-layout';
-import type { MessageAttachment, ReplyThumbnail } from '../../host/conversation';
+import type { MessageAttachment, ReplyThumbnail } from '@botharness/host-client/conversation';
 import { over } from '../design/layers';
 import { mediaBubble, radius, replyThumb, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';

@@ -1,5 +1,5 @@
-import type { HostClient } from './client';
-import type { BotInboxItem, BotInboxPage } from './wire';
+import type { HostClient } from '@botharness/host-client/client';
+import type { BotInboxItem, BotInboxPage } from '@botharness/host-protocol/wire';
 
 export const BOT_INBOX_PAGE = 30;
 

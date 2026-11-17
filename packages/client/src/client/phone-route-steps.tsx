@@ -14,12 +14,13 @@ const SIGN_IN_COMMAND = 'tailscale up';
 
 export interface PhoneRouteStatus {
   staleRoutes?: { url: string; targetPort: number }[];
-  managed?: { enabled: boolean; owned: boolean };
+  managed?: { enabled: boolean; owned: boolean; trustedIngress?: boolean };
   routes: {
     url: string;
     kind: 'lan' | 'tailscale' | 'connect' | 'loopback' | 'private';
     ready: boolean;
     issue?: string;
+    memberSignIn?: 'managed-tls' | 'untrusted';
   }[];
   tailscale: 'running' | 'stopped' | 'missing';
   serveCommand: string;

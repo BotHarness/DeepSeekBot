@@ -27,8 +27,8 @@ vi.mock('react-native-svg', () => ({
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
-import type { OverviewMemory, OverviewUsage, UsagePeriod } from '../src/host/usage';
-import { MethodRefused } from '../src/host/client';
+import type { OverviewMemory, OverviewUsage, UsagePeriod } from '@botharness/host-client/usage';
+import { MethodRefused } from '@botharness/host-client/client';
 import { dayLabel, trailingDays } from '../src/host/usage-days';
 import { SettingsView, type SettingsActions } from '../src/ui/settings-view';
 import { dayBars, daysLabel, tokenAmount } from '../src/ui/shell/usage-card';

@@ -1,5 +1,17 @@
 # Native mobile chat backgrounds
 
+## Sources
+
+- `apps/mobile/src/host/{chat-background,native-chat-background}.ts`
+- `apps/mobile/src/ui/chat/{chat-background*,background-position,background-preview}.{ts,tsx}`
+- `apps/mobile/app/*/*/chat-background.tsx`
+- `apps/mobile/app/settings/chat-background.tsx`
+
+## Terms
+
+- Conversation screen
+- Settings
+
 ## Sub-features
 
 Device defaults, DM/Group overrides, transactional preview, still-image ownership and restart persistence, Fill/Fit and crop position, theme fade, large text and keyboard stability.

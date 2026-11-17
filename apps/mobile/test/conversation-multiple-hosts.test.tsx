@@ -4,15 +4,18 @@ const channelHistory = channelNavigationHarness();
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 
 const push = vi.hoisted(() => vi.fn());
 const activity = vi.hoisted(() => ({
   start: vi.fn(async (_target: ActivityTarget) => {}),
   confirm: undefined as (() => Promise<void> | void) | undefined,
+}));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));

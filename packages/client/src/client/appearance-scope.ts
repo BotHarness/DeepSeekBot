@@ -1,4 +1,4 @@
-import { BUBBLE_SURFACES, readable } from './bot-name-color.js';
+import { BUBBLE_SURFACES, readable } from '@botharness/host-client/shared/bot-name-color';
 import { space } from './ds/tokens.stylex.js';
 import { panelMaterials, validTargetId } from './appearance-panels.js';
 import { appearanceMaterials } from './appearance-materials.js';

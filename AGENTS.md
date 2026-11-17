@@ -15,9 +15,11 @@ BotHarness — a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 ```bash
 pnpm install
-pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
+pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:changed
 pnpm build
 ```
+
+`pnpm test:changed` runs the tests CI selects for your diff against `origin/main` (`scripts/ci-plan.mjs`); it falls back to the full suite only when CI would. Run `pnpm test` only when asked for a full run.
 
 Lint rules with an existing backlog run through `scripts/lint-ratchet.mjs` (type-aware oxlint, registered in `scripts/guardrails.json`): new findings fail at edit (Claude Code hook), commit and CI; fixing old ones means running `pnpm lint:baseline`, which only lowers `scripts/lint-baseline.json`.
 
@@ -147,9 +149,12 @@ verified.
 When creating or updating a PR, use the `visual-pr` skill to write the description: one-sentence "why", `/show-me`-style change outline, saved under `.humanlayer/tasks/` and applied with `gh pr edit --body-file`.
 When a PR delivers an issue's feature or fixes its bug, write `Closes #N` as plain text in the PR body (not inside a Markdown link, which GitHub does not act on) so the issue closes on merge. Do not keep the issue open for a release or for pending device/Human QA; track remaining QA in its own issue. Use `Refs #N` only when part of the issue's scope is still unbuilt. GitHub acts on `Closes #N` only when the PR merges into `main`: once a stacked PR's parent has merged into `main`, retarget the stacked PR to `main` before merging it, or close the issue by hand once its work reaches `main`.
 For every PR, follow [merge-risk classification](docs/agents/pr-merge-risk.md) and summarize reversibility, blast radius, and review focus in one `Special things to note` bullet.
+Before merging an agent's PR on green CI, check its task tier in [model tiers](docs/agents/model-tiers.md): S merges on green, M also needs every cited issue and criterion checked, H (security, or a property only a real runtime proves) never merges on CI alone.
 For every PR that changes visible UI or user interactions, embed before/after screenshots in the PR `Change outline` and verify they render; follow [UI/UX PR visual evidence](docs/agents/pr-ui-visual-evidence.md). **All new PR screenshots, recordings and other review artifacts go to Cloudflare R2, never Git, Git LFS or a Git evidence branch.** Reuse `botharness-media` at `https://media.botharness.ai/pr/` through `pnpm evidence:publish`; publish only privacy-reviewed derivatives, retain source/build provenance and verify public readback. Keep each image URL at 150 characters or fewer and read the PR body back after every write. Local capture folders are temporary staging, not an archive; remove uploaded derivatives after verified readback and disposable originals when the PR is merged and no QA/release hold remains. Existing merged PR images need not be migrated or preserved merely to keep old PR links working. Product assets, maintained documentation illustrations and necessary test fixtures remain valid Git content. `pnpm evidence:check` and CI reject new or modified artifacts in legacy evidence directories; do not force-add ignored evidence or move it elsewhere to bypass the policy.
 
 Pull requests run only the tests their diff can reach; see [CI test plan](docs/agents/development-scripts.md#ci-test-plan) for the rules and `node scripts/ci-plan.mjs --base origin/main` to preview them. Add the `ci:full` label to force a full run on a risky change. When a PR adds a kind of file or test input that the plan misses, update `RULES` in `scripts/ci-plan.mjs` in the same PR; `pnpm lint` fails until it does.
+
+Every PR that changes who can read, write, run or reach something in Team mode (roles, Role Policy, Bot visibility, Channel access, folders and grants, member execution confinement, devices, offboarding, model allowlists) runs the Team mode security suite on its head commit and attaches the result: `node scripts/e2e-team-security.mjs --launch` (real model, isolated Host). Publish `report.md` and the transcripts with `pnpm evidence:publish`, never Git. A failing scenario blocks the merge unless the PR names it as a known gap with a tracking issue.
 
 For every PR, assess whether a detailed explanation would help review; follow [PR HTML explainers](docs/agents/pr-html-explainer.md). Use the repository's `answer-me-with-html` skill for nontrivial behavior, lifecycle, permission, persistence, or cross-module changes; simple edits may omit it. Keep `visual-pr` as the PR description authority, bind explainers to the exact head SHA, and do not treat local HTML as reviewer-accessible or as runtime evidence.
 

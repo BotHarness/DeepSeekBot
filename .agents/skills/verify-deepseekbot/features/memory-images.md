@@ -1,5 +1,17 @@
 # Version-bound Memory image and Markdown previews
 
+## Sources
+
+- `packages/core/src/memory/{image,image-http,markdown}.ts`
+- `packages/client/src/client/memory-{image-view,markdown-view}.tsx`
+- `apps/mobile/src/host/{memory-preview,native-memory-preview}.ts`
+- `apps/mobile/src/ui/chat/memory-{preview-image,markdown}.tsx`
+
+## Terms
+
+- Memory
+- Memory Commit
+
 ## Sub-features
 
 - Current `.png` files use the owning Memory reader, fit the available area, and enlarge through the existing image gallery.

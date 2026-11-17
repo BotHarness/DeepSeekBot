@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
-import type { HostClient } from '../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import { loadPrivateInput } from '../host/private-input';
-import type { RequestRef } from '../host/requests';
+import type { RequestRef } from '@botharness/host-client/requests';
 import { useMounted } from './mounted';
 import { space } from './design/tokens';
 import { Button } from './primitives/button';

@@ -8,9 +8,9 @@ import {
   type PushKind,
   type PushPreferences,
   type PushSettings,
-} from '../host/push';
+} from '@botharness/host-client/push';
 import type { PushStatus } from '../host/push-session';
-import type { DevicePreferenceSnapshot } from '../host/device-notification-preferences';
+import type { DevicePreferenceSnapshot } from '@botharness/host-client/device-notification-preferences';
 import { useMounted } from './mounted';
 import { SettingsForm } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';

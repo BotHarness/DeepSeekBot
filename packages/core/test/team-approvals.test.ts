@@ -1146,7 +1146,7 @@ describe('M5 approval projections and decisions', () => {
           review,
           log() {},
         },
-        () => true,
+        () => false,
         f.team.approvals,
       );
       const callId = ToolCallId('participant-call');

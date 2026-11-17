@@ -10,6 +10,8 @@ ADR-0194 made the Bot-mode design system a semantic layer over DSH: every colour
 
 ## Decision
 
+> Update (ADR-0351): the single source is now a DTCG 2025.10 resolver, `design/tokens/tobs.resolver.json`, over set files for core, web, each colour mode and each style. Accent roles are derived per preset at build time, and ADR-0351 replaces the contrast gate below.
+
 Tobs has its own design tokens, with one source: `design/tokens/tobs.tokens.json`, in the W3C Design Tokens format.
 
 - **Three tiers.** `core` holds what every product family shares: the four accent families, status colours and breakpoints. The desktop/Web semantic layer (`web`) holds roles, not values: layers (canvas, raised, well, field, nav, sheet, scrim), ink, lines, interaction states, accent, status, type, space, size, radius, edge, elevation and motion. Mobile and the docs/marketing sites read `core` and keep their own semantic layers and native or coss controls.

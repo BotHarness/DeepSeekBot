@@ -1,5 +1,5 @@
 import { isHumanDmChannel } from './channel-kind.js';
-import type { BotModeSortMode } from '../bot-mode-settings.js';
+import type { BotModeSortMode } from '@botharness/host-client/shared/bot-mode-settings';
 import { reconcileOrder, sameIds } from './roster.js';
 import type { TopOrderEntry } from './roster.js';
 import type { ChannelSummary } from './store.js';

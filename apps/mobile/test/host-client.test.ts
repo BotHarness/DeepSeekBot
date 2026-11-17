@@ -6,15 +6,15 @@ import {
   MAX_RECONNECT_DELAY_MS,
   type HostClient,
   type HostSnapshot,
-} from '../src/host/client';
-import { parsePairingLink, redeemPairing } from '../src/host/pairing';
-import { checkRoute } from '../src/host/route';
+} from '@botharness/host-client/client';
+import { parsePairingLink, redeemPairing } from '@botharness/host-client/pairing';
+import { checkRoute } from '@botharness/host-protocol/route';
 import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
-import { openLocalStore, type LocalStore } from '../src/host/local-store';
-import { FakeHost } from './fake-host';
+import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { createConnectionLifetime } from '../src/host/connection-lifetime';
 import { nodeSqlConnection } from './node-sql-connection';
-import wire from './fixtures/host-wire.json';
+import wire from '../../../packages/host-client/test/fixtures/host-wire.json';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const recordedBot = wire.rpc.list.at(-1)!.body as {
@@ -684,6 +684,18 @@ describe('Host client', () => {
     await until(target, (state) => state.connection.status === 'connected');
     expect(count('rosterGet')).toBe(2);
     expect(count('settings/describe')).toBe(2);
+  });
+
+  it('stays connected with the Host default sorting when the Host refuses settings to a member', async () => {
+    const host = new FakeHost();
+    host.methods.set('settings/describe', () => {
+      throw Object.assign(new Error('remote access: settings/describe: access denied'), {
+        code: 'remote-access/denied',
+      });
+    });
+    const target = connect(host);
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(target.getSnapshot().roster?.sorting).toBeUndefined();
   });
 
   it('does not reuse a roster arrangement whose last read failed', async () => {

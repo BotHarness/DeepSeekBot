@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { HostApiAnswer, HostApiInit } from '../src/host/client';
+import type { HostApiAnswer, HostApiInit } from '@botharness/host-client/client';
 import {
   addedText,
   createComputerViewer,
@@ -8,7 +8,7 @@ import {
   wheelInput,
   WHEEL_STEP,
   type ComputerViewerState,
-} from '../src/host/computer-viewer';
+} from '@botharness/host-client/computer-viewer';
 
 type Call = { path: string; body?: Record<string, unknown> };
 

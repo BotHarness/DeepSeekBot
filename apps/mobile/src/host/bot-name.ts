@@ -1,4 +1,4 @@
-import type { HostClient } from './client';
+import type { HostClient } from '@botharness/host-client/client';
 
 export async function renameBot(
   client: HostClient,

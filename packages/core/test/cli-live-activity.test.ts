@@ -7,10 +7,10 @@ import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { serializeSavedHost } from '../../../apps/mobile/src/host/hosts.js';
+import { serializeSavedHost } from '@botharness/host-client/hosts';
 
 it('uses Device credentials from a file and activity tokens from stdin without printing either', async () => {
   const calls: { path: string | undefined; body: string }[] = [];

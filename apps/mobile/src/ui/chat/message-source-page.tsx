@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { useDesignTheme } from '../design/theme';
 import { NativePageNavigation } from '../primitives/native-page-navigation';
 import { LoadingIndicator } from '../primitives/loading-indicator';

@@ -1,5 +1,16 @@
 # Phone Chats drawer views
 
+## Sources
+
+- `apps/mobile/src/ui/shell/{host-drawer,host-drawer-model,native-host-drawer,native-host-drawer.android}.{ts,tsx}`
+- `apps/mobile/src/ui/primitives/drawer-*`
+- `apps/mobile/modules/dismissible-drawer/**`
+
+## Terms
+
+- Workspace drawer
+- Chats
+
 ## Sub-features
 
 - `all`: the first drawer row selects All without switching the current paired Host. Chats renders one list containing the current Host and available cloud workspaces.

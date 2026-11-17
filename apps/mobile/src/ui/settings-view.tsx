@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 
-import type { OverviewUsage } from '../host/usage';
+import type { OverviewUsage } from '@botharness/host-client/usage';
 import { SHEET_GROUP } from './chat/sheet';
 import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';

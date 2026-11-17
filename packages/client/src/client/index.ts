@@ -44,7 +44,7 @@ import {
   BOT_MODE_NAMESPACE,
   DEFAULT_SETTINGS_PINS,
   type BotModeSettings,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import {
   fullClientLocator,
   privateInputLocator,

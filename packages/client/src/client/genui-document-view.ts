@@ -7,7 +7,7 @@ import {
   type GenuiDocumentReply,
 } from '../../../core/src/channels/genui-document.js';
 import type { BridgeActions } from './actions.js';
-import { PrivateViewController } from './genui-view.js';
+import { PrivateViewController } from '@botharness/host-client/shared/genui-view';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 
 export type GenuiDocumentActions = Pick<

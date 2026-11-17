@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { RosterBot, RosterView } from '../../../../apps/mobile/src/host/client.js';
+import type { RosterBot, RosterView } from '@botharness/host-client/client';
 import { isAvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { GroupChannelIcon, type GroupAvatarBot } from './group-avatar-stack.js';

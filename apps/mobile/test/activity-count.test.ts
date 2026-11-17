@@ -6,8 +6,8 @@ import {
   observeActivityCount,
   readActivityCount,
 } from '../src/host/activity-count';
-import type { HumanAttentionItem, HumanAttentionPage } from '../src/host/wire';
-import type { InboxSnapshot } from '../src/host/inbox';
+import type { HumanAttentionItem, HumanAttentionPage } from '@botharness/host-protocol/wire';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 
 const item = (id: string, kind = 'tool-approval'): HumanAttentionItem => ({
   id,

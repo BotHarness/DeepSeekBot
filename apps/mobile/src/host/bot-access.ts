@@ -1,5 +1,5 @@
-import { HostAnswerInvalid } from './bot-settings';
-import type { HostClient, RosterBot } from './client';
+import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 
 export type BotAccessKind = 'browser' | 'computer';
 

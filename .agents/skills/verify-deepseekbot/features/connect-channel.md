@@ -1,5 +1,17 @@
 # Connect encrypted channel
 
+## Sources
+
+- `packages/core/src/devices/{connect,connect-*,bot-connect-*}.ts`
+- `apps/mobile/src/host/{native-connect-account,connect-follow}.ts`
+- `packages/client/src/client/connect-panel.tsx`
+
+## Terms
+
+- Host Connection Route
+- Paired Device
+- Remote Host
+
 ## Mobile linked-computer management (#4039)
 
 In the assigned native QA batch, sign in on the phone before pairing a Host. Use a disposable

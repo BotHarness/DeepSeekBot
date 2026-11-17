@@ -82,7 +82,7 @@ import {
   isBotModeSortMode,
   PINNED_SORT_SCOPE_ID,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import type { BridgeActions } from './actions.js';
 import type { WindowCompanions } from './window-companions.js';
 import {

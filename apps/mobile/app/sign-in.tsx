@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Platform, View, type ViewInstance } from 'react-native';
 
-import type { EmailCodeOutcome } from '../src/host/connect-account';
+import type { EmailCodeOutcome } from '@botharness/host-client/connect-account';
 import { takeEmailCodeSignIn } from '../src/host/email-code-bridge';
 import { EmailCodeSignIn } from '../src/ui/account/email-code-sign-in';
 import { useMounted } from '../src/ui/mounted';

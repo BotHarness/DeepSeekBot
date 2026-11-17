@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
-import type { RequestRef } from '../../host/requests';
+import type { RequestRef } from '@botharness/host-client/requests';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { useStrings } from '../strings';

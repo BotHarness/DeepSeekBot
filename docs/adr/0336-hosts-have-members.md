@@ -79,3 +79,7 @@ M7 shared discovery uses an explicit metadata projection for non-principals, inc
 Owner. Arranging a reachable Bot does not grant management or transcript access. Per-Human roster
 arrangements reuse the existing RosterStore domain schema in independent operational rows; the
 legacy local-Human row remains that Human’s arrangement across Host ownership changes.
+
+## Shared client implementation seam (#4201)
+
+The Team invitation, pairing and Noise formats belong to the pure `packages/host-protocol` workspace. Desktop and mobile use `packages/host-client` for member requests, saved identities and the fingerprint → sign-in → forced-password-change flow. Native storage, installed version and key-agreement adapters remain application-owned and injected. This avoids package imports of the mobile app and preserves the Host as the sole identity/grant authority. The [desktop UI contract](../architecture/team-mode-desktop-sign-in.md) describes the adapter and its regression limits; visual and native acceptance are separate.

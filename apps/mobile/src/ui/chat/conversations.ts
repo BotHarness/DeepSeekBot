@@ -4,10 +4,10 @@ import type {
   RosterChannel,
   RosterView,
   TopOrderEntry,
-} from '../../host/client';
-import { approvalSummaryTool } from '../../host/requests';
-import { DEFAULT_ROSTER_SORTING } from '../../host/roster-sorting';
-import type { HumanAttentionItem } from '../../host/wire';
+} from '@botharness/host-client/client';
+import { approvalSummaryTool } from '@botharness/host-client/requests';
+import { DEFAULT_ROSTER_SORTING } from '@botharness/host-client/roster-sorting';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { t } from '../strings';
 
 interface Attention {

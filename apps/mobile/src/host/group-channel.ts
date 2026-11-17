@@ -1,5 +1,10 @@
 import { workRows, type ProfileAssignment } from './bot-profile';
-import type { HostClient, RosterBot, RosterChannel, RosterView } from './client';
+import type {
+  HostClient,
+  RosterBot,
+  RosterChannel,
+  RosterView,
+} from '@botharness/host-client/client';
 
 export const GROUP_NAME_MAX = 120;
 

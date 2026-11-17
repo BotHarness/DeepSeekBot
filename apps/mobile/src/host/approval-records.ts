@@ -1,5 +1,5 @@
-import type { HostClient } from './client';
-import { HostAnswerInvalid } from './bot-settings';
+import type { HostClient } from '@botharness/host-client/client';
+import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 
 export type ApprovalOutcome =
   | 'allowed-once'

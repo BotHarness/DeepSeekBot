@@ -1,8 +1,8 @@
 import { Fragment } from 'react';
-import type { ConnectionDiagnostic } from '../../host/connection-diagnostic';
+import type { ConnectionDiagnostic } from '@botharness/host-client/connection-diagnostic';
 import { ConnectionFailureActions } from './connection-failure-actions';
 import { ScrollView, View } from 'react-native';
-import type { PairingFailure } from '../../host/pairing';
+import type { PairingFailure } from '@botharness/host-client/pairing';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';

@@ -459,7 +459,7 @@
     {
       "id": "phone.browser",
       "label": "View Browser frame, take over, input and handle revocation",
-      "source": "apps/mobile/src/host/browser-viewer.ts",
+      "source": "packages/host-client/src/browser-viewer.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-browser.md",
       "task": 1976,
       "gap": null
@@ -491,7 +491,7 @@
     {
       "id": "phone.activity.inbox",
       "label": "Read current native Inbox and handle existing requests",
-      "source": "apps/mobile/src/host/inbox.ts",
+      "source": "packages/host-client/src/inbox.ts",
       "guide": null,
       "task": 1954,
       "gap": "Current main Inbox only. The unmerged #1954 redesign and its later options semantics are excluded from the implemented denominator; native requalification and complete map belong to #1954."
@@ -699,7 +699,7 @@
     {
       "id": "phone.full-client",
       "label": "Open paired full Client and revoke access without revoking operator",
-      "source": "apps/mobile/src/host/client.ts",
+      "source": "packages/host-client/src/client.ts",
       "guide": null,
       "task": 1967,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -707,7 +707,7 @@
     {
       "id": "phone.viewers",
       "label": "Read paired Browser/Computer viewers with isolation and revocation",
-      "source": "apps/mobile/src/host/computer-viewer.ts",
+      "source": "packages/host-client/src/computer-viewer.ts",
       "guide": null,
       "task": 1977,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -1057,6 +1057,14 @@
       "source": "packages/core/src/messaging/outbound.ts",
       "task": 4247,
       "guide": ".agents/skills/verify-deepseekbot/features/im-settings-loading.md"
+    },
+    {
+      "id": "team.security-suite",
+      "label": "Team mode security scenarios with real model turns",
+      "source": "packages/core/src/team/speaker-policy.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
+      "task": 4197,
+      "gap": "Shell boundaries are enforced only on Linux Hosts reporting isolation enforced; macOS and Windows report the known trial gap."
     }
   ],
   "scripts": [
@@ -2359,7 +2367,7 @@
       "path": "scripts/e2e-tob-home.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged.",
+      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings \u203a Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged.",
       "task": 3092,
       "sha256": "245ecfc859d40454440557fc658725f03fb701ed91b8de29dc7654dae7615336"
     },
@@ -2631,7 +2639,7 @@
       "path": "scripts/e2e-phone-recovery.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing"],
-      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA. #2793: re-audited Connections → Manage selectors and generic Connect a device label; fault-injection boundaries unchanged.",
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA. #2793: re-audited Connections \u2192 Manage selectors and generic Connect a device label; fault-injection boundaries unchanged.",
       "task": 2731,
       "sha256": "df679869173191f5bd7381e2fbed2135c077bb191675786e62dc29a372d686d9"
     },
@@ -2706,6 +2714,14 @@
       "reason": "Real isolated Host pixel-avatar editing: wheel to final palette swatch and drawing footer at three desktop sizes, select color and cancel without changing saved appearance.",
       "task": 4268,
       "sha256": "6958575fe6d1aa292c2fe303b6c629a3a923b75fa6fbfed6ec74aec1a4e13ec2"
+    },
+    {
+      "path": "scripts/e2e-team-security.mjs",
+      "category": "mapped",
+      "behaviors": ["team.security-suite"],
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results.",
+      "task": 4197,
+      "sha256": "2add2876a13a7e99eb274d8cc83e7a9eaef44d22713f8cd26029b635aca5b2c7"
     }
   ],
   "native": [

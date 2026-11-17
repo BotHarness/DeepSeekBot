@@ -2,7 +2,7 @@ import type {
   LocalVideoClient,
   LocalVideoClientState,
 } from '../../../../packages/computer/src/local-video-client';
-import type { ConnectionState } from './client';
+import type { ConnectionState } from '@botharness/host-client/client';
 
 export function localVideoActions({
   state,

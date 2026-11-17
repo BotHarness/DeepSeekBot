@@ -1,0 +1,18 @@
+export type ConnectRefusal =
+  | 'unreachable'
+  | 'sign-in-cancelled'
+  | 'sign-in-failed'
+  | 'sign-in-required'
+  | 'account-not-allowed'
+  | 'host-offline'
+  | 'host-refused'
+  | 'host-not-found'
+  | 'current-host'
+  | 'session-unknown'
+  | 'invalid-host-id'
+  | 'relay-unavailable'
+  | 'account-changed'
+  | 'account-identity-required'
+  | 'account-action-pending'
+  | 'account-cleanup-failed'
+  | 'account-deletion-uncertain';

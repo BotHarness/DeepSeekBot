@@ -4,14 +4,14 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import { loadMemoryFile } from '../src/host/bot-profile';
 import {
   loadPreviewImage,
   memoryPreviewSource,
   type MemoryPreviewIO,
 } from '../src/host/memory-preview';
-import type { MemoryMarkdown } from '../src/host/wire';
+import type { MemoryMarkdown } from '@botharness/host-protocol/wire';
 import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 

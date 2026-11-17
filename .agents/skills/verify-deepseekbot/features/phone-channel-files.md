@@ -1,5 +1,16 @@
 # Phone Channel files
 
+## Sources
+
+- `apps/mobile/app/channel-files.tsx`
+- `apps/mobile/src/host/channel-files.ts`
+- `apps/mobile/src/ui/chat/channel-files-*`
+
+## Terms
+
+- Attachment
+- Channel
+
 ## Sub-features
 
 - Existing Desktop/Web Channel files parity: per-Computer, per-Channel history pages; sender, time, type and size; exact-reference deduplication; no file downloads while listing.

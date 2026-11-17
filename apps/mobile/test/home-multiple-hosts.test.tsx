@@ -5,7 +5,7 @@ import { expect, it, onTestFinished, vi } from 'vitest';
 import { CONNECTION_OFFLINE_MS } from '../src/ui/connection-presence';
 
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -84,7 +84,7 @@ vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
 import { act, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createHostLooks } from '../src/host/host-look';
+import { createHostLooks } from '@botharness/host-client/host-look';
 import { createSectionCollapse } from '../src/host/section-collapse';
 const push = vi.fn();
 const looks = createHostLooks({ read: async () => undefined, write() {} });

@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { remoteHostActions, remoteHostSettings } from '../src/client/remote-host-actions.js';
 
 it('reads and writes prompt and voice settings on the remote Host it was made for', async () => {

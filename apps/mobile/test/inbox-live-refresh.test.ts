@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { createInbox } from '../src/host/inbox';
-import type { HostClient } from '../src/host/client';
+import { createInbox } from '@botharness/host-client/inbox';
+import type { HostClient } from '@botharness/host-client/client';
 
 beforeEach(() => {
   vi.useFakeTimers();

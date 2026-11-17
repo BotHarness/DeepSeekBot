@@ -8,8 +8,8 @@ import {
   scrollFor,
   stagePoint,
   type BrowserViewerState,
-} from '../src/host/browser-viewer';
-import type { HostApiAnswer, HostApiInit } from '../src/host/client';
+} from '@botharness/host-client/browser-viewer';
+import type { HostApiAnswer, HostApiInit } from '@botharness/host-client/client';
 
 type Call = { path: string; body?: Record<string, unknown> };
 

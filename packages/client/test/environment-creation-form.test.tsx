@@ -2,7 +2,7 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { HostClient } from '../../../apps/mobile/src/host/client.js';
+import type { HostClient } from '@botharness/host-client/client';
 import type { BridgeCall } from '../src/client/bridge.js';
 
 const fixture = vi.hoisted(() => ({

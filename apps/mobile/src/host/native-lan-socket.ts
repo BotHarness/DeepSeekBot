@@ -1,6 +1,10 @@
 import { requireOptionalNativeModule } from 'expo';
-import type { HostSocket, HostSocketEvents, LocalNetworkStatus } from './carrier';
-import { isLanRoute } from './route';
+import type {
+  HostSocket,
+  HostSocketEvents,
+  LocalNetworkStatus,
+} from '@botharness/host-protocol/carrier';
+import { isLanRoute } from '@botharness/host-protocol/route';
 
 interface LanModule {
   open(id: string, address: string, port: number): void;

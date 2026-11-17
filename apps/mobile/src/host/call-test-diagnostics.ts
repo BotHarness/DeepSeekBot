@@ -4,7 +4,7 @@ import {
   type CallClientState,
   type CallPost,
 } from '../../../../packages/core/src/voice/call-client';
-import { isConnectRoute, isLanRoute, isLoopbackRoute } from './route';
+import { isConnectRoute, isLanRoute, isLoopbackRoute } from '@botharness/host-protocol/route';
 
 const PHASES = [
   'connecting',
