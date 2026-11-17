@@ -4460,7 +4460,8 @@ class BotRuntimeImplementation implements BotRuntime {
   #quotePrompt(channelId: string, message: ChannelMessage | undefined): string {
     return quotePromptBlock(message?.quotes, (messageId) => {
       const target = this.#channels.message(channelId, messageId);
-      if (target === undefined) return undefined;
+      if (target === undefined || Reflect.get(target, 'contentPurge') !== undefined)
+        return undefined;
       const author =
         target.author.kind === 'bot' || target.author.kind === 'remote-bot'
           ? `PersonaBot ${target.author.slug}`

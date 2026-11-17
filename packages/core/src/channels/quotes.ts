@@ -119,10 +119,7 @@ export function sameQuoteIntent(
     a.length === b.length &&
     a.every((quote, index) => {
       const other = b[index]!;
-      return (
-        quote.messageId === other.messageId &&
-        (quote.text === other.text || quote.preview === null || other.preview === null)
-      );
+      return quote.messageId === other.messageId && quote.text === other.text;
     })
   );
 }

@@ -7786,7 +7786,7 @@ function buildBridgeMethods(
               genuiReplyContext !== undefined &&
               existing.body === `${body}\n\n${genuiReplyContext}`)) &&
           existing.replyTo === replyTo &&
-          sameQuoteIntent(existing.quotes, quotes) &&
+          sameQuoteIntent(deps.channels.storedQuotes(channelId, existing.id), quotes) &&
           JSON.stringify(existing.genuiReply) === JSON.stringify(genuiReply) &&
           existing.memorySwitchTarget === memorySwitchTarget &&
           JSON.stringify(existing.assignmentReply) === JSON.stringify(assignmentReply) &&

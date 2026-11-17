@@ -261,6 +261,35 @@ describe('SQLite bounded timeline hydration', () => {
     expect(collected).toEqual(all);
   });
 
+  it('compares a retried quote with its stored excerpt after the target is removed', async () => {
+    const current = fixture();
+    current.seed(message('target', { body: 'Ship on Friday' }));
+    const quoting = message('quoting', {
+      author: { kind: 'human' },
+      body: 'Still on?',
+      quotes: [{ messageId: 'target', text: 'Ship on Friday' }],
+    });
+    const append = (candidate: ChannelMessage) =>
+      current.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, current.channel.id, candidate);
+    expect((await append(quoting)).status).toBe('appended');
+    current.database.transaction((db) =>
+      db
+        .prepare("DELETE FROM channel_placements WHERE channel_id = ? AND message_id = 'target'")
+        .run(current.channel.id),
+    );
+    expect(current.channels.message(current.channel.id, 'quoting')?.quotes).toEqual([
+      { messageId: 'target', preview: null },
+    ]);
+    expect(current.channels.storedQuotes(current.channel.id, 'quoting')).toEqual([
+      { messageId: 'target', text: 'Ship on Friday' },
+    ]);
+    expect((await append(quoting)).status).toBe('existing');
+    expect(
+      (await append({ ...quoting, quotes: [{ messageId: 'target', text: 'Ship on Monday' }] }))
+        .status,
+    ).toBe('conflict');
+  });
+
   it('keeps off-page dependencies inside the Human visibility boundary', async () => {
     const current = fixture();
     current.seed(

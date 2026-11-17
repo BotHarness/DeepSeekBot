@@ -1183,9 +1183,20 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     }
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
     if (message.author.kind === 'bot') humanAccess?.requireBotPost?.(message.author.slug, channel);
-    const existing = projectRows(id, placementsById(id, [message.id]))[0];
+    const stored = placementsById(id, [message.id]);
+    const existing = projectRows(id, stored)[0];
     if (existing !== undefined) {
-      if (!once || !sameIntent(existing, message)) return { status: 'conflict' as const };
+      const storedQuotes = parseMessage(
+        stored[0]!.payload_json,
+        stored[0]!.body,
+        stored[0]!.message_id,
+        id,
+      )?.quotes;
+      if (
+        !once ||
+        !sameIntent({ ...existing, ...(storedQuotes ? { quotes: storedQuotes } : {}) }, message)
+      )
+        return { status: 'conflict' as const };
       return { status: 'existing' as const, message: existing };
     }
     const grantRequestId = message.grantRequestResolution?.requestMessageId;
@@ -3206,6 +3217,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     message(id, messageId) {
       return projectRows(id, placementsById(id, [messageId]))[0];
+    },
+    storedQuotes(id, messageId) {
+      const row = placementsById(id, [messageId])[0];
+      return row === undefined
+        ? undefined
+        : parseMessage(row.payload_json, row.body, row.message_id, id)?.quotes;
     },
     humanSendStatus(id, messageId) {
       const channel = readRecord(id);

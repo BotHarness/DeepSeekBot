@@ -120,9 +120,9 @@ describe('Channel quotes', () => {
       true,
     );
     expect(sameQuoteIntent([{ messageId: 'a' }], [{ messageId: 'a', text: 'x' }])).toBe(false);
-    expect(
-      sameQuoteIntent([{ messageId: 'a', preview: null }], [{ messageId: 'a', text: 'x' }]),
-    ).toBe(true);
+    expect(sameQuoteIntent([{ messageId: 'a', text: 'x' }], [{ messageId: 'a', text: 'y' }])).toBe(
+      false,
+    );
     expect(sameQuoteIntent(undefined, [])).toBe(true);
     expect(sameQuoteIntent([{ messageId: 'a' }], [{ messageId: 'b' }])).toBe(false);
   });

@@ -1,4 +1,10 @@
-import { assertQuoteTargets, durableQuotes, projectQuotes, sameQuoteIntent } from './quotes.js';
+import {
+  assertQuoteTargets,
+  durableQuotes,
+  projectQuotes,
+  sameQuoteIntent,
+  type ChannelQuote,
+} from './quotes.js';
 import type { ChannelPolicy } from '../team/channel-contract.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import {
@@ -441,6 +447,7 @@ export interface ChannelStore {
 
   hasMessage(id: string, messageId: string): boolean;
   message(id: string, messageId: string): ChannelMessage | undefined;
+  storedQuotes(id: string, messageId: string): ChannelQuote[] | undefined;
   humanSendStatus?(id: string, messageId: string): ChannelSendStatus | undefined;
   observeOutput(
     human: HumanContext,
@@ -961,6 +968,10 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const messages = readValidMessages(id);
       const message = messages.find((candidate) => candidate.id === messageId);
       return message === undefined ? undefined : projectReply(message, messageIndex(messages));
+    },
+    storedQuotes(id, messageId) {
+      if (!isValidChannelId(id) || messageId.length === 0) return undefined;
+      return readValidMessages(id).find((candidate) => candidate.id === messageId)?.quotes;
     },
     observeOutput(human: HumanContext, id, messageId) {
       const channel = this.get(id);

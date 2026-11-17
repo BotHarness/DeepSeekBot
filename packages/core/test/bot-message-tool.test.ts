@@ -333,6 +333,42 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     }
   });
 
+  it('keeps a purged quote target out of the Bot prompt', async () => {
+    const f = await inboxFixture();
+    try {
+      const at = () => new Date().toISOString();
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: at(),
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-2',
+        at: at(),
+        author: { kind: 'human' },
+        body: 'Still on?',
+        quotes: [{ messageId: 'human-1', text: 'launch on Friday' }],
+      });
+      const read = f.core.channels.message.bind(f.core.channels);
+      f.core.channels.message = (channelId, messageId) => {
+        const found = read(channelId, messageId);
+        return messageId === 'human-1' && found !== undefined
+          ? ({ ...found, body: '', contentPurge: { at: at() } } as typeof found)
+          : found;
+      };
+      let prompt = '';
+      await f.send('Still on?', async (run) => {
+        prompt = run.message;
+      });
+      expect(prompt).toContain('- Message human-1: (unavailable)');
+      expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
   it('sends a question without resolving the task and accepts a later answer', async () => {
     const f = await fixture();
     const adapter = tools();
