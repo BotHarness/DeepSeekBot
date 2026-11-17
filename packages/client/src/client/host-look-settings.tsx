@@ -1,12 +1,11 @@
 import { useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
-import { PillButton } from './ds/pill-button.js';
 import { ActionButton } from './ds/action-button.js';
 import * as stylex from '@stylexjs/stylex';
 import { Note } from './ds/note.js';
-import { TextField } from './ds/field.js';
-import { SettingsSection } from './ds/settings-row.js';
+import { Input } from './ds/input.js';
+import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { HostGlyph } from './host-glyph.js';
@@ -28,6 +27,7 @@ import {
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
 const styles = stylex.create({
+  nameField: { boxSizing: 'border-box', width: '200px', maxWidth: '100%', minWidth: 0 },
   editor: { display: 'flex', flexDirection: 'column', gap: space.x5 },
   emoji: { fontSize: text.titleSize, lineHeight: text.metaLine },
   section: { display: 'flex', flexDirection: 'column', gap: space.x2 },
@@ -125,33 +125,29 @@ function HostNameField({
     [hostId],
   );
   return (
-    <div ref={mount} {...stylex.props(styles.section)}>
-      <TextField
-        label={t('remoteHosts.look.name')}
-        value={draft}
-        onChange={(value) => {
-          draftValue.current = value;
-          setDraft(value);
-        }}
-        placeholder={name}
-        maxLength={HOST_NAME_MAX}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
-          event.preventDefault();
-          void save();
-        }}
-      />
-      <div>
-        <PillButton
-          disabled={draft === (saved ?? '')}
-          onClick={() => {
+    <SettingsRow
+      rootRef={mount}
+      title={<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}
+      description={t('remoteHosts.look.nameHint')}
+      control={
+        <Input
+          id={`bh-host-name-${hostId}`}
+          className={stylex.props(styles.nameField).className ?? ''}
+          value={draft}
+          onChange={(event) => {
+            draftValue.current = event.currentTarget.value;
+            setDraft(event.currentTarget.value);
+          }}
+          placeholder={name}
+          maxLength={HOST_NAME_MAX}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+            event.preventDefault();
             void save();
           }}
-        >
-          {t('relationships.save')}
-        </PillButton>
-      </div>
-    </div>
+        />
+      }
+    />
   );
 }
 
@@ -195,7 +191,6 @@ export function HostLookSettings({
   return (
     <SettingsSection title={title}>
       <div {...stylex.props(styles.editor)}>
-        <Note>{t('remoteHosts.look.hint')}</Note>
         {error || storageError ? (
           <div {...stylex.props(styles.section)}>
             <Note tone="danger">

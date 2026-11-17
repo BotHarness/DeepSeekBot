@@ -5015,7 +5015,7 @@ export const zh = {
   'remoteHosts.look': '更改图标…',
   'remoteHosts.look.appearance': '外观',
   'remoteHosts.look.name': '名称',
-  'remoteHosts.look.hint': '仅保存在此浏览器。',
+  'remoteHosts.look.nameHint': '只保存在此浏览器，按回车保存',
   'remoteHosts.look.failed': '无法读取或保存此浏览器的外观。请刷新后重试。',
   'remoteHosts.look.unsupported': '此浏览器不支持安全保存外观。请使用支持 Web Locks 的浏览器。',
   'remoteHosts.look.refresh': '刷新外观',
@@ -11263,7 +11263,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'remoteHosts.look': 'Change icon…',
   'remoteHosts.look.appearance': 'Appearance',
   'remoteHosts.look.name': 'Name',
-  'remoteHosts.look.hint': 'Saved in this browser only.',
+  'remoteHosts.look.nameHint': 'Saved in this browser only. Press Enter to save.',
   'remoteHosts.look.failed':
     'Could not read or save this browser’s appearance. Refresh and try again.',
   'remoteHosts.look.unsupported':

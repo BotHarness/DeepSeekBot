@@ -147,6 +147,8 @@ export interface SettingsSectionProps {
   readonly title?: ReactNode;
   readonly description?: ReactNode;
   readonly portaled?: boolean;
+  readonly rootRef?: Ref<HTMLElement> | undefined;
+  readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
   readonly children: ReactNode;
 }
 
@@ -154,11 +156,15 @@ export function SettingsSection({
   title,
   description,
   portaled = false,
+  rootRef,
+  data,
   children,
 }: SettingsSectionProps): ReactElement {
   const id = useId();
   return (
     <section
+      ref={rootRef}
+      {...data}
       aria-labelledby={title === undefined ? undefined : `${id}-title`}
       {...stylex.props(styles.section, portaled && styles.portaled)}
     >

@@ -1,3 +1,4 @@
+import { SegmentedControl } from './ds/segmented.js';
 import { Switch } from './ds/switch.js';
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -182,7 +183,8 @@ export function MotionSetting({
       description={t(memoryOnly ? 'motion.row.memory' : 'motion.row.description')}
       data={{ 'data-setting': 'motion' }}
       control={
-        <Select
+        <SegmentedControl
+          id="bh-motion-preference"
           label={t('motion.menu.label')}
           value={prefs.motionPreference}
           options={MOTION_OPTIONS.map((option) => ({

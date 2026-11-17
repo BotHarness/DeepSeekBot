@@ -279,7 +279,7 @@ export function ApprovalTemplateLibrarySettings({
     );
     return result;
   };
-  const mount = useMountedResource<HTMLDivElement>(() => {
+  const mount = useMountedResource<HTMLElement>(() => {
     let live = true;
     void reload().catch((cause: unknown) => {
       if (live) setLoadError(errorMessage(cause));
@@ -768,8 +768,10 @@ export function ApprovalTemplateLibrarySettings({
   })();
 
   return (
-    <div ref={mount} data-approval-template-library="">
+    <>
       <SettingsSection
+        rootRef={mount}
+        data={{ 'data-approval-template-library': '' }}
         title={t('autoApproval.library.title')}
         description={t('autoApproval.library.description')}
       >
@@ -927,6 +929,6 @@ export function ApprovalTemplateLibrarySettings({
         )}
       </SettingsSection>
       {dialog}
-    </div>
+    </>
   );
 }

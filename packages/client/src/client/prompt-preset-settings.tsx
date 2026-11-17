@@ -429,7 +429,7 @@ export function PromptPresetSettings({
   const [deleting, setDeleting] = useState<PresetView>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const mount = useMountedResource<HTMLDivElement>(() => {
+  const mount = useMountedResource<HTMLElement>(() => {
     let live = true;
     if (actions.promptParts !== undefined)
       loadLibrary(actions)
@@ -586,8 +586,10 @@ export function PromptPresetSettings({
     })),
   ];
   return (
-    <div ref={mount} data-prompt-preset-settings="">
+    <>
       <SettingsSection
+        rootRef={mount}
+        data={{ 'data-prompt-preset-settings': '' }}
         title={
           <span {...stylex.props(styles.heading)}>
             {t('prompts.title')}
@@ -689,7 +691,7 @@ export function PromptPresetSettings({
         )}
       </SettingsSection>
       {dialog}
-    </div>
+    </>
   );
 }
 
