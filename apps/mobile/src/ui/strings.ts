@@ -1178,7 +1178,8 @@ const en = {
     passwordHint:
       'Signing in for the first time? Use the one-time password your Host owner gave you.',
     again: 'Sign in again',
-    againHint: 'Your password changed or you were signed out. Enter your current password.',
+    againHint:
+      'Your password changed or you were signed out. Enter your current password, or the new one-time password if the Host owner reset it.',
     signIn: 'Sign in',
     changeTitle: 'Choose a new password',
     changeHint: 'Replace the one-time password before you continue.',
@@ -3766,7 +3767,8 @@ const zh: typeof en = {
     password: '密码',
     passwordHint: '第一次登录时，使用 Host 所有者给你的一次性密码。',
     again: '重新登录',
-    againHint: '你的密码已更改，或已被退出登录。请输入当前密码。',
+    againHint:
+      '你的密码已更改，或已被退出登录。输入你现在的密码；如果是 Host 所有者重置的，输入新给你的一次性密码。',
     signIn: '登录',
     changeTitle: '设置新密码',
     changeHint: '继续之前，先替换一次性密码。',
