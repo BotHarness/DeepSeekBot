@@ -95,10 +95,12 @@ const spawnOptions = {
           return;
         }
         if (!SPAWNERS.has(name)) return;
-        const [, given, third] = node.arguments;
+        if (node.arguments.some((entry) => entry.type === 'SpreadElement')) return;
+        const [, given, last] = node.arguments;
         const second =
           given?.type === 'Identifier' ? (bound(context, node, given.name) ?? given) : given;
-        if (second?.type === 'SpreadElement') return;
+        const third =
+          last?.type === 'Identifier' ? (bound(context, node, last.name) ?? last) : last;
         if (second?.type === 'Identifier' && third === undefined) return;
         const options =
           second?.type === 'ObjectExpression'

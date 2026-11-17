@@ -34,3 +34,8 @@ spawn('git', merged);
 export function run(spawnSync) {
   spawnSync('task');
 }
+
+const opts = { shell: true };
+spawn('git', ['status'], opts);
+const call = ['git', ['status'], { shell: false, windowsHide: true }];
+spawn(...call);
