@@ -827,10 +827,11 @@ export function ChannelComposer({
     if (pane === null || typeof ResizeObserver === 'undefined') return;
     const timeline = pane.querySelector<HTMLElement>('.bh-chat-body');
     const sync = (): void => {
-      const overlay = Math.max(
-        0,
-        Math.round(pane.getBoundingClientRect().bottom - shell.getBoundingClientRect().top),
-      );
+      const shellBounds = shell.getBoundingClientRect();
+      const overlay =
+        shellBounds.height === 0
+          ? 0
+          : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
       const atLatest =
         timeline !== null &&
         timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;

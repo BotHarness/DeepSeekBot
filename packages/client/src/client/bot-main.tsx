@@ -1888,7 +1888,10 @@ function ConversationView({
       const element = scrollRef.current;
       if (currentChannel.current !== channelId || element === null) return;
       const committedIds = committedMessageIds(messages);
-      const viewport = element.getBoundingClientRect();
+      const bounds = element.getBoundingClientRect();
+      const overlay =
+        Number.parseFloat(getComputedStyle(element).getPropertyValue('--bh-composer-overlay')) || 0;
+      const viewport = { top: bounds.top, bottom: bounds.bottom - overlay };
       const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
         .filter((candidate) => {
           const id = candidate.dataset['messageId'];
