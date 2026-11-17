@@ -3,7 +3,7 @@ import { Pressable, View, type ViewInstance } from 'react-native';
 
 import { accountProfile, useAccountProfile } from '../../account/native-account-profile';
 import type { HostClient } from '@botharness/host-client/client';
-import { loadHumanIdentity, useHumanIdentity } from '../../host/human-profile';
+import { followHumanIdentity, useHumanIdentity } from '../../host/human-profile';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
@@ -31,7 +31,7 @@ export function HumanAvatarButton({
   const human = useHumanIdentity(client);
   const mount = useMounted<ViewInstance>(() => {
     let live = true;
-    if (client !== undefined) loadHumanIdentity(client).catch(() => undefined);
+    const unfollow = client === undefined ? undefined : followHumanIdentity(client);
     if (accountProfile.getSnapshot().status === 'loading') void accountProfile.refresh();
     loadName?.().then(
       (loaded) => live && setName(loaded),
@@ -39,6 +39,7 @@ export function HumanAvatarButton({
     );
     return () => {
       live = false;
+      unfollow?.();
     };
   }, [loadName, client]);
   return (

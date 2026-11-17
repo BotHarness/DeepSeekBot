@@ -1961,7 +1961,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
              AND (a.human_id = ? OR EXISTS (
                SELECT 1 FROM channel_human_members mine
                  JOIN channel_human_members theirs ON theirs.channel_id = mine.channel_id
+                 JOIN channel_records c ON c.channel_id = mine.channel_id
                 WHERE mine.human_id = ? AND mine.left_at IS NULL
+                  AND json_extract(c.record_json, '$.deletedAt') IS NULL
                   AND theirs.human_id = a.human_id AND theirs.left_at IS NULL))`);
         return wanted.flatMap((id) => {
           const row = visible.get(id, human.humanId, human.humanId) as HumanAvatar | undefined;

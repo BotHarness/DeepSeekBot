@@ -57,14 +57,31 @@ export function GroupProfileScreen({
   const human = useHumanIdentity(sourceChanged ? undefined : client);
   const nicknameMount = useMounted<ViewInstance>(() => {
     let live = true;
+    let loaded = false;
+    let pending = false;
     setNickname(undefined);
-    if (!sourceChanged && client !== undefined && id !== undefined)
+    if (sourceChanged || client === undefined || id === undefined) return;
+    const load = (): void => {
+      if (loaded || pending) return;
+      pending = true;
       loadChannelNickname(client, id).then(
-        (value) => live && setNickname(value),
-        () => undefined,
+        (value) => {
+          loaded = true;
+          pending = false;
+          if (live) setNickname(value);
+        },
+        () => {
+          pending = false;
+        },
       );
+    };
+    load();
+    const unfollow = client.subscribe(() => {
+      if (client.getSnapshot().connection.status === 'connected') load();
+    });
     return () => {
       live = false;
+      unfollow();
     };
   }, [sourceChanged, client, id]);
   const humanMount = human.mount;

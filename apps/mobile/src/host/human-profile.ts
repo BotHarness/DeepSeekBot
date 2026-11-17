@@ -52,7 +52,10 @@ const identitySource = {
   getSnapshot: () => identityRevision,
 };
 
-function remember(client: HostClient, identity: HumanIdentity): HumanIdentity {
+const writes = new WeakMap<HostClient, number>();
+
+function remember(client: HostClient, identity: HumanIdentity, write = false): HumanIdentity {
+  if (write) writes.set(client, (writes.get(client) ?? 0) + 1);
   identities.set(client, identity);
   identityRevision += 1;
   for (const listener of identityListeners) listener();
@@ -60,7 +63,34 @@ function remember(client: HostClient, identity: HumanIdentity): HumanIdentity {
 }
 
 export async function loadHumanIdentity(client: HostClient): Promise<HumanIdentity> {
-  return remember(client, parseHumanIdentity(await client.call<unknown>('humanIdentity')));
+  const issued = writes.get(client) ?? 0;
+  const identity = parseHumanIdentity(await client.call<unknown>('humanIdentity'));
+  const newer = identities.get(client);
+  return (writes.get(client) ?? 0) !== issued && newer !== undefined
+    ? newer
+    : remember(client, identity);
+}
+
+export function followHumanIdentity(client: HostClient): () => void {
+  let loaded = false;
+  let pending = false;
+  const load = (): void => {
+    if (loaded || pending) return;
+    pending = true;
+    loadHumanIdentity(client).then(
+      () => {
+        loaded = true;
+        pending = false;
+      },
+      () => {
+        pending = false;
+      },
+    );
+  };
+  load();
+  return client.subscribe(() => {
+    if (client.getSnapshot().connection.status === 'connected') load();
+  });
 }
 
 export async function saveHumanName(
@@ -70,6 +100,7 @@ export async function saveHumanName(
   return remember(
     client,
     parseHumanIdentity(await client.call<unknown>('humanNameSet', { displayName: name })),
+    true,
   );
 }
 
@@ -84,15 +115,16 @@ export async function saveHumanAvatar(
       version: identity.avatarVersion,
       avatar,
     });
-  return remember(client, identity);
+  return remember(client, identity, true);
 }
 
 export function useHumanIdentity(client: HostClient | undefined) {
   useSyncExternalStore(identitySource.subscribe, identitySource.getSnapshot);
   const identity = client === undefined ? undefined : identities.get(client);
-  const mount = useMounted<ViewInstance>(() => {
-    if (client !== undefined) loadHumanIdentity(client).catch(() => undefined);
-  }, [client]);
+  const mount = useMounted<ViewInstance>(
+    () => (client === undefined ? undefined : followHumanIdentity(client)),
+    [client],
+  );
   const avatar = useHumanAvatar(client, identity?.humanId, identity?.avatarVersion);
   return { identity, avatar, mount };
 }

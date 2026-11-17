@@ -18,15 +18,16 @@ export default function ChatNameScreen() {
       ref={human.mount}
       style={{ flex: 1, paddingTop: insets.top, backgroundColor: theme.overlay.fill }}
     >
-      <AccountNameEditor
-        key={human.identity === undefined ? 'loading' : 'ready'}
-        name={human.identity?.defaultDisplayName ?? ''}
-        onSave={async (next) => {
-          if (client === undefined) throw new Error('host-unavailable');
-          await saveHumanName(client, next);
-        }}
-        onClose={() => router.back()}
-      />
+      {human.identity === undefined ? null : (
+        <AccountNameEditor
+          name={human.identity.defaultDisplayName ?? ''}
+          onSave={async (next) => {
+            if (client === undefined) throw new Error('host-unavailable');
+            await saveHumanName(client, next);
+          }}
+          onClose={() => router.back()}
+        />
+      )}
     </View>
   );
 }

@@ -66,4 +66,27 @@ describe('Human avatar cache', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(calls).toHaveLength(1);
   });
+  it('asks again after a failed load and for a version a newer one displaced', async () => {
+    const calls: string[][] = [];
+    let fail = true;
+    const cache = createHumanAvatarCache(async (ids) => {
+      calls.push(ids);
+      if (fail) throw new Error('offline');
+      return { avatars: [{ humanId: 'a', version: '0123456789abcdef', avatar }] };
+    });
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    cache.want('a', '0123456789abcdef');
+    await tick();
+    fail = false;
+    cache.want('a', '0123456789abcdef');
+    await tick();
+    expect(calls).toEqual([['a'], ['a']]);
+    expect(cache.get('a', '0123456789abcdef')).toBe(avatar);
+    cache.want('b', '1111111111111111');
+    cache.want('b', '2222222222222222');
+    await tick();
+    cache.want('b', '1111111111111111');
+    await tick();
+    expect(calls.slice(2)).toEqual([['b'], ['b']]);
+  });
 });

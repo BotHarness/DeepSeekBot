@@ -3827,6 +3827,28 @@ const HUMAN_AVATAR_MIGRATION: SchemaMigration = {
   },
 };
 
+const HUMAN_AVATAR_CHANGE_MIGRATION: SchemaMigration = {
+  id: 'human-avatar-channel-changes',
+  module: 'human-identity',
+  description: 'Tell Channel readers to refresh member avatar versions when a Human avatar changes',
+  migrate(database) {
+    database.exec(`
+      CREATE TRIGGER channel_change_avatar_insert AFTER INSERT ON human_avatars
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_avatar_update AFTER UPDATE ON human_avatars
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_avatar_delete AFTER DELETE ON human_avatars
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3988,4 +4010,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MEMBER_DEVICES_MIGRATION,
   REMOTE_HOST_CUSTODY_MIGRATION,
   HUMAN_AVATAR_MIGRATION,
+  HUMAN_AVATAR_CHANGE_MIGRATION,
 ]);

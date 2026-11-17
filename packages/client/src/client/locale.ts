@@ -1677,6 +1677,8 @@ export const zh = {
   'humanAvatar.remove': '移除头像',
   'humanAvatar.crop': '裁切头像',
   'humanAvatar.error': '未能保存头像，请重试。',
+  'humanAvatar.loadError': '未能读取你的头像。',
+  'humanAvatar.retry': '重试',
   'assignmentLimit.title': 'Assignment 并发上限',
   'assignmentLimit.description':
     '所有 Bot 共用，限制同时执行的任务数量（1–32），不限制历史会话。降低上限不会中止正在执行的任务。',
@@ -7875,6 +7877,8 @@ export const en = {
   'humanAvatar.remove': 'Remove photo',
   'humanAvatar.crop': 'Crop photo',
   'humanAvatar.error': 'Could not save your photo. Try again.',
+  'humanAvatar.loadError': 'Could not load your photo.',
+  'humanAvatar.retry': 'Retry',
   'assignmentLimit.title': 'Assignment concurrency limit',
   'assignmentLimit.description':
     'Shared by all Bots. Limits concurrently executing tasks (1–32), not Session history. Lowering it does not stop running work.',

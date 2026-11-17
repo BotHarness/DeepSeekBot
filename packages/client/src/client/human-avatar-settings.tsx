@@ -38,6 +38,7 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
   const [cropFile, setCropFile] = useState<File>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const mounted = useRef(false);
   const cache = actions.humanAvatars;
@@ -48,6 +49,7 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
     actions.humanIdentity(controller.signal).then(
       (value) => {
         if (controller.signal.aborted) return;
+        setFailed(false);
         setIdentity(value);
         cache.want(value.humanId, value.avatarVersion);
       },
@@ -59,7 +61,7 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
       mounted.current = false;
       controller.abort();
     };
-  }, [actions]);
+  }, [actions, attempt]);
 
   const save = async (avatar: string | null): Promise<boolean> => {
     setBusy(true);
@@ -138,7 +140,21 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
         </span>
       }
     >
-      {failed ? <Note tone="danger">{t('humanAvatar.error')}</Note> : null}
+      {failed ? (
+        <Note tone="danger">
+          {t(identity === undefined ? 'humanAvatar.loadError' : 'humanAvatar.error')}
+        </Note>
+      ) : null}
+      {failed && identity === undefined ? (
+        <Button
+          variant="outline"
+          size="sm"
+          data-human-avatar-retry=""
+          onClick={() => setAttempt((value) => value + 1)}
+        >
+          {t('humanAvatar.retry')}
+        </Button>
+      ) : null}
     </SettingsRow>
   );
 }

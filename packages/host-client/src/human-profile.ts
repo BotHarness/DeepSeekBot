@@ -78,6 +78,7 @@ export function createHumanAvatarCache(
 ): HumanAvatarCache {
   const images = new Map<string, string>();
   const settled = new Set<string>();
+  const loading = new Set<string>();
   const queued = new Map<string, string>();
   const listeners = new Set<() => void>();
   let revision = 0;
@@ -96,17 +97,21 @@ export function createHumanAvatarCache(
       schedule(flush);
     }
     if (batch.length === 0) return;
+    for (const [humanId, version] of batch) loading.add(key(humanId, version));
     void load(batch.map(([humanId]) => humanId)).then(
       (value) => {
         for (const image of parseHumanAvatars(value)) {
           images.set(key(image.humanId, image.version), image.avatar);
           settled.add(key(image.humanId, image.version));
         }
-        for (const [humanId, version] of batch) settled.add(key(humanId, version));
+        for (const [humanId, version] of batch) {
+          loading.delete(key(humanId, version));
+          settled.add(key(humanId, version));
+        }
         publish();
       },
       () => {
-        for (const [humanId, version] of batch) settled.add(key(humanId, version));
+        for (const [humanId, version] of batch) loading.delete(key(humanId, version));
       },
     );
   };
@@ -114,9 +119,9 @@ export function createHumanAvatarCache(
     get: (humanId, version) =>
       version === undefined ? undefined : images.get(key(humanId, version)),
     want(humanId, version) {
-      if (version === undefined || settled.has(key(humanId, version))) return;
-      if (queued.get(humanId) === version) return;
-      settled.add(key(humanId, version));
+      if (version === undefined) return;
+      const wanted = key(humanId, version);
+      if (settled.has(wanted) || loading.has(wanted) || queued.get(humanId) === version) return;
       queued.set(humanId, version);
       if (!scheduled) {
         scheduled = true;

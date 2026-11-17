@@ -91,6 +91,26 @@ describe('Human chat avatars', () => {
         ok: true,
         value: { avatars: [] },
       });
+      const wildcard = () =>
+        database.read(
+          (db) =>
+            (
+              db
+                .prepare(`SELECT count(*) AS n FROM channel_changes WHERE channel_id = '*'`)
+                .get() as { n: number }
+            ).n,
+        );
+      const before = wildcard();
+      expect(owner.humanAvatarSet({ avatar: webp(2) })).toMatchObject({ ok: true });
+      expect(wildcard()).toBe(before + 1);
+      expect(member.humanAvatars({ humanIds: ['local-human'] })).toMatchObject({
+        value: { avatars: [{ humanId: 'local-human' }] },
+      });
+      core.channels.deleteGroup(group.id);
+      expect(member.humanAvatars({ humanIds: ['local-human'] })).toEqual({
+        ok: true,
+        value: { avatars: [] },
+      });
       expect(
         owner.humanAvatars({ humanIds: Array.from({ length: 65 }, (_, i) => `h${i}`) }),
       ).toMatchObject({ ok: false });
