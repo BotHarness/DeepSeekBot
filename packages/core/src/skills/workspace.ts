@@ -10,6 +10,25 @@ export interface SkillWorkspace {
   botSlugs: string[];
 }
 
+const READ_CONCURRENCY = 32;
+
+async function mapLimited<T, R>(
+  items: readonly T[],
+  limit: number,
+  run: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await run(items[index]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 function contained(root: string, path: string): boolean {
   const child = relative(root, path);
   return child.length > 0 && child !== '..' && !child.startsWith('..' + sep) && !isAbsolute(child);
@@ -98,26 +117,27 @@ export async function readWorkspaceSkills(root: string): Promise<SkillRegistryDe
       throw error;
     }
     const skillRoot = await realpath(directory);
-    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    const sorted = entries.sort((a, b) => a.name.localeCompare(b.name));
+    const found = await mapLimited(sorted, READ_CONCURRENCY, async (entry) => {
       try {
         const entryPath = join(directory, entry.name);
         const canonicalEntry = await realpath(entryPath);
-        if (!contained(skillRoot, canonicalEntry)) continue;
+        if (!contained(skillRoot, canonicalEntry)) return undefined;
         const info = await stat(canonicalEntry);
         const path = info.isDirectory()
           ? join(entryPath, 'SKILL.md')
           : info.isFile() && entry.name.endsWith('.md')
             ? entryPath
             : undefined;
-        if (path === undefined) continue;
+        if (path === undefined) return undefined;
         const canonicalPath = await realpath(path);
-        if (!contained(skillRoot, canonicalPath) || !contained(canonical, canonicalPath)) continue;
-        const skill = definition(
+        if (!contained(skillRoot, canonicalPath) || !contained(canonical, canonicalPath))
+          return undefined;
+        return definition(
           await readFile(canonicalPath, 'utf8'),
           canonicalPath,
           parent === '.dsh' ? 'project-dsh' : 'project-agents',
         );
-        if (skill !== undefined && !skills.has(skill.name)) skills.set(skill.name, skill);
       } catch (error) {
         if (
           error instanceof Error &&
@@ -125,8 +145,45 @@ export async function readWorkspaceSkills(root: string): Promise<SkillRegistryDe
           !['ENOENT', 'ENOTDIR'].includes(String(error.code))
         )
           throw error;
+        return undefined;
       }
-    }
+    });
+    for (const skill of found)
+      if (skill !== undefined && !skills.has(skill.name)) skills.set(skill.name, skill);
   }
   return [...skills.values()];
+}
+
+export async function readWorkspaceSkillAt(
+  root: string,
+  path: string,
+): Promise<SkillRegistryDefinition | undefined> {
+  try {
+    const canonical = await realpath(root);
+    const canonicalPath = await realpath(path);
+    if (!contained(canonical, canonicalPath)) return undefined;
+    for (const parent of ['.dsh', '.agents'] as const) {
+      let skillRoot: string;
+      try {
+        skillRoot = await realpath(join(root, parent, 'skills'));
+      } catch {
+        continue;
+      }
+      if (!contained(canonical, skillRoot) || !contained(skillRoot, canonicalPath)) continue;
+      return definition(
+        await readFile(canonicalPath, 'utf8'),
+        canonicalPath,
+        parent === '.dsh' ? 'project-dsh' : 'project-agents',
+      );
+    }
+    return undefined;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      ['ENOENT', 'ENOTDIR'].includes(String(error.code))
+    )
+      return undefined;
+    throw error;
+  }
 }

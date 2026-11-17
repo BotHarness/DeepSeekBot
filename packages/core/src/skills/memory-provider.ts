@@ -70,11 +70,6 @@ async function projectRoot(cwd: string): Promise<string> {
   }
 }
 
-async function projectSkillNames(cwd: string | undefined): Promise<ReadonlySet<string>> {
-  if (cwd === undefined) return new Set();
-  return new Set((await readWorkspaceSkills(await projectRoot(cwd))).map((skill) => skill.name));
-}
-
 function agentSkillRegistry(agentCtx: Context): MemorySkillRegistry | undefined {
   const registry: unknown = Reflect.get(agentCtx, 'get')?.call(agentCtx, 'skills');
   return typeof registry === 'object' &&
@@ -96,10 +91,13 @@ export function installMemorySkillProvider(
     async list(options) {
       const root = memoryDir();
       if (root === undefined) return [];
-      const [own, project] = await Promise.all([
+      const projectDir = options.cwd === undefined ? undefined : await projectRoot(options.cwd);
+      if (projectDir !== undefined && resolve(projectDir) === resolve(root)) return [];
+      const [own, projectSkills] = await Promise.all([
         readWorkspaceSkills(root),
-        projectSkillNames(options.cwd),
+        projectDir === undefined ? [] : readWorkspaceSkills(projectDir),
       ]);
+      const project = new Set(projectSkills.map((skill) => skill.name));
       return own
         .filter(
           (skill): skill is SkillRegistryDefinition & { path: string } =>
