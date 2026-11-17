@@ -10,6 +10,7 @@ import { useTeamMember } from './team-state.js';
 import { Icon } from './ds/icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
+import { SettingsSection } from './ds/settings-row.js';
 import { useHostDraftGuard } from './host-draft-guard.js';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
 import {
@@ -100,6 +101,10 @@ function rowIcon(id: string): string {
 }
 
 const SECTION_SLOT = 'botharness.settings.section';
+
+const COMPUTER_SECTION = 'computer';
+const BROWSER_SECTION = 'browser';
+const SECTION_ALIASES: Readonly<Record<string, string>> = { [BROWSER_SECTION]: COMPUTER_SECTION };
 
 export interface BotSettingsSectionRow {
   readonly id: string;
@@ -320,33 +325,37 @@ export function BotSettingsView({
         (!state.clientOnly || Object.hasOwn(CLIENT_SETTINGS_INDEX, row.id)),
     )
     .sort((a, b) => a.order - b.order);
+  const merged = rows.some((row) => row.id === COMPUTER_SECTION);
+  const navSource = merged
+    ? rows
+        .filter((row) => row.id !== BROWSER_SECTION)
+        .map((row) =>
+          row.id === COMPUTER_SECTION
+            ? { ...row, label: t('botSettings.section.computerBrowser') }
+            : row,
+        )
+    : rows;
   const deviceRows = rows.filter((row) => DEVICE_SETTINGS_SECTIONS.has(row.id));
   const hereName = thisHost.name ?? t('remoteHosts.this');
   const hostRows: readonly BotSettingsSectionRow[] = remote
     ? remoteSettingsRows(t)
-    : rows
-        .filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id))
-        .flatMap((row) =>
-          grouped && !member && row.id === BOT_SETTINGS_SECTIONS.models
-            ? [
-                row,
-                {
-                  id: REMOTE_SETTINGS_SECTIONS.hostAppearance,
-                  order: row.order,
-                  label: t('environment.settings.appearance'),
-                },
-              ]
-            : [row],
-        );
+    : navSource.filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id));
+  const hostLookOnAccount = grouped && !member && !remote;
   const home = grouped && pins !== undefined;
   const homeRow: BotSettingsSectionRow = {
     id: SETTINGS_HOME,
     order: -1,
     label: t('settings.home'),
   };
-  const navRows = grouped ? [...(home ? [homeRow] : []), ...deviceRows, ...hostRows] : rows;
+  const navRows = grouped ? [...(home ? [homeRow] : []), ...deviceRows, ...hostRows] : navSource;
+  const wanted =
+    hostLookOnAccount && state.sectionId === REMOTE_SETTINGS_SECTIONS.hostAppearance
+      ? BOT_SETTINGS_SECTIONS.account
+      : state.sectionId !== undefined && Object.hasOwn(SECTION_ALIASES, state.sectionId)
+        ? SECTION_ALIASES[state.sectionId]
+        : state.sectionId;
   const active =
-    navRows.find((row) => row.id === state.sectionId) ??
+    navRows.find((row) => row.id === wanted) ??
     (home
       ? homeRow
       : remote
@@ -535,6 +544,45 @@ export function BotSettingsView({
           />
         ) : active.id === REMOTE_SETTINGS_SECTIONS.hostAppearance ? (
           <LocalHostAppearance hostId={thisHost.id} name={hereName} t={t} />
+        ) : active.id === BOT_SETTINGS_SECTIONS.account && hostLookOnAccount ? (
+          <>
+            {
+              renderSlot(
+                SECTION_SLOT,
+                { close, clientOnly: false },
+                { only: active.id },
+              ) as unknown as ReactNode
+            }
+            <LocalHostAppearance
+              hostId={thisHost.id}
+              name={hereName}
+              title={t('account.section.hostLook')}
+              t={t}
+            />
+          </>
+        ) : active.id === COMPUTER_SECTION && merged ? (
+          <>
+            <SettingsSection title={t('botSettings.section.computer')}>
+              {
+                renderSlot(
+                  SECTION_SLOT,
+                  { close, clientOnly: state.clientOnly === true },
+                  { only: COMPUTER_SECTION },
+                ) as unknown as ReactNode
+              }
+            </SettingsSection>
+            {rows.some((row) => row.id === BROWSER_SECTION) ? (
+              <SettingsSection title={t('botSettings.section.browser')}>
+                {
+                  renderSlot(
+                    SECTION_SLOT,
+                    { close, clientOnly: state.clientOnly === true },
+                    { only: BROWSER_SECTION },
+                  ) as unknown as ReactNode
+                }
+              </SettingsSection>
+            ) : null}
+          </>
         ) : (
           (renderSlot(
             SECTION_SLOT,

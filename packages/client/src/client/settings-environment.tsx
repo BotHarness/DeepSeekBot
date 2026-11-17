@@ -194,14 +194,18 @@ export function RemoteEnvironmentSection({
 export function LocalHostAppearance({
   hostId,
   name,
+  title,
   t,
 }: {
   hostId: string | undefined;
   name: string;
+  title?: string | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   if (hostId === undefined) return <Note>{t('environment.settings.loadingIdentity')}</Note>;
-  return <HostLookSettings key={hostId} hostId={hostId} name={name} available t={t} />;
+  return (
+    <HostLookSettings key={hostId} hostId={hostId} name={name} available title={title} t={t} />
+  );
 }
 
 function RemoteHostApprovals({

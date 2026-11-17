@@ -159,11 +159,13 @@ export function HostLookSettings({
   hostId,
   name,
   available = true,
+  title,
   t,
 }: {
   hostId: string;
   name: string;
   available?: boolean;
+  title?: string | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const scheme = useBotColorScheme();
@@ -191,7 +193,7 @@ export function HostLookSettings({
     }
   };
   return (
-    <SettingsSection>
+    <SettingsSection title={title}>
       <div {...stylex.props(styles.editor)}>
         <Note>{t('remoteHosts.look.hint')}</Note>
         {error || storageError ? (
