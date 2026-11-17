@@ -934,6 +934,105 @@
       .slpop .slink:hover {
         background: var(--tobs-state-hover);
       }
+
+      /* inner variant: link band inside the Bot bubble; top = sent on, bottom = created */
+      .iband {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .iband.top {
+        margin: -2px -4px 6px;
+      }
+      .iband.bottom {
+        margin: 6px -4px -2px;
+      }
+      .ilink {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        line-height: 18px;
+        color: var(--tobs-ink-tertiary);
+        padding: 2px 4px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .ilink:hover {
+        background: var(--tobs-state-hover);
+        color: var(--tobs-ink-primary);
+      }
+      .ilink .curve {
+        width: 14px;
+        height: 12px;
+        color: var(--tobs-ink-quiet);
+        flex: none;
+      }
+      .ilink .glyph,
+      .ilink .glyph svg {
+        width: 14px;
+        height: 14px;
+      }
+      .ilink .name {
+        color: var(--tobs-ink-secondary);
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ilink .verb {
+        color: var(--tobs-ink-quiet);
+      }
+      .ilink .cnt {
+        font-variant-numeric: tabular-nums;
+      }
+      .igroup {
+        display: flex;
+        flex-direction: column;
+        padding-left: 18px;
+      }
+      /* card variant: attached session cards at the bottom of the bubble */
+      .cards {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 8px;
+      }
+      .scard {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: var(--tobs-layer-canvas);
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--tobs-ink-tertiary);
+        cursor: pointer;
+      }
+      .scard:hover {
+        background: color-mix(in srgb, var(--tobs-ink-primary) 4%, var(--tobs-layer-canvas));
+      }
+      .scard .kind {
+        color: var(--tobs-ink-quiet);
+        display: inline-grid;
+      }
+      .scard .glyph,
+      .scard .glyph svg {
+        width: 14px;
+        height: 14px;
+      }
+      .scard .name {
+        color: var(--tobs-ink-primary);
+        font-weight: 500;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .scard .cnt {
+        font-variant-numeric: tabular-nums;
+      }
       .switch .sepv {
         width: 1px;
         height: 18px;
@@ -952,7 +1051,9 @@
       let variant = params.get('variant') || 'A';
       let theme = params.get('theme') || 'light';
       let selected = params.get('open') || 'a1';
-      let links = params.get('links') !== 'off';
+      let links = ['outer', 'inner', 'card', 'off'].includes(params.get('links'))
+        ? params.get('links')
+        : 'inner';
       let pop = params.get('pop') === '1';
       if (selected === 'none') selected = null;
       if (params.has('shot')) document.body.classList.add('shot');
@@ -1384,18 +1485,51 @@
           c = count(x);
         return `<div class="slink ${dir}" data-open="${id}" role="button" tabindex="0">${dir ? (dir === 'down' ? CURVE_DOWN : CURVE_UP) : ''}<span class="verb">${verb}</span>${glyph(x.state, stateLabel(x))}<span class="name">${x.title}</span>${c.total ? `<span class="cnt">${c.done}/${c.total}</span>` : ''}${x.state === 'needs' ? `<span class="tag warning">${NEED[x.need]}</span>` : ''}</div>`;
       }
+      const PLUS =
+        '<svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+      const FWD =
+        '<svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>';
+      function innerRow(id, dir) {
+        const x = byId[id],
+          c = count(x);
+        return `<div class="ilink ${dir}" data-open="${id}" role="button" tabindex="0">${dir === 'down' ? CURVE_DOWN : CURVE_UP}${glyph(x.state, stateLabel(x))}<span class="name">${x.title}</span>${c.total ? `<span class="cnt">${c.done}/${c.total}</span>` : ''}${x.state === 'needs' ? `<span class="tag warning">${NEED[x.need]}</span>` : ''}</div>`;
+      }
+      function cardRow(id, kind) {
+        const x = byId[id],
+          c = count(x);
+        return `<div class="scard" data-open="${id}" role="button" tabindex="0"><span class="kind" title="${kind === 'new' ? '新建' : '转给'}">${kind === 'new' ? PLUS : FWD}</span>${glyph(x.state, stateLabel(x))}<span class="name">${x.title}</span>${c.total ? `<span class="cnt">${c.done}/${c.total}</span>` : ''}${x.state === 'needs' ? `<span class="tag warning">${NEED[x.need]}</span>` : ''}</div>`;
+      }
+      function bubble(text, { up = [], down = [] } = {}) {
+        if (links === 'inner') {
+          const top =
+            up.length > 1
+              ? `<div class="ilink up" data-pop role="button" tabindex="0" aria-expanded="${pop}">${CURVE_UP}<span class="verb">转给</span><span class="name">${up.length} 个会话</span>${ic('chev', 's14')}</div>${pop ? `<div class="igroup">${up.map((id) => innerRow(id, '')).join('')}</div>` : ''}`
+              : up.map((id) => innerRow(id, 'up')).join('');
+          return `<div class="bubble">${top ? `<div class="iband top">${top}</div>` : ''}<div>${text}</div>${down.length ? `<div class="iband bottom">${down.map((id) => innerRow(id, 'down')).join('')}</div>` : ''}</div>`;
+        }
+        if (links === 'card') {
+          const rows = [
+            ...up.map((id) => cardRow(id, 'fwd')),
+            ...down.map((id) => cardRow(id, 'new')),
+          ];
+          return `<div class="bubble"><div>${text}</div>${rows.length ? `<div class="cards">${rows.join('')}</div>` : ''}</div>`;
+        }
+        if (links === 'outer') {
+          const top =
+            up.length > 1
+              ? `<div class="slink up" data-pop role="button" tabindex="0" aria-expanded="${pop}">${CURVE_UP}<span class="verb">转给</span><span class="name">${up.length} 个会话</span></div>${pop ? `<div class="slpop">${up.map((id) => linkRow(id, '', '')).join('')}</div>` : ''}`
+              : up.map((id) => linkRow(id, 'up', '回复给')).join('');
+          return `${top}<div class="bubble">${text}</div>${down.map((id) => linkRow(id, 'down', '新建')).join('')}`;
+        }
+        return `<div class="bubble">${text}</div>`;
+      }
       function chat() {
-        const created = links ? linkRow('a1', 'down', '新建') : '';
-        const sentMany = links
-          ? `<div class="slink up" data-pop role="button" tabindex="0" aria-expanded="${pop}">${CURVE_UP}<span class="verb">转给</span><span class="name">2 个会话</span></div>${pop ? `<div class="slpop">${linkRow('a2', '', '')}${linkRow('a3', '', '')}</div>` : ''}`
-          : '';
-        const sentOne = links ? linkRow('a2', 'up', '回复给') : '';
         return `<div class="msgs">
     <div class="m me"><div><div class="bubble">Safari 上导出按钮点了没反应，帮我修一下，带回归测试。</div></div></div>
-    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:01</div><div class="bubble">好，我开了一个 Assignment 去修，修好会附截图。</div>${created}</div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:01</div>${bubble('好，我开了一个 Assignment 去修，修好会附截图。', { down: ['a1'] })}</div></div>
     <div class="m me"><div><div class="bubble">发布说明里「语音输入」算亮点。另外虚拟滚动记得录前后对比。</div></div></div>
-    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:10</div>${sentMany}<div class="bubble">两件事都转过去了：发布说明按亮点写，虚拟滚动那边会附录屏。</div></div></div>
-    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:14</div>${sentOne}<div class="bubble">发布说明的 Assignment 又问了一句：亮点要放几条？我先让它放 3 条。</div></div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:10</div>${bubble('两件事都转过去了：发布说明按亮点写，虚拟滚动那边会附录屏。', { up: ['a2', 'a3'] })}</div></div>
+    <div class="m"><span class="ava">T</span><div><div class="who">Tobs · 13:14</div>${bubble('发布说明的 Assignment 又问了一句：亮点要放几条？我先让它放 3 条。', { up: ['a2'] })}</div></div>
   </div>
   <div class="composer">给 Tobs 发消息…<span style="flex:1"></span>${ic('send')}</div>`;
       }
@@ -1428,7 +1562,14 @@
   <div class="switch" role="toolbar" aria-label="Prototype">
     ${['A', 'B', 'C'].map((v) => `<button class="${v === variant ? 'on' : ''}" data-variant="${v}">${{ A: 'A 列表行 + 消息内详情', B: 'B 卡片 + 进度条', C: 'C 面板内下钻' }[v]}</button>`).join('')}
     <span class="sepv"></span>
-    <button data-links class="${links ? 'on' : ''}">会话链接 ${links ? '开' : '关'}</button>
+    ${[
+      ['inner', '链接：气泡内'],
+      ['card', '链接：卡片'],
+      ['outer', '链接：气泡外'],
+      ['off', '链接：关'],
+    ]
+      .map(([m, l]) => `<button data-links="${m}" class="${links === m ? 'on' : ''}">${l}</button>`)
+      .join('')}
     <button data-theme-toggle>${theme === 'light' ? '深色' : '浅色'}</button>
   </div>`;
       }
@@ -1440,14 +1581,14 @@
         if (t.dataset.open) selected = t.dataset.open;
         if (t.hasAttribute('data-close') || t.hasAttribute('data-back')) selected = null;
         if (t.dataset.variant) variant = t.dataset.variant;
-        if (t.hasAttribute('data-links')) links = !links;
+        if (t.dataset.links) links = t.dataset.links;
         if (t.hasAttribute('data-pop')) pop = !pop;
         if (t.hasAttribute('data-theme-toggle')) theme = theme === 'light' ? 'dark' : 'light';
         const q = new URLSearchParams({
           variant,
           theme,
           open: selected || 'none',
-          links: links ? 'on' : 'off',
+          links,
         });
         history.replaceState(null, '', '?' + q);
         render();
