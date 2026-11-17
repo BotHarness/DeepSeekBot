@@ -228,12 +228,15 @@ describe('client styles', () => {
 
   it('keeps the composer island token-driven and clear of the message scroll area', () => {
     expect(source).toMatch(/\.bh-composer \{[^}]*min-height: 50px/);
+    expect(source).toContain(
+      '.bh-composer-rich-input:not(:has(> br[data-rich-placeholder]:last-child))::after',
+    );
     expect(source).toMatch(
       /\.bh-composer \{[^}]*border-radius: calc\(var\(--tobs-style-radius-sheet\) \+ 8px\)/,
     );
     expect(source).toMatch(/\.bh-composer \{[^}]*--bh-composer-footer-padding: 10px 12px 48px/);
     expect(source).toMatch(/\.bh-composer \{[^}]*padding: var\(--bh-composer-padding,/);
-    expect(source).toMatch(/\.bh-composer \{[^}]*transition:\s*padding 220ms/);
+    expect(source).toMatch(/\.bh-composer \{[^}]*transition:\s*padding 180ms var\(--bh-ease-out\)/);
     expect(source).toMatch(
       /\.bh-composer \.bh-send-btn[^{]*\{[^}]*width: 32px;[^}]*height: 32px;[^}]*border-radius: 50%/,
     );
@@ -248,8 +251,9 @@ describe('client styles', () => {
     expect(source).not.toMatch(/\.bh-composer-input \{[^}]*transition:/);
     expect(source).toMatch(/\.bh-composer-body \{[^}]*height: var\(--bh-composer-body-height\)/);
     expect(source).not.toMatch(/\n\.bh-composer-body \{[^}]*transition:/);
+    expect(source).not.toMatch(/\n\.bh-chat-body \{[^}]*transition:/);
     expect(source).toMatch(
-      /\.bh-composer-first-expand \.bh-composer-body \{[^}]*transition: height 220ms/,
+      /\.bh-composer-first-expand \.bh-composer-body \{[^}]*transition: height 180ms/,
     );
     expect(source).toMatch(/\.bh-composer-add-file \{[^}]*bottom: 9px/);
     expect(source).toMatch(/\.bh-composer-footer \{[^}]*bottom: 9px/);

@@ -9,6 +9,12 @@ import {
   isBotModeMotionPreference,
   isBotModeSendKey,
   isBotModeSortMode,
+  isSessionCollapseMode,
+  isSessionDetailLevel,
+  isSessionFoldedReplies,
+  SESSION_COLLAPSE_MODES,
+  SESSION_DETAIL_LEVELS,
+  SESSION_FOLDED_REPLIES,
   type BotModeIcon,
   type BotModeMotionPreference,
   type BotModeSendKey,
@@ -499,6 +505,88 @@ export function AssignmentConcurrencyRow({
       limit={prefs.assignmentConcurrencyLimit}
       writable={prefs.status === 'ready' && prefs.mode === 'host'}
       save={setAssignmentConcurrencyLimit}
+    />
+  );
+}
+
+export function SessionDetailLevelSetting({
+  t,
+  useBotModePrefs,
+  setSessionDetailLevel,
+}: BotModeSettingRowProps): ReactElement {
+  const level = useBotModePrefs((value) => value.sessionDetailLevel);
+  return (
+    <SettingsRow
+      title={t('sessions.settings.level.title')}
+      description={t('sessions.settings.level.description')}
+      data={{ 'data-setting': 'session-detail-level' }}
+      control={
+        <Select
+          label={t('sessions.settings.level.title')}
+          value={level}
+          options={SESSION_DETAIL_LEVELS.map((id) => ({
+            value: id,
+            label: t(`sessions.settings.level.${id}`),
+          }))}
+          onChange={(id) => {
+            if (isSessionDetailLevel(id)) setSessionDetailLevel(id);
+          }}
+        />
+      }
+    />
+  );
+}
+
+export function SessionCollapseSetting({
+  t,
+  useBotModePrefs,
+  setSessionCollapse,
+}: BotModeSettingRowProps): ReactElement {
+  const mode = useBotModePrefs((value) => value.sessionCollapse);
+  return (
+    <SettingsRow
+      title={t('sessions.settings.collapse.title')}
+      data={{ 'data-setting': 'session-collapse' }}
+      control={
+        <Select
+          label={t('sessions.settings.collapse.title')}
+          value={mode}
+          options={SESSION_COLLAPSE_MODES.map((id) => ({
+            value: id,
+            label: t(`sessions.settings.collapse.${id}`),
+          }))}
+          onChange={(id) => {
+            if (isSessionCollapseMode(id)) setSessionCollapse(id);
+          }}
+        />
+      }
+    />
+  );
+}
+
+export function SessionFoldedRepliesSetting({
+  t,
+  useBotModePrefs,
+  setSessionFoldedReplies,
+}: BotModeSettingRowProps): ReactElement {
+  const mode = useBotModePrefs((value) => value.sessionFoldedReplies);
+  return (
+    <SettingsRow
+      title={t('sessions.settings.replies.title')}
+      data={{ 'data-setting': 'session-folded-replies' }}
+      control={
+        <Select
+          label={t('sessions.settings.replies.title')}
+          value={mode}
+          options={SESSION_FOLDED_REPLIES.map((id) => ({
+            value: id,
+            label: t(`sessions.settings.replies.${id}`),
+          }))}
+          onChange={(id) => {
+            if (isSessionFoldedReplies(id)) setSessionFoldedReplies(id);
+          }}
+        />
+      }
     />
   );
 }

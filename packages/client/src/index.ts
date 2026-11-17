@@ -20,6 +20,15 @@ import {
   DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
   DEFAULT_BOT_MODE_SORT,
   DEFAULT_SETTINGS_PINS,
+  DEFAULT_SESSION_COLLAPSE,
+  DEFAULT_SESSION_DETAIL_LEVEL,
+  DEFAULT_SESSION_FOLDED_REPLIES,
+  SESSION_COLLAPSE_MODES,
+  SESSION_DETAIL_LEVELS,
+  SESSION_FOLDED_REPLIES,
+  type SessionCollapseMode,
+  type SessionDetailLevel,
+  type SessionFoldedReplies,
   type BotModeIcon,
   type BotModeMotionPreference,
   type BotModeSendKey,
@@ -45,6 +54,9 @@ export interface Config {
   showDmAvatar: Volatile<boolean>;
   showOwnAvatar: Volatile<boolean>;
   streamReplies: Volatile<boolean>;
+  sessionDetailLevel: Volatile<SessionDetailLevel>;
+  sessionCollapse: Volatile<SessionCollapseMode>;
+  sessionFoldedReplies: Volatile<SessionFoldedReplies>;
   sortMode: Volatile<BotModeSortMode>;
   sortModes: Volatile<Record<string, BotModeSortMode>>;
   settingsPins: Volatile<string[]>;
@@ -70,6 +82,15 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
   showDmAvatar: Schema.boolean().default(false).volatile(),
   showOwnAvatar: Schema.boolean().default(false).volatile(),
   streamReplies: Schema.boolean().default(false).volatile(),
+  sessionDetailLevel: Schema.union([...SESSION_DETAIL_LEVELS])
+    .default(DEFAULT_SESSION_DETAIL_LEVEL)
+    .volatile(),
+  sessionCollapse: Schema.union([...SESSION_COLLAPSE_MODES])
+    .default(DEFAULT_SESSION_COLLAPSE)
+    .volatile(),
+  sessionFoldedReplies: Schema.union([...SESSION_FOLDED_REPLIES])
+    .default(DEFAULT_SESSION_FOLDED_REPLIES)
+    .volatile(),
   showBotSessions: Schema.boolean().default(DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS).volatile(),
   showApprovalReviewSessions: Schema.boolean()
     .default(DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS)

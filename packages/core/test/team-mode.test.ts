@@ -148,6 +148,7 @@ function teamFixture(
           ? team.device(peer.principal.grantId)
           : undefined;
       },
+      refusal: (authorization) => team.deviceRefusal(authorization),
       check: (id) => team.device(id),
       attach: (id, close) => team.attachDeviceStream(id, close),
     },
@@ -1171,6 +1172,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
             'storage-unavailable',
             'member-not-found',
             'invalid-input',
+            'skill-not-found',
           ]).toContain(code);
         result = { code };
       } finally {
@@ -2496,6 +2498,32 @@ describe('member devices', { timeout: 60_000 }, () => {
     await f.team.revoke(signed.deviceId);
     answer = await host.post('/api/botharness/ping', {}, signed.credential);
     expect(answer.status).toBe(401);
+    expect(await answer.json()).toEqual({ code: 'sign-in-required' });
+  });
+
+  it('tells a signed-out or suspended member device why it was refused, over HTTP and Noise', async () => {
+    const f = await enabledFixture();
+    const host = await memberDeviceHost(f);
+    const signed = await (await host.signIn({ password: f.initialPassword })).json();
+    await host.post(
+      '/team/device-password',
+      { current: f.initialPassword, next: 'member-password-1' },
+      signed.credential,
+    );
+    const authorization = `Device ${signed.credential}`;
+    await f.team.resetPassword(owner, f.human.humanId);
+    let answer = await host.post('/api/botharness/ping', {}, signed.credential);
+    expect([answer.status, await answer.json()]).toEqual([401, { code: 'sign-in-required' }]);
+    expect(f.pairing.admit(authorization)).toEqual({ ok: false, code: 'sign-in-required' });
+    await f.team.suspend(owner, f.human.humanId);
+    answer = await host.post('/api/botharness/ping', {}, signed.credential);
+    expect([answer.status, await answer.json()]).toEqual([403, { code: 'member-suspended' }]);
+    expect(f.pairing.admitKey(authorization, '1'.repeat(64))).toEqual({
+      ok: false,
+      code: 'member-suspended',
+    });
+    answer = await host.post('/api/botharness/ping', {}, 'member.' + 'x'.repeat(43));
+    expect([answer.status, await answer.json()]).toEqual([401, { code: 'sign-in-required' }]);
   });
 
   it('signs in and changes the initial password through real Noise with the mobile module, pins its key and never touches Owner cookies', async () => {

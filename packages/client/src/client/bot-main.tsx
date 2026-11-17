@@ -1,4 +1,10 @@
+import {
+  DEFAULT_SESSION_COLLAPSE,
+  DEFAULT_SESSION_DETAIL_LEVEL,
+  DEFAULT_SESSION_FOLDED_REPLIES,
+} from '@botharness/host-client/shared/bot-mode-settings';
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
+import { SessionDetail, SessionDetailPrefsContext } from './session-detail.js';
 import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
@@ -85,8 +91,14 @@ import {
   personaBotPresentationSummary,
   type PersonaBotFacepileItem,
 } from './avatar.js';
-import { ClientStoreContext, useConversationStore, useStoreSlice } from './use-client-store.js';
+import {
+  ClientStoreContext,
+  useClientStore,
+  useConversationStore,
+  useStoreSlice,
+} from './use-client-store.js';
 import { MessageHostContext, type MessageHost } from './message-host.js';
+import { SessionOpenContext } from './session-links.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { conversationKey } from './remote-hosts.js';
 import { useRemoteNativeConversation } from './remote-native-conversation.js';
@@ -1269,14 +1281,18 @@ function ConversationView({
   const docked = useChannelDockActive();
   const workspaceEnabled = useContext(WorkspaceContext) !== undefined;
   const teamMode = useTeamMode(actions.teamCall)?.enabled === true;
-  const [detail, setDetail] = useScopedState<'files' | 'inbox' | undefined>(
+  const [detail, setDetail] = useScopedState<
+    'files' | 'inbox' | { sessionId: string; title: string } | undefined
+  >(
     scopeKey,
     state.selection?.kind === 'bot' && state.selection.inboxRequest ? 'inbox' : undefined,
   );
   const filesOpen = detail === 'files';
   const inboxOpen = detail === 'inbox';
+  const sessionItems = useClientStore((state) => state.sessions.items);
   const setFilesOpen = (open: boolean) => setDetail(open ? 'files' : undefined);
   const setInboxOpen = (open: boolean) => setDetail(open ? 'inbox' : undefined);
+  const sessionDetail = typeof detail === 'object' ? detail : undefined;
   const dockBotEntries = useSyncExternalStore(
     channelSidebar.subscribe,
     () => channelSidebar.entries('personabot'),
@@ -2950,6 +2966,8 @@ function ConversationView({
           onMemoryCommitSelect: (sha) => openMemoryView({ kind: 'commit', sha }),
           onMemoryFileSelect: (path) => openMemoryView({ kind: 'file', path }),
           onMemoryWorkingSelect: (change) => openMemoryView({ kind: 'working', change }),
+          onSessionSelect: (sessionId, title) => setDetail({ sessionId, title }),
+          selectedSessionId: sessionDetail?.sessionId,
         };
   const inboxEntry = dockBotEntries.find((entry) => entry.id === 'bot-inbox');
   const inboxAvailable =
@@ -3694,6 +3712,13 @@ function ConversationView({
                 >
                   <ChannelComposer
                     key={channelId}
+                    onOverlayResize={(timeline) => {
+                      if (
+                        followingLatest.current &&
+                        !store.getSnapshot().conversation.timeline.hasNewer
+                      )
+                        pinTimelineToLatest(timeline);
+                    }}
                     context={composerContext}
                     sendKey={sendKey}
                     value={draft}
@@ -3721,11 +3746,8 @@ function ConversationView({
                             )
                           : []
                     }
-                    placeholder={
-                      channel?.readOnly === true
-                        ? t('composer.readOnly')
-                        : t('composer.placeholder', { name: title })
-                    }
+                    placeholder={channel?.readOnly === true ? t('composer.readOnly') : ''}
+                    label={t('composer.label', { name: title })}
                     holdPlaceholder={t('composer.holdToTalk', { name: title })}
                     dictation={dictationPort}
                     dictating={dictating}
@@ -3885,263 +3907,296 @@ function ConversationView({
     ) : (
       conversationPane
     );
+  const openSession = (botSlug: string, sessionId: string, title: string): void => {
+    if (botSlug !== dockBotSlug) return;
+    setDetail({
+      sessionId,
+      title:
+        title ||
+        sessionItems.find((item) => item.sessionId === sessionId)?.assignmentTitle ||
+        t('sessions.detail.title'),
+    });
+  };
   return (
-    <div ref={conversationMount} className="bh-root bh-main">
-      <span ref={allBotPreviewMount} hidden />
-      <span ref={skillCatalogMount} hidden />
-      <span ref={searchShortcutMount} hidden />
-      <span ref={replyPerfMount} hidden />
-      <span ref={dockInboxMount} hidden />
-      {conversationScope(<ShareFlowHost actions={actions} registry={dockPanels} t={t} />)}
-      <div className="bh-chat-layout" data-sidebar={docked ? 'dock' : sidebar.mode}>
-        <GeneratedFilesContext.Provider
-          value={{
-            attachments: uploadItems.flatMap((item) => (item.ref === undefined ? [] : [item.ref])),
-            full: uploadItems.length >= 10,
-            disabled: mutationLocked || conversation.sending || recovery.blocked,
-            toggle: toggleGeneratedFile,
-          }}
-        >
-          {docked ? (
-            <ChannelDock
-              conversation={conversationScope}
-              hasBots={channel === undefined || hasChannelBots(channel)}
-              body={chatPane}
-              header={
-                workspaceEnabled && channel !== undefined
-                  ? {
-                      title,
-                      ...(dmWorking ? { label: <WorkingSummary rows={workingRows} t={t} /> } : {}),
-                      ...(baseComposerContext === undefined
-                        ? {}
-                        : { info: baseComposerContext.content }),
-                      status: (
-                        <ConversationSessionStop
-                          channel={channel}
-                          groups={sessionStopGroups}
-                          controller={sessionStop}
-                          actions={actions}
-                          t={t}
-                          status={
-                            channel.type === 'group' && workingRows.items.length > 0 ? (
-                              <HeaderWorkingStatus rows={workingRows} t={t} />
-                            ) : undefined
-                          }
-                          onOpenProfile={profileBot === undefined ? undefined : openProfileView}
-                        />
-                      ),
-                      icon:
-                        channel.type === 'group' || botDm ? (
-                          <GroupChannelIcon
+    <SessionOpenContext.Provider value={openSession}>
+      <div ref={conversationMount} className="bh-root bh-main">
+        <span ref={allBotPreviewMount} hidden />
+        <span ref={skillCatalogMount} hidden />
+        <span ref={searchShortcutMount} hidden />
+        <span ref={replyPerfMount} hidden />
+        <span ref={dockInboxMount} hidden />
+        {conversationScope(<ShareFlowHost actions={actions} registry={dockPanels} t={t} />)}
+        <div className="bh-chat-layout" data-sidebar={docked ? 'dock' : sidebar.mode}>
+          <GeneratedFilesContext.Provider
+            value={{
+              attachments: uploadItems.flatMap((item) =>
+                item.ref === undefined ? [] : [item.ref],
+              ),
+              full: uploadItems.length >= 10,
+              disabled: mutationLocked || conversation.sending || recovery.blocked,
+              toggle: toggleGeneratedFile,
+            }}
+          >
+            {docked ? (
+              <ChannelDock
+                conversation={conversationScope}
+                hasBots={channel === undefined || hasChannelBots(channel)}
+                body={chatPane}
+                header={
+                  workspaceEnabled && channel !== undefined
+                    ? {
+                        title,
+                        ...(dmWorking
+                          ? { label: <WorkingSummary rows={workingRows} t={t} /> }
+                          : {}),
+                        ...(baseComposerContext === undefined
+                          ? {}
+                          : { info: baseComposerContext.content }),
+                        status: (
+                          <ConversationSessionStop
                             channel={channel}
-                            bots={new Map(state.bots.map((member) => [member.slug, member]))}
-                            className={stylex.props(messageStyles.channelIcon).className ?? ''}
-                            groupClassName=""
-                            size={20}
-                            hashSize={16}
+                            groups={sessionStopGroups}
+                            controller={sessionStop}
+                            actions={actions}
                             t={t}
+                            status={
+                              channel.type === 'group' && workingRows.items.length > 0 ? (
+                                <HeaderWorkingStatus rows={workingRows} t={t} />
+                              ) : undefined
+                            }
+                            onOpenProfile={profileBot === undefined ? undefined : openProfileView}
                           />
-                        ) : dmBot !== undefined ? (
-                          <PersonaBotAvatar
-                            t={t}
-                            personaBotId={dmBot.slug}
-                            name={dmBot.displayName}
-                            src={dmBot.avatar}
-                            appearance={dmBot.appearance}
-                            avatarSeed={dmBot.avatarSeed}
-                            size={20}
-                            indicator={false}
-                            still
-                          />
-                        ) : (
-                          <ChannelSidebarIcon name="user" size={20} />
                         ),
-                      ...(profileBot !== undefined || channel.type === 'group'
-                        ? {
-                            profile: {
-                              label:
-                                channel.type === 'dm' && sessionStopCount > 0
-                                  ? t('sessionStop.open', { count: sessionStopCount })
-                                  : t(
-                                      channel.type === 'group'
-                                        ? 'groupProfile.openAvatar'
-                                        : 'profile.openAvatar',
-                                      { name: title },
-                                    ),
-                              open:
-                                channel.type === 'dm' && sessionStopCount > 0
-                                  ? sessionStop.toggle
-                                  : openProfileView,
-                              ...(channel.type === 'dm' && sessionStopCount > 0
-                                ? { expanded: sessionStop.open }
-                                : {}),
-                            },
-                          }
-                        : {}),
-                      actions: (
-                        <>
-                          {messageHost === undefined &&
-                            profileBot !== undefined &&
-                            profileBot.deleted !== true && (
-                              <DmCallControl
-                                slug={profileBot.slug}
-                                name={profileBot.displayName}
-                                onReturn={() =>
-                                  void actions.openChannel(channel.id).catch(() => undefined)
-                                }
-                                variant="header"
-                                t={t}
-                              />
-                            )}
-                          {hasChannelSettings && (
-                            <Tooltip
-                              label={t('channelSettings.open')}
-                              side="bottom"
-                              portal
-                              delayMs={500}
-                            >
-                              <IconButton
-                                aria-label={t('channelSettings.open')}
-                                onClick={() => channelSettings.open(settingsAttention[0]?.id)}
+                        icon:
+                          channel.type === 'group' || botDm ? (
+                            <GroupChannelIcon
+                              channel={channel}
+                              bots={new Map(state.bots.map((member) => [member.slug, member]))}
+                              className={stylex.props(messageStyles.channelIcon).className ?? ''}
+                              groupClassName=""
+                              size={20}
+                              hashSize={16}
+                              t={t}
+                            />
+                          ) : dmBot !== undefined ? (
+                            <PersonaBotAvatar
+                              t={t}
+                              personaBotId={dmBot.slug}
+                              name={dmBot.displayName}
+                              src={dmBot.avatar}
+                              appearance={dmBot.appearance}
+                              avatarSeed={dmBot.avatarSeed}
+                              size={20}
+                              indicator={false}
+                              still
+                            />
+                          ) : (
+                            <ChannelSidebarIcon name="user" size={20} />
+                          ),
+                        ...(profileBot !== undefined || channel.type === 'group'
+                          ? {
+                              profile: {
+                                label:
+                                  channel.type === 'dm' && sessionStopCount > 0
+                                    ? t('sessionStop.open', { count: sessionStopCount })
+                                    : t(
+                                        channel.type === 'group'
+                                          ? 'groupProfile.openAvatar'
+                                          : 'profile.openAvatar',
+                                        { name: title },
+                                      ),
+                                open:
+                                  channel.type === 'dm' && sessionStopCount > 0
+                                    ? sessionStop.toggle
+                                    : openProfileView,
+                                ...(channel.type === 'dm' && sessionStopCount > 0
+                                  ? { expanded: sessionStop.open }
+                                  : {}),
+                              },
+                            }
+                          : {}),
+                        actions: (
+                          <>
+                            {messageHost === undefined &&
+                              profileBot !== undefined &&
+                              profileBot.deleted !== true && (
+                                <DmCallControl
+                                  slug={profileBot.slug}
+                                  name={profileBot.displayName}
+                                  onReturn={() =>
+                                    void actions.openChannel(channel.id).catch(() => undefined)
+                                  }
+                                  variant="header"
+                                  t={t}
+                                />
+                              )}
+                            {hasChannelSettings && (
+                              <Tooltip
+                                label={t('channelSettings.open')}
+                                side="bottom"
+                                portal
+                                delayMs={500}
                               >
-                                <ChannelSidebarIcon name="settings" />
-                                {settingsAttention.length > 0 && (
-                                  <ChannelAttentionDot
-                                    label={t('channelSettings.needsAttention')}
-                                  />
-                                )}
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </>
-                      ),
-                    }
-                  : undefined
-              }
-              files={
-                workspaceEnabled && channelId !== undefined
-                  ? {
-                      open: filesOpen,
-                      setOpen: setFilesOpen,
-                      content: (
-                        <ChannelFiles
-                          key={channelId}
-                          channelId={channelId}
-                          actions={actions}
-                          t={t}
-                        />
-                      ),
-                    }
-                  : undefined
-              }
-              inbox={inboxAvailable ? { open: inboxOpen, setOpen: setInboxOpen } : undefined}
-              revealBody={
-                state.selection?.kind === 'bot' &&
-                (state.selection.profile === true || state.selection.inboxRequest !== undefined)
-              }
-              panels={dockPanelList}
-              channel={dockChannel}
-              registry={dockPanels}
-              entryProps={dockEntryProps}
-              shows={(entry) =>
-                (hasChannelBots(channel) ||
-                  (entry.scope !== 'personabot' &&
-                    entry.id !== 'sessions' &&
-                    (entry.id !== 'members' || teamMode))) &&
-                (entry.scope === 'both' || entry.scope === settingsScope) &&
-                (entry.visible?.(state) ?? true)
-              }
-              t={t}
-            />
-          ) : (
-            conversationScope(chatPane)
-          )}
-          {!workspaceEnabled &&
-            filesOpen &&
-            channelId !== undefined &&
-            conversationScope(
-              <PanelDialog
-                title={t('generatedFiles.title')}
-                closeLabel={t('dock.close', { label: t('generatedFiles.title') })}
-                onClose={() => setFilesOpen(false)}
-                scroll
-              >
-                <ChannelFiles key={channelId} channelId={channelId} actions={actions} t={t} />
-              </PanelDialog>,
-            )}
-          {!workspaceEnabled &&
-            inboxOpen &&
-            inboxAvailable &&
-            conversationScope(
-              <PanelDialog
-                title={t('entry.botInbox')}
-                closeLabel={t('dock.close', { label: t('entry.botInbox') })}
-                onClose={() => setInboxOpen(false)}
-                scroll
-                secondary={
-                  inboxEntry.headerAction && (
-                    <inboxEntry.headerAction key={dockBotSlug} {...dockEntryProps} />
-                  )
+                                <IconButton
+                                  aria-label={t('channelSettings.open')}
+                                  onClick={() => channelSettings.open(settingsAttention[0]?.id)}
+                                >
+                                  <ChannelSidebarIcon name="settings" />
+                                  {settingsAttention.length > 0 && (
+                                    <ChannelAttentionDot
+                                      label={t('channelSettings.needsAttention')}
+                                    />
+                                  )}
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </>
+                        ),
+                      }
+                    : undefined
                 }
-              >
-                <inboxEntry.component key={dockBotSlug} {...dockEntryProps} flush />
-              </PanelDialog>,
+                files={
+                  workspaceEnabled && channelId !== undefined
+                    ? {
+                        open: filesOpen,
+                        setOpen: setFilesOpen,
+                        content: (
+                          <ChannelFiles
+                            key={channelId}
+                            channelId={channelId}
+                            actions={actions}
+                            t={t}
+                          />
+                        ),
+                      }
+                    : undefined
+                }
+                inbox={inboxAvailable ? { open: inboxOpen, setOpen: setInboxOpen } : undefined}
+                session={
+                  sessionDetail === undefined || dockBotSlug === undefined
+                    ? undefined
+                    : {
+                        title: sessionDetail.title,
+                        close: () => setDetail(undefined),
+                        content: (
+                          <SessionDetail
+                            key={sessionDetail.sessionId}
+                            actions={actions}
+                            botSlug={dockBotSlug}
+                            sessionId={sessionDetail.sessionId}
+                            t={t}
+                          />
+                        ),
+                      }
+                }
+                revealBody={
+                  state.selection?.kind === 'bot' &&
+                  (state.selection.profile === true || state.selection.inboxRequest !== undefined)
+                }
+                panels={dockPanelList}
+                channel={dockChannel}
+                registry={dockPanels}
+                entryProps={dockEntryProps}
+                shows={(entry) =>
+                  (hasChannelBots(channel) ||
+                    (entry.scope !== 'personabot' &&
+                      entry.id !== 'sessions' &&
+                      (entry.id !== 'members' || teamMode))) &&
+                  (entry.scope === 'both' || entry.scope === settingsScope) &&
+                  (entry.visible?.(state) ?? true)
+                }
+                t={t}
+              />
+            ) : (
+              conversationScope(chatPane)
             )}
-        </GeneratedFilesContext.Provider>
-        {conversationScope(
-          <>
-            <ChannelSettingsDialog
-              registry={channelSidebar}
-              state={state}
-              actions={actions}
-              t={t}
-            />
-            <ChannelSettingsAttention
-              registry={channelSidebar}
-              state={state}
-              actions={actions}
-              t={t}
-            />
-          </>,
-        )}
-        {docked
-          ? null
-          : conversationScope(
-              <>
-                <ChannelSidebar
-                  registry={channelSidebar}
-                  state={state}
-                  actions={actions}
-                  controller={sidebar}
-                  t={t}
-                  onMentionBot={mentionBot}
-                  selectedMemoryCommitSha={selectedMemoryCommitSha}
-                  selectedMemoryFilePath={
-                    activeMemoryView?.kind === 'file' ? activeMemoryView.path : undefined
-                  }
-                  selectedMemoryWorking={
-                    activeMemoryView?.kind === 'working' ? activeMemoryView.change : undefined
-                  }
-                  onMemoryCommitSelect={(sha) => openMemoryView({ kind: 'commit', sha })}
-                  onMemoryFileSelect={(path) => openMemoryView({ kind: 'file', path })}
-                  onMemoryWorkingSelect={(change) => openMemoryView({ kind: 'working', change })}
-                />
-                <button
-                  type="button"
-                  className="bh-sidebar-toggle"
-                  aria-label={
-                    sidebar.mode === 'hidden' ? t('sidebar.expand') : t('sidebar.collapse')
-                  }
-                  aria-expanded={sidebar.mode !== 'hidden'}
-                  aria-controls="bh-channel-sidebar"
-                  onClick={sidebar.toggle}
+            {!workspaceEnabled &&
+              filesOpen &&
+              channelId !== undefined &&
+              conversationScope(
+                <PanelDialog
+                  title={t('generatedFiles.title')}
+                  closeLabel={t('dock.close', { label: t('generatedFiles.title') })}
+                  onClose={() => setFilesOpen(false)}
+                  scroll
                 >
-                  <IconPanelLeftOutlineRegular size={16} />
-                </button>
-              </>,
-            )}
+                  <ChannelFiles key={channelId} channelId={channelId} actions={actions} t={t} />
+                </PanelDialog>,
+              )}
+            {!workspaceEnabled &&
+              inboxOpen &&
+              inboxAvailable &&
+              conversationScope(
+                <PanelDialog
+                  title={t('entry.botInbox')}
+                  closeLabel={t('dock.close', { label: t('entry.botInbox') })}
+                  onClose={() => setInboxOpen(false)}
+                  scroll
+                  secondary={
+                    inboxEntry.headerAction && (
+                      <inboxEntry.headerAction key={dockBotSlug} {...dockEntryProps} />
+                    )
+                  }
+                >
+                  <inboxEntry.component key={dockBotSlug} {...dockEntryProps} flush />
+                </PanelDialog>,
+              )}
+          </GeneratedFilesContext.Provider>
+          {conversationScope(
+            <>
+              <ChannelSettingsDialog
+                registry={channelSidebar}
+                state={state}
+                actions={actions}
+                t={t}
+              />
+              <ChannelSettingsAttention
+                registry={channelSidebar}
+                state={state}
+                actions={actions}
+                t={t}
+              />
+            </>,
+          )}
+          {docked
+            ? null
+            : conversationScope(
+                <>
+                  <ChannelSidebar
+                    registry={channelSidebar}
+                    state={state}
+                    actions={actions}
+                    controller={sidebar}
+                    t={t}
+                    onMentionBot={mentionBot}
+                    selectedMemoryCommitSha={selectedMemoryCommitSha}
+                    selectedMemoryFilePath={
+                      activeMemoryView?.kind === 'file' ? activeMemoryView.path : undefined
+                    }
+                    selectedMemoryWorking={
+                      activeMemoryView?.kind === 'working' ? activeMemoryView.change : undefined
+                    }
+                    onMemoryCommitSelect={(sha) => openMemoryView({ kind: 'commit', sha })}
+                    onMemoryFileSelect={(path) => openMemoryView({ kind: 'file', path })}
+                    onMemoryWorkingSelect={(change) => openMemoryView({ kind: 'working', change })}
+                  />
+                  <button
+                    type="button"
+                    className="bh-sidebar-toggle"
+                    aria-label={
+                      sidebar.mode === 'hidden' ? t('sidebar.expand') : t('sidebar.collapse')
+                    }
+                    aria-expanded={sidebar.mode !== 'hidden'}
+                    aria-controls="bh-channel-sidebar"
+                    onClick={sidebar.toggle}
+                  >
+                    <IconPanelLeftOutlineRegular size={16} />
+                  </button>
+                </>,
+              )}
+        </div>
       </div>
-    </div>
+    </SessionOpenContext.Provider>
   );
 }
 
@@ -4389,24 +4444,45 @@ export function BotMain({
     () => prefs?.source.getSnapshot().streamReplies ?? false,
     () => false,
   );
+  const sessionLevel = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().sessionDetailLevel ?? DEFAULT_SESSION_DETAIL_LEVEL,
+    () => DEFAULT_SESSION_DETAIL_LEVEL,
+  );
+  const sessionCollapse = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().sessionCollapse ?? DEFAULT_SESSION_COLLAPSE,
+    () => DEFAULT_SESSION_COLLAPSE,
+  );
+  const sessionReplies = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().sessionFoldedReplies ?? DEFAULT_SESSION_FOLDED_REPLIES,
+    () => DEFAULT_SESSION_FOLDED_REPLIES,
+  );
+  const sessionDetailPrefs = useMemo(
+    () => ({ level: sessionLevel, collapse: sessionCollapse, replies: sessionReplies }),
+    [sessionLevel, sessionCollapse, sessionReplies],
+  );
   return (
-    <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
-      <MessageAvatarsContext.Provider value={messageAvatars}>
-        <StreamReplies.Provider value={streamReplies}>
-          <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-            <MessageDeveloperMode.Provider value={developerMode}>
-              <ComposerSendKeyContext.Provider value={sendKey}>
-                <AppearanceContext.Provider value={appearance}>
-                  <Workspace options={workspace} t={props.t ?? zhTranslate}>
-                    <BotMainContent {...props} />
-                  </Workspace>
-                </AppearanceContext.Provider>
-              </ComposerSendKeyContext.Provider>
-            </MessageDeveloperMode.Provider>
-          </AutoCollapseMessages.Provider>
-        </StreamReplies.Provider>
-      </MessageAvatarsContext.Provider>
-    </DeliveryReceiptsVisible.Provider>
+    <SessionDetailPrefsContext.Provider value={sessionDetailPrefs}>
+      <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
+        <MessageAvatarsContext.Provider value={messageAvatars}>
+          <StreamReplies.Provider value={streamReplies}>
+            <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+              <MessageDeveloperMode.Provider value={developerMode}>
+                <ComposerSendKeyContext.Provider value={sendKey}>
+                  <AppearanceContext.Provider value={appearance}>
+                    <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                      <BotMainContent {...props} />
+                    </Workspace>
+                  </AppearanceContext.Provider>
+                </ComposerSendKeyContext.Provider>
+              </MessageDeveloperMode.Provider>
+            </AutoCollapseMessages.Provider>
+          </StreamReplies.Provider>
+        </MessageAvatarsContext.Provider>
+      </DeliveryReceiptsVisible.Provider>
+    </SessionDetailPrefsContext.Provider>
   );
 }
 

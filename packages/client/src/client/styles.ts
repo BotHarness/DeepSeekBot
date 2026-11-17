@@ -27,6 +27,11 @@ export const CSS =
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `
+@property --bh-composer-overlay {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
 .bh-settings-search-results { display: flex; flex-direction: column; gap: ${space.x2}; max-height: 45vh; overflow-y: auto; }
 .bh-settings-search-results button { display: flex; flex-direction: column; gap: ${space.x2}; padding: ${space.x3}; text-align: start; border: 0; border-radius: ${radius.xs}; background: transparent; color: ${color.fg}; cursor: pointer; font: inherit; }
 .bh-settings-search-results button:hover { background: ${color.hover}; }
@@ -3475,9 +3480,7 @@ button.bh-profile-heat-cell:focus-visible {
   margin-bottom: calc(-1 * var(--bh-composer-overlay, 0px));
   padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
-  transition: padding-bottom 160ms ease;
 }
-html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .bh-chat-empty {
   height: 100%;
 }
@@ -4244,7 +4247,22 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-timeline-new:focus-visible { outline: ${border.focus} solid ${color.accent}; }
 
-.bh-inline-mention {
+[data-card-trailing="start"] {
+  align-self: flex-start;
+  padding-top: ${space.x3};
+}
+@property --session-composer-overlay {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@media (hover: hover) {
+  li:not(:hover):not(:focus-within) [data-session-more="closed"] {
+    opacity: 0;
+  }
+}
+.bh-inline-mention,
+.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"] {
   border-radius: ${radius.xs};
   background: var(--tobs-state-pressed);
   color: var(--tobs-ink-primary);
@@ -4258,16 +4276,27 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   border-radius: ${radius.sm};
   padding: ${space.x1} ${space.x3};
 }
+a[href^="https://session.tobs.invalid/"] {
+  display: inline;
+  padding: 0 ${space.x2};
+  border-radius: ${radius.xs};
+  line-height: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
 .bh-inline-mention-avatar {
   display: inline-flex;
   flex: 0 0 auto;
 }
-.bh-inline-mention-link {
+.bh-inline-mention-link,
+.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"] {
   border: 0;
+  text-decoration: none;
   font: inherit;
   cursor: pointer;
 }
-.bh-inline-mention-link:hover {
+.bh-inline-mention-link:hover,
+.bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"]:hover {
   background: var(--tobs-state-hover);
   box-shadow: 0 0 0 1px var(--tobs-state-hover);
 }
@@ -4297,7 +4326,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   white-space: pre-wrap;
   cursor: text;
 }
-.bh-composer-rich-input::after {
+.bh-composer-rich-input:not(:has(> br[data-rich-placeholder]:last-child))::after {
   content: '\\200b';
 }
 .bh-composer-rich-input:empty::before {
@@ -4577,9 +4606,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   border-radius: calc(${radius.panel} + ${space.x3});
   background: var(--tobs-layer-raised);
   transition:
-    padding 220ms var(--ds-ease-in-out),
-    border-color 160ms var(--ds-ease-in-out),
-    box-shadow 160ms var(--ds-ease-in-out);
+    padding 180ms var(--bh-ease-out),
+    border-color 160ms var(--ds-ease-in-out);
 }
 .bh-composer-reply {
   display: flex;
@@ -4714,7 +4742,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   overflow: hidden;
 }
 .bh-composer-first-expand .bh-composer-body {
-  transition: height 220ms var(--ds-ease-in-out);
+  transition: height 180ms var(--bh-ease-out);
 }
 .bh-composer-input {
   display: block;

@@ -520,6 +520,23 @@ window.__ModuleLoader__.load({
 				["path", { d: "m3 17 2 2 4-4" }],
 				["path", { d: "m3 7 2 2 4-4" }]
 			],
+			target: [
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "10"
+				}],
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "6"
+				}],
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "2"
+				}]
+			],
 			palette: [
 				["path", { d: "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" }],
 				["circle", {
@@ -733,6 +750,23 @@ window.__ModuleLoader__.load({
 				rx: "2",
 				ry: "2"
 			}], ["path", { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" }]],
+			"ellipsis-vertical": [
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "1"
+				}],
+				["circle", {
+					cx: "12",
+					cy: "5",
+					r: "1"
+				}],
+				["circle", {
+					cx: "12",
+					cy: "19",
+					r: "1"
+				}]
+			],
 			"external-link": [
 				["path", { d: "M15 3h6v6" }],
 				["path", { d: "M10 14 21 3" }],
@@ -2263,7 +2297,7 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
+		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bh-card-leading",
@@ -2347,6 +2381,7 @@ window.__ModuleLoader__.load({
 						children: body
 					}), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: "bh-card-trailing",
+						"data-card-trailing": trailingAlign,
 						children: trailing
 					})]
 				}), detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {

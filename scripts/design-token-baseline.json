@@ -713,7 +713,7 @@
     "lineBorder": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1942,
+    "legacyCss": 1941,
     "lineBorder": 107
   },
   "packages/client/src/client/tag-editor.tsx": {

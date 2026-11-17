@@ -289,6 +289,7 @@ export interface ChannelMessage {
   grantRequest?: true;
   grantRequestResolved?: boolean;
   assignmentReply?: { sessionId: string; sourceEventId: string };
+  sessionLinks?: { sessionId: string; kind: 'created' | 'sent'; title: string }[];
   grantRequestResolution?: { requestMessageId: string; grantId: string };
   toolApprovalRequest?: ToolApprovalRequestCard;
   approval?: ApprovalCardView;
@@ -1047,6 +1048,7 @@ export function createStore({
         activityList: {
           ...initialActivityList(),
           unreadCount: state.activityList.unreadCount,
+          channelUnread: state.activityList.channelUnread,
           hasAction: state.activityList.hasAction,
           messageCounts: state.activityList.messageCounts,
           attentionStatus: state.activityList.attentionStatus,

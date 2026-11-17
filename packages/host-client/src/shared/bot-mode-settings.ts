@@ -56,6 +56,33 @@ export const BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD = 'showDeliveryReceipts';
 export const BOT_MODE_SHOW_DM_AVATAR_FIELD = 'showDmAvatar';
 export const BOT_MODE_SHOW_OWN_AVATAR_FIELD = 'showOwnAvatar';
 export const BOT_MODE_STREAM_REPLIES_FIELD = 'streamReplies';
+export const BOT_MODE_SESSION_DETAIL_LEVEL_FIELD = 'sessionDetailLevel';
+export const BOT_MODE_SESSION_COLLAPSE_FIELD = 'sessionCollapse';
+export const BOT_MODE_SESSION_FOLDED_REPLIES_FIELD = 'sessionFoldedReplies';
+
+export const SESSION_DETAIL_LEVELS = ['compact', 'standard', 'detailed', 'verbose'] as const;
+export const SESSION_COLLAPSE_MODES = ['completion', 'nextInput'] as const;
+export const SESSION_FOLDED_REPLIES = ['all', 'final'] as const;
+
+export type SessionDetailLevel = (typeof SESSION_DETAIL_LEVELS)[number];
+export type SessionCollapseMode = (typeof SESSION_COLLAPSE_MODES)[number];
+export type SessionFoldedReplies = (typeof SESSION_FOLDED_REPLIES)[number];
+
+export const DEFAULT_SESSION_DETAIL_LEVEL: SessionDetailLevel = 'standard';
+export const DEFAULT_SESSION_COLLAPSE: SessionCollapseMode = 'completion';
+export const DEFAULT_SESSION_FOLDED_REPLIES: SessionFoldedReplies = 'all';
+
+export function isSessionDetailLevel(value: unknown): value is SessionDetailLevel {
+  return (SESSION_DETAIL_LEVELS as readonly unknown[]).includes(value);
+}
+
+export function isSessionCollapseMode(value: unknown): value is SessionCollapseMode {
+  return (SESSION_COLLAPSE_MODES as readonly unknown[]).includes(value);
+}
+
+export function isSessionFoldedReplies(value: unknown): value is SessionFoldedReplies {
+  return (SESSION_FOLDED_REPLIES as readonly unknown[]).includes(value);
+}
 
 export const BOT_MODE_SORT_MODES = ['updated', 'manual'] as const;
 
@@ -114,6 +141,9 @@ export interface BotModeSettings {
   showDmAvatar?: boolean;
   showOwnAvatar?: boolean;
   streamReplies?: boolean;
+  sessionDetailLevel?: SessionDetailLevel;
+  sessionCollapse?: SessionCollapseMode;
+  sessionFoldedReplies?: SessionFoldedReplies;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
   settingsPins?: string[];

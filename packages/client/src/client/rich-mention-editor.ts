@@ -93,6 +93,17 @@ function syncTrailingLine(editor: HTMLElement): void {
   }
 }
 
+export function normalizeRichInput(editor: HTMLElement): void {
+  const last = editor.lastChild;
+  if (
+    editor.querySelector('br[data-rich-placeholder]') === null &&
+    last instanceof HTMLBRElement &&
+    (last.previousSibling === null || last.previousSibling instanceof HTMLBRElement)
+  )
+    last.remove();
+  syncTrailingLine(editor);
+}
+
 export function renderRichMentionDraft(
   editor: HTMLElement,
   value: string,
