@@ -14,6 +14,9 @@ const activity = vi.hoisted(() => ({
   start: vi.fn(async (_target: ActivityTarget) => {}),
   confirm: undefined as (() => Promise<void> | void) | undefined,
 }));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+}));
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));

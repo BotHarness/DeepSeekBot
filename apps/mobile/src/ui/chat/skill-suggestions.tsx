@@ -7,8 +7,10 @@ import { edge, radius, space } from '../design/tokens';
 import { useLiquidGlass } from '../primitives/drawer-material';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { useContext } from 'react';
 import { ComposerFieldMaterial } from './composer-chrome';
 import type { SkillOption } from './skill-draft';
+import { MessageIdentities } from './message-identities';
 import { SkillOwnerMark, skillOwnerName } from './skill-owner';
 
 const ICON = 24;
@@ -22,6 +24,7 @@ export function SkillSuggestions({
   onChoose(option: SkillOption): void;
 }) {
   const t = useStrings();
+  const { host } = useContext(MessageIdentities);
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const corner = glass ? radius.xl : radius.lg;
@@ -55,7 +58,7 @@ export function SkillSuggestions({
         contentContainerStyle={{ paddingVertical: glass ? space.x3 : space.x1 }}
       >
         {options.map((option) => {
-          const owner = skillOwnerName(option, t.skillOwnerHost);
+          const owner = skillOwnerName(option, host?.name ?? t.skillOwnerHost);
           return (
             <Pressable
               key={`${option.owner.kind}:${owner}:${option.name}`}
@@ -76,7 +79,14 @@ export function SkillSuggestions({
             >
               <SkillOwnerMark option={option} size={ICON} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.x2 }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    columnGap: space.x2,
+                  }}
+                >
                   <Text strong>/{option.name}</Text>
                   <Text variant="meta" tone="muted">
                     {owner}
