@@ -189,8 +189,7 @@ export function AccountProfileSettings({
     </SettingsSection>
   );
 
-  if (state.status === 'loading')
-    return frame(<Note tone="muted">{t('accountProfile.loading')}</Note>);
+  if (state.status === 'loading') return frame(<SettingsRow title={t('accountProfile.loading')} />);
 
   if (state.status === 'error')
     return frame(
@@ -200,7 +199,6 @@ export function AccountProfileSettings({
         title={t('accountProfile.loadFailed')}
         body={state.message}
         data={{ 'data-account-profile': 'error' }}
-        inset
         action={
           <Button variant="outline" size="sm" onClick={() => void load()}>
             {t('accountProfile.retry')}
@@ -232,7 +230,6 @@ export function AccountProfileSettings({
           'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in',
         }}
         codeMarker="data-account-sign-in-code"
-        inset
       >
         {signIn === undefined && state.account.issue === undefined ? null : (
           <span ref={poll} hidden />
