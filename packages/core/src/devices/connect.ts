@@ -84,7 +84,7 @@ const RESTART_MAX_MS = 60_000;
 const CONNECTED_LINE = /Registered tunnel connection/u;
 
 const spawnTunnel: SpawnTunnel = (binary, args, env) =>
-  spawnProcess(binary, [...args], { env, stdio: ['ignore', 'ignore', 'pipe'] });
+  spawnProcess(binary, [...args], { windowsHide: true, env, stdio: ['ignore', 'ignore', 'pipe'] });
 
 export function validTunnelToken(token: string): boolean {
   if (token.length > 4096 || !/^[A-Za-z0-9+/=_-]+$/u.test(token)) return false;
