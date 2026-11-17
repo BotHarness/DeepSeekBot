@@ -1030,7 +1030,8 @@ window.__ModuleLoader__.load({
 		};
 		const radius = {
 			xs: "4px",
-			sm: "var(--tobs-style-radius-control)",
+			sm: "var(--tobs-style-radius-small)",
+			control: "var(--tobs-style-radius-control)",
 			md: "var(--tobs-style-radius-container)",
 			lg: "var(--tobs-style-radius-card)",
 			panel: "var(--tobs-style-radius-sheet)",
@@ -2963,6 +2964,7 @@ window.__ModuleLoader__.load({
 				"--tobs-style-radius-bubble": "14px",
 				"--tobs-style-radius-card": "10px",
 				"--tobs-style-radius-sheet": "14px",
+				"--tobs-style-radius-small": "6px",
 				"--tobs-style-chip-height": "24px",
 				"--tobs-style-nav-selected-fill": "var(--tobs-state-selected)",
 				"--tobs-style-nav-selected-ink": "var(--tobs-state-selected-ink)",
@@ -3032,6 +3034,7 @@ window.__ModuleLoader__.load({
 				"--tobs-style-radius-bubble": "14px",
 				"--tobs-style-radius-card": "10px",
 				"--tobs-style-radius-sheet": "12px",
+				"--tobs-style-radius-small": "6px",
 				"--tobs-style-chip-height": "24px",
 				"--tobs-style-nav-selected-fill": "var(--tobs-accent-selection)",
 				"--tobs-style-nav-selected-ink": "var(--tobs-accent-on-selection)",
@@ -3101,6 +3104,7 @@ window.__ModuleLoader__.load({
 				"--tobs-style-radius-bubble": "20px",
 				"--tobs-style-radius-card": "20px",
 				"--tobs-style-radius-sheet": "28px",
+				"--tobs-style-radius-small": "10px",
 				"--tobs-style-chip-height": "32px",
 				"--tobs-style-nav-selected-fill": "var(--tobs-accent-container)",
 				"--tobs-style-nav-selected-ink": "var(--tobs-accent-on-container)",
@@ -3999,9 +4003,9 @@ window.__ModuleLoader__.load({
 .bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}
 .bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}
 .bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}
-.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
 .bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
 .bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}
+.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-small)}
 .bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}
 .bhxc342km:not(#\\#):not(#\\#){border-width:0}
 .bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}

@@ -171,6 +171,10 @@
         "sheet": {
           "$type": "dimension",
           "$value": "{core.radius.28}"
+        },
+        "small": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
         }
       },
       "chip": {

@@ -12,7 +12,7 @@ export const pillStyles = stylex.create({
     height: size.icon,
     paddingInline: `${space.x4} ${space.x3}`,
     borderWidth: 0,
-    borderRadius: radius.sm,
+    borderRadius: radius.control,
     backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
     color: color.fg,
     fontFamily: 'inherit',

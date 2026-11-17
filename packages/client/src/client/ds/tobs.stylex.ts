@@ -165,6 +165,7 @@ export const style = stylex.defineConsts({
   radiusBubble: 'var(--tobs-style-radius-bubble)',
   radiusCard: 'var(--tobs-style-radius-card)',
   radiusSheet: 'var(--tobs-style-radius-sheet)',
+  radiusSmall: 'var(--tobs-style-radius-small)',
   chipHeight: 'var(--tobs-style-chip-height)',
   navSelectedFill: 'var(--tobs-style-nav-selected-fill)',
   navSelectedInk: 'var(--tobs-style-nav-selected-ink)',
