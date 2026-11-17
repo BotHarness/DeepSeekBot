@@ -76,7 +76,11 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: space.x1,
     paddingInline: space.x5,
-    paddingBlock: space.x4,
+    paddingTop: space.x4,
+    paddingBottom: `calc(${space.x4} + var(--session-composer-overlay, 0px))`,
+    marginBottom: 'calc(-1 * var(--session-composer-overlay, 0px))',
+    maskImage: `linear-gradient(to bottom, transparent, black ${space.x4}, black calc(100% - var(--session-composer-overlay, 0px)), transparent 100%)`,
+    overscrollBehavior: 'contain',
   },
   quiet: {
     color: color.subtle,
@@ -114,7 +118,7 @@ const styles = stylex.create({
   bad: { color: color.danger },
   ok: { color: color.success, display: 'inline-flex' },
   run: { color: color.accent, display: 'inline-flex' },
-  composer: { flexShrink: 0, paddingBlock: space.x3 },
+  composer: { flexShrink: 0, position: 'relative', zIndex: 1 },
   error: {
     color: color.danger,
     paddingInline: space.x5,
@@ -337,6 +341,29 @@ export function SessionDetail({
     },
     [actions, botSlug, sessionId, running, revision],
   );
+  const composerMount = useMountedResource<HTMLDivElement>((composer) => {
+    const root = composer.parentElement;
+    const timeline = root?.querySelector<HTMLElement>('[data-session-transcript]');
+    if (root == null || typeof ResizeObserver === 'undefined') return;
+    const sync = (): void => {
+      const overlay = Math.max(
+        0,
+        Math.round(root.getBoundingClientRect().bottom - composer.getBoundingClientRect().top),
+      );
+      const atLatest =
+        timeline != null && timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
+      root.style.setProperty('--session-composer-overlay', `${overlay}px`);
+      if (atLatest) timeline.scrollTop = timeline.scrollHeight;
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(composer);
+    observer.observe(root);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--session-composer-overlay');
+    };
+  }, []);
   const send = async (): Promise<void> => {
     const message = draft.trim();
     const deliver = actions.sendSessionRequest;
@@ -476,7 +503,7 @@ export function SessionDetail({
         )}
       </div>
       {transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined ? (
-        <div data-session-composer="" {...stylex.props(styles.composer)}>
+        <div ref={composerMount} data-session-composer="" {...stylex.props(styles.composer)}>
           {sendError === undefined ? null : (
             <div role="alert" {...stylex.props(styles.quiet, styles.error)}>
               {sendError}
