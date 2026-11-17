@@ -334,42 +334,6 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     }
   });
 
-  it('keeps a purged quote target out of the Bot prompt', async () => {
-    const f = await inboxFixture();
-    try {
-      const at = () => new Date().toISOString();
-      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
-        id: 'human-1',
-        at: at(),
-        author: { kind: 'human' },
-        body: 'Secret plan: launch on Friday.',
-      });
-      await f.send('Secret plan: launch on Friday.');
-      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
-        id: 'human-2',
-        at: at(),
-        author: { kind: 'human' },
-        body: 'Still on?',
-        quotes: [{ messageId: 'human-1', text: 'launch on Friday' }],
-      });
-      const read = f.core.channels.message.bind(f.core.channels);
-      f.core.channels.message = (channelId, messageId) => {
-        const found = read(channelId, messageId);
-        return messageId === 'human-1' && found !== undefined
-          ? ({ ...found, body: '', contentPurge: { at: at() } } as typeof found)
-          : found;
-      };
-      let prompt = '';
-      await f.send('Still on?', async (run) => {
-        prompt = run.message;
-      });
-      expect(prompt).toContain('- Message human-1: (unavailable)');
-      expect(prompt).not.toContain('launch on Friday');
-    } finally {
-      await f.close();
-    }
-  });
-
   it('hides a quote target removed by message cleanup from readers and the Bot prompt', async () => {
     const f = await inboxFixture();
     try {
@@ -408,16 +372,16 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     }
   });
 
-  it('returns a committed quoting send on retry after its target is purged', async () => {
+  it('returns a committed quoting send on retry after message cleanup removes its target', async () => {
     const f = await inboxFixture();
     try {
-      const at = () => new Date().toISOString();
       await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
         id: 'human-1',
-        at: at(),
+        at: '2026-01-01T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Secret plan: launch on Friday.',
       });
+      await f.send('Secret plan: launch on Friday.');
       const send = (run: OrchestratorAgentRun, text: string) =>
         run.channels.send({
           channelId: f.dm.id,
@@ -428,18 +392,16 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
       let first: ChannelMessage | undefined;
       let retry: ChannelMessage | undefined;
       let changed: unknown;
-      await f.send('Secret plan: launch on Friday.', async (run) => {
+      await f.send('Is the plan still on?', async (run) => {
         first = await send(run, 'launch on Friday');
-        const read = f.core.channels.message.bind(f.core.channels);
-        f.core.channels.message = (channelId, messageId) => {
-          const found = read(channelId, messageId);
-          return messageId === 'human-1' && found !== undefined
-            ? ({ ...found, body: '', contentPurge: { at: at() } } as typeof found)
-            : found;
-        };
+        const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+        const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+        f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+        expect(f.core.channels.message(f.dm.id, 'human-1')).toHaveProperty('contentPurge');
         retry = await send(run, 'launch on Friday');
         changed = await send(run, 'Secret plan').catch((error: unknown) => error);
       });
+      expect(first?.id).toBeDefined();
       expect(retry?.id).toBe(first?.id);
       expect(changed).toMatchObject({ code: 'quote-text-mismatch' });
     } finally {

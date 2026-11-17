@@ -72,7 +72,7 @@ const styles = stylex.create({
     fontFamily: 'inherit',
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
-    outline: 'none',
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     '::placeholder': { color: color.subtle },
   },
   remove: {

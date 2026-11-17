@@ -1,3 +1,4 @@
+import { decodeNamedCharacterReference } from 'decode-named-character-reference';
 import {
   replyPreviewOf,
   type ChannelReplyPreview,
@@ -88,22 +89,12 @@ function comparable(text: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
-const NAMED_ENTITIES: Readonly<Record<string, string>> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-};
-
 function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/giu, (whole, name: string) => {
-    const lower = name.toLowerCase();
-    if (!lower.startsWith('#')) return NAMED_ENTITIES[lower] ?? whole;
-    const code = lower.startsWith('#x')
-      ? Number.parseInt(lower.slice(2), 16)
-      : Number.parseInt(lower.slice(1), 10);
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/giu, (whole, name: string) => {
+    if (!name.startsWith('#')) return decodeNamedCharacterReference(name) || whole;
+    const code = /^#x/iu.test(name)
+      ? Number.parseInt(name.slice(2), 16)
+      : Number.parseInt(name.slice(1), 10);
     return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
   });
 }

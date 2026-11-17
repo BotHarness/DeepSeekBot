@@ -1336,21 +1336,24 @@ export function ChannelComposer({
         )}
         {quotes.length === 0 ? null : (
           <QuoteChipList label={t('message.quotes')}>
-            {quotes.map((quote) => (
-              <QuoteChip
-                key={`${quote.messageId}:${quote.text ?? ''}`}
-                author={quote.author}
-                excerpt={quote.excerpt}
-                part={quote.text !== undefined}
-                note={quote.note ?? ''}
-                noteLabel={t('message.quoteNoteLabel', { author: quote.author })}
-                notePlaceholder={t('message.quoteNote')}
-                removeLabel={t('message.quoteRemove', { author: quote.author })}
-                disabled={locked}
-                onNoteChange={(note) => onQuoteNote?.(quote, note)}
-                onRemove={() => onRemoveQuote?.(quote)}
-              />
-            ))}
+            {quotes.map((quote) => {
+              const author = quote.author ?? t('message.replyUnavailable');
+              return (
+                <QuoteChip
+                  key={`${quote.messageId}:${quote.text ?? ''}`}
+                  author={author}
+                  excerpt={quote.excerpt ?? quote.text ?? ''}
+                  part={quote.text !== undefined}
+                  note={quote.note ?? ''}
+                  noteLabel={t('message.quoteNoteLabel', { author })}
+                  notePlaceholder={t('message.quoteNote')}
+                  removeLabel={t('message.quoteRemove', { author })}
+                  disabled={locked}
+                  onNoteChange={(note) => onQuoteNote?.(quote, note)}
+                  onRemove={() => onRemoveQuote?.(quote)}
+                />
+              );
+            })}
           </QuoteChipList>
         )}
         {attachments.length > 0 ? (

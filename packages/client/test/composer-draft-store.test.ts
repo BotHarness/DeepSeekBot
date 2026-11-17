@@ -56,14 +56,22 @@ describe('browser-local composer drafts', () => {
     expect(new ComposerDraftStore(local, 'reopened').read('channel').draft.mentions).toEqual([]);
     expect(first.read('channel').draft.text).toBe('@Gone');
   });
-  it('keeps quote chips across a reload', () => {
+  it('keeps quote chips across a reload without storing quoted message text', () => {
     const local = storage();
     const quotes = [
       { messageId: 'a', author: 'Ada', excerpt: 'whole message' },
-      { messageId: 'b', text: 'part', author: 'You', excerpt: 'part' },
+      { messageId: 'b', text: 'part', note: 'Agreed', author: 'You', excerpt: 'part' },
     ];
     new ComposerDraftStore(local, 'first').update('channel', { text: 'both?', quotes });
-    expect(new ComposerDraftStore(local, 'reopened').read('channel').draft.quotes).toEqual(quotes);
+    expect(new ComposerDraftStore(local, 'reopened').read('channel').draft.quotes).toEqual([
+      { messageId: 'a' },
+      { messageId: 'b', text: 'part', note: 'Agreed' },
+    ]);
+    const stored = Array.from({ length: local.length }, (_, index) =>
+      local.getItem(local.key(index)!),
+    ).join('');
+    expect(stored).not.toContain('whole message');
+    expect(stored).not.toContain('Ada');
   });
   it('recovers an unsent draft in a new browser owner without leaking across trusted scopes', () => {
     const local = storage();

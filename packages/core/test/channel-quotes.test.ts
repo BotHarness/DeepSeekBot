@@ -62,6 +62,8 @@ describe('Channel quotes', () => {
   it('matches an excerpt against the text a reader sees for entity references', () => {
     expect(quoteTextMatches('Fish &amp; chips', 'Fish & chips')).toBe(true);
     expect(quoteTextMatches('Un &#233;t&#xE9; chaud', 'été chaud')).toBe(true);
+    expect(quoteTextMatches('Un &eacute;t&eacute; chaud', 'été chaud')).toBe(true);
+    expect(quoteTextMatches('&Eacute;cole &copy; 2026', 'École © 2026')).toBe(true);
     expect(quoteTextMatches('Fish &amp; chips', 'Fish & fries')).toBe(false);
   });
 

@@ -342,9 +342,15 @@ describe('Group send review through the same direct model tools', () => {
     });
   });
 
-  it('replays a committed quoting draft after its quoted target is purged', async () => {
+  it('replays a committed quoting draft, and refuses it without a second copy once message cleanup removes its target', async () => {
     await fixture(async ({ core, channelId, human, tool }) => {
-      await human('question', 'Ship the export fix on Friday.');
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+        id: 'plan',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Ship the export fix on Friday.',
+      });
+      await human('question', 'Is the export fix still on?');
       const read = await tool('channel_read', {});
       const peerRead = await tool('channel_read', {}, 'bob');
       await tool(
@@ -352,7 +358,7 @@ describe('Group send review through the same direct model tools', () => {
         { body: 'Friday works', observation_id: peerRead.observationIds[channelId] },
         'bob',
       );
-      const quotes = [{ message_id: 'question', text: 'export fix', note: 'Confirmed' }];
+      const quotes = [{ message_id: 'plan', text: 'export fix', note: 'Confirmed' }];
       const held = await tool('bot_send_message', {
         body: 'The fix ships Friday.',
         quotes,
@@ -366,13 +372,6 @@ describe('Group send review through the same direct model tools', () => {
       };
       const sent = await tool('bot_send_message', args);
       expect(sent.status).toBe('committed');
-      const message = core.channels.message.bind(core.channels);
-      core.channels.message = (id, messageId) => {
-        const found = message(id, messageId);
-        return messageId === 'question' && found !== undefined
-          ? ({ ...found, body: '', contentPurge: { at: new Date().toISOString() } } as typeof found)
-          : found;
-      };
       expect(await tool('bot_send_message', args)).toMatchObject({
         status: 'committed',
         messageId: sent.messageId,
@@ -380,6 +379,23 @@ describe('Group send review through the same direct model tools', () => {
       expect(
         await tool('bot_send_message', { ...args, quotes: [{ ...quotes[0], note: 'Changed' }] }),
       ).toMatchObject({ reason: 'draft-commit-content-changed' });
+      attachOperationalModule(core.operationalDatabase, 'test').transaction((db) => {
+        db.prepare(
+          "UPDATE inbox_admissions SET attempt_state = 'handled' WHERE source_event_id IN (SELECT source_event_id FROM channel_placements WHERE message_id = 'plan')",
+        ).run();
+      });
+      const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [channelId] };
+      const preview = core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+      expect(preview.messages).toBe(1);
+      core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+      expect(core.channels.message(channelId, 'plan')).toHaveProperty('contentPurge');
+      await expect(tool('bot_send_message', args)).rejects.toThrow(
+        'Quote text is not part of message plan',
+      );
+      const page = core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, channelId, { limit: 20 })!;
+      expect(
+        page.entries.filter((entry) => 'body' in entry && entry.body === 'The fix ships Friday.'),
+      ).toHaveLength(1);
     });
   });
 

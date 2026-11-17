@@ -3246,7 +3246,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const rows: DigestRow[] = [];
     let characters = 0;
     for (const row of candidates) {
-      const cost = Math.min(row.body.length, bodyLimit) + 80;
+      const cost =
+        Math.min(row.body.length, bodyLimit) +
+        80 +
+        this.#rowQuotes(channelId, row.message_id).length;
       if (
         rows.length >= GROUP_PROMPT_CHANNEL_LIMIT ||
         characters + cost > limits['dm-context-chars']

@@ -1738,6 +1738,18 @@ function ConversationView({
     state.bots.find((candidate) => candidate.slug === channel.botSlug)?.deleted === true;
   const readOnlyDm = isHumanReadOnlyDmChannel(channel) || deletedBotDm;
   const mutationLocked = readOnlyDm || channel?.readOnly === true;
+  const composerQuotes = quoteTargets.map((quote) => {
+    if (quote.author !== undefined) return quote;
+    const target = messages.find((candidate) => candidate.id === quote.messageId);
+    if (target === undefined) return quote;
+    return {
+      ...quote,
+      author: authorLabel(target, state.bots, t, channelHumanName(channel)),
+      excerpt: Array.from((quote.text ?? target.body).replace(/\s+/gu, ' ').trim())
+        .slice(0, 140)
+        .join(''),
+    };
+  });
   const selectionQuote = useSelectionQuote(!mutationLocked, (messageId) => {
     const target = messages.find((candidate) => candidate.id === messageId);
     return target !== undefined && quotableMessage(target);
@@ -3038,7 +3050,9 @@ function ConversationView({
               (item) =>
                 !submittedQuotes.some(
                   (sentQuote) =>
-                    sentQuote.messageId === item.messageId && sentQuote.text === item.text,
+                    sentQuote.messageId === item.messageId &&
+                    sentQuote.text === item.text &&
+                    sentQuote.note === (item.note?.trim() || undefined),
                 ),
             ),
           );
@@ -4001,7 +4015,7 @@ function ConversationView({
                       setRestoreBlocked(false);
                     }}
                     onCancelReply={() => setReplyTarget(undefined)}
-                    quotes={quoteTargets}
+                    quotes={composerQuotes}
                     onRemoveQuote={(quote) =>
                       setQuoteTargets((current) =>
                         current.filter(

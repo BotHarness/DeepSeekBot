@@ -20,8 +20,8 @@ export interface ComposerQuote {
   messageId: string;
   text?: string;
   note?: string;
-  author: string;
-  excerpt: string;
+  author?: string;
+  excerpt?: string;
 }
 
 const MAX_DRAFT_QUOTES = 8;
@@ -138,8 +138,6 @@ function parseVersion(raw: string): Version {
       messageId: string(quote['messageId']),
       ...(text === undefined ? {} : { text }),
       ...(note === undefined ? {} : { note }),
-      author: string(quote['author']),
-      excerpt: string(quote['excerpt']),
     };
   });
   if (!Array.isArray(saved['uploads']) || saved['uploads'].length > 10) throw new Error();
@@ -196,7 +194,15 @@ function serialize(version: Version): string {
           end: token.end,
         })),
       reply: draft.reply === undefined ? null : { id: draft.reply.id },
-      ...(draft.quotes.length === 0 ? {} : { quotes: draft.quotes }),
+      ...(draft.quotes.length === 0
+        ? {}
+        : {
+            quotes: draft.quotes.map(({ messageId, text, note }) => ({
+              messageId,
+              ...(text === undefined ? {} : { text }),
+              ...(note === undefined ? {} : { note }),
+            })),
+          }),
       uploads: draft.uploads.map((upload) => ({
         id: upload.id,
         name: upload.file.name,
