@@ -15,6 +15,7 @@ export function useHeaderModel(
   client: HostClient | undefined,
   slug: string | undefined,
   focused: boolean,
+  refresh: string | undefined,
 ): { model: HeaderModel | undefined; mount: RefCallback<ViewInstance> } {
   const settings = useMemo(
     () => (client === undefined || slug === undefined ? undefined : botSettings(client, slug)),
@@ -35,7 +36,7 @@ export function useHeaderModel(
     return () => {
       current = false;
     };
-  }, [settings, focused]);
+  }, [settings, focused, refresh]);
   return {
     model: state !== undefined && state.key === settings ? headerModel(state.model) : undefined,
     mount,
