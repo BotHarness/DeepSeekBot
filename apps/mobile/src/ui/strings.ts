@@ -1047,6 +1047,18 @@ const en = {
     loadFailed: 'Could not load your profile.',
     saveFailed: 'Could not save.',
     retry: 'Try again',
+    uploads: 'My uploaded Bots',
+    uploadsEmpty: 'You have not uploaded any Bots yet.',
+    uploadsFooter: 'To update a Bot, open My uploaded Bots in Tobs on your computer.',
+    uploadsMeta: (files: number, size: string, date: string) =>
+      `${files} files · ${size} · ${date}`,
+    uploadsBlocked: 'Taken down',
+    uploadsView: 'View in Marketplace',
+    uploadsDelete: 'Delete',
+    uploadsDeleteTitle: (name: string) => `Delete ${name}?`,
+    uploadsDeleteBody:
+      'Its files and install count are deleted for good. Copies people already installed stay.',
+    uploadsDeleteFailed: 'Could not delete. Try again.',
   },
   emailSignIn: {
     title: 'Sign in',
@@ -3618,6 +3630,17 @@ const zh: typeof en = {
     loadFailed: '未能读取个人资料。',
     saveFailed: '未能保存。',
     retry: '重试',
+    uploads: '我上传的 Bot',
+    uploadsEmpty: '还没有上传过 Bot',
+    uploadsFooter: '要更新 Bot，请在电脑上的 Tobs 里打开「我上传的 Bot」。',
+    uploadsMeta: (files: number, size: string, date: string) =>
+      `${files} 个文件 · ${size} · ${date}`,
+    uploadsBlocked: '已下架',
+    uploadsView: '在市场中查看',
+    uploadsDelete: '删除',
+    uploadsDeleteTitle: (name: string) => `删除「${name}」？`,
+    uploadsDeleteBody: '文件和安装数一起删除，无法恢复。已安装的副本不受影响。',
+    uploadsDeleteFailed: '未能删除，请重试。',
   },
   emailSignIn: {
     title: '登录',

@@ -220,6 +220,7 @@ export function GroupComposerContextView({
     members.map((bot) => facts[bot.slug]),
     t,
   );
+  const count = groupWorkspaceCount(members.map((bot) => facts[bot.slug]));
   const retry = results.some((row) => row.status === 'unknown' || row.status === 'failed');
   return (
     <>
@@ -235,7 +236,8 @@ export function GroupComposerContextView({
           data-composer-chip="workspace"
           collapseLabel
           icon={<ChannelSidebarIcon name="folder-key" size={14} />}
-          label={chip}
+          label={count ?? chip}
+          title={chip}
           aria-label={`${t('entry.workspaceGrants')} · ${chip}`}
           onClick={onOpen}
         />
@@ -385,6 +387,14 @@ export function GroupComposerContextView({
       ) : null}
     </>
   );
+}
+
+export function groupWorkspaceCount(
+  facts: (WorkspaceGrantView[] | null | undefined)[],
+): string | undefined {
+  if (facts.length === 0 || facts.some((grants) => grants === null || grants === undefined))
+    return undefined;
+  return String(new Set(facts.flatMap((grants) => grants!.map((grant) => grant.workspaceId))).size);
 }
 
 export function groupWorkspaceChip(

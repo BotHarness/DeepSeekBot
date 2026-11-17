@@ -153,7 +153,7 @@ deepseekbot search <words>
 
 CLI 在读取 stdin 和连接前记录绝对期限；Host 将期限限制为 relay 接收后最多八秒。Client 在加载后、获得锁后和实际 `localStorage.setItem` 前复核墙上时间，即使定时回调尚未运行，越期命令也不能开始写入。Client 释放与 Host 移除也在写入前复核。这不代表远端取消已确认：期限前杀掉 CLI 或断开 HTTP，已送达命令仍可能在期限内执行。写入回执丢失或 relay 超时，在 CLI 仍能输出时报告 `host-look-outcome-unknown`；重试前须读回相同 Client/Host。期限内已完成的写入可能成功而回执丢失。Host 设置统一包含外观、通知、模型、用量和存储；离线时仍可进入外观和通知。通知继续使用 `browser-notifications`，保留权限、激活基线和取消语义。
 
-浏览器环境面板的「更多操作 → 设置」打开一个具名设置目标，独立于聊天／事项的浏览筛选。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。「消息」分区使用 `human-name-set`、`settings` / `settings-set botharness-client`（`autoAcceptGroupInvites`、`botHopLimit`）和 `messaging-defaults` / `messaging-defaults-set`，改的是该 Host；发送键、折叠和显示类选项只影响这个 Client 怎么显示聊天，所以仍在本机 Host 上设置。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。本应用偏好、外观和通知仍保存在 Client 本地。切换含未保存修改的设置目标前，可选择保存并切换、放弃或取消；保存结果不确定时，先从同一 Host 读取 `model-catalog` 或 `model-presets`，再决定是否重试。
+浏览器环境面板的「更多操作 → 设置」打开一个具名设置目标，独立于聊天／事项的浏览筛选。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。「聊天」分区使用 `human-name-set`、`settings` / `settings-set botharness-client`（`autoAcceptGroupInvites`、`botHopLimit`）和 `messaging-defaults` / `messaging-defaults-set`，改的是该 Host；发送键、折叠和显示类选项只影响这个 Client 怎么显示聊天，所以仍在本机 Host 上设置。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。本应用偏好、外观和通知仍保存在 Client 本地。切换含未保存修改的设置目标前，可选择保存并切换、放弃或取消；保存结果不确定时，先从同一 Host 读取 `model-catalog` 或 `model-presets`，再决定是否重试。
 
 将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin。使用 tailnet origin（例如 loopback Host 前面的 `tailscale serve`）时，Host 必须以 `--trusted-host <machine>.<tailnet>.ts.net` 启动；否则登录能成功，但 DSH 的 `/api` Host 校验会拒绝每个请求，CLI 返回 `host-untrusted`。`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
 
@@ -196,7 +196,7 @@ deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --promp
 
 `bot-compact <bot-id>` 通过 DSH `/compact` 压缩空闲 Bot 的编排会话；Host 重启后会加载原会话，无需先发消息。成功返回 `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`；没有可用的更小摘要时返回 `nothing`。两种结果都会让待生效的 Prompt Preset 改动生效。有运行中或排队轮次时返回 `bot-busy`；原会话不可用时返回明确错误。
 
-`bot-context <bot-id>` 返回当前 `sessionId`、估算占用 `usedTokens`（会话未加载时为 null）、`contextWindow`、容量来源 `capacitySource`（`model` 或 `estimate`）及压缩阈值 `thresholdTokens`。模型容量缺失时按 200,000 tokens 估算，再扣除输出预留和安全余量；该估算不是已验证的服务商上限。Web 输入框显示当前上下文数据，点击后仍可查看累计用量。
+`bot-context <bot-id>` 返回当前 `sessionId`、估算占用 `usedTokens`（会话未加载时为 null）、`contextWindow`、容量来源 `capacitySource`（`model` 或 `estimate`）及压缩阈值 `thresholdTokens`。模型容量缺失时按 200,000 tokens 估算，再扣除输出预留和安全余量；该估算不是已验证的服务商上限。会话已加载时还返回 `sources`：当前上下文按来源拆分（`system`、`tools`、`human`、`inbox-mention`、`inbox-schedule`、`inbox-memory`、`inbox-assignment`、`host`、`skills`、`attachments`、`replies`、`thinking`、`tool-use`、`summary`、`other`），每项带估算的 `tokens`；`tool-use` 另按工具名列出 `tools`。Web 对话 header 的 chip 显示当前上下文数据和同样的拆分，点击后仍可查看累计用量。
 
 `bot-system-prompt <bot-id>` 返回 Bot 编排会话当前使用的 System Prompt（`effectiveText`：会话 surface 上最新的一条 system 消息，因为 DSH 会把变化后的提示词追加到历史里，而不是改写第一条；会话已加载时读自会话 surface，未加载时读自会话日志并返回 `loaded: false`）、最新组装出的 `next`（含具名分段 `sections` 和每步附加的运行时上下文 `contexts`），以及 `pending`：Prompt Preset 或人设改动在等新会话或下一次压缩时为 true。生效后，会话的下一次请求会追加新文字。会话未加载时 `next` 为 null。
 
@@ -261,6 +261,7 @@ deepseekbot settings botharness-client
 printf '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"autoCollapseMessages":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"showDeliveryReceipts":true}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"showDmAvatar":true,"showOwnAvatar":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"botHopLimit":128}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"settingsPins":["models","auto-approval","devices"]}' | deepseekbot settings-set botharness-client --patch-stdin

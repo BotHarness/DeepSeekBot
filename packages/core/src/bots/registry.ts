@@ -152,6 +152,10 @@ export interface PersonaBotRegistry {
   setVoice(slug: string, voice: PersonaBotVoice | undefined): UpdatePersonaBotResult;
   setAsr(slug: string, asr: PersonaBotAsr | undefined): UpdatePersonaBotResult;
   setMarketplaceListing(slug: string, listing: MarketplaceListingRef): UpdatePersonaBotResult;
+  setMarketplaceUpload(
+    slug: string,
+    listing: MarketplaceListingRef | undefined,
+  ): UpdatePersonaBotResult;
   setPromptSettings(
     slug: string,
     settings: {
@@ -277,6 +281,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     }
     if (record.marketplaceListing !== undefined)
       result.marketplaceListing = { ...record.marketplaceListing };
+    if (record.marketplaceUpload !== undefined)
+      result.marketplaceUpload = { ...record.marketplaceUpload };
     if (record.standingLimits !== undefined)
       result.standingLimits = {
         soul: record.standingLimits.soul,
@@ -1060,6 +1066,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       record.marketplaceListing = { id: listing.id, pushedAt: listing.pushedAt };
+      write(record);
+      return { ok: true, record };
+    },
+    setMarketplaceUpload(slug, listing) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (listing === undefined) delete record.marketplaceUpload;
+      else record.marketplaceUpload = { id: listing.id, pushedAt: listing.pushedAt };
       write(record);
       return { ok: true, record };
     },

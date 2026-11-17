@@ -66,11 +66,13 @@ export type AccountProfileSettingsProps = PropsLocale<'botharness'> &
       'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAuthorAvatarSet'
     >;
     startSignIn(): Promise<ConnectSignInCode>;
+    uploads?: ReactNode;
   }>;
 
 export function AccountProfileSettings({
   actions,
   startSignIn,
+  uploads,
   t,
 }: AccountProfileSettingsProps): ReactElement {
   const [state, setState] = useState<State>({ status: 'loading' });
@@ -345,6 +347,7 @@ export function AccountProfileSettings({
           }
         />
       )}
+      {uploads}
       {cropFile ? (
         <GroupAvatarCropModal
           file={cropFile}

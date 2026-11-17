@@ -1105,7 +1105,11 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
               : 'xdg-open';
         try {
           await mkdir(dir, { recursive: true });
-          const child = spawn(opener, [dir], { detached: true, stdio: 'ignore' });
+          const child = spawn(opener, [dir], {
+            windowsHide: false,
+            detached: true,
+            stdio: 'ignore',
+          });
           await new Promise<void>((resolve, reject) => {
             child.once('spawn', () => {
               child.unref();

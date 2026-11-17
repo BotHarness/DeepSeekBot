@@ -27,7 +27,7 @@
       "description": "Theme, locale, notifications, file opening and presentation preferences; native Settings fields already have generic settings CLI, but local services need a target Client.",
       "scope": "Client",
       "surfaces": [
-        "setting:packages/client/src/client/appearance-settings.tsx:{t('settings.language')}",
+        "setting:packages/client/src/client/bot-settings-sections.tsx:{t('settings.language')}",
         "setting:packages/client/src/client/notification-settings.tsx:{t('desktopNotify.row.title')}",
         "storage:packages/client/src/client/composer-footer-preferences.ts:setItem(FOOTER_STORAGE_KEY)",
         "storage:packages/client/src/client/desktop-notifications.ts:setItem(DESKTOP_NOTIFICATIONS_KEY)",
@@ -226,6 +226,8 @@
         "field:packages/host-client/src/shared/bot-mode-settings.ts:sortMode",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:sortModes",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showDeliveryReceipts",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showDmAvatar",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showOwnAvatar",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:streamReplies",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:botHopLimit",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:settingsPins",
@@ -236,6 +238,8 @@
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sendKey.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('messageFold.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.delivery.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.dm.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.own.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.stream.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],
@@ -320,7 +324,9 @@
       "description": "Host automatic context compaction threshold (window ratio and headroom).",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.row.title')}"
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.ratio')}",
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.headroom')}",
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.reset.title')}"
       ],
       "commands": ["idle-compaction", "compaction-threshold-set"]
     },
@@ -360,6 +366,13 @@
         "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.photo')}"
       ],
       "commands": ["marketplace-account", "marketplace-author", "marketplace-author-avatar"]
+    },
+    {
+      "id": "account-uploaded-bots",
+      "description": "Settings entry listing the signed-in account's uploaded Marketplace Bots, with update and delete.",
+      "scope": "Host",
+      "surfaces": ["setting:packages/client/src/client/market-mine.tsx:{t('market.mine.title')}"],
+      "commands": ["marketplace-mine", "marketplace-upload", "marketplace-delete"]
     },
     {
       "id": "channel-history",
@@ -1042,6 +1055,8 @@
         "storage:packages/client/src/client/appearance.ts:setItem(APPEARANCE_KEY)",
         "route:packages/core/src/plugin.ts:APPEARANCE_CONTROL_PATH",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialBlur')}",
+        "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.clear')}",
+        "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.reset')}",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialColor')}",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialOpacity')}",
         "setting:packages/client/src/client/appearance-panel-settings.tsx:{t( field === 'color' ? 'appearance.materialColor' : field === 'opacity' ? 'appearance.materialOpacity' : 'appearance.materialBlur', )}"
@@ -1066,7 +1081,8 @@
       "description": "Browser-owned Host name, icon and colour; shared HostLooks locks persisted revision/merge, supports explicit refresh after read failure, and checks CLI absolute expiry before setItem. Early disconnect is unknown outcome with readback; no Host mirror.",
       "scope": "Client / Host",
       "surfaces": [
-        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)",
+        "setting:packages/client/src/client/host-look-settings.tsx:{<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}"
       ],
       "commands": ["appearance-clients", "host-look"]
     },

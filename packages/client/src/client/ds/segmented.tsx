@@ -2,7 +2,7 @@ import type { KeyboardEvent, ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { joinClass } from './class-name.js';
 import { on } from './surface.stylex.js';
-import { accent, elevation, ink, layer, style } from './tobs.stylex.js';
+import { accent, elevation, ink, style } from './tobs.stylex.js';
 import { border, space } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -14,6 +14,7 @@ const styles = stylex.create({
     padding: space.x1,
     borderRadius: style.radiusControl,
     backgroundColor: on.track,
+    boxShadow: `inset 0 0 0 1px ${style.segmentedEdge}`,
   },
   tab: {
     boxSizing: 'border-box',
@@ -32,8 +33,8 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${accent.focus}` },
   },
   selected: {
-    backgroundColor: layer.field,
-    color: ink.primary,
+    backgroundColor: style.segmentedSelectedFill,
+    color: style.segmentedSelectedInk,
     fontWeight: 500,
     boxShadow: elevation.x1,
   },

@@ -145,6 +145,7 @@ let rendered: {
   id: string | undefined;
   close: (() => void) | undefined;
   clientOnly?: boolean | undefined;
+  pairPhone?: boolean | undefined;
 }[];
 
 beforeEach(() => {
@@ -183,13 +184,14 @@ function mount(
         t: zhTranslate,
         renderSlot: ((
           _name: string,
-          owner: { close(): void; clientOnly?: boolean },
+          owner: { close(): void; clientOnly?: boolean; pairPhone?: boolean },
           options?: { only?: string },
         ) => {
           rendered.push({
             id: options?.only,
             close: owner.close,
             clientOnly: owner.clientOnly,
+            pairPhone: owner.pairPhone,
           });
           return createElement('p', { 'data-section': options?.only }, `section:${options?.only}`);
         }) as never,
@@ -274,7 +276,7 @@ it('stays closed until opened and lists sections in order', () => {
   const dialog = document.querySelector('[role="dialog"]');
   expect(dialog?.getAttribute('aria-label')).toBe('Bot 设置');
   expect(dialog?.getAttribute('aria-modal')).toBe('true');
-  expect(navLabels()).toEqual(['通用', '模型与运行', '本应用中的外观', '数据与隐私', '关于']);
+  expect(navLabels()).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);
   expect(current()).toBe('通用');
   expect(shownSection()).toBe('general');
   expect(document.querySelector('h2')?.textContent).toBe('通用');
@@ -294,8 +296,8 @@ it('leads every sidebar section with its own glyph and keeps the label as the na
   expect(buttons.map((button) => button.textContent)).toEqual([
     ...ids.filter((id) => DEVICE_SETTINGS_SECTIONS.has(id)),
     ...ids
-      .filter((id) => !DEVICE_SETTINGS_SECTIONS.has(id))
-      .flatMap((id) => (id === 'models' ? [id, '本应用中的外观'] : [id])),
+      .filter((id) => !DEVICE_SETTINGS_SECTIONS.has(id) && id !== 'browser')
+      .map((id) => (id === 'computer' ? '电脑与浏览器' : id)),
   ]);
   const glyphs = buttons.map((button) => {
     const icon = button.firstElementChild;
@@ -303,7 +305,7 @@ it('leads every sidebar section with its own glyph and keeps the label as the na
     expect(icon?.querySelector('svg')).not.toBeNull();
     return icon?.innerHTML;
   });
-  expect(new Set(glyphs).size).toBe(ids.length + 1);
+  expect(new Set(glyphs).size).toBe(ids.length - 1);
   expect(current()).toBe('general');
 });
 
@@ -476,7 +478,7 @@ it('renders only a section dropdown in narrow frames and switches sections from 
   );
   expect(
     [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent),
-  ).toEqual(['通用', '模型与运行', '本应用中的外观', '数据与隐私', '关于']);
+  ).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);
   const about = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
     (item) => item.textContent === '关于',
   );
@@ -552,24 +554,23 @@ it('routes the phone entry to Connections while keeping ordinary settings indepe
   });
 });
 
-it('opens Connections outside the settings sidebar and passes the phone intent to its shared surface', () => {
+it('opens Connections as a settings page and passes the phone intent to it', () => {
   const settings = new BotSettings();
   mount(settings, [...ROWS, { id: 'devices', order: 45, label: '连接' }]);
   act(() => settings.open('pair-phone'));
   expect(shownSection()).toBe('devices');
-  expect(document.querySelector('nav')).toBeNull();
-  act(() => rendered.at(-1)!.close!());
-  expect(settings.getSnapshot().open).toBe(false);
+  expect(current()).toBe('连接');
+  expect(rendered.at(-1)).toMatchObject({ id: 'devices', pairPhone: true });
 });
 
-it('returns to ordinary settings after closing the standalone Connections dialog', () => {
+it('drops the pairing intent when Connections is opened again', () => {
   const settings = new BotSettings();
   settings.open('pair-phone');
   settings.close();
   settings.open();
   expect(settings.getSnapshot()).toMatchObject({
     open: true,
-    sectionId: 'general',
+    sectionId: 'devices',
     pairPhone: false,
   });
 });
@@ -677,7 +678,7 @@ it('switches the Host group to a remote Host from the top-right switcher and kee
     '自动审批',
     '提示词',
     '语音',
-    '消息',
+    '聊天',
     '本应用中的外观',
     '通知',
     'Token 用量',
@@ -948,4 +949,44 @@ it('restores the default pins from Pinned after they change', async () => {
     'im-apps',
   ]);
   expect(document.querySelector('[data-settings-pins-restore]')).toBeNull();
+});
+
+it('shows Computer and Browser as one page and keeps the old ids as aliases', () => {
+  const settings = new BotSettings();
+  mount(settings, [
+    ...ROWS,
+    { id: 'computer', order: 30, label: '电脑控制' },
+    { id: 'browser', order: 32, label: '浏览器控制' },
+  ]);
+  act(() => {
+    settings.open('browser');
+  });
+  expect(current()).toBe('电脑与浏览器');
+  expect(
+    [...document.querySelectorAll('[data-section]')].map((node) =>
+      node.getAttribute('data-section'),
+    ),
+  ).toEqual(['computer', 'browser']);
+  expect(navLabels()).not.toContain('浏览器控制');
+});
+
+it('folds the Host look into Account and opens it from the old page id', () => {
+  const settings = new BotSettings();
+  mount(settings, [...ROWS, { id: 'account', order: -5, label: '个人资料' }]);
+  act(() => {
+    settings.open('environment-appearance');
+  });
+  expect(current()).toBe('个人资料');
+  expect(shownSection()).toBe('account');
+  expect(navLabels()).not.toContain('本应用中的外观');
+});
+
+it('opens About from the old Plugins page id', () => {
+  const settings = new BotSettings();
+  mount(settings, ROWS);
+  act(() => {
+    settings.open('plugins');
+  });
+  expect(current()).toBe('关于');
+  expect(shownSection()).toBe('about');
 });

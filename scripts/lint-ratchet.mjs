@@ -35,7 +35,13 @@ export function readGuardrails(repo = root) {
 }
 
 export const ratcheted = (guardrails) =>
-  guardrails.filter((guardrail) => guardrail.check === 'scripts/lint-ratchet.mjs');
+  guardrails
+    .filter((guardrail) => guardrail.check === 'scripts/lint-ratchet.mjs')
+    .flatMap((guardrail) =>
+      guardrail.rules === undefined
+        ? [guardrail]
+        : guardrail.rules.map((rule) => ({ ...guardrail, rule })),
+    );
 
 const ruleCode = (rule) => {
   const [plugin, name] = rule.split('/');
@@ -107,10 +113,11 @@ function readBaseline(text, label) {
   return baseline;
 }
 
-export function raised(base, next) {
+export function raised(base, next, seeded = new Set()) {
   const errors = [];
   for (const [rule, files] of Object.entries(next))
     for (const [file, count] of Object.entries(files)) {
+      if (seeded.has(rule)) continue;
       const allowed = base[rule]?.[file] ?? 0;
       if (count > allowed)
         errors.push(`${file}: ${rule} baseline raised from ${allowed} to ${count}`);
@@ -127,7 +134,8 @@ export function lowered(baseline, counts, guardrails) {
       .sort()
       .map((file) => [file, Math.min(allowed[file], actual[file] ?? 0)])
       .filter(([, count]) => count > 0);
-    if (entries.length) next[guardrail.rule] = Object.fromEntries(entries);
+    if (entries.length || guardrail.rule in baseline)
+      next[guardrail.rule] = Object.fromEntries(entries);
   }
   return next;
 }
@@ -182,7 +190,18 @@ function checkBase(revision) {
     console.log(`lint ratchet: ${revision} has no baseline yet`);
     return 0;
   }
-  const errors = raised(previous, current);
+  const before = git(['show', `${revision}:${REGISTRY}`]);
+  const known = new Set(
+    before.status === 0
+      ? ratcheted(JSON.parse(before.stdout).guardrails).map((guardrail) => guardrail.rule)
+      : [],
+  );
+  const seeded = new Set(
+    ratcheted(readGuardrails())
+      .map((guardrail) => guardrail.rule)
+      .filter((rule) => !known.has(rule)),
+  );
+  const errors = raised(previous, current, seeded);
   if (errors.length) {
     console.error(
       `lint ratchet: the baseline only shrinks. Fix the new findings instead of raising it:\n  ${errors.join('\n  ')}`,
@@ -196,7 +215,8 @@ function checkBase(revision) {
 function main(argv) {
   const base = argv.find((arg) => arg.startsWith('--base='));
   if (base) return checkBase(base.slice('--base='.length));
-  const update = argv.includes('--update');
+  const seeds = argv.filter((arg) => arg.startsWith('--seed=')).map((arg) => arg.slice(7));
+  const update = argv.includes('--update') || seeds.length > 0;
   const paths = argv
     .filter((arg) => !arg.startsWith('--'))
     .map((path) => relative(root, resolve(path)).replaceAll('\\', '/'))
@@ -205,8 +225,15 @@ function main(argv) {
   const guardrails = ratcheted(readGuardrails());
   const baselineFile = join(root, 'scripts/lint-baseline.json');
   const baseline = readBaseline(readFileSync(baselineFile, 'utf8'), 'scripts/lint-baseline.json');
+  for (const rule of seeds) {
+    if (!guardrails.some((guardrail) => guardrail.rule === rule))
+      throw new Error(`--seed=${rule} names no ratcheted rule in ${REGISTRY}`);
+    if (baseline[rule] !== undefined)
+      throw new Error(`--seed=${rule}: the rule already has a baseline, which only shrinks`);
+  }
   const diagnostics = runOxlint(paths);
   const { counts, spots, other } = countFindings(diagnostics, guardrails);
+  for (const rule of seeds) baseline[rule] = counts[rule] ?? {};
   if (update) {
     if (paths.length) throw new Error('--update runs on the whole repository only');
     writeFileSync(

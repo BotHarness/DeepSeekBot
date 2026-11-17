@@ -26,6 +26,7 @@ jobs:
           sparse-checkout: |
             .node-version
             scripts/check-pr-provenance.mjs
+            scripts/pr-body-field.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - uses: actions/setup-node@v7

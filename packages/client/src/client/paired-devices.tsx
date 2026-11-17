@@ -120,6 +120,15 @@ function routeKey(urls: string[]): string {
 }
 
 const styles = stylex.create({
+  page: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
+  pageBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.x3,
+  },
+  pageSpacer: { flexGrow: 1 },
   pairing: {
     display: 'flex',
     flexDirection: 'column',
@@ -242,6 +251,7 @@ export function PairedDevicesSettings({
   t,
   section = 'devices',
   standalone = false,
+  page = false,
   initialPairing = false,
   initialRemote = false,
   onDevicePaired,
@@ -251,6 +261,7 @@ export function PairedDevicesSettings({
 }: PropsLocale<'botharness'> & {
   section?: 'devices' | 'connect' | 'requests';
   standalone?: boolean;
+  page?: boolean;
   initialPairing?: boolean;
   initialRemote?: boolean;
   pairedDeviceId?: string | undefined;
@@ -1618,6 +1629,47 @@ export function PairedDevicesSettings({
       ) : null}
     </div>
   );
+  const footer =
+    setup === 'remote' ? (
+      <div ref={setRemoteFooter} />
+    ) : overview ? (
+      <Button
+        variant="primary"
+        icon={<ChannelSidebarIcon name="plus" size={16} />}
+        onClick={() => setSetup('direction')}
+      >
+        {t('connections.add')}
+      </Button>
+    ) : undefined;
+  const back = overview
+    ? undefined
+    : (pairingBack ??
+      setupBack ?? (
+        <Button
+          variant="outline"
+          icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+          onClick={() => {
+            setReviewing(false);
+            preparingRelationshipRoute.current = false;
+            setSetup('closed');
+          }}
+        >
+          {t('connections.back')}
+        </Button>
+      ));
+  if (page)
+    return (
+      <div {...stylex.props(styles.page)} data-connections-page="">
+        {content}
+        {back === undefined && footer === undefined ? null : (
+          <div {...stylex.props(styles.pageBar)}>
+            {back}
+            <span {...stylex.props(styles.pageSpacer)} />
+            {footer}
+          </div>
+        )}
+      </div>
+    );
   return standalone ? (
     <PanelDialog
       title={t('connections.title')}

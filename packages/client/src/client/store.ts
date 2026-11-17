@@ -42,6 +42,8 @@ export interface BotSummary {
   paused?: boolean;
   modelAllowed?: false;
   deleted?: boolean;
+  uploadedListing?: string;
+  installedListing?: string;
   standingLimits?: StandingLimitsView;
   aggregateState: string;
   activity?: PersonaBotToolActivity;

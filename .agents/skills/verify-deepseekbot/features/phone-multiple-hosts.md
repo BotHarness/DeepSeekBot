@@ -1,5 +1,18 @@
 # Mobile multiple paired Hosts — Chats and Activity (#2782)
 
+## Sources
+
+- `apps/mobile/src/host/{host-store,host-scope,host-session,host-availability,conversation-environments}.ts`
+- `apps/mobile/src/ui/chat/environment-chat-list.ts`
+- `apps/mobile/src/ui/primitives/environment-{list,picker}.tsx`
+
+## Terms
+
+- Remote Host
+- Paired Device
+- Environment
+- Host Feed
+
 ## Sub-features
 
 Concurrent paired Host connections, online-only All directory, one collapsible Pinned

@@ -56,6 +56,14 @@ node scripts/verify-app.mjs shot <label> --name <n> --bot-mode \
 - Use `rpc <namespace/method> [json]` to read canonical state (Channel timelines, Bot lists) after a UI action, or to seed preconditions through the same public API the Client calls. It is evidence of state, never a substitute for the UI step it follows.
 - For scripted journeys, use the feature file’s launch contract. Some accept `BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json`, the model suite accepts `--name <n>`, and others own their Host; check before running so the journey targets this task’s instance.
 
+## Monkey
+
+```bash
+node scripts/verify-app.mjs monkey <label> --name <n> --seed <s> --steps 300 [--bot-mode]
+```
+
+It clicks, types and presses keys at random from the seed, skips destructive controls and links that leave the Host, and exits 1 on an uncaught page error or a blank shell. `<label>.monkey.json` in the evidence folder lists every step and a `replay` command; on a freshly launched Host the same seed and steps make the same choices. The nightly `health` workflow runs it in both modes and keeps a performance and codebase trend.
+
 ## Measure performance
 
 For a change that touches the timeline, the composer or message rendering, or a report that

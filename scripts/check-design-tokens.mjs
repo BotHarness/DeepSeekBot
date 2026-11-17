@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +24,7 @@ export const RULES = {
     outsideDs: true,
   },
   legacyCss: {
-    pattern: /\.bh-[\w-]+[^{}`;]*\{[^{}`]*:[^{}`]*\}/g,
+    pattern: /\.bh-[\w-]+[^{}`;]*\{(?:[^{}`]|\$\{[^{}`]*\})*:(?:[^{}`]|\$\{[^{}`]*\})*\}/g,
     fix: 'style it with stylex.create and tokens from ds/tobs.stylex.ts instead of a new bh- CSS rule',
   },
   literalColor: {
@@ -33,13 +34,14 @@ export const RULES = {
     when: (source) => source.includes('stylex.create('),
   },
   inlineStyle: {
-    pattern: /style=\{\{[^}]*?(?:#[\da-fA-F]{3,8}\b|\d+px|(?:rgba?|hsla?)\()/gs,
+    pattern:
+      /style=\{\{[^}]*?(?:#[\da-fA-F]{3,8}\b|\d+px|(?:rgba?|hsla?)\(|[A-Za-z]:\s*-?\d+(?:\.\d+)?\s*[,}])/gs,
     fix: 'use stylex.create (a dynamic style for runtime values) instead of an inline style literal',
     outsideDs: true,
   },
   lineBorder: {
     pattern:
-      /border(?:-(?:top|right|bottom|left|block|inline)(?:-start|-end)?)?\s*:\s*(?:[^;'"`{}]|\$\{[^}]*\})*?\bsolid\b|border\w*Style:\s*['"]solid['"]/g,
+      /border(?:-(?:top|right|bottom|left|block|inline)(?:-start|-end)?)?\s*:\s*(?:[^;'"`{}]|\$\{[^}]*\})*?\bsolid\b|border\w*:\s*['"][^'"\n]*\bsolid\b|border\w*Style:\s*['"]solid['"]/g,
     fix: 'separate surfaces with a gap showing the canvas, not a line; inputs and focus rings live in ds/',
     outsideDs: true,
   },
@@ -106,6 +108,16 @@ function pick(counts, names) {
   );
 }
 
+function stagedBaseline() {
+  const staged = spawnSync('git', ['show', `:${relative(root, BASELINE).replaceAll('\\', '/')}`], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
+  return staged.status === 0 ? staged.stdout : readFileSync(BASELINE, 'utf8');
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
   const only = args.length > 0 ? args.map((path) => resolve(path)) : undefined;
@@ -125,7 +137,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     writeFileSync(BASELINE, `${JSON.stringify(sorted(current), null, 2)}\n`);
   } else {
-    const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
+    const baseline = JSON.parse(only ? stagedBaseline() : readFileSync(BASELINE, 'utf8'));
     const problems = compare(current, names ? pick(baseline, names) : baseline);
     for (const line of problems) console.error(`design tokens: ${line}`);
     if (problems.length > 0) process.exit(1);

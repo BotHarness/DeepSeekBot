@@ -1,5 +1,18 @@
 # Orchestrator model switching
 
+## Sources
+
+- `packages/client/src/client/{model-plan-store,model-preset-profile}.{ts,tsx}`
+- `packages/core/src/messaging/im-commands.ts`
+- `packages/host-client/src/bot-settings.ts`
+- `apps/mobile/app/settings/model-preset.tsx`
+
+## Terms
+
+- Orchestrator Session
+- Model Preset
+- PersonaBot Model Plan
+
 ## Sub-features
 
 - DM `/model <filter>` and `/effort <filter>` select only this Bot's Orchestrator.

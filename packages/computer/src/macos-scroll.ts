@@ -71,6 +71,7 @@ export function createMacScroll(onEvent: (message: string) => void = () => {}): 
   const open = (): Promise<void> => {
     if (opening !== undefined) return opening;
     const current = spawn('/usr/bin/osascript', ['-l', 'JavaScript', '-e', program], {
+      windowsHide: true,
       stdio: 'pipe',
     });
     child = current;

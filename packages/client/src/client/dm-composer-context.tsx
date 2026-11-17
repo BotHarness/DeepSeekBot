@@ -45,6 +45,8 @@ import { DmComposerUsagePopover } from './dm-composer-usage.js';
 import { BotPromptViewer, type BotPromptView } from './bot-prompt-viewer.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
+import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
+import { ContextRing } from './context-ring.js';
 
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
@@ -401,6 +403,12 @@ function DmComposerContextView({
           ? 'composerContext.unavailable'
           : 'composerContext.noModel',
     );
+  const brand = modelBrand({ provider: route?.provider, model: route?.model, name: modelName });
+  const modelChipLabel =
+    modelStatus === 'unavailable' || (modelName ?? route?.model) === undefined
+      ? modelLabel
+      : modelShortName(modelLabel, brand);
+  const workspaceCount = grantError || grants === undefined ? undefined : String(grants.length);
   const workspaceLabel = grantError
     ? t('composerContext.unavailable')
     : grants === undefined
@@ -415,6 +423,10 @@ function DmComposerContextView({
         : profileTokenSummaryText(activity, t),
   });
   const shortTokens = (tokens: number) => compactTokens.format(tokens);
+  const usageShare =
+    context === undefined || context.usedTokens === null || context.contextWindow <= 0
+      ? undefined
+      : `${String(Math.min(100, Math.round((context.usedTokens / context.contextWindow) * 100)))}%`;
   const compactUsage =
     context === undefined
       ? '— / —'
@@ -432,8 +444,14 @@ function DmComposerContextView({
           <ChipButton
             ref={usageMount}
             data-composer-chip="usage"
-            icon={<ChannelSidebarIcon name="ruler" size={14} />}
-            label={compactUsage}
+            icon={
+              <ContextRing
+                used={context?.usedTokens ?? null}
+                capacity={context?.contextWindow ?? 0}
+                threshold={context?.thresholdTokens}
+              />
+            }
+            label={usageShare ?? compactUsage}
             onClick={() => setUsageOpen((open) => !open)}
             aria-label={`${compactUsage}. ${usageLabel}`}
             title={`${compactUsage}. ${usageLabel}`}
@@ -445,8 +463,8 @@ function DmComposerContextView({
         <ChipButton
           data-composer-chip="model"
           collapseLabel
-          icon={<ChannelSidebarIcon name="cpu" size={14} />}
-          label={modelLabel}
+          icon={<ModelBrandIcon brand={brand} />}
+          label={modelChipLabel}
           title={modelLabel}
           onClick={() => onOpen('model')}
           aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
@@ -466,7 +484,8 @@ function DmComposerContextView({
           data-composer-chip="workspace"
           collapseLabel
           icon={<ChannelSidebarIcon name="folder-key" size={14} />}
-          label={workspaceLabel}
+          label={workspaceCount ?? workspaceLabel}
+          title={workspaceLabel}
           onClick={() => onOpen('workspace')}
           aria-label={`${t('entry.workspaceGrants')} · ${bot.displayName} · ${workspaceLabel}`}
         />

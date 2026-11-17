@@ -27,6 +27,7 @@ const styles = stylex.create({
     minWidth: 0,
     paddingTop: { default: space.x5, ':first-child': 0 },
   },
+  portaled: { paddingTop: space.x5 },
   group: {
     display: 'flex',
     flexDirection: 'column',
@@ -45,6 +46,10 @@ const styles = stylex.create({
       default: style.listGroupFill,
       ':has(> section)': 'transparent',
     },
+    boxShadow: {
+      default: `0 0 0 0.5px ${style.listGroupEdge}`,
+      ':has(> section)': 'none',
+    },
   },
   sectionHead: {
     display: 'flex',
@@ -55,7 +60,7 @@ const styles = stylex.create({
   },
   sectionTitle: {
     margin: 0,
-    color: color.subtle,
+    color: style.textSectionTitle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     fontWeight: text.strong,
@@ -74,13 +79,19 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     paddingBlock: style.listItemPaddingBlock,
     paddingInline: style.listItemPadding,
-    borderRadius: style.listItemRadius,
+    borderTopLeftRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
+    borderTopRightRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
+    borderBottomLeftRadius: { default: style.listItemRadius, ':last-child': style.listGroupRadius },
+    borderBottomRightRadius: {
+      default: style.listItemRadius,
+      ':last-child': style.listGroupRadius,
+    },
     backgroundColor: style.listItemFill,
     borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
     borderBottomColor: {
       default: style.listSeparator,
-      ':last-child': 'transparent',
+      ':last-of-type': 'transparent',
     },
   },
   text: {
@@ -145,19 +156,27 @@ export function SettingsRows({
 export interface SettingsSectionProps {
   readonly title?: ReactNode;
   readonly description?: ReactNode;
+  readonly portaled?: boolean;
+  readonly rootRef?: Ref<HTMLElement> | undefined;
+  readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
   readonly children: ReactNode;
 }
 
 export function SettingsSection({
   title,
   description,
+  portaled = false,
+  rootRef,
+  data,
   children,
 }: SettingsSectionProps): ReactElement {
   const id = useId();
   return (
     <section
+      ref={rootRef}
+      {...data}
       aria-labelledby={title === undefined ? undefined : `${id}-title`}
-      {...stylex.props(styles.section)}
+      {...stylex.props(styles.section, portaled && styles.portaled)}
     >
       {title === undefined ? null : (
         <div {...stylex.props(styles.sectionHead)}>

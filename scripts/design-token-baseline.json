@@ -15,7 +15,7 @@
     "rawControl": 3
   },
   "packages/client/src/client/activity-inbox-styles.ts": {
-    "legacyCss": 21
+    "legacyCss": 42
   },
   "packages/client/src/client/activity-list-controls.tsx": {
     "dshImport": 1,
@@ -38,15 +38,16 @@
     "dshToken": 809
   },
   "packages/client/src/client/appearance-pickers.tsx": {
-    "rawControl": 4,
-    "lineBorder": 4
+    "rawControl": 1,
+    "inlineStyle": 2,
+    "lineBorder": 3
   },
   "packages/client/src/client/appearance-primitives.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/appearance-scope.ts": {
     "dshToken": 8,
-    "legacyCss": 7
+    "legacyCss": 8
   },
   "packages/client/src/client/appearance-settings.tsx": {
     "dshImport": 1
@@ -170,7 +171,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/call-styles.ts": {
-    "legacyCss": 11,
+    "legacyCss": 43,
     "lineBorder": 4
   },
   "packages/client/src/client/channel-access-settings.tsx": {
@@ -195,7 +196,7 @@
     "inlineStyle": 1
   },
   "packages/client/src/client/channel-dock-styles.ts": {
-    "legacyCss": 16,
+    "legacyCss": 20,
     "lineBorder": 2
   },
   "packages/client/src/client/channel-dock.tsx": {
@@ -234,7 +235,7 @@
   "packages/client/src/client/combobox.tsx": {
     "dshImport": 1,
     "rawControl": 2,
-    "legacyCss": 8,
+    "legacyCss": 16,
     "lineBorder": 1
   },
   "packages/client/src/client/compaction-threshold-setting.tsx": {
@@ -247,7 +248,7 @@
     "lineBorder": 1
   },
   "packages/client/src/client/composer-context-styles.ts": {
-    "legacyCss": 17,
+    "legacyCss": 43,
     "lineBorder": 5
   },
   "packages/client/src/client/composer-voice.tsx": {
@@ -320,7 +321,7 @@
   },
   "packages/client/src/client/ds/settings-dialog.tsx": {
     "dshImport": 1,
-    "legacyCss": 1
+    "legacyCss": 2
   },
   "packages/client/src/client/ds/tooltip.tsx": {
     "dshImport": 1
@@ -351,7 +352,7 @@
     "dshImport": 1
   },
   "packages/client/src/client/generated-files-styles.ts": {
-    "legacyCss": 11
+    "legacyCss": 19
   },
   "packages/client/src/client/genui-report.tsx": {
     "rawControl": 2,
@@ -415,7 +416,7 @@
     "dshImport": 2
   },
   "packages/client/src/client/internal-tour-styles.ts": {
-    "legacyCss": 5,
+    "legacyCss": 13,
     "lineBorder": 2
   },
   "packages/client/src/client/keyboard-settings.tsx": {
@@ -522,6 +523,7 @@
     "dshImport": 1,
     "rawControl": 2,
     "literalColor": 2,
+    "inlineStyle": 1,
     "lineBorder": 1
   },
   "packages/client/src/client/message-snapshot.ts": {
@@ -535,7 +537,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/mobile-apps-styles.ts": {
-    "legacyCss": 9,
+    "legacyCss": 25,
     "lineBorder": 3
   },
   "packages/client/src/client/mobile-apps.tsx": {
@@ -547,7 +549,7 @@
     "lineBorder": 2
   },
   "packages/client/src/client/mobile-bot-styles.ts": {
-    "legacyCss": 16,
+    "legacyCss": 22,
     "lineBorder": 1
   },
   "packages/client/src/client/mobile-conversation-header.tsx": {
@@ -673,7 +675,7 @@
   },
   "packages/client/src/client/remote-viewer/index.tsx": {
     "dshImport": 1,
-    "inlineStyle": 2
+    "inlineStyle": 16
   },
   "packages/client/src/client/schedules-entry.tsx": {
     "dshImport": 1,
@@ -711,8 +713,8 @@
     "lineBorder": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 923,
-    "lineBorder": 110
+    "legacyCss": 1942,
+    "lineBorder": 108
   },
   "packages/client/src/client/tag-editor.tsx": {
     "dshImport": 1
@@ -756,7 +758,7 @@
     "lineBorder": 1
   },
   "packages/client/src/client/voice-ripple-styles.ts": {
-    "legacyCss": 3
+    "legacyCss": 4
   },
   "packages/client/src/client/voice-settings.tsx": {
     "dshImport": 1
@@ -773,12 +775,13 @@
     "lineBorder": 1
   },
   "packages/client/src/client/window-companion-styles.ts": {
-    "legacyCss": 21,
+    "legacyCss": 42,
     "lineBorder": 3
   },
   "packages/client/src/client/window-companion-view.tsx": {
     "dshImport": 1,
     "rawControl": 5,
+    "inlineStyle": 1,
     "lineBorder": 2
   },
   "packages/client/src/client/window-companions-view.tsx": {
@@ -791,7 +794,7 @@
     "lineBorder": 1
   },
   "packages/client/src/client/workspace-styles.ts": {
-    "legacyCss": 50,
+    "legacyCss": 86,
     "lineBorder": 4
   },
   "packages/client/src/client/workspace.tsx": {

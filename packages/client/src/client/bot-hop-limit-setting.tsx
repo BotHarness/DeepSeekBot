@@ -61,7 +61,8 @@ export function BotHopLimitSetting({
     <SettingsRow
       rootRef={mount}
       title={t('botHopLimit.title')}
-      description={t('botHopLimit.description')}
+      description={t('botHopLimit.summary')}
+      info={{ label: t('botHopLimit.title'), text: t('botHopLimit.description') }}
       control={
         <NumberStepper
           label={t('botHopLimit.title')}

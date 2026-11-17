@@ -1,12 +1,15 @@
 import { WindowZoomSettings } from './window-zoom-settings.js';
 import { WindowZoomSetup } from './window-zoom-setup.js';
 import type { ZoomSurface } from './window-zoom-mount.js';
-import type { ReactElement, ReactNode } from 'react';
+import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client';
+import { Select } from './ds/select.js';
 
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
 import { AccountProfileSettings } from './account-profile-settings.js';
+import { MyUploadsSettingsRow } from './market-mine.js';
 import type { ConnectSignInCode } from './connect-sign-in.js';
 import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.js';
 import { VoiceProviderSettings } from './voice-settings.js';
@@ -17,9 +20,12 @@ import {
   BotSessionsVisibilitySetting,
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
+  MotionSetting,
   SendKeySetting,
   AutoCollapseMessagesSetting,
   DeliveryReceiptsSetting,
+  DmAvatarSetting,
+  OwnAvatarSetting,
   StreamRepliesSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
@@ -34,13 +40,14 @@ import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
 import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
-import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
-import { ConnectionsDialog } from './connections-dialog.js';
+import { ConnectionsPage } from './connections-dialog.js';
 import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
 import { ProfileBackupSettings } from './profile-backup.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import { ReleaseSettings } from './release-notes-view.js';
+import { PluginsSettings } from './plugin-updates-view.js';
+import type { UpdateRunsController } from './update-runs.js';
 import type { ClientStore } from './store.js';
 import { TelemetrySettings } from './telemetry-settings.js';
 import type { WindowCompanions } from './window-companions.js';
@@ -52,11 +59,37 @@ function Rows({ children }: { children: ReactNode }): ReactElement {
   return <SettingsRows>{children}</SettingsRows>;
 }
 
-export type GeneralSectionFace = {
+export type LocaleSource = Pick<LocaleRuntime, 'getSnapshot' | 'subscribe' | 'setLocale'>;
+
+export type GeneralSectionFace = BotModePrefsFace & {
   zoomSurface: ZoomSurface;
   actions: BridgeActions;
   closeBotSettings(): void;
+  localeSource: LocaleSource;
 };
+
+function LanguageSetting({
+  localeSource,
+  t,
+}: {
+  localeSource: LocaleSource;
+  t: SectionProps<object>['t'];
+}): ReactElement {
+  const locale = useSyncExternalStore(localeSource.subscribe, localeSource.getSnapshot);
+  return (
+    <SettingsRow
+      title={t('settings.language')}
+      control={
+        <Select
+          label={t('settings.language')}
+          value={locale.active}
+          options={locale.locales.map((item) => ({ value: item.id, label: item.label }))}
+          onChange={localeSource.setLocale}
+        />
+      }
+    />
+  );
+}
 export type MessagingSectionFace = BotModePrefsFace & {
   call: BridgeCall;
   store: ClientStore;
@@ -68,7 +101,12 @@ export function AccountSection(
 ): ReactElement {
   return (
     <Rows>
-      <AccountProfileSettings actions={props.actions} startSignIn={props.startSignIn} t={props.t} />
+      <AccountProfileSettings
+        actions={props.actions}
+        startSignIn={props.startSignIn}
+        uploads={<MyUploadsSettingsRow actions={props.actions} t={props.t} />}
+        t={props.t}
+      />
     </Rows>
   );
 }
@@ -76,11 +114,15 @@ export function AccountSection(
 export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactElement {
   return (
     <Rows>
-      <SettingsSection title={props.t('environment.settings.device')}>
+      <SettingsSection title={props.t('general.section.language')}>
+        <LanguageSetting localeSource={props.localeSource} t={props.t} />
         <WindowZoomSettings surface={props.zoomSurface} t={props.t} />
         <WindowZoomSetup surface={props.zoomSurface} t={props.t} />
       </SettingsSection>
-      <SettingsSection title={props.t('remoteHosts.this')}>
+      <SettingsSection title={props.t('general.section.motion')}>
+        <MotionSetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('general.section.onboarding')}>
         <OnboardingSetting
           actions={props.actions}
           closeBotSettings={props.closeBotSettings}
@@ -96,12 +138,16 @@ export function ModelsSection(
 ): ReactElement {
   return (
     <Rows>
-      <DefaultModelSettings actions={props.actions} t={props.t} />
-      <IdleCompactionSetting call={props.call} t={props.t} />
-      <CompactionThresholdSetting call={props.call} t={props.t} />
-      <AssignmentConcurrencyRow {...props} />
-      <BotSessionsVisibilitySetting {...props} />
-      <ApprovalReviewSessionsVisibilitySetting {...props} />
+      <SettingsSection title={props.t('models.section.default')}>
+        <DefaultModelSettings actions={props.actions} t={props.t} />
+      </SettingsSection>
+      <SettingsSection title={props.t('models.section.context')}>
+        <IdleCompactionSetting call={props.call} t={props.t} />
+        <CompactionThresholdSetting call={props.call} t={props.t} />
+      </SettingsSection>
+      <SettingsSection title={props.t('models.section.run')}>
+        <AssignmentConcurrencyRow {...props} />
+      </SettingsSection>
     </Rows>
   );
 }
@@ -138,21 +184,28 @@ export function VoiceSection(props: SectionProps<{ actions: BridgeActions }>): R
 export function MessagingSection(props: SectionProps<MessagingSectionFace>): ReactElement {
   return (
     <Rows>
-      <HumanNameSettings
-        call={props.call}
-        store={props.store}
-        onSaved={props.onSaved}
-        t={props.t}
-      />
-      <SendKeySetting {...props} />
-      <AutoCollapseMessagesSetting {...props} />
-      <DeliveryReceiptsSetting {...props} />
-      <StreamRepliesSetting {...props} />
-      <SettingsSection>
+      <SettingsSection title={props.t('messaging.section.me')}>
+        <HumanNameSettings
+          call={props.call}
+          store={props.store}
+          onSaved={props.onSaved}
+          t={props.t}
+        />
+      </SettingsSection>
+      <SettingsSection title={props.t('messaging.section.input')}>
+        <SendKeySetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('messaging.section.display')}>
+        <AutoCollapseMessagesSetting {...props} />
+        <DmAvatarSetting {...props} />
+        <OwnAvatarSetting {...props} />
+        <DeliveryReceiptsSetting {...props} />
+        <StreamRepliesSetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('messaging.section.bots')}>
         <GroupAutoAcceptSetting {...props} />
         <BotHopLimitRow {...props} />
       </SettingsSection>
-      <MessagingDefaultsSettings call={props.call} t={props.t} />
     </Rows>
   );
 }
@@ -170,13 +223,10 @@ export function CompanionsSection({
 
 export function DevicesSection({
   t,
-  close,
   pairPhone,
   joinComputer,
 }: PropsLocale<'botharness'> & BotSettingsSectionOwnerProps): ReactElement {
-  return (
-    <ConnectionsDialog t={t} onClose={close} pairPhone={pairPhone} joinComputer={joinComputer} />
-  );
+  return <ConnectionsPage t={t} pairPhone={pairPhone} joinComputer={joinComputer} />;
 }
 
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {
@@ -195,22 +245,42 @@ export function AdvancedSection(
 ): ReactElement {
   return (
     <Rows>
-      <DeveloperModeSetting {...props} />
-      <GitSettings call={props.call} t={props.t} />
+      <SettingsSection title={props.t('advanced.section.developer')}>
+        <DeveloperModeSetting {...props} />
+        <BotSessionsVisibilitySetting {...props} />
+        <ApprovalReviewSessionsVisibilitySetting {...props} />
+      </SettingsSection>
+      <SettingsSection>
+        <GitSettings call={props.call} t={props.t} />
+      </SettingsSection>
     </Rows>
   );
 }
 
 export function AboutSection({
   releaseNotes,
+  call,
+  updateRuns,
   t,
-}: SectionProps<{ releaseNotes: ReleaseNotesController }>): ReactElement {
+}: SectionProps<{
+  releaseNotes: ReleaseNotesController;
+  call: BridgeCall;
+  updateRuns: UpdateRunsController;
+}>): ReactElement {
   return (
     <Rows>
-      <ReleaseSettings releaseNotes={releaseNotes} t={t} />
-      <SettingsRow
-        title={t('build.row.title')}
-        description={<span data-build-id>{buildLabel(clientBuild())}</span>}
+      <SettingsSection title={t('about.section.version')}>
+        <ReleaseSettings releaseNotes={releaseNotes} t={t} />
+        <SettingsRow
+          title={t('build.row.title')}
+          description={<span data-build-id>{buildLabel(clientBuild())}</span>}
+        />
+      </SettingsSection>
+      <PluginsSettings
+        call={call}
+        updateRuns={updateRuns}
+        title={t('about.section.plugins')}
+        t={t}
       />
     </Rows>
   );

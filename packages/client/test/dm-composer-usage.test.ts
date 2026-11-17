@@ -138,6 +138,54 @@ it('shows current context details separately from cumulative usage', async () =>
   expect(document.body.textContent).toContain('累计用量');
 });
 
+it('breaks the current context down by where it came from, largest first', async () => {
+  await show(bot(), {
+    sessionId: 's1',
+    usedTokens: 10000,
+    contextWindow: 1000000,
+    thresholdTokens: 800000,
+    capacitySource: 'model',
+    sources: [
+      { source: 'system', tokens: 3000 },
+      { source: 'human', tokens: 500 },
+      { source: 'inbox-assignment', tokens: 40 },
+      {
+        source: 'tool-use',
+        tokens: 6460,
+        tools: [
+          { name: 'channel_read', tokens: 6000 },
+          { name: 'bot_send_message', tokens: 460 },
+        ],
+      },
+    ],
+  });
+  const list = document.querySelector('[data-context-sources]')!;
+  const rows = [...list.querySelectorAll<HTMLElement>('[data-context-source]')];
+  expect(rows.map((row) => row.dataset.contextSource)).toEqual([
+    'tool-use',
+    'system',
+    'human',
+    'inbox-assignment',
+  ]);
+  expect(rows[0]!.textContent).toBe('工具调用6.5K · 65%');
+  expect(rows[3]!.textContent).toBe('任务汇报40 · <1%');
+  expect(list.querySelector('[data-context-tool="channel_read"]')?.textContent).toBe(
+    'channel_read6K',
+  );
+  expect(list.querySelectorAll('[aria-hidden="true"] > [data-source]')).toHaveLength(4);
+});
+
+it('leaves the breakdown out when the Host has no live session to measure', async () => {
+  await show(bot(), {
+    sessionId: null,
+    usedTokens: null,
+    contextWindow: 1000000,
+    thresholdTokens: 800000,
+    capacitySource: 'model',
+  });
+  expect(document.querySelector('[data-context-sources]')).toBeNull();
+});
+
 it('labels fallback capacity and never presents unloaded usage as zero', async () => {
   await show(bot(), {
     sessionId: 's1',

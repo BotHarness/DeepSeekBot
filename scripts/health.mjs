@@ -171,9 +171,11 @@ function readAt(revision) {
 
 const tracked = () => git(['ls-files', '-z']).stdout.split('\0').filter(Boolean);
 
+export const collectWorktree = () => collect(readWorktree, tracked());
+
 function main(argv) {
   const base = argv.find((arg) => arg.startsWith('--base='))?.slice('--base='.length);
-  const current = collect(readWorktree, tracked());
+  const current = collectWorktree();
   const baselineText = readWorktree(BASELINE);
   if (argv.includes('--update')) {
     const next = baselineText ? lowered(current, JSON.parse(baselineText)) : baselineOf(current);

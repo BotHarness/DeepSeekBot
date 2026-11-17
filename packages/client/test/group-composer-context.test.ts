@@ -93,7 +93,10 @@ it('keeps the Group workspace footer and its action available on mobile and desk
       mobile = false;
       for (const listener of listeners) listener();
     });
-    expect(container.querySelector('[data-composer-context]')!.textContent).toBe('1 个工作区');
+    expect(container.querySelector('[data-composer-context]')!.textContent).toBe('1');
+    expect(container.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
+      '1 个工作区',
+    );
     expect(container.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(false);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
@@ -141,7 +144,10 @@ it('counts the union of member workspaces by DSH Workspace id without naming Bot
       ),
     );
     const chip = container.querySelector('[data-composer-context]')!.textContent;
-    expect(chip).toBe('3 个工作区');
+    expect(chip).toBe('3');
+    expect(container.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
+      '3 个工作区',
+    );
     expect(chip).not.toContain('Ada');
   } finally {
     await act(async () => root.unmount());

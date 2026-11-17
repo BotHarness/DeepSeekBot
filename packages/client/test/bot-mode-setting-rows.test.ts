@@ -101,6 +101,8 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
     sendKey: 'enter' as const,
     autoCollapseMessages: false,
     showDeliveryReceipts: false,
+    showDmAvatar: false,
+    showOwnAvatar: false,
     streamReplies: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
@@ -167,10 +169,6 @@ function menuWithItem(id: string): Record<string, unknown> {
   return found;
 }
 
-function motionMenu(): Record<string, unknown> {
-  return menuWithItem('system');
-}
-
 function iconMenu(): Record<string, unknown> {
   return menuWithItem('mascot');
 }
@@ -218,18 +216,17 @@ describe('Bot mode setting rows', () => {
     expect(markup).toContain('界面动效');
     expect(markup).toContain('跟随系统');
     expect(markup).toContain('当前已减少动效');
-    expect(motionMenu()['selectedId']).toBe('system');
-    expect(
-      (motionMenu()['items'] as readonly Record<string, unknown>[]).map((item) => item['id']),
-    ).toEqual(['system', 'reduce', 'full']);
-
-    const onSelect = motionMenu()['onSelect'] as (id: string) => void;
-    act(() => onSelect('full'));
+    const tabs = [
+      ...document.querySelectorAll<HTMLButtonElement>('[aria-label="动效偏好"] [role="tab"]'),
+    ];
+    expect(tabs.map((tab) => tab.id)).toEqual([
+      'bh-motion-preference-system',
+      'bh-motion-preference-reduce',
+      'bh-motion-preference-full',
+    ]);
+    expect(tabs[0]?.getAttribute('aria-selected')).toBe('true');
+    act(() => tabs[2]?.click());
     expect(setMotionPreference).toHaveBeenCalledWith('full');
-
-    setMotionPreference.mockClear();
-    act(() => onSelect('unrelated'));
-    expect(setMotionPreference).not.toHaveBeenCalled();
   });
 
   it('writes through the shared policy when an option is picked', () => {

@@ -43,7 +43,7 @@ export function RemoteMessagingSettings({
   const rows = { ...remote.face, useBotModePrefs: remote.useBotModePrefs, t };
   return (
     <SettingsRows rootRef={mount}>
-      <SettingsSection title={t('remoteHosts.messaging.me')}>
+      <SettingsSection title={t('messaging.section.me')}>
         <HumanNameSettings
           call={remote.settings.call}
           store={remote.settings.store}
@@ -51,7 +51,7 @@ export function RemoteMessagingSettings({
           t={t}
         />
       </SettingsSection>
-      <SettingsSection title={t('remoteHosts.messaging.bots')}>
+      <SettingsSection title={t('messaging.section.bots')}>
         <GroupAutoAcceptSetting {...rows} />
         <BotHopLimitRow {...rows} />
       </SettingsSection>

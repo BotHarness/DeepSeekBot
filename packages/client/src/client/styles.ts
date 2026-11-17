@@ -14,24 +14,6 @@ import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 import { font } from './ds/tobs.stylex.js';
 
-const STAMP_TEXT_ENDS = [
-  '.bh-bubble-body:last-child',
-  '.bh-bubble-content > .bh-bubble-body:not(.bh-bubble-body-markdown):last-child',
-  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(p, h1, h2, h3, h4, h5, h6):last-child',
-  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > div > :is(ul, ol):last-child > li:last-child',
-  '.bh-bubble-content > .bh-bubble-body-markdown:last-child > .bh-bot-mention-prefix:last-child',
-];
-const STAMP_SPACERS = STAMP_TEXT_ENDS.map(
-  (end) => `.bh-bubble-stamped > [data-message-fold] > ${end}::after`,
-).join(',\n');
-const STAMP_ME_SPACERS = STAMP_TEXT_ENDS.map(
-  (end) => `.bh-bubble-me.bh-bubble-stamped > [data-message-fold] > ${end}::after`,
-).join(',\n');
-const STAMP_CHECK_SPACE = '16px';
-const STAMP_INLINE = STAMP_TEXT_ENDS.map(
-  (end) => `> [data-message-fold]:nth-last-child(2) > ${end}`,
-).join(',\n  ');
-
 export const CSS =
   WORKSPACE_CSS +
   COMPOSER_CONTEXT_CSS +
@@ -3838,22 +3820,13 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
 .bh-message-group-me .bh-bubble-badges {
   flex-direction: row-reverse;
 }
-/* The time sits inside the bubble at the bottom-right, so the reading chip takes the
-   bottom-left on every bubble, and the Human's reactions keep clear of the time with an
-   invisible copy of it at the row's right end. */
+/* Reactions take the author's side of the bubble's bottom edge and the reading chip the
+   other side. */
 .bh-bubble-badges .bh-reading {
   order: 1;
 }
 .bh-message-group-me .bh-bubble-badges .bh-reading {
   margin-right: auto;
-}
-.bh-message-group-me .bh-bubble-badges::before {
-  content: var(--bh-stamp, '');
-  visibility: hidden;
-  padding-right: ${STAMP_CHECK_SPACE};
-  font-size: ${text.metaSize};
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 .bh-message-stack > .bh-bubble-wrap:last-child,
 .bh-message-group > .bh-message-group-avatar {
@@ -3904,6 +3877,15 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
 [data-badge-motion='leave'] {
   animation: bh-badge-out 150ms var(--bh-ease-out) both;
   pointer-events: none;
+}
+/* A Bot that reads for only a moment never shows its chip: the chip waits 300ms
+   before it fades in and is dropped if the reading ends first. Once shown it holds
+   for 800ms before it leaves, so it never blinks out. */
+.bh-reading[data-badge-motion='enter'] {
+  animation-delay: 300ms;
+}
+.bh-reading[data-badge-motion='leave'] {
+  animation-delay: 800ms;
 }
 html[data-botharness-motion='reduce'] [data-badge-motion='enter'] { animation-name: bh-fade-in; }
 html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-name: bh-fade-out; }
@@ -4078,6 +4060,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-message-audio-meta { color: color-mix(in srgb, currentColor 70%, transparent); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bh-message-audio-element { display: none; }
 .bh-bubble-body {
+  font-size: var(--tobs-style-text-message-size);
+  line-height: var(--tobs-style-text-message-line);
   text-wrap: pretty;
   white-space: pre-wrap;
   word-break: break-word;
@@ -4124,54 +4108,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
 }
-/* B2: the time sits inside the bubble at the bottom-right. An invisible copy of it ends the
-   body's last line of text, so the time shares that line when it fits and wraps to its own
-   line otherwise. Content that does not end in a line of text (code, tables, files, cards)
-   gives the time a line of its own. */
 .bh-bubble {
   position: relative;
-}
-.bh-bubble-stamp {
-  position: absolute;
-  right: ${space.x4};
-  bottom: ${space.x4};
-  color: var(--tobs-ink-tertiary);
-  font-size: ${text.metaSize};
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-.bh-bubble-me .bh-bubble-stamp {
-  color: color-mix(in srgb, currentColor 72%, transparent);
-}
-.bh-bubble-stamped::after {
-  content: '';
-  display: block;
-  height: ${text.metaLine};
-}
-.bh-bubble-stamped:has(
-  ${STAMP_INLINE}
-)::after {
-  display: none;
-}
-${STAMP_SPACERS} {
-  content: var(--bh-stamp);
-  display: inline-block;
-  visibility: hidden;
-  margin-left: ${space.x3};
-  font-size: ${text.metaSize};
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-${STAMP_ME_SPACERS} {
-  padding-right: ${STAMP_CHECK_SPACE};
-}
-.bh-bubble-stamp-check {
-  display: inline-block;
-  margin-left: ${space.x1};
-  vertical-align: -2px;
 }
 .bh-bubble[data-bubble-media] {
   width: 320px;
@@ -4194,21 +4132,6 @@ ${STAMP_ME_SPACERS} {
 }
 .bh-bubble[data-bubble-media] .bh-bubble-content > :last-child:not(.bh-message-album) {
   margin-bottom: ${space.x3};
-}
-.bh-bubble[data-bubble-media='captioned']::after {
-  height: calc(${text.metaLine} + ${space.x3});
-}
-.bh-bubble[data-bubble-media='bare']::after {
-  display: none;
-}
-.bh-bubble[data-bubble-media='bare'] .bh-bubble-stamp {
-  right: ${space.x3};
-  bottom: ${space.x3};
-  padding: ${space.x1} ${space.x3};
-  border-radius: 999px;
-  corner-shape: round;
-  background: color-mix(in srgb, black 45%, transparent);
-  color: white;
 }
 .bh-bubble-status {
   display: block;
@@ -4250,6 +4173,14 @@ ${STAMP_ME_SPACERS} {
   border-radius: ${radius.md};
   background: ${color.base};
   box-shadow: 0 2px 8px color-mix(in srgb, var(--tobs-ink-primary) 8%, transparent);
+}
+.bh-bubble-toolbar-time {
+  padding-inline: ${space.x3} ${space.x2};
+  color: var(--tobs-ink-tertiary);
+  font-size: ${text.metaSize};
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .bh-bubble-wrap:hover .bh-bubble-actions,
 .bh-bubble-wrap:focus-within .bh-bubble-actions,
@@ -4638,32 +4569,21 @@ ${STAMP_ME_SPACERS} {
 .bh-composer-inset { margin-inline: ${space.x4}; }
 .bh-composer {
   --bh-composer-body-height: 34px;
-  --bh-composer-compact-padding-left: 44px;
-  --bh-composer-compact-padding-right: 54px;
+  --bh-composer-compact-padding-left: 48px;
+  --bh-composer-compact-padding-right: 52px;
   position: relative;
   min-height: 50px;
   box-sizing: border-box;
   overflow: hidden;
   padding: ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left);
   border: ${border.hairline} solid ${color.border};
-  border-radius: 25px;
+  border-radius: ${radius.panel};
   background: var(--tobs-layer-raised);
   box-shadow: 0 8px 24px
     color-mix(in srgb, var(--tobs-ink-primary) 9%, transparent);
   transition:
-    padding 220ms var(--ds-ease-in-out),
-    border-radius 220ms var(--ds-ease-in-out),
     border-color 160ms var(--ds-ease-in-out),
     box-shadow 160ms var(--ds-ease-in-out);
-}
-.bh-composer-expanded {
-  padding-top: ${space.x3};
-  padding-bottom: 48px;
-  border-radius: 20px;
-}
-.bh-composer-with-footer {
-  padding: 10px 12px 48px;
-  border-radius: 20px;
 }
 .bh-composer-reply {
   display: flex;
@@ -4716,8 +4636,8 @@ ${STAMP_ME_SPACERS} {
 }
 
 .bh-composer-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.bh-composer-add-file { position: absolute; left: 8px; bottom: 10px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.round}; background: var(--tobs-layer-canvas); color: var(--tobs-ink-primary); cursor: pointer; }
-.bh-composer-add-file:hover { background: var(--tobs-state-pressed); }
+.bh-composer-add-file { position: absolute; left: 9px; bottom: 9px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: ${radius.control}; background: transparent; color: var(--tobs-ink-secondary); cursor: pointer; }
+.bh-composer-add-file:hover { background: var(--tobs-state-hover); color: var(--tobs-ink-primary); }
 .bh-composer-add-file:focus-visible { outline: ${border.focus} solid var(--tobs-line-focus); outline-offset: 2px; }
 .bh-composer-add-file:disabled { opacity: .5; cursor: default; }
 .bh-composer-attachments {
@@ -4826,38 +4746,39 @@ ${STAMP_ME_SPACERS} {
 }
 .bh-composer-footer {
   position: absolute;
-  right: 10px;
-  bottom: 8px;
+  right: 9px;
+  bottom: 9px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
 }
-.bh-send-btn {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
+.bh-composer .bh-send-btn {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
   padding: 0;
-  border-radius: ${radius.round};
+  border-radius: ${radius.control};
 }
-.bh-composer-has-mic { --bh-composer-compact-padding-right: 92px; }
+.bh-composer-has-mic { --bh-composer-compact-padding-right: 88px; }
 .bh-composer-has-mic .bh-composer-footer { gap: ${space.x2}; }
 .bh-composer-mic {
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: ${border.hairline} solid ${color.border};
-  border-radius: ${radius.round};
-  background: var(--tobs-layer-canvas);
+  border: 0;
+  border-radius: ${radius.control};
+  background: transparent;
   color: var(--tobs-ink-secondary);
   cursor: pointer;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
-.bh-composer-mic:hover { background: var(--tobs-state-pressed); color: var(--tobs-ink-primary); }
+.bh-composer-mic:hover { background: var(--tobs-state-hover); color: var(--tobs-ink-primary); }
 .bh-composer-mic:focus-visible { outline: ${border.focus} solid var(--tobs-line-focus); outline-offset: 2px; }
 .bh-composer-mic:disabled { opacity: .5; cursor: default; }
 .bh-composer-mic[data-state='starting'] { color: var(--tobs-accent-solid); background: var(--tobs-state-pressed); }

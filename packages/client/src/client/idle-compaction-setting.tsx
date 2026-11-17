@@ -61,6 +61,7 @@ export function IdleCompactionSetting({ call, t }: IdleCompactionSettingProps): 
       rootRef={mount}
       title={t('idleCompaction.row.title')}
       description={t('idleCompaction.row.description')}
+      info={{ label: t('idleCompaction.row.title'), text: t('idleCompaction.row.info') }}
       data={{ 'data-idle-compaction-setting': '' }}
       control={
         <Switch

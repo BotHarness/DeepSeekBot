@@ -1,3 +1,4 @@
+import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
 import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
@@ -3438,11 +3439,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         defaultModel.currentSelection();
       const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
       const capacity = contextCapacity(info.context?.contextWindow);
+      const measurement = agent?.ctx.get('tokenMeter')?.measure(agent.session);
       return {
         sessionId,
-        usedTokens: agent
-          ? (agent.ctx.get('tokenMeter')?.measure(agent.session).totalTokens ?? null)
-          : null,
+        usedTokens: measurement?.totalTokens ?? null,
+        ...(agent === undefined || measurement === undefined
+          ? {}
+          : {
+              sources: contextSources({
+                nodes: measurement.nodes,
+                totalTokens: measurement.totalTokens,
+                eventAt: (seq) => agent.session.eventAt(seq),
+              }),
+            }),
         ...capacity,
         thresholdTokens: compactionThresholdTokens(
           compactionPolicy(),

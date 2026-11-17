@@ -34,6 +34,7 @@ function developmentIdentity(moduleUrl: string): ReleaseIdentity {
     }
     const git = (args: string[]): string =>
       execFileSync('git', args, {
+        windowsHide: true,
         cwd: root,
         encoding: 'utf8',
         timeout: 2_000,

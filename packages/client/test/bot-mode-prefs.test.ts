@@ -100,6 +100,25 @@ describe('BOT-mode policy store', () => {
     expect(reloaded.source.getSnapshot().showDeliveryReceipts).toBe(true);
   });
 
+  it('hides message avatars in direct messages and on my side until the Host stores a choice', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    expect(prefs.source.getSnapshot().showDmAvatar).toBe(false);
+    expect(prefs.source.getSnapshot().showOwnAvatar).toBe(false);
+    botModePrefsFace(prefs).setShowDmAvatar(true);
+    botModePrefsFace(prefs).setShowOwnAvatar(true);
+    expect(scope.set).toHaveBeenCalledWith('showDmAvatar', true);
+    expect(scope.set).toHaveBeenCalledWith('showOwnAvatar', true);
+    scope.push({
+      value: { ...scope.host.getSnapshot().value!, showDmAvatar: true, showOwnAvatar: true },
+    });
+    const reloaded = new BotModePrefs();
+    reloaded.attach(scope.host);
+    expect(reloaded.source.getSnapshot().showDmAvatar).toBe(true);
+    expect(reloaded.source.getSnapshot().showOwnAvatar).toBe(true);
+  });
+
   it('shows Bot replies once complete until the Host stores streaming', () => {
     const scope = fakeHost();
     const prefs = new BotModePrefs();
@@ -119,6 +138,8 @@ describe('BOT-mode policy store', () => {
     expect(prefs.source.getSnapshot()).toEqual({
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       motionPreference: 'system',
       botIcon: 'mascot' as const,
@@ -194,6 +215,8 @@ describe('BOT-mode policy store', () => {
       botIcon: 'mascot' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
@@ -366,6 +389,8 @@ describe('BOT-mode policy store', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,

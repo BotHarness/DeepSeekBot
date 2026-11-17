@@ -20,7 +20,7 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const tokens: Record<string, string> = {
     ...NATIVE_LIGHT,
     ...(mode === 'dark' ? NATIVE_DARK : {}),
-    ...tobsTokens(mode, selected.preset, selected.primary),
+    ...tobsTokens(mode, selected.preset, selected.primary, config.style),
   };
   for (const part of ['header', 'body'] as const) {
     const material = materials[part];
@@ -53,6 +53,7 @@ export function mountAppearance(owner: Appearance): () => void {
     style.textContent = appearanceCss(owner.getSnapshot());
     style.dataset.bhAppearance = owner.getSnapshot().mode;
     document.documentElement.dataset.bhAppearance = owner.getSnapshot().mode;
+    document.documentElement.dataset.tobsStyle = owner.getSnapshot().config.style ?? 'a';
   };
   const media = window.matchMedia('(prefers-color-scheme: dark)');
   const onStorage = (event: StorageEvent) => {
@@ -67,6 +68,7 @@ export function mountAppearance(owner: Appearance): () => void {
     off();
     style.remove();
     delete document.documentElement.dataset.bhAppearance;
+    delete document.documentElement.dataset.tobsStyle;
     media.removeEventListener('change', owner.refresh);
     window.removeEventListener('storage', onStorage);
   };

@@ -56,6 +56,25 @@ describe('device-local appearance authority', () => {
     expect(owner.getSnapshot().config.modes.light.primary).toBeUndefined();
     expect(data.get('locale')).toBe('zh-CN');
   });
+  it('stores the style per device, applies its tokens and refuses an unknown style', () => {
+    const { owner, storage } = fixture();
+    expect(appearanceCss(owner.getSnapshot())).toContain(
+      '--tobs-style-surface-list-backdrop:var(--tobs-layer-sheet)',
+    );
+    owner.update({ style: 'b' });
+    expect(new Appearance(storage, () => 'light').getSnapshot().config.style).toBe('b');
+    const css = appearanceCss(owner.getSnapshot());
+    expect(css).toContain('--tobs-style-surface-list-backdrop:var(--tobs-layer-raised)');
+    expect(css).toContain('--tobs-style-nav-selected-fill:var(--tobs-accent-selection)');
+    owner.update({ style: 'c' });
+    const tonal = appearanceCss(owner.getSnapshot());
+    expect(tonal).toContain('--tobs-style-nav-selected-fill:var(--tobs-accent-container)');
+    expect(tonal).toContain('--tobs-style-list-gap:2px');
+    expect(() => parseAppearancePatch({ style: 'z' })).toThrow('appearance-invalid-input');
+    expect(() =>
+      parseAppearance(JSON.stringify({ ...owner.getSnapshot().config, style: 'z' })),
+    ).toThrow('appearance-storage-invalid');
+  });
   it('rereads concurrent same-origin writes and refuses a stale expected revision', () => {
     const { owner, storage } = fixture();
     const other = new Appearance(

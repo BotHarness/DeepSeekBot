@@ -13,6 +13,7 @@ import { EmptyState } from './ds/empty-state.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketUploadDialog } from './market-upload.js';
@@ -69,6 +70,62 @@ const styles = stylex.create({
   actions: { display: 'flex', flexShrink: 0, gap: space.x2 },
 });
 
+export type MarketUploadChange =
+  | { kind: 'updated'; bot: MarketplaceEntry }
+  | { kind: 'deleted'; id: string };
+
+const uploadChangeListeners = new Set<(change: MarketUploadChange) => void>();
+
+export function onMarketUploadChange(listener: (change: MarketUploadChange) => void): () => void {
+  uploadChangeListeners.add(listener);
+  return () => {
+    uploadChangeListeners.delete(listener);
+  };
+}
+
+function announceUploadChange(change: MarketUploadChange): void {
+  for (const listener of uploadChangeListeners) listener(change);
+}
+
+export function MyUploadsSettingsRow({
+  actions,
+  t,
+}: {
+  actions: BridgeActions;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <SettingsRow
+      title={t('market.mine.title')}
+      description={t('market.mine.settingsHint')}
+      data={{ 'data-account-uploads': '' }}
+      control={
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-haspopup="dialog"
+            data-account-uploads-open=""
+            onClick={() => setOpen(true)}
+          >
+            {t('market.mine.manage')}
+          </Button>
+          {open ? (
+            <MyUploadsDialog
+              actions={actions}
+              t={t}
+              onUpdated={(bot) => announceUploadChange({ kind: 'updated', bot })}
+              onDeleted={(id) => announceUploadChange({ kind: 'deleted', id })}
+              onClose={() => setOpen(false)}
+            />
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
 function day(iso: string): string {
   return iso.slice(0, 10);
 }
@@ -92,7 +149,7 @@ export function MyUploadsDialog({
   onClose,
 }: {
   actions: BridgeActions;
-  registry: DockPanelRegistry;
+  registry?: DockPanelRegistry | undefined;
   t: BotHarnessTranslate;
   onUpdated: (bot: MarketplaceEntry) => void;
   onDeleted: (id: string) => void;
@@ -133,8 +190,8 @@ export function MyUploadsDialog({
     setCause(undefined);
     try {
       await actions.marketplaceDelete(item.bot.id);
-      if (!mounted.current) return;
       onDeleted(item.bot.id);
+      if (!mounted.current) return;
       setList((current) =>
         current.status === 'ready'
           ? { ...current, bots: current.bots.filter((entry) => entry !== item) }

@@ -233,7 +233,11 @@ export interface PreflightDeps {
 }
 
 function defaultRun(command: string, args: readonly string[]): string {
-  return execFileSync(command, [...args], { encoding: 'utf8', timeout: 10_000 }) as string;
+  return execFileSync(command, [...args], {
+    windowsHide: true,
+    encoding: 'utf8',
+    timeout: 10_000,
+  }) as string;
 }
 
 export function detectMissingSystemLibs(

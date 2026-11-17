@@ -40,6 +40,7 @@ const styles = stylex.create({
   },
   outline: {
     backgroundColor: on.secondary,
+    color: style.buttonSecondaryInk,
     boxShadow: `inset 0 0 0 1px ${on.secondaryEdge}`,
     backgroundImage: {
       default: 'none',

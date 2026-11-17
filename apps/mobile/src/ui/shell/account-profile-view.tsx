@@ -19,6 +19,7 @@ export interface AccountProfileActions {
   onSignIn(): void;
   onEditName(): void;
   onRetry(): void;
+  onOpenUploads(): void;
 }
 
 export function AccountProfileView({
@@ -125,6 +126,15 @@ export function AccountProfileView({
             control={{ kind: 'value', text: email }}
           />
         )}
+      </SettingsSection>
+      <SettingsSection on={SHEET_GROUP}>
+        <SettingsRow
+          on={SHEET_GROUP}
+          testID="account-uploaded-bots"
+          title={copy.uploads}
+          control={{ kind: 'chevron' }}
+          onPress={actions.onOpenUploads}
+        />
       </SettingsSection>
     </SettingsForm>
   );

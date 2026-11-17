@@ -100,7 +100,6 @@ import {
   PromptsSection,
   VoiceSection,
 } from './bot-settings-sections.js';
-import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
 import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
@@ -942,9 +941,15 @@ export function apply(ctx: ClientContext): void {
           label: () => t('botSettings.section.general'),
           locale: LOCALE_NS,
           inject: () => ({
+            ...botModePrefsFace(prefs),
             actions,
             closeBotSettings: botSettings.close,
             zoomSurface: zoom.surface,
+            localeSource: {
+              getSnapshot: () => ctx.locale.getSnapshot(),
+              subscribe: (listener: () => void) => ctx.locale.subscribe(listener),
+              setLocale: (value: string) => ctx.locale.setLocale(value),
+            },
           }),
         },
         GeneralSection,
@@ -963,11 +968,6 @@ export function apply(ctx: ClientContext): void {
             ...botModePrefsFace(prefs),
             appearance,
             wallpaper,
-            localeSource: {
-              getSnapshot: () => ctx.locale.getSnapshot(),
-              subscribe: (listener: () => void) => ctx.locale.subscribe(listener),
-              setLocale: (value: string) => ctx.locale.setLocale(value),
-            },
           }),
         },
         AppearanceSection,
@@ -1082,7 +1082,7 @@ export function apply(ctx: ClientContext): void {
           order: 25,
           label: () => t('botSettings.section.imApps'),
           locale: LOCALE_NS,
-          inject: () => ({ imApps, store }),
+          inject: () => ({ imApps, store, call }),
         },
         ImAppsSection,
       ),
@@ -1156,24 +1156,11 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.plugins,
-          order: 65,
-          label: () => t('botSettings.section.plugins'),
-          locale: LOCALE_NS,
-          inject: () => ({ call, updateRuns }),
-        },
-        PluginsSection,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.about,
           order: 70,
           label: () => t('botSettings.section.about'),
           locale: LOCALE_NS,
-          inject: () => ({ releaseNotes }),
+          inject: () => ({ releaseNotes, call, updateRuns }),
         },
         AboutSection,
       ),

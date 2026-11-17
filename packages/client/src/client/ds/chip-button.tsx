@@ -1,4 +1,10 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import {
+  createContext,
+  forwardRef,
+  useContext,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { style } from './tobs.stylex.js';
@@ -41,6 +47,13 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
+  segment: {
+    maxWidth: '180px',
+    minHeight: style.controlHeight,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderRadius: 0,
+  },
   wrap: { whiteSpace: 'normal' },
   trailing: { flexShrink: 0 },
   icon: { display: 'inline-flex', flexShrink: 0 },
@@ -71,10 +84,13 @@ export interface ChipButtonProps extends Omit<
   readonly [data: `data-${string}`]: string | boolean | undefined;
 }
 
+export const ChipSegmentContext = createContext(false);
+
 export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(function ChipButton(
   { icon, label, wrap = false, collapseLabel = false, trailing = false, type = 'button', ...rest },
   ref,
 ) {
+  const segment = useContext(ChipSegmentContext);
   return (
     <button
       ref={ref}
@@ -84,7 +100,12 @@ export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(functio
         rest['aria-label'] ?? (collapseLabel && typeof label === 'string' ? label : undefined)
       }
       title={rest.title ?? (collapseLabel && typeof label === 'string' ? label : undefined)}
-      {...stylex.props(styles.chip, wrap && styles.wrap, trailing && styles.trailing)}
+      {...stylex.props(
+        styles.chip,
+        segment && styles.segment,
+        wrap && styles.wrap,
+        trailing && styles.trailing,
+      )}
     >
       {icon === undefined ? null : (
         <span aria-hidden="true" {...stylex.props(styles.icon)}>

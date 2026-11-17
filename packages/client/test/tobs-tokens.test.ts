@@ -57,6 +57,30 @@ describe('Tobs design tokens', () => {
     expect(readFileSync(STYLEX_OUTPUT, 'utf8')).toBe(renderStylex(tokens));
   });
 
+  it('keeps box corners finite in every style so cards never turn into capsules', () => {
+    const source = readFileSync(
+      new URL('../src/client/ds/tokens.stylex.ts', import.meta.url),
+      'utf8',
+    );
+    const consts =
+      /export const radius = stylex\.defineConsts\(\{([^}]*)\}/.exec(source)?.[1] ?? '';
+    const boxes = ['sm', 'md', 'lg', 'panel'].map((name) => {
+      const variable = new RegExp(`\\b${name}: 'var\\(--tobs-style-radius-([a-z-]+)\\)'`).exec(
+        consts,
+      )?.[1];
+      expect(variable, `radius.${name} reads a style radius`).toBeDefined();
+      return { name, path: `web.style.radius.${variable}` };
+    });
+    for (const style of contexts('style')) {
+      const value = resolved({ mode: 'light', style, accent: contexts('accent')[0]! });
+      for (const box of boxes)
+        expect(
+          Number.parseFloat(value(box.path) as string),
+          `${style} radius.${box.name}`,
+        ).toBeLessThanOrEqual(28);
+    }
+  });
+
   it('defines the same custom properties in every mode, accent and style', () => {
     expect(Object.keys(TOBS_TOKENS.dark)).toEqual(Object.keys(TOBS_TOKENS.light));
     for (const name of Object.keys(TOBS_TOKENS.light)) expect(name).toMatch(/^--tobs-[a-z0-9-]+$/);
@@ -135,6 +159,44 @@ describe('Tobs design tokens', () => {
   });
 });
 
+describe('tonal style', () => {
+  it.each(SCHEMES.flatMap((mode) => Object.keys(TOBS_ACCENTS).map((accent) => ({ mode, accent }))))(
+    'tints surfaces toward the accent and keeps contrast in $mode, $accent',
+    ({ mode, accent }) => {
+      const preset = accent as keyof typeof TOBS_ACCENTS;
+      const plain = tobsTokens(mode, preset, undefined, 'b');
+      const t = tobsTokens(mode, preset, undefined, 'c');
+      expect(plain['--tobs-layer-canvas']).toBe(TOBS_TOKENS[mode]['--tobs-layer-canvas']);
+      expect(t['--tobs-layer-canvas']).not.toBe(TOBS_TOKENS[mode]['--tobs-layer-canvas']);
+      expect(t['--tobs-layer-raised']).not.toBe(TOBS_TOKENS[mode]['--tobs-layer-raised']);
+      for (const surface of SURFACES) {
+        const bg = t[surface] ?? '';
+        for (const ink of ['primary', 'secondary', 'tertiary'])
+          expect(
+            contrast(t[`--tobs-ink-${ink}`] ?? '', bg),
+            `${ink} on ${surface}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrast(t['--tobs-ink-quiet'] ?? '', bg),
+          `quiet on ${surface}`,
+        ).toBeGreaterThanOrEqual(3);
+        expect(
+          contrast(t['--tobs-accent-ink'] ?? '', bg),
+          `accent ink on ${surface}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(
+        contrast(t['--tobs-state-selected-ink'] ?? '', t['--tobs-state-selected'] ?? ''),
+      ).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it('tints toward a custom primary as well', () => {
+    const t = tobsTokens('light', 'classic-blue', '#aa3366', 'c');
+    expect(t['--tobs-state-hover']).toBe('#aa336612');
+  });
+});
+
 describe('design token guard', () => {
   it('passes against the checked-in baseline', () => {
     const baseline = JSON.parse(
@@ -170,5 +232,9 @@ describe('design token guard', () => {
     expect(match('lineBorder', 'border: ${border.hairline} solid ${color.border};')).toBe(true);
     expect(match('lineBorder', "borderBottomStyle: 'solid'")).toBe(true);
     expect(match('lineBorder', "borderStyle: 'none'")).toBe(false);
+    expect(match('legacyCss', '.bh-new { gap: ${gap}px; }')).toBe(true);
+    expect(match('inlineStyle', '<div style={{ padding: 12 }} />')).toBe(true);
+    expect(match('inlineStyle', '<div style={{ opacity: visible ? 1 : 0 }} />')).toBe(false);
+    expect(match('lineBorder', "borderBottom: '1px solid currentColor'")).toBe(true);
   });
 });

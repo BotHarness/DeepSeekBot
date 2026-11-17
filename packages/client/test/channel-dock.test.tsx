@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, useState, type ContextType, type ReactNode } from 'react';
+import { act, createElement, useContext, useState, type ContextType, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LAYOUT_MODE_STORAGE_KEY } from '../src/client/layout-mode.js';
@@ -38,6 +38,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }));
 
 import { ChannelDock } from '../src/client/channel-dock.js';
+import { ComposerContextPlacementContext } from '../src/client/composer-context-placement.js';
 import {
   CHANNEL_BODY_PANEL,
   CHANNEL_DOCK_STORAGE_KEY,
@@ -58,6 +59,9 @@ import {
 } from '../src/client/dock-panels.js';
 
 const GLOBAL_PANEL = 'market';
+function PlacementProbe(): ReactNode {
+  return ` · ${useContext(ComposerContextPlacementContext)}`;
+}
 const entry = (id: string, scope: ChannelSidebarEntry['scope'] = 'personabot') =>
   ({
     id,
@@ -908,6 +912,7 @@ it('updates the Messages Channel title and trailing actions without replacing it
         body: createElement('input', { 'data-message-draft': '' }),
         header: {
           title,
+          info: createElement(PlacementProbe),
           actions: createElement(
             'span',
             null,
@@ -937,7 +942,8 @@ it('updates the Messages Channel title and trailing actions without replacing it
   const titleHandle = header.querySelector<HTMLElement>('[data-panel-hide]')!;
   const channelContext = header.querySelector<HTMLElement>('[data-panel-context]')!;
   expect(titleHandle.textContent).toBe('Messages');
-  expect(channelContext.textContent).toBe('Ada');
+  expect(channelContext.textContent).toBe('Ada · header');
+  expect(channelContext.querySelector('[data-channel-header-info]')?.textContent).toBe(' · header');
   act(() => channelContext.click());
   expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
   for (const target of [

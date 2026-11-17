@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { border, radius, space } from './tokens.stylex.js';
+import { border, radius } from './tokens.stylex.js';
 import { joinClass } from './class-name.js';
 import { on } from './surface.stylex.js';
 import { accent, elevation, line, motion, radius as pill, style } from './tobs.stylex.js';
@@ -12,7 +12,7 @@ const styles = stylex.create({
     flexShrink: 0,
     width: style.switchWidth,
     height: style.switchHeight,
-    padding: space.x1,
+    padding: 0,
     borderWidth: 0,
     borderRadius: pill.full,
     backgroundColor: on.track,
@@ -24,19 +24,26 @@ const styles = stylex.create({
   },
   on: { backgroundColor: accent.solid, boxShadow: 'none' },
   thumb: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
     display: 'block',
-    width: `calc(${style.switchHeight} - 4px)`,
-    height: `calc(${style.switchHeight} - 4px)`,
+    width: style.switchThumbOff,
+    height: style.switchThumbOff,
     borderRadius: radius.round,
-    backgroundColor: accent.onSelection,
-    boxShadow: elevation.x1,
-    transitionProperty: 'transform',
+    backgroundColor: style.switchThumbOffFill,
+    boxShadow: `0 1px 2px ${style.switchThumbOffShadow}`,
+    transform: `translate(calc((${style.switchHeight} - ${style.switchThumbOff}) / 2), -50%)`,
+    transitionProperty: 'transform, width, height, background-color',
     transitionDuration: motion.fast,
     transitionTimingFunction: motion.standard,
   },
   thumbOn: {
+    width: style.switchThumbOn,
+    height: style.switchThumbOn,
     backgroundColor: accent.onSolid,
-    transform: `translateX(calc(${style.switchWidth} - ${style.switchHeight}))`,
+    boxShadow: elevation.x1,
+    transform: `translate(calc(${style.switchWidth} - (${style.switchHeight} + ${style.switchThumbOn}) / 2), -50%)`,
   },
 });
 

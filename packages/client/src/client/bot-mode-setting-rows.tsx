@@ -1,3 +1,4 @@
+import { SegmentedControl } from './ds/segmented.js';
 import { Switch } from './ds/switch.js';
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -82,10 +83,7 @@ const styles = stylex.create({
     paddingInline: space.x2,
     borderWidth: border.hairline,
     borderStyle: 'solid',
-    borderColor: {
-      default: color.border,
-      ':is([aria-checked=true])': color.accent,
-    },
+    borderColor: color.border,
     borderRadius: radius.md,
     backgroundColor: {
       default: 'transparent',
@@ -98,6 +96,7 @@ const styles = stylex.create({
       ':is([aria-checked=true])': color.fg,
     },
     fontFamily: 'inherit',
+    fontWeight: { default: 400, ':is([aria-checked=true])': 500 },
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     cursor: 'pointer',
@@ -184,7 +183,8 @@ export function MotionSetting({
       description={t(memoryOnly ? 'motion.row.memory' : 'motion.row.description')}
       data={{ 'data-setting': 'motion' }}
       control={
-        <Select
+        <SegmentedControl
+          id="bh-motion-preference"
           label={t('motion.menu.label')}
           value={prefs.motionPreference}
           options={MOTION_OPTIONS.map((option) => ({
@@ -297,6 +297,48 @@ export function AutoCollapseMessagesSetting({
   );
 }
 
+export function DmAvatarSetting({
+  t,
+  useBotModePrefs,
+  setShowDmAvatar,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showDmAvatar);
+  return (
+    <SettingsRow
+      title={t('message.avatar.dm.row.title')}
+      description={t('message.avatar.dm.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowDmAvatar}
+          label={t('message.avatar.dm.row.title')}
+        />
+      }
+    />
+  );
+}
+
+export function OwnAvatarSetting({
+  t,
+  useBotModePrefs,
+  setShowOwnAvatar,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showOwnAvatar);
+  return (
+    <SettingsRow
+      title={t('message.avatar.own.row.title')}
+      description={t('message.avatar.own.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowOwnAvatar}
+          label={t('message.avatar.own.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function DeliveryReceiptsSetting({
   t,
   useBotModePrefs,
@@ -370,6 +412,7 @@ export function BotSessionsVisibilitySetting({
     <SettingsRow
       title={t('botSessions.row.title')}
       description={t('botSessions.row.description')}
+      info={{ label: t('botSessions.row.title'), text: t('botSessions.row.info') }}
       control={
         <Switch
           checked={prefs.showBotSessions}
@@ -391,6 +434,10 @@ export function ApprovalReviewSessionsVisibilitySetting({
     <SettingsRow
       title={t('approvalReviewSessions.row.title')}
       description={t('approvalReviewSessions.row.description')}
+      info={{
+        label: t('approvalReviewSessions.row.title'),
+        text: t('approvalReviewSessions.row.info'),
+      }}
       control={
         <Switch
           checked={shown}

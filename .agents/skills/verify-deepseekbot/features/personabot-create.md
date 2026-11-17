@@ -2,6 +2,19 @@
 
 A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Channel and a Git Memory Repository, and both survive a Host restart along with the DM history.
 
+## Sources
+
+- `packages/client/src/client/{persona-bot-create,bot-create-source,bot-create-approval}.tsx`
+- `packages/core/src/bots/{bot-create-cli,memory-move,zip-import}.ts`
+- `packages/core/src/tob/cli-bot-create.ts`
+
+## Terms
+
+- PersonaBot
+- Memory Repository
+- Workspace Grant
+- Bot Zip
+
 ## Sub-features
 
 - `workspace` registers a native DSH Workspace that BotHarness lists in its options.

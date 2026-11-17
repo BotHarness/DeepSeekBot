@@ -76,8 +76,8 @@ it('shows the remote Host messaging page and writes Bot collaboration to that Ho
   await act(async () => root.render(<RemoteMessagingSettings client={{} as never} t={t} />));
   await act(async () => undefined);
   const text = host.textContent ?? '';
-  expect(text).toContain(t('remoteHosts.messaging.me'));
-  expect(text).toContain(t('remoteHosts.messaging.bots'));
+  expect(text).toContain(t('messaging.section.me'));
+  expect(text).toContain(t('messaging.section.bots'));
   expect(text).toContain(t('groupAutoAccept.row.title'));
   expect(text).toContain(t('humanName.title'));
   expect(text).not.toContain(t('sendKey.row.title'));
