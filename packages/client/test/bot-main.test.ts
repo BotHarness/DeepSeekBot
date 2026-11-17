@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 const menus = vi.hoisted(
-  () => [] as Array<{ items?: Array<{ id: string }>; onSelect?(id: string): void }>,
+  () => [] as Array<{ items?: Array<{ id: string; label?: string }>; onSelect?(id: string): void }>,
 );
 
 vi.mock('../src/client/ds/button.js', async () => ({
@@ -1469,7 +1469,6 @@ describe('Bot main Sessions pane', () => {
     expect(menu?.items?.[0]).toMatchObject({ type: 'label', text: expect.stringMatching(/\S/) });
     expect(menu?.items?.map((item) => item.id)).toEqual([
       'time',
-      'reply',
       'quote',
       'react',
       'copy',
@@ -1501,13 +1500,12 @@ describe('Bot main Sessions pane', () => {
     const selectionMenu = menus.findLast((props) =>
       props.items?.some((item) => item.id === 'react'),
     );
-    expect(selectionMenu?.items?.map((item) => item.id).slice(0, 4)).toEqual([
-      'time',
-      'reply',
-      'quote-selection',
-      'quote',
-    ]);
-    await act(async () => selectionMenu!.onSelect!('quote-selection'));
+    expect(
+      selectionMenu?.items
+        ?.filter((item) => item.id === 'quote' || item.id === 'copy')
+        .map((item) => item.label),
+    ).toEqual([zhTranslate('message.quoteSelection'), zhTranslate('message.copySelection')]);
+    await act(async () => selectionMenu!.onSelect!('quote'));
     const quoteChip = container.querySelector('[data-quote-chip]');
     expect(quoteChip?.hasAttribute('data-quote-part')).toBe(true);
     expect(quoteChip?.textContent).toContain((bodyText.textContent ?? '').slice(0, 2));
@@ -1515,6 +1513,41 @@ describe('Bot main Sessions pane', () => {
       container.querySelector<HTMLButtonElement>('[data-quote-chip] button')!.click(),
     );
     expect(container.querySelector('[data-quote-chip]')).toBeNull();
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+    );
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          `.bh-bubble-toolbar [aria-label="${zhTranslate('message.quote')}"]`,
+        )!
+        .click(),
+    );
+    const wholeChip = container.querySelector('[data-quote-chip]');
+    expect(wholeChip?.hasAttribute('data-quote-part')).toBe(false);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-quote-chip] button')!.click(),
+    );
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => new DOMRect(100, 200, 40, 16),
+    });
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    await act(async () => {
+      document.dispatchEvent(new Event('selectionchange'));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    });
+    const toolbar = document.body.querySelector('[data-selection-toolbar]');
+    expect(toolbar).not.toBeNull();
+    await act(async () => toolbar!.querySelector<HTMLButtonElement>('button')!.click());
+    expect(container.querySelector('[data-quote-chip]')?.hasAttribute('data-quote-part')).toBe(
+      true,
+    );
+    expect(document.body.querySelector('[data-selection-toolbar]')).toBeNull();
+    Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
     window.getSelection()!.removeAllRanges();
     await act(async () => store.setComposerIdentity(identity));
     localStorage.clear();

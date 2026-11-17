@@ -1,5 +1,11 @@
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
 import { QuoteIcon } from './quote-icon.js';
+import {
+  dismissSelectionQuote,
+  selectedMessageText,
+  useSelectionQuote,
+} from './selection-quote.js';
+import { SelectionToolbar, SelectionToolbarButton } from './ds/selection-toolbar.js';
 import { QuoteCard, QuoteCardList } from './ds/quote-chip.js';
 import type { ComposerQuote } from './composer-draft-store.js';
 import { useTeamMember, useTeamMode } from './team-state.js';
@@ -413,26 +419,6 @@ interface MessageMenuRequest {
   selection?: string;
 }
 
-function selectedMessageText(messageId: string): string | undefined {
-  const selection = typeof window === 'undefined' ? null : window.getSelection();
-  if (selection === null || selection.isCollapsed || selection.rangeCount === 0) return undefined;
-  const range = selection.getRangeAt(0);
-  const inBody = (node: Node): boolean => {
-    const element = node instanceof Element ? node : node.parentElement;
-    return (
-      element !== null &&
-      element.closest('[data-message-id]')?.getAttribute('data-message-id') === messageId &&
-      element.closest('.bh-bubble-reply, [data-bubble-quotes], .bh-bubble-actions') === null
-    );
-  };
-  if (!inBody(range.startContainer) || !inBody(range.endContainer)) return undefined;
-  const text = selection
-    .toString()
-    .replace(/\u200b/gu, '')
-    .trim();
-  return text.length === 0 ? undefined : text;
-}
-
 function QuoteList({
   humanName,
   message,
@@ -550,7 +536,7 @@ function quotableMessage(message: ChannelMessage): boolean {
     message.pending !== true &&
     message.streaming !== true &&
     message.failed === undefined &&
-    message.body.trim().length > 0 &&
+    (message.body.trim().length > 0 || (message.attachments?.length ?? 0) > 0) &&
     !message.id.startsWith('local-')
   );
 }
@@ -560,20 +546,6 @@ function bubbleStamp(message: ChannelMessage): string | undefined {
     return undefined;
   const clock = clockTime(message.at);
   return clock === '' ? undefined : clock;
-}
-
-function ReplyIcon(): ReactElement {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 7 4 12l5 5M4 12h9a7 7 0 0 1 7 7"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 const SEARCH_PANEL_GAP_PX = 8;
@@ -1088,18 +1060,15 @@ const MessageGroupView = memo(function MessageGroupView({
                         t={t}
                       />
                     ) : null}
-                    {onReply !== undefined &&
-                    message.pending !== true &&
-                    message.streaming !== true &&
-                    message.failed === undefined ? (
-                      <Tooltip label={t('message.reply')} side="top" portal delayMs={400}>
+                    {onReply !== undefined && quotableMessage(message) ? (
+                      <Tooltip label={t('message.quote')} side="top" portal delayMs={400}>
                         <IconButton
                           size="inline"
                           data-bubble-action=""
-                          aria-label={t('message.reply')}
+                          aria-label={t('message.quote')}
                           onClick={() => onReply(message)}
                         >
-                          <ReplyIcon />
+                          <QuoteIcon />
                         </IconButton>
                       </Tooltip>
                     ) : null}
@@ -1136,7 +1105,6 @@ const MessageGroupView = memo(function MessageGroupView({
 });
 
 function MessageActionMenu({
-  onReply,
   onQuote,
   onFeedback,
   onSelect,
@@ -1145,7 +1113,6 @@ function MessageActionMenu({
   onClose,
   t,
 }: {
-  onReply?(message: ChannelMessage): void;
   onQuote?(message: ChannelMessage, text?: string): void;
   onFeedback?(message: ChannelMessage): void;
   onSelect?(message: ChannelMessage): void;
@@ -1178,29 +1145,26 @@ function MessageActionMenu({
           ...(bubbleStamp(request.message) === undefined
             ? []
             : [{ type: 'label' as const, id: 'time', text: fullTime(request.message.at, t) }]),
-          ...(onReply === undefined ||
-          request.message.pending === true ||
-          request.message.streaming === true
-            ? []
-            : [{ id: 'reply', label: t('message.reply'), icon: <ReplyIcon /> }]),
           ...(onQuote === undefined || !quotableMessage(request.message)
             ? []
             : [
-                ...(request.selection === undefined
-                  ? []
-                  : [
-                      {
-                        id: 'quote-selection',
-                        label: t('message.quoteSelection'),
-                        icon: <QuoteIcon />,
-                      },
-                    ]),
-                { id: 'quote', label: t('message.quote'), icon: <QuoteIcon /> },
+                {
+                  id: 'quote',
+                  label:
+                    request.selection === undefined
+                      ? t('message.quote')
+                      : t('message.quoteSelection'),
+                  icon: <QuoteIcon />,
+                },
               ]),
           ...(onReact === undefined
             ? []
             : [{ id: 'react', label: t('message.react'), icon: <ReactionIcon /> }]),
-          { id: 'copy', label: t('message.copy'), icon: <IconCopyOutlineRegular /> },
+          {
+            id: 'copy',
+            label: request.selection === undefined ? t('message.copy') : t('message.copySelection'),
+            icon: <IconCopyOutlineRegular />,
+          },
           ...(onSelect === undefined || !selectableMessage(request.message)
             ? []
             : [
@@ -1215,13 +1179,11 @@ function MessageActionMenu({
             : [{ id: 'feedback', label: t('feedback.title'), icon: <ReactionIcon /> }]),
         ]}
         onSelect={(id) => {
-          if (id === 'reply') onReply?.(request.message);
-          else if (id === 'quote') onQuote?.(request.message);
-          else if (id === 'quote-selection') onQuote?.(request.message, request.selection);
+          if (id === 'quote') onQuote?.(request.message, request.selection);
           else if (id === 'react') onReact?.(request);
           else if (id === 'feedback') onFeedback?.(request.message);
           else if (id === 'copy') {
-            void navigator.clipboard?.writeText(request.message.body);
+            void navigator.clipboard?.writeText(request.selection ?? request.message.body);
           } else if (id === 'select') onSelect?.(request.message);
           onClose();
         }}
@@ -1754,6 +1716,10 @@ function ConversationView({
     state.bots.find((candidate) => candidate.slug === channel.botSlug)?.deleted === true;
   const readOnlyDm = isHumanReadOnlyDmChannel(channel) || deletedBotDm;
   const mutationLocked = readOnlyDm || channel?.readOnly === true;
+  const selectionQuote = useSelectionQuote(!mutationLocked, (messageId) => {
+    const target = messages.find((candidate) => candidate.id === messageId);
+    return target !== undefined && quotableMessage(target);
+  });
   const profileBot =
     channel?.type === 'dm' && channel.botSlug !== undefined
       ? state.bots.find((candidate) => candidate.slug === channel.botSlug)
@@ -2432,10 +2398,47 @@ function ConversationView({
         ? undefined
         : messages.find((candidate) => candidate.id === message.replyTo),
     );
+    setQuoteTargets(
+      (message.quotes ?? []).flatMap((quote) => {
+        const target = messages.find((candidate) => candidate.id === quote.messageId);
+        if (target === undefined) return [];
+        const excerpt = Array.from((quote.text ?? target.body).replace(/\s+/gu, ' ').trim())
+          .slice(0, 140)
+          .join('');
+        return [
+          {
+            messageId: quote.messageId,
+            ...(quote.text === undefined ? {} : { text: quote.text }),
+            author: authorLabel(target, state.bots, t, channelHumanName(channel)),
+            excerpt,
+          },
+        ];
+      }),
+    );
     setRestoreBlocked(false);
     setRestoreFocusSignal((value) => value + 1);
   };
-  const quoteMessage = (message: ChannelMessage): void => {
+  const quoteMessage = (message: ChannelMessage, text?: string): void => {
+    const source = (
+      text ??
+      (message.body.trim().length > 0
+        ? message.body
+        : (message.attachments ?? []).map((ref) => ref.name).join(', '))
+    )
+      .replace(/\s+/gu, ' ')
+      .trim();
+    const characters = Array.from(source);
+    const quote: ComposerQuote = {
+      messageId: message.id,
+      ...(text === undefined ? {} : { text: characters.slice(0, 1000).join('') }),
+      author: authorLabel(message, state.bots, t, channelHumanName(channel)),
+      excerpt: characters.slice(0, 140).join(''),
+    };
+    setQuoteTargets((current) =>
+      current.some((item) => item.messageId === quote.messageId && item.text === quote.text)
+        ? current
+        : [...current, quote].slice(-8),
+    );
     const author = message.author;
     const member =
       channel?.type === 'group' && author.kind === 'bot'
@@ -2446,33 +2449,15 @@ function ConversationView({
               candidate.paused !== true,
           )
         : undefined;
-    if (member === undefined) {
-      setReplyTarget(message);
-      return;
+    if (member !== undefined) {
+      const next = quoteMention(draft, mentionTokens, member.slug, member.displayName);
+      recovery.update({
+        text: next.value,
+        mentions: next.mentions,
+        channelRefs: rebaseChannelRefs(draft, next.value, channelRefTokens),
+      });
     }
-    const next = quoteMention(draft, mentionTokens, member.slug, member.displayName);
-    recovery.update({
-      reply: message,
-      text: next.value,
-      mentions: next.mentions,
-      channelRefs: rebaseChannelRefs(draft, next.value, channelRefTokens),
-    });
-    setRestoreFocusSignal((value) => value + 1);
-  };
-
-  const quoteInComposer = (message: ChannelMessage, text?: string) => {
-    const excerpt = Array.from((text ?? message.body).replace(/\s+/gu, ' ').trim());
-    const quote: ComposerQuote = {
-      messageId: message.id,
-      ...(text === undefined ? {} : { text: excerpt.slice(0, 1000).join('') }),
-      author: authorLabel(message, state.bots, t, channelHumanName(channel)),
-      excerpt: excerpt.slice(0, 140).join(''),
-    };
-    setQuoteTargets((current) =>
-      current.some((item) => item.messageId === quote.messageId && item.text === quote.text)
-        ? current
-        : [...current, quote].slice(-8),
-    );
+    window.getSelection()?.removeAllRanges();
     setRestoreFocusSignal((value) => value + 1);
   };
 
@@ -3943,6 +3928,29 @@ function ConversationView({
               </div>
             </div>
           )}
+          {activeMemoryView !== undefined ||
+          messageMenu !== undefined ||
+          selectionQuote === undefined ? null : (
+            <SelectionToolbar
+              x={selectionQuote.x}
+              y={selectionQuote.y}
+              below={selectionQuote.below}
+              label={t('message.quoteSelection')}
+            >
+              <SelectionToolbarButton
+                icon={<QuoteIcon />}
+                onPress={() => {
+                  const target = messages.find(
+                    (candidate) => candidate.id === selectionQuote.messageId,
+                  );
+                  if (target !== undefined) quoteMessage(target, selectionQuote.text);
+                  dismissSelectionQuote();
+                }}
+              >
+                {t('message.quote')}
+              </SelectionToolbarButton>
+            </SelectionToolbar>
+          )}
           {activeMemoryView !== undefined || messageMenu === undefined ? null : (
             <MessageActionMenu
               request={messageMenu}
@@ -3955,8 +3963,7 @@ function ConversationView({
               {...(readOnlyDm
                 ? {}
                 : {
-                    onReply: quoteMessage,
-                    onQuote: quoteInComposer,
+                    onQuote: quoteMessage,
                     onFeedback: (message: ChannelMessage) => setFeedbackMessage(message.id),
                   })}
               {...(messageSelection === undefined ? {} : { onSelect: messageSelection.begin })}
