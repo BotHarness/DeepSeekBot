@@ -2468,6 +2468,8 @@ function ChatConversation({
                 subtitle={headerStatus.label}
                 activeBots={headerStatus.bots}
                 connectionLabel={connectionLabel}
+                model={dm ? headerModel.model : undefined}
+                modelMount={dm ? headerModel.mount : undefined}
                 onBack={leave}
                 onProfile={canOpenProfile ? openProfile : undefined}
                 onCall={canOpenProfile ? placeCall : undefined}
