@@ -116,6 +116,7 @@ import { ChannelTitle } from './channel-title';
 import { ChatHeaderRow } from './chat-header-row';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
+import { useHeaderModel } from './use-header-model';
 import { runningSessionCount } from '../../host/session-stop';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
@@ -1698,10 +1699,17 @@ function ChatConversation({
       ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
       : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
+  const headerModel = useHeaderModel(
+    dm && saved !== undefined && !hostRefused && !missing ? client : undefined,
+    slug,
+    focused,
+  );
   const title = dm ? (
     <ChatTitle
       bot={bot}
       connectionLabel={connectionLabel}
+      model={headerModel.model}
+      modelMount={headerModel.mount}
       fallback={slug ?? ''}
       onPress={openProfile}
     />

@@ -1,4 +1,7 @@
 import { MethodRefused, type HostClient } from './client';
+import { parseModelCatalog, type ModelCatalogEntry } from './model-catalog';
+
+export type { ModelCatalogEntry };
 
 export type Loadable<T> =
   | { status: 'loading' }
@@ -17,16 +20,6 @@ export interface AssignmentModelOption {
   allowedEfforts: string[];
   defaultEffort: string;
   note?: string;
-}
-
-export interface ModelCatalogEntry {
-  provider: string;
-  providerName: string;
-  model: string;
-  modelName: string;
-  efforts?: { id: string; name: string }[];
-  defaultEffort?: string;
-  credential?: 'missing' | 'invalid';
 }
 
 export interface ModelPlan {
@@ -161,36 +154,6 @@ function planResult(value: unknown, method: string): ModelPlan {
   return parsed;
 }
 
-function catalogEntry(value: unknown): ModelCatalogEntry | undefined {
-  const row = record(value);
-  if (
-    !text(row?.['provider']) ||
-    !text(row['model']) ||
-    !text(row['providerName']) ||
-    !text(row['modelName'])
-  )
-    return undefined;
-  const credential = row['credential'];
-  return {
-    provider: row['provider'],
-    providerName: row['providerName'],
-    model: row['model'],
-    modelName: row['modelName'],
-    ...(Array.isArray(row['efforts'])
-      ? {
-          efforts: some(row['efforts'], (value) => {
-            const effort = record(value);
-            return text(effort?.['id']) && text(effort['name'])
-              ? { id: effort['id'], name: effort['name'] }
-              : undefined;
-          }),
-        }
-      : {}),
-    ...(text(row['defaultEffort']) ? { defaultEffort: row['defaultEffort'] } : {}),
-    ...(credential === 'missing' || credential === 'invalid' ? { credential } : {}),
-  };
-}
-
 function preset(value: unknown): ModelPreset | undefined {
   const row = record(value);
   const orchestrator = route(row?.['orchestrator']);
@@ -206,6 +169,12 @@ function preset(value: unknown): ModelPreset | undefined {
       ? { assignmentModels: row['assignmentModels'] as AssignmentModelOption[] }
       : {}),
   };
+}
+
+function catalogAnswer(value: unknown) {
+  if (!Array.isArray(record(value)?.['models']))
+    throw new HostAnswerInvalid('modelCatalog returned no models.');
+  return parseModelCatalog(value);
 }
 
 function some<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
@@ -230,18 +199,16 @@ export async function loadBotModel(
       return { presets: [] };
     }),
   ]);
-  const models = record(catalog)?.['models'];
-  if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
+  const { models, default: fallback } = catalogAnswer(catalog);
   const current = record(state);
   const saved = plan(current?.['plan']);
   const repair = record(current?.['repair']);
-  const fallback = route(record(catalog)?.['default']);
   return {
     revision:
       typeof current?.['revision'] === 'number' ? current['revision'] : (saved?.revision ?? 0),
     ...(saved === undefined ? {} : { plan: saved }),
     ...(text(repair?.['code']) ? { repair: repair['code'] } : {}),
-    models: some(models, catalogEntry),
+    models,
     ...(fallback === undefined ? {} : { fallback }),
     presets: some(record(presets)?.['presets'], preset),
   };
@@ -256,18 +223,11 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     client.call('modelCatalog', {}),
     client.call('modelPresets', {}),
   ]);
-  const models = record(catalog)?.['models'];
-  if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
-  const fallback = route(record(catalog)?.['default']);
-  const defaultRevision = record(catalog)?.['defaultRevision'];
+  const { models, default: fallback, defaultRevision } = catalogAnswer(catalog);
   return {
     revision: 0,
-    ...(typeof defaultRevision === 'number' &&
-    Number.isSafeInteger(defaultRevision) &&
-    defaultRevision >= 0
-      ? { defaultRevision }
-      : {}),
-    models: some(models, catalogEntry),
+    ...(defaultRevision === undefined ? {} : { defaultRevision }),
+    models,
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),
   };
