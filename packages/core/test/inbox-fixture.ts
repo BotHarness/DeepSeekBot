@@ -3,6 +3,7 @@ import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
+import { createTestNativeWorkspace, createTestWorkspaceGrants } from './workspace-grant-fixture.js';
 
 export type TurnHook = (run: OrchestratorAgentRun) => unknown;
 
@@ -11,28 +12,48 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
   const runs: OrchestratorAgentRun[] = [];
   const hooks: TurnHook[] = [];
   const results: unknown[] = [];
+  const held: Array<() => void> = [];
   const adapter: BotAgentAdapter = {
     async runOrchestrator(run) {
       runs.push(run);
       const hook = hooks.shift();
       if (hook !== undefined) results.push(await hook(run));
     },
-    async runAssignment() {},
+    runAssignment(run) {
+      run.setExecutionReady?.(true);
+      run.acceptNativeInput?.();
+      return new Promise<void>((resolve) => held.push(resolve));
+    },
     requestAssignment() {
       throw new Error('No Assignment expected');
     },
     async close() {},
   };
+  const workspace = createTestNativeWorkspace(home);
   const core = createCore({
     dshHome: home,
     agents: adapter,
     triageContinuation: options.triageContinuation ?? false,
+    workspaces: () => workspace.lookup,
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
+  createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
   const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
   const probe = attachOperationalModule(core.operationalDatabase, 'inbox-test');
   let sequence = 0;
+  async function admit(body: string, ...turns: TurnHook[]) {
+    hooks.push(...turns);
+    sequence += 1;
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: dm!.id,
+      messageId: `human-${sequence}`,
+      body,
+    });
+    if (!admission.admitted) throw new Error('Not admitted');
+    await admission.settled;
+    return `human-${sequence}`;
+  }
   async function send(body: string, ...turns: TurnHook[]) {
     hooks.push(...turns);
     sequence += 1;
@@ -55,9 +76,13 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
     return core.attention.list({ botSlug: 'ada', limit: 100 }).items.find((item) => item.id === id)
       ?.state;
   }
+  function finishAssignments() {
+    for (const resolve of held.splice(0)) resolve();
+  }
   async function close() {
+    finishAssignments();
     await core.runtime.close();
     core.operationalDatabase.close();
   }
-  return { core, dm, runs, results, send, state, close };
+  return { core, dm, runs, results, send, admit, state, close, finishAssignments };
 }

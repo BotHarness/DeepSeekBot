@@ -1899,7 +1899,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#triageQueued.delete(botSlug);
     const bot = this.#registry.get(botSlug);
     if (this.#closed || bot === undefined || bot.paused === true || this.#held.has(botSlug)) return;
-    const ids = this.#inboxTriage.openIds(botSlug);
+    const ids = this.#withoutWorkingAssignment(this.#inboxTriage.openIds(botSlug));
     const baseline = this.#triageBaseline.get(botSlug);
     this.#triageBaseline.delete(botSlug);
     if (ids.length === 0) {
@@ -1954,6 +1954,26 @@ class BotRuntimeImplementation implements BotRuntime {
     } finally {
       this.#triageRunning.delete(botSlug);
     }
+  }
+
+  #withoutWorkingAssignment(ids: string[]): string[] {
+    if (ids.length === 0) return ids;
+    const delegated = new Set(
+      this.#database
+        .read(
+          (database) =>
+            database
+              .prepare(
+                `SELECT DISTINCT ra.request_source_event_id AS id FROM request_assignments ra
+                 JOIN assignments s ON s.session_id = ra.session_id
+                WHERE ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})
+                  AND s.activity = 'working' AND s.stop_state = 'running' AND s.archived_at IS NULL`,
+              )
+              .all(...ids) as unknown as Array<{ id: string }>,
+        )
+        .map((row) => row.id),
+    );
+    return ids.filter((id) => !delegated.has(id));
   }
 
   async #runSnoozeReturnTurn(botSlug: string): Promise<void> {

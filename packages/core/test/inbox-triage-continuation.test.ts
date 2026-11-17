@@ -2,6 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { inboxFixture as fixture } from './inbox-fixture.js';
+import { TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 const resolveOldest = (run: OrchestratorAgentRun) => {
   const ids = run.triage!.list().groups.flatMap((group) => group.ids);
@@ -19,6 +20,20 @@ describe('Orchestrator triage continuation', () => {
       expect(f.state(item)).toBe('open');
       await f.core.runtime.whenIdle();
       expect(f.runs).toHaveLength(2);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('leaves a request alone while the Assignment created for it is working', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      await f.admit('Fix the export bug', (run) =>
+        run.assignments.create({ title: 'Fix', grantId: TEST_GRANT_ID, description: 'Fix it' }),
+      );
+      expect(f.results[0]).toMatchObject({ outcome: 'created' });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(f.runs).toHaveLength(1);
     } finally {
       await f.close();
     }
