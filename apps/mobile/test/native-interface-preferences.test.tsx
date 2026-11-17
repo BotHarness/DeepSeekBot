@@ -93,6 +93,7 @@ it('restores before showing content, updates native appearance and refreshes sys
     expect(JSON.parse(native.saved)).toEqual({
       language: 'en',
       appearance: 'system',
+      palette: { light: { preset: 'classic-blue' }, dark: { preset: 'classic-blue' } },
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });
