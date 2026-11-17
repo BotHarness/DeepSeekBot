@@ -149,7 +149,7 @@ it('filters by family from the rail and by text from the search field', async ()
 it('chooses with the keyboard and closes when there is no effort to pick', async () => {
   const { onSelect, onClose } = await render();
   const search = document.body.querySelector<HTMLInputElement>('[role="combobox"]')!;
-  await act(async () => new Promise((resolve) => requestAnimationFrame(resolve)));
+  await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   expect(document.activeElement).toBe(search);
   for (let step = 0; step < 2; step += 1)
     await act(async () =>
