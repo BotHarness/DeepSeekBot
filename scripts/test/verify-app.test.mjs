@@ -20,6 +20,13 @@ describe('verify-app arguments', () => {
     );
     expect(() => parseVerifyArgs(['launch', '--dsh-version', 'latest'])).toThrow('API floor');
   });
+  it('reads a monkey seed and step count', () => {
+    const options = parseVerifyArgs(['monkey', 'shell', '--seed', '7', '--steps', '40']);
+    expect([options.seed, options.steps, options.positional]).toEqual([7, 40, ['shell']]);
+    expect(parseVerifyArgs(['monkey', 'shell']).steps).toBe(100);
+    expect(() => parseVerifyArgs(['monkey', 'shell', '--seed', '-1'])).toThrow('non-negative');
+    expect(() => parseVerifyArgs(['monkey', 'shell', '--steps', '0'])).toThrow('positive');
+  });
   it('keeps shot actions in the order given', () => {
     const options = parseVerifyArgs([
       'shot',
