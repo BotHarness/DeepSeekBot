@@ -30,12 +30,17 @@ import {
   SessionDetailPrefsContext,
   type SessionDetailPrefs,
 } from '../src/client/session-detail.js';
+import {
+  clearSessionDetailCache,
+  prefetchSessionDetail,
+} from '../src/client/session-detail-cache.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mounted: (() => void)[] = [];
 afterEach(() => {
   for (const unmount of mounted.splice(0)) unmount();
+  clearSessionDetailCache();
 });
 
 const transcript = (role: SessionTranscript['role'], running = false): SessionTranscript => ({
@@ -487,4 +492,22 @@ it('offers turn navigation once there are several turns', async () => {
     sessionTranscript: vi.fn(async () => ({ ...editTurn(), items })),
   });
   expect(host.querySelectorAll('[data-nav-turn]')).toHaveLength(3);
+});
+
+it('reopens a Session from its last transcript while it refreshes', async () => {
+  await render({ sessionTranscript: vi.fn(async () => transcript('assignment')) });
+  for (const unmount of mounted.splice(0)) unmount();
+  const host = await render({ sessionTranscript: vi.fn(() => new Promise<never>(() => {})) });
+  expect(host.textContent).not.toContain('正在读取会话');
+  expect(host.querySelectorAll('[data-transcript="reply"]')).toHaveLength(1);
+});
+
+it('prefetches a Session once before it opens', async () => {
+  const read = vi.fn(async () => transcript('assignment'));
+  prefetchSessionDetail({ sessionTranscript: read }, 'tobs', 'asg-1');
+  prefetchSessionDetail({ sessionTranscript: read }, 'tobs', 'asg-1');
+  await act(async () => {});
+  expect(read).toHaveBeenCalledTimes(1);
+  const host = await render({ sessionTranscript: vi.fn(() => new Promise<never>(() => {})) });
+  expect(host.textContent).not.toContain('正在读取会话');
 });

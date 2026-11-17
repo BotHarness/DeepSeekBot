@@ -44,6 +44,7 @@ export interface SidebarCardRowProps {
   trailingAlign?: 'start' | undefined;
   detail?: ReactNode | undefined;
   onClick?: () => void | undefined;
+  onIntent?: (() => void) | undefined;
   disabled?: boolean | undefined;
   muted?: boolean | undefined;
   mainClassName?: string | undefined;
@@ -71,6 +72,7 @@ export function SidebarCardRow({
   trailingAlign,
   detail,
   onClick,
+  onIntent,
   disabled,
   muted,
   mainClassName,
@@ -157,6 +159,8 @@ export function SidebarCardRow({
             aria-expanded={expanded}
             aria-controls={controls}
             onClick={onClick}
+            onPointerEnter={onIntent}
+            onFocus={onIntent}
           >
             {body}
           </button>

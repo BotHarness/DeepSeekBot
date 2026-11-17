@@ -28,6 +28,7 @@ import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
 import { todoCount, TodoRing } from './session-progress-view.js';
@@ -624,9 +625,10 @@ export function SessionDetail({
   t: BotHarnessTranslate;
 }): ReactElement {
   const prefs = useContext(SessionDetailPrefsContext);
-  const [transcript, setTranscript] = useState<SessionTranscript | undefined>();
+  const [cached] = useState(() => cachedSessionDetail(botSlug, sessionId));
+  const [transcript, setTranscript] = useState<SessionTranscript | undefined>(cached?.transcript);
   const [live, setLive] = useState<SessionTranscriptItem[]>([]);
-  const [progress, setProgress] = useState<SessionProgress | undefined>();
+  const [progress, setProgress] = useState<SessionProgress | undefined>(cached?.progress);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<'goal' | 'todos' | undefined>();
   const [draft, setDraft] = useState('');
@@ -647,6 +649,7 @@ export function SessionDetail({
       let lastLoad = 0;
       let gap: ReturnType<typeof setTimeout> | undefined;
       const pinned = (): boolean => node.scrollHeight - node.scrollTop - node.clientHeight < 48;
+      if (cached?.transcript !== undefined) node.scrollTop = node.scrollHeight;
       const follow = (wasPinned: boolean): void => {
         if (wasPinned) requestAnimationFrame(() => (node.scrollTop = node.scrollHeight));
       };
@@ -670,6 +673,7 @@ export function SessionDetail({
               const wasPinned = pinned();
               durableSeq = next.seq;
               busy = next.running;
+              rememberSessionDetail(botSlug, sessionId, { transcript: next });
               setTranscript(next);
               setFailed(false);
               if (latest.seq <= durableSeq) setLive(liveOf(latest.items));
@@ -688,7 +692,10 @@ export function SessionDetail({
           });
         void actions.sessionProgress?.(botSlug, [sessionId]).then(
           (next) => {
-            if (!abort.signal.aborted) setProgress(next[sessionId]);
+            if (abort.signal.aborted) return;
+            const value = next[sessionId];
+            if (value !== undefined) rememberSessionDetail(botSlug, sessionId, { progress: value });
+            setProgress(value);
           },
           () => {},
         );
