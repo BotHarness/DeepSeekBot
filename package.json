@@ -56,6 +56,7 @@
     "@stylexjs/babel-plugin": "0.19.1",
     "@types/node": "^22.20.2",
     "esbuild": "0.28.2",
+    "fast-check": "4.10.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "oxfmt": "^0.68.0",
