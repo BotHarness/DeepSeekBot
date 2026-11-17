@@ -82,7 +82,7 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: 'auto minmax(0, 1fr)',
     columnGap: space.x2,
-    rowGap: '2px',
+    rowGap: space.x1,
     alignItems: 'start',
     width: '100%',
     boxSizing: 'border-box',
@@ -108,7 +108,7 @@ const styles = stylex.create({
     color: color.muted,
     cursor: 'default',
   },
-  cardIcon: { display: 'inline-flex', gridRow: '1 / span 2', marginTop: '1px' },
+  cardIcon: { display: 'inline-flex', gridRow: '1 / span 2' },
   cardAuthor: {
     overflow: 'hidden',
     whiteSpace: 'nowrap',
