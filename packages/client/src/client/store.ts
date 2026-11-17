@@ -1048,6 +1048,7 @@ export function createStore({
         activityList: {
           ...initialActivityList(),
           unreadCount: state.activityList.unreadCount,
+          channelUnread: state.activityList.channelUnread,
           hasAction: state.activityList.hasAction,
           messageCounts: state.activityList.messageCounts,
           attentionStatus: state.activityList.attentionStatus,
