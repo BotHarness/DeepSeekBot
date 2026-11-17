@@ -39,6 +39,7 @@ const GROUP_ICONS: Record<ToolGroup, string> = {
 
 const styles = stylex.create({
   root: {
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
@@ -78,7 +79,6 @@ const styles = stylex.create({
     paddingInline: space.x5,
     paddingTop: space.x4,
     paddingBottom: `calc(${space.x4} + var(--session-composer-overlay, 0px))`,
-    marginBottom: 'calc(-1 * var(--session-composer-overlay, 0px))',
     maskImage: `linear-gradient(to bottom, transparent, black ${space.x4}, black calc(100% - var(--session-composer-overlay, 0px)), transparent 100%)`,
     overscrollBehavior: 'contain',
   },
@@ -118,7 +118,7 @@ const styles = stylex.create({
   bad: { color: color.danger },
   ok: { color: color.success, display: 'inline-flex' },
   run: { color: color.accent, display: 'inline-flex' },
-  composer: { flexShrink: 0, position: 'relative', zIndex: 1 },
+  composer: { position: 'absolute', insetInline: 0, bottom: 0, zIndex: 1 },
   error: {
     color: color.danger,
     paddingInline: space.x5,
