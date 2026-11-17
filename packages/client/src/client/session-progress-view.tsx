@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 
@@ -30,6 +30,7 @@ const styles = stylex.create({
   },
   goalText: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   ring: { flexShrink: 0 },
+  glyph: { display: 'inline-flex', flexShrink: 0 },
   track: { stroke: color.well },
   fill: { stroke: color.accent },
   fillDone: { stroke: color.success },
@@ -89,6 +90,25 @@ export function TodoRing({ done, total }: { done: number; total: number }): Reac
         {...stylex.props(share === 1 ? styles.fillDone : styles.fill)}
       />
     </svg>
+  );
+}
+
+export function SessionMetaChip({
+  kind,
+  icon,
+  label,
+  title,
+}: {
+  kind: string;
+  icon: ReactNode;
+  label: string;
+  title?: string | undefined;
+}): ReactElement {
+  return (
+    <span data-session-meta-chip={kind} title={title ?? label} {...stylex.props(styles.chip)}>
+      <span {...stylex.props(styles.glyph)}>{icon}</span>
+      <span {...stylex.props(styles.goalText)}>{label}</span>
+    </span>
   );
 }
 

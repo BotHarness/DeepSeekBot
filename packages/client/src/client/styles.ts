@@ -4248,6 +4248,10 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-timeline-new:focus-visible { outline: ${border.focus} solid ${color.accent}; }
 
+[data-card-trailing="start"] {
+  align-self: flex-start;
+  padding-top: ${space.x3};
+}
 @media (hover: hover) {
   li:not(:hover):not(:focus-within) [data-session-more="closed"] {
     opacity: 0;

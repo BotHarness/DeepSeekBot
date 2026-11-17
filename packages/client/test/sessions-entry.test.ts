@@ -38,6 +38,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
   IconChevronDownOutlineRegular: () => null,
   IconStopFillRegular: () => null,
+  IconFolderOpenOutlineRegular: () => null,
   Menu: ({
     anchor,
     open,
@@ -509,8 +510,11 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
       if (item !== null) work.push(item.textContent);
     }
     expect(work).toEqual([zhTranslate('assignmentWork.tooltip')]);
-    expect(container.textContent).toContain('deepseek/deepseek-v4-pro · high');
-    expect(container.textContent).toContain('opencode-go/deepseek-v4.1-flash');
+    const modelChips = [...container.querySelectorAll('[data-session-meta-chip="model"]')];
+    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · high');
+    expect(modelChips.map((chip) => chip.getAttribute('title'))).toContain(
+      'deepseek/deepseek-v4-pro · high',
+    );
     expect(sessionSubagents).not.toHaveBeenCalled();
     await act(async () => toggles[0]!.click());
     expect(sessionSubagents).toHaveBeenCalledWith('subagent-qa', 'orc');

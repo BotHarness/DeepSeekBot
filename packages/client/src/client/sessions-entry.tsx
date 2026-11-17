@@ -6,6 +6,7 @@ import { useCallback, useState, useSyncExternalStore, type ReactElement } from '
 import * as stylex from '@stylexjs/stylex';
 import {
   Checkbox,
+  IconFolderOpenOutlineRegular,
   IconStopFillRegular,
   Tag,
   type MenuEntry,
@@ -39,10 +40,17 @@ import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { color, radius } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
+import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
 import { AssignmentWorkDialog } from './assignment-work.js';
 import { Menu } from './appearance-primitives.js';
-import type { SessionProgress } from './bridge.js';
-import { currentTodo, GoalChip, isStuck, TodoProgressChip } from './session-progress-view.js';
+import type { ModelCatalogEntryView, SessionProgress } from './bridge.js';
+import {
+  currentTodo,
+  GoalChip,
+  isStuck,
+  SessionMetaChip,
+  TodoProgressChip,
+} from './session-progress-view.js';
 
 const PROGRESS_SESSIONS = 30;
 const PROGRESS_REFRESH_MS = 60_000;
@@ -205,12 +213,26 @@ function SessionsPanel({
       if (timer !== undefined) clearInterval(timer);
     };
   }, [actions, botSlug, progressIds, anyRunning, signature, conversationRevision, reload]);
+  const [models, setModels] = useState<readonly ModelCatalogEntryView[]>([]);
+  const catalogMount = useMountedResource<HTMLDivElement>(() => {
+    let live = true;
+    void Promise.resolve(actions.modelCatalog?.()).then(
+      (catalog) => {
+        if (live && catalog !== undefined) setModels(catalog.models);
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [actions]);
   const rootRef = useCallback(
     (node: HTMLDivElement | null) => {
       mount(node);
       progressMount(node);
+      catalogMount(node);
     },
-    [mount, progressMount],
+    [mount, progressMount, catalogMount],
   );
   const now = Date.now();
   const stuckOf = (row: PersonaBotSessionRow): boolean =>
@@ -367,6 +389,7 @@ function SessionsPanel({
         {...(menu.length === 0 && subagents === undefined
           ? {}
           : {
+              trailingAlign: 'start' as const,
               trailing: (
                 <>
                   {subagents === undefined ? null : (
@@ -429,12 +452,25 @@ function SessionsPanel({
             }
           : {})}
         {...(summary === undefined ? {} : { summary })}
-        {...(row.assignmentAccessMode === 'danger-full-access' ||
+        {...(showWorkspace ||
+        row.modelRoute !== undefined ||
+        row.assignmentAccessMode === 'danger-full-access' ||
         rowProgress?.todos !== undefined ||
         rowProgress?.goal !== undefined
           ? {
               chips: (
                 <>
+                  {showWorkspace ? (
+                    <SessionMetaChip
+                      kind="workspace"
+                      icon={<IconFolderOpenOutlineRegular size={12} />}
+                      label={workspaceName(row.cwd) ?? t('sessions.workspace.unknown')}
+                      title={row.cwd}
+                    />
+                  ) : null}
+                  {row.modelRoute === undefined ? null : (
+                    <SessionModelChip route={row.modelRoute} models={models} />
+                  )}
                   {row.assignmentAccessMode === 'danger-full-access' ? (
                     <span title={t('sessions.access.dangerDetails')}>
                       <Tag tone="warning">{t('sessions.access.danger')}</Tag>
@@ -448,10 +484,6 @@ function SessionsPanel({
           : {})}
         meta={
           <>
-            {showWorkspace ? (
-              <span>{workspaceName(row.cwd) ?? t('sessions.workspace.unknown')}</span>
-            ) : null}
-            {row.modelRoute === undefined ? null : <span>{modelRouteText(row.modelRoute)}</span>}
             <span>{formatRelativeTime(row.updatedAt, Date.now(), t)}</span>
           </>
         }
@@ -708,7 +740,7 @@ function SessionRowMenu({
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
-            <ChannelSidebarIcon name="ellipsis" size={14} />
+            <ChannelSidebarIcon name="ellipsis-vertical" size={14} />
           </IconButton>
         </span>
       }
@@ -718,6 +750,38 @@ function SessionRowMenu({
         onSelect(id);
       }}
       onClose={() => setOpen(false)}
+    />
+  );
+}
+
+function SessionModelChip({
+  route,
+  models,
+}: {
+  route: { provider: string; model: string; reasoningEffort?: string };
+  models: readonly ModelCatalogEntryView[];
+}): ReactElement {
+  const entry = models.find(
+    (item) => item.provider === route.provider && item.model === route.model,
+  );
+  const name = entry?.modelName ?? route.model;
+  const brand = modelBrand({
+    provider: route.provider,
+    model: route.model,
+    name: entry?.modelName,
+  });
+  const effort =
+    route.reasoningEffort === undefined
+      ? undefined
+      : (entry?.efforts.find((item) => item.id === route.reasoningEffort)?.name ??
+        route.reasoningEffort);
+  const short = modelShortName(name, brand);
+  return (
+    <SessionMetaChip
+      kind="model"
+      icon={<ModelBrandIcon brand={brand} size={12} />}
+      label={effort === undefined ? short : `${short} · ${effort}`}
+      title={modelRouteText(route)}
     />
   );
 }
