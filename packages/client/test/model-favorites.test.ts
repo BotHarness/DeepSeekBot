@@ -98,6 +98,11 @@ it('ignores a catalog read that started before a star, and a completion from ano
   rememberModelFavorites([b], 'host', async () => []);
   expect(order()).toEqual([modelChoiceKey(b)]);
 
+  const before = modelFavoritesEpoch();
+  rememberModelFavorites([group], 'two', async () => []);
+  rememberModelFavorites([a], 'one', async () => [], before);
+  expect(order()).toEqual([modelChoiceKey(group)]);
+
   const late = deferred<ModelChoice[]>();
   rememberModelFavorites([], 'one', () => late.promise);
   const pending = setModelFavorite(a, true);

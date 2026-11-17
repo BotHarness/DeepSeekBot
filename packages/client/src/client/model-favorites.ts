@@ -23,6 +23,7 @@ interface Registration {
   confirmed: readonly ModelChoice[];
   changes: readonly ModelFavoriteChange[];
   lastWrite: number;
+  readonly since: number;
 }
 
 const EMPTY: FavoritesState = { keys: new Set(), order: [], writable: false };
@@ -66,6 +67,8 @@ export function rememberModelFavorites(
     publish();
     return;
   }
+  if (registration !== undefined && seen < registration.since) return;
+  epoch += 1;
   const next: Registration = {
     owner,
     write,
@@ -73,6 +76,7 @@ export function rememberModelFavorites(
     confirmed: list,
     changes: [],
     lastWrite: -1,
+    since: epoch,
   };
   current = next;
   publish();
