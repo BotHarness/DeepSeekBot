@@ -374,14 +374,22 @@ export function ComposerContextBar({
             setSettingsOpen(true);
           }}
         >
-          {(configurable
-            ? [...preferences.left, ...preferences.right].filter((id) => nodes.has(id))
-            : [...nodes.keys()]
-          ).map((id) => (
-            <span key={id} data-footer-item={id} {...stylex.props(styles.segment)}>
-              {nodes.get(id)}
-            </span>
-          ))}
+          {configurable
+            ? [...preferences.left, ...preferences.right]
+                .filter((id) => nodes.has(id))
+                .map((id) => (
+                  <span key={id} data-footer-item={id} {...stylex.props(styles.segment)}>
+                    {nodes.get(id)}
+                  </span>
+                ))
+            : [...Children.toArray(children), ...Children.toArray(trailing)].map((child, index) => (
+                <span
+                  key={isValidElement(child) && child.key !== null ? child.key : index}
+                  {...stylex.props(styles.segment)}
+                >
+                  {child}
+                </span>
+              ))}
         </div>
       </ChipSegmentContext.Provider>
     ) : undefined;

@@ -215,3 +215,24 @@ it('joins the items into one header chip that keeps their actions and drops the 
     [...host.querySelectorAll('button')].some((b) => b.textContent === t('footer.layout')),
   ).toBe(false);
 });
+
+it('keeps untagged items in a header chip that cannot be customized', async () => {
+  await act(async () =>
+    root.render(
+      h(
+        ComposerContextPlacementContext.Provider,
+        { value: 'header' },
+        h(ComposerContextBar, {
+          label: 'footer',
+          trailing: h('button', null, 'usage'),
+          children: h('button', null, 'Choose model'),
+        }),
+      ),
+    ),
+  );
+  const chip = host.querySelector<HTMLElement>('[data-composer-context-placement="header"]')!;
+  expect([...chip.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
+    'Choose model',
+    'usage',
+  ]);
+});

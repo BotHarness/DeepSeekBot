@@ -103,4 +103,16 @@ describe('context sources', () => {
     });
     expect(rows).toEqual([{ source: 'other', tokens: 50 }]);
   });
+
+  it('keeps the tokens of a message with no content as other', () => {
+    const empty = event(7, 'assistant/message', {
+      message: { role: 'assistant', source: { kind: 'model' }, content: [] },
+    });
+    const rows = contextSources({
+      nodes: [{ seq: empty.seq, tokens: 50 }],
+      totalTokens: 50,
+      eventAt: () => empty,
+    });
+    expect(rows).toEqual([{ source: 'other', tokens: 50 }]);
+  });
 });

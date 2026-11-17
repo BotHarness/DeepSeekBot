@@ -149,7 +149,8 @@ export function contextSources(surface: ContextSourceSurface): ContextSourceRow[
   let surfaceTokens = 0;
   for (const node of surface.nodes) {
     surfaceTokens += node.tokens;
-    const shares = sharesOf(surface.eventAt(node.seq), calls);
+    const found = sharesOf(surface.eventAt(node.seq), calls);
+    const shares: Share[] = found.length === 0 ? [['other', 1]] : found;
     const sum = shares.reduce((total, [, size]) => total + size, 0);
     if (sum <= 0) continue;
     for (const [source, size, tool] of shares) {

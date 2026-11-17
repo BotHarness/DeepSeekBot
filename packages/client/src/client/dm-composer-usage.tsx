@@ -60,8 +60,14 @@ export function DmComposerUsagePopover({
                 width,
                 left: Math.max(16, Math.min(rect.left, window.innerWidth - width - 16)),
                 top: rect.bottom + 8,
+                maxHeight: `min(70vh, 480px, ${String(Math.max(0, window.innerHeight - rect.bottom - 24))}px)`,
               }
-            : { width, left, bottom: Math.max(8, window.innerHeight - rect.top + 8) },
+            : {
+                width,
+                left,
+                bottom: Math.max(8, window.innerHeight - rect.top + 8),
+                maxHeight: `min(70vh, 480px, ${String(Math.max(0, rect.top - 24))}px)`,
+              },
         );
       };
       place();
@@ -354,16 +360,16 @@ const sourceStyles = stylex.create({
   bar: {
     display: 'flex',
     gap: space.x1,
-    height: '8px',
+    height: space.x3,
     marginBottom: space.x3,
     overflow: 'hidden',
     borderRadius: radius.xs,
   },
-  segment: { minWidth: '2px', flexBasis: 0 },
+  segment: { minWidth: space.x1, flexBasis: 0 },
   swatch: {
     display: 'inline-block',
-    width: '8px',
-    height: '8px',
+    width: space.x3,
+    height: space.x3,
     marginInlineEnd: space.x2,
     borderRadius: radius.xs,
     verticalAlign: 'middle',
