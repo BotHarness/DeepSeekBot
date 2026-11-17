@@ -85,6 +85,12 @@ describe('lint ratchet', () => {
     ]);
   });
 
+  it('keeps a seeded rule in the baseline after its last finding is fixed', () => {
+    const { counts } = countFindings([], [guardrail]);
+    expect(lowered({ [rule]: { 'a.ts': 1 } }, counts, [guardrail])).toEqual({ [rule]: {} });
+    expect(lowered({}, counts, [guardrail])).toEqual({});
+  });
+
   it('lets a rule registered since the base revision seed its baseline', () => {
     expect(raised({}, { [rule]: { 'a.ts': 2 } }, new Set([rule]))).toEqual([]);
     expect(raised({}, { [rule]: { 'a.ts': 2 } }, new Set())).toEqual([

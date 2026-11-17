@@ -20,6 +20,23 @@ const property = (object, name) =>
         (entry.key.type === 'Literal' && entry.key.value === name)),
   );
 
+const FUNCTIONS = new Set(['ArrowFunctionExpression', 'FunctionExpression']);
+
+const imported = (context, node, name) => {
+  for (let scope = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+    const variable = scope.set.get(name);
+    if (variable !== undefined) return variable.defs[0]?.type === 'ImportBinding';
+  }
+  return false;
+};
+
+const pathOf = (node) =>
+  node?.type === 'Literal' && typeof node.value === 'string'
+    ? node.value
+    : node?.type === 'TemplateLiteral' && node.expressions.length === 0
+      ? node.quasis[0]?.value.cooked
+      : undefined;
+
 const isLiteral = (node, value) => node?.type === 'Literal' && node.value === value;
 
 const spawnOptions = {
@@ -42,11 +59,13 @@ const spawnOptions = {
       CallExpression(node) {
         const { callee } = node;
         let name;
-        if (callee.type === 'Identifier') name = local.get(callee.name);
+        if (callee.type === 'Identifier' && imported(context, node, callee.name))
+          name = local.get(callee.name);
         else if (
           callee.type === 'MemberExpression' &&
           callee.object.type === 'Identifier' &&
-          local.get(callee.object.name) === '*'
+          local.get(callee.object.name) === '*' &&
+          imported(context, node, callee.object.name)
         )
           name = calleeName(callee);
         if (name === undefined) return;
@@ -58,20 +77,22 @@ const spawnOptions = {
           return;
         }
         if (!SPAWNERS.has(name)) return;
-        const options = node.arguments.find((arg) => arg.type === 'ObjectExpression');
+        const [, second, third] = node.arguments;
+        const options =
+          second?.type === 'ObjectExpression'
+            ? second
+            : third !== undefined && !FUNCTIONS.has(third.type)
+              ? third
+              : undefined;
+        if (second?.type === 'SpreadElement') return;
         if (options === undefined) {
-          if (
-            node.arguments.some(
-              (arg) => arg.type !== 'ArrayExpression' && arg !== node.arguments[0],
-            )
-          )
-            return;
           context.report({
             node,
             message: `${name}() needs an options object with windowsHide: true.`,
           });
           return;
         }
+        if (options.type !== 'ObjectExpression') return;
         const spread = options.properties.some((entry) => entry.type === 'SpreadElement');
         const shell = property(options, 'shell');
         if (shell !== undefined && !isLiteral(shell.value, false))
@@ -107,9 +128,7 @@ const noApiIntercept = {
         if (
           callee.type === 'MemberExpression' &&
           calleeName(callee) === 'intercept' &&
-          first?.type === 'Literal' &&
-          typeof first.value === 'string' &&
-          first.value.startsWith('/api')
+          pathOf(first)?.startsWith('/api')
         )
           context.report({
             node,

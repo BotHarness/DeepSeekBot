@@ -134,7 +134,8 @@ export function lowered(baseline, counts, guardrails) {
       .sort()
       .map((file) => [file, Math.min(allowed[file], actual[file] ?? 0)])
       .filter(([, count]) => count > 0);
-    if (entries.length) next[guardrail.rule] = Object.fromEntries(entries);
+    if (entries.length || guardrail.rule in baseline)
+      next[guardrail.rule] = Object.fromEntries(entries);
   }
   return next;
 }

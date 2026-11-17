@@ -14,3 +14,11 @@ spawn('explorer', ['.'], { windowsHide: false, detached: true });
 spawn('git', ['status'], { ...options });
 spawnSync('git', ['status'], options);
 childProcess.execFile('git', ['status'], { windowsHide: true }, () => {});
+
+const args = ['status'];
+childProcess.execFile('git', ['status'], () => {});
+spawn('git', args);
+
+export function run(spawnSync) {
+  spawnSync('task');
+}

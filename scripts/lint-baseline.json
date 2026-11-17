@@ -288,7 +288,7 @@
     "scripts/development-status.mjs": 1,
     "scripts/e2e-activity-idle.mjs": 3,
     "scripts/e2e-activity-load.mjs": 1,
-    "scripts/e2e-appearance-recovery.mjs": 1,
+    "scripts/e2e-appearance-recovery.mjs": 2,
     "scripts/e2e-browser-container.mjs": 3,
     "scripts/e2e-browser-lifecycle.mjs": 4,
     "scripts/e2e-browser-profiles.mjs": 1,
@@ -345,7 +345,7 @@
     "scripts/e2e-tob-model-runtime.mjs": 1,
     "scripts/e2e-tobs-commands.mjs": 2,
     "scripts/e2e-tool-detail-capability.mjs": 1,
-    "scripts/e2e-video-wallpaper.mjs": 1,
+    "scripts/e2e-video-wallpaper.mjs": 2,
     "scripts/e2e-workspace-grant.mjs": 3,
     "scripts/e2e-workspace-request-write.mjs": 3,
     "scripts/experiment-timed-question-fixture.mjs": 2,
@@ -387,6 +387,7 @@
     "scripts/workspace-grant-report.mjs": 1,
     "tsdown.config.ts": 1
   },
+  "botharness/no-api-intercept": {},
   "eslint/no-console": {
     "packages/client/src/client/actions.ts": 19,
     "packages/client/src/client/bot-main.tsx": 4,
