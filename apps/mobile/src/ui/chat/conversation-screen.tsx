@@ -1581,6 +1581,7 @@ function ChatConversation({
   );
 
   const hostRefused = host.connection.status === 'refused';
+  const hostRefusal = host.connection.status === 'refused' ? host.connection.code : undefined;
   const presence = useConnectionPresence(
     host.connection.status,
     snapshot.status === 'interrupted',
@@ -1816,7 +1817,11 @@ function ChatConversation({
   const notice = missingGroup
     ? undefined
     : hostRefused
-      ? t.refused
+      ? hostRefusal === 'sign-in-required'
+        ? t.hostSignInRequired
+        : hostRefusal === 'member-suspended'
+          ? t.hostMemberSuspended
+          : t.refused
       : snapshot.status === 'refused'
         ? dm
           ? t.dmRefused
@@ -1869,17 +1874,26 @@ function ChatConversation({
               : 'warning'
           }
           action={
-            hostRefused
-              ? { label: t.pairAgain, onPress: () => router.push('/pair') }
-              : notice === t.offline && host.connection.status !== 'stopped'
-                ? {
-                    label: t.retry,
-                    testID: 'chat-connection-retry',
-                    onPress: () => client?.retryNow(),
-                  }
-                : notice === t.noBot || notice === t.noChannel
-                  ? { label: t.backToChats, onPress: backToChats }
-                  : undefined
+            hostRefusal === 'sign-in-required' && saved
+              ? {
+                  label: t.teamSignIn.again,
+                  testID: 'chat-sign-in-again',
+                  onPress: () =>
+                    router.push({ pathname: '/pair/team', params: { host: saved.hostId } }),
+                }
+              : hostRefusal === 'member-suspended'
+                ? undefined
+                : hostRefused
+                  ? { label: t.pairAgain, onPress: () => router.push('/pair') }
+                  : notice === t.offline && host.connection.status !== 'stopped'
+                    ? {
+                        label: t.retry,
+                        testID: 'chat-connection-retry',
+                        onPress: () => client?.retryNow(),
+                      }
+                    : notice === t.noBot || notice === t.noChannel
+                      ? { label: t.backToChats, onPress: backToChats }
+                      : undefined
           }
         />
       </View>

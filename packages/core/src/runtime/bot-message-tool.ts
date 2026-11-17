@@ -75,7 +75,20 @@ const OPTIONAL_FIELDS = [
   'freshness_override',
   'resolve_inbox_ids',
   'voice',
+  'session_ids',
 ] as const;
+
+export type SessionLinkKind = 'created' | 'sent';
+
+const SESSION_MENTION = /\[([^\]\n]{1,200})\]\(session:([A-Za-z0-9_.:-]{1,200})\)/gu;
+
+export function sessionMentionIds(body: string): string[] {
+  return [...new Set([...body.matchAll(SESSION_MENTION)].map((match) => match[2]!))];
+}
+
+export function withoutSessionMentions(body: string): string {
+  return body.replace(SESSION_MENTION, (_match, title: string) => title);
+}
 
 function isEmptyOption(value: unknown): boolean {
   if (value === undefined || value === null || value === false) return true;
@@ -107,6 +120,7 @@ export function createBotMessageTool(
     settle(channelId: string, body: string): void;
     discard(channelId: string): void;
   },
+  sessionLinks: () => ReadonlyMap<string, SessionLinkKind> = () => new Map(),
 ) {
   return defineTool({
     name: 'bot_send_message',
@@ -188,7 +202,18 @@ export function createBotMessageTool(
         description:
           'Default false. true also sends this message as a voice message: the Human sees the same text with a playable voice bar, spoken with your configured voice. Decide per message; give voice before body. Code, paths and tables are not read aloud. Local Channels only.',
       },
-      body: { type: 'string', required: true, description: 'The actual message to deliver.' },
+      body: {
+        type: 'string',
+        required: true,
+        description:
+          'The actual message to deliver. To point the Human at one of your Assignments without linking it, write [Assignment title](session:<session id>) inline; it shows as a clickable chip, and external IM gets the plain title.',
+      },
+      session_ids: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Human DM only. Assignment Session ids this message reports on that you created or sent a request to in this turn; each shows as a link on the message, marked new or sent from your own tool calls. List only Sessions this message is about.',
+      },
       genui_json: {
         type: 'string',
         description:
@@ -321,6 +346,34 @@ export function createBotMessageTool(
           'unsupported-attachment-send',
           'Discover the existing Bot DM Channel to send attachments.',
         );
+      const linked = sessionLinks();
+      const links =
+        args.session_ids === undefined
+          ? undefined
+          : [...new Set(args.session_ids)].map((sessionId) => {
+              const kind = linked.get(sessionId);
+              const assignment =
+                kind === undefined ? undefined : run.assignments.inspect(sessionId);
+              if (kind === undefined || assignment === undefined)
+                throw new BotMessageError(
+                  'invalid-session-links',
+                  `Session ${sessionId} was not created or sent a request in this turn; mention it inline as [title](session:<id>) instead.`,
+                );
+              return { sessionId, kind, title: assignment.title };
+            });
+      if (links !== undefined && (external || channel?.kind !== 'human-dm'))
+        throw new BotMessageError(
+          'invalid-session-links',
+          'Session links are available in your Human DM only.',
+        );
+      const unknown = sessionMentionIds(args.body).filter(
+        (sessionId) => run.assignments.inspect(sessionId) === undefined,
+      );
+      if (unknown.length > 0)
+        throw new BotMessageError(
+          'invalid-session-links',
+          `Unknown Assignment Session in an inline mention: ${unknown.join(', ')}.`,
+        );
       const ids = args.resolve_inbox_ids;
       if (
         ids !== undefined &&
@@ -339,7 +392,7 @@ export function createBotMessageTool(
         try {
           sent = await run.channels.sendToBot({
             botSlug: args.bot_id,
-            body: args.body,
+            body: withoutSessionMentions(args.body),
             deliveryKey: String(exec.callId),
           });
         } catch (error) {
@@ -365,12 +418,13 @@ export function createBotMessageTool(
           args.source_event_id !== undefined && /<@!?[A-Za-z0-9_-]+>/u.test(args.body)
             ? messaging.read(args.source_event_id)
             : undefined;
+        const plain = withoutSessionMentions(args.body);
         const body =
           source === undefined
-            ? withoutMentionMarkup(args.body)
+            ? withoutMentionMarkup(plain)
             : withInlineMentions(
                 source.platform,
-                args.body,
+                plain,
                 mentionPeople(source.event.actor, source.event.mentions),
               );
         const result = args.attachments?.length
@@ -415,6 +469,7 @@ export function createBotMessageTool(
             body: args.body,
             deliveryKey: String(exec.callId),
             ...(genui === undefined ? {} : { genui }),
+            ...(links === undefined ? {} : { sessionLinks: links }),
             ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
             ...(args.mention_bot_ids === undefined ? {} : { mentionBotIds: args.mention_bot_ids }),
             ...(args.mention_human_ids === undefined

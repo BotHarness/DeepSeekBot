@@ -67,6 +67,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconFolderOpenOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   MarkdownText: vi.fn(() => null),
+  MarkdownDelegateProvider: ({ children }: { children: ReactNode }) => children,
+  useMarkdownDelegate: () => ({}),
   Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
     createElement('div', { role: 'dialog' }, children, footer),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
@@ -298,7 +300,7 @@ function render(
   body: string,
   options: Pick<
     ChannelMessage,
-    'format' | 'streaming' | 'attachments' | 'sessionFailure' | 'bridgeOrigin'
+    'format' | 'streaming' | 'attachments' | 'sessionFailure' | 'bridgeOrigin' | 'sessionLinks'
   > = {},
 ) {
   return renderToStaticMarkup(
@@ -892,6 +894,27 @@ describe('Channel message body', () => {
       });
       vi.mocked(MarkdownText).mockClear();
     }
+  });
+
+  it('shows the Sessions a Bot message links and opens its inline session mentions', () => {
+    const markup = render(
+      { kind: 'bot', slug: 'ada' },
+      'Started it; see [Old work](session:asg-old).',
+      {
+        sessionLinks: [
+          { sessionId: 'asg-new', kind: 'created', title: 'Fix export' },
+          { sessionId: 'asg-sent', kind: 'sent', title: 'Release notes' },
+        ],
+      },
+    );
+    expect(markup.indexOf('data-session-links="sent"')).toBeLessThan(
+      markup.indexOf('data-session-links="created"'),
+    );
+    expect(markup).toContain('Fix export');
+    expect(markup).toContain('Release notes');
+    expect(vi.mocked(MarkdownText).mock.calls[0]?.[0]).toMatchObject({
+      text: 'Started it; see [Old work](https://session.tobs.invalid/asg-old).',
+    });
   });
 
   it('keeps casual Human punctuation, whitespace and newlines literal', () => {

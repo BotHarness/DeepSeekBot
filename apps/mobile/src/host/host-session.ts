@@ -8,6 +8,7 @@ import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { refreshMemberPermissions } from './member-permissions';
 import { HostScope } from './host-scope';
 import { useFocusEffect } from 'expo-router';
 import { AppState, Platform } from 'react-native';
@@ -408,6 +409,8 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
           }
         })
         .catch(() => undefined);
+      if (saved.member !== undefined)
+        void refreshMemberPermissions(saved.hostId, client).catch(() => undefined);
       void pushSession.retryFailed(saved);
       void notificationPreferences.retry(saved).catch(() => undefined);
       catchUpHostConversations(

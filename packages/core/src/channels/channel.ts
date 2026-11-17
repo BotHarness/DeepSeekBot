@@ -537,8 +537,15 @@ export function isChannelVoiceCallMessage(value: unknown): value is ChannelVoice
   return callRange(call['speechFromMs'], call['speechToMs']);
 }
 
+export interface ChannelSessionLink {
+  sessionId: string;
+  kind: 'created' | 'sent';
+  title: string;
+}
+
 export interface ChannelMessage {
   genui?: GenuiContent;
+  sessionLinks?: ChannelSessionLink[];
   genuiReply?: GenuiMessageReply;
   genuiReplyContext?: string;
   id: string;

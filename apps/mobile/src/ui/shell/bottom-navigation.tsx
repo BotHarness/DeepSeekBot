@@ -1,3 +1,4 @@
+import { useMemberCanCreateBots } from '../../host/member-permissions';
 import { ChatsSheetRoot } from './chats-sheet-root';
 import { WorkspacePager } from './workspace-pager';
 import { ActivitySheetRoot } from './activity-sheet-root';
@@ -127,11 +128,16 @@ function ScopedNavigationBar({
   const { saved } = useHostSession();
   const look = useHostLook(saved?.hostId);
   const directory = useCloudConversations();
+  const canCreateBots = useMemberCanCreateBots(
+    saved?.member === undefined ? undefined : saved.hostId,
+  );
   const targets = creationTargets(
     saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
     directory.workspaces,
   ).map((target) =>
-    target.kind === 'computer' ? { ...target, channelCreation: Platform.OS === 'android' } : target,
+    target.kind === 'computer'
+      ? { ...target, channelCreation: Platform.OS === 'android', botCreation: canCreateBots }
+      : target,
   );
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;

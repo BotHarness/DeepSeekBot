@@ -181,6 +181,13 @@ export function TeamSignInDialog({
     }
     if (state.kind === 'identity-confirmation') void finish(switching);
   };
+  const current =
+    state.kind === 'identity-confirmation'
+      ? remoteHosts()
+          .getSnapshot()
+          .hosts.find((remote) => remote.host.member?.fingerprint === state.member.fingerprint)
+          ?.host.member?.displayName
+      : undefined;
   if (switching && state.kind === 'identity-confirmation')
     return (
       <>
@@ -200,7 +207,11 @@ export function TeamSignInDialog({
           onSubmit={() => void finish(true)}
           submitData={{ 'data-team-sign-in-submit': 'switch' }}
         >
-          <p>{t('teamSignIn.switchBody', { name: state.member.displayName })}</p>
+          <p>
+            {current === undefined
+              ? t('teamSignIn.switchBody', { name: state.member.displayName })
+              : t('teamSignIn.switchBodyNamed', { name: state.member.displayName, current })}
+          </p>
         </FormDialog>
       </>
     );

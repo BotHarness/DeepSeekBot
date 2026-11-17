@@ -337,6 +337,7 @@ export function MemberSheet({
   viewer,
   members = [],
   canOffboard = false,
+  memberUrls = [],
   onClose,
   onChanged,
 }: {
@@ -345,6 +346,7 @@ export function MemberSheet({
   member: TeamMember;
   members?: readonly TeamMember[];
   canOffboard?: boolean;
+  memberUrls?: readonly string[];
   roles: readonly TeamRole[];
   viewer: GrantingViewer;
   canManageRoles: boolean;
@@ -488,6 +490,7 @@ export function MemberSheet({
             t={t}
             member={member}
             members={members}
+            memberUrls={memberUrls}
             onChanged={() => {
               refresh();
               onChanged();

@@ -1,3 +1,4 @@
+import { SessionLiveStreams } from './runtime/session-live.js';
 import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
@@ -1751,6 +1752,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const turnRefusals = new Map<string, string | TeamError>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = new ModelFreeTobCliInvocation();
+  const sessionLive = new SessionLiveStreams();
   const agentAdapter = createDshBotAgentAdapter({
     tobCliInvocation,
     ...(config.genuiPreviewBrowserPath === undefined
@@ -3198,7 +3200,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   ctx.on(
     'agent/assistant-stream',
-    ({ agent, frame }) => agentAdapter.acceptAssistantStream(agent.session.id, frame),
+    ({ agent, frame }) => {
+      agentAdapter.acceptAssistantStream(agent.session.id, frame);
+      sessionLive.accept(agent.session.id, frame);
+    },
     { global: true },
   );
 
@@ -3592,6 +3597,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ownership: core.ownership,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    sessionLive,
+    presentToolResult: (sessionId, name, args, result) => {
+      const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
+      const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);
+      return definition?.presentResult?.(
+        args,
+        result as Parameters<NonNullable<typeof definition.presentResult>>[1],
+      );
+    },
     describeToolCall: (sessionId, name, args) => {
       const call = describeToolCall(ctx, sessionId, name, args, true);
       if (call === undefined) return undefined;
@@ -4425,6 +4439,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           .catch(() => ctx.logger.warn('user-question-reconciliation-failed'));
       });
       activity.handleSessionEvent(session.id, event);
+      sessionLive.observe(session.id, event);
       try {
         core.externalMessaging.approvals.result(session.id, event);
       } catch {
@@ -4482,6 +4497,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       turnLog.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
+      sessionLive.forget(agent.session.id);
     },
     { global: true },
   );
