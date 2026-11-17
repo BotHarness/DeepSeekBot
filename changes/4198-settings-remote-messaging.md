@@ -8,4 +8,4 @@ section: Added
 
 ## zh
 
-- 在设置里选中远程 Host 后，「消息」页显示该 Host 自己的设置：你的默认称呼、Bot 协作（自动接受群邀请和跳数上限），以及外部平台的默认接收行为。改动写入该 Host；发送键和显示类选项仍只保存在本机 Host（[#4198](https://github.com/BotHarness/DeepSeekBot/issues/4198)）。
+- 在设置里选中远程 Host 后，「消息」分区显示该 Host 自己的设置：你的默认称呼、Bot 协作（自动接受群邀请和跳数上限），以及外部平台的默认接收行为。改动写入该 Host；发送键和显示类选项仍只保存在本机 Host（[#4198](https://github.com/BotHarness/DeepSeekBot/issues/4198)）。
