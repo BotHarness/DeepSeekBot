@@ -25,6 +25,7 @@ export class UploadedBotsError extends Error {
 export function createUploadedBots(deps: UploadedBotsDeps) {
   let state: UploadedBotsState = { status: 'loading' };
   let epoch = 0;
+  let shownFor: string | undefined;
   const listeners = new Set<() => void>();
   const publish = (next: UploadedBotsState) => {
     state = next;
@@ -49,9 +50,13 @@ export function createUploadedBots(deps: UploadedBotsDeps) {
       const current = ++epoch;
       if (state.status !== 'ready') publish({ status: 'loading' });
       try {
-        const result = await deps.client.authored(await token(current), lang);
-        if (current === epoch)
-          publish(result.ok ? { status: 'ready', bots: result.value } : { status: 'error' });
+        const access = await token(current);
+        if (current === epoch && state.status === 'ready' && access !== shownFor)
+          publish({ status: 'loading' });
+        const result = await deps.client.authored(access, lang);
+        if (current !== epoch) return state;
+        shownFor = access;
+        publish(result.ok ? { status: 'ready', bots: result.value } : { status: 'error' });
       } catch {
         if (current === epoch && state.status !== 'signed-out') publish({ status: 'error' });
       }

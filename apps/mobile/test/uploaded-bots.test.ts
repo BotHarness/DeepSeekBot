@@ -78,6 +78,28 @@ describe('uploaded Bots', () => {
     expect((await uploads.refresh()).status).toBe('signed-out');
   });
 
+  it('hides the previous account rows while another account loads', async () => {
+    let account = 'token-a';
+    const seen: string[] = [];
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: true, value: account }) },
+      client: {
+        authored: async (token: string) => ({ ok: true, value: [item(`U_${token}`)] }),
+        deleteUpload: vi.fn(),
+      },
+    });
+    uploads.subscribe(() => seen.push(uploads.getSnapshot().status));
+    await uploads.refresh();
+    account = 'token-b';
+    seen.length = 0;
+    await uploads.refresh();
+    expect(seen).toEqual(['loading', 'ready']);
+    const state = uploads.getSnapshot();
+    expect(state.status === 'ready' && state.bots.map((entry) => entry.bot.id)).toEqual([
+      'U_token-b',
+    ]);
+  });
+
   it('reports signed out without an account', async () => {
     const authored = vi.fn();
     const uploads = createUploadedBots({
