@@ -27,6 +27,7 @@ const styles = stylex.create({
     minWidth: 0,
     paddingTop: { default: space.x5, ':first-child': 0 },
   },
+  portaled: { paddingTop: space.x5 },
   group: {
     display: 'flex',
     flexDirection: 'column',
@@ -145,19 +146,21 @@ export function SettingsRows({
 export interface SettingsSectionProps {
   readonly title?: ReactNode;
   readonly description?: ReactNode;
+  readonly portaled?: boolean;
   readonly children: ReactNode;
 }
 
 export function SettingsSection({
   title,
   description,
+  portaled = false,
   children,
 }: SettingsSectionProps): ReactElement {
   const id = useId();
   return (
     <section
       aria-labelledby={title === undefined ? undefined : `${id}-title`}
-      {...stylex.props(styles.section)}
+      {...stylex.props(styles.section, portaled && styles.portaled)}
     >
       {title === undefined ? null : (
         <div {...stylex.props(styles.sectionHead)}>

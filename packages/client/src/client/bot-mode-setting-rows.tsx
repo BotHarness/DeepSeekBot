@@ -82,10 +82,7 @@ const styles = stylex.create({
     paddingInline: space.x2,
     borderWidth: border.hairline,
     borderStyle: 'solid',
-    borderColor: {
-      default: color.border,
-      ':is([aria-checked=true])': color.accent,
-    },
+    borderColor: color.border,
     borderRadius: radius.md,
     backgroundColor: {
       default: 'transparent',
@@ -98,6 +95,7 @@ const styles = stylex.create({
       ':is([aria-checked=true])': color.fg,
     },
     fontFamily: 'inherit',
+    fontWeight: { default: 400, ':is([aria-checked=true])': 500 },
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     cursor: 'pointer',

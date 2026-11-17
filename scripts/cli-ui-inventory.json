@@ -1044,6 +1044,8 @@
         "storage:packages/client/src/client/appearance.ts:setItem(APPEARANCE_KEY)",
         "route:packages/core/src/plugin.ts:APPEARANCE_CONTROL_PATH",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialBlur')}",
+        "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.clear')}",
+        "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.reset')}",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialColor')}",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialOpacity')}",
         "setting:packages/client/src/client/appearance-panel-settings.tsx:{t( field === 'color' ? 'appearance.materialColor' : field === 'opacity' ? 'appearance.materialOpacity' : 'appearance.materialBlur', )}"

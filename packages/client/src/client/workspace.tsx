@@ -15,11 +15,12 @@ import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { createPortal } from 'react-dom';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { Slider } from './ds/slider.js';
+import { Button } from './ds/button.js';
 
 import { workspaceMoveColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
 import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
 import type { LayoutMode } from './layout-mode.js';
-import { ActionButton } from './ds/action-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { DockviewApi } from 'dockview-react';
 import type { BotModeSidebarProps } from './bot-mode-sidebar.js';
@@ -414,7 +415,7 @@ function WorkspaceRail({
       <span ref={layoutMount} hidden />
       {settingsTarget &&
         createPortal(
-          <SettingsSection title={t('workspace.appearance')}>
+          <SettingsSection title={t('workspace.appearance')} portaled>
             <SettingsRow
               title={t('workspace.layoutMode')}
               description={t('workspace.layoutModeHint')}
@@ -445,26 +446,22 @@ function WorkspaceRail({
             <SettingsRow
               title={t('workspace.gap')}
               control={
-                <>
-                  <output>{gap}px</output>
-                  <input
-                    aria-label={t('workspace.gap')}
-                    type="range"
-                    min={0}
-                    max={16}
-                    step={1}
-                    value={gap}
-                    onChange={(event) => setGap(Number(event.target.value))}
-                  />
-                </>
+                <Slider
+                  label={t('workspace.gap')}
+                  value={gap}
+                  min={0}
+                  max={16}
+                  unit="px"
+                  onChange={setGap}
+                />
               }
             />
             <SettingsRow
               title={t('dock.reset')}
               control={
-                <ActionButton icon="refresh" onClick={reset}>
-                  {t('dock.reset')}
-                </ActionButton>
+                <Button type="button" variant="outline" size="sm" onClick={reset}>
+                  {t('dock.resetAction')}
+                </Button>
               }
             />
           </SettingsSection>,
