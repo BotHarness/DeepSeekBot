@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { edge, ink, line, radius, size, space, state, status, type } from './tobs.stylex.js';
+import { edge, ink, line, radius, size, space, state, status, style, type } from './tobs.stylex.js';
 
 const INSET = space.x3;
 const GAP = space.x3;
@@ -12,25 +12,25 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: GAP,
     width: '100%',
-    minHeight: size.row,
+    minHeight: style.rowNav,
     margin: 0,
     paddingBlock: 0,
     paddingInline: INSET,
     boxSizing: 'border-box',
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.sm,
+    borderRadius: style.radiusNavSelected,
     backgroundColor: {
       default: 'transparent',
       ':hover': state.hover,
       ':active': state.pressed,
-      ':is([aria-current=page])': state.selected,
+      ':is([aria-current=page])': style.navSelectedFill,
     },
-    color: { default: ink.primary, ':is([aria-current=page])': state.selectedInk },
+    color: { default: ink.primary, ':is([aria-current=page])': style.navSelectedInk },
     fontFamily: 'inherit',
-    fontSize: type.bodySize,
-    lineHeight: type.bodyLine,
-    fontWeight: { default: type.bodyWeight, ':is([aria-current=page])': type.labelWeight },
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
+    fontWeight: type.bodyWeight,
     textAlign: 'start',
     cursor: 'pointer',
     outline: { default: 'none', ':focus-visible': `${edge.focus} solid ${line.focus}` },
@@ -40,11 +40,11 @@ const styles = stylex.create({
     flexShrink: 0,
     display: 'grid',
     placeItems: 'center',
-    width: size.iconSlot,
-    height: size.iconSlot,
+    width: style.iconSlot,
+    height: style.iconSlot,
     color: ink.secondary,
   },
-  slotCurrent: { color: state.selectedInk },
+  slotCurrent: { color: style.navSelectedIcon },
   label: {
     flexGrow: 1,
     minWidth: 0,
@@ -75,7 +75,7 @@ const styles = stylex.create({
     gap: space.x2,
     minHeight: size.controlSmall,
     marginTop: space.x3,
-    paddingInlineStart: `calc(${INSET} + ${size.iconSlot} + ${GAP})`,
+    paddingInlineStart: `calc(${INSET} + ${style.iconSlot} + ${GAP})`,
     paddingInlineEnd: INSET,
     boxSizing: 'border-box',
     color: ink.secondary,
@@ -84,6 +84,7 @@ const styles = stylex.create({
     fontWeight: type.labelWeight,
   },
   first: { marginTop: 0 },
+  trailingCurrent: { color: style.navSelectedInk },
 });
 
 export interface NavItemProps {
@@ -118,7 +119,7 @@ export function NavItem({
       </span>
       <span {...stylex.props(styles.label)}>{label}</span>
       {attention === undefined && trailing === undefined ? null : (
-        <span {...stylex.props(styles.trailing)}>
+        <span {...stylex.props(styles.trailing, current && styles.trailingCurrent)}>
           {trailing}
           {attention === undefined ? null : (
             <span role="img" aria-label={attention} {...stylex.props(styles.dot)} />

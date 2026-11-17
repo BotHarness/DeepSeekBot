@@ -1,6 +1,7 @@
 import { useId, type ReactElement, type ReactNode, type Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import { style } from './tobs.stylex.js';
 import { border, color, space, text } from './tokens.stylex.js';
 
 const NARROW = '@media (max-width: 648px)';
@@ -17,6 +18,15 @@ const styles = stylex.create({
     flexDirection: 'column',
     minWidth: 0,
     paddingTop: { default: space.x5, ':first-child': 0 },
+  },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: style.listGap,
+    minWidth: 0,
+    padding: style.listGroupPadding,
+    borderRadius: style.listGroupRadius,
+    backgroundColor: style.listGroupFill,
   },
   sectionHead: {
     display: 'flex',
@@ -37,10 +47,15 @@ const styles = stylex.create({
     flexDirection: { default: 'row', [NARROW]: 'column', [COMPACT]: 'column' },
     gap: { default: space.x4, [NARROW]: space.x3, [COMPACT]: space.x3 },
     minWidth: 0,
+    minHeight: style.rowList,
+    boxSizing: 'border-box',
     paddingBlock: space.x4,
+    paddingInline: style.listItemPadding,
+    borderRadius: style.listItemRadius,
+    backgroundColor: style.listItemFill,
     borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: { default: color.divider, ':last-child': 'transparent' },
+    borderBottomColor: { default: style.listSeparator, ':last-child': 'transparent' },
   },
   text: {
     display: 'flex',
@@ -124,7 +139,7 @@ export function SettingsSection({
           )}
         </div>
       )}
-      {children}
+      <div {...stylex.props(styles.group)}>{children}</div>
     </section>
   );
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -22,6 +22,27 @@ export const RULES = {
     fix: 'compose a ds/ control (extend it if it nearly fits) instead of styling a raw control',
     outsideDs: true,
   },
+  legacyCss: {
+    pattern: /\.bh-[\w-]+[^{}`;]*\{[^{}`]*:[^{}`]*\}/g,
+    fix: 'style it with stylex.create and tokens from ds/tobs.stylex.ts instead of a new bh- CSS rule',
+  },
+  literalColor: {
+    pattern: /['"`](?:#[\da-fA-F]{3,8}\b|(?:rgba?|hsla?)\(|var\(--tobs-)/g,
+    fix: 'reference a constant from ds/tobs.stylex.ts instead of a colour literal or a var(--tobs-*) string',
+    outsideDs: true,
+    when: (source) => source.includes('stylex.create('),
+  },
+  inlineStyle: {
+    pattern: /style=\{\{[^}]*?(?:#[\da-fA-F]{3,8}\b|\d+px|(?:rgba?|hsla?)\()/gs,
+    fix: 'use stylex.create (a dynamic style for runtime values) instead of an inline style literal',
+    outsideDs: true,
+  },
+  lineBorder: {
+    pattern:
+      /border(?:-(?:top|right|bottom|left|block|inline)(?:-start|-end)?)?\s*:\s*(?:[^;'"`{}]|\$\{[^}]*\})*?\bsolid\b|border\w*Style:\s*['"]solid['"]/g,
+    fix: 'separate surfaces with a gap showing the canvas, not a line; inputs and focus rings live in ds/',
+    outsideDs: true,
+  },
 };
 
 function files(dir) {
@@ -32,14 +53,18 @@ function files(dir) {
   });
 }
 
-export function scan(dir = SOURCE) {
+export function scan(dir = SOURCE, only) {
   const counts = {};
-  for (const path of files(dir)) {
+  const paths = only
+    ? only.filter((path) => /\.(?:ts|tsx)$/.test(path) && !path.endsWith('.d.ts'))
+    : files(dir);
+  for (const path of paths) {
+    if (!relative(SOURCE, path).match(/^(?!\.\.)/)) continue;
     const name = relative(root, path).replaceAll('\\', '/');
     const source = readFileSync(path, 'utf8');
     const inDs = name.includes('/client/ds/');
-    for (const [rule, { pattern, outsideDs, exempt }] of Object.entries(RULES)) {
-      if ((outsideDs && inDs) || exempt?.includes(name)) continue;
+    for (const [rule, { pattern, outsideDs, exempt, when }] of Object.entries(RULES)) {
+      if ((outsideDs && inDs) || exempt?.includes(name) || (when && !when(source))) continue;
       const found = source.match(pattern)?.length ?? 0;
       if (found === 0) continue;
       counts[name] ??= {};
@@ -75,8 +100,21 @@ function sorted(counts) {
   );
 }
 
+function pick(counts, names) {
+  return Object.fromEntries(
+    names.filter((name) => counts[name]).map((name) => [name, counts[name]]),
+  );
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const current = scan();
+  const args = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
+  const only = args.length > 0 ? args.map((path) => resolve(path)) : undefined;
+  const names = only?.map((path) => relative(root, path).replaceAll('\\', '/'));
+  const current = scan(SOURCE, only);
+  if (process.argv.includes('--write') && only) {
+    console.error('--write rescans the whole client; run it without paths.');
+    process.exit(1);
+  }
   if (process.argv.includes('--write')) {
     const previous = JSON.parse(readFileSync(BASELINE, 'utf8'));
     const grown = compare(current, previous).filter((line) => line.includes(' new '));
@@ -87,13 +125,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     writeFileSync(BASELINE, `${JSON.stringify(sorted(current), null, 2)}\n`);
   } else {
-    const problems = compare(current, JSON.parse(readFileSync(BASELINE, 'utf8')));
+    const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
+    const problems = compare(current, names ? pick(baseline, names) : baseline);
     for (const line of problems) console.error(`design tokens: ${line}`);
     if (problems.length > 0) process.exit(1);
     const total = Object.values(current).reduce(
       (sum, rules) => sum + Object.values(rules).reduce((a, b) => a + b, 0),
       0,
     );
-    console.log(`Design token guard passes (${total} baselined DSH uses left).`);
+    console.log(`Design token guard passes (${total} baselined uses left).`);
   }
 }

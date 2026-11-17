@@ -3783,7 +3783,7 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   padding: ${space.x3} ${space.x4};
 }
 .bh-bubble {
-  --bh-bubble-radius: ${radius.lg};
+  --bh-bubble-radius: var(--tobs-style-radius-bubble);
   border-radius: var(--bh-bubble-radius);
 }
 .bh-bubble[data-group-position='solo'],

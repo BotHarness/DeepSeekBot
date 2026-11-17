@@ -8,8 +8,8 @@ import {
 import * as stylex from '@stylexjs/stylex';
 import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { border, color, radius, space, text } from './tokens.stylex.js';
-import { font } from './tobs.stylex.js';
+import { border, color, space, text } from './tokens.stylex.js';
+import { font, style } from './tobs.stylex.js';
 
 const styles = stylex.create({
   field: {
@@ -53,7 +53,7 @@ const styles = stylex.create({
     borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: { default: color.border, ':focus-visible': color.fg },
-    borderRadius: radius.sm,
+    borderRadius: style.radiusField,
     outline: 'none',
     backgroundColor: 'transparent',
     color: color.fg,

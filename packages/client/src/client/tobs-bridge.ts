@@ -1,3 +1,5 @@
+import { TOBS_STYLES } from './ds/tobs-tokens.generated.js';
+
 const DSH_ROLE = {
   '--tobs-layer-canvas': 'alias-bg-base',
   '--tobs-layer-raised': 'alias-bg-module-platform',
@@ -47,9 +49,12 @@ const DSH_ROLE = {
   '--tobs-elevation-3': 'elevation-panel',
 } as const;
 
-export const TOBS_DSH_BRIDGE: Readonly<Record<string, string>> = Object.fromEntries(
-  Object.entries(DSH_ROLE).map(([name, role]) => [name, `var(--dsw-${role})`]),
-);
+export const TOBS_DSH_BRIDGE: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    Object.entries(DSH_ROLE).map(([name, role]) => [name, `var(--dsw-${role})`]),
+  ),
+  ...TOBS_STYLES.a,
+};
 
 export function tobsBridgeCss(): string {
   return `body{${Object.entries(TOBS_DSH_BRIDGE)

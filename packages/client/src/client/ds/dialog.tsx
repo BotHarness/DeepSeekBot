@@ -4,7 +4,7 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 
 import { APPEARANCE_CLASS } from '../appearance-scope.js';
 import { useShellLayer } from './shell-layer.js';
-import { elevation, layer, motion, radius, space } from './tobs.stylex.js';
+import { elevation, layer, motion, space, style } from './tobs.stylex.js';
 
 const fadeIn = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
 
@@ -40,7 +40,7 @@ const styles = stylex.create({
     width: 'min(380px, 100%)',
     maxHeight: '100%',
     overflow: 'hidden',
-    borderRadius: radius.xl,
+    borderRadius: style.radiusDialog,
     backgroundColor: layer.sheet,
     boxShadow: elevation.x3,
     outline: 'none',

@@ -129,6 +129,16 @@
             "alpha": 0.2784,
             "hex": "#0f1115"
           }
+        },
+        "clear": {
+          "$type": "color",
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0, 0.0, 0.0],
+            "alpha": 0.0,
+            "hex": "#000000"
+          },
+          "$description": "No fill; lets a style turn a surface off without carrying a colour value."
         }
       },
       "ink": {

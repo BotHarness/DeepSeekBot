@@ -156,5 +156,15 @@ describe('design token guard', () => {
     expect(match('rawControl', '<button type="button" {...stylex.props(styles.x)}>')).toBe(true);
     expect(match('rawControl', '<button onClick={() => go()} className={styles.x}>')).toBe(true);
     expect(match('rawControl', '<NavItem label="x" />')).toBe(false);
+    expect(match('legacyCss', '.bh-thing { color: var(--tobs-ink-primary); }')).toBe(true);
+    expect(match('literalColor', "const s = stylex.create({ a: { color: '#ff0000' } });")).toBe(
+      true,
+    );
+    expect(match('literalColor', "color: 'var(--tobs-ink-primary)'")).toBe(true);
+    expect(match('literalColor', 'color: ink.primary')).toBe(false);
+    expect(match('inlineStyle', "<div style={{ width: '12px' }} />")).toBe(true);
+    expect(match('lineBorder', 'border: ${border.hairline} solid ${color.border};')).toBe(true);
+    expect(match('lineBorder', "borderBottomStyle: 'solid'")).toBe(true);
+    expect(match('lineBorder', "borderStyle: 'none'")).toBe(false);
   });
 });

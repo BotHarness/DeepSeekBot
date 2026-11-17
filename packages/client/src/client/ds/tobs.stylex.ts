@@ -82,6 +82,7 @@ export const layer = stylex.defineConsts({
   sheet: 'var(--tobs-layer-sheet)',
   elevated: 'var(--tobs-layer-elevated)',
   scrim: 'var(--tobs-layer-scrim)',
+  clear: 'var(--tobs-layer-clear)',
 });
 
 export const ink = stylex.defineConsts({
@@ -141,7 +142,12 @@ export const style = stylex.defineConsts({
   iconSlot: 'var(--tobs-style-icon-slot)',
   listGap: 'var(--tobs-style-list-gap)',
   listGroupRadius: 'var(--tobs-style-list-group-radius)',
+  listGroupFill: 'var(--tobs-style-list-group-fill)',
+  listGroupPadding: 'var(--tobs-style-list-group-padding)',
   listItemRadius: 'var(--tobs-style-list-item-radius)',
+  listItemFill: 'var(--tobs-style-list-item-fill)',
+  listItemPadding: 'var(--tobs-style-list-item-padding)',
+  listSeparator: 'var(--tobs-style-list-separator)',
   radiusControl: 'var(--tobs-style-radius-control)',
   radiusField: 'var(--tobs-style-radius-field)',
   radiusContainer: 'var(--tobs-style-radius-container)',
@@ -152,9 +158,13 @@ export const style = stylex.defineConsts({
   radiusSegmented: 'var(--tobs-style-radius-segmented)',
   radiusComposer: 'var(--tobs-style-radius-composer)',
   radiusBubble: 'var(--tobs-style-radius-bubble)',
+  radiusCard: 'var(--tobs-style-radius-card)',
+  radiusSheet: 'var(--tobs-style-radius-sheet)',
   chipHeight: 'var(--tobs-style-chip-height)',
   navSelectedFill: 'var(--tobs-style-nav-selected-fill)',
   navSelectedInk: 'var(--tobs-style-nav-selected-ink)',
+  navSelectedIcon: 'var(--tobs-style-nav-selected-icon)',
+  surfaceListBackdrop: 'var(--tobs-style-surface-list-backdrop)',
 });
 
 export const accent = stylex.defineConsts({

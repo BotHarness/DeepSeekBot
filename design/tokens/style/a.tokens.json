@@ -70,9 +70,35 @@
           "$type": "dimension",
           "$value": "{core.radius.0}"
         },
+        "group-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "group-padding": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
         "item-radius": {
           "$type": "dimension",
           "$value": "{core.radius.6}"
+        },
+        "item-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "item-padding": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "separator": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
         }
       },
       "radius": {
@@ -94,7 +120,7 @@
         },
         "dialog": {
           "$type": "dimension",
-          "$value": "{core.radius.14}"
+          "$value": "{core.radius.20}"
         },
         "nav-selected": {
           "$type": "dimension",
@@ -115,6 +141,14 @@
         "bubble": {
           "$type": "dimension",
           "$value": "{core.radius.14}"
+        },
+        "card": {
+          "$type": "dimension",
+          "$value": "{core.radius.14}"
+        },
+        "sheet": {
+          "$type": "dimension",
+          "$value": "{core.radius.20}"
         }
       },
       "chip": {
@@ -131,6 +165,16 @@
         "selected-ink": {
           "$type": "color",
           "$value": "{web.color.state.selected-ink}"
+        },
+        "selected-icon": {
+          "$type": "color",
+          "$value": "{web.color.accent.ink}"
+        }
+      },
+      "surface": {
+        "list-backdrop": {
+          "$type": "color",
+          "$value": "{web.color.layer.sheet}"
         }
       }
     }
