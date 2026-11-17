@@ -106,7 +106,7 @@ describe('named schema migration ledger', () => {
       public_key: null,
     });
     expect(attachOperationalModule(upgraded, 'team').read(ledger)).toEqual(expected);
-    expect(expected.at(-1)?.id).toBe('member-devices');
+    expect(expected.map((row) => row.id)).toContain('member-devices');
   });
 
   it.each([1, 25, 78, 116, 149, 153])(

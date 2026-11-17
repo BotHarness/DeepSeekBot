@@ -13,6 +13,16 @@
       "commands": ["relationships", "device-probe", "device-lan"]
     },
     {
+      "id": "remote-host-custody",
+      "description": "The local Host carries this Client's requests to paired Remote Hosts with credentials it keeps; the CLI reaches Remote Hosts with its own private key files.",
+      "scope": "Local Host",
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:REMOTE_CUSTODY_PATH",
+        "route:packages/core/src/devices/mount.ts:REMOTE_CUSTODY_STREAM_PATH"
+      ],
+      "commands": ["device-pair", "device-account-pair", "device-probe"]
+    },
+    {
       "id": "client-preferences",
       "description": "Theme, locale, notifications, file opening and presentation preferences; native Settings fields already have generic settings CLI, but local services need a target Client.",
       "scope": "Client",

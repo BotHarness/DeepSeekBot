@@ -184,11 +184,11 @@ describe('Skill chip preview', () => {
     });
     const chip = container.querySelector<HTMLElement>('.bh-inline-skill')!;
     await act(async () => hover(chip));
-    const card = document.querySelector<HTMLElement>('.bh-skill-peek')!;
+    const card = document.querySelector<HTMLElement>('[data-skill-peek]')!;
     expect(card.getAttribute('role')).toBe('tooltip');
     expect(card.textContent).toBe('/summarize-pr · AdaSummarize a pull request in three bullets');
     await act(async () => leave(chip));
-    expect(document.querySelector('.bh-skill-peek')).toBeNull();
+    expect(document.querySelector('[data-skill-peek]')).toBeNull();
     await act(async () => chip.click());
     expect(readSkill).toHaveBeenCalledWith('summarize-pr', 'bot:ada');
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
@@ -225,13 +225,13 @@ describe('Skill chip preview', () => {
     expect(chip.getAttribute('aria-label')).toBe('/notes · notes-project');
     expect(chip.hasAttribute('title')).toBe(false);
     await act(async () => hover(chip));
-    expect(document.querySelector('.bh-skill-peek')?.textContent).toBe(
+    expect(document.querySelector('[data-skill-peek]')?.textContent).toBe(
       '/notes · notes-projectKeep notes short.',
     );
     await act(async () => chip.click());
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.textContent).toContain('notes-project · as sent');
-    expect(dialog.querySelector('.bh-skill-detail-description')).toBeNull();
+    expect(dialog.querySelectorAll('p')).toHaveLength(0);
     expect(dialog.querySelector('[data-markdown]')?.textContent).toBe(
       'Keep notes short.\n\nSecond paragraph.',
     );

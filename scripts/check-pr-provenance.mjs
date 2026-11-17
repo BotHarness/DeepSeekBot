@@ -7,6 +7,7 @@ const AGENT_MARK =
   /Agent-Task:|Generated with \[|Co-Authored-By:[^\n]*(?:Claude|Codex|Cursor|Copilot|Gemini|opencode|DeepSeek|Kimi|Qwen|GLM)/iu;
 const SOURCE = 'https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893';
 const KINDS = ['harness', 'model'];
+const AGENT_EMAIL = 'noreply@anthropic.com';
 const INTERNAL = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 const WRITERS = new Set(['admin', 'maintain', 'write']);
 const EXAMPLE = { harness: 'claude-code', model: 'claude-opus-5-5' };
@@ -37,8 +38,37 @@ export function declared(body) {
   return result;
 }
 
-export function plan({ body, labels, existing, external }) {
-  const named = declared(body);
+const TRAILERS = [
+  {
+    harness: 'claude-code',
+    session: /^Claude-Session:/imu,
+    model: /^Co-Authored-By:[ \t]*(Claude[ \t]+[A-Za-z]+[ \t]+\d+(?:\.\d+)*)[ \t]*</gimu,
+  },
+];
+
+export function trailers(messages) {
+  const result = { harness: [], model: [] };
+  for (const message of messages) {
+    const footer =
+      message
+        .trim()
+        .split(/\n[ \t]*\n/u)
+        .at(-1) ?? '';
+    for (const agent of TRAILERS) {
+      if (agent.session.test(footer)) result.harness.push(agent.harness);
+      for (const [, name] of footer.matchAll(agent.model))
+        result.model.push(name.toLowerCase().replace(/[\s.]+/gu, '-'));
+    }
+  }
+  return { harness: [...new Set(result.harness)], model: [...new Set(result.model)] };
+}
+
+export function plan({ body, labels, existing, external, commits = [] }) {
+  const written = declared(body);
+  const signed = trailers(commits);
+  const named = Object.fromEntries(
+    KINDS.map((kind) => [kind, written[kind].length ? written[kind] : signed[kind]]),
+  );
   const wanted = KINDS.flatMap((kind) => named[kind].map((value) => `${kind}:${value}`));
   const add = wanted.filter((label) => existing.includes(label) && !labels.includes(label));
   const unknown = wanted.filter((label) => !existing.includes(label));
@@ -93,6 +123,20 @@ async function permission(repo, login) {
   }
 }
 
+async function agentCommits(repo, number) {
+  const messages = [];
+  for (let page = 1; page <= 3; page++) {
+    const batch = await github(`/repos/${repo}/pulls/${number}/commits?per_page=100&page=${page}`);
+    messages.push(
+      ...batch
+        .filter((entry) => entry.commit.author?.email === AGENT_EMAIL && entry.parents.length === 1)
+        .map((entry) => entry.commit.message),
+    );
+    if (batch.length < 100) break;
+  }
+  return messages;
+}
+
 async function main() {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const item = event.pull_request ?? event.issue;
@@ -101,6 +145,7 @@ async function main() {
   const fork = (event.pull_request?.head.repo?.full_name ?? repo) !== repo;
   const result = plan({
     body: item.body,
+    commits: event.pull_request ? await agentCommits(repo, item.number) : [],
     labels,
     existing: await repoLabels(repo),
     external: !isInternal(

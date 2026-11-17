@@ -188,6 +188,11 @@ function SessionFailureNotice({
       {refusalHint === undefined ? null : (
         <div className="bh-session-failure-context">{t(refusalHint)}</div>
       )}
+      {failure.repeated === undefined || failure.repeated < 2 ? null : (
+        <div className="bh-session-failure-context">
+          {t('failure.repeated', { count: String(failure.repeated) })}
+        </div>
+      )}
       {failure.context === undefined ? null : (
         <div className="bh-session-failure-context">
           {t('failure.assignmentContext', { context: failure.context })}

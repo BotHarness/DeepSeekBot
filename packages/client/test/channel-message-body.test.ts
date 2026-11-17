@@ -733,6 +733,23 @@ describe('Channel message body', () => {
     expect(markup).not.toContain('bh-session-failure-card');
   });
 
+  it('says when one failure card stands for several identical failures in a row', () => {
+    const failure = {
+      role: 'orchestrator' as const,
+      sessionId: 'session-quota',
+      code: 'QUOTA',
+      detail: 'Insufficient balance',
+    };
+    expect(
+      render({ kind: 'bot', slug: 'ada' }, 'Session failed', {
+        sessionFailure: { ...failure, repeated: 3 },
+      }),
+    ).toContain('连续 3 次同样失败');
+    expect(
+      render({ kind: 'bot', slug: 'ada' }, 'Session failed', { sessionFailure: failure }),
+    ).not.toContain('同样失败');
+  });
+
   it('shows why the Host refused a Turn and the fix instead of a generic failure', () => {
     const detail =
       "The Host refused this turn: Orchestrator Session requires its Memory working directory. Start a new Session; it opens in this Bot's Memory directory.";

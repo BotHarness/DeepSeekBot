@@ -16,6 +16,9 @@ export function nodeDeviceCarrier(): HostCarrier {
       });
       return {
         status: response.status,
+        ...(response.headers.get('content-type')
+          ? { contentType: response.headers.get('content-type')! }
+          : {}),
         text: () => response.text(),
         bytes: async () => new Uint8Array(await response.arrayBuffer()),
       };

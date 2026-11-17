@@ -11,6 +11,7 @@ The phone app keeps every paired computer and shows one. A push notification is 
 - `apps/mobile/modules/conversation-notifications/**`
 - `apps/mobile/app/notifications.tsx`
 - `apps/mobile/app/settings/notifications.tsx`
+- `apps/mobile/src/ui/shell/notification-screen.tsx`
 - `apps/mobile/app/*/*/notifications.tsx`
 - `apps/mobile/src/host/{notification-avatars,native-notification-avatars}.ts`
 

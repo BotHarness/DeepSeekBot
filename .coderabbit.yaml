@@ -1,0 +1,77 @@
+language: en-US
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  in_progress_fortune: false
+  auto_review:
+    enabled: true
+    drafts: false
+  merge_risk_instructions: >-
+    Higher risk: schema migrations, credential, pairing, Team mode permission and approval code,
+    Host process lifecycle, release and update code, and anything a user cannot undo (deletion,
+    purge, data reset). Lower risk: docs, feature-map files, tests only, and scripts under
+    scripts/ that only report.
+  path_instructions:
+    - path: 'packages/client/**'
+      instructions: >-
+        Apply docs/agents/ui-design.md and docs/agents/ui-state.md. Style comes from Tobs tokens in
+        ds/ and shared ds/ primitives; flag raw px values, colour literals, DSH --dsw-* variables and
+        new className strings outside ds/. No React useEffect and no whole client-store subscription.
+    - path: 'apps/mobile/**'
+      instructions: >-
+        Apply apps/mobile/AGENTS.md. Prefer native controls and the platform design language named
+        in GLOSSARY.md (Native component, Look-alike, Custom surface).
+    - path: '.agents/skills/verify-deepseekbot/features/*.md'
+      instructions: >-
+        Each feature file keeps its ## Sources globs pointed at the files that own the feature (not
+        shared hubs such as bridge.ts, methods.ts or cli-effects.ts) and its ## Terms at GLOSSARY.md
+        entries.
+  pre_merge_checks:
+    custom_checks:
+      - name: Fix targets the root cause
+        mode: warning
+        instructions: >-
+          Applies only when the PR title starts with fix. Pass when the diff changes the code that
+          produces the wrong behaviour and the PR names the test that fails without the fix (or a
+          'No regression test:' reason). Fail when the change only special-cases the symptom at a
+          caller, adds a retry, timeout, catch-and-ignore or flag to hide the failure, or duplicates
+          logic next to the faulty module instead of correcting it; name the module that owns the
+          behaviour. Pass otherwise.
+      - name: Consistent with ADRs and existing features
+        mode: warning
+        instructions: >-
+          Applies when the PR adds or changes behaviour. Look in docs/adr/ for decisions about the
+          modules and concepts the diff touches. Fail when the change contradicts an accepted ADR
+          and the PR neither updates nor supersedes it, or when it adds a second implementation of
+          something an existing module already provides (name that module) instead of reusing or
+          extending it. Pass otherwise, and pass docs-only or test-only PRs.
+      - name: Product terms follow the glossary
+        mode: warning
+        instructions: >-
+          Check user-visible copy, docs and the PR description that the diff adds. Fail when a
+          product noun is used in the sense of a GLOSSARY.md entry but with a word that entry lists
+          under _Avoid_, and give the preferred term. An _Avoid_ word used for something else is
+          fine. Pass otherwise.
+      - name: Touched features are verified
+        mode: warning
+        instructions: >-
+          List the features in .agents/skills/verify-deepseekbot/features/ whose ## Sources globs
+          match a changed file. Fail when the PR changes runtime code of such a feature and its
+          verification notes name neither a run of that feature's journey nor a reason it was not
+          run. Pass when no mapped feature is touched, or for docs-only and test-only PRs.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - AGENTS.md
+      - CLAUDE.md
+      - apps/mobile/AGENTS.md
+      - GLOSSARY.md
+      - docs/agents/ui-design.md
+      - docs/agents/ui-state.md
+      - docs/agents/ui-copy.md
+      - docs/agents/source-policy.md
+      - docs/agents/model-tiers.md
+      - docs/agents/schema-migrations.md
