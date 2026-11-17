@@ -1,3 +1,4 @@
+import { normalizeSearchText, searchTextScore } from './search-match.js';
 import { personaBotSessionRows } from './session-rows.js';
 import type { BotSummary, OwnedSessionSummary } from './store.js';
 
@@ -91,21 +92,17 @@ export function rankSessionOptions(
   options: readonly ComposerSessionOption[],
   query: string,
 ): ComposerSessionOption[] {
-  const needle = query.trim().toLocaleLowerCase();
+  const needle = normalizeSearchText(query);
   const scored = options.flatMap((option) => {
     if (needle === '') return option.done ? [] : [{ option, score: 0 }];
-    const title = option.title.toLocaleLowerCase();
-    const bot = (option.bot?.displayName ?? option.botSlug).toLocaleLowerCase();
-    const score = title.startsWith(needle)
-      ? 0
-      : title.includes(needle)
-        ? 1
-        : option.sessionId.toLocaleLowerCase().startsWith(needle)
-          ? 2
-          : bot.includes(needle)
-            ? 3
-            : undefined;
-    return score === undefined ? [] : [{ option, score: score + (option.done ? 4 : 0) }];
+    const score =
+      searchTextScore(option.title, needle) ??
+      (normalizeSearchText(option.sessionId).startsWith(needle)
+        ? 6
+        : searchTextScore(option.bot?.displayName ?? option.botSlug, needle) === undefined
+          ? undefined
+          : 7);
+    return score === undefined ? [] : [{ option, score: score + (option.done ? 8 : 0) }];
   });
   return scored
     .sort(

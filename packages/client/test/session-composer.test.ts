@@ -116,6 +116,9 @@ describe('session references', () => {
       'asg-shop',
       'asg-done',
     ]);
+    expect(rankSessionOptions(options, 'chonggou').map((option) => option.sessionId)).toEqual([
+      'asg-shop',
+    ]);
   });
 
   it('opens a / query on CJK text after whitespace only', () => {
