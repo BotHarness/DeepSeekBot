@@ -73,6 +73,7 @@ import {
   type SelectedSkill,
   type SkillQuery,
 } from './skill-refs.js';
+import { chipSkill, useSkillPeek, type SkillDocument } from './skill-preview.js';
 
 export type ComposerSkillOption = SkillCatalogEntry & { bot?: BotSummary | undefined };
 
@@ -125,6 +126,7 @@ export interface ChannelComposerProps {
   channelRefs?: readonly SelectedChannelRef[] | undefined;
   skillOptions?: readonly ComposerSkillOption[] | undefined;
   skills?: readonly SelectedSkill[] | undefined;
+  readSkill?: ((name: string, owner: string) => Promise<SkillDocument>) | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
   t?: BotHarnessTranslate | undefined;
   onChange(
@@ -420,6 +422,7 @@ export function ChannelComposer({
   channelRefs = [],
   skillOptions = [],
   skills = [],
+  readSkill,
   reply,
   t = zhTranslate,
   onChange,
@@ -428,6 +431,7 @@ export function ChannelComposer({
   onSubmit,
 }: ChannelComposerProps): ReactElement {
   const locked = sending || disabled;
+  const skillPeek = useSkillPeek(t);
   const voice = useComposerVoice({
     port: dictation,
     value,
@@ -1058,6 +1062,7 @@ export function ChannelComposer({
 
   return (
     <div className="bh-composer-shell" data-bh-tour="composer" data-companion-avoid>
+      {skillPeek.layer}
       {dictation === undefined ? null : (
         <span className="bh-sr-only" role="status" aria-live="polite">
           {composerVoiceStatus(voice, t) ?? ''}
@@ -1320,9 +1325,23 @@ export function ChannelComposer({
               data-placeholder={placeholder}
               contentEditable={!locked && !voice.active}
               suppressContentEditableWarning
+              onPointerOver={(event) => {
+                const chip = chipSkill(event.target, skillOptions, t);
+                if (chip === undefined) skillPeek.hide();
+                else skillPeek.show(chip.peek, chip.element);
+              }}
+              onPointerLeave={skillPeek.hide}
               onClick={(event) => {
                 const target = event.target;
                 if (!(target instanceof Element)) return;
+                const chip = chipSkill(target, skillOptions, t);
+                if (chip !== undefined && readSkill !== undefined) {
+                  skillPeek.open({
+                    ...chip.peek,
+                    load: () => readSkill(chip.peek.name, chip.ownerKey),
+                  });
+                  return;
+                }
                 const badge = target.closest<HTMLElement>('[data-attachment-id]');
                 if (badge === null) return;
                 const card = Array.from(

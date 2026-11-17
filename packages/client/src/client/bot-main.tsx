@@ -3686,6 +3686,7 @@ function ConversationView({
                     channelRefs={channelRefTokens}
                     skills={skillTokens}
                     skillOptions={skillOptions}
+                    readSkill={actions.skillDetail}
                     channelCandidates={
                       channel?.type === 'dm' && channel.botSlug !== undefined
                         ? state.channels.filter((candidate) => candidate.type === 'group')

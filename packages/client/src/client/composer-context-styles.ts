@@ -21,6 +21,10 @@ export const COMPOSER_CONTEXT_CSS = `
 .bh-composer-skill-copy strong {flex-shrink:0;font-weight:${text.strong};}
 .bh-composer-skill-source {flex-shrink:0;max-width:12em;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:${text.metaSize};color:var(--tobs-ink-secondary);}
 .bh-composer-skill-copy small {flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.bh-skill-peek {position:fixed;z-index:1100;display:flex;flex-direction:column;gap:${space.x1};box-sizing:border-box;max-height:min(40vh,320px);overflow:hidden;padding:${space.x3} ${space.x4};border:${border.hairline} solid ${color.border};border-radius:${radius.md};background:var(--tobs-layer-canvas);color:var(--tobs-ink-primary);box-shadow:0 8px 24px color-mix(in srgb, var(--tobs-ink-primary) 12%, transparent);pointer-events:none;line-height:${text.bodyLine};}
+.bh-skill-peek-name {color:var(--tobs-ink-secondary);overflow-wrap:anywhere;}
+.bh-skill-peek p {margin:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden;}
+.bh-inline-skill.bh-inline-mention-link {cursor:pointer;}
 .bh-composer-usage-popover {position:fixed;z-index:1000;max-height:min(70vh,480px);overflow:auto;box-sizing:border-box;padding:${space.x5};border:${border.hairline} solid ${color.border};border-radius:${radius.md};background:var(--tobs-layer-canvas);color:var(--tobs-ink-primary);box-shadow:0 8px 32px color-mix(in srgb,var(--tobs-ink-primary) 15%,transparent);font-size:${text.bodySize};line-height:1.5;}
 .bh-composer-usage-head,.bh-composer-usage-total,.bh-composer-usage-row {display:flex;gap:${space.x3};align-items:center;justify-content:space-between;}
 .bh-composer-usage-head {margin-bottom:${space.x4};}

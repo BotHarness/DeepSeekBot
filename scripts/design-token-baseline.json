@@ -204,7 +204,7 @@
   },
   "packages/client/src/client/channel-message-body.tsx": {
     "dshImport": 1,
-    "rawControl": 3
+    "rawControl": 2
   },
   "packages/client/src/client/channel-options.tsx": {
     "dshImport": 1
