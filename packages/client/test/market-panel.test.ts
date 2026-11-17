@@ -1263,7 +1263,7 @@ describe('Uploaded Bots in the Market panel', () => {
         await click(host, '下一步');
         review = host.querySelector('[data-market-direct="review"]')!;
         expect(review.querySelector('[data-market-replace-warning]')?.textContent).toContain(
-          '「Writer」不是当初上传的 Bot（「Helper Local」）',
+          '「Writer」不是当初上传的「Helper Local」',
         );
       },
       {

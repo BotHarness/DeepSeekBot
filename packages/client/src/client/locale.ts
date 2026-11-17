@@ -2182,7 +2182,7 @@ export const zh = {
     '这台电脑上没有当初上传「{listing}」的 Bot。可以先从市场安装它再改，或换一个 Bot。',
   'market.mine.replaceSummary': '用「{bot}」替换市场上的「{listing}」',
   'market.mine.otherBot':
-    '「{bot}」不是当初上传的 Bot（「{original}」）。替换后，市场上的内容会全部变成「{bot}」的文件。',
+    '「{bot}」不是当初上传的「{original}」。替换后，市场上的内容会全部变成「{bot}」的文件。',
   'market.mine.unknownSource':
     '无法确认「{bot}」就是当初上传的 Bot。替换后，市场上的内容会全部变成「{bot}」的文件。',
   'market.mine.deleteTitle': '删除 {name}？',
@@ -8198,7 +8198,7 @@ export const en = {
     'The Bot you uploaded as “{listing}” is not on this computer. Install it from the Marketplace and edit it, or pick another Bot.',
   'market.mine.replaceSummary': 'Replace “{listing}” on the Marketplace with “{bot}”',
   'market.mine.otherBot':
-    '“{bot}” is not the Bot you uploaded (“{original}”). After replacing, the listing holds only “{bot}”’s files.',
+    '“{bot}” is not “{original}”, the Bot you uploaded. After replacing, the listing holds only “{bot}”’s files.',
   'market.mine.unknownSource':
     'We can’t confirm “{bot}” is the Bot you uploaded. After replacing, the listing holds only “{bot}”’s files.',
   'market.mine.deleteTitle': 'Delete {name}?',
