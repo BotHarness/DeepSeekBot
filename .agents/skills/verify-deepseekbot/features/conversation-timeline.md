@@ -4,6 +4,18 @@
 
 Reading a Bot DM or group: where the timeline opens, how it keeps your place, and how long messages and images display.
 
+## Sources
+
+- `packages/client/src/client/timeline-*.{ts,tsx}`
+- `packages/core/src/channels/timeline.ts`
+- `scripts/{foreground-timeline-scroll,perf-*timeline*}.mjs`
+
+## Terms
+
+- Conversation Timeline
+- Channel
+- Messages panel
+
 ## Sub-features
 
 For the Web document's large-text journey, use Harness Settings → General → Font size and raise the real preference from 14 to 22 px before reopening the DM. Check visible mirror scaling, reflow, height, pointer targeting and keyboard focus at narrow/wide widths in both themes; a computed inner font of 14 px is compatible with outer presentation scaling. Change the preference while mounted and verify no Worker remount or private-state write. The maintained table fixture supports native select typeahead (`s`), Tab, radio selection with Space and details with Enter; retain failures of other keyboard routes rather than treating this as universal select compatibility. Installed mobile and desktop-shell checks remain separate gates.

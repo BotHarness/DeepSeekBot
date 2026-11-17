@@ -1,5 +1,13 @@
 # Phone language and appearance
 
+## Sources
+
+- `apps/mobile/src/ui/{interface-preferences,interface-settings,native-interface-preferences}.{ts,tsx}`
+
+## Terms
+
+- Settings
+
 ## Sub-features
 
 - `settings-row-alignment`: Language and Appearance show their platform-native symbols, title and current value using the same row padding, type and icon slot as adjacent Interface actions. The entire iOS row opens a native menu with an inline checked Picker; Android keeps its native anchored single-choice menu. Check both rows beside App icon at default/intermediate/maximum system text in light and dark, including single accessibility targets and dismissal without a change.

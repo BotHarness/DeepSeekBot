@@ -2,6 +2,19 @@
 
 At 961px and wider on a structurally qualified rc.2 Web/macOS/Windows shell, the workspace contains a full-height control rail, independent Channel list, one closable Messages panel and Dock panels. Unsupported shells keep the legacy sidebar/dock fallback. Windows native behavior requires the separate device gate below.
 
+## Sources
+
+- `packages/client/src/client/{channel-dock,channel-dock-layout,channel-dock-styles,dock-panels,dockview-css}.{ts,tsx}`
+- `scripts/dockview-css-plugin.mjs`
+
+## Terms
+
+- Bot mode layout
+- Workspace Control Rail
+- Channel list panel
+- Messages panel
+- Panel
+
 ## Sub-features
 
 - `pixel-avatar-scroll`: Profile → Change avatar → Design a pixel avatar → Bangs → Draw or edit this piece. In short windows, wheel to the last palette row and Stop drawing; check all nine tool buttons have decorative icons and visible labels, switch Eraser → Pencil, confirm Undo starts disabled, select the final swatch, stop drawing and cancel. The saved Bot appearance must stay unchanged. Run `scripts/e2e-avatar-scroll.mjs` with `BH_E2E_NAME=<isolated-instance-name>`; screenshots, ARIA and geometry are saved under that instance's evidence directory. Covers 1024×667/light, 1100×600/dark and 1440×900/light in a real Web Client; macOS native full-screen and system scaling require separate acceptance.
