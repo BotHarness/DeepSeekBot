@@ -94,7 +94,6 @@ function RootNavigator() {
     ['notifications', t.notifications],
     ['storage', t.storage.title],
     ['app-icon', t.appIcon],
-    ['appearance', t.interfacePreferences.appearance],
     ['activity-count', t.activityCountSettings.title],
     ['chat-background', t.chatBackground.global],
   ];

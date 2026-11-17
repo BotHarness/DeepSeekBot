@@ -12,23 +12,18 @@ import {
   type AppearancePanelPatch,
 } from './appearance-panels.js';
 import { TOBS_STYLES } from './ds/tobs-tokens.generated.js';
-import {
-  isAppearancePreference,
-  isAppearancePreset,
-  isAppearancePrimary,
-  type AppearanceMode,
-  type AppearancePreference,
-  type AppearancePreset,
-} from '@botharness/host-client/ui/design/appearance-palette';
 export const APPEARANCE_KEY = 'botharness:appearance:v1';
 export type AppearanceStyle = keyof typeof TOBS_STYLES;
 export const APPEARANCE_STYLES = Object.keys(TOBS_STYLES) as AppearanceStyle[];
-export {
-  APPEARANCE_PRIMARY,
-  type AppearanceMode,
-  type AppearancePreference,
-  type AppearancePreset,
-} from '@botharness/host-client/ui/design/appearance-palette';
+export type AppearanceMode = 'light' | 'dark';
+export type AppearancePreference = AppearanceMode | 'system';
+export type AppearancePreset = 'classic-blue' | 'mist-purple' | 'forest-green' | 'warm-amber';
+export const APPEARANCE_PRIMARY = {
+  'classic-blue': { light: '#4176e6', dark: '#7aaaff' },
+  'mist-purple': { light: '#7957c9', dark: '#b19af0' },
+  'forest-green': { light: '#287454', dark: '#7cc7a0' },
+  'warm-amber': { light: '#94600d', dark: '#e6b75c' },
+} as const;
 export interface AppearanceModeConfig extends Record<string, unknown> {
   preset: AppearancePreset;
   primary?: string;
@@ -61,10 +56,15 @@ export function object(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
-const preset = isAppearancePreset;
+const preset = (value: unknown): value is AppearancePreset =>
+  value === 'classic-blue' ||
+  value === 'mist-purple' ||
+  value === 'forest-green' ||
+  value === 'warm-amber';
 const styleName = (value: unknown): value is AppearanceStyle =>
   typeof value === 'string' && Object.hasOwn(TOBS_STYLES, value);
-const preference = isAppearancePreference;
+const preference = (value: unknown): value is AppearancePreference =>
+  value === 'system' || value === 'light' || value === 'dark';
 export function parseAppearance(raw: string | null): AppearanceConfig {
   if (raw === null)
     return {
@@ -96,7 +96,8 @@ export function parseAppearance(raw: string | null): AppearanceConfig {
       (entry.panels !== undefined && !validPanelOverrides(entry.panels)) ||
       (entry.materials !== undefined && !validMaterials(entry.materials)) ||
       !preset(entry.preset) ||
-      (entry.primary !== undefined && !isAppearancePrimary(entry.primary))
+      (entry.primary !== undefined &&
+        (typeof entry.primary !== 'string' || !/^#[0-9a-f]{6}$/i.test(entry.primary)))
     )
       throw new AppearanceError('appearance-storage-invalid');
   }
@@ -145,7 +146,8 @@ export function parseAppearancePatch(value: unknown): AppearancePatch {
         v.primary !== undefined ||
         v.materials !== undefined)) ||
     (v.materials !== undefined && !validMaterials(v.materials, true)) ||
-    (v.primary !== undefined && !isAppearancePrimary(v.primary)) ||
+    (v.primary !== undefined &&
+      (typeof v.primary !== 'string' || !/^#[0-9a-f]{6}$/i.test(v.primary))) ||
     ((v.preset !== undefined || v.primary !== undefined || v.materials !== undefined) &&
       v.mode === undefined) ||
     (v.mode !== undefined &&

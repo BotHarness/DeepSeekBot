@@ -73,7 +73,6 @@ export const callBubble = {
   maxTextScale: 1.4,
 } as const;
 export const rowGlyph = { size: 16, period: 900 } as const;
-export const colorSwatch = { size: 24 } as const;
 export const accountActionIcon = {
   slot: 28,
   signOutOpticalOffset: 1.5,

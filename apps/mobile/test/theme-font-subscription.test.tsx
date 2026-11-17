@@ -31,10 +31,7 @@ vi.mock('react-native', () => ({
 vi.mock('../src/ui/interface-preferences', () => ({
   interfacePreferences: { subscribe: () => () => {}, getSnapshot: () => preferences },
 }));
-const preferences = {
-  appearance: 'system',
-  palette: { light: { preset: 'classic-blue' }, dark: { preset: 'classic-blue' } },
-};
+const preferences = { appearance: 'system' };
 import {
   AccentProvider,
   DesignThemeProvider,

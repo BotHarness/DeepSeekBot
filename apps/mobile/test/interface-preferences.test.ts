@@ -55,7 +55,6 @@ describe('phone interface preferences', () => {
     expect(write).toHaveBeenLastCalledWith({
       language: 'system',
       appearance: 'system',
-      palette: { light: { preset: 'classic-blue' }, dark: { preset: 'classic-blue' } },
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });
@@ -119,7 +118,6 @@ describe('phone interface preferences', () => {
     expect(write).toHaveBeenCalledWith({
       language: 'zh',
       appearance: 'dark',
-      palette: { light: { preset: 'classic-blue' }, dark: { preset: 'classic-blue' } },
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });
