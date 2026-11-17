@@ -229,6 +229,9 @@
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showDmAvatar",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showOwnAvatar",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:streamReplies",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sessionDetailLevel",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sessionCollapse",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sessionFoldedReplies",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:botHopLimit",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:settingsPins",
         "setting:packages/client/src/client/bot-hop-limit-setting.tsx:{t('botHopLimit.title')}",
@@ -241,6 +244,9 @@
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.dm.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.own.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.stream.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sessions.settings.level.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sessions.settings.collapse.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sessions.settings.replies.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],
       "commands": ["settings", "settings-set"]

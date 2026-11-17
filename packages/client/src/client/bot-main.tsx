@@ -1,5 +1,10 @@
+import {
+  DEFAULT_SESSION_COLLAPSE,
+  DEFAULT_SESSION_DETAIL_LEVEL,
+  DEFAULT_SESSION_FOLDED_REPLIES,
+} from '@botharness/host-client/shared/bot-mode-settings';
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
-import { SessionDetail } from './session-detail.js';
+import { SessionDetail, SessionDetailPrefsContext } from './session-detail.js';
 import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
@@ -4419,24 +4424,45 @@ export function BotMain({
     () => prefs?.source.getSnapshot().streamReplies ?? false,
     () => false,
   );
+  const sessionLevel = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().sessionDetailLevel ?? DEFAULT_SESSION_DETAIL_LEVEL,
+    () => DEFAULT_SESSION_DETAIL_LEVEL,
+  );
+  const sessionCollapse = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().sessionCollapse ?? DEFAULT_SESSION_COLLAPSE,
+    () => DEFAULT_SESSION_COLLAPSE,
+  );
+  const sessionReplies = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().sessionFoldedReplies ?? DEFAULT_SESSION_FOLDED_REPLIES,
+    () => DEFAULT_SESSION_FOLDED_REPLIES,
+  );
+  const sessionDetailPrefs = useMemo(
+    () => ({ level: sessionLevel, collapse: sessionCollapse, replies: sessionReplies }),
+    [sessionLevel, sessionCollapse, sessionReplies],
+  );
   return (
-    <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
-      <MessageAvatarsContext.Provider value={messageAvatars}>
-        <StreamReplies.Provider value={streamReplies}>
-          <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-            <MessageDeveloperMode.Provider value={developerMode}>
-              <ComposerSendKeyContext.Provider value={sendKey}>
-                <AppearanceContext.Provider value={appearance}>
-                  <Workspace options={workspace} t={props.t ?? zhTranslate}>
-                    <BotMainContent {...props} />
-                  </Workspace>
-                </AppearanceContext.Provider>
-              </ComposerSendKeyContext.Provider>
-            </MessageDeveloperMode.Provider>
-          </AutoCollapseMessages.Provider>
-        </StreamReplies.Provider>
-      </MessageAvatarsContext.Provider>
-    </DeliveryReceiptsVisible.Provider>
+    <SessionDetailPrefsContext.Provider value={sessionDetailPrefs}>
+      <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
+        <MessageAvatarsContext.Provider value={messageAvatars}>
+          <StreamReplies.Provider value={streamReplies}>
+            <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+              <MessageDeveloperMode.Provider value={developerMode}>
+                <ComposerSendKeyContext.Provider value={sendKey}>
+                  <AppearanceContext.Provider value={appearance}>
+                    <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                      <BotMainContent {...props} />
+                    </Workspace>
+                  </AppearanceContext.Provider>
+                </ComposerSendKeyContext.Provider>
+              </MessageDeveloperMode.Provider>
+            </AutoCollapseMessages.Provider>
+          </StreamReplies.Provider>
+        </MessageAvatarsContext.Provider>
+      </DeliveryReceiptsVisible.Provider>
+    </SessionDetailPrefsContext.Provider>
   );
 }
 

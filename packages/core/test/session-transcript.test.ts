@@ -63,7 +63,9 @@ describe('Session transcript', () => {
           toolKind: 'read',
           status: 'done',
           detail: 'a.ts',
+          path: 'a.ts',
           at: iso(4),
+          endedAt: iso(5),
         },
         {
           kind: 'tool',
@@ -71,12 +73,15 @@ describe('Session transcript', () => {
           tool: 'bash',
           toolKind: 'other',
           status: 'denied',
+          command: 'rm',
           at: iso(6),
+          endedAt: iso(9),
         },
         { kind: 'turn-end', state: 'done', at: iso(10) },
       ],
       omitted: 0,
       running: false,
+      seq: 10,
     });
   });
 
@@ -106,7 +111,7 @@ describe('Session transcript', () => {
       ],
     });
     expect(transcript.items).toMatchObject([
-      { kind: 'input', source: 'system' },
+      { kind: 'input', source: 'system', trigger: 'request' },
       { kind: 'tool', status: 'cancelled' },
       { kind: 'turn-end', state: 'cancelled' },
     ]);
@@ -120,5 +125,81 @@ describe('Session transcript', () => {
     expect(transcript.items).toHaveLength(TRANSCRIPT_ITEMS);
     expect(transcript.omitted).toBe(3);
     expect(transcript.items[0]).toMatchObject({ text: 'Step 3' });
+  });
+
+  it('hides context inputs and names the trigger of a waking notice', () => {
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'asg-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'runtime-context' },
+          content: [{ type: 'text', text: 'Current working directory.' }],
+        }),
+        event(2, 'user/message', {
+          source: { kind: 'webhook', provider: 'github' },
+          content: [{ type: 'text', text: 'PR opened.' }],
+        }),
+        event(3, 'user/message', {
+          source: { kind: 'goal' },
+          content: [{ type: 'text', text: 'Keep going.' }],
+        }),
+      ],
+    });
+    expect(transcript.items).toMatchObject([
+      { kind: 'input', text: 'PR opened.', trigger: 'github' },
+      { kind: 'input', text: 'Keep going.', trigger: 'goal' },
+    ]);
+  });
+
+  it('counts changed lines, reasoning time and turn usage', () => {
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'asg-1',
+      events: [
+        event(1, 'turn/start'),
+        event(2, 'assistant/message', {
+          message: { content: [{ type: 'reasoning', text: 'Plan.' }] },
+          usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 900 },
+          stream: [
+            { type: 'chunk', time: 1000, chunk: { type: 'block-start', blockType: 'reasoning' } },
+            { type: 'reasoning-chunks', time0: 1000, dt: [500, 500], texts: ['Pl', 'an.'] },
+            {
+              type: 'chunk',
+              time: 3000,
+              chunk: { type: 'block-end', block: { type: 'reasoning' } },
+            },
+            { type: 'chunk', time: 3500, chunk: { type: 'finish' } },
+          ],
+        }),
+        event(3, 'tool/call', {
+          callId: 'c1',
+          name: 'edit',
+          arguments: '{"file_path":"src/a.ts"}',
+        }),
+        event(4, 'tool/result', {
+          message: { toolCallId: 'c1' },
+          meta: { diffs: [{ path: 'src/a.ts', oldText: 'a\nb\nc', newText: 'a\nB\nc\nd' }] },
+        }),
+        event(5, 'turn/end', { reason: 'completed' }),
+      ],
+    });
+    expect(transcript.items).toMatchObject([
+      { kind: 'reasoning', durationMs: 2000 },
+      { kind: 'tool', path: 'src/a.ts', added: 2, removed: 1, endedAt: iso(4) },
+      { kind: 'turn-end', usage: { tokens: 1050, output: 50, outputMs: 2500 } },
+    ]);
+  });
+
+  it('never exposes the input of a private tool', () => {
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'asg-1',
+      events: [
+        event(1, 'tool/call', {
+          callId: 'c1',
+          name: 'secret_cli',
+          arguments: '{"command":"deploy --token x"}',
+        }),
+      ],
+    });
+    expect(transcript.items[0]).not.toHaveProperty('command');
   });
 });
