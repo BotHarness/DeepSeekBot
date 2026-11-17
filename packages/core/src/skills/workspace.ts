@@ -181,9 +181,9 @@ export async function readWorkspaceSkillAt(
     if (
       error instanceof Error &&
       'code' in error &&
-      ['ENOENT', 'ENOTDIR'].includes(String(error.code))
+      !['ENOENT', 'ENOTDIR'].includes(String(error.code))
     )
-      return undefined;
-    throw error;
+      throw error;
+    return undefined;
   }
 }

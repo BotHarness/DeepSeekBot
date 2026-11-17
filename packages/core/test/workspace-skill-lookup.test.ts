@@ -21,9 +21,16 @@ function put(
 }
 
 function catalogFor(root: string): SkillCatalog {
-  const grants = [
-    { workspaceId: 'w1', workspaceTitle: 'Project', workspacePath: root },
-  ] as unknown as WorkspaceGrant[];
+  const grants: WorkspaceGrant[] = [
+    {
+      id: 'g1',
+      botSlug: 'ada',
+      workspaceId: 'w1',
+      workspaceTitle: 'Project',
+      workspacePath: root,
+      createdAt: '2026-11-17T00:00:00.000Z',
+    },
+  ];
   const catalog = new SkillCatalog({ memoryDirFor: () => undefined, grantsFor: () => grants });
   catalog.attach({ list: async () => [], get: async () => undefined });
   return catalog;
@@ -31,7 +38,7 @@ function catalogFor(root: string): SkillCatalog {
 
 const owner = { kind: 'workspace' as const, workspaceId: 'w1', name: 'Project' };
 
-describe('Workspace Skill lookup', () => {
+describe('Project Skill lookup in a Workspace', () => {
   it('reads one Skill file only from inside the project Skill folders', async () => {
     const root = createTempRoot();
     const inside = put(root, 'review');
@@ -69,7 +76,7 @@ describe('Workspace Skill lookup', () => {
     );
   });
 
-  it('resolves a listed Workspace Skill with its current content and falls back after a rename', async () => {
+  it('resolves a listed Workspace Project Skill with its current content and falls back after a rename', async () => {
     const root = createTempRoot();
     const path = put(root, 'review');
     put(root, 'notes');
@@ -88,6 +95,20 @@ describe('Workspace Skill lookup', () => {
       join(root, '.agents/skills/review-moved/SKILL.md'),
       '---\nname: renamed\ndescription: x\n---\nRenamed\n',
     );
+    expect(await catalog.resolve('review', owner, 'ada')).toBeUndefined();
+  });
+
+  it('skips a cached Skill whose invocation metadata became invalid, like the full scan', async () => {
+    const root = createTempRoot();
+    const path = put(root, 'review');
+    const catalog = catalogFor(root);
+    expect((await catalog.list(['ada'])).map((entry) => entry.name)).toEqual(['review']);
+    writeFileSync(
+      path,
+      '---\nname: review\ndescription: Project review\nuser-invocable: maybe\n---\nBody\n',
+    );
+    expect(await readWorkspaceSkillAt(root, path)).toBeUndefined();
+    expect(await readWorkspaceSkills(root)).toEqual([]);
     expect(await catalog.resolve('review', owner, 'ada')).toBeUndefined();
   });
 });
