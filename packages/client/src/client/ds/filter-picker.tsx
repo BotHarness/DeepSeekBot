@@ -56,7 +56,7 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     display: 'flex',
     flexDirection: 'column',
-    width: 'min(560px, calc(100vw - 24px))',
+    width: 'min(640px, calc(100vw - 24px))',
     maxHeight: 'min(70vh, 440px)',
     overflow: 'hidden',
     borderRadius: radius.md,
@@ -123,6 +123,12 @@ const styles = stylex.create({
   rowDisabled: { color: color.subtle, cursor: 'default' },
   rowSelected: { fontWeight: text.strong },
   rowIcon: { display: 'inline-flex', flexShrink: 0 },
+  rowText: {
+    display: 'flex',
+    flexDirection: 'column',
+    flexGrow: 1,
+    minWidth: 0,
+  },
   rowName: {
     flexShrink: 1,
     minWidth: 0,
@@ -469,11 +475,12 @@ export function FilterPicker({
                       {option.icon === undefined ? null : (
                         <span {...stylex.props(styles.rowIcon)}>{option.icon}</span>
                       )}
-                      <span {...stylex.props(styles.rowName)}>{option.label}</span>
-                      {option.hint === undefined ? null : (
-                        <span {...stylex.props(styles.rowHint)}>{option.hint}</span>
-                      )}
-                      <span {...stylex.props(styles.grow)} />
+                      <span {...stylex.props(styles.rowText)}>
+                        <span {...stylex.props(styles.rowName)}>{option.label}</span>
+                        {option.hint === undefined ? null : (
+                          <span {...stylex.props(styles.rowHint)}>{option.hint}</span>
+                        )}
+                      </span>
                       {selected ? check : null}
                       {jump >= 0 && jump < 9 ? (
                         <span aria-hidden {...stylex.props(styles.shortcut)}>
