@@ -22,7 +22,7 @@ A Human could set a chat name on the Host (ADR-0103) but their picture came only
 
 ## Consequences
 
-- Desktop and mobile show the Human's own picture in messages, member lists and the profile entry, with or without a Tobs sign-in. Settings → Profile edits the chat name and picture on the Host first and shows the Tobs account below it.
+- The desktop app shows each Human's picture in messages, member lists and the profile entry, with or without a Tobs sign-in. The phone shows it on the profile entry and in Settings; phone message and member rows keep the initial-letter placeholder until #4446. Settings → Profile edits the chat name and picture on the Host first and shows the Tobs account below it.
 - Team members can set their name and picture right after their first sign-in and at any time later; an admin creating a member sets the display name, and the member chooses the picture.
 - New CLI: `human-avatar-set (--file | --clear)` and `human-avatars <human-id>...`.
 

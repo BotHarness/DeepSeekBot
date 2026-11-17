@@ -89,4 +89,26 @@ describe('Human avatar cache', () => {
     await tick();
     expect(calls.slice(2)).toEqual([['b'], ['b']]);
   });
+
+  it('asks again after a malformed reply and for a version the Host replaced', async () => {
+    const calls: string[][] = [];
+    const replies: unknown[] = [
+      { avatars: 'broken' },
+      { avatars: [{ humanId: 'a', version: '2222222222222222', avatar }] },
+      { avatars: [{ humanId: 'a', version: '1111111111111111', avatar }] },
+    ];
+    const cache = createHumanAvatarCache(async (ids) => {
+      calls.push(ids);
+      return replies.shift();
+    });
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    cache.want('a', '1111111111111111');
+    await tick();
+    cache.want('a', '1111111111111111');
+    await tick();
+    cache.want('a', '1111111111111111');
+    await tick();
+    expect(calls).toEqual([['a'], ['a'], ['a']]);
+    expect(cache.get('a', '1111111111111111')).toBe(avatar);
+  });
 });

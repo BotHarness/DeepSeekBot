@@ -54,7 +54,9 @@ export function GroupProfileScreen({
         : groupActions(client, id),
     [sourceChanged, client, id],
   );
-  const [nickname, setNickname] = useState<string | null>();
+  const [loadedNickname, setNickname] = useState<{ scope: string; value: string | null }>();
+  const scope = `${saved?.hostId}:${id}`;
+  const nickname = loadedNickname?.scope === scope ? loadedNickname.value : undefined;
   const human = useHumanIdentity(sourceChanged ? undefined : client);
   const nicknameMount = useMounted<ViewInstance>(() => {
     let live = true;
@@ -62,14 +64,14 @@ export function GroupProfileScreen({
     if (sourceChanged || client === undefined || id === undefined) return;
     const unfollow = followConnection(client, () =>
       loadChannelNickname(client, id).then((value) => {
-        if (live) setNickname(value);
+        if (live) setNickname({ scope, value });
       }),
     );
     return () => {
       live = false;
       unfollow();
     };
-  }, [sourceChanged, client, id]);
+  }, [sourceChanged, client, id, scope]);
   const humanMount = human.mount;
   const profileMount = useCallback(
     (node: ViewInstance | null) => {
@@ -105,7 +107,8 @@ export function GroupProfileScreen({
           value: nickname,
           name: human.identity?.displayName,
           save: async (next) => {
-            setNickname(await saveChannelNickname(client, info.channel.id, next));
+            const value = await saveChannelNickname(client, info.channel.id, next);
+            setNickname({ scope: `${saved?.hostId}:${info.channel.id}`, value });
           },
         }}
         key={`${saved?.hostId}:${info.channel.id}`}

@@ -98,22 +98,24 @@ export function createHumanAvatarCache(
     }
     if (batch.length === 0) return;
     for (const [humanId, version] of batch) loading.add(key(humanId, version));
-    void load(batch.map(([humanId]) => humanId)).then(
-      (value) => {
-        for (const image of parseHumanAvatars(value)) {
+    const release = (): void => {
+      for (const [humanId, version] of batch) loading.delete(key(humanId, version));
+    };
+    void load(batch.map(([humanId]) => humanId))
+      .then((value) => {
+        const received = parseHumanAvatars(value);
+        const answered = new Set<string>();
+        for (const image of received) {
           images.set(key(image.humanId, image.version), image.avatar);
           settled.add(key(image.humanId, image.version));
+          answered.add(image.humanId);
         }
-        for (const [humanId, version] of batch) {
-          loading.delete(key(humanId, version));
-          settled.add(key(humanId, version));
-        }
+        release();
+        for (const [humanId, version] of batch)
+          if (!answered.has(humanId)) settled.add(key(humanId, version));
         publish();
-      },
-      () => {
-        for (const [humanId, version] of batch) loading.delete(key(humanId, version));
-      },
-    );
+      })
+      .catch(release);
   };
   return {
     get: (humanId, version) =>
