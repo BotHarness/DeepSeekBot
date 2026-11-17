@@ -5928,7 +5928,8 @@ export const zh = {
   'team.audit.action.changed': '{viewer} 修改了 Bot「{object}」的设置',
   'team.error.roleInUse': '还有共享文件夹在用这个角色。请先从这些文件夹的受众里移除它。',
   'team.isolation.trial': '试用阶段：成员的 Bot 在技术上可以读取这台 Host 上其他 Bot 的数据。',
-  'team.isolation.enforced': '成员之间已隔离：每个 Bot 只能访问自己的数据和被授权的文件夹。',
+  'team.isolation.enforced':
+    '成员之间已隔离：每个 Bot 只能访问自己的数据和被授权的文件夹。公共 Bot 的记忆和 Skill 由所有成员共享，任何人在对话里让它记住或装上的内容，其他成员的对话里也会用到。',
   'approval.masked.tool-approval': '有 Bot 在等待审批',
   'approval.masked.user-question': '有 Bot 提了一个问题',
   'approval.masked.private-input': '有 Bot 请求填写私密信息',
@@ -12273,7 +12274,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'A shared folder still uses this role. Remove it from those folders’ audiences first.',
   'team.isolation.trial': 'Trial: member Bots can technically read other Bots’ data on this Host.',
   'team.isolation.enforced':
-    'Members are isolated: each Bot reaches only its own data and the folders it was granted.',
+    'Members are isolated: each Bot reaches only its own data and the folders it was granted. A public Bot’s memory and Skills are shared by every member: what anyone has it remember or install in a chat also applies in everyone else’s chats.',
   'approval.masked.tool-approval': 'A Bot is waiting for approval',
   'approval.masked.user-question': 'A Bot asked a question',
   'approval.masked.private-input': 'A Bot asked for private input',
