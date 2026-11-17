@@ -37,6 +37,7 @@ export interface HostCarrier {
   openDirect?(
     signal: (offer: string) => Promise<string>,
   ): Promise<((events: HostSocketEvents) => HostSocket) | undefined>;
+  custody?(options: { hostId: string; credential: string }): HostCarrier;
   close?(): void;
   request(url: string, init: HostRequest): Promise<HostResponse>;
   openSocket(url: string, events: HostSocketEvents, headers?: Record<string, string>): HostSocket;

@@ -10,6 +10,7 @@ import {
   privateRouteOrigins,
 } from '@botharness/host-protocol/route';
 import {
+  isCustodyHandle,
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
@@ -34,6 +35,7 @@ export function parseRelationshipSavedHost(input: unknown): RelationshipSavedHos
 
 export function relationshipClientPublicKey(host: SavedHost): string | undefined {
   if (!host.relationshipId || !host.encryption) return undefined;
+  if (isCustodyHandle(host.credential)) return host.encryption.deviceKey;
   const key = keyBytes(host.encryption.deviceKey);
   try {
     return keyHex(noisePublicKey(key));

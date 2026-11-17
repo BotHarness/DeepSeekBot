@@ -17,7 +17,14 @@ import {
 } from '../../../core/src/devices/connection-operation.js';
 import { hostLooks } from './host-looks.js';
 import { memberPage } from './member-page.js';
-import { secureRandom, keyHex } from '@botharness/host-client/encrypted-carrier';
+import { secureRandom, keyHex, keyBytes } from '@botharness/host-client/encrypted-carrier';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
+import {
+  custodyCarrier,
+  custodyResponse,
+  forgetRemoteHost,
+  sealRemoteHost,
+} from './remote-custody.js';
 import { browserAdmissionProtocols } from '../../../../deploy/private-relay/admission.mjs';
 import { isPrivateRoute } from '@botharness/host-protocol/route';
 import {
@@ -43,6 +50,7 @@ import {
 } from '@botharness/host-client/client';
 import { createConversation, type Conversation } from '@botharness/host-client/conversation';
 import {
+  isCustodyHandle,
   parseSavedHost,
   serializeSavedHost,
   type SavedHost,
@@ -419,7 +427,21 @@ export type RemoteHostTelemetry = (
   properties?: { outcome: 'success' | 'refused' | 'failed' },
 ) => void;
 
+class SealOutdated extends Error {}
+
+export interface RemoteHostCustody {
+  seal(host: SavedHost): Promise<SavedHost>;
+  forget(handle: string): Promise<void>;
+}
+
+function devicePublicKey(host: SavedHost): string | undefined {
+  const key = host.encryption?.deviceKey;
+  if (key === undefined || isCustodyHandle(host.credential)) return key;
+  return keyHex(noisePublicKey(keyBytes(key)));
+}
+
 export function createRemoteHosts(options: {
+  custody?: RemoteHostCustody;
   connectionOperationLock?: <T>(name: string, run: () => Promise<T>) => Promise<T>;
   enabled?: boolean;
   storage?: HostStorage | undefined;
@@ -497,14 +519,14 @@ export function createRemoteHosts(options: {
                 publicKey: pending.publicKey,
                 request: (body) => relationshipRequest(body),
               });
-              await revokePairing({ host: entry.host, carrier });
+              await revoke(entry.host);
               await persistCredential(entry.host.hostId, entry.host, () => undefined);
               if (clients.get(entry.host.hostId) === entry) retireEntry(entry);
               publish();
             }
           }
           if (state === 'cancelled') {
-            await revokePairing({ host: entry.host, carrier });
+            await revoke(entry.host);
             if (clients.get(entry.host.hostId) !== entry) continue;
             try {
               await persistCredential(entry.host.hostId, entry.host, () => undefined);
@@ -630,18 +652,85 @@ export function createRemoteHosts(options: {
     entry.client.stop();
   };
 
+  const custody = options.custody;
+  const sealedHandles = new Map<string, string>();
   const sameCredential = (a: SavedHost, b: SavedHost): boolean =>
     a.hostId === b.hostId &&
     a.deviceId === b.deviceId &&
-    a.credential === b.credential &&
+    (isCustodyHandle(a.credential) === isCustodyHandle(b.credential)
+      ? a.credential === b.credential
+      : (sealedHandles.get(a.credential) ?? a.credential) ===
+        (sealedHandles.get(b.credential) ?? b.credential)) &&
     a.encryption?.hostKey === b.encryption?.hostKey &&
-    a.encryption?.deviceKey === b.encryption?.deviceKey &&
+    devicePublicKey(a) === devicePublicKey(b) &&
     a.relationshipId === b.relationshipId;
+  const releaseCustody = async (host: SavedHost): Promise<void> => {
+    if (!custody) return;
+    const handle = isCustodyHandle(host.credential)
+      ? host.credential
+      : sealedHandles.get(host.credential);
+    if (handle === undefined) return;
+    if (readHosts(storage).some((saved) => saved.credential === handle)) return;
+    try {
+      await custody.forget(handle);
+      if (!isCustodyHandle(host.credential)) sealedHandles.delete(host.credential);
+    } catch {}
+  };
+  const revoke = async (host: SavedHost) => {
+    try {
+      return await revokePairing({ host, carrier });
+    } finally {
+      await releaseCustody(host);
+    }
+  };
+  const sealFor = async (next: SavedHost): Promise<SavedHost> => {
+    if (!custody) return next;
+    const sealed = await custody.seal(next);
+    if (!isCustodyHandle(next.credential)) sealedHandles.set(next.credential, sealed.credential);
+    return sealed;
+  };
   const persistCredential = async (
     hostId: string,
     expected: SavedHost | undefined,
     change: (current: SavedHost | undefined) => SavedHost | undefined,
     choiceChange: ChoiceChange = { kind: 'preserve' },
+  ): Promise<SavedHost | undefined> => {
+    if (!storage) throw new Error('storage-unavailable');
+    for (let attempt = 0; ; attempt += 1) {
+      let preview: SavedHost | undefined;
+      let sealed: SavedHost | undefined;
+      if (custody) {
+        const stored = readHosts(storage).find((host) => host.hostId === hostId);
+        if (expected ? !stored || !sameCredential(stored, expected) : stored !== undefined)
+          throw new Error('connection-host-changed');
+        preview = change(stored);
+        if (preview) sealed = await sealFor(preview);
+      }
+      try {
+        return await writeCredential(
+          hostId,
+          expected,
+          (stored) => {
+            const next = change(stored);
+            if (!custody || !next) return next;
+            if (JSON.stringify(next) !== JSON.stringify(preview)) throw new SealOutdated();
+            return sealed;
+          },
+          choiceChange,
+        );
+      } catch (error) {
+        if (!(error instanceof SealOutdated) || attempt >= 2) {
+          if (sealed && !isCustodyHandle(preview?.credential ?? '')) await releaseCustody(preview!);
+          throw error instanceof SealOutdated ? new Error('connection-host-changed') : error;
+        }
+      }
+    }
+  };
+  const writeCredential = async (
+    hostId: string,
+    expected: SavedHost | undefined,
+    change: (current: SavedHost | undefined) => SavedHost | undefined,
+    choiceChange: ChoiceChange,
   ): Promise<SavedHost | undefined> => {
     if (!storage) throw new Error('storage-unavailable');
     return withRemoteHostCredentialWrite({
@@ -779,6 +868,24 @@ export function createRemoteHosts(options: {
     });
     retireEntry(entry);
   };
+  void (async () => {
+    if (!custody) return;
+    for (const host of readHosts(storage)) {
+      if (isCustodyHandle(host.credential)) continue;
+      const entry = clients.get(host.hostId);
+      if (!entry || !sameCredential(entry.host, host)) continue;
+      try {
+        const sealed = await persistCredential(host.hostId, host, (current) => current);
+        if (!sealed || clients.get(host.hostId) !== entry) continue;
+        const running = entry.inbox !== undefined;
+        retireEntry(entry);
+        attach(sealed);
+        const next = clients.get(host.hostId);
+        if (running && next && listeners.size > 0) start(next);
+      } catch {}
+    }
+    publish();
+  })();
   const refreshCredentials = (): void => {
     const saved = readHosts(storage);
     for (const entry of [...clients.values()]) {
@@ -1078,7 +1185,7 @@ export function createRemoteHosts(options: {
               publicKey: result.enrollmentPublicKey,
               request: (body) => relationshipRequest(body),
             });
-            await revokePairing({ host: result.host, carrier });
+            await revoke(result.host);
             try {
               await persistCredential(
                 target,
@@ -1243,8 +1350,9 @@ export function createRemoteHosts(options: {
             return { ok: false, code: 'request-cancelled' };
           const previous = readHosts(storage).find((item) => item.hostId === host.hostId);
           let refusal: TeamSignInError | undefined;
+          let saved: SavedHost | undefined;
           try {
-            await persistCredential(host.hostId, previous, (current) => {
+            saved = await persistCredential(host.hostId, previous, (current) => {
               if (flowSignal.aborted) throw new Error('request-cancelled');
               const prepared = prepareMemberIdentity(
                 { hosts: current ? [current] : [] },
@@ -1269,7 +1377,7 @@ export function createRemoteHosts(options: {
             retireEntry(existing);
             await releasing.catch(() => undefined);
           }
-          attach(host);
+          attach(saved ?? host);
           tab = host.hostId;
           try {
             storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
@@ -1277,10 +1385,10 @@ export function createRemoteHosts(options: {
           publish();
           if (previous && previous.credential !== host.credential) {
             try {
-              await revokePairing({ host: previous, carrier });
+              await revoke(previous);
             } catch {}
           }
-          return { ok: true, value: host };
+          return { ok: true, value: saved ?? host };
         },
       });
       if (preparedFlow.ok) {
@@ -1344,7 +1452,7 @@ export function createRemoteHosts(options: {
               priorChoice ? { kind: 'restore', choice: priorChoice } : { kind: 'preserve' },
             );
           } catch {}
-          await revokePairing({ host: redeemed.host, carrier });
+          await revoke(redeemed.host);
         };
         if (trust?.signal?.aborted) {
           await cancelNew();
@@ -1416,6 +1524,7 @@ export function createRemoteHosts(options: {
       const releasing = releaseRemoteHostViewers(entry.client);
       await forget(hostId, true);
       await releasing;
+      await releaseCustody(entry.host);
     },
     async remove(hostId) {
       requireOwner();
@@ -1427,7 +1536,7 @@ export function createRemoteHosts(options: {
       const releasing = releaseRemoteHostViewers(entry.client);
       await forget(hostId, true);
       await releasing;
-      await revokePairing({ host: entry.host, carrier });
+      await revoke(entry.host);
       const publicKey = relationshipClientPublicKey(entry.host);
       if (entry.host.relationshipId && publicKey)
         await cancelRelationshipEnrollment({
@@ -1491,7 +1600,8 @@ export function createRemoteHosts(options: {
 }
 
 export function browserCarrier(): HostCarrier {
-  return {
+  const carrier: HostCarrier = {
+    custody: ({ credential }) => custodyCarrier(credential, carrier),
     async request(url, init) {
       const response = await fetch(url, {
         method: init.method,
@@ -1584,12 +1694,21 @@ export function browserCarrier(): HostCarrier {
       };
     },
   };
+  return carrier;
 }
 
 async function browserImage(
   url: string,
   headers: Record<string, string>,
 ): Promise<string | undefined> {
+  const handle = /^Device (custody\.[A-Za-z0-9_-]{43})$/u.exec(headers['authorization'] ?? '')?.[1];
+  if (handle !== undefined) {
+    const response = await custodyResponse(handle, url, { method: 'GET', headers });
+    if (response.status !== 200) return undefined;
+    return URL.createObjectURL(
+      new Blob([Uint8Array.from(response.bytes)], { type: response.contentType }),
+    );
+  }
   const response = await fetch(url, { credentials: 'omit', mode: 'cors', headers });
   if (!response.ok) return undefined;
   return URL.createObjectURL(await response.blob());
@@ -1609,6 +1728,7 @@ export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
   const enabled = !memberPage();
   shared = createRemoteHosts({
     enabled,
+    ...(enabled ? { custody: { seal: sealRemoteHost, forget: forgetRemoteHost } } : {}),
     storage: (() => {
       if (!enabled) return undefined;
       try {

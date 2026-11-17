@@ -25,6 +25,11 @@ import {
   RELATIONSHIPS_PATH,
 } from '../src/devices/relationship-http.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
+import {
+  REMOTE_CUSTODY_ACTIONS,
+  REMOTE_CUSTODY_PATH,
+  REMOTE_CUSTODY_STREAM_PATH,
+} from '../src/devices/remote-custody-http.js';
 import { createRelationshipControl } from '../src/devices/relationship-control.js';
 import { createServer, IncomingMessage, request as httpRequest } from 'node:http';
 import { Socket } from 'node:net';
@@ -1484,6 +1489,56 @@ describe('member HTTP carrier', { timeout: 60_000 }, () => {
     expect(approve.status).toBe(409);
     expect(await approve.json()).toEqual({ code: expect.stringMatching(/^relationship-/u) });
     expect(reached).toHaveBeenCalledTimes(2);
+  });
+  it('keeps Remote Host credential custody away from Member and Admin peers at the DSH shared fetch gate', async () => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const admin = await f.team.createMember(owner, 'carol', 'Carol');
+    await f.team.changePassword(
+      humanContext(admin.member.humanId),
+      admin.initialPassword,
+      'admin-password-1',
+    );
+    f.team.roles.set(owner, admin.member.humanId, ['admin']);
+    const reached = vi.fn(async () => Response.json({ ok: true }));
+    const connection = new HostConnectionService(f.ctx, ['localhost'], {} as never);
+    connection.fetch.register({
+      path: REMOTE_CUSTODY_PATH,
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: reached,
+    });
+    connection.fetch.register({
+      path: REMOTE_CUSTODY_STREAM_PATH,
+      methods: ['GET'],
+      requestBody: 'buffered',
+      fetch: reached,
+    });
+    const shared = connection.createSharedFetchHandler(API_PATH);
+    const handle = 'custody.' + 'a'.repeat(43);
+    const calls = [
+      ...REMOTE_CUSTODY_ACTIONS.map(
+        (action) => () =>
+          new Request(`http://localhost${REMOTE_CUSTODY_PATH}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action, handle, url: 'https://example.invalid/' }),
+          }),
+      ),
+      () => new Request(`http://localhost${REMOTE_CUSTODY_STREAM_PATH}?socket=${'b'.repeat(24)}`),
+    ];
+    const bob = await f.team.signIn('bob', 'member-password-1', '127.0.0.1');
+    const carol = await f.team.signIn('carol', 'admin-password-1', '127.0.0.1');
+    for (const { peer } of [bob, carol])
+      for (const call of calls) {
+        const response = await shared.fetch(call(), peer as Peer);
+        expect(response.status).toBe(403);
+        expect(await response.text()).toBe('forbidden');
+      }
+    expect(reached).not.toHaveBeenCalled();
+    const ownerPeer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+    expect((await shared.fetch(calls[0]!(), ownerPeer)).status).toBe(200);
+    expect(reached).toHaveBeenCalledTimes(1);
   });
   it('allows cross-site top-level entry navigation but refuses cross-site subresources and POSTs', async () => {
     const f = await enabledFixture();
