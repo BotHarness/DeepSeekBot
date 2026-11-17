@@ -38,3 +38,16 @@ export function headerModel(model: Loadable<BotModel>): HeaderModel | undefined 
   const brand = modelBrand({ provider: route.provider, model: route.model, name });
   return { brand, short: modelShortName(name, brand), name };
 }
+
+export function modelEntryLabel(entry: {
+  provider: string;
+  model: string;
+  modelName: string;
+}): HeaderModel {
+  const brand = modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName });
+  return { brand, short: modelShortName(entry.modelName, brand), name: entry.modelName };
+}
+
+export function modelFamilyKey(entry: { provider: string; model: string; modelName: string }) {
+  return modelEntryLabel(entry).brand ?? 'other';
+}

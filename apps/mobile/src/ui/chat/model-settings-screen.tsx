@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, Keyboard, View } from 'react-native';
+import { FlatList, Keyboard, ScrollView, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import {
@@ -24,7 +24,12 @@ import {
   type ModelScope,
   type ModelSettingsState,
 } from '@botharness/host-client/model-settings';
+import { modelFamilies } from '@botharness/host-client/shared/model-brand';
+import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
+import { Chip } from '../primitives/chip';
+import { modelEntryLabel, modelFamilyKey } from './composer-labels';
+import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { SearchField } from '../primitives/search-field';
@@ -129,7 +134,9 @@ function ModelsView({
   const t = useStrings();
   const router = useRouter();
   const models = useModels(client, scope);
+  const theme = useDesignTheme();
   const [query, setQuery] = useState('');
+  const [family, setFamily] = useState<string>();
   const [name, setName] = useState<string>();
   const [saved, setSaved] = useState(false);
   const value = models.value;
@@ -233,7 +240,16 @@ function ModelsView({
         />,
       );
     }
-    const entries = searchModels(value.models, query);
+    const families = modelFamilies(
+      value.models.map((entry) => ({
+        provider: entry.provider,
+        model: entry.model,
+        name: entry.modelName,
+      })),
+    );
+    const entries = searchModels(value.models, query).filter(
+      (entry) => family === undefined || modelFamilyKey(entry) === family,
+    );
     return frame(
       <>
         <SearchField
@@ -242,6 +258,42 @@ function ModelsView({
           placeholder={t.modelSettings.search}
           onChangeText={setQuery}
         />
+        {families.length > 1 ? (
+          <ScrollView
+            horizontal
+            testID="model-family-filters"
+            accessibilityLabel={t.modelSettings.families}
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={{ flexGrow: 0 }}
+            contentContainerStyle={{
+              gap: space.x2,
+              paddingHorizontal: space.x5,
+              paddingVertical: space.x2,
+            }}
+          >
+            <Chip
+              testID="model-family-all"
+              label={t.modelSettings.allFamilies}
+              count={value.models.length}
+              selected={family === undefined}
+              onPress={() => setFamily(undefined)}
+            />
+            {families.map((entry) => {
+              const key = entry.brand ?? 'other';
+              return (
+                <Chip
+                  key={key}
+                  testID={`model-family-${key}`}
+                  label={entry.title ?? t.modelSettings.otherFamily}
+                  count={entry.count}
+                  selected={family === key}
+                  onPress={() => setFamily(family === key ? undefined : key)}
+                />
+              );
+            })}
+          </ScrollView>
+        ) : null}
         {banner}
         {models.busy ? <LoadingIndicator /> : null}
         <FlatList
@@ -269,7 +321,15 @@ function ModelsView({
               >
                 <SettingsRow
                   on={SHEET_GROUP}
-                  title={item.modelName}
+                  leading={
+                    <ModelBrandIcon
+                      brand={modelEntryLabel(item).brand}
+                      size={theme.type.title.line}
+                      color={usable ? theme.color.fg : theme.color.muted}
+                    />
+                  }
+                  title={modelEntryLabel(item).short}
+                  accessibilityLabel={`${item.modelName}, ${item.providerName}`}
                   detail={
                     item.credential === 'missing'
                       ? t.modelNeedsKey(item.providerName)

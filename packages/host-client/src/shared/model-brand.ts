@@ -1,4 +1,4 @@
-import type { ModelBrand } from './model-brand-icons';
+import { MODEL_BRAND_ICONS, type ModelBrand } from './model-brand-icons';
 
 export type { ModelBrand };
 export { MODEL_BRAND_ICONS } from './model-brand-icons';
@@ -106,4 +106,30 @@ export function modelShortName(label: string, brand: ModelBrand | undefined): st
   const rest = unprefixed.replace(prefix, '').replace(/^[\s\-_.:]+/, '');
   if (!/[0-9a-z]/i.test(rest)) return unprefixed;
   return /\s/.test(rest) ? rest : rest.replaceAll(/[-_]+/g, ' ');
+}
+
+export interface ModelFamily {
+  readonly brand: ModelBrand | undefined;
+  readonly title: string | undefined;
+  readonly count: number;
+}
+
+export function modelFamilies(entries: readonly ModelIdentity[]): ModelFamily[] {
+  const counts = new Map<ModelBrand | undefined, number>();
+  for (const entry of entries) {
+    const brand = modelBrand(entry);
+    counts.set(brand, (counts.get(brand) ?? 0) + 1);
+  }
+  const order = Object.keys(MODEL_BRAND_ICONS) as ModelBrand[];
+  return [...counts]
+    .sort(
+      ([a], [b]) =>
+        (a === undefined ? order.length : order.indexOf(a)) -
+        (b === undefined ? order.length : order.indexOf(b)),
+    )
+    .map(([brand, count]) => ({
+      brand,
+      title: brand === undefined ? undefined : MODEL_BRAND_ICONS[brand].title,
+      count,
+    }));
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BotModel } from '@botharness/host-client/bot-settings';
-import { headerModel } from '../src/ui/chat/composer-labels';
+import { headerModel, modelEntryLabel, modelFamilyKey } from '../src/ui/chat/composer-labels';
 
 const model = (value: Partial<BotModel>): BotModel => ({
   revision: 1,
@@ -50,5 +50,15 @@ describe('chat header model', () => {
     expect(headerModel({ status: 'loading' })).toBeUndefined();
     expect(headerModel({ status: 'failed', error: 'offline' })).toBeUndefined();
     expect(headerModel({ status: 'ready', value: model({}) })).toBeUndefined();
+  });
+});
+
+describe('model picker rows', () => {
+  it('names each model by its family logo and short name and groups it by family', () => {
+    const gpt = { provider: 'openai', model: 'gpt-6.1', modelName: 'GPT-6.1' };
+    const lab = { provider: 'lab', model: 'house-model', modelName: 'house-model' };
+    expect(modelEntryLabel(gpt)).toEqual({ brand: 'openai', short: '6.1', name: 'GPT-6.1' });
+    expect(modelFamilyKey(gpt)).toBe('openai');
+    expect(modelFamilyKey(lab)).toBe('other');
   });
 });
