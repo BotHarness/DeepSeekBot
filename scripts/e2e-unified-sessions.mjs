@@ -170,12 +170,14 @@ try {
     assignment &&
     owned.sessions.find((row) => row.sessionId === assignment.sessionId)?.assignmentArchived
   ) {
-    const more = `[data-sidebar-entry="sessions"] [data-flip-key="${assignment.sessionId}"] [data-session-more] button`;
-    await page.locator(more).click();
-    await page.locator('::-p-aria([name="Unarchive"][role="menuitem"])').click();
-    await page.locator(more).click();
-    await page.waitForSelector('::-p-aria([name="Archive"][role="menuitem"])');
-    await page.keyboard.press('Escape');
+    await page
+      .locator(
+        `[data-sidebar-entry="sessions"] [data-flip-key="${assignment.sessionId}"] [data-session-archive]`,
+      )
+      .click();
+    await page.waitForSelector(
+      `[data-sidebar-entry="sessions"] [data-flip-key="${assignment.sessionId}"] [aria-label^="Archive"]`,
+    );
     results.push({ explicitRestoreBeforeNavigation: true });
   }
   await screenshot('02-bot');
