@@ -1030,6 +1030,7 @@ describe('plugin entry', () => {
       'channelAllBotPreview',
       'tobCli',
       'channelSkillCatalog',
+      'sessionSkillCatalog',
       'botSkills',
       'skillShow',
       'botSkillRemove',

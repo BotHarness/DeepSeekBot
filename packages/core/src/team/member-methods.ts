@@ -132,6 +132,7 @@ export const MEMBER_CHANNEL_METHODS = [
   'channelGroupInvite',
   'channelAllBotPreview',
   'channelSkillCatalog',
+  'sessionSkillCatalog',
   'composerValidate',
   'channelGet',
   'channelSendStatus',

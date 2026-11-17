@@ -1277,8 +1277,20 @@ export async function loadChannelSkillCatalog(
   call: BridgeCall,
   channelId: string,
 ): Promise<SkillCatalogEntry[]> {
-  const value = asRecord(await unwrap(call, 'channelSkillCatalog', { channelId }));
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid channelSkillCatalog response');
+  return skillCatalogEntries(await unwrap(call, 'channelSkillCatalog', { channelId }));
+}
+
+export async function loadSessionSkillCatalog(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<SkillCatalogEntry[]> {
+  return skillCatalogEntries(await unwrap(call, 'sessionSkillCatalog', { slug, sessionId }));
+}
+
+function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
+  const value = asRecord(response);
+  if (!Array.isArray(value?.['skills'])) throw new Error('invalid Skill catalog response');
   return value['skills'].flatMap((entry: unknown): SkillCatalogEntry[] => {
     const item = asRecord(entry);
     const owner = asRecord(item?.['owner']);

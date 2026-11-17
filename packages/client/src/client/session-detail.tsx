@@ -29,7 +29,9 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
+import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { SessionJump } from './session-jump.js';
+import type { SelectedSkill } from './skill-refs.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
 import { todoCount, TodoRing } from './session-progress-view.js';
@@ -637,6 +639,8 @@ export function SessionDetail({
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
   const [away, setAway] = useState(false);
+  const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
+  const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const running = transcript?.running === true || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -749,31 +753,46 @@ export function SessionDetail({
     },
     [actions, botSlug, sessionId, revision],
   );
-  const composerMount = useMountedResource<HTMLDivElement>((composer) => {
-    const root = composer.parentElement;
-    const timeline = root?.querySelector<HTMLElement>('[data-session-transcript]') ?? null;
-    if (root == null || timeline === null || typeof ResizeObserver === 'undefined') return;
-    let applied: number | undefined;
-    const sync = (): void => {
-      const overlay = Math.max(
-        0,
-        Math.round(root.getBoundingClientRect().bottom - composer.getBoundingClientRect().top),
+  const composerMount = useMountedResource<HTMLDivElement>(
+    (composer) => {
+      let live = true;
+      void actions.sessionSkillCatalog?.(botSlug, sessionId).then(
+        (next) => {
+          if (live) setSkillOptions(next);
+        },
+        () => {},
       );
-      if (overlay === applied) return;
-      applied = overlay;
-      const atLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
-      timeline.style.setProperty('--session-composer-overlay', `${overlay}px`);
-      if (atLatest) timeline.scrollTop = timeline.scrollHeight;
-    };
-    sync();
-    const observer = new ResizeObserver(sync);
-    observer.observe(composer);
-    observer.observe(root);
-    return () => {
-      observer.disconnect();
-      timeline.style.removeProperty('--session-composer-overlay');
-    };
-  }, []);
+      const stopSkills = (): void => {
+        live = false;
+      };
+      const root = composer.parentElement;
+      const timeline = root?.querySelector<HTMLElement>('[data-session-transcript]') ?? null;
+      if (root == null || timeline === null || typeof ResizeObserver === 'undefined')
+        return stopSkills;
+      let applied: number | undefined;
+      const sync = (): void => {
+        const overlay = Math.max(
+          0,
+          Math.round(root.getBoundingClientRect().bottom - composer.getBoundingClientRect().top),
+        );
+        if (overlay === applied) return;
+        applied = overlay;
+        const atLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
+        timeline.style.setProperty('--session-composer-overlay', `${overlay}px`);
+        if (atLatest) timeline.scrollTop = timeline.scrollHeight;
+      };
+      sync();
+      const observer = new ResizeObserver(sync);
+      observer.observe(composer);
+      observer.observe(root);
+      return () => {
+        stopSkills();
+        observer.disconnect();
+        timeline.style.removeProperty('--session-composer-overlay');
+      };
+    },
+    [actions, botSlug, sessionId],
+  );
   const send = async (): Promise<void> => {
     const message = draft.trim();
     const deliver = actions.sendSessionRequest;
@@ -783,6 +802,7 @@ export function SessionDetail({
     try {
       await deliver(botSlug, sessionId, message, running);
       setDraft('');
+      setSkills([]);
       setRevision((value) => value + 1);
     } catch (error) {
       setSendError(
@@ -944,7 +964,13 @@ export function SessionDetail({
             label={t('sessions.detail.composer')}
             sending={sending}
             t={t}
-            onChange={(value) => setDraft(value)}
+            skillOptions={skillOptions}
+            skills={skills}
+            readSkill={actions.skillDetail}
+            onChange={(value, _mentions, _channels, nextSkills) => {
+              setDraft(value);
+              setSkills(nextSkills ?? []);
+            }}
             onSubmit={send}
             onStop={running ? stop : undefined}
           />

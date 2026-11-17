@@ -2266,6 +2266,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
   async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
     return unwrap(await this.methods.channelSkillCatalog({ channelId }));
   }
+
+  async sessionSkillCatalog(
+    slug: string,
+    sessionId: string,
+  ): Promise<{ skills: SkillCatalogEntry[] }> {
+    return unwrap(await this.methods.sessionSkillCatalog({ slug, sessionId }));
+  }
   async botSkills(slug: string): Promise<{ skills: BotSkill[] }> {
     return unwrap(await this.methods.botSkills({ slug }));
   }
@@ -3491,6 +3498,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelAllBotPreview',
   'tobCli',
   'channelSkillCatalog',
+  'sessionSkillCatalog',
   'botSkills',
   'skillShow',
   'botSkillRemove',

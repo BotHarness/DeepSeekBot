@@ -11,8 +11,12 @@ import { attachOperationalModule } from '../src/database/owner.js';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import { SkillCatalog, MAX_SKILL_INVOCATION_CONTENT } from '../src/skills/catalog.js';
-import { parseSkillOwnerKey, skillOwnerKey } from '../src/skills/entries.js';
+import {
+  SkillCatalog,
+  MAX_SKILL_INVOCATION_CONTENT,
+  sessionSkills,
+} from '../src/skills/catalog.js';
+import { parseSkillOwnerKey, skillOwnerKey, type SkillOwner } from '../src/skills/entries.js';
 import { watchSkillCatalog } from '../src/skills/refresh.js';
 import { readWorkspaceSkills } from '../src/skills/workspace.js';
 import { createTempRoot } from './helpers.js';
@@ -521,5 +525,57 @@ describe('Workspace Grant Project Skills', () => {
       expect(
         await runSkillCommand('skills-list', [], { bot: 'ada', query }, async () => rpc),
       ).toMatchObject({ skills: [{ owner }] });
+  });
+});
+
+describe('Session Skill menu', () => {
+  const host = { kind: 'host' } as const;
+  const ada = { kind: 'bot', botSlug: 'ada' } as const;
+  const bob = { kind: 'bot', botSlug: 'bob' } as const;
+  const here = { kind: 'workspace', workspaceId: 'here', name: 'qa-ws' } as const;
+  const there = { kind: 'workspace', workspaceId: 'there', name: 'other' } as const;
+  const entry = (name: string, owner: SkillOwner) => ({
+    name,
+    description: name,
+    owner,
+  });
+
+  it('offers what the Session discovers, one per name, Workspace over Memory over Host', () => {
+    expect(
+      sessionSkills(
+        [
+          entry('review', host),
+          entry('review', ada),
+          entry('review', here),
+          entry('notes', host),
+          entry('notes', ada),
+          entry('deploy', there),
+          entry('triage', bob),
+          entry('plan', host),
+        ],
+        'ada',
+        new Set(['here']),
+      ).map((skill) => [skill.name, skill.owner]),
+    ).toEqual([
+      ['review', here],
+      ['notes', ada],
+      ['plan', host],
+    ]);
+  });
+
+  it('lists a Session menu from the CLI', async () => {
+    const rpc = vi.fn(async () => ({ skills: [entry('review', here), entry('plan', host)] }));
+    expect(
+      await runSkillCommand(
+        'skills-list',
+        [],
+        { bot: 'ada', session: 'asg-1', query: 'qa' },
+        async () => rpc,
+      ),
+    ).toMatchObject({ sessionId: 'asg-1', skills: [{ name: 'review', owner: here }] });
+    expect(rpc).toHaveBeenCalledWith('sessionSkillCatalog', { slug: 'ada', sessionId: 'asg-1' });
+    await expect(
+      runSkillCommand('skills-list', [], { session: 'asg-1' }, async () => rpc),
+    ).rejects.toThrow('--session');
   });
 });

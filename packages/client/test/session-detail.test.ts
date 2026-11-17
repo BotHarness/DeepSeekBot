@@ -534,3 +534,36 @@ it('offers a jump to the latest step after scrolling up', async () => {
   await act(async () => timeline.dispatchEvent(new Event('scroll')));
   expect(jump()).toBeNull();
 });
+
+it("loads the Session's own Skill menu for its composer", async () => {
+  const { loadSessionSkillCatalog } = await import('../src/client/bridge.js');
+  const call = vi.fn(async () => ({
+    ok: true as const,
+    value: {
+      skills: [
+        { name: 'review', description: 'Review', owner: { kind: 'host' } },
+        { name: 'broken', owner: { kind: 'host' } },
+      ],
+    },
+  }));
+  expect(await loadSessionSkillCatalog(call, 'tobs', 'asg-1')).toEqual([
+    { name: 'review', description: 'Review', owner: { kind: 'host' } },
+  ]);
+  expect((call.mock.calls[0] as unknown[]).slice(0, 2)).toEqual([
+    'sessionSkillCatalog',
+    { slug: 'tobs', sessionId: 'asg-1' },
+  ]);
+  const sessionSkillCatalog = vi.fn(async () => []);
+  await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+    sendSessionRequest: vi.fn(async () => {}),
+    sessionSkillCatalog,
+  });
+  expect(sessionSkillCatalog).toHaveBeenCalledWith('tobs', 'asg-1');
+  const orchestrator = vi.fn(async () => []);
+  await render({
+    sessionTranscript: vi.fn(async () => transcript('orchestrator')),
+    sessionSkillCatalog: orchestrator,
+  });
+  expect(orchestrator).not.toHaveBeenCalled();
+});

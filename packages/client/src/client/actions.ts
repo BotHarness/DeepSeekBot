@@ -92,6 +92,7 @@ import {
   loadAllBotPreview,
   loadBotSkills,
   loadChannelSkillCatalog,
+  loadSessionSkillCatalog,
   loadSkillDetail,
   removeBotSkill,
   type BotSkillRow,
@@ -1056,6 +1057,7 @@ export interface BridgeActions {
     skillInvocations?: ChannelSkillInvocationToken[],
   ): Promise<boolean>;
   skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
+  sessionSkillCatalog?(slug: string, sessionId: string): Promise<SkillCatalogEntry[]>;
   botSkills?(slug: string): Promise<BotSkillRow[]>;
   skillDetail?(name: string, owner: string): Promise<SkillDetailView>;
   botSkillRemove?(slug: string, name: string): Promise<void>;
@@ -3373,6 +3375,7 @@ export function createActions(
     allBotPreview: (channelId) => loadAllBotPreview(call, channelId),
     subscribeSkillCatalog,
     skillCatalog: (channelId) => loadChannelSkillCatalog(call, channelId),
+    sessionSkillCatalog: (slug, sessionId) => loadSessionSkillCatalog(call, slug, sessionId),
     botSkills: (slug) => loadBotSkills(call, slug),
     skillDetail: (name, owner) => loadSkillDetail(call, name, owner),
     botSkillRemove: (slug, name) => removeBotSkill(call, slug, name),
