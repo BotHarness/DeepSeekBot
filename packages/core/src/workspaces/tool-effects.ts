@@ -263,7 +263,6 @@ export function decideToolApproval(
   if (context.stage === 'admission') {
     const management = context.legacyProtected || effects?.authority === 'management';
     const required =
-      (hasIrreversibleExternalEffect(effects) && context.admission !== 'existing') ||
       effects?.authority === 'management' ||
       context.admission === 'always' ||
       (context.admission === 'attachment' && effects?.changes !== 'none') ||
@@ -285,12 +284,7 @@ export function decideToolApproval(
     context.legacyProtected || context.explicitApproval || effects?.authority === 'management';
   const explicitRule = explicit || context.device;
   const rememberable = !context.eachUse || context.rememberable;
-  if (
-    !explicit &&
-    !hasIrreversibleExternalEffect(effects) &&
-    !context.eachUse &&
-    context.fullAccess
-  )
+  if (!explicit && !context.eachUse && context.fullAccess)
     return { path: 'full-access', rememberable, explicitRule, reason: 'full-access-existing' };
   if (
     !context.eachUse &&

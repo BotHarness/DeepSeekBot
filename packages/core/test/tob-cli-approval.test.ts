@@ -553,61 +553,16 @@ describe('typed native Shell CLI effects under Full Access', () => {
   });
 
   it.each(['git-install', 'group-invite', 'voice-provider-test'])(
-    'sends irreversible external %s through common approval before the write',
+    'lets Full Access run irreversible external %s without a card',
     async (command) => {
       const f = fixture();
       f.setFullAccess(true);
       const pending = writeAfterApproval({ ...f.options, operation: externalOperation(command) });
-      const card = await f.card();
-      expect(card.toolApprovalRequest).toMatchObject({
-        toolName: 'deepseekbot ' + command,
-        effects: { changes: 'irreversible', reach: 'external' },
-      });
-      expect(pending.write).not.toHaveBeenCalled();
-      await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'rejected');
-      expect(await pending.result).toMatchObject({ ok: false, error: { code: 'approval-denied' } });
-      expect(pending.write).not.toHaveBeenCalled();
-      expect(f.channelApproval.activeMessageIds()).toEqual([]);
+      expect(await pending.result).toMatchObject({ ok: true });
+      expect(pending.write).toHaveBeenCalledTimes(1);
+      expect(f.channelApproval.requests('tob')).toEqual([]);
     },
   );
-
-  it('keeps the Reviewer path for declared external operations after Full Access admission', async () => {
-    const review = vi.fn(async () => ({
-      outcome: 'allow' as const,
-      reason: 'Allowed for fixture',
-    }));
-    const f = fixture({
-      autoApproval: {
-        template: () => ({ name: 'fixture', text: 'Allow the fixture' }),
-        review,
-        log: vi.fn(),
-      },
-    });
-    f.setFullAccess(true);
-    const pending = writeAfterApproval({
-      ...f.options,
-      operation: externalOperation('git-install'),
-    });
-    expect(await pending.result).toMatchObject({ ok: true });
-    expect(review).toHaveBeenCalledTimes(1);
-    expect(pending.write).toHaveBeenCalledTimes(1);
-    expect(f.channelApproval.requests('tob')).toEqual([]);
-  });
-
-  it('refuses declared external work when common approval is unavailable', async () => {
-    const f = fixture();
-    f.setFullAccess(true);
-    const pending = writeAfterApproval({
-      ...f.options,
-      operation: externalOperation('git-install'),
-      approval: undefined,
-    });
-    expect(await pending.result).toMatchObject({
-      ok: false,
-      error: { code: 'approval-unavailable' },
-    });
-    expect(pending.write).not.toHaveBeenCalled();
-  });
 });
 
 describe('declared CLI management keeps caller authority separate', () => {

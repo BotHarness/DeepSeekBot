@@ -60,16 +60,16 @@ const update = () => ({
 });
 
 describe('Tob scoped CLI broker', () => {
-  it('refuses a declared external operation whose owner omitted its proposal', async () => {
-    const run = vi.fn();
+  it('runs a declared external operation without a proposal when no approval is required', async () => {
+    const run = vi.fn((guard: () => void) => {
+      guard();
+      return { id: 'fixture', completed: true };
+    });
     const f = await fixture({ prepareOperation: () => ({ run }) });
     expect(await f.invoke('voice-provider-test', { id: 'fixture', completed: true })).toMatchObject(
-      {
-        ok: false,
-        error: { code: 'approval-unavailable' },
-      },
+      { ok: true },
     );
-    expect(run).not.toHaveBeenCalled();
+    expect(run).toHaveBeenCalledOnce();
     expect(f.approve).not.toHaveBeenCalled();
   });
 

@@ -1,4 +1,4 @@
-import { hasIrreversibleExternalEffect, toolEffects } from './workspaces/tool-effects.js';
+import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
 import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
 import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
@@ -2772,9 +2772,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'tools/pre-execute',
     async (execution, next) => {
-      const irreversibleExternal = hasIrreversibleExternalEffect(
-        toolEffects(execution.name, execution.arguments),
-      );
       const agent = execution.agent;
       if (agent === undefined || core.ownership.resolve(agent.session.id) === undefined)
         return next();
@@ -2816,7 +2813,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.session.id,
           sessionHasFullAccess(core, agent.session.id),
         );
-        if (computerAuthorization === 'authorized' && !irreversibleExternal) return next();
+        if (computerAuthorization === 'authorized') return next();
         if (computerAuthorization === 'changed')
           return {
             kind: 'deny',
@@ -2850,7 +2847,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             approval: computerApproval,
             channelApproval: toolApproval,
             ownership: core.ownership,
-            forceChannel: irreversibleExternal,
+            forceChannel: false,
             request: {
               agent,
               toolName: execution.name,
@@ -2922,7 +2919,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.session.id,
           sessionHasFullAccess(core, agent.session.id),
         );
-        if (browserAuthorization === 'authorized' && !irreversibleExternal) return next();
+        if (browserAuthorization === 'authorized') return next();
         if (browserAuthorization === 'changed')
           return {
             kind: 'deny',
@@ -2957,7 +2954,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             approval: browserApproval,
             channelApproval: toolApproval,
             ownership: core.ownership,
-            forceChannel: irreversibleExternal,
+            forceChannel: false,
             request: {
               agent,
               toolName: execution.name,
@@ -3038,9 +3035,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           channelApproval: toolApproval,
           ownership: core.ownership,
           forceChannel:
-            eachUse ||
-            irreversibleExternal ||
-            toolEffects(execution.name, execution.arguments)?.authority === 'management',
+            eachUse || toolEffects(execution.name, execution.arguments)?.authority === 'management',
           request: {
             agent,
             toolName: execution.name,
