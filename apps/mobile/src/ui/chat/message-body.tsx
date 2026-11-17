@@ -43,7 +43,7 @@ function Skill({ skill, color }: { skill: WireSkillInvocation; color: string }) 
       style={{ color, fontWeight: theme.weight.strong }}
     >
       <View style={{ width: size, height: size, transform: [{ translateY: offset }] }}>
-        <SkillOwnerMark option={option} size={size} />
+        <SkillOwnerMark option={option} size={size} ink={color} />
       </View>
       {'\u00a0'}/{skill.name}
     </InlineText>

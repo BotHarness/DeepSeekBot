@@ -14,7 +14,15 @@ export function skillOwnerName(option: SkillOption, host: string): string {
   return option.bot?.displayName ?? option.owner.botSlug;
 }
 
-export function SkillOwnerMark({ option, size }: { option: SkillOption; size: number }) {
+export function SkillOwnerMark({
+  option,
+  size,
+  ink,
+}: {
+  option: SkillOption;
+  size: number;
+  ink?: string | undefined;
+}) {
   const theme = useDesignTheme();
   const { host } = useContext(MessageIdentities);
   if (option.owner.kind === 'bot' && option.bot !== undefined)
@@ -24,7 +32,7 @@ export function SkillOwnerMark({ option, size }: { option: SkillOption; size: nu
       <HostGlyph
         icon={host.look.icon}
         size={size}
-        color={hostColorInk(theme.scheme, theme.color, host.look.color)}
+        color={ink ?? hostColorInk(theme.scheme, theme.color, host.look.color)}
       />
     );
   return (
@@ -35,7 +43,7 @@ export function SkillOwnerMark({ option, size }: { option: SkillOption; size: nu
           : { ios: 'desktopcomputer', android: 'computer' }
       }
       size={size}
-      color={theme.color.muted}
+      color={ink ?? theme.color.muted}
     />
   );
 }
