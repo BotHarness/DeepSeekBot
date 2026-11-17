@@ -11,7 +11,6 @@ import {
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ConfirmDialog } from './ds/form-dialog.js';
-import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useClientStore } from './use-client-store.js';
@@ -40,7 +39,8 @@ import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { color, radius } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
-import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
+import { AssignmentWorkDialog } from './assignment-work.js';
+import { Menu } from './appearance-primitives.js';
 import type { SessionProgress } from './bridge.js';
 import { currentTodo, GoalChip, isStuck, TodoProgressChip } from './session-progress-view.js';
 
@@ -273,6 +273,52 @@ function SessionsPanel({
       botSlug === undefined ||
       (native.byId[row.sessionId] === undefined && row.archived !== true)
     );
+    const openable = onSessionSelect !== undefined && native.byId[row.sessionId] !== undefined;
+    const menu: MenuEntry[] = [
+      ...(stoppable
+        ? [
+            {
+              id: 'stop',
+              label: t(status === 'stopping' ? 'sessions.status.stopping' : 'sessions.stop'),
+              icon: <IconStopFillRegular size={12} />,
+              disabled: status === 'stopping',
+            },
+          ]
+        : []),
+      ...(workable
+        ? [
+            {
+              id: 'work',
+              label: t('assignmentWork.tooltip'),
+              icon: <ChannelSidebarIcon name="panel-right" size={14} />,
+            },
+          ]
+        : []),
+      ...(openable
+        ? [
+            {
+              id: 'open',
+              label: t('sessions.openInHarness'),
+              icon: <ChannelSidebarIcon name="external-link" size={14} />,
+            },
+          ]
+        : []),
+      ...(archivable
+        ? [
+            {
+              id: 'archive',
+              label: t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive'),
+              icon: (
+                <ChannelSidebarIcon
+                  name={row.archived === true ? 'archive-restore' : 'archive'}
+                  size={14}
+                />
+              ),
+              disabled: archiving !== undefined,
+            },
+          ]
+        : []),
+    ];
     return (
       <SidebarCardRow
         key={row.sessionId}
@@ -318,18 +364,11 @@ function SessionsPanel({
             <Tag tone={STATUS_TONE[status]}>{statusLabel[status]}</Tag>
           )
         }
-        {...(!archivable && !workable && !stoppable && subagents === undefined
+        {...(menu.length === 0 && subagents === undefined
           ? {}
           : {
               trailing: (
                 <>
-                  {workable ? (
-                    <AssignmentWorkButton
-                      title={row.title}
-                      onOpen={() => setWork({ sessionId: row.sessionId, title: row.title })}
-                      t={t}
-                    />
-                  ) : null}
                   {subagents === undefined ? null : (
                     <SessionSubagentToggle
                       count={subagents}
@@ -339,42 +378,22 @@ function SessionsPanel({
                       t={t}
                     />
                   )}
-                  {stoppable ? (
-                    <Tooltip label={t('sessions.stop')} side="top" portal delayMs={400}>
-                      <IconButton
-                        size="inline"
-                        data-session-stop=""
-                        disabled={status === 'stopping'}
-                        aria-label={t('sessions.stopNamed', { title: row.title })}
-                        onClick={() => {
+                  {menu.length === 0 ? null : (
+                    <SessionRowMenu
+                      label={t('sessions.moreNamed', { title: row.title })}
+                      items={menu}
+                      onSelect={(id) => {
+                        if (botSlug === undefined) return;
+                        if (id === 'stop') {
                           if (row.role === 'orchestrator' && runningAssignments > 0) {
                             setStopAll(false);
                             setConfirmStop({ sessionId: row.sessionId, title: row.title });
                           } else runStop(botSlug, row.sessionId, false);
-                        }}
-                      >
-                        <IconStopFillRegular size={12} />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null}
-                  {archivable ? (
-                    <Tooltip
-                      label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
-                      side="top"
-                      portal
-                      delayMs={400}
-                    >
-                      <IconButton
-                        size="inline"
-                        data-session-archive=""
-                        disabled={archiving !== undefined}
-                        aria-label={t(
-                          row.archived === true
-                            ? 'sessions.unarchiveNamed'
-                            : 'sessions.archiveNamed',
-                          { title: row.title },
-                        )}
-                        onClick={() => {
+                        } else if (id === 'work') {
+                          setWork({ sessionId: row.sessionId, title: row.title });
+                        } else if (id === 'open') {
+                          void actions.openSession(row.sessionId);
+                        } else if (id === 'archive') {
                           setArchiving(row.sessionId);
                           setArchiveError(undefined);
                           void actions
@@ -388,15 +407,10 @@ function SessionsPanel({
                               setArchiving(undefined);
                               setReload((value) => value + 1);
                             });
-                        }}
-                      >
-                        <ChannelSidebarIcon
-                          name={row.archived === true ? 'archive-restore' : 'archive'}
-                          size={14}
-                        />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null}
+                        }
+                      }}
+                    />
+                  )}
                 </>
               ),
             })}
@@ -666,5 +680,44 @@ export function SessionsEntry(
     <GroupWorkEntry key={props.channelId} {...props} nativeSessions={props.nativeSessions} />
   ) : (
     <SessionsPanel key={props.channelId + ':' + target.slug} {...props} botSlug={target.slug} />
+  );
+}
+
+function SessionRowMenu({
+  label,
+  items,
+  onSelect,
+}: {
+  label: string;
+  items: readonly MenuEntry[];
+  onSelect(id: string): void;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu
+      open={open}
+      portal
+      dense
+      align="end"
+      anchor={
+        <span data-session-more={open ? 'open' : 'closed'}>
+          <IconButton
+            size="inline"
+            aria-label={label}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <ChannelSidebarIcon name="ellipsis" size={14} />
+          </IconButton>
+        </span>
+      }
+      items={items}
+      onSelect={(id) => {
+        setOpen(false);
+        onSelect(id);
+      }}
+      onClose={() => setOpen(false)}
+    />
   );
 }

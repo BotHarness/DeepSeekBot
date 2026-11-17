@@ -4248,6 +4248,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-timeline-new:focus-visible { outline: ${border.focus} solid ${color.accent}; }
 
+@media (hover: hover) {
+  li:not(:hover):not(:focus-within) [data-session-more="closed"] {
+    opacity: 0;
+  }
+}
 .bh-inline-mention,
 .bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"] {
   border-radius: ${radius.xs};
