@@ -7330,6 +7330,7 @@ class BotRuntimeImplementation implements BotRuntime {
     progress?: SessionFailureProgress | undefined;
     autoContinue?: { attempt: number; maxAttempts: number; at: string };
   }): Promise<void> {
+    if (input.error instanceof RouteRestingError) return;
     const details = sessionFailureDetails(input.error);
     const failure = {
       role: input.role,

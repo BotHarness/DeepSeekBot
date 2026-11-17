@@ -187,6 +187,9 @@ describe('A Bot on a resting route is held, naming the route and its reset (#441
       expect(runs).toEqual(['ada']);
       expect(core.runtime.heldCause?.('cy')).toBe('quota');
       expect(quotaNotices('cy')).toHaveLength(1);
+      expect(
+        core.channels.readMessages('dm-cy').filter((message) => message.sessionFailure),
+      ).toEqual([]);
 
       clock = until;
       await dm('cy', 'cy-2');
