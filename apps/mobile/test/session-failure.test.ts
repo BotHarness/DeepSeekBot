@@ -1,9 +1,13 @@
 import { expect, it, vi } from 'vitest';
 import {
+  collapseRepeatedFailures,
   sessionFailure,
   createFailureContinuation,
   createFailureMaintenance,
+  type SessionFailure,
 } from '@botharness/host-client/session-failure';
+import { failureReason } from '../src/ui/chat/failure-reason';
+import { t } from '../src/ui/strings';
 
 it('preserves failure identity for recovery without interpreting max-tokens as overflow', () => {
   const failure = sessionFailure({
@@ -79,4 +83,68 @@ it('parses where the turn stopped and continues it through channelRetry', async 
     botSlug: 'ada',
     autoContinueFor: 'm',
   });
+});
+
+it('collapses back-to-back identical failures into the newest card with a count', () => {
+  const quota = (id: string, bot = 'ada') => ({
+    id,
+    bot,
+    sessionFailure: {
+      role: 'orchestrator' as const,
+      sessionId: 's',
+      requestMessageId: `req-${id}`,
+      code: 'QUOTA',
+      detail: `quota exhausted (${id})`,
+    } as SessionFailure,
+  });
+  const human: Item = { id: 'h', bot: undefined, sessionFailure: undefined };
+  type Item = { id: string; bot: string | undefined; sessionFailure: SessionFailure | undefined };
+  const collapse = (items: Item[]) =>
+    collapseRepeatedFailures(
+      items,
+      (item) => ({ bot: item.bot, failure: item.sessionFailure }),
+      (item, repeated) => ({ ...item, sessionFailure: { ...item.sessionFailure!, repeated } }),
+    );
+
+  const shown = collapse([human, quota('a'), quota('b'), quota('c')]);
+  expect(shown.map((item) => item.id)).toEqual(['h', 'c']);
+  expect(shown[1]!.sessionFailure).toMatchObject({ requestMessageId: 'req-c', repeated: 3 });
+
+  const apart = [quota('a'), human, quota('b')];
+  expect(collapse(apart)).toBe(apart);
+  const otherBot = [quota('a'), quota('b', 'bob')];
+  expect(collapse(otherBot)).toBe(otherBot);
+  const otherCode = [
+    quota('a'),
+    { ...quota('b'), sessionFailure: { ...quota('b').sessionFailure, code: 'AUTH' } },
+  ];
+  expect(collapse(otherCode)).toBe(otherCode);
+  const progressed = [
+    quota('a'),
+    {
+      ...quota('b'),
+      sessionFailure: { ...quota('b').sessionFailure, progress: { completedSteps: 2 } },
+    },
+  ];
+  expect(collapse(progressed)).toBe(progressed);
+
+  const linked = collapseRepeatedFailures(
+    [quota('a'), quota('b'), quota('c')],
+    (item) => ({ bot: item.bot, failure: item.sessionFailure }),
+    (item, repeated) => ({ ...item, sessionFailure: { ...item.sessionFailure, repeated } }),
+    (item) => item.id === 'a',
+  );
+  expect(linked.map((item) => item.id)).toEqual(['a', 'c']);
+  expect(linked[1]!.sessionFailure.repeated).toBe(2);
+});
+
+it('titles the collapsed failure card with the reason instead of a generic label', () => {
+  expect(failureReason({ code: 'QUOTA' })).toBe(t.sessionRecovery.reasons.QUOTA);
+  expect(failureReason({ code: 'AUTH' })).toBe(t.sessionRecovery.reasons.AUTH);
+  expect(failureReason({ code: 'CONTEXT_WINDOW_EXCEEDED' })).toBe(t.sessionRecovery.contextFull);
+  expect(failureReason({ code: 'SESSION_REFUSED' })).toBe(
+    t.sessionRecovery.refused.SESSION_REFUSED![0],
+  );
+  expect(failureReason({ code: 'SOMETHING_NEW' })).toBe(t.sessionRecovery.details);
+  expect(failureReason({})).toBe(t.sessionRecovery.details);
 });
