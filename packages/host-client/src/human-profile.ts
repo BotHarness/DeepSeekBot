@@ -135,3 +135,10 @@ export function createHumanAvatarCache(
     getSnapshot: () => revision,
   };
 }
+
+export function parseChannelNickname(value: unknown): string | null {
+  const nickname = record(record(value)?.['channel'])?.['humanNickname'];
+  if (nickname === undefined || nickname === null) return null;
+  if (typeof nickname !== 'string') throw new Error('invalid Channel nickname');
+  return nickname;
+}

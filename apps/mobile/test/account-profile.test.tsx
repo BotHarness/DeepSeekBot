@@ -53,6 +53,32 @@ const byTestId = (view: HTMLElement, id: string) =>
   view.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 
 describe('Account Profile screen', () => {
+  it('edits the Host chat name and photo without a Tobs sign-in', async () => {
+    const onEditName = vi.fn();
+    const chatEditor = { busy: false, error: undefined, choose: vi.fn(), remove: vi.fn() };
+    const view = await render(
+      <AccountProfileView
+        state={{ status: 'signed-out' }}
+        avatar={editor}
+        chat={{
+          name: 'Little Bear',
+          avatar: 'data:image/jpeg;base64,AAAA',
+          hasAvatar: true,
+          editor: chatEditor,
+          onEditName,
+        }}
+        actions={actions()}
+      />,
+    );
+    expect(view.textContent).toContain(t.accountProfile.chatTitle);
+    expect(view.textContent).toContain('Little Bear');
+    expect(byTestId(view, 'account-profile-sign-in')).not.toBeNull();
+    await act(async () => byTestId(view, 'chat-profile-name')!.click());
+    expect(onEditName).toHaveBeenCalledOnce();
+    await act(async () => byTestId(view, 'chat-avatar-remove')!.click());
+    expect(chatEditor.remove).toHaveBeenCalledOnce();
+  });
+
   it('asks to sign in when signed out', async () => {
     const on = actions();
     const view = await render(
