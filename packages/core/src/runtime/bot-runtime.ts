@@ -7318,9 +7318,16 @@ class BotRuntimeImplementation implements BotRuntime {
           signal: AbortSignal.any([signal, this.#waitLifetime.signal]),
           timeoutMs,
         }).then((outcome) => {
-          if (outcome.outcome !== 'timeout' && readAdmissions !== undefined)
-            this.#claimAssignmentNotices(bot.slug, sessionId, readAdmissions);
-          return outcome;
+          if (outcome.outcome === 'timeout' || readAdmissions === undefined) return outcome;
+          const inboxIds = this.#claimAssignmentNotices(bot.slug, sessionId, readAdmissions);
+          return inboxIds.length === 0
+            ? outcome
+            : {
+                ...outcome,
+                inboxIds,
+                resolveHint:
+                  'You have now seen these Inbox items. Once this result is used, resolve them with inbox_resolve in the same step as your reply, so no triage turn follows.',
+              };
         });
       },
       stop: (sessionId) => this.#stopAssignment(bot, sessionId, markSideEffect),
@@ -11329,7 +11336,11 @@ class BotRuntimeImplementation implements BotRuntime {
       .find((channel) => channel.type === 'dm' && channel.botSlug === botSlug);
   }
 
-  #claimAssignmentNotices(botSlug: string, sessionId: string, readAdmissions: Set<string>): void {
+  #claimAssignmentNotices(
+    botSlug: string,
+    sessionId: string,
+    readAdmissions: Set<string>,
+  ): string[] {
     const at = this.#now().toISOString();
     const claimed = this.#database.transaction(
       (db) =>
@@ -11350,7 +11361,7 @@ class BotRuntimeImplementation implements BotRuntime {
         }>,
       ['bot-inbox'],
     );
-    if (claimed.length === 0) return;
+    if (claimed.length === 0) return [];
     const ids = claimed.map((row) => row.source_event_id);
     this.#database.transaction(
       (db) =>
@@ -11363,6 +11374,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ['bot-inbox'],
     );
     for (const id of ids) readAdmissions.add(id);
+    return ids;
   }
 
   #observeExternalRead(botSlug: string, ids: string[], readAdmissions: Set<string>): void {

@@ -3,6 +3,8 @@ import type { AssignmentDetail } from './bot-runtime.js';
 export interface AssignmentWaitOutcome {
   outcome: 'report' | 'settled' | 'timeout';
   assignment: AssignmentDetail;
+  inboxIds?: string[];
+  resolveHint?: string;
 }
 
 export function waitForAssignment(options: {
