@@ -2,6 +2,7 @@
 
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { field } from './pr-body-field.mjs';
 
 const AGENT_MARK =
   /Agent-Task:|Generated with \[|Co-Authored-By:[^\n]*(?:Claude|Codex|Cursor|Copilot|Gemini|opencode|DeepSeek|Kimi|Qwen|GLM)/iu;
@@ -22,13 +23,11 @@ const slug = (value) =>
 export function declared(body) {
   const result = { harness: [], model: [] };
   for (const kind of KINDS) {
-    const line = new RegExp(`^[ \\t]*[-*]?[ \\t]*${kind}s?[ \\t]*[:：][ \\t]*(.*)$`, 'imu').exec(
-      body ?? '',
-    );
+    const line = field(body, kind, { inline: true }) ?? field(body, `${kind}s`, { inline: true });
     if (!line) continue;
     result[kind] = [
       ...new Set(
-        line[1]
+        line
           .split(/[,，、/]/u)
           .map(slug)
           .filter((value) => /^[a-z0-9][a-z0-9.-]{0,39}$/u.test(value)),
