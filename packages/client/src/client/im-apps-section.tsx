@@ -10,7 +10,6 @@ import { openExternalBindingSettings } from './bot-settings-open.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { loadMessagingApps, type BridgeCall, type MessagingApp } from './bridge.js';
 import { Combobox } from './combobox.js';
-import { EmptyState } from './ds/empty-state.js';
 import { Field } from './ds/field.js';
 import { ConfirmDialog, FormDialog, type DialogLabels } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
@@ -238,12 +237,12 @@ export function ImAppsSection({
           ) : null}
         </SettingsRow>
         {loaded.status === 'loading' ? null : loaded.status === 'failed' ? (
-          <EmptyState status title={t('imApps.loadFailed')} />
+          <SettingsRow title={t('imApps.loadFailed')} />
         ) : loaded.apps.length === 0 ? (
-          <EmptyState
+          <SettingsRow
             title={t('imApps.empty')}
             description={t('imApps.emptyHint')}
-            action={
+            control={
               canCreate ? (
                 <Button
                   variant="primary"
