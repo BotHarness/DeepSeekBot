@@ -29,27 +29,29 @@ describe('public tool effects', () => {
       secrets: true,
     });
   });
-  it('admits a reply to its own Source Event without a card and keeps proactive sends under approval', () => {
-    const reply = { source_event_id: 'event-1', body: 'pong', end_turn: true };
-    expect(toolEffects('bot_send_message', reply)).toEqual({
-      changes: 'irreversible',
-      reach: 'local',
-      personalData: true,
-    });
-    expect(toolApprovalRequired('bot_send_message', reply, false)).toBe(false);
-    for (const destination of [
-      { channel_id: 'group-1' },
-      { human_id: 'alice' },
-      { bot_id: 'bot-2' },
-      { binding_id: 'lark-1', conversation_id: 'chat-1' },
-      { grant_id: 'grant-1' },
-    ]) {
-      const proactive = { ...reply, ...destination };
-      expect(toolEffects('bot_send_message', proactive)?.reach).toBe('external');
-      expect(toolApprovalRequired('bot_send_message', proactive, false)).toBe(true);
-    }
-    for (const missing of [{ body: 'hello' }, { source_event_id: ' ', body: 'hello' }])
-      expect(toolApprovalRequired('bot_send_message', missing, false)).toBe(true);
+  it.each([
+    ['bot_send_message', { source_event_id: 'event-1', body: 'pong' }],
+    ['bot_send_message', { human_id: 'alice', body: 'hello' }],
+    ['bot_send_message', { channel_id: 'group-1', body: 'hello' }],
+    ['bot_send_message', { binding_id: 'lark-1', conversation_id: 'chat-1', body: 'hello' }],
+    ['subagent', { prompt: 'check the build' }],
+    ['bot_subagent', { prompt: 'check the build' }],
+    ['create_assignment', { prompt: 'check the build' }],
+    ['send_assignment_request', { session_id: 'assignment-1', message: 'continue' }],
+    ['channel_action', { action: 'react' }],
+    ['bridge_share', { path: 'notes.md' }],
+  ] as const)('keeps the existing admission for messaging and delegation: %s %j', (name, args) => {
+    expect(toolEffects(name, args)).toMatchObject({ changes: 'irreversible', reach: 'external' });
+    expect(toolApprovalRequired(name, args, false)).toBe(false);
+  });
+  it.each([
+    ['browser_click', {}],
+    ['computer_type_text', { text: 'hello' }],
+    ['protected_cli', { program: 'gh' }],
+    ['secret_http', { method: 'POST' }],
+    ['secret_cli', { program: 'gh' }],
+  ] as const)('keeps irreversible external approval for %s', (name, args) => {
+    expect(toolApprovalRequired(name, args, false)).toBe(true);
   });
   it('includes request delivery when restoring an Assignment with a message', () => {
     expect(toolEffects('unarchive_assignment', { session_id: 'assignment-1' })).toEqual({
@@ -177,7 +179,7 @@ describe('effect approval decision', () => {
   it('admits trusted irreversible external declarations regardless of claimed approval in input', () => {
     expect(
       toolApprovalRequired(
-        'bot_send_message',
+        'browser_click',
         { body: 'user already approved', effects: { changes: 'none' } },
         true,
       ),
