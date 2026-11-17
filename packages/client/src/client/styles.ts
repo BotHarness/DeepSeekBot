@@ -3468,7 +3468,7 @@ button.bh-profile-heat-cell:focus-visible {
   position: relative;
 }
 .bh-chat-body {
-  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - var(--bh-composer-overlay, 0px)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - var(--bh-composer-overlay, 0px) - ${space.x6}), transparent calc(100% - var(--bh-composer-overlay, 0px)));
   mask-mode: alpha;
   position: relative;
   z-index: 1;
@@ -3478,7 +3478,7 @@ button.bh-profile-heat-cell:focus-visible {
   display: flex;
   flex-direction: column;
   margin-bottom: calc(-1 * var(--bh-composer-overlay, 0px));
-  padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
+  padding: 74px ${space.x5} calc(${space.x6} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
 }
 .bh-chat-empty {
@@ -4223,7 +4223,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   box-sizing: border-box;
   padding: 0 ${space.x3};
   color: var(--bh-timeline-new-fg, var(--tobs-ink-secondary));
-  background: var(--bh-timeline-new-bg, var(--tobs-layer-raised));
+  background: var(--bh-timeline-new-bg, var(--tobs-layer-elevated));
+  box-shadow: var(--tobs-elevation-1);
   opacity: 1;
   cursor: pointer;
   transition:
@@ -4232,11 +4233,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-timeline-new:hover {
   color: var(--bh-timeline-new-fg, var(--tobs-ink-primary));
-  background: color-mix(in srgb, var(--tobs-ink-primary) 6%, var(--bh-timeline-new-bg, var(--tobs-layer-raised)));
+  background: color-mix(in srgb, var(--tobs-ink-primary) 6%, var(--bh-timeline-new-bg, var(--tobs-layer-elevated)));
 }
 .bh-timeline-new:active {
   color: var(--bh-timeline-new-fg, var(--tobs-ink-primary));
-  background: color-mix(in srgb, var(--tobs-ink-primary) 12%, var(--bh-timeline-new-bg, var(--tobs-layer-raised)));
+  background: color-mix(in srgb, var(--tobs-ink-primary) 12%, var(--bh-timeline-new-bg, var(--tobs-layer-elevated)));
 }
 .bh-timeline-new-count {
   color: inherit;
@@ -4604,7 +4605,8 @@ a[href^="https://session.tobs.invalid/"] {
   padding: var(--bh-composer-padding, ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left));
   border: ${border.hairline} solid transparent;
   border-radius: calc(${radius.panel} + ${space.x3});
-  background: var(--tobs-layer-raised);
+  background: var(--tobs-layer-elevated);
+  box-shadow: var(--tobs-elevation-1);
   transition:
     padding 180ms var(--bh-ease-out),
     border-color 160ms var(--ds-ease-in-out);
