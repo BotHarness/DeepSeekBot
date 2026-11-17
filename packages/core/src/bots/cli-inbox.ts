@@ -54,8 +54,7 @@ export const INBOX_COMMANDS = [
   },
   {
     command: 'session-transcript',
-    description:
-      "read a root Session's conversation: inputs, replies, reasoning and public tool steps",
+    description: "read a root Session's history: inputs, replies, reasoning and public tool steps",
   },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
