@@ -313,6 +313,12 @@ export class ChannelToolApproval {
       this.#currentScope(tracked, owner) !== tracked.scopeKey
     )
       return 'unavailable';
+    const origin =
+      tracked.role === 'orchestrator'
+        ? this.#origin?.({ sessionId: tracked.sessionId, callId: tracked.callId })
+        : undefined;
+    if (tracked.role === 'orchestrator' && this.#origin !== undefined && origin === undefined)
+      return 'unavailable';
     const policy = this.#decisionPolicy(tracked, {
       fullAccess: this.#fullAccess?.(tracked.sessionId) === true,
     });
@@ -332,12 +338,6 @@ export class ChannelToolApproval {
       this.#rules?.recordAutoApproval(standing.botSlug, standing.id);
       return 'allowed-once';
     }
-    const origin =
-      tracked.role === 'orchestrator'
-        ? this.#origin?.({ sessionId: tracked.sessionId, callId: tracked.callId })
-        : undefined;
-    if (tracked.role === 'orchestrator' && this.#origin !== undefined && origin === undefined)
-      return 'unavailable';
     const originChannel = origin === undefined ? undefined : this.#channels.get(origin.channelId);
     const channel =
       origin === undefined

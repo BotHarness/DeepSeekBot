@@ -316,6 +316,150 @@ describe('Private tool approval through the registered native executor', () => {
     }
   });
 
+  it('refuses a callerless saved rule without consuming it and keeps authenticated reuse', async () => {
+    const { core, native, caller, broker } = await fixture();
+    const privateArgs = {
+      account: 'synthetic-missing',
+      references: ['token'],
+      program: 'git',
+      args: ['--version'],
+      env: [{ name: 'TOKEN', value: '{{token}}' }],
+    };
+    const dm = core.channels.getOrCreateDm(caller, 'helper', 'Helper')!;
+    const seedController = new AbortController();
+    const seed = core.runtime.runDirectBotTool!(
+      'helper',
+      'secret_cli',
+      privateArgs,
+      seedController.signal,
+      undefined,
+      undefined,
+      caller,
+    ).catch(() => undefined);
+    try {
+      const card = await vi.waitFor(() => {
+        const message = core.channels
+          .readMessages(dm.id)
+          .find((message) => message.toolApprovalRequest);
+        if (!message) throw new Error('Missing seed approval');
+        return message;
+      });
+      expect(await broker().decide(caller, 'helper', card.id, 'allowed-always-exact')).toBe(true);
+    } finally {
+      seedController.abort();
+      await seed;
+    }
+    const [rule] = core.toolRules.list('helper').filter((rule) => rule.revokedAt === undefined);
+    if (!rule) throw new Error('The real Human card did not save an active rule');
+    const nativeRequest = vi.spyOn(native, 'request');
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    let firstResult: string | undefined;
+    const first = core.runtime.runDirectBotTool!(
+      'helper',
+      'secret_cli',
+      privateArgs,
+      firstController.signal,
+    ).then(
+      () => {
+        firstResult = 'completed';
+      },
+      (error: unknown) => {
+        firstResult = String(error);
+      },
+    );
+    let second: Promise<unknown> | undefined;
+    const count = () =>
+      core.toolRules.list('helper').find((row) => row.id === rule.id)?.autoApprovedCount;
+    try {
+      await vi.waitFor(() => expect(firstResult !== undefined || count() === 1).toBe(true));
+      expect(count()).toBe(0);
+      expect(firstResult).toContain('Human approval was unavailable');
+      second = core.runtime.runDirectBotTool!(
+        'helper',
+        'secret_cli',
+        privateArgs,
+        secondController.signal,
+        undefined,
+        undefined,
+        caller,
+      ).catch(() => undefined);
+      await vi.waitFor(() => expect(count()).toBe(1));
+      expect(nativeRequest.mock.calls.length).toBe(0);
+      expect(
+        core.channels.readMessages(dm.id).filter((message) => message.toolApprovalRequest),
+      ).toHaveLength(1);
+    } finally {
+      firstController.abort();
+      secondController.abort();
+      await first;
+      await second;
+    }
+  });
+
+  it('does not create a DM for an ungoverned direct read', async () => {
+    const { core, caller } = await fixture();
+    const channelsBefore = core.channels.list().map((channel) => channel.id);
+    await core.runtime.runDirectBotTool!(
+      'helper',
+      'secret_http',
+      { ...http, path: '/ordinary-read' },
+      new AbortController().signal,
+      undefined,
+      undefined,
+      caller,
+    ).catch(() => undefined);
+    expect(core.channels.list().map((channel) => channel.id)).toEqual(channelsBefore);
+  });
+
+  it('keeps a registered direct request out of native Group audit during shutdown', async () => {
+    const { core, agent, native, caller, holdTurn } = await fixture();
+    const group = core.channels.createGroup(caller, { name: 'Closing Group', members: ['helper'] });
+    const release = holdTurn(group.id);
+    const identify = core.runtime.hasDirectToolInvocation!.bind(core.runtime);
+    let closing: Promise<void> | undefined;
+    const nativeRequest = vi.spyOn(native, 'request');
+    try {
+      await core.channels.appendMessage(caller, group.id, {
+        id: 'closing-group-turn',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Helper hold this Group task',
+        mentions: [{ botSlug: 'helper', label: 'Helper', start: 0, end: 7 }],
+      });
+      core.runtime.admitGroupMessage(group.id, 'closing-group-turn');
+      await vi.waitFor(() => expect(core.runtime.askChannel?.(agent.session.id)).toBe(group.id));
+      await vi.waitFor(() =>
+        expect(agent.session.snapshotEvents().at(-1)?.type).toBe('turn/start'),
+      );
+      vi.spyOn(core.runtime, 'hasDirectToolInvocation').mockImplementation((query) => {
+        closing ??= core.runtime.close();
+        return identify(query);
+      });
+      await expect(
+        core.runtime.runDirectBotTool!(
+          'helper',
+          'secret_http',
+          http,
+          new AbortController().signal,
+          undefined,
+          undefined,
+          caller,
+        ),
+      ).rejects.toThrow('Human approval was unavailable');
+      expect(nativeRequest.mock.calls.length).toBe(0);
+      expect(
+        agent.session
+          .snapshotEvents()
+          .filter((event) => event.type === 'approval/asked' || event.type === 'approval/decided'),
+      ).toEqual([]);
+    } finally {
+      release();
+      await closing;
+      await core.runtime.whenIdle();
+    }
+  });
+
   it('keeps an ordinary Group tool call and its native audit pair in the open Group turn', async () => {
     const { core, agent, broker, holdTurn, ownerDm, caller } = await fixture();
     const group = core.channels.createGroup(caller, { name: 'Group', members: ['helper'] });
@@ -384,6 +528,7 @@ describe('Private tool approval through the registered native executor', () => {
       }).ok,
     ).toBe(true);
     const before = [...created];
+    const channelsBefore = core.channels.list().map((channel) => channel.id);
     await expect(
       core.runtime.runDirectBotTool!(
         'unstarted',
@@ -398,6 +543,7 @@ describe('Private tool approval through the registered native executor', () => {
     const [call] = core.runtime.directBotToolCalls!('unstarted');
     if (!call) throw new Error('Missing direct call trace');
     expect(created).toEqual(before);
+    expect(core.channels.list().map((channel) => channel.id)).toEqual(channelsBefore);
     expect(core.ownership.resolve(call.callId)).toBeUndefined();
   });
 

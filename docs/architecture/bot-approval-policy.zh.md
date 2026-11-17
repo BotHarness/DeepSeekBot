@@ -136,4 +136,4 @@ Web 与移动端的 Human 审批卡在允许这次、始终允许或拒绝后保
 
 Orchestrator 的工具审批请求与 Reviewer 记录保留在实际来源 DM 或 Group。参与者 DM 不会回落到管理者的旧 DM；来源不可用或与 Bot 不匹配时，拒绝启动审核和创建卡片。此路由不会授予参与者审批权限；可见内容与决定仍受原有审批者和频道受众检查约束。
 
-已认证的直接 `bot-tool` 请求在派发前，将 Host 生成的本次 call ID 与实际 Agent Session 绑定到调用 Human 的 DM，并在调用结束时移除绑定。私密工具借用存活的 Orchestrator Agent，不另建或释放该 Agent。需要审批的只读私密工具同样绑定调用方 DM。直接调用的 Reviewer 只收到模板和本次输入，不读取借用 Session 的历史。工具目标与历史频道记录不决定审批接收者；缺少调用上下文时，不回落到其他 Human。这不创建私密输入所需的 Human Source Event。
+已认证的直接 `bot-tool` 请求在派发前，将 Host 生成的本次 call ID 与实际 Agent Session 绑定到调用 Human，并在调用结束时移除绑定。Full Access 或保存规则放行前，先验证调用者；需要审批来源时才解析 DM，不需审批的读取或缺少 Agent 的调用不会创建空 DM。关闭期间仍保留尚未结束的直调身份，由不可用的来源拒绝审批。私密工具借用存活的 Orchestrator Agent，不另建或释放该 Agent。需要审批的只读私密工具同样绑定调用方 DM。直接调用的 Reviewer 只收到模板和本次输入，不读取借用 Session 的历史。工具目标与历史频道记录不决定审批接收者；缺少调用上下文时，不回落到其他 Human。这不创建私密输入所需的 Human Source Event。

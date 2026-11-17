@@ -1802,7 +1802,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
   readonly #activeDirectTools = new Map<
     string,
-    { botSlug: string; agentSessionId: string; approvalChannelId?: string }
+    { botSlug: string; agentSessionId: string; approvalHuman?: HumanContext }
   >();
   readonly #tobCliRequests = new Map<string, TobCliRequestLease>();
   #closed = false;
@@ -4613,7 +4613,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   hasDirectToolInvocation({ sessionId, callId }: ToolApprovalOriginQuery): boolean {
-    return !this.#closed && this.#activeDirectTools.get(callId)?.agentSessionId === sessionId;
+    return this.#activeDirectTools.get(callId)?.agentSessionId === sessionId;
   }
 
   toolApprovalOrigin(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined {
@@ -4633,9 +4633,13 @@ class BotRuntimeImplementation implements BotRuntime {
     if (direct !== undefined) {
       if (direct.botSlug !== owner.botSlug || direct.agentSessionId !== sessionId) return undefined;
       const channel =
-        direct.approvalChannelId === undefined
+        direct.approvalHuman === undefined
           ? undefined
-          : this.#channels.get(direct.approvalChannelId);
+          : this.#channels.getOrCreateDm(
+              direct.approvalHuman,
+              owner.botSlug,
+              this.#registry.get(owner.botSlug)?.displayName,
+            );
       return channel?.type === 'dm' && channel.botSlug === owner.botSlug
         ? { kind: 'direct', channelId: channel.id }
         : undefined;
@@ -5344,14 +5348,13 @@ class BotRuntimeImplementation implements BotRuntime {
         observeReads: false,
       }),
     };
-    let approvalChannelId: string | undefined;
+    let approvalHuman: HumanContext | undefined;
     if (
       PRIVATE_INPUT_TOOLS.has(tool) ||
       hasIrreversibleExternalEffect(toolEffects(tool, args)) ||
       toolEffects(tool, args)?.authority === 'management'
     ) {
-      if (human !== undefined)
-        approvalChannelId = this.#channels.getOrCreateDm(human, botSlug, bot.displayName)?.id;
+      approvalHuman = human;
       if (!PRIVATE_INPUT_TOOLS.has(tool))
         this.#ownership.claim({
           sessionId,
@@ -5383,7 +5386,7 @@ class BotRuntimeImplementation implements BotRuntime {
       agentSessionId: PRIVATE_INPUT_TOOLS.has(tool)
         ? (executionParentSessionId ?? sessionId)
         : sessionId,
-      ...(approvalChannelId === undefined ? {} : { approvalChannelId }),
+      ...(approvalHuman === undefined ? {} : { approvalHuman }),
     });
     try {
       const result = await runDirect(run, tool, args, signal, executionParentSessionId);
