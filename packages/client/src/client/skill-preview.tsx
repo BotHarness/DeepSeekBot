@@ -1,5 +1,6 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import * as stylex from '@stylexjs/stylex';
 
 import {
   parseSkillOwnerKey,
@@ -8,11 +9,12 @@ import {
   type SkillOwner,
 } from '../../../core/src/skills/entries.js';
 import { errorMessage } from './bridge.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { ReadFailure } from './ds/read-failure.js';
+import { elevation, ink, layer, radius, space, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { markdownBody } from './market-files.js';
 import { MarkdownDocument, MarkdownImageLabel } from './memory-markdown-view.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export interface SkillPeek {
@@ -33,6 +35,38 @@ export interface SkillOpen extends SkillPeek {
 interface SkillHover extends SkillPeek {
   anchor: DOMRect;
 }
+
+const styles = stylex.create({
+  peek: {
+    position: 'fixed',
+    zIndex: 1100,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    boxSizing: 'border-box',
+    maxHeight: 'min(40vh, 320px)',
+    overflow: 'hidden',
+    paddingBlock: space.x4,
+    paddingInline: space.x5,
+    borderRadius: radius.md,
+    backgroundColor: layer.elevated,
+    boxShadow: elevation.x2,
+    color: ink.primary,
+    fontSize: type.bodySize,
+    lineHeight: type.bodyLine,
+    pointerEvents: 'none',
+  },
+  peekName: { color: ink.secondary, overflowWrap: 'anywhere' },
+  peekDescription: {
+    margin: 0,
+    overflowWrap: 'anywhere',
+    display: '-webkit-box',
+    WebkitLineClamp: 8,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  },
+  description: { margin: 0, color: ink.secondary },
+});
 
 const SUMMARY_LIMIT = 280;
 const MARGIN = 12;
@@ -107,7 +141,7 @@ export function chipSkill(
 function SkillHoverCard({ hover }: { hover: SkillHover }): ReactElement {
   return createPortal(
     <div
-      className="bh-skill-peek"
+      {...stylex.props(styles.peek)}
       role="tooltip"
       data-skill-peek={hover.name}
       style={skillPeekPosition(hover.anchor, {
@@ -115,10 +149,12 @@ function SkillHoverCard({ hover }: { hover: SkillHover }): ReactElement {
         height: window.innerHeight,
       })}
     >
-      <span className="bh-skill-peek-name">
+      <span {...stylex.props(styles.peekName)}>
         /{hover.name} · {hover.owner}
       </span>
-      {hover.description.length === 0 ? null : <p>{hover.description}</p>}
+      {hover.description.length === 0 ? null : (
+        <p {...stylex.props(styles.peekDescription)}>{hover.description}</p>
+      )}
     </div>,
     document.body,
   );
@@ -160,37 +196,34 @@ function SkillPreviewModal({
       ? state.skill.description
       : skill.description;
   return (
-    <Modal
-      open
-      onClose={onClose}
+    <PanelDialog
       title={`/${skill.name}`}
       description={skill.owner}
+      size="medium"
+      fill
       closeLabel={t('common.close')}
-      className="bh-skill-preview"
-      contentClassName="bh-skill-preview-body"
+      onClose={onClose}
+      bodyRef={body}
+      data={{ 'data-skill-preview': skill.name }}
     >
-      <div ref={body} className="bh-skill-detail" data-skill-preview={skill.name}>
-        {description.length === 0 ? null : (
-          <p className="bh-skill-detail-description">{description}</p>
-        )}
-        {state.status === 'loading' ? (
-          <div className="bh-profile-empty" role="status">
-            {t('composer.skillLoading')}
-          </div>
-        ) : state.status === 'error' ? (
-          <ReadFailure retryLabel={t('skills.retry')} onRetry={() => setAttempt((n) => n + 1)}>
-            {t('composer.skillLoadFailed', { name: skill.name, error: errorMessage(state.cause) })}
-          </ReadFailure>
-        ) : (
-          <div className="bh-file-preview" data-skill-body>
-            <MarkdownDocument
-              body={markdownBody(state.skill.content)}
-              image={(src, alt) => <MarkdownImageLabel key={src} src={src} alt={alt} />}
-            />
-          </div>
-        )}
-      </div>
-    </Modal>
+      {description.length === 0 ? null : <p {...stylex.props(styles.description)}>{description}</p>}
+      {state.status === 'loading' ? (
+        <div role="status" {...stylex.props(styles.description)}>
+          {t('composer.skillLoading')}
+        </div>
+      ) : state.status === 'error' ? (
+        <ReadFailure retryLabel={t('skills.retry')} onRetry={() => setAttempt((n) => n + 1)}>
+          {t('composer.skillLoadFailed', { name: skill.name, error: errorMessage(state.cause) })}
+        </ReadFailure>
+      ) : (
+        <div data-skill-body>
+          <MarkdownDocument
+            body={markdownBody(state.skill.content)}
+            image={(src, alt) => <MarkdownImageLabel key={src} src={src} alt={alt} />}
+          />
+        </div>
+      )}
+    </PanelDialog>
   );
 }
 
