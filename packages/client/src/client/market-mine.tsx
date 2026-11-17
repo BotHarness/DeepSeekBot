@@ -178,8 +178,8 @@ export function MyUploadsDialog({
     setCause(undefined);
     try {
       await actions.marketplaceDelete(item.bot.id);
-      if (!mounted.current) return;
       onDeleted(item.bot.id);
+      if (!mounted.current) return;
       setList((current) =>
         current.status === 'ready'
           ? { ...current, bots: current.bots.filter((entry) => entry !== item) }

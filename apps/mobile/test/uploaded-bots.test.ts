@@ -25,6 +25,28 @@ describe('uploaded Bots', () => {
     expect(state.status === 'ready' && state.bots.map((entry) => entry.bot.id)).toEqual(['U_b']);
   });
 
+  it('drops a refresh that started before a delete succeeded', async () => {
+    let finish: (value: { ok: true; value: MarketplaceAuthoredBot[] }) => void = () => undefined;
+    const authored = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [item('U_a'), item('U_b')] })
+      .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: true, value: 'token' }) },
+      client: {
+        authored,
+        deleteUpload: async () => ({ ok: true, value: { deleted: true } }),
+      },
+    });
+    await uploads.refresh();
+    const stale = uploads.refresh();
+    await uploads.remove('U_a');
+    finish({ ok: true, value: [item('U_a'), item('U_b')] });
+    await stale;
+    const state = uploads.getSnapshot();
+    expect(state.status === 'ready' && state.bots.map((entry) => entry.bot.id)).toEqual(['U_b']);
+  });
+
   it('keeps the list when the Market refuses a delete', async () => {
     const uploads = createUploadedBots({
       connect: { accessToken: async () => ({ ok: true, value: 'token' }) },

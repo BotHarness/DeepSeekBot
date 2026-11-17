@@ -24,6 +24,7 @@ export class UploadedBotsError extends Error {
 
 export function createUploadedBots(deps: UploadedBotsDeps) {
   let state: UploadedBotsState = { status: 'loading' };
+  let epoch = 0;
   const listeners = new Set<() => void>();
   const publish = (next: UploadedBotsState) => {
     state = next;
@@ -45,12 +46,14 @@ export function createUploadedBots(deps: UploadedBotsDeps) {
     getSnapshot: () => state,
 
     async refresh(lang?: MarketplaceLanguage): Promise<UploadedBotsState> {
+      const current = ++epoch;
       if (state.status !== 'ready') publish({ status: 'loading' });
       try {
         const result = await deps.client.authored(await token(), lang);
-        publish(result.ok ? { status: 'ready', bots: result.value } : { status: 'error' });
+        if (current === epoch)
+          publish(result.ok ? { status: 'ready', bots: result.value } : { status: 'error' });
       } catch {
-        if (state.status !== 'signed-out') publish({ status: 'error' });
+        if (current === epoch && state.status !== 'signed-out') publish({ status: 'error' });
       }
       return state;
     },
@@ -58,6 +61,7 @@ export function createUploadedBots(deps: UploadedBotsDeps) {
     async remove(id: string): Promise<void> {
       const result = await deps.client.deleteUpload(await token(), id);
       if (!result.ok) throw new UploadedBotsError(result.code);
+      epoch++;
       if (state.status === 'ready')
         publish({ status: 'ready', bots: state.bots.filter((item) => item.bot.id !== id) });
     },
