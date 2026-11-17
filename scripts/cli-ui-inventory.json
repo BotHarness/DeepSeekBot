@@ -352,6 +352,13 @@
       "commands": ["marketplace-account", "marketplace-author", "marketplace-author-avatar"]
     },
     {
+      "id": "account-uploaded-bots",
+      "description": "Settings entry listing the signed-in account's uploaded Marketplace Bots, with update and delete.",
+      "scope": "Host",
+      "surfaces": ["setting:packages/client/src/client/market-mine.tsx:{t('market.mine.title')}"],
+      "commands": ["marketplace-mine", "marketplace-upload", "marketplace-delete"]
+    },
+    {
       "id": "channel-history",
       "description": "Channel history and reviewed purge.",
       "scope": "Host",

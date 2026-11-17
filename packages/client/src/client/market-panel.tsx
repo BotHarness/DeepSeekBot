@@ -13,7 +13,7 @@ import { Tooltip } from './ds/tooltip.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketDailyPicks, MarketDigestPage, MarketPastPicksPage } from './market-digest.js';
-import { MyUploadsDialog } from './market-mine.js';
+import { MyUploadsDialog, onMarketUploadChange } from './market-mine.js';
 import { useKeptScroll } from './market-page.js';
 import { MarketRankingPage, MarketplaceSections, MarketplaceTile } from './market-rankings.js';
 import { MarketUploadDialog } from './market-upload.js';
@@ -104,8 +104,13 @@ export function MarketPanelView({
       else setMine(true);
     };
     marketRequests.add(listener);
+    const stopUploads = onMarketUploadChange((change) => {
+      if (change.kind === 'deleted') browse.remove(change.id);
+      else browse.prepend(change.bot);
+    });
     return () => {
       marketRequests.delete(listener);
+      stopUploads();
     };
   }, []);
   const { list, filters } = browse;

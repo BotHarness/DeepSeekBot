@@ -74,8 +74,9 @@ async function render(
   actions: ReturnType<typeof actionsFor>,
   startSignIn = vi.fn(async () => CODE),
 ) {
+  const uploads = createElement('span', { 'data-uploads-slot': '' });
   await act(async () => {
-    root.render(createElement(AccountProfileSettings, { actions, startSignIn, t }));
+    root.render(createElement(AccountProfileSettings, { actions, startSignIn, uploads, t }));
   });
   await act(async () => {});
 }
@@ -267,4 +268,13 @@ it('validates names like the Market Worker and derives a default from the email'
   expect(validAccountName('维')).toBe(true);
   expect(defaultAccountName('someone@example.com')).toBe('someone');
   expect(defaultAccountName(undefined)).toBe('');
+});
+
+it('shows the uploaded Bots entry only once signed in', async () => {
+  await render(actionsFor({ signedIn: false, author: null }));
+  expect(host.querySelector('[data-uploads-slot]')).toBeNull();
+  act(() => root.unmount());
+  root = createRoot(host);
+  await render(actionsFor({ signedIn: true, email: 'vain@example.com', author: AUTHOR }));
+  expect(host.querySelector('[data-uploads-slot]')).not.toBeNull();
 });

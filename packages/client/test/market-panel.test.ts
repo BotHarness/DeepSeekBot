@@ -118,6 +118,7 @@ import {
   createMarketPanel,
   MARKET_PANEL,
 } from '../src/client/market-panel.js';
+import { MyUploadsSettingsRow } from '../src/client/market-mine.js';
 import { MarketUploadDialog } from '../src/client/market-upload.js';
 import { store, type BotSummary } from '../src/client/store.js';
 import { CSS } from '../src/client/styles.js';
@@ -1200,6 +1201,55 @@ describe('Uploaded Bots in the Market panel', () => {
         shareDraftGet: vi.fn(async () => draftView('ready')),
         marketplaceUploadPlan: plan,
         marketplaceUpload: upload,
+        marketplaceDelete: remove,
+      },
+    );
+  });
+
+  it('opens my uploads from settings and drops a deleted Bot from the open Market panel', async () => {
+    const other = entry('notes', { ...uploaded, id: 'U_notes', displayName: 'Notes' });
+    const remove = vi.fn(async () => undefined);
+    await withPanel(
+      async () => ({ bots: [uploaded, other] }),
+      async ({ host, actions }) => {
+        const tiles = () =>
+          [...host.querySelectorAll('[data-market-bot]')].map((tile) => tile.textContent);
+        expect(tiles().some((text) => text?.includes('Notes'))).toBe(true);
+        const settings = document.createElement('div');
+        document.body.append(settings);
+        const root = createRoot(settings);
+        try {
+          await act(async () =>
+            root.render(
+              createElement(MyUploadsSettingsRow, {
+                actions: actions as unknown as BridgeActions,
+                t: zhTranslate,
+              }),
+            ),
+          );
+          expect(settings.textContent).toContain('我上传的 Bot');
+          await click(settings, '管理');
+          expect(
+            [...settings.querySelectorAll('[data-market-mine-bot]')].map((row) =>
+              row.getAttribute('data-market-mine-bot'),
+            ),
+          ).toEqual(['U_helper', 'U_notes']);
+          await click(settings, '删除 Notes');
+          await act(async () => settings.querySelector('form')!.requestSubmit());
+          expect(remove).toHaveBeenCalledWith('U_notes');
+          expect(settings.querySelector('[data-market-mine-bot="U_notes"]')).toBeNull();
+          expect(tiles().some((text) => text?.includes('Notes'))).toBe(false);
+          expect(tiles().some((text) => text?.includes('Helper'))).toBe(true);
+        } finally {
+          await act(async () => root.unmount());
+          settings.remove();
+        }
+      },
+      {
+        marketplaceMine: vi.fn(async () => [
+          { bot: uploaded, files: 3, bytes: 2048, blocked: false },
+          { bot: other, files: 1, bytes: 10, blocked: false },
+        ]),
         marketplaceDelete: remove,
       },
     );
