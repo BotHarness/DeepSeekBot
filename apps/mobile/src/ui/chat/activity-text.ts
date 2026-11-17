@@ -149,6 +149,22 @@ export function activityText(
       return { name: title, verb: '', detail };
     }
     case 'turn-stop': {
+      const rest = activity.cause === 'quota' ? activity.rests?.[0] : undefined;
+      if (rest !== undefined)
+        return {
+          botSlug: activity.botSlug,
+          name: activity.botName,
+          verb: copy.stoppedQuota(
+            `${rest.provider}/${rest.model}`,
+            new Date(rest.until).toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          ),
+          detail: copy.stoppedQuotaRetry,
+        };
       if (activity.cause === 'failures')
         return {
           botSlug: activity.botSlug,

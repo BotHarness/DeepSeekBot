@@ -82,8 +82,8 @@ describe('Bot model request retry on concurrency refusals (#3300)', () => {
     expect(sleeps).toEqual([1_000, 2_000, 1_000]);
   });
 
-  it('uses a bounded provider Retry-After', async () => {
-    const { handle, next, sleeps } = harness();
+  it('uses a bounded provider Retry-After and treats a longer one as a spent quota (#4414)', async () => {
+    const { handle, next, sleeps, delegated } = harness();
     await handle(
       payload({ failure: { code: 'RATE_LIMIT', message: '429', providerRetryAfterMs: 7_000 } }),
       next,
@@ -92,7 +92,8 @@ describe('Bot model request retry on concurrency refusals (#3300)', () => {
       payload({ failure: { code: 'RATE_LIMIT', message: '429', providerRetryAfterMs: 600_000 } }),
       next,
     );
-    expect(sleeps).toEqual([7_000, 2_000]);
+    expect(sleeps).toEqual([7_000]);
+    expect(delegated).toEqual(['next']);
   });
 
   it('delegates non-Bot sessions, other failures and always-mode providers', async () => {

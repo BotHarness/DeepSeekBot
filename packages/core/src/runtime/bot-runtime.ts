@@ -100,6 +100,7 @@ import {
   selectAssignmentRoute,
   type ModelRoute,
 } from '../models/presets.js';
+import type { RestingRoute, RouteRests } from '../models/route-rest.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -124,6 +125,7 @@ import {
   type ChannelReaction,
   type ChannelRecord,
   type ChannelSkillInvocation,
+  type ChannelTurnStop,
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
@@ -1003,6 +1005,8 @@ export interface BotRuntimeOptions {
   messagePerf?: MessagePerfTracker;
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
+  routeRests?: Pick<RouteRests, 'restingUntil'>;
+  sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
   database: OperationalDatabaseOwner;
@@ -1631,7 +1635,16 @@ const TRANSIENT_FAILURE_CODES = new Set([
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
 const FAILURE_HOLD_THRESHOLD = 3;
 
-export type BotHoldCause = 'human-stop' | 'failures';
+export type BotHoldCause = 'human-stop' | 'failures' | 'quota';
+
+class RouteRestingError extends Error {
+  readonly code = 'ROUTE_RESTING';
+  constructor(readonly rest: RestingRoute) {
+    super(
+      `ROUTE_RESTING: ${rest.provider}/${rest.model} is out of quota until ${rest.until}; no request was sent.`,
+    );
+  }
+}
 
 export interface StoppedSessionRef {
   botSlug: string;
@@ -1696,6 +1709,8 @@ function continuationNote(continuation: DmContinuation): string {
 class BotRuntimeImplementation implements BotRuntime {
   readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
+  readonly #routeRests: BotRuntimeOptions['routeRests'];
+  readonly #sessionRoute: BotRuntimeOptions['sessionRoute'];
   readonly #team: TeamService | undefined;
   readonly #externalMessaging: OutboundMessaging | undefined;
   readonly #database: OperationalDatabaseModulePort;
@@ -1819,6 +1834,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#registry = options.registry;
     this.#botNetwork = options.botNetwork;
     this.#requireExecution = options.requireExecution;
+    this.#routeRests = options.routeRests;
+    this.#sessionRoute = options.sessionRoute;
     this.#team = options.team;
     this.#requireModelRoute = options.requireModelRoute;
     this.#channels = options.channels;
@@ -6202,25 +6219,53 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
-  async #noteAutomaticFailure(
+  #restingRoute(botSlug: string, sessionId: string | undefined): RestingRoute | undefined {
+    if (this.#routeRests === undefined || sessionId === undefined) return undefined;
+    const route = this.#sessionRoute?.(botSlug, sessionId);
+    return route === undefined ? undefined : this.#routeRests.restingUntil(route);
+  }
+
+  #restOf(botSlug: string, error: unknown): RestingRoute | undefined {
+    return error instanceof RouteRestingError
+      ? error.rest
+      : this.#restingRoute(botSlug, this.currentOrchestratorSessionId(botSlug));
+  }
+
+  async #holdForRestingRoute(
     botSlug: string,
     channelId: string | undefined,
     error: unknown,
-  ): Promise<void> {
-    const code = sessionFailureDetails(error).code;
-    if (this.#held.has(botSlug)) return;
-    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
-      this.#failureStreaks.delete(botSlug);
-      return;
-    }
-    const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
-    this.#failureStreaks.set(botSlug, streak);
-    if (streak < FAILURE_HOLD_THRESHOLD) return;
+  ): Promise<boolean> {
+    const rest = this.#restOf(botSlug, error);
+    if (rest === undefined) return false;
+    if (this.#held.has(botSlug)) return true;
     this.#failureStreaks.delete(botSlug);
-    this.#hold(botSlug, 'failures');
+    this.#hold(botSlug, 'quota');
     this.#warn?.(
-      JSON.stringify({ component: 'bot-runtime', event: 'failure-hold', botSlug, code, streak }),
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'quota-hold',
+        botSlug,
+        provider: rest.provider,
+        model: rest.model,
+        until: rest.until,
+      }),
     );
+    await this.#appendHoldNotice(
+      botSlug,
+      channelId,
+      `${this.#registry.get(botSlug)?.displayName ?? botSlug} paused: ${rest.provider}/${rest.model} is out of quota until ${rest.until}. Send it a message to try again.`,
+      { cause: 'quota', rests: [rest] },
+    );
+    return true;
+  }
+
+  async #appendHoldNotice(
+    botSlug: string,
+    channelId: string | undefined,
+    body: string,
+    stop: Pick<ChannelTurnStop, 'cause' | 'failures' | 'rests'>,
+  ): Promise<void> {
     const bot = this.#registry.get(botSlug);
     const sessionId = this.currentOrchestratorSessionId(botSlug);
     const original = channelId === undefined ? undefined : this.#channels.get(channelId);
@@ -6242,7 +6287,7 @@ class BotRuntimeImplementation implements BotRuntime {
         id: `turn-stopped-${randomUUID()}`,
         at: this.#now().toISOString(),
         author: { kind: 'system' },
-        body: `${bot.displayName} stopped after ${streak} failed runs in a row (${code}). Send it a message to try again.`,
+        body,
         turnStop: {
           botSlug,
           botName: bot.displayName,
@@ -6251,11 +6296,38 @@ class BotRuntimeImplementation implements BotRuntime {
             'Human',
           sessionId,
           held: true,
-          cause: 'failures',
-          failures: streak,
+          ...stop,
         },
       })
       .catch(() => undefined);
+  }
+
+  async #noteAutomaticFailure(
+    botSlug: string,
+    channelId: string | undefined,
+    error: unknown,
+  ): Promise<void> {
+    const code = sessionFailureDetails(error).code;
+    if (this.#held.has(botSlug)) return;
+    if (await this.#holdForRestingRoute(botSlug, channelId, error)) return;
+    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
+      this.#failureStreaks.delete(botSlug);
+      return;
+    }
+    const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
+    this.#failureStreaks.set(botSlug, streak);
+    if (streak < FAILURE_HOLD_THRESHOLD) return;
+    this.#failureStreaks.delete(botSlug);
+    this.#hold(botSlug, 'failures');
+    this.#warn?.(
+      JSON.stringify({ component: 'bot-runtime', event: 'failure-hold', botSlug, code, streak }),
+    );
+    await this.#appendHoldNotice(
+      botSlug,
+      channelId,
+      `${this.#registry.get(botSlug)?.displayName ?? botSlug} stopped after ${streak} failed runs in a row (${code}). Send it a message to try again.`,
+      { cause: 'failures', failures: streak },
+    );
   }
 
   async endGroup(channelId: string): Promise<void> {
@@ -6513,8 +6585,10 @@ class BotRuntimeImplementation implements BotRuntime {
       const code = sessionFailureDetails(error).code;
       const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
+      const resting = this.#restOf(bot.slug, error) !== undefined;
       const autoContinue =
         tobCliTurn === undefined &&
+        !resting &&
         code !== undefined &&
         TRANSIENT_FAILURE_CODES.has(code) &&
         delayMs !== undefined &&
@@ -6538,6 +6612,7 @@ class BotRuntimeImplementation implements BotRuntime {
         progress: await this.#readTurnProgress?.(sessionId).catch(() => undefined),
         ...(autoContinue === undefined ? {} : { autoContinue }),
       });
+      if (resting) await this.#holdForRestingRoute(bot.slug, channelId, error);
       if (autoContinue !== undefined && code !== undefined && delayMs !== undefined)
         this.#armAutoContinue(
           bot.slug,
@@ -6602,6 +6677,8 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
+    const resting = this.#restingRoute(bot.slug, orchestrator.sessionId);
+    if (resting !== undefined) throw new RouteRestingError(resting);
     const turnSources = new Set([
       ...(sourceEventId === undefined ? [] : [sourceEventId]),
       ...wakeEventIds,

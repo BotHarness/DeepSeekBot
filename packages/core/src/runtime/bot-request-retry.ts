@@ -1,5 +1,7 @@
 import type { RequestErrorAction } from '@deepseek-ai/dsh-agent';
 
+import { quotaRestMs } from '../models/route-rest.js';
+
 export const CONCURRENCY_WAIT_MS = 300_000;
 const INITIAL_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 10_000;
@@ -12,6 +14,8 @@ const NEVER_RETRIED = new Set([
   'INVALID_CREDENTIAL',
   'MISSING_CREDENTIAL',
   'QUOTA_EXCEEDED',
+  'QUOTA',
+  'ACCOUNT_QUOTA',
   'CONTEXT_WINDOW_EXCEEDED',
   'ABORTED',
 ]);
@@ -19,11 +23,17 @@ const NEVER_RETRIED = new Set([
 export interface RequestFailure {
   readonly code: string;
   readonly message: string;
+  readonly status?: number;
   readonly providerRetryAfterMs?: number;
 }
 
 export interface RequestErrorPayload {
-  readonly agent: { readonly session: { readonly id: string } };
+  readonly agent: {
+    readonly session: { readonly id: string };
+    readonly model?: {
+      current(): { readonly provider: string; readonly model: string } | undefined;
+    };
+  };
   readonly turn: number;
   readonly step: number;
   readonly provider: string;
@@ -39,10 +49,11 @@ export interface BotRequestRetryOptions {
   now?(): number;
   random?(): number;
   sleep?(ms: number, signal: AbortSignal): Promise<boolean>;
+  onQuotaExhausted?(route: { provider: string; model: string }, untilMs: number): void;
 }
 
 export function isConcurrencyRefusal(failure: RequestFailure): boolean {
-  if (NEVER_RETRIED.has(failure.code)) return false;
+  if (NEVER_RETRIED.has(failure.code) || quotaRestMs(failure) !== undefined) return false;
   return failure.code === 'RATE_LIMIT' || CONCURRENCY_TEXT.test(failure.message);
 }
 
@@ -73,6 +84,20 @@ export function createBotRequestRetry(options: BotRequestRetryOptions) {
     next: () => Promise<RequestErrorAction>,
   ): Promise<RequestErrorAction> => {
     const sessionId = payload.agent.session.id;
+    const restMs = quotaRestMs(payload.failure);
+    if (restMs !== undefined && options.isBotSession(sessionId)) {
+      waits.delete(sessionId);
+      const model = payload.agent.model?.current();
+      if (model !== undefined && model.provider === payload.provider)
+        options.onQuotaExhausted?.(
+          { provider: payload.provider, model: model.model },
+          now() + restMs,
+        );
+      options.log?.(
+        `botharness: model quota exhausted; resting ${Math.round(restMs / 1000)} s; provider=${payload.provider} code=${payload.failure.code}`,
+      );
+      return next();
+    }
     if (
       payload.retryPolicy?.mode === 'always' ||
       !isConcurrencyRefusal(payload.failure) ||
