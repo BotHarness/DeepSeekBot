@@ -3,7 +3,7 @@ import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import type { HumanAttentionItem as HostAttentionItem } from '@botharness/host-protocol/wire';
 import { FakeHost } from '../../host-client/test/fake-host.js';
-import { serializeSavedHost, type SavedHost } from '@botharness/host-client/hosts';
+import { parseSavedHost, serializeSavedHost, type SavedHost } from '@botharness/host-client/hosts';
 import { connectionOperationIndexSchema } from '../../core/src/devices/connection-operation.js';
 import { manageConnections } from '../src/client/connection-management.js';
 import { createHostActivityActions } from '../src/client/host-activity-actions.js';
@@ -2047,11 +2047,11 @@ function custodyFake(raw: HostCarrier) {
     seal: vi.fn(async (host: SavedHost) => {
       if (kept.has(host.credential)) {
         kept.set(host.credential, { ...kept.get(host.credential)!, routes: host.routes });
-        return host;
+        return parseSavedHost(host)!;
       }
       const handle = `custody.${String(next++).padStart(43, 'h')}`;
       kept.set(handle, host);
-      return { ...host, credential: handle };
+      return { ...parseSavedHost(host)!, credential: handle };
     }),
     forget: vi.fn(async (handle: string) => {
       forgotten.push(handle);

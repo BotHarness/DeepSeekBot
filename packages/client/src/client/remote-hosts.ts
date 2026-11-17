@@ -699,7 +699,8 @@ export function createRemoteHosts(options: {
     if (!custody) return next;
     const sealed = await custody.seal(next);
     if (!isCustodyHandle(next.credential)) sealedHandles.set(next.credential, sealed.credential);
-    return sealed;
+    const pending = pendingEnrollmentSchema.safeParse(next).data?.relationshipEnrollment;
+    return pending ? Object.assign(sealed, { relationshipEnrollment: pending }) : sealed;
   };
   const persistCredential = async (
     hostId: string,
@@ -739,10 +740,9 @@ export function createRemoteHosts(options: {
         await releasePending();
         return written;
       } catch (error) {
-        if (!(error instanceof SealOutdated) || attempt >= 2) {
-          if (sealed && !isCustodyHandle(preview?.credential ?? '')) await releaseCustody(preview!);
+        if (sealed && !isCustodyHandle(preview?.credential ?? '')) await releaseCustody(preview!);
+        if (!(error instanceof SealOutdated) || attempt >= 2)
           throw error instanceof SealOutdated ? new Error('connection-host-changed') : error;
-        }
       }
     }
   };

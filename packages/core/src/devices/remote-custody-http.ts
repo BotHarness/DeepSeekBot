@@ -119,6 +119,7 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
             if (ended) return;
             ended = true;
             if (heartbeat !== undefined) clearInterval(heartbeat);
+            custody.closeSocket(id);
             release?.();
             try {
               controller.close();
@@ -157,6 +158,7 @@ export function createRemoteCustodyStream(custody: RemoteCustody) {
         cancel() {
           ended = true;
           if (heartbeat !== undefined) clearInterval(heartbeat);
+          custody.closeSocket(id);
           release?.();
         },
       },

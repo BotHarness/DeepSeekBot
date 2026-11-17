@@ -141,10 +141,10 @@ export function createRemoteCustody(options: {
     return found;
   };
   const load = async (handle: string): Promise<Custodied> => {
-    const found = row(handle);
+    row(handle);
     const secret = parseSecret(await options.secrets.read(handle));
     if (!secret) throw new CustodyRefused('custody-secret-unavailable');
-    row(handle);
+    const found = row(handle);
     return {
       handle: found.handle,
       hostId: found.host_id,
@@ -247,20 +247,23 @@ export function createRemoteCustody(options: {
         };
         const secretChanged = JSON.stringify(secret) !== JSON.stringify(current.secret);
         if (secretChanged) await options.secrets.write(current.handle, secret);
-        options.database.transaction(
-          (db) => {
-            db.prepare('UPDATE remote_host_custody SET routes = ? WHERE handle = ?').run(
-              JSON.stringify(host.routes),
-              current.handle,
-            );
-          },
-          ['remote-host-custody'],
-        );
-        if (
-          secretChanged ||
-          (current.member && JSON.stringify(current.routes) !== JSON.stringify(host.routes))
-        )
-          drop(current.handle);
+        try {
+          options.database.transaction(
+            (db) => {
+              db.prepare('UPDATE remote_host_custody SET routes = ? WHERE handle = ?').run(
+                JSON.stringify(host.routes),
+                current.handle,
+              );
+            },
+            ['remote-host-custody'],
+          );
+        } finally {
+          if (
+            secretChanged ||
+            (current.member && JSON.stringify(current.routes) !== JSON.stringify(host.routes))
+          )
+            drop(current.handle);
+        }
         return {
           ...host,
           ...(incoming
