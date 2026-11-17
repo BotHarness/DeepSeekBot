@@ -41,7 +41,7 @@ describe('Orchestrator coordination prompt', () => {
 
   it('lets research use any active Grant and avoids a Grant request for a short lookup', () => {
     expect(coordination).toContain(
-      'research that changes no project files may use any active Grant',
+      'research that changes no Workspace files may use any active Grant',
     );
     expect(coordination).toContain('With no active Grant, do a short lookup yourself');
   });
