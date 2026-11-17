@@ -144,14 +144,9 @@ export function AppearanceSettings() {
   const t = useStrings().interfacePreferences;
   return (
     <SettingsForm>
-      <SettingsSection on="raised">
+      <SettingsSection on="raised" footer={t.colorsHint}>
         <AppearanceSetting on="raised" />
       </SettingsSection>
-      <SettingsFormItem>
-        <Text variant="meta" tone="muted">
-          {t.colorsHint}
-        </Text>
-      </SettingsFormItem>
       <PaletteSection mode="light" />
       <PaletteSection mode="dark" />
       <InterfaceSaveNotice />
