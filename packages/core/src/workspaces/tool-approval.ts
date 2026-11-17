@@ -181,7 +181,7 @@ export class ChannelToolApproval {
       ) => AssignmentApprovalWaitLease | undefined)
     | undefined;
   readonly #scope: (agent: Agent, owner: SessionOwnershipRecord) => string | undefined;
-  readonly #askChannel: ((sessionId: string) => string | undefined) | undefined;
+  readonly #askChannel: ((sessionId: string, callId: string) => string | undefined) | undefined;
   readonly #tracked = new Map<string, TrackedCall>();
   readonly #pending = new Map<string, Pending>();
   readonly #stopped = new Set<string>();
@@ -207,7 +207,7 @@ export class ChannelToolApproval {
       callId: string,
       signal: AbortSignal,
     ) => AssignmentApprovalWaitLease | undefined,
-    askChannel?: (sessionId: string) => string | undefined,
+    askChannel?: (sessionId: string, callId: string) => string | undefined,
     autoApproval?: ToolAutoApproval,
     fullAccess?: (sessionId: string) => boolean,
     private readonly approvals?: ApprovalAuthority,
@@ -320,7 +320,9 @@ export class ChannelToolApproval {
       return 'allowed-once';
     }
     const origin =
-      tracked.role === 'orchestrator' ? this.#askChannel?.(tracked.sessionId) : undefined;
+      tracked.role === 'orchestrator'
+        ? this.#askChannel?.(tracked.sessionId, tracked.callId)
+        : undefined;
     if (tracked.role === 'orchestrator' && this.#askChannel !== undefined && origin === undefined)
       return 'unavailable';
     const originChannel = origin === undefined ? undefined : this.#channels.get(origin);

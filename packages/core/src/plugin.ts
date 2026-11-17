@@ -2692,7 +2692,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     (sessionId, callId, signal) =>
       core.runtime.beginAssignmentApprovalWait?.(sessionId, callId, signal),
-    (sessionId) => core.runtime.askChannel?.(sessionId),
+    (sessionId, callId) => core.runtime.askChannel?.(sessionId, callId),
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
     core.team.approvals,

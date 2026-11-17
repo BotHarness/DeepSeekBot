@@ -874,7 +874,7 @@ export interface BotRuntime {
   botCreatePreview?(botSlug: string, args: unknown): BotCreatePreview | undefined;
   captureTobCliAuthority?(sessionId: string): TobCliAuthority;
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
-  askChannel?(sessionId: string): string | undefined;
+  askChannel?(sessionId: string, callId?: string): string | undefined;
   bindPrivateInputOrigin?(
     sessionId: string,
     sourceEventId?: string,
@@ -1794,7 +1794,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #assignmentNotices = new Set<Promise<void>>();
   readonly #waitLifetime = new AbortController();
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
-  readonly #activeDirectTools = new Map<string, { botSlug: string; approvalChannelId?: string }>();
+  readonly #activeDirectTools = new Map<
+    string,
+    { botSlug: string; agentSessionId: string; approvalChannelId?: string }
+  >();
   readonly #tobCliRequests = new Map<string, TobCliRequestLease>();
   #closed = false;
   readonly #tob: TobService | undefined;
@@ -4599,11 +4602,12 @@ class BotRuntimeImplementation implements BotRuntime {
     if (changed) this.#channels.admissionChanged?.(channelId, messageId);
   }
 
-  askChannel(sessionId: string): string | undefined {
+  askChannel(sessionId: string, callId?: string): string | undefined {
     const owner = this.#ownership.resolve(sessionId);
     if (this.#closed || owner?.rootRole !== 'orchestrator') return undefined;
-    const direct = this.#activeDirectTools.get(sessionId);
-    if (direct?.botSlug === owner.botSlug) {
+    const direct = this.#activeDirectTools.get(callId ?? sessionId);
+    if (direct !== undefined) {
+      if (direct.botSlug !== owner.botSlug || direct.agentSessionId !== sessionId) return undefined;
       const channel =
         direct.approvalChannelId === undefined
           ? undefined
@@ -5341,18 +5345,14 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };
+    const parent = delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug);
     this.#activeDirectTools.set(sessionId, {
       botSlug: bot.slug,
+      agentSessionId: PRIVATE_INPUT_TOOLS.has(tool) ? (parent ?? sessionId) : sessionId,
       ...(approvalChannelId === undefined ? {} : { approvalChannelId }),
     });
     try {
-      const result = await runDirect(
-        run,
-        tool,
-        args,
-        signal,
-        delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug),
-      );
+      const result = await runDirect(run, tool, args, signal, parent);
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
         try {
