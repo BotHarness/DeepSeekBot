@@ -770,6 +770,14 @@ function ModelsView({
       ? groupName(routes.groups.orchestratorGroupId)
       : currentModel(value).group;
   const assignmentGroup = groupName(routes.groups.assignmentDefaultGroupId);
+  const assignmentCatalogGroup = value.groups?.find(
+    (group) => group.id === routes.groups.assignmentDefaultGroupId,
+  );
+  const assignmentShown =
+    assignmentCatalogGroup === undefined ||
+    assignmentCatalogGroup.routes.some((route) => sameModel(route, routes.assignmentDefault))
+      ? routes.assignmentDefault
+      : modelCatalogGroupFront(assignmentCatalogGroup, value.models);
   const form = (
     <View style={{ gap: space.x4 }}>
       <SheetNote>
@@ -809,7 +817,7 @@ function ModelsView({
                 label={t.modelSettings.assignment}
                 detail={
                   assignmentGroup !== undefined
-                    ? `${assignmentGroup} · ${routeLabel(value, routes.assignmentDefault)}`
+                    ? `${assignmentGroup} · ${routeLabel(value, assignmentShown)}`
                     : routeLabel(value, routes.assignmentDefault)
                 }
                 onPress={models.busy ? undefined : () => openPicker('assignment')}

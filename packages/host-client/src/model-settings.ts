@@ -126,10 +126,10 @@ export function modelRoutes(state: ModelSettingsState) {
             defaultEffort: assignmentDefault.reasoningEffort ?? '',
           },
         ]);
+  const orchestratorGroupId =
+    source === undefined ? state.defaultGroupId : source.orchestratorGroupId;
   const groups: ModelPlanGroups = {
-    ...(source?.orchestratorGroupId === undefined
-      ? {}
-      : { orchestratorGroupId: source.orchestratorGroupId }),
+    ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
     ...(source?.assignmentGroups === undefined
       ? {}
       : { assignmentGroups: [...source.assignmentGroups] }),
@@ -449,12 +449,7 @@ export async function saveModelPreset(
     throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
   const input = {
     name: name.trim(),
-    ...groupFields(
-      state.preset === undefined && state.plan === undefined && state.defaultGroupId !== undefined
-        ? { ...routes.groups, orchestratorGroupId: state.defaultGroupId }
-        : routes.groups,
-      orchestrator,
-    ),
+    ...groupFields(routes.groups, orchestrator),
     assignmentDefault,
     assignmentModels,
   };

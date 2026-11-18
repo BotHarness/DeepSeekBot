@@ -1073,6 +1073,34 @@ describe('Model entry', () => {
     );
   });
 
+  it('flags a group effort its members dropped while keeping the shared ones (#4501)', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 5,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      assignmentModels: [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      assignmentGroups: ['main'],
+      assignmentGroupOptions: [
+        { group: 'main', allowedEfforts: ['high', 'max'], defaultEffort: 'high' },
+      ],
+      appliedAt: '',
+    };
+    const groups = [
+      { id: 'main', name: 'Main', revision: 1, routes: [{ provider: 'deepseek', model: 'flash' }] },
+    ];
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ revision: 5, plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    expect(host.textContent).toContain(translate('modelPreset.groupEffortsStale'));
+    expect(host.textContent).toContain(translate('modelPreset.allowedEfforts'));
+  });
+
   it('saves the current settings as a new preset and links the Bot to it', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     let plan: ModelPlanView = {
