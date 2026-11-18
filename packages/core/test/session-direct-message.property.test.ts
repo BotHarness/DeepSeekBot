@@ -53,9 +53,12 @@ describe('Session detail direct message format', () => {
         body,
         id,
         (notes, envelope, text, sourceEventId) => {
-          const prompt = sessionDirectSpeaker(sessionDirectPrompt(text, sourceEventId), envelope);
-          expect(prompt).toBeDefined();
-          expect(sessionDirectBody(notes.join('') + prompt)).toBe(text);
+          const prompt = sessionDirectSpeaker(
+            notes.join('') + sessionDirectPrompt(text, sourceEventId),
+            envelope,
+          );
+          expect(prompt?.startsWith(notes.join('') + envelope)).toBe(true);
+          expect(sessionDirectBody(prompt ?? '')).toBe(text);
         },
       ),
     );

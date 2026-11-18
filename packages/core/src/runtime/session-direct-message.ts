@@ -4,8 +4,10 @@ const HEADER = '[Human wrote this directly in your Session detail; no Channel sh
 const FOOTER = '\n[Source Event ID: ';
 const TAIL =
   '. Treat it as the Human steering you. Reply only if you need the Human; bot_send_message with this source_event_id reaches their DM.]';
-const PREFIX =
-  /^(?:\[Host[^\n]*(?:\n- [^\n]*)*\]\n+)*(?:Current Channel Human: \{[^\n]*\}\n|\[[^[\]\n]*\]\n(?:\[Speaker policies: latest revision wins; Deny wins\]\n[^\n]*\n)?)?$/u;
+const HOST_NOTES = String.raw`(?:\[Host[^\n]*(?:\n- [^\n]*)*\]\n+)*`;
+const SPEAKER = String.raw`(?:Current Channel Human: \{[^\n]*\}\n|\[[^[\]\n]*\]\n(?:\[Speaker policies: latest revision wins; Deny wins\]\n[^\n]*\n)?)?`;
+const NOTES = new RegExp(`^${HOST_NOTES}$`, 'u');
+const PREFIX = new RegExp(`^${HOST_NOTES}${SPEAKER}$`, 'u');
 const SOURCE_EVENT_ID = /^[^\s\]]+$/u;
 
 export function sessionDirectPrompt(body: string, sourceEventId: string): string {
@@ -23,7 +25,8 @@ export function sessionDirectBody(prompt: string): string | undefined {
 }
 
 export function sessionDirectSpeaker(prompt: string, speaker: string): string | undefined {
-  return prompt.startsWith(`${HEADER}\n`) && sessionDirectBody(prompt) !== undefined
-    ? `${speaker.trimEnd()}\n${prompt}`
-    : undefined;
+  const at = prompt.indexOf(`${HEADER}\n`);
+  if (at < 0 || !NOTES.test(prompt.slice(0, at)) || sessionDirectBody(prompt) === undefined)
+    return undefined;
+  return `${prompt.slice(0, at)}${speaker.trimEnd()}\n${prompt.slice(at)}`;
 }
