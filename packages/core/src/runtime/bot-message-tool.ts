@@ -122,6 +122,7 @@ export function createBotMessageTool(
     settle(channelId: string, body: string): void;
     discard(channelId: string): void;
   },
+  sentToHumanDm?: (messageId: string) => void,
 ) {
   return defineTool({
     name: 'bot_send_message',
@@ -498,6 +499,7 @@ export function createBotMessageTool(
                   }),
           });
           messageId = message.id;
+          if (channel?.kind === 'human-dm') sentToHumanDm?.(message.id);
           unwoken = notWoken(
             message,
             channel?.kind === 'bot-dm'

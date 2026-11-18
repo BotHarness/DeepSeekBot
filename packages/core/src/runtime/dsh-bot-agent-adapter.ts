@@ -524,6 +524,8 @@ type ActiveRun =
       run: OrchestratorAgentRun;
       direct?: true;
       sessionLinks?: Map<string, SessionLinkKind>;
+      dmMessageIds?: string[];
+      linkedSessionIds?: Set<string>;
     }
   | { role: 'assignment'; run: AssignmentAgentRun; reported: boolean };
 
@@ -534,6 +536,25 @@ function linkSession(
 ): void {
   const links = (active.sessionLinks ??= new Map());
   if (links.get(sessionId) !== 'created') links.set(sessionId, kind);
+}
+
+function linkForgottenSessions(active: Extract<ActiveRun, { role: 'orchestrator' }>): void {
+  const [messageId, ...others] = active.dmMessageIds ?? [];
+  const linkSessions = active.run.channels.linkSessions;
+  if (messageId === undefined || others.length > 0 || linkSessions === undefined) return;
+  const links = [...(active.sessionLinks ?? [])].flatMap(([sessionId, kind]) => {
+    if (active.linkedSessionIds?.has(sessionId)) return [];
+    const assignment = active.run.assignments.inspect(sessionId);
+    return assignment === undefined
+      ? []
+      : [{ sessionId, kind, title: assignment.title, createdAt: assignment.createdAt }];
+  });
+  if (links.length === 0) return;
+  try {
+    linkSessions({ messageId, links });
+  } catch {
+    return;
+  }
 }
 
 function agentOptions(
@@ -1007,6 +1028,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       this.#stopSeqs.delete(run.sessionId);
       if (this.#humanStops.delete(run.sessionId)) this.#drafts.interrupt(run.sessionId);
       else this.#drafts.end(run.sessionId);
+      linkForgottenSessions(entry);
       if (this.#runs.get(run.sessionId) === entry) {
         this.#runs.delete(run.sessionId);
         run.setExecutionReady?.(false);
@@ -1660,6 +1682,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         {
           settle: (channelId, body) => this.#drafts.settle(run.sessionId, channelId, body),
           discard: (channelId) => this.#drafts.discard(run.sessionId, channelId),
+        },
+        (messageId) => {
+          const active = this.#runs.get(run.sessionId);
+          if (active?.role === 'orchestrator') (active.dmMessageIds ??= []).push(messageId);
         },
       ),
     );
@@ -2459,6 +2485,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             };
           });
           const message = channels.linkSessions({ messageId: args.message_id, links });
+          for (const { sessionId } of links) (active.linkedSessionIds ??= new Set()).add(sessionId);
           return JSON.stringify({
             outcome: 'linked',
             messageId: message.id,
