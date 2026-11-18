@@ -36,7 +36,7 @@ export function useHumanAvatar(
 ): string | undefined {
   const cache = client === undefined ? idle : humanAvatarCache(client);
   useSyncExternalStore(cache.subscribe, cache.getSnapshot, cache.getSnapshot);
-  if (humanId === undefined) return undefined;
+  if (client === undefined || humanId === undefined) return undefined;
   cache.want(humanId, version);
   return cache.get(humanId, version);
 }
@@ -75,10 +75,10 @@ function remember(client: HostClient, identity: HumanIdentity, write = false): H
 }
 
 export async function loadHumanIdentity(client: HostClient): Promise<HumanIdentity> {
-  const stale = sequence.begin(client);
+  const commit = sequence.begin(client);
   const identity = parseHumanIdentity(await client.call<unknown>('humanIdentity'));
   const newer = identities.get(client);
-  return stale() && newer !== undefined ? newer : remember(client, identity);
+  return !commit() && newer !== undefined ? newer : remember(client, identity);
 }
 
 export function followHumanIdentity(client: HostClient): () => void {

@@ -205,6 +205,8 @@ describe('Account Profile screen', () => {
     const row = () => byTestId(loading, 'chat-avatar-choose')!.textContent;
     expect(row()).toContain(t.avatarTitle);
     expect(row()).not.toContain(t.avatarChoose);
+    const photo = () => byTestId(loading, 'chat-avatar-change')!.getAttribute('aria-label');
+    expect(photo()).toBe(t.avatarTitle);
     await act(async () =>
       root!.render(
         <AccountProfileView
@@ -217,6 +219,18 @@ describe('Account Profile screen', () => {
     );
     expect(row()).toContain(t.avatarChange);
     expect(byTestId(loading, 'chat-avatar-remove')).not.toBeNull();
+    expect(photo()).toBe(t.avatarChange);
+    await act(async () =>
+      root!.render(
+        <AccountProfileView
+          state={{ status: 'signed-out' }}
+          avatar={editor}
+          chat={{ ...chat, hasAvatar: false }}
+          actions={actions()}
+        />,
+      ),
+    );
+    expect(photo()).toBe(t.avatarChoose);
   });
 
   it('says Change photo in the setup prompt while a stored photo is still loading', async () => {

@@ -22,7 +22,8 @@ export function humanAuthorName(
   if (author.deleted === true) return t('team.deletedMember');
   const humanId = author.humanId ?? 'local-human';
   const current = channel?.humanMembers?.find((member) => member.humanId === humanId);
-  return humanLabel(current?.displayName ?? author.displayName ?? channelHumanName(channel), t);
+  if (current !== undefined) return humanLabel(current.displayName, t);
+  return author.displayName ?? humanLabel(channelHumanName(channel), t);
 }
 
 export function currentMentionLabel(

@@ -70,5 +70,6 @@ it('names a Human author by their current Group nickname, falling back to the st
   expect(humanAuthorName({ kind: 'human', humanId: 'mia', deleted: true }, group, t)).toBe(
     'team.deletedMember',
   );
-  expect(humanAuthorName({ kind: 'human', displayName: 'Human' }, undefined, t)).toBe('You');
+  expect(humanAuthorName({ kind: 'human', displayName: 'Human' }, undefined, t)).toBe('Human');
+  expect(humanAuthorName({ kind: 'human' }, undefined, t)).toBe('You');
 });
