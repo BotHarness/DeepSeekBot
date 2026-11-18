@@ -8,4 +8,4 @@ section: Fixed
 
 ## zh
 
-- iPhone 上，Team 登录或切换成员后，聊天资料设置提示改为等登录面板完全移除后再打开，不会再在面板移除过程中弹出（[#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)）。
+- iPhone 上，Team 登录或切换成员后，聊天资料设置提示改为等登录 sheet 完全移除后再打开，不会再在 sheet 移除过程中弹出（[#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)）。
