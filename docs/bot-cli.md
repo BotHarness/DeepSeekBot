@@ -664,6 +664,12 @@ Stopping an **Assignment** does not wake the Orchestrator. Its next turn reads a
 printf '{"session_id":"<assignment-session-id>","message":"The Human wants this after all; continue"}' | deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin
 ```
 
+`link_message_sessions` links one of the Bot's own sent Human DM messages to the Assignment Sessions it reports on; each shows as a Session link on that message. The Orchestrator sends a receipt first, creates its Assignments, then links the receipt with the new Session ids. Calling it again adds Sessions to the same message, including ones created in a later step or turn; a Session already linked keeps its first kind. A Session created in this turn or after the message counts as `created` (new), any other as `sent`. A message that is not one of the Bot's in a Human DM, or a Session that is not one of its Assignments, is refused. `bot_send_message` no longer takes `session_ids`. Without the model:
+
+```bash
+printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}' | deepseekbot bot-tool <bot-id> link_message_sessions --args-stdin
+```
+
 Stopping the **Orchestrator** only interrupts its current turn (or a waiting automatic continuation). Its Assignments keep running, and nothing else changes: the next message, Assignment Report or other wake starts a turn as usual, and that turn carries a Host note about the stop. In the Sessions panel, when Assignments are running, the stop asks first and offers to stop them too (Bot Stop).
 
 `bot-stop <bot-id>` is Bot Stop: it stops the Orchestrator and every running Assignment of the Bot, with their Subagents, with the same interrupt-only semantics. It is idempotent: with nothing running it returns an empty `stopped`. Each stopped Assignment can be resumed by an Assignment Request, like one stopped alone. With `--channel` the notice (`turnStop.target.scope: "bot"`) goes only to that Channel, and only when the Bot is in it. IM `/stop` and the composer's Stop run Bot Stop.

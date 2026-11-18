@@ -732,6 +732,10 @@ export interface OrchestratorChannelAccess {
     mentionHumanIds?: string[];
     deliveryKey?: string;
   }): Promise<ChannelMessage>;
+  linkSessions?(input: {
+    messageId: string;
+    links: Array<import('../channels/channel.js').ChannelSessionLink & { createdAt?: string }>;
+  }): ChannelMessage;
 }
 
 export interface BotReactionInput {
@@ -9386,6 +9390,44 @@ class BotRuntimeImplementation implements BotRuntime {
         );
         if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
         return appended;
+      },
+      linkSessions: (input) => {
+        if (this.#channels.addMessageSessionLinks === undefined)
+          throw new Error('Session links are unavailable');
+        const channel = this.#channels
+          .list()
+          .find(
+            (candidate) =>
+              candidate.type === 'dm' &&
+              candidate.botSlug === botSlug &&
+              !isBotDmChannel(candidate) &&
+              this.#channels.message(candidate.id, input.messageId)?.author.kind === 'bot',
+          );
+        const message =
+          channel === undefined ? undefined : this.#channels.message(channel.id, input.messageId);
+        if (
+          channel === undefined ||
+          message === undefined ||
+          message.author.kind !== 'bot' ||
+          message.author.slug !== botSlug
+        )
+          throw new Error(`Message ${input.messageId} is not one of your messages in a Human DM`);
+        const linked = this.#channels.addMessageSessionLinks(
+          channel.id,
+          message.id,
+          input.links.map(({ sessionId, kind, title, createdAt }) => ({
+            sessionId,
+            title,
+            kind:
+              kind === 'sent' &&
+              createdAt !== undefined &&
+              Date.parse(createdAt) >= Date.parse(message.at)
+                ? 'created'
+                : kind,
+          })),
+        );
+        if (linked === undefined) throw new Error(`Message ${input.messageId} disappeared`);
+        return linked;
       },
       inspectDrafts: (input) => {
         const channel = this.#channels.get(input.channelId);

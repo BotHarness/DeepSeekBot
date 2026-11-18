@@ -1447,6 +1447,26 @@ function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
   });
 }
 
+export function parseSessionLinks(value: unknown): NonNullable<ChannelMessage['sessionLinks']> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const link = asRecord(entry);
+    return link !== undefined &&
+      typeof link['sessionId'] === 'string' &&
+      link['sessionId'] !== '' &&
+      typeof link['title'] === 'string' &&
+      (link['kind'] === 'created' || link['kind'] === 'sent')
+      ? [
+          {
+            sessionId: link['sessionId'],
+            kind: link['kind'] as 'created' | 'sent',
+            title: link['title'],
+          },
+        ]
+      : [];
+  });
+}
+
 export function parseChannelMessage(value: unknown): ChannelMessage | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -1488,25 +1508,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (grantRequest !== undefined && (grantRequest !== true || author.kind !== 'bot'))
     return undefined;
   let grantRequestResolution: ChannelMessage['grantRequestResolution'];
-  const sessionLinks =
-    author.kind === 'bot' && Array.isArray(record['sessionLinks'])
-      ? record['sessionLinks'].flatMap((entry) => {
-          const link = asRecord(entry);
-          return link !== undefined &&
-            typeof link['sessionId'] === 'string' &&
-            link['sessionId'] !== '' &&
-            typeof link['title'] === 'string' &&
-            (link['kind'] === 'created' || link['kind'] === 'sent')
-            ? [
-                {
-                  sessionId: link['sessionId'],
-                  kind: link['kind'] as 'created' | 'sent',
-                  title: link['title'],
-                },
-              ]
-            : [];
-        })
-      : [];
+  const sessionLinks = author.kind === 'bot' ? parseSessionLinks(record['sessionLinks']) : [];
   let assignmentReply: ChannelMessage['assignmentReply'];
   if (record['assignmentReply'] !== undefined) {
     const target = asRecord(record['assignmentReply']);

@@ -620,6 +620,12 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 printf '{"session_id":"<assignment-session-id>","message":"Human 还是要这个，继续"}' | deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin
 ```
 
+`link_message_sessions` 把 Bot 自己在 Human 私聊里发出的一条消息，绑定到这条消息所汇报的 Assignment Session 上；每个 Session 在这条消息上显示为一个 Session 链接。Orchestrator 先发回执，再创建 Assignment，最后用新的 Session id 绑定这条回执。再次调用会给同一条消息追加 Session，包括之后的步骤或回合才创建的；已经绑定的 Session 保留第一次的类型。本回合创建或晚于该消息创建的 Session 记为 `created`（新建），其余记为 `sent`。不是该 Bot 在 Human 私聊里发的消息，或不是它的 Assignment 的 Session，会被拒绝。`bot_send_message` 不再接受 `session_ids`。不经过模型：
+
+```bash
+printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}' | deepseekbot bot-tool <bot-id> link_message_sessions --args-stdin
+```
+
 停止 **Orchestrator** 只打断它当前的回合（或等待中的自动继续）。它的 Assignment 继续运行，其他一切不变：下一条消息、Assignment 汇报或其他唤醒照常开启新回合，这一回合会带上一条关于停止的 Host 说明。在 Sessions 面板中，如果有正在运行的 Assignment，停止前会先询问，并可选择一并停止它们（Bot Stop）。
 
 `bot-stop <bot-id>` 即 Bot Stop：停止 Bot 的 Orchestrator 和所有运行中的 Assignment 及其 Subagent，语义同样只是打断。它是幂等的：没有运行中的工作时返回空的 `stopped`。每个被停止的 Assignment 都可以像单独停止的一样，用 Assignment Request 继续。带 `--channel` 时通知（`turnStop.target.scope: "bot"`）只发到该 Channel，且只在 Bot 属于该 Channel 时发。IM 的 `/stop` 和输入框的停止按钮都执行 Bot Stop。

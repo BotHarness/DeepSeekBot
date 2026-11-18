@@ -78,7 +78,6 @@ const OPTIONAL_FIELDS = [
   'freshness_override',
   'resolve_inbox_ids',
   'voice',
-  'session_ids',
 ] as const;
 
 export type SessionLinkKind = 'created' | 'sent';
@@ -123,7 +122,6 @@ export function createBotMessageTool(
     settle(channelId: string, body: string): void;
     discard(channelId: string): void;
   },
-  sessionLinks: () => ReadonlyMap<string, SessionLinkKind> = () => new Map(),
 ) {
   return defineTool({
     name: 'bot_send_message',
@@ -222,13 +220,7 @@ export function createBotMessageTool(
         type: 'string',
         required: true,
         description:
-          'The actual message to deliver. To point the Human at one of your Assignments without linking it, write [Assignment title](session:<session id>) inline; it shows as a clickable chip, and external IM gets the plain title.',
-      },
-      session_ids: {
-        type: 'array',
-        items: { type: 'string' },
-        description:
-          'Human DM only. Assignment Session ids this message reports on that you created or sent a request to in this turn; each shows as a link on the message, marked new or sent from your own tool calls. List only Sessions this message is about.',
+          'The actual message to deliver. To point the Human at one of your Assignments inside the text, write [Assignment title](session:<session id>) inline; it shows as a clickable chip, and external IM gets the plain title. To link a Human DM message to the Assignments it reports on, call link_message_sessions with its messageId after sending.',
       },
       genui_json: {
         type: 'string',
@@ -381,26 +373,6 @@ export function createBotMessageTool(
           'unsupported-attachment-send',
           'Discover the existing Bot DM Channel to send attachments.',
         );
-      const linked = sessionLinks();
-      const links =
-        args.session_ids === undefined
-          ? undefined
-          : [...new Set(args.session_ids)].map((sessionId) => {
-              const kind = linked.get(sessionId);
-              const assignment =
-                kind === undefined ? undefined : run.assignments.inspect(sessionId);
-              if (kind === undefined || assignment === undefined)
-                throw new BotMessageError(
-                  'invalid-session-links',
-                  `Session ${sessionId} was not created or sent a request in this turn; mention it inline as [title](session:<id>) instead.`,
-                );
-              return { sessionId, kind, title: assignment.title };
-            });
-      if (links !== undefined && (external || channel?.kind !== 'human-dm'))
-        throw new BotMessageError(
-          'invalid-session-links',
-          'Session links are available in your Human DM only.',
-        );
       const unknown = sessionMentionIds(args.body).filter(
         (sessionId) => run.assignments.inspect(sessionId) === undefined,
       );
@@ -504,7 +476,6 @@ export function createBotMessageTool(
             body: args.body,
             deliveryKey: String(exec.callId),
             ...(genui === undefined ? {} : { genui }),
-            ...(links === undefined ? {} : { sessionLinks: links }),
             ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
             ...(quotes === undefined ? {} : { quotes }),
             ...(args.mention_bot_ids === undefined ? {} : { mentionBotIds: args.mention_bot_ids }),

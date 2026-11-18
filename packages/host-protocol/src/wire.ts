@@ -211,6 +211,12 @@ export type ChannelNotification =
       }[];
     }
   | {
+      kind: 'session-links';
+      channelId: string;
+      messageId: string;
+      sessionLinks: readonly { sessionId: string; kind: 'created' | 'sent'; title: string }[];
+    }
+  | {
       kind: 'draft-baseline';
       channelId: string;
       revision: number;

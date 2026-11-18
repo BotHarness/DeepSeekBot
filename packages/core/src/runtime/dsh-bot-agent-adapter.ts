@@ -1629,10 +1629,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           settle: (channelId, body) => this.#drafts.settle(run.sessionId, channelId, body),
           discard: (channelId) => this.#drafts.discard(run.sessionId, channelId),
         },
-        () => {
-          const active = this.#runs.get(run.sessionId);
-          return active?.role === 'orchestrator' ? (active.sessionLinks ?? new Map()) : new Map();
-        },
       ),
     );
     registerTool(
@@ -2316,6 +2312,61 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           return JSON.stringify({
             ...assignmentRequestResult(outcome),
             ...(unarchived ? { unarchived: true } : {}),
+          });
+        },
+      }),
+    );
+    registerTool(
+      defineTool({
+        name: 'link_message_sessions',
+        description:
+          'Link one of your own sent Human DM messages to the Assignment Sessions it reports on; each shows as a link on that message, marked new or sent. Pass the messageId bot_send_message returned and the Session ids from create_assignment or send_assignment_request. Calling again adds Sessions to the same message, so one message can link Sessions created in later steps or turns.',
+        parameters: {
+          message_id: {
+            type: 'string',
+            required: true,
+            description: 'messageId of your own sent message in your Human DM.',
+          },
+          session_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            required: true,
+            description: 'Assignment Session ids this message reports on.',
+          },
+        },
+        output: {
+          schema: { type: 'string' },
+          render: (_args, value) => [{ type: 'text', text: value }],
+        },
+        execute: async (args) => {
+          const active = this.#runs.get(run.sessionId);
+          if (active?.role !== 'orchestrator')
+            throw new Error('link_message_sessions: Orchestrator run is unavailable');
+          const channels = active.run.channels;
+          if (channels.linkSessions === undefined)
+            throw new Error('link_message_sessions: Session links are unavailable');
+          const ids = [...new Set(args.session_ids)];
+          if (ids.length === 0)
+            throw new Error('link_message_sessions: pass at least one Session id');
+          const links = ids.map((sessionId) => {
+            const assignment = active.run.assignments.inspect(sessionId);
+            if (assignment === undefined)
+              throw new Error(`link_message_sessions: ${sessionId} is not one of your Assignments`);
+            return {
+              sessionId,
+              title: assignment.title,
+              kind: active.sessionLinks?.get(sessionId) ?? 'sent',
+              createdAt: assignment.createdAt,
+            };
+          });
+          const message = channels.linkSessions({ messageId: args.message_id, links });
+          return JSON.stringify({
+            outcome: 'linked',
+            messageId: message.id,
+            sessions: (message.sessionLinks ?? []).map(({ sessionId, kind }) => ({
+              sessionId,
+              kind,
+            })),
           });
         },
       }),
