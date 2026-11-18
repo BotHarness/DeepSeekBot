@@ -439,6 +439,7 @@ export interface DshBotAgentAdapterOptions {
 
   defaultAgentPreset?: string | (() => string | undefined);
   botModeOf?: (botSlug: string) => string | undefined;
+  ensureBotModes?: () => Promise<void>;
   assignmentModes?: (botSlug: string) => Promise<AssignmentModeChoices>;
 
   orchestratorCwd?: (bot: PersonaBotRecord) => string | undefined;
@@ -662,6 +663,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #defaultAgentPresetOf: () => string | undefined;
   readonly #currentBotModeOf: ((botSlug: string) => string | undefined) | undefined;
+  readonly #ensureBotModes: (() => Promise<void>) | undefined;
   readonly #authorizeBorrow:
     | ((agent: Agent, role: 'orchestrator' | 'assignment') => void)
     | undefined;
@@ -718,6 +720,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#hasSession = options.hasSession;
     this.#orchestratorCwd = options.orchestratorCwd;
     this.#currentBotModeOf = options.botModeOf;
+    this.#ensureBotModes = options.ensureBotModes;
     const defaultAgentPreset = options.defaultAgentPreset;
     this.#defaultAgentPresetOf =
       typeof defaultAgentPreset === 'function' ? defaultAgentPreset : () => defaultAgentPreset;
@@ -1503,6 +1506,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       setup,
       ...(signal === undefined ? {} : { signal }),
     };
+    await this.#ensureBotModes?.();
     const meta = createMeta(
       run,
       this.#resolveOrchestratorCwd(run.bot),
@@ -4564,6 +4568,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
+    await this.#ensureBotModes?.();
     const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
     const resolvedAgentOptions = agentOptions(
       run,

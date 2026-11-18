@@ -4462,6 +4462,43 @@ describe('Assignment Directory Tools', () => {
     }
   });
 
+  it('waits for the installed modes before it picks a new Session mode', async () => {
+    const host = new FakeAgentHost();
+    let current = 'stale-default';
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      botModeOf: () => current,
+      ensureBotModes: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        current = 'deepseekbot';
+      },
+    });
+    try {
+      await adapter.runAssignment({
+        sessionId: 'assignment-fresh',
+        bot: BOT,
+        text: 'Port the parser',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: vi.fn(),
+      });
+      expect(host.createOptions.at(-1)?.meta).toMatchObject({ agentPreset: 'deepseekbot' });
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('starts an Assignment in its chosen mode and resumes it in the mode its log records', async () => {
     const host = new FakeAgentHost();
     const mounted: Array<string | undefined> = [];

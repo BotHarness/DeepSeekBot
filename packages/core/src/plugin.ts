@@ -1646,8 +1646,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let installedBotModeIds: ReadonlySet<string> | undefined;
   const globalBotMode = (): string => {
     const saved = botModeSettings.defaultMode();
-    if (saved !== undefined && installedBotModeIds === undefined)
-      void installedBotModes().catch(() => undefined);
     return saved !== undefined &&
       (installedBotModeIds === undefined || installedBotModeIds.has(saved))
       ? saved
@@ -1914,6 +1912,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     defaultAgentPreset: globalBotMode,
     botModeOf,
+    ensureBotModes: async () => {
+      if (installedBotModeIds !== undefined) return;
+      await installedBotModes().catch(() => undefined);
+    },
     assignmentModes: async (slug) => {
       const installed = await installedBotModes();
       const allowed =
