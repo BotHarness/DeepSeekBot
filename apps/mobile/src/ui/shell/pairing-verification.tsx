@@ -23,15 +23,19 @@ export function PairingVerification({
   const [details, setDetails] = useState(false);
   const verification = pairing.verification;
   const fingerprint = verification?.fingerprint ?? pairing.fingerprint;
-  const title = verification
-    ? t.hostFingerprintTitle
-    : fingerprint
-      ? t.pairingVerification.waiting
-      : t.pairingVerification.connecting;
+  const title = pairing.paired
+    ? t.pairingVerification.paired
+    : verification
+      ? t.hostFingerprintTitle
+      : fingerprint
+        ? t.pairingVerification.waiting
+        : t.pairingVerification.connecting;
 
   return (
     <ScrollView
-      key={verification ? 'verify' : fingerprint ? 'approve' : 'connect'}
+      key={
+        pairing.paired ? 'paired' : verification ? 'verify' : fingerprint ? 'approve' : 'connect'
+      }
       contentInsetAdjustmentBehavior="automatic"
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentContainerStyle={{ padding: space.x6, gap: space.x5 }}
@@ -52,7 +56,16 @@ export function PairingVerification({
           </Text>
         ) : null}
       </View>
-      {fingerprint ? (
+      {pairing.paired ? (
+        <PairingActions
+          secondary={{
+            label: t.done,
+            testID: 'pairing-done',
+            onPress: pairing.leave,
+          }}
+        />
+      ) : null}
+      {fingerprint && !pairing.paired ? (
         <>
           <Text style={{ textAlign: 'center' }}>
             {verification ? t.pairingVerification.compare : t.deviceFingerprintHint}
@@ -66,33 +79,39 @@ export function PairingVerification({
           />
         </>
       ) : null}
-      {!verification ? <LoadingIndicator accessibilityLabel={title} /> : null}
-      <PairingActions
-        primary={
-          verification
-            ? {
-                label: t.hostFingerprintConfirm,
-                testID: 'pairing-fingerprint-match',
-                onPress: () => verification.confirm(true),
-              }
-            : undefined
-        }
-        secondary={{
-          label: verification ? t.pairingVerification.mismatch : t.cancel,
-          testID: 'pairing-fingerprint-cancel',
-          onPress: () => (verification ? verification.confirm(false) : pairing.abort()),
-        }}
-        details={
-          fingerprint
-            ? {
-                label: details ? t.pairingVerification.hideDetails : t.pairingVerification.details,
-                testID: 'pairing-fingerprint-details',
-                onPress: () => setDetails(!details),
-              }
-            : undefined
-        }
-      />
-      {details ? <Text tone="muted">{t.pairingVerification.explanation}</Text> : null}
+      {!verification && !pairing.paired ? <LoadingIndicator accessibilityLabel={title} /> : null}
+      {pairing.paired ? null : (
+        <PairingActions
+          primary={
+            verification
+              ? {
+                  label: t.hostFingerprintConfirm,
+                  testID: 'pairing-fingerprint-match',
+                  onPress: () => verification.confirm(true),
+                }
+              : undefined
+          }
+          secondary={{
+            label: verification ? t.pairingVerification.mismatch : t.cancel,
+            testID: 'pairing-fingerprint-cancel',
+            onPress: () => (verification ? verification.confirm(false) : pairing.abort()),
+          }}
+          details={
+            fingerprint
+              ? {
+                  label: details
+                    ? t.pairingVerification.hideDetails
+                    : t.pairingVerification.details,
+                  testID: 'pairing-fingerprint-details',
+                  onPress: () => setDetails(!details),
+                }
+              : undefined
+          }
+        />
+      )}
+      {details && !pairing.paired ? (
+        <Text tone="muted">{t.pairingVerification.explanation}</Text>
+      ) : null}
     </ScrollView>
   );
 }

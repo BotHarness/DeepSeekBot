@@ -41,6 +41,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
   const [connectionName, setConnectionName] = useState('');
   const [busy, setBusy] = useState(false);
   const [fingerprint, setFingerprint] = useState<string>();
+  const [paired, setPaired] = useState(false);
   const [computerName, setComputerName] = useState('');
   const [verification, setVerification] = useState<{
     fingerprint: string;
@@ -70,13 +71,19 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     pending.current = operation;
     Keyboard.dismiss();
     setComputerName('');
+    setPaired(false);
     setBusy(true);
     setError(undefined);
     setErrorDetail(undefined);
     lastDetail.current = undefined;
     lastFailure.current = undefined;
     let accountPair:
-      | { accountOwner: AccountOwner; sessionKey: string; routes: string[]; connectHost: string }
+      | {
+          accountOwner: AccountOwner;
+          sessionKey: string;
+          routes: string[];
+          connectHost: string;
+        }
       | undefined;
     const startingHosts = hostSession.getState().hosts;
     const result = await pairHost({
@@ -169,16 +176,32 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       lastDetail.current = result.detail;
       lastFailure.current =
         result.diagnostic ??
-        connectionDiagnostic({ code: result.code, detail: result.detail, phase: 'pairing' });
+        connectionDiagnostic({
+          code: result.code,
+          detail: result.detail,
+          phase: 'pairing',
+        });
       return result.code;
     }
-    if (!options.stayOnPage && !finishSetup()) router.dismissTo('/');
+    if (!options.stayOnPage) {
+      setPaired(true);
+      leave();
+    }
     return undefined;
+  };
+  const leave = () => {
+    let opened = false;
+    try {
+      opened = finishSetup();
+    } catch {}
+    if (!opened) router.dismissTo('/');
   };
 
   return {
     finishSetup,
     busy,
+    paired,
+    leave,
     fingerprint,
     verification,
     computerName,
