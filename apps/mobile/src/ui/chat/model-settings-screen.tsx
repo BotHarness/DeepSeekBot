@@ -45,6 +45,8 @@ import { Chip } from '../primitives/chip';
 import { FavoriteButton } from '../primitives/favorite-button';
 import { modelEntryLabel, modelFamilyKey, restingLabel, restingNotice } from './composer-labels';
 import { GroupNotes } from './group-notes';
+import { PickerLink, RouteIcon } from './model-route-label';
+import { presetDetail, presetFront, routeLabel } from './model-route-text';
 import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
@@ -146,26 +148,6 @@ function useModels(client: HostClient, scope: ModelScope) {
     );
   };
   return { value, error, busy, refresh, run, favorites, favorite };
-}
-
-function routeLabel(value: ModelSettingsState, route: ModelRoute | undefined): string {
-  if (route === undefined) return t.modelSettings.inherited;
-  const model = value.models.find((entry) => sameModel(entry, route));
-  return `${model?.modelName ?? route.model} · ${model?.providerName ?? route.provider}`;
-}
-
-function PickerLink({
-  label,
-  detail,
-  onPress,
-}: {
-  label: string;
-  detail: string;
-  onPress?: (() => void) | undefined;
-}) {
-  return (
-    <SettingsRow on={SHEET_GROUP} title={label} detail={detail} disclosure onPress={onPress} />
-  );
 }
 
 function ModelsView({
@@ -635,7 +617,7 @@ function ModelsView({
                         : t.modelSettings.groupFront(
                             front === undefined
                               ? (group.routes[0]?.model ?? '')
-                              : `${/\p{L}/u.test(modelEntryLabel(front).short) ? modelEntryLabel(front).short : front.modelName} · ${front.providerName}`,
+                              : `${/\p{L}/u.test(modelEntryLabel(front).short) ? modelEntryLabel(front).short : front.modelName}`,
                           ),
                       ...(picker === 'allowed' && note !== undefined ? [note] : []),
                     ].join(' · ')}
@@ -816,6 +798,7 @@ function ModelsView({
                 ? `${orchestratorGroup} · ${routeLabel(value, routes.orchestrator)}`
                 : routeLabel(value, routes.orchestrator)
             }
+            leading={<RouteIcon value={value} route={routes.orchestrator} />}
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
           {orchestratorGroup === undefined &&
@@ -834,6 +817,14 @@ function ModelsView({
                   assignmentGroup !== undefined
                     ? `${assignmentGroup} · ${routeLabel(value, assignmentShown)}`
                     : routeLabel(value, routes.assignmentDefault)
+                }
+                leading={
+                  <RouteIcon
+                    value={value}
+                    route={
+                      assignmentGroup !== undefined ? assignmentShown : routes.assignmentDefault
+                    }
+                  />
                 }
                 onPress={models.busy ? undefined : () => openPicker('assignment')}
               />
@@ -932,7 +923,8 @@ function ModelsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={item.name}
-            detail={`${groupName(item.orchestratorGroupId) ?? routeLabel(value, item.orchestrator)}${item.assignmentDefault === undefined ? '' : ` / ${groupName(item.assignmentDefaultGroupId) ?? routeLabel(value, item.assignmentDefault)}`}`}
+            leading={<RouteIcon value={value} route={presetFront(value, item)} />}
+            detail={presetDetail(value, item)}
             disclosure={scope.kind === 'global'}
             selected={scope.kind === 'bot' && value.plan?.sourcePresetId === item.id}
             onPress={
