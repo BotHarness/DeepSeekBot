@@ -47,7 +47,10 @@ vi.mock('../src/host/native-conversation-filter', () => ({
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { pairing: () => ({ finish: () => {} }) },
 }));
-vi.mock('@botharness/host-client/pairing', () => ({ pairHost: mocks.pairHost }));
+vi.mock('@botharness/host-client/pairing', () => ({
+  pairHost: mocks.pairHost,
+  pairingDeviceKey: () => '11'.repeat(32),
+}));
 
 import type { pairHost } from '@botharness/host-client/pairing';
 import type { SavedHost } from '@botharness/host-client/hosts';

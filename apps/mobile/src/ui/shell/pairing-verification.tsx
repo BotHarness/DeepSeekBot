@@ -58,7 +58,7 @@ export function PairingVerification({
       </View>
       {pairing.paired ? (
         <PairingActions
-          secondary={{
+          primary={{
             label: t.done,
             testID: 'pairing-done',
             onPress: pairing.leave,

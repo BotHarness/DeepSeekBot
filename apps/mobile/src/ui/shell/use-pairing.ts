@@ -15,7 +15,7 @@ import { connectAccount } from '../../host/native-connect-account';
 import { hostLooks } from '../../host/native-host-look';
 import { conversationFilter } from '../../host/native-conversation-filter';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
-import { pairHost, type PairingFailure } from '@botharness/host-client/pairing';
+import { pairHost, pairingDeviceKey, type PairingFailure } from '@botharness/host-client/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
 import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
 import { hostLookName } from '@botharness/host-client/ui/design/host-look';
@@ -55,6 +55,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
   const accountHostId = useRef<string | undefined>(undefined);
+  const deviceKeys = useRef(new Map<string, string>());
 
   const pair = async (
     text: string,
@@ -86,6 +87,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         }
       | undefined;
     const startingHosts = hostSession.getState().hosts;
+    const carrier = nativeCarrier();
+    const deviceKey = deviceKeys.current.get(text) ?? pairingDeviceKey(carrier);
+    deviceKeys.current.set(text, deviceKey);
     const result = await pairHost({
       existing: (id) => startingHosts.find((host) => host.hostId === id),
       text:
@@ -99,7 +103,8 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
             },
       method,
       deviceName: deviceName(),
-      carrier: nativeCarrier(),
+      carrier,
+      deviceKey,
       confirmFingerprint: (fingerprint, hostName) =>
         new Promise<boolean>((resolve) => {
           if (operation.signal.aborted) {
@@ -169,6 +174,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       setFingerprint(undefined);
     }
     if (operation.signal.aborted) return 'cancelled';
+    if (result.ok) deviceKeys.current.delete(text);
     if (!result.ok) {
       if (clearsPastedLink(result.code, method)) handled.current = undefined;
       setError(result.code);
