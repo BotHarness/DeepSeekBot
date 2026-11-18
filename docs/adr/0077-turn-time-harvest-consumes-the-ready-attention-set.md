@@ -41,3 +41,74 @@ An Assignment's semantic completed Report and the Host's confirmed native comple
 The Report owns the causal wake. Its paired completion notice joins that harvest when available or rides the next real Turn; it never independently wakes or replays a Turn, including after Host restart. A late notice remains pending when the Report has already been handled. Only actual model exposure and successful Turn settlement handle the notice, preserving each source's own observation/handling facts. The harvest preserves both Report meaning and Host confirmation with their separate references rather than replacing the Report with a weaker lifecycle summary. The authenticated Bot Inbox query exposes the Turn and exact related Report reference through its existing seam.
 
 This avoids a second paid model request for the same completion without erasing independently navigable provenance or treating an unseen notice as consumed. It establishes successful completion pairing only; failure, interruption and strong-cause escalation remain separate #194 acceptance slices.
+
+## Enforced by
+
+The TLA+ model `verification/harvest/Harvest.tla` (`node scripts/verify-tla.mjs harvest`; the `verify-harvest` skill). TLC checks every order of admissions, claims, turns that reach DSH, successes, failures and Host restarts for three Admissions and two restarts. It confirms three rules:
+
+- an Admission never reaches DSH in two turns, so a failed turn is never replayed;
+- an Admission is handled only after a turn showed it to the Bot;
+- every pending Admission is eventually claimed, including one that arrives while a harvest runs (under weak fairness).
+
+Three broken variants show what each guard buys:
+
+- If the harvest's `finally` no longer checks readiness, an Admission that arrives mid-turn waits forever.
+- If a claim also takes needs-repair Admissions, a turn is replayed.
+- If a failed turn ignores the side-effect mark, a turn is replayed.
+
+The model also shows the designed limit: an Admission whose turn failed before reaching DSH becomes retryable and waits for the next harvest, a new Admission or a restart. It does not schedule one itself.
+
+Generated from the model by `/statechart` (one Admission, one restart):
+
+```mermaid
+---
+title: "Bot Inbox harvest: one Admission"
+config:
+  markdownAutoWrap: false
+  state:
+    useMaxWidth: false
+---
+stateDiagram-v2
+  classDef works fill:#f4f6f7,stroke:#566573,color:#1b2631
+  classDef wrong fill:#fdedec,stroke:#c0392b,color:#7b241c
+  classDef fixed fill:#e9f7ef,stroke:#1e8449,color:#145a32
+  classDef mixed fill:#fdebd0,stroke:#d35400,color:#7e5109
+  classDef after fill:#ffffff,stroke:#808b96,color:#566573
+  classDef worse fill:#f4ecf7,stroke:#7d3c98,color:#4a235a
+  classDef worksPath fill:#f4f6f7,stroke:#1f3a93,stroke-width:4px,color:#1b2631
+  classDef wrongPath fill:#fdedec,stroke:#1f3a93,stroke-width:4px,color:#7b241c
+  classDef fixedPath fill:#e9f7ef,stroke:#1f3a93,stroke-width:4px,color:#145a32
+  classDef mixedPath fill:#fdebd0,stroke:#1f3a93,stroke-width:4px,color:#7e5109
+  classDef afterPath fill:#ffffff,stroke:#1f3a93,stroke-width:4px,color:#566573
+  classDef worsePath fill:#f4ecf7,stroke:#1f3a93,stroke-width:4px,color:#4a235a
+  state "Legend" as legend {
+    state "Works" as legendWorks
+  }
+  class legendWorks works
+  state "Handled" as s0
+  state "In a turn, Bot is working" as s1
+  state "In a turn, turn starting" as s2
+  state "Needs repair" as s3
+  state "No message" as s4
+  state "Turn failed before the Bot<br/>saw it" as s5
+  state "Turn failed before the Bot<br/>saw it, harvest queued" as s6
+  state "Waiting, harvest queued" as s7
+  [*] --> s4
+  s4 --> s7 : message arrives
+  s7 --> s2 : harvest claims it
+  s2 --> s1 : turn reaches the Bot
+  s2 --> s5 : turn fails
+  s2 --> s6 : Host restarts
+  s1 --> s0 : turn succeeds
+  s1 --> s3 : turn fails or Host restarts
+  s5 --> s6 : Host restarts
+  s6 --> s2 : harvest claims it
+  class s0 works
+  class s1 works
+  class s2 works
+  class s3 works
+  class s4 works
+  class s5 works
+  class s6 works
+  class s7 works
+```

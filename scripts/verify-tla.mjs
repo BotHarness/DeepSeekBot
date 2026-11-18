@@ -26,9 +26,35 @@ export function expectation(config) {
   return /^\\\*\s*expect:\s*(\w+)\s*$/mu.exec(config)?.[1];
 }
 
-export function outcome(output) {
+const CFG_KEYWORDS =
+  /^(?:SPECIFICATION|INIT|NEXT|CONSTANTS?|INVARIANTS?|PROPERTY|PROPERTIES|CONSTRAINTS?|ACTION_CONSTRAINTS?|SYMMETRY|VIEW|ALIAS|POSTCONDITION|CHECK_DEADLOCK)$/u;
+
+export function properties(config) {
+  const names = [];
+  let inside = false;
+  for (const line of config.split('\n')) {
+    const words = line
+      .replace(/\\\*.*$/u, '')
+      .trim()
+      .split(/\s+/u)
+      .filter(Boolean);
+    if (words.length === 0) continue;
+    if (CFG_KEYWORDS.test(words[0])) {
+      inside = /^PROPERT(?:Y|IES)$/u.test(words[0]);
+      words.shift();
+    }
+    if (inside) names.push(...words);
+  }
+  return names;
+}
+
+export function outcome(output, config = '') {
   const broken = /Invariant (\w+) is violated/u.exec(output)?.[1];
   if (broken) return { broken };
+  if (/Temporal properties were violated/u.test(output)) {
+    const names = properties(config);
+    return { broken: names.length === 1 ? names[0] : `one of ${names.join(', ')}` };
+  }
   if (/Model checking completed\. No error has been found\./u.test(output)) return { passed: true };
   return {
     error:
@@ -103,10 +129,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       { cwd: folder, encoding: 'utf8', shell: false, windowsHide: true },
     );
     const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-    const expected = expectation(readFileSync(join(folder, config), 'utf8'));
+    const text = readFileSync(join(folder, config), 'utf8');
+    const expected = expectation(text);
     const problem = run.error
       ? `could not run ${java}: ${run.error.message}`
-      : verdict(expected, outcome(output));
+      : verdict(expected, outcome(output, text));
     if (problem) {
       failed += 1;
       console.error(output);
