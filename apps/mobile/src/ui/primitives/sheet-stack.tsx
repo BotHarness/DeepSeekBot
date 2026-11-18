@@ -1,11 +1,7 @@
 import { useMemo, type ComponentProps, type ReactNode } from 'react';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useNavigation } from 'expo-router';
-import type { NativeStackNavigationProp } from 'expo-router/native-stack';
-import type { ParamListBase } from 'expo-router/react-navigation';
-import { Platform, View, type ViewInstance } from 'react-native';
-import { useMounted } from '../mounted';
-import { sheetClosing } from './sheet-closing';
+import { Platform, View } from 'react-native';
 import { useStrings } from '../strings';
 import { sheetStackHeader } from './sheet-header';
 
@@ -25,25 +21,10 @@ export function SheetStack({
   const t = useStrings();
   const theme = useDesignTheme();
   const navigation = useNavigation('/');
-  const screen = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+  const screen = useNavigation();
   const insets = useSafeAreaInsets();
   const contentInsets = useMemo(() => ({ ...insets, top: 0 }), [insets]);
   const header = useMemo(() => sheetStackHeader(() => navigation.goBack()), [navigation]);
-  const closingWatch = useMounted<ViewInstance>(() => {
-    let release: (() => void) | undefined;
-    const stopBlur = screen.addListener('blur', () => {
-      release ??= sheetClosing();
-    });
-    const stopFocus = screen.addListener('focus', () => {
-      release?.();
-      release = undefined;
-    });
-    return () => {
-      stopBlur();
-      stopFocus();
-      release?.();
-    };
-  }, [screen]);
   if (fullScreen)
     return (
       <View
@@ -88,7 +69,7 @@ export function SheetStack({
       </View>
     );
   return (
-    <SheetScreen onMount={closingWatch} onClose={() => navigation.goBack()}>
+    <SheetScreen onClose={() => navigation.goBack()}>
       <SafeAreaInsetsContext value={contentInsets}>
         <Stack
           screenOptions={{
