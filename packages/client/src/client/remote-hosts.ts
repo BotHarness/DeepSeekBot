@@ -1,3 +1,4 @@
+import { markChannelRead } from '@botharness/host-client/channel-messages';
 import {
   prepareTeamSignIn,
   type TeamSignInTarget,
@@ -1627,7 +1628,7 @@ export function createRemoteHosts(options: {
         entry.client.getSnapshot().roster?.bots.find((bot) => bot.slug === target.botSlug)
           ?.dmChannelId;
       if (channelId === undefined) throw new Error('The remote Channel is not ready.');
-      await entry.client.call('channelMarkRead', { channelId, messageId });
+      await markChannelRead(entry.client, channelId, messageId);
       await entry.inbox?.feed.refresh();
     },
     conversation(target) {

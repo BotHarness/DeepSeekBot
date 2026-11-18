@@ -126,6 +126,16 @@ Reference the exact URL returned by the uploader:
 - Some cloud agent environments filter image embeds in every GitHub write, whichever client makes it. In #3318 the GitHub MCP tools and `gh api` both stored `<img>` as `` `&lt;img …&gt;` `` and stripped the `!` from `![alt](url)`, even with URLs well under 150 characters. When the read-back shows that, replace each image with a plain link, `[Before: …](https://media.botharness.ai/pr/…)`, say in the body that inline images were blocked, and tell the Human: adding a `!` before each link on GitHub embeds it. Do not try other ways around the filter.
 - After every write, read the body or comment back (`pull_request_read` `get`, `issue_read` `get_comments`, or `gh pr view --json body`) and confirm every `src="…"` is a bare URL with no backticks. Spot-check that one URL returns `200 image/png`, for example `curl -sIL -o /dev/null -w '%{http_code} %{content_type}' <url>`. A PR with broken images is not ready for review.
 
+## The `pr-visual-evidence` check
+
+When a PR changes rendered UI (`packages/client/src/client/**/*.tsx` or `*.css`, client style sheets such as `styles.ts` and `*.stylex.ts`, `apps/mobile/src/ui/**`, `apps/mobile/app/**`; tests excluded), CI runs `scripts/check-pr-visual-evidence.mjs` on the PR body and fails until the body has:
+
+- at least one `media.botharness.ai` image whose heading, caption or alt text says Light (浅色) and one that says Dark (深色);
+- Before and After (改前/改后) labels;
+- a `Design review:` line under "Special things to note" that answers the [review gate](ui-design.md#review-gate).
+
+A UI-path change that renders nothing differently, such as a rename or a type-only edit, takes the `no-visual-change` label instead. The check reruns when the body or labels change.
+
 ## Retention, legacy files and enforcement
 
 - Git stores product assets, maintained documentation illustrations, necessary test fixtures

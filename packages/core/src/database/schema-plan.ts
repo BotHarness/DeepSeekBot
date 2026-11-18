@@ -1479,6 +1479,23 @@ const ROUTING_GROUP_DEFAULT_MIGRATION: SchemaMigration = {
   },
 };
 
+const GROUP_FALLBACK_OVERRIDES_MIGRATION: SchemaMigration = {
+  id: 'group-fallback-overrides',
+  module: 'routing-groups',
+  description: 'Keep the Routing Group member an Orchestrator Session fell back to across restarts',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE group_fallback_overrides (
+        session_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL,
+        group_id TEXT NOT NULL,
+        route_json TEXT NOT NULL CHECK (json_valid(route_json)),
+        updated_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
 const PERSONA_BOT_REGISTRY_MIGRATION: SchemaMigration = {
   id: 'persona-bot-registry',
   module: 'bot-registry',
@@ -4113,4 +4130,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_PROFILE_SETUP_MIGRATION,
   HUMAN_MODEL_FAVORITES_MIGRATION,
   ROUTING_GROUP_DEFAULT_MIGRATION,
+  GROUP_FALLBACK_OVERRIDES_MIGRATION,
 ]);

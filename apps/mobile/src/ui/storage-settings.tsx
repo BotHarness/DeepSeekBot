@@ -82,7 +82,10 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
 
   const load = useCallback(() => {
     setLoadError(undefined);
-    port.usage().then(setUsage, (reason: unknown) => setLoadError(errorText(reason)));
+    port.usage().then(setUsage, (reason: unknown) => {
+      setUsage(undefined);
+      setLoadError(errorText(reason));
+    });
   }, [port]);
   const mount = useMounted<ViewInstance>(() => load(), [load]);
 

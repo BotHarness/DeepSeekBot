@@ -3,27 +3,30 @@ import {
   type PrivateInputDeclaration,
   type PrivateInputStatus,
 } from '../../../../packages/core/src/credentials/contracts';
+import {
+  loadPrivateInputStatus,
+  readChannelTimeline,
+  wireTimelineMessage,
+} from '@botharness/host-client/channel-messages';
 import type { HostClient } from '@botharness/host-client/client';
+import type { TimelineMessage } from '@botharness/host-protocol/wire';
 import type { RequestRef } from '@botharness/host-client/requests';
 
 export async function loadPrivateInput(
   client: HostClient,
   ref: RequestRef,
 ): Promise<PrivateInputDeclaration & { status: PrivateInputStatus }> {
-  const [{ page }, { status }] = await Promise.all([
-    client.call<{
-      page: { entries: { id: string; privateInputRequest?: PrivateInputDeclaration }[] };
-    }>('channelTimeline', {
-      channelId: ref.channelId,
-      direction: 'around',
-      around: ref.messageId,
-      olderLimit: 0,
-      newerLimit: 0,
-    }),
-    client.call<{ status: PrivateInputStatus }>('privateInputStatus', {
-      channelId: ref.channelId,
-      messageId: ref.messageId,
-    }),
+  const [{ page }, status] = await Promise.all([
+    readChannelTimeline(
+      client,
+      ref.channelId,
+      { direction: 'around', around: ref.messageId, olderLimit: 0, newerLimit: 0 },
+      (value) =>
+        wireTimelineMessage(value) as
+          | (TimelineMessage & { privateInputRequest?: PrivateInputDeclaration })
+          | undefined,
+    ),
+    loadPrivateInputStatus(client, ref.channelId, ref.messageId),
   ]);
   const request = page.entries.find((entry) => entry.id === ref.messageId)?.privateInputRequest;
   const declaration = privateRequestSchema.parse({

@@ -2,6 +2,7 @@ import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
+import { markChannelRead } from '@botharness/host-client/channel-messages';
 import { useCloudSnapshot } from '../../../src/cloud/native';
 import { Text } from '../../../src/ui/primitives/text';
 import { space } from '../../../src/ui/design/tokens';
@@ -87,9 +88,9 @@ export default function ActivityScreen() {
           item.channelId !== undefined &&
           item.messageId !== undefined
         )
-          void source.client
-            .call('channelMarkRead', { channelId: item.channelId, messageId: item.messageId })
-            .catch(() => undefined);
+          void markChannelRead(source.client, item.channelId, item.messageId).catch(
+            () => undefined,
+          );
         return;
       }
       router.push({

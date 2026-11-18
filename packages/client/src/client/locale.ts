@@ -4522,6 +4522,8 @@ export const zh = {
   'prompts.source.bot': '此 Bot',
   'prompts.source.here': '已改',
   'prompts.defaultChanged': '默认已更新',
+  'prompts.refreshFailed': '没能读取最新的预设，上面显示的可能不是最新：{error}',
+  'prompts.retry': '重试',
   'prompts.defaultChangedHint':
     '你改这段之后，内置默认文字更新过。下面是新的默认文字，可以对比后决定是否保留你的版本。',
   'prompts.showDefault': '查看新的默认文字',
@@ -10946,6 +10948,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'prompts.source.bot': 'This Bot',
   'prompts.source.here': 'Edited',
   'prompts.defaultChanged': 'Default updated',
+  'prompts.refreshFailed':
+    'Could not read the latest presets; the presets above may be out of date: {error}',
+  'prompts.retry': 'Retry',
   'prompts.defaultChangedHint':
     'The built-in default changed after you edited this part. Here is the new default, so you can compare and decide whether to keep your version.',
   'prompts.showDefault': 'Show the new default',
