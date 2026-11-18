@@ -49,6 +49,7 @@ export function RelationshipSettings({
   const abort = useRef<AbortController>();
   const approved = useRef<string>();
   const working = useRef(false);
+  const loadAgain = useRef(false);
   const check = async (item: ClientRelationship, link?: string) => {
     if (busy) return;
     setBusy(true);
@@ -102,8 +103,12 @@ export function RelationshipSettings({
     const result = await source.enrollRelationship(item, name, signal);
     if (!result.ok && result.code !== 'already-paired') throw new Error('enrollment-failed');
   };
-  const load = async () => {
-    if (working.current || abort.current?.signal.aborted) return;
+  const load = async (): Promise<void> => {
+    if (abort.current?.signal.aborted) return;
+    if (working.current) {
+      loadAgain.current = true;
+      return;
+    }
     working.current = true;
     try {
       const result = relationshipListSchema.parse(
@@ -125,6 +130,10 @@ export function RelationshipSettings({
       if (!abort.current?.signal.aborted) setLoadFailed(true);
     } finally {
       working.current = false;
+    }
+    if (loadAgain.current && !abort.current?.signal.aborted) {
+      loadAgain.current = false;
+      await load();
     }
   };
   const mount = useMountedResource<HTMLDivElement>(() => {

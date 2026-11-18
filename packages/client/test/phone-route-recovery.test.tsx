@@ -409,3 +409,52 @@ it('shows a newly paired phone as soon as the Host announces it, without route p
   expect(reads()).toBe(before + 1);
   expect(host.textContent).toContain('Pixel Live');
 });
+
+it('reads again after a slow read when the Host announced a change during it', async () => {
+  const streams: Array<EventTarget & { readyState: number; close(): void }> = [];
+  vi.stubGlobal(
+    'EventSource',
+    class extends EventTarget {
+      readyState = 0;
+      constructor() {
+        super();
+        streams.push(this);
+      }
+      close() {
+        this.readyState = 2;
+      }
+    },
+  );
+  const finishes: Array<(value: Response) => void> = [];
+  const request = vi.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        finishes.push(resolve);
+      }),
+  );
+  vi.stubGlobal('fetch', (url: string) =>
+    url.endsWith('/relationships')
+      ? Promise.resolve(Response.json({ relationships: [] }))
+      : request(),
+  );
+  snapshot = tailnet('running');
+  await mountWithTimers();
+  expect(request).toHaveBeenCalledOnce();
+  const stream = streams.at(-1)!;
+  stream.readyState = 1;
+  await act(async () => {
+    stream.dispatchEvent(new Event('open'));
+    stream.dispatchEvent(
+      new MessageEvent('resource/changed', {
+        data: JSON.stringify({ resource: 'devices', revision: 1 }),
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(30);
+  });
+  expect(request).toHaveBeenCalledOnce();
+  await act(async () => {
+    finishes[0]!(Response.json(snapshot));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(request).toHaveBeenCalledTimes(2);
+});

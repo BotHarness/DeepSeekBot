@@ -405,9 +405,20 @@ export function PairedDevicesSettings({
     mounted.current = true;
     const controller = new AbortController();
     void load(controller.signal);
+    let queued = false;
     const refresh = (): void => {
       setNow(Date.now());
-      void load(controller.signal);
+      const current = reading.current;
+      if (current === undefined) {
+        void load(controller.signal);
+        return;
+      }
+      if (queued) return;
+      queued = true;
+      void current.finally(() => {
+        queued = false;
+        if (!controller.signal.aborted) void load(controller.signal);
+      });
     };
     const timer = setInterval(refresh, NETWORK_POLL_MS);
     const stopObserving = observeResource('devices', refresh, ROUTE_POLL_MS);

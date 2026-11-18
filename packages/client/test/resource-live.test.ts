@@ -76,3 +76,39 @@ it('falls back to a recovery poll only while the live stream is down', async () 
     stop();
   }
 });
+
+it('re-reads on a slow safety interval and when the page becomes visible again', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal('EventSource', Events);
+  const visibility = { state: 'visible' };
+  const page = { listeners: new Set<() => void>() };
+  vi.stubGlobal('document', {
+    get visibilityState() {
+      return visibility.state;
+    },
+    addEventListener: (_type: string, listener: () => void) => page.listeners.add(listener),
+    removeEventListener: (_type: string, listener: () => void) => page.listeners.delete(listener),
+  });
+  const devices = vi.fn();
+  const stop = observeResource('devices', devices, 3000, 60_000);
+  try {
+    const stream = streams.at(-1)!;
+    stream.readyState = 1;
+    stream.dispatchEvent(new Event('open'));
+    await vi.advanceTimersByTimeAsync(30);
+    expect(devices).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(devices).toHaveBeenCalledTimes(2);
+    visibility.state = 'hidden';
+    for (const listener of page.listeners) listener();
+    await vi.advanceTimersByTimeAsync(30);
+    expect(devices).toHaveBeenCalledTimes(2);
+    visibility.state = 'visible';
+    for (const listener of page.listeners) listener();
+    await vi.advanceTimersByTimeAsync(30);
+    expect(devices).toHaveBeenCalledTimes(3);
+  } finally {
+    stop();
+  }
+  expect(page.listeners.size).toBe(0);
+});

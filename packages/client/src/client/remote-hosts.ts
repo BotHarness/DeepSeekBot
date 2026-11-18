@@ -499,12 +499,13 @@ export function createRemoteHosts(options: {
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
   let stopRelationships: (() => void) | undefined;
   let relationshipPoll: AbortController | undefined;
-  const reconcileRelationships = async () => {
-    if (
-      relationshipPoll ||
-      listeners.size === 0 ||
-      ![...clients.values()].some((entry) => entry.host.relationshipId)
-    )
+  let reconcileAgain = false;
+  const reconcileRelationships = async (): Promise<void> => {
+    if (relationshipPoll) {
+      reconcileAgain = true;
+      return;
+    }
+    if (listeners.size === 0 || ![...clients.values()].some((entry) => entry.host.relationshipId))
       return;
     const abort = new AbortController();
     relationshipPoll = abort;
@@ -573,6 +574,10 @@ export function createRemoteHosts(options: {
     } catch {
     } finally {
       if (relationshipPoll === abort) relationshipPoll = undefined;
+    }
+    if (reconcileAgain && relationshipPoll === undefined && listeners.size > 0) {
+      reconcileAgain = false;
+      await reconcileRelationships();
     }
   };
   const notifications = createRemoteNotifications({

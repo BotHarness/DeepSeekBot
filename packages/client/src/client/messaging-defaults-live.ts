@@ -433,6 +433,7 @@ export function observeResource(
   resource: LiveResource,
   refresh: () => void,
   recoveryMs = 10_000,
+  safetyMs = 60_000,
 ): () => void {
   let disposed = false;
   let pending: ReturnType<typeof setTimeout> | undefined;
@@ -452,8 +453,13 @@ export function observeResource(
     if (lastHealth === healthy) return;
     lastHealth = healthy;
     clearInterval(recovery);
-    recovery = healthy ? undefined : setInterval(invalidate, recoveryMs);
+    recovery = setInterval(invalidate, healthy ? safetyMs : recoveryMs);
   };
+  const visible = (): void => {
+    if (page?.visibilityState !== 'hidden') invalidate();
+  };
+  const page = typeof document === 'undefined' ? undefined : document;
+  page?.addEventListener?.('visibilitychange', visible);
   resourceListeners.set(changed, health);
   health(rosterHealthy);
   try {
@@ -466,6 +472,7 @@ export function observeResource(
     disposed = true;
     clearTimeout(pending);
     clearInterval(recovery);
+    page?.removeEventListener?.('visibilitychange', visible);
     resourceListeners.delete(changed);
     releaseUnusedSource();
   };

@@ -436,8 +436,12 @@ export function BotIntro({
     if (!phoneDevice) return;
     const abort = new AbortController();
     let pending = false;
-    const refresh = async () => {
-      if (pending) return;
+    let again = false;
+    const refresh = async (): Promise<void> => {
+      if (pending) {
+        again = true;
+        return;
+      }
       pending = true;
       try {
         const response = await fetch('./api/botharness/devices', {
@@ -457,6 +461,10 @@ export function BotIntro({
         if (!abort.signal.aborted) setPhoneRead(false);
       } finally {
         pending = false;
+      }
+      if (again && !abort.signal.aborted) {
+        again = false;
+        await refresh();
       }
     };
     void refresh();
