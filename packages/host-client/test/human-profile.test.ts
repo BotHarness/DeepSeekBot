@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createHumanAvatarCache,
   parseHumanAvatars,
@@ -90,7 +90,7 @@ describe('Human avatar cache', () => {
     expect(calls.slice(2)).toEqual([['b'], ['b']]);
   });
 
-  it('asks again after a malformed reply and for a version the Host replaced', async () => {
+  it('asks again after a malformed reply, and for a replaced version only after a pause', async () => {
     const calls: string[][] = [];
     const replies: unknown[] = [
       { avatars: 'broken' },
@@ -102,12 +102,18 @@ describe('Human avatar cache', () => {
       return replies.shift();
     });
     const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000);
     cache.want('a', '1111111111111111');
     await tick();
     cache.want('a', '1111111111111111');
     await tick();
     cache.want('a', '1111111111111111');
     await tick();
+    expect(calls).toEqual([['a'], ['a']]);
+    clock.mockReturnValue(31_000);
+    cache.want('a', '1111111111111111');
+    await tick();
+    clock.mockRestore();
     expect(calls).toEqual([['a'], ['a'], ['a']]);
     expect(cache.get('a', '1111111111111111')).toBe(avatar);
   });

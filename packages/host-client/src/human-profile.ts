@@ -72,6 +72,8 @@ export interface HumanAvatarCache {
   getSnapshot(): number;
 }
 
+const HUMAN_AVATAR_RETRY_MS = 30_000;
+
 export function createHumanAvatarCache(
   load: (humanIds: string[]) => Promise<unknown>,
   schedule: (run: () => void) => void = (run) => void Promise.resolve().then(run),
@@ -79,6 +81,7 @@ export function createHumanAvatarCache(
   const images = new Map<string, string>();
   const settled = new Set<string>();
   const loading = new Set<string>();
+  const missed = new Map<string, number>();
   const queued = new Map<string, string>();
   const listeners = new Set<() => void>();
   let revision = 0;
@@ -111,8 +114,11 @@ export function createHumanAvatarCache(
           answered.add(image.humanId);
         }
         release();
-        for (const [humanId, version] of batch)
-          if (!answered.has(humanId)) settled.add(key(humanId, version));
+        for (const [humanId, version] of batch) {
+          const requested = key(humanId, version);
+          if (!answered.has(humanId)) settled.add(requested);
+          else if (!settled.has(requested)) missed.set(requested, Date.now());
+        }
         publish();
       })
       .catch(release);
@@ -124,6 +130,7 @@ export function createHumanAvatarCache(
       if (version === undefined) return;
       const wanted = key(humanId, version);
       if (settled.has(wanted) || loading.has(wanted) || queued.get(humanId) === version) return;
+      if (Date.now() - (missed.get(wanted) ?? -Infinity) < HUMAN_AVATAR_RETRY_MS) return;
       queued.set(humanId, version);
       if (!scheduled) {
         scheduled = true;
