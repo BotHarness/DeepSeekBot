@@ -43,7 +43,10 @@ export default function AccountProfileScreen() {
           : {
               name: human.identity?.displayName,
               avatar: human.avatar,
-              hasAvatar: human.identity?.avatarVersion !== undefined,
+              hasAvatar:
+                human.identity === undefined
+                  ? undefined
+                  : human.identity.avatarVersion !== undefined,
               editor: chatAvatar,
               mount: human.mount,
               onEditName: () => router.push('/settings/chat-name'),

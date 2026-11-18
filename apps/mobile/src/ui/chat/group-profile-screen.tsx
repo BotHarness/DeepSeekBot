@@ -119,6 +119,7 @@ export function GroupProfileScreen({
           },
         }}
         key={`${saved?.hostId}:${info.channel.id}`}
+        client={client}
         info={info}
         actions={actions}
         tabMemory={profileTabMemory}

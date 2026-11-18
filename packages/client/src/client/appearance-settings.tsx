@@ -69,7 +69,7 @@ export function AppearanceSection(
           <ThemePresetPicker
             config={theme.config}
             t={t}
-            onSelect={(preset) => applyPreset(appearance, preset)}
+            onSelect={(preset) => applyPreset(appearance, preset, wallpaper)}
           />
         </SettingsRow>
       </SettingsSection>

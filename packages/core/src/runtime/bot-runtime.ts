@@ -1669,10 +1669,11 @@ const DIRECT_NOTICE_TEXT_LIMIT = 2_000;
 const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
   'create_assignment',
   'send_assignment_request',
+  'unarchive_assignment',
 ]);
 
 const HUMAN_SESSION_STOP_NOTICE =
-  'The Human stopped this Assignment. Do not send it another Assignment Request or redispatch this work unless the Human asks you to. Its history is kept: after an explicit Human instruction to continue, call unarchive_assignment with this Session id and pass the request as its message to revive and continue it in one call.';
+  'The Human stopped this Assignment; it is paused with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
 
 interface PendingAutoContinue {
   timer: NodeJS.Timeout;
@@ -5697,7 +5698,7 @@ class BotRuntimeImplementation implements BotRuntime {
     } else {
       if (outcome.delivery !== 'steer' && outcome.delivery !== 'followup') return;
       cause = 'direct-request';
-      body = `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
+      body = `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(tool === 'unarchive_assignment' ? args.message : args.text) ?? '(empty)'}. Its next report answers that request.`;
     }
     const id = this.#createEventId();
     const at = this.#now().toISOString();
@@ -10734,12 +10735,19 @@ class BotRuntimeImplementation implements BotRuntime {
         message: `Assignment Session ${input.sessionId} is archived (resolved); nothing was delivered. Create a new Assignment for new work, or call unarchive_assignment first to continue this one.`,
       };
     }
-    if (row.stop_state === 'stopped' && this.#humanSessionStopped(bot.slug, input.sessionId)) {
-      throw new Error(
-        `Assignment Session ${input.sessionId} was stopped by the Human; nothing was delivered. ` +
-          `Do not redispatch this work unless the Human asks for it. To continue it after an explicit ` +
-          `Human instruction, call unarchive_assignment with this request as its message.`,
+    if (row.stop_state === 'stopped') {
+      this.#database.transaction(
+        (database) => {
+          database
+            .prepare(
+              `UPDATE assignments SET stop_state = 'running', activity = 'idle', updated_at = ?
+                WHERE bot_slug = ? AND session_id = ? AND stop_state = 'stopped'`,
+            )
+            .run(this.#now().toISOString(), bot.slug, input.sessionId);
+        },
+        ['assignments'],
       );
+      row = this.#assignmentRow(bot.slug, input.sessionId)!;
     }
     if (row.stop_state !== 'running') {
       throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
@@ -11024,22 +11032,6 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     if (stopped) this.#scheduleHarvest(bot.slug);
     return this.#requireAssignmentSummary(bot.slug, sessionId);
-  }
-
-  #humanSessionStopped(botSlug: string, sessionId: string): boolean {
-    const latest = this.#database.read((database) =>
-      database
-        .prepare(
-          `SELECT json_extract(payload_json, '$.assignmentLifecycle.cause') AS cause
-             FROM source_events
-            WHERE bot_slug = ? AND assignment_session_id = ?
-              AND source_kind = 'assignment-lifecycle'
-              AND json_extract(payload_json, '$.assignmentLifecycle.state') = 'stopped'
-            ORDER BY rowid DESC LIMIT 1`,
-        )
-        .get(botSlug, sessionId),
-    ) as { cause: string | null } | undefined;
-    return latest?.cause === 'human-session-stop' || latest?.cause === 'human-stop';
   }
 
   async #archiveAssignment(
@@ -11395,6 +11387,7 @@ class BotRuntimeImplementation implements BotRuntime {
         fail(cause);
         return;
       }
+      if (this.#assignmentRow(botSlug, sessionId)?.stop_state !== 'running') return;
       const request = this.#requestAssignment(bot, {
         sessionId,
         mode: 'next-turn',

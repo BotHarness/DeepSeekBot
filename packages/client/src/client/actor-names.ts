@@ -14,6 +14,18 @@ export function humanLabel(name: string, t: BotHarnessTranslate): string {
   return name === 'Human' ? t('channelActivity.human') : name;
 }
 
+export function humanAuthorName(
+  author: Extract<ChannelMessage['author'], { kind: 'human' }>,
+  channel: Pick<ChannelSummary, 'humanMembers'> | undefined,
+  t: BotHarnessTranslate,
+): string {
+  if (author.deleted === true) return t('team.deletedMember');
+  const humanId = author.humanId ?? 'local-human';
+  const current = channel?.humanMembers?.find((member) => member.humanId === humanId);
+  if (current !== undefined) return humanLabel(current.displayName, t);
+  return author.displayName ?? humanLabel(channelHumanName(channel), t);
+}
+
 export function currentMentionLabel(
   mention:
     | NonNullable<ChannelMessage['mentions']>[number]

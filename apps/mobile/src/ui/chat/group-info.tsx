@@ -16,7 +16,9 @@ import {
   type GroupMember,
   type GroupPending,
 } from '../../host/group-channel';
-import type { RosterBot } from '@botharness/host-client/client';
+import type { HostClient, RosterBot, RosterHuman } from '@botharness/host-client/client';
+import { useHumanAvatar } from '../../host/human-profile';
+import { AccountAvatar } from '../shell/account-avatar';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { profileShell, radius, space } from '../design/tokens';
@@ -57,6 +59,7 @@ type GroupSection = 'joins' | 'members';
 type RowBody =
   | { kind: 'join'; pending: GroupPending }
   | { kind: 'member'; member: GroupMember }
+  | { kind: 'person'; person: RosterHuman }
   | { kind: 'invite'; pending: GroupPending }
   | { kind: 'add' }
   | { kind: 'empty' };
@@ -69,9 +72,11 @@ function frame(bodies: RowBody[]): Row[] {
     key:
       body.kind === 'member'
         ? `member:${body.member.slug}`
-        : body.kind === 'join' || body.kind === 'invite'
-          ? `${body.kind}:${body.pending.id}`
-          : body.kind,
+        : body.kind === 'person'
+          ? `person:${body.person.humanId}`
+          : body.kind === 'join' || body.kind === 'invite'
+            ? `${body.kind}:${body.pending.id}`
+            : body.kind,
     first: index === 0,
     last: index === bodies.length - 1,
   }));
@@ -80,6 +85,7 @@ function frame(bodies: RowBody[]): Row[] {
 export function groupRows(info: GroupInfo): Array<{ section: GroupSection; data: Row[] }> {
   const members: RowBody[] = [
     ...(info.candidates.length > 0 ? [{ kind: 'add' } as const] : []),
+    ...info.people.map((person) => ({ kind: 'person', person }) as const),
     ...info.members.map((member) => ({ kind: 'member', member }) as const),
     ...info.invites.map((pending) => ({ kind: 'invite', pending }) as const),
   ];
@@ -95,7 +101,7 @@ export function groupRows(info: GroupInfo): Array<{ section: GroupSection; data:
     {
       section: 'members',
       data: frame(
-        info.members.length === 0 && info.invites.length === 0
+        info.members.length === 0 && info.invites.length === 0 && info.people.length === 0
           ? [...members, { kind: 'empty' }]
           : members,
       ),
@@ -123,6 +129,11 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
       </Text>
     </View>
   );
+}
+
+function PersonAvatar({ person, client }: { person: RosterHuman; client: HostClient | undefined }) {
+  const avatar = useHumanAvatar(client, person.humanId, person.avatarVersion);
+  return <AccountAvatar uri={avatar} name={person.displayName} size={MEMBER_AVATAR} />;
 }
 
 function RowButtons({ children }: { children: ReactNode }) {
@@ -220,6 +231,7 @@ export interface GroupProfileProps {
   files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
   stopper?: SessionStopper | undefined;
   nickname?: GroupNickname | undefined;
+  client?: HostClient | undefined;
 }
 
 export interface GroupNickname {
@@ -243,6 +255,7 @@ export function GroupProfilePage({
   files,
   stopper,
   nickname,
+  client,
 }: GroupProfileProps) {
   const t = useStrings();
   const [busy, setBusy] = useState<string | undefined>();
@@ -371,6 +384,7 @@ export function GroupProfilePage({
           <SettingsGroupItem first={item.first} last={item.last} on={ON}>
             <GroupRow
               row={item}
+              client={client}
               busy={busy}
               onInvite={() => setSheet('invite')}
               onOpenBot={onOpenBot}
@@ -613,6 +627,7 @@ function GroupIdentity({
 
 function GroupRow({
   row,
+  client,
   busy,
   onInvite,
   onOpenBot,
@@ -622,6 +637,7 @@ function GroupRow({
   onDecide,
 }: {
   row: Row;
+  client: HostClient | undefined;
   busy: string | undefined;
   onInvite(): void;
   onOpenBot(slug: string): void;
@@ -659,6 +675,15 @@ function GroupRow({
           </View>
         }
         onPress={onInvite}
+      />
+    );
+  if (row.kind === 'person')
+    return (
+      <SettingsRow
+        on={ON}
+        testID={`group-person-${row.person.humanId}`}
+        title={row.person.displayName}
+        leading={<PersonAvatar person={row.person} client={client} />}
       />
     );
   if (row.kind === 'member')
