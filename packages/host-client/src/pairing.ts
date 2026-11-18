@@ -266,7 +266,7 @@ export async function pairHost(options: {
     }
     const existing = options.existing?.(parsed.payload.host.id);
     const updated =
-      !parsed.payload.member && existing?.encryption
+      !parsed.payload.member && existing?.member === undefined && existing?.encryption
         ? await updatePairedRoutes(existing, parsed.payload, options.carrier, options.signal)
         : undefined;
     const redeemed =

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { HostCarrier, HostSocket } from '@botharness/host-protocol/carrier';
 import type { HostEncryption } from '@botharness/host-protocol/host-encryption';
 import { isEncryptedRoute } from '@botharness/host-protocol/route';
+import { teamHttpsRoute } from '@botharness/host-protocol/team-invitation';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import {
   ConnectRefused,
@@ -21,6 +22,9 @@ const MAX_RECORDS = 256;
 const MAX_SOCKETS = 32;
 const IDLE_CARRIER_MS = 10 * 60 * 1000;
 const UNCLAIMED_SOCKET_MS = 15_000;
+
+export const TEAM_DEVICE_PATHS = ['device-sign-in', 'device-password'] as const;
+export type TeamDevicePath = (typeof TEAM_DEVICE_PATHS)[number];
 
 export class CustodyRefused extends Error {
   constructor(readonly code: string) {
@@ -337,6 +341,33 @@ export function createRemoteCustody(options: {
         throw error;
       }
       return sealSavedHost(host, handle);
+    },
+
+    async teamRequest(input: {
+      route: string;
+      path: TeamDevicePath;
+      headers?: Record<string, string>;
+      body: string;
+      signal: AbortSignal;
+    }): Promise<CustodyResponse> {
+      if (!teamHttpsRoute(input.route) || origin(input.route) !== input.route.replace(/\/$/u, ''))
+        throw new CustodyRefused('custody-route-unknown');
+      const response = await options
+        .carrier()
+        .request(`${origin(input.route)}/botharness-device/team/${input.path}`, {
+          method: 'POST',
+          headers: { ...input.headers, 'content-type': 'application/json' },
+          body: input.body,
+          signal: input.signal,
+        });
+      const body = response.bytes
+        ? await response.bytes()
+        : new TextEncoder().encode(await response.text());
+      return {
+        status: response.status,
+        contentType: response.contentType ?? 'application/octet-stream',
+        body,
+      };
     },
 
     async forget(handle: string): Promise<void> {

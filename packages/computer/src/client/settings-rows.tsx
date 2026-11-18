@@ -21,7 +21,7 @@ import {
 import { Note } from '../../../client/src/client/ds/note.js';
 import { PillButton, PillFileButton } from '../../../client/src/client/ds/pill-button.js';
 import { Select } from '../../../client/src/client/ds/select.js';
-import { SettingsRow, SettingsRows } from '../../../client/src/client/ds/settings-row.js';
+import { SettingsGroupPart, SettingsRow } from '../../../client/src/client/ds/settings-row.js';
 import { border, color, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
 import { LocalComputerStatus } from './local-computer.js';
 import type { ComputerTarget } from '../target.js';
@@ -168,14 +168,6 @@ export interface ComputerSettingsFace {
 const IDLE_OPTIONS = [15, 30, 60, 120, 240] as const;
 
 const styles = stylex.create({
-  intro: {
-    margin: 0,
-    paddingTop: space.x5,
-    paddingBottom: space.x2,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
@@ -582,10 +574,9 @@ export function ComputerSettingsRows({
   const selectedFile = uploadName ?? (confirming === 'import' ? archives?.[0] : undefined);
 
   return (
-    <SettingsRows>
+    <SettingsGroupPart>
       <span hidden ref={hostDirResource} />
       {busy === undefined ? null : <span hidden ref={busyResource} />}
-      <p {...stylex.props(styles.intro)}>{t('section.description')}</p>
       <SettingsRow
         title={t('rows.target.title')}
         description={t('rows.target.description')}
@@ -851,6 +842,6 @@ export function ComputerSettingsRows({
       {snapshot.target !== 'container' || transferNote === undefined ? null : (
         <Note>{transferNote}</Note>
       )}
-    </SettingsRows>
+    </SettingsGroupPart>
   );
 }

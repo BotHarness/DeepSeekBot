@@ -1,4 +1,12 @@
 import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
+import {
+  assertQuoteTargets,
+  ChannelQuoteError,
+  MAX_CHANNEL_QUOTES,
+  parseQuotesInput,
+  quoteTextMatches,
+  sameQuoteIntent,
+} from '../channels/quotes.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { requireBotModel, botModelAllowed } from '../team/models.js';
@@ -237,6 +245,17 @@ import {
   AssignmentReplyTargetError,
   type HumanAssignmentContext,
 } from '../runtime/assignment-human-context.js';
+import { summarizeSessionProgress, type SessionProgress } from '../runtime/session-progress.js';
+import {
+  summarizeSessionTranscript,
+  type SessionTranscript,
+} from '../runtime/session-transcript.js';
+import type { SessionLiveSnapshot, SessionLiveStreams } from '../runtime/session-live.js';
+import {
+  summarizeSessionToolDetail,
+  type PresentToolResult,
+  type SessionToolDetail,
+} from '../runtime/session-tool-detail.js';
 import {
   summarizeAssignmentTimeline,
   summarizeSubagentLanes,
@@ -264,6 +283,9 @@ import {
   isGroupAvatar,
   isReactionEmoji,
   type LocalHumanIdentity,
+  type HumanAvatar,
+  HUMAN_AVATAR_BATCH,
+  isHumanAvatar,
   type ChannelMention,
   type ChannelMessage,
   type ChannelReaction,
@@ -350,6 +372,7 @@ import {
   type SkillCatalogEntry,
   type SkillOwner,
   type ResolvedSkill,
+  sessionSkills,
 } from '../skills/catalog.js';
 import {
   BotSkillIgnoredFilesError,
@@ -414,6 +437,14 @@ import {
   type ModelPresetStore,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
+import {
+  isRoutingGroupMember,
+  RoutingGroupError,
+  type RoutingGroup,
+  type RoutingGroupInput,
+  type RoutingGroupMember,
+  type RoutingGroupStore,
+} from '../models/routing-groups.js';
 import type { ModelCatalog, ModelCatalogEntry } from '../models/catalog.js';
 import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
@@ -664,7 +695,7 @@ export interface ChannelListItem extends ChannelRecord {
   memberBots?: Array<{ slug: string; displayName: string; avatar?: string }>;
   remoteAvailability?: import('../runtime/bot-network.js').NetworkBotAvailability;
   remoteContact?: BotContact;
-  humanMembers?: Array<{ humanId: string; displayName: string }>;
+  humanMembers?: Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
   humanNickname?: string | null;
   latestMessage?: ChannelMessage;
 }
@@ -713,6 +744,7 @@ export interface BridgeError {
     path?: string;
     spaceId?: string;
     route?: string;
+    references?: string[];
   };
   code: string;
   message: string;
@@ -749,6 +781,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       stopped: { botSlug: string; sessionId: string; messageId: string };
     }>
   >;
+  sessionMessageSend(payload: unknown): Promise<BridgeResult<{ sourceEventId: string }>>;
   sessionStop(payload: unknown): Promise<
     BridgeResult<{
       stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
@@ -827,6 +860,14 @@ export interface BridgeMethods extends TeamBridgeMethods {
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
+  modelGroups(payload: unknown): BridgeResult<{
+    groups: RoutingGroup[];
+    rests: import('../models/route-rest.js').RestingRoute[];
+  }>;
+  modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
+  modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
+  modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
+  modelGroupDelete(payload: unknown): BridgeResult<{ group: RoutingGroup }>;
   modelPlan(payload: unknown): Promise<BridgeResult<ModelPlanState>>;
   modelPlanCustomize(
     payload: unknown,
@@ -883,8 +924,12 @@ export interface BridgeMethods extends TeamBridgeMethods {
   composerValidate(payload: unknown): BridgeResult<{
     reply?: ChannelMessage;
     attachments: Array<ChannelAttachmentRef | null>;
+    quotes?: Array<ChannelMessage | null>;
   }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatarSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanProfileSetupFinish(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatars(payload: unknown): BridgeResult<{ avatars: HumanAvatar[] }>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
@@ -937,6 +982,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
   channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
+  sessionSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
   botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
   skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
   botSkillRemove(payload: unknown): Promise<BridgeResult<{ name: string; removed: string }>>;
@@ -986,6 +1032,14 @@ export interface BridgeMethods extends TeamBridgeMethods {
       omittedSubagents: number;
     }>
   >;
+  sessionProgress(payload: unknown): Promise<BridgeResult<{ sessions: SessionProgressEntry[] }>>;
+  sessionTranscript(
+    payload: unknown,
+  ): Promise<BridgeResult<{ sessionId: string; role: SessionRootRole } & SessionTranscript>>;
+  sessionLive(payload: unknown): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>>;
+  sessionToolDetail(
+    payload: unknown,
+  ): Promise<BridgeResult<{ sessionId: string; callId: string; detail: SessionToolDetail }>>;
   workspaceOptions(payload: unknown): BridgeResult<{
     workspaces: { id: string; path: string; title: string }[];
   }>;
@@ -1346,6 +1400,8 @@ export interface BridgeMethodsDeps {
   dataReset?: DataReset;
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
+  routingGroups?: RoutingGroupStore;
+  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
@@ -1373,6 +1429,8 @@ export interface BridgeMethodsDeps {
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
+  presentToolResult?: PresentToolResult;
+  sessionLive?: SessionLiveStreams;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -1680,6 +1738,27 @@ function botPromptView(
   };
 }
 
+function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
+  const name = source['name'];
+  const members = source['members'];
+  if (typeof name !== 'string' || !Array.isArray(members) || !members.every(isRoutingGroupMember))
+    throw new RoutingGroupError(
+      'invalid-input',
+      'A name and members ({kind:"model",provider,model,reasoningEffort?} or {kind:"group",id}) are required',
+    );
+  return { name, members };
+}
+function routingGroupFailure(error: unknown): BridgeResult<never> {
+  if (!(error instanceof RoutingGroupError)) return modelFailure(error);
+  return {
+    ok: false,
+    error: {
+      code: error.code === 'invalid-input' ? 'invalid-input' : `routing-group-${error.code}`,
+      message: error.message,
+      ...(error.references.length > 0 ? { details: { references: error.references } } : {}),
+    },
+  };
+}
 function modelFailure(error: unknown): BridgeResult<never> {
   if (error instanceof TeamError)
     return {
@@ -1925,6 +2004,13 @@ function dataResetFailure(error: unknown): BridgeResult<never> {
     },
   };
 }
+
+export const SESSION_PROGRESS_LIMIT = 30;
+
+export type SessionProgressEntry = { sessionId: string } & (
+  | SessionProgress
+  | { error: 'not-found' | 'unavailable' }
+);
 
 async function sessionLogOf(
   read: DshUsageSessionLogReader,
@@ -2280,6 +2366,36 @@ function buildBridgeMethods(
       (deps.registry.get(slug)?.ownerHumanId ?? deps.team.ownerContext().humanId) !== human.humanId
     )
       throw new TeamError('bot-not-found');
+  };
+  const validateGroupMembers = async (members: RoutingGroupMember[]): Promise<void> => {
+    deps.team?.roles.require(human, 'models.use');
+    const routes = members.filter((member) => member.kind === 'model');
+    if (routes.length === 0) return;
+    const known = new Set(
+      (await deps.modelCatalog!.list()).map((entry) =>
+        JSON.stringify([entry.provider, entry.model]),
+      ),
+    );
+    const unknown = routes.find(
+      (route) => !known.has(JSON.stringify([route.provider, route.model])),
+    );
+    if (unknown !== undefined)
+      throw new RoutingGroupError(
+        'invalid-input',
+        `Model ${unknown.provider}/${unknown.model} is not in this Host's model list`,
+      );
+  };
+  const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
+    let failure: Error | undefined;
+    for (const route of routes) {
+      try {
+        await deps.modelCatalog!.validate(route);
+        return { ...route };
+      } catch (error) {
+        failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
+      }
+    }
+    throw failure ?? new RoutingGroupError('empty-group', 'The Routing Group has no model');
   };
   const requireRoutes = (slug: string, routes: readonly ModelRoute[]): void => {
     requireOwnedBot(slug);
@@ -3791,6 +3907,34 @@ function buildBridgeMethods(
       }
       return stopBotSessions(source, botSlug, channelId);
     },
+    async sessionMessageSend(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const text = typeof source['text'] === 'string' ? source['text'] : undefined;
+      if (!botSlug || !sessionId || text === undefined || text.trim() === '')
+        return invalidInput('botSlug, sessionId and a non-blank text are required');
+      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      if (deps.runtime?.sendOrchestratorMessage === undefined) return unavailable();
+      const outcome = deps.runtime.sendOrchestratorMessage(human, {
+        botSlug,
+        sessionId,
+        text,
+      });
+      if (!outcome.delivered)
+        return {
+          ok: false,
+          error: {
+            code: outcome.reason === 'not-current-orchestrator' ? 'invalid-input' : 'unavailable',
+            message:
+              outcome.reason === 'not-current-orchestrator'
+                ? "Only the Bot's current Orchestrator Session accepts a direct message"
+                : `The message was not delivered: ${outcome.reason}`,
+          },
+        };
+      void outcome.settled.catch(() => undefined);
+      return { ok: true, value: { sourceEventId: outcome.sourceEventId } };
+    },
     async sessionStop(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
@@ -3897,8 +4041,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof name !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         (assignmentModels !== undefined &&
@@ -3923,6 +4069,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         return { ok: true, value: { preset } };
       } catch (error) {
@@ -3940,8 +4087,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof id !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         typeof expectedRevision !== 'number' ||
         !Number.isSafeInteger(expectedRevision) ||
         expectedRevision < 1 ||
@@ -3976,6 +4125,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         if (preset === undefined) return invalidInput('Model Preset was not found');
         return { ok: true, value: { preset } };
@@ -4047,6 +4197,81 @@ function buildBridgeMethods(
           : invalidInput('model-unavailable');
       }
     },
+    modelGroups() {
+      if (deps.routingGroups === undefined) return unavailable();
+      return {
+        ok: true,
+        value: { groups: deps.routingGroups.list(), rests: deps.routeRests?.list() ?? [] },
+      };
+    },
+    modelGroup(payload) {
+      if (deps.routingGroups === undefined) return unavailable();
+      const id = asObject(payload)['id'];
+      if (typeof id !== 'string' || !id.trim())
+        return invalidInput('A Routing Group id is required');
+      try {
+        const group = deps.routingGroups.get(id.trim());
+        if (group === undefined)
+          throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+        return { ok: true, value: { group, routes: deps.routingGroups.routes(group.id) } };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
+    async modelGroupCreate(payload) {
+      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
+      const source = asObject(payload);
+      try {
+        const input = routingGroupInput(source);
+        await validateGroupMembers(input.members);
+        return { ok: true, value: { group: deps.routingGroups.create(input) } };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
+    async modelGroupUpdate(payload) {
+      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
+      const source = asObject(payload);
+      const id = source['id'];
+      const expectedRevision = source['expectedRevision'];
+      if (
+        typeof id !== 'string' ||
+        !Number.isSafeInteger(expectedRevision) ||
+        (expectedRevision as number) < 1
+      )
+        return invalidInput('A Routing Group id and expected revision are required');
+      try {
+        const input = routingGroupInput(source);
+        await validateGroupMembers(input.members);
+        const group = deps.routingGroups.update(id, {
+          ...input,
+          expectedRevision: expectedRevision as number,
+        });
+        return { ok: true, value: { group } };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
+    modelGroupDelete(payload) {
+      if (deps.routingGroups === undefined) return unavailable();
+      const source = asObject(payload);
+      const id = source['id'];
+      const expectedRevision = source['expectedRevision'];
+      if (
+        typeof id !== 'string' ||
+        !Number.isSafeInteger(expectedRevision) ||
+        (expectedRevision as number) < 1
+      )
+        return invalidInput('A Routing Group id and expected revision are required');
+      try {
+        return {
+          ok: true,
+          value: { group: deps.routingGroups.delete(id, expectedRevision as number) },
+        };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
     async modelPlan(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
@@ -4086,9 +4311,16 @@ function buildBridgeMethods(
       if (deps.modelCatalog === undefined) return unavailable();
       const source = asObject(payload);
       const slug = source['slug'];
-      const orchestrator = source['orchestrator'];
-      if (typeof slug !== 'string' || !isModelRoute(orchestrator)) {
-        return invalidInput('slug and a valid Orchestrator route are required');
+      const groupId = source['orchestratorGroupId'];
+      if (
+        typeof slug !== 'string' ||
+        (groupId === undefined
+          ? !isModelRoute(source['orchestrator'])
+          : typeof groupId !== 'string' || !groupId.trim() || source['orchestrator'] !== undefined)
+      ) {
+        return invalidInput(
+          'slug and either a valid Orchestrator route or an Orchestrator Routing Group are required',
+        );
       }
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
@@ -4103,11 +4335,36 @@ function buildBridgeMethods(
       )
         return invalidInput('A valid expected revision is required');
       try {
-        requireRoutes(slug, [orchestrator]);
-        await deps.modelCatalog.validate(orchestrator);
+        const group =
+          typeof groupId === 'string'
+            ? (() => {
+                if (deps.routingGroups === undefined)
+                  throw new RoutingGroupError('not-found', 'Routing Groups are unavailable');
+                const found = deps.routingGroups.get(groupId.trim());
+                if (found === undefined)
+                  throw new RoutingGroupError(
+                    'not-found',
+                    `Routing Group ${groupId} does not exist`,
+                  );
+                return found;
+              })()
+            : undefined;
+        const candidates =
+          group === undefined
+            ? [source['orchestrator'] as ModelRoute]
+            : deps.routingGroups!.routes(group.id);
+        requireRoutes(slug, candidates);
+        const orchestrator = await firstUsableRoute(candidates);
         beforeCommit?.();
-        requireRoutes(slug, [orchestrator]);
-        const result = deps.registry.customizeModelPlan(slug, orchestrator, expectedRevision);
+        requireRoutes(slug, candidates);
+        if (group !== undefined && deps.routingGroups!.get(group.id)?.revision !== group.revision)
+          return invalidInput('Routing Group changed; read it again before saving');
+        const result = deps.registry.customizeModelPlan(
+          slug,
+          orchestrator,
+          expectedRevision,
+          group?.id,
+        );
         if (!result.ok)
           return result.reason === 'not-found'
             ? unknownBot(slug)
@@ -4116,6 +4373,7 @@ function buildBridgeMethods(
           return invalidInput('Apply a Model Preset first');
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
@@ -4128,8 +4386,20 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
+      const assignmentGroups = source['assignmentGroups'];
+      const assignmentDefaultGroupId = source['assignmentDefaultGroupId'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
+        (assignmentGroups !== undefined &&
+          (!Array.isArray(assignmentGroups) ||
+            !assignmentGroups.every((id) => typeof id === 'string' && id.trim() !== '') ||
+            new Set(assignmentGroups).size !== assignmentGroups.length)) ||
+        (assignmentDefaultGroupId !== undefined &&
+          (typeof assignmentDefaultGroupId !== 'string' ||
+            !Array.isArray(assignmentGroups) ||
+            !assignmentGroups.includes(assignmentDefaultGroupId))) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4144,11 +4414,25 @@ function buildBridgeMethods(
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
+        for (const id of (assignmentGroups ?? []) as string[]) {
+          if (deps.routingGroups?.get(id) === undefined)
+            throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+          requireRoutes(slug, deps.routingGroups.routes(id));
+        }
         const result = deps.registry.setAssignmentModels(
           slug,
           assignmentDefault,
           assignmentModels,
           expectedRevision,
+          typeof openAssignmentModels === 'boolean' ? openAssignmentModels : undefined,
+          assignmentGroups === undefined
+            ? undefined
+            : {
+                ids: assignmentGroups as string[],
+                ...(typeof assignmentDefaultGroupId === 'string'
+                  ? { defaultId: assignmentDefaultGroupId }
+                  : {}),
+              },
         );
         if (!result.ok)
           return result.reason === 'not-found'
@@ -4254,8 +4538,10 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
@@ -4276,7 +4562,12 @@ function buildBridgeMethods(
         requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
         const result = deps.registry.setModelPlan(
           slug,
-          { orchestrator, assignmentDefault, assignmentModels },
+          {
+            orchestrator,
+            assignmentDefault,
+            assignmentModels,
+            ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+          },
           expectedRevision,
         );
         if (!result.ok)
@@ -6019,6 +6310,10 @@ function buildBridgeMethods(
           channelId: z.string(),
           replyTo: z.string().optional(),
           attachments: z.array(z.unknown()).max(10),
+          quotes: z
+            .array(z.object({ messageId: z.string(), text: z.string().optional() }).strict())
+            .max(MAX_CHANNEL_QUOTES)
+            .optional(),
         })
         .strict()
         .safeParse(payload);
@@ -6034,17 +6329,24 @@ function buildBridgeMethods(
               .some((member) => member.humanId === deps.channels.humanIdentity(human).humanId))
       )
         return invalidInput('Channel is unavailable');
-      const reply =
-        input.data.replyTo === undefined
-          ? undefined
-          : deps.channels
-              .readHumanTimeline(human, channel.id, {
-                direction: 'around',
-                around: input.data.replyTo,
-                olderLimit: 0,
-                newerLimit: 0,
-              })
-              ?.entries.find((message) => message.id === input.data.replyTo);
+      const visible = (messageId: string) =>
+        deps.channels
+          .readHumanTimeline(human, channel.id, {
+            direction: 'around',
+            around: messageId,
+            olderLimit: 0,
+            newerLimit: 0,
+          })
+          ?.entries.find((message) => message.id === messageId);
+      const reply = input.data.replyTo === undefined ? undefined : visible(input.data.replyTo);
+      const quotes = input.data.quotes?.map((quote) => {
+        const target = visible(quote.messageId);
+        return target === undefined ||
+          (target as { contentPurge?: unknown }).contentPurge !== undefined ||
+          (quote.text !== undefined && !quoteTextMatches(target.body, quote.text))
+          ? null
+          : target;
+      });
       const attachments = input.data.attachments.map((ref) => {
         try {
           return deps.attachments?.current(ref) ?? null;
@@ -6059,7 +6361,11 @@ function buildBridgeMethods(
       });
       return {
         ok: true,
-        value: { ...(reply === undefined ? {} : { reply }), attachments },
+        value: {
+          ...(reply === undefined ? {} : { reply }),
+          attachments,
+          ...(quotes === undefined ? {} : { quotes }),
+        },
       };
     },
     humanNameSet(payload) {
@@ -6076,6 +6382,32 @@ function buildBridgeMethods(
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
+    },
+    humanAvatarSet(payload) {
+      const input = z
+        .object({ avatar: z.string().max(131_072).nullable() })
+        .strict()
+        .safeParse(payload);
+      if (!input.success || (input.data.avatar !== null && !isHumanAvatar(input.data.avatar)))
+        return invalidInput('avatar must be a PNG, JPEG or WebP data URL up to 96 KiB, or null');
+      return { ok: true, value: deps.channels.setHumanAvatar(human, input.data.avatar) };
+    },
+    humanProfileSetupFinish(payload) {
+      if (!z.object({}).strict().safeParse(payload).success)
+        return invalidInput('humanProfileSetupFinish takes no arguments');
+      return { ok: true, value: deps.channels.finishHumanProfileSetup(human) };
+    },
+    humanAvatars(payload) {
+      const input = z
+        .object({ humanIds: z.array(z.string().min(1).max(128)).max(HUMAN_AVATAR_BATCH) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success)
+        return invalidInput(`humanIds must be up to ${HUMAN_AVATAR_BATCH} Human IDs`);
+      return {
+        ok: true,
+        value: { avatars: deps.channels.humanAvatars(human, input.data.humanIds) },
+      };
     },
     channelHumanNameSet(payload) {
       const input = z
@@ -7249,6 +7581,39 @@ function buildBridgeMethods(
         };
       }
     },
+    async sessionSkillCatalog(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
+      const cwd = owner.cwdReference;
+      const workspaceIds = new Set(
+        deps.skills
+          .workspaces([slug])
+          .filter((workspace) => cwd !== undefined && workspace.path === cwd)
+          .map((workspace) => workspace.workspaceId),
+      );
+      try {
+        return {
+          ok: true,
+          value: { skills: sessionSkills(await deps.skills.list([slug]), slug, workspaceIds) },
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error: { code: 'skills-unavailable', message: (error as Error).message },
+        };
+      }
+    },
     async botSkills(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
@@ -7592,6 +7957,8 @@ function buildBridgeMethods(
         return invalidInput('replyTo must be a message id');
       }
       let replyTo = typeof rawReplyTo === 'string' ? rawReplyTo : undefined;
+      const quotes = parseQuotesInput(source['quotes']);
+      if (typeof quotes === 'string') return invalidInput(quotes);
       const rawGrantResolution = source['grantRequestResolution'];
       let grantRequestResolution: ChannelMessage['grantRequestResolution'];
       if (rawGrantResolution !== undefined) {
@@ -7720,6 +8087,26 @@ function buildBridgeMethods(
         }) === undefined
       )
         return invalidInput('Reply target must exist in this Channel');
+      try {
+        if (
+          requestedMessageId === undefined ||
+          deps.channels.message(channelId, requestedMessageId) === undefined
+        )
+          assertQuoteTargets(quotes, (messageId) =>
+            deps.channels
+              .readHumanTimeline(human, channelId, {
+                direction: 'around',
+                around: messageId,
+                olderLimit: 0,
+                newerLimit: 0,
+              })
+              ?.entries.find((entry) => entry.id === messageId),
+          );
+      } catch (error) {
+        if (error instanceof ChannelQuoteError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
       const memorySwitchTarget = source['memorySwitchTarget'];
       if (
         memorySwitchTarget !== undefined &&
@@ -7742,6 +8129,7 @@ function buildBridgeMethods(
               genuiReplyContext !== undefined &&
               existing.body === `${body}\n\n${genuiReplyContext}`)) &&
           existing.replyTo === replyTo &&
+          sameQuoteIntent(deps.channels.storedQuotes(channelId, existing.id), quotes) &&
           JSON.stringify(existing.genuiReply) === JSON.stringify(genuiReply) &&
           existing.memorySwitchTarget === memorySwitchTarget &&
           JSON.stringify(existing.assignmentReply) === JSON.stringify(assignmentReply) &&
@@ -7920,6 +8308,7 @@ function buildBridgeMethods(
         ...(channelRefs.length === 0 ? {} : { channelRefs }),
         ...(skillInvocations.length === 0 ? {} : { skillInvocations }),
         ...(replyTo === undefined ? {} : { replyTo }),
+        ...(quotes.length === 0 ? {} : { quotes }),
         ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
         ...(assignmentReply === undefined ? {} : { assignmentReply }),
         ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
@@ -7949,6 +8338,7 @@ function buildBridgeMethods(
           };
         if (
           error instanceof ChannelReplyTargetError ||
+          error instanceof ChannelQuoteError ||
           error instanceof GenuiError ||
           error instanceof AssignmentReplyTargetError ||
           error instanceof ChannelMentionTargetError ||
@@ -8888,6 +9278,114 @@ function buildBridgeMethods(
         describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
       });
       return { ok: true, value: { assignment, ...timeline } };
+    },
+    async sessionProgress(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      if (slug === undefined) return invalidInput('slug is required');
+      const ids = source?.['sessionIds'];
+      if (
+        !Array.isArray(ids) ||
+        ids.length === 0 ||
+        ids.length > SESSION_PROGRESS_LIMIT ||
+        !ids.every((id) => typeof id === 'string' && id.trim() !== '')
+      )
+        return invalidInput(`sessionIds must list 1 to ${SESSION_PROGRESS_LIMIT} Session ids`);
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const sessions = await Promise.all(
+        [...new Set(ids as string[])].map(async (sessionId): Promise<SessionProgressEntry> => {
+          const owner = deps.ownership.resolve(sessionId);
+          if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+            return { sessionId, error: 'not-found' };
+          try {
+            const log = await read(sessionId);
+            return { sessionId, ...summarizeSessionProgress(log?.events ?? []) };
+          } catch {
+            return { sessionId, error: 'unavailable' };
+          }
+        }),
+      );
+      return { ok: true, value: { sessions } };
+    },
+    async sessionTranscript(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const log = await read(sessionId);
+      return {
+        ok: true,
+        value: {
+          sessionId,
+          role: owner.rootRole,
+          ...summarizeSessionTranscript({
+            sessionId,
+            events: log?.events ?? [],
+            describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
+          }),
+        },
+      };
+    },
+    async sessionLive(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const after = source?.['after'];
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (after !== undefined && (typeof after !== 'number' || !Number.isSafeInteger(after)))
+        return invalidInput('after must be an integer');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const live = deps.sessionLive;
+      if (live === undefined) return unavailable();
+      if (after !== undefined) await live.wait(sessionId, after);
+      return { ok: true, value: { sessionId, ...live.snapshot(sessionId) } };
+    },
+    async sessionToolDetail(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const callId = asNonBlank(source, 'callId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (callId === undefined) return invalidInput('callId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const log = await read(sessionId);
+      const detail = summarizeSessionToolDetail({
+        sessionId,
+        callId,
+        events: log?.events ?? [],
+        ...(deps.presentToolResult === undefined ? {} : { present: deps.presentToolResult }),
+      });
+      if (detail === undefined)
+        return { ok: false, error: { code: 'not-found', message: `unknown tool call: ${callId}` } };
+      return { ok: true, value: { sessionId, callId, detail } };
     },
     async sessionSubagents(payload) {
       const source = asObject(payload);

@@ -29,6 +29,16 @@ import {
 import { requiresHumanDecision } from './approval-templates.js';
 import { decideToolApproval, toolEffects, type ToolEffects } from './tool-effects.js';
 
+export type ToolApprovalOriginQuery = {
+  sessionId: Agent['session']['id'];
+  callId: ToolExecution['callId'];
+};
+
+export type ToolApprovalOrigin = {
+  kind: 'turn' | 'direct';
+  channelId: string;
+};
+
 export interface BotCreatePreview {
   memoryFolder: string;
   defaultLocation: boolean;
@@ -94,22 +104,23 @@ export interface ToolAutoApproval {
   }): void;
 }
 
-type TrackedCall = ToolApprovalRequestCard & {
-  botSlug: string;
-  agent: Agent;
-  scopeKey: string;
-  automatic?: boolean;
-  requireExplicitApproval?: boolean;
-  humanReviewed?: boolean;
-  reviewerApproved?: boolean;
-  authorizationScope?: () => string;
-  rememberable?: boolean;
-  remembered?: boolean;
-  execution: ToolExecution;
+type TrackedCall = ToolApprovalRequestCard &
+  ToolApprovalOriginQuery & {
+    botSlug: string;
+    agent: Agent;
+    scopeKey: string;
+    automatic?: boolean;
+    requireExplicitApproval?: boolean;
+    humanReviewed?: boolean;
+    reviewerApproved?: boolean;
+    authorizationScope?: () => string;
+    rememberable?: boolean;
+    remembered?: boolean;
+    execution: ToolExecution;
 
-  authorized?: () => boolean;
-  device?: 'computer' | 'browser';
-};
+    authorized?: () => boolean;
+    device?: 'computer' | 'browser';
+  };
 type Pending = {
   botSlug: string;
   channelId: string;
@@ -181,7 +192,9 @@ export class ChannelToolApproval {
       ) => AssignmentApprovalWaitLease | undefined)
     | undefined;
   readonly #scope: (agent: Agent, owner: SessionOwnershipRecord) => string | undefined;
-  readonly #askChannel: ((sessionId: string) => string | undefined) | undefined;
+  readonly #origin:
+    | ((query: ToolApprovalOriginQuery) => ToolApprovalOrigin | undefined)
+    | undefined;
   readonly #tracked = new Map<string, TrackedCall>();
   readonly #pending = new Map<string, Pending>();
   readonly #stopped = new Set<string>();
@@ -207,14 +220,15 @@ export class ChannelToolApproval {
       callId: string,
       signal: AbortSignal,
     ) => AssignmentApprovalWaitLease | undefined,
-    askChannel?: (sessionId: string) => string | undefined,
+    origin?: (query: ToolApprovalOriginQuery) => ToolApprovalOrigin | undefined,
     autoApproval?: ToolAutoApproval,
     fullAccess?: (sessionId: string) => boolean,
     private readonly approvals?: ApprovalAuthority,
+    private readonly directInvocation?: (query: ToolApprovalOriginQuery) => boolean,
   ) {
     this.#fullAccess = fullAccess;
     this.#autoApproval = autoApproval;
-    this.#askChannel = askChannel;
+    this.#origin = origin;
     this.#channels = channels;
     this.#ownership = ownership;
     this.#rules = rules;
@@ -300,6 +314,10 @@ export class ChannelToolApproval {
       this.#currentScope(tracked, owner) !== tracked.scopeKey
     )
       return 'unavailable';
+    const query = { sessionId: tracked.sessionId, callId: tracked.callId };
+    const direct = this.directInvocation?.(query) === true;
+    const directOrigin = direct ? this.#origin?.(query) : undefined;
+    if (direct && directOrigin === undefined) return 'unavailable';
     const policy = this.#decisionPolicy(tracked, {
       fullAccess: this.#fullAccess?.(tracked.sessionId) === true,
     });
@@ -320,10 +338,10 @@ export class ChannelToolApproval {
       return 'allowed-once';
     }
     const origin =
-      tracked.role === 'orchestrator' ? this.#askChannel?.(tracked.sessionId) : undefined;
-    if (tracked.role === 'orchestrator' && this.#askChannel !== undefined && origin === undefined)
+      directOrigin ?? (tracked.role === 'orchestrator' ? this.#origin?.(query) : undefined);
+    if (tracked.role === 'orchestrator' && this.#origin !== undefined && origin === undefined)
       return 'unavailable';
-    const originChannel = origin === undefined ? undefined : this.#channels.get(origin);
+    const originChannel = origin === undefined ? undefined : this.#channels.get(origin.channelId);
     const channel =
       origin === undefined
         ? (this.#channels.get(dmChannelId(tracked.botSlug)) ??
@@ -367,7 +385,10 @@ export class ChannelToolApproval {
       } catch {}
     }
     if (template !== undefined) {
-      const reviewed = await this.#review(tracked, template, channelId, request.signal);
+      const reviewed = await this.#review(tracked, template, channelId, {
+        signal: request.signal,
+        includeSessionHistory: origin?.kind !== 'direct',
+      });
       if (reviewed !== undefined) return reviewed;
       if (request.signal?.aborted) return 'cancelled';
     }
@@ -908,8 +929,9 @@ export class ChannelToolApproval {
     tracked: TrackedCall,
     template: { name: string; text: string },
     channelId: string,
-    signal: AbortSignal | undefined,
+    options: { signal: AbortSignal | undefined; includeSessionHistory: boolean },
   ): Promise<'allowed-once' | undefined> {
+    const { signal } = options;
     const auto = this.#autoApproval;
     if (auto === undefined) return undefined;
     template = { ...template };
@@ -998,7 +1020,7 @@ export class ChannelToolApproval {
             : { authorization: { device: tracked.device, sessionId: tracked.sessionId } }),
         },
         excerpt: approvalSessionExcerpt(
-          tracked.agent.session.snapshotEvents(),
+          options.includeSessionHistory ? tracked.agent.session.snapshotEvents() : [],
           tracked.callId,
           auto.excerptLimits?.(tracked.botSlug),
         ),

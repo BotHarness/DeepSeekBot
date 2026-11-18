@@ -101,6 +101,37 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(result.text).toContain('host-query-unsupported');
   });
 
+  it('sends raw text straight into the Orchestrator Session with session-send', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
+    const result = await invoke(
+      ['session-send', ' ada ', 'bot-1', '    keep\n  this indent  '],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual({ sourceEventId: 'evt-1' });
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '    keep\n  this indent  ' },
+      },
+    ]);
+  });
+
+  it('sends text that starts with a dash after --', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-2' } }));
+    const result = await invoke(
+      ['session-send', 'ada', 'bot-1', '--', '-1 is the answer'],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '-1 is the answer' },
+      },
+    ]);
+  });
+
   it('searches and orders personal Activity through the same Host query', async () => {
     const live = await host(echo);
     const result = await invoke(
@@ -364,6 +395,8 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     await invoke(['assignment', 'ada', '--session', 'sess-1'], live.url);
     await invoke(['assignment-timeline', 'ada', '--session', 'sess-1'], live.url);
     await invoke(['session-subagents', 'ada', '--session', 'orch-1'], live.url);
+    await invoke(['session-progress', 'ada', '--session', 'orch-1, asg-1'], live.url);
+    await invoke(['session-transcript', 'ada', '--session', 'asg-1'], live.url);
     for (const argv of [
       ['assignments'],
       ['assignments', 'ada', '--activity', 'busy'],
@@ -372,6 +405,9 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       ['assignment-timeline', 'ada'],
       ['session-subagents', 'ada'],
       ['session-subagents', '--session', 'orch-1'],
+      ['session-progress', 'ada'],
+      ['session-progress', 'ada', '--session', ','],
+      ['session-transcript', 'ada'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([
@@ -390,6 +426,8 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       { method: 'assignment', args: { slug: 'ada', sessionId: 'sess-1' } },
       { method: 'assignmentTimeline', args: { slug: 'ada', sessionId: 'sess-1' } },
       { method: 'sessionSubagents', args: { slug: 'ada', sessionId: 'orch-1' } },
+      { method: 'sessionProgress', args: { slug: 'ada', sessionIds: ['orch-1', 'asg-1'] } },
+      { method: 'sessionTranscript', args: { slug: 'ada', sessionId: 'asg-1' } },
     ]);
   });
 

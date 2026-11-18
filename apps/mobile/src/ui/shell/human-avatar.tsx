@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 
 import { accountProfile, useAccountProfile } from '../../account/native-account-profile';
+import type { HostClient } from '@botharness/host-client/client';
+import { followHumanIdentity, useHumanIdentity } from '../../host/human-profile';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
@@ -14,7 +16,9 @@ export function HumanAvatarButton({
   loadName,
   onPress,
   testID,
+  client,
 }: {
+  client?: HostClient | undefined;
   loadName: (() => Promise<string | undefined>) | undefined;
   onPress: () => void;
   testID?: string;
@@ -24,8 +28,10 @@ export function HumanAvatarButton({
   const account = useAccountProfile();
   const profile = account.status === 'ready' ? account.profile : null;
   const [name, setName] = useState<string>();
+  const human = useHumanIdentity(client);
   const mount = useMounted<ViewInstance>(() => {
     let live = true;
+    const unfollow = client === undefined ? undefined : followHumanIdentity(client);
     if (accountProfile.getSnapshot().status === 'loading') void accountProfile.refresh();
     loadName?.().then(
       (loaded) => live && setName(loaded),
@@ -33,8 +39,9 @@ export function HumanAvatarButton({
     );
     return () => {
       live = false;
+      unfollow?.();
     };
-  }, [loadName]);
+  }, [loadName, client]);
   return (
     <Pressable
       testID={testID}
@@ -51,8 +58,8 @@ export function HumanAvatarButton({
     >
       <View ref={mount}>
         <AccountAvatar
-          uri={profile?.avatar}
-          name={profile?.name ?? name}
+          uri={human.avatar ?? profile?.avatar}
+          name={human.identity?.defaultDisplayName ?? profile?.name ?? name}
           size={theme.touch - space.x3}
         />
       </View>

@@ -387,7 +387,10 @@ async function dismissOverlays(page) {
   for (let round = 0; round < 4; round += 1) {
     const clicked = await page.evaluate((labels) => {
       const button = [...document.querySelectorAll('button')].find(
-        (node) => labels.includes(node.textContent?.trim() ?? '') && node.offsetParent !== null,
+        (node) =>
+          labels.includes(node.textContent?.trim() ?? '') &&
+          node.offsetParent !== null &&
+          node.closest('.bh-session-failure-row') === null,
       );
       button?.click();
       return button?.textContent?.trim() ?? null;

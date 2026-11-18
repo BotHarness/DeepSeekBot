@@ -4,6 +4,7 @@ import type { ChannelAttachmentRef } from '../src/attachments/ref.js';
 import { isChannelMessage, type ChannelMessage } from '../src/channels/channel.js';
 import {
   isChannelReplyPreviewMedia,
+  replyPreviewBody,
   replyPreviewMedia,
   replyPreviewOf,
 } from '../src/channels/reply-preview.js';
@@ -175,4 +176,10 @@ describe('reply preview media hint', () => {
     expect(isChannelMessage(reply({ kind: 'voice', durationMs: 7000 }))).toBe(true);
     expect(isChannelMessage(reply({ kind: 'video' }))).toBe(true);
   });
+});
+
+it('shows a cited session by its title in the reply preview', () => {
+  expect(replyPreviewBody('看看 [为 slug.js 写 \\[README\\]](session:asg-1) 写得怎么样？')).toBe(
+    '看看 为 slug.js 写 [README] 写得怎么样？',
+  );
 });

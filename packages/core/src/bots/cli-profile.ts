@@ -48,7 +48,22 @@ export const PROFILE_COMMANDS = [
     description: 'set the top-level sidebar order of sections and Channels',
   },
   { command: 'host-ping', description: 'check that the Host answers, with no payload' },
-  { command: 'human-identity', description: "read the Human's id and display name" },
+  {
+    command: 'human-identity',
+    description: "read the Human's id, display name and avatar version",
+  },
+  {
+    command: 'human-avatar-set',
+    description: 'set your own chat avatar from a PNG, JPEG or WebP file, or --clear it',
+  },
+  {
+    command: 'human-avatars',
+    description: 'read the chat avatars of Humans you share a Channel with, by Human ID',
+  },
+  {
+    command: 'human-profile-setup-finish',
+    description: 'stop asking a new Team member for a chat name and photo at sign-in',
+  },
   { command: 'part-library', description: 'list the Custom Part Library' },
   { command: 'part-library-add', description: 'save a Custom Part JSON from stdin to the library' },
   {
@@ -329,6 +344,24 @@ export async function profileCall(
     case 'human-identity':
       noArguments(command, rest);
       return ['humanIdentity', {}];
+    case 'human-avatar-set': {
+      noArguments(command, rest);
+      if ((values.file !== undefined) === (values.clear === true))
+        usage('human-avatar-set needs exactly one of --file or --clear.');
+      return [
+        'humanAvatarSet',
+        { avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
+      ];
+    }
+    case 'human-profile-setup-finish':
+      noArguments(command, rest);
+      return ['humanProfileSetupFinish', {}];
+    case 'human-avatars': {
+      const humanIds = rest.map((id) => id.trim()).filter((id) => id.length > 0);
+      if (humanIds.length === 0 || humanIds.length > 64)
+        usage('human-avatars needs 1 to 64 Human IDs.');
+      return ['humanAvatars', { humanIds }];
+    }
     case 'human-name-set': {
       noArguments(command, rest);
       const name = values.name?.trim();

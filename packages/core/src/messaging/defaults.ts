@@ -54,7 +54,7 @@ export function messagingDefaults<Platform extends string = 'feishu'>(
         platform: key as Platform,
         collection: key === 'weixin' ? 'all' : 'mentions',
         wake: key === 'weixin' ? 'immediate' : 'digest',
-        count: 5,
+        count: 10,
         intervalSeconds: 30,
         identityEnabled: true,
         ...(key === 'weixin' ? { typingEnabled: true } : {}),

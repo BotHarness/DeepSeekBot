@@ -4,9 +4,20 @@ import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
 import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
+import { referencedIds } from './quotes.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
 import { MAX_MESSAGE_PAGE, type ChannelChangeCursor, type ChannelJournalPage } from './timeline.js';
+
+function withoutPreviews(message: ChannelMessage): ChannelMessage {
+  return {
+    ...message,
+    ...(message.replyTo === undefined ? {} : { replyToPreview: null }),
+    ...(message.quotes === undefined
+      ? {}
+      : { quotes: message.quotes.map(({ messageId }) => ({ messageId, preview: null })) }),
+  };
+}
 
 export const CHANNEL_STREAM_PATH = '/api/botharness/stream';
 export const CHANNEL_COMMIT_EVENT = 'channel/message';
@@ -712,11 +723,18 @@ export function createChannelLiveHub(
     const subscriber: Subscriber = {
       push(commit) {
         if (ended || commit.revision <= delivered) return;
+        const message =
+          referencedIds(commit.message).length === 0
+            ? commit.message
+            : (channels
+                .readHumanJournalPage(human, channelId, { through: commit.revision, limit: 1 })
+                ?.entries.find((entry) => entry.revision === commit.revision)?.message ??
+              withoutPreviews(commit.message));
         emit({
           type: 'entry',
           entry: {
             channelId: commit.channelId,
-            message: commit.message,
+            message,
             revision: commit.revision,
           },
         });

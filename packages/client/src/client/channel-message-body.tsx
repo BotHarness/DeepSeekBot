@@ -29,8 +29,10 @@ import {
   FileTypeIcon,
   fileSizeText,
   IconFolderOpenOutlineRegular,
+  MarkdownDelegateProvider,
   MarkdownText,
   StateDot,
+  useMarkdownDelegate,
   Tag,
   type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -55,7 +57,16 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
 import { messagePerfView } from './message-perf.js';
+import {
+  SessionLinkRail,
+  hasSessionMentions,
+  sessionMentionId,
+  useOpenSession,
+  withSessionMentionLinks,
+} from './session-links.js';
 import { type BotSummary, type ChannelMessage } from './store.js';
+import { sessionReferenceRuns } from './session-refs.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { skillOwnerLabel, skillSummary, useSkillPeek } from './skill-preview.js';
@@ -65,6 +76,76 @@ import { GenuiDocumentCard } from './genui-document.js';
 const ChannelMarkdownText = MarkdownText as unknown as (
   props: Parameters<typeof MarkdownText>[0],
 ) => ReactElement;
+
+export function MessageMarkdown({
+  text,
+  t,
+}: {
+  text: string;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const labels = useMemo<MarkdownLabels>(
+    () => ({
+      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
+      footnotes: t('message.footnotes'),
+    }),
+    [t],
+  );
+  return <ChannelMarkdownText text={text} labels={labels} />;
+}
+
+function SessionMentionScope({
+  enabled,
+  botSlug,
+  body,
+  children,
+}: {
+  enabled: boolean;
+  botSlug: string | undefined;
+  body: string;
+  children: ReactNode;
+}): ReactNode {
+  return enabled ? (
+    <SessionMentionDelegate botSlug={botSlug} body={body}>
+      {children}
+    </SessionMentionDelegate>
+  ) : (
+    children
+  );
+}
+
+function SessionMentionDelegate({
+  botSlug,
+  body,
+  children,
+}: {
+  botSlug: string | undefined;
+  body: string;
+  children: ReactNode;
+}): ReactNode {
+  const parent = useMarkdownDelegate();
+  const open = useOpenSession();
+  if (open === undefined) return children;
+  return (
+    <MarkdownDelegateProvider
+      {...parent}
+      openExternalLink={(href) => {
+        const sessionId = sessionMentionId(href);
+        if (sessionId !== undefined)
+          open(
+            botSlug,
+            sessionId,
+            sessionReferenceRuns(body).find((run) => run.session?.sessionId === sessionId)?.session
+              ?.title ?? '',
+          );
+        else if (parent.openExternalLink !== undefined) parent.openExternalLink(href);
+        else window.open(href, '_blank', 'noopener,noreferrer');
+      }}
+    >
+      {children}
+    </MarkdownDelegateProvider>
+  );
+}
 
 export type NativeChatFailureText = (key: 'message.turnError' | 'message.failure.auth') => string;
 
@@ -525,6 +606,7 @@ export function ChannelMessageBody({
   );
   const host = useMessageHost();
   const skillPeek = useSkillPeek(t);
+  const openSession = useOpenSession();
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
@@ -862,10 +944,26 @@ export function ChannelMessageBody({
   const channel = store.getSnapshot().conversation.channel;
   const interactiveReport =
     host === undefined && channel?.id === channelId && channel?.type === 'dm';
+  const renderSessionText = (text: string) =>
+    sessionReferenceRuns(text).map((part, index) => {
+      const session = part.session;
+      if (session === undefined) return <span key={index}>{part.text}</span>;
+      return (
+        <InlineTokenButton
+          key={index}
+          data-session-mention={session.sessionId}
+          disabled={openSession === undefined}
+          onClick={() => openSession?.(undefined, session.sessionId, session.title)}
+        >
+          <ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />
+          <span>{session.title}</span>
+        </InlineTokenButton>
+      );
+    });
   const renderAttachmentText = (text: string) =>
     attachmentReferenceRuns(text, attachedFiles).map((part, index) => {
       const item = part.attachment;
-      if (item === undefined) return <span key={index}>{part.text}</span>;
+      if (item === undefined) return <span key={index}>{renderSessionText(part.text)}</span>;
       return (
         <button
           key={index}
@@ -971,6 +1069,14 @@ export function ChannelMessageBody({
         <div
           className={`bh-bubble-body bh-bubble-body-markdown${leading === undefined ? '' : ' bh-bubble-body-bot-mentions'}`}
         >
+          {message.author.kind === 'bot' && message.sessionLinks !== undefined ? (
+            <SessionLinkRail
+              botSlug={message.author.slug}
+              kind="sent"
+              links={message.sessionLinks}
+              t={t}
+            />
+          ) : null}
           {leading === undefined ? null : (
             <span className="bh-bot-mention-prefix">
               {leading.mentions.map((mention, index) => renderMention(mention, index))}
@@ -978,14 +1084,34 @@ export function ChannelMessageBody({
             </span>
           )}
           {leading === undefined || leading.text.length > 0 ? (
-            <ChannelMarkdownText
-              text={
-                humanMarkdown
-                  ? preserveHumanLineBreaks(leading?.text ?? message.body)
-                  : (leading?.text ?? message.body)
+            <SessionMentionScope
+              enabled={
+                (message.author.kind === 'bot' || humanMarkdown) && hasSessionMentions(message.body)
               }
-              streaming={message.streaming === true}
-              labels={labels}
+              botSlug={message.author.kind === 'bot' ? message.author.slug : undefined}
+              body={message.body}
+            >
+              <ChannelMarkdownText
+                text={
+                  humanMarkdown
+                    ? withSessionMentionLinks(
+                        preserveHumanLineBreaks(leading?.text ?? message.body),
+                      )
+                    : message.author.kind === 'bot'
+                      ? withSessionMentionLinks(leading?.text ?? message.body)
+                      : (leading?.text ?? message.body)
+                }
+                streaming={message.streaming === true}
+                labels={labels}
+              />
+            </SessionMentionScope>
+          ) : null}
+          {message.author.kind === 'bot' && message.sessionLinks !== undefined ? (
+            <SessionLinkRail
+              botSlug={message.author.slug}
+              kind="created"
+              links={message.sessionLinks}
+              t={t}
             />
           ) : null}
         </div>

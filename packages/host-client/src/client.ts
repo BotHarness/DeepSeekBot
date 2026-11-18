@@ -96,11 +96,18 @@ export interface RosterBot {
   previewAuthor?: WireAuthor;
 }
 
+export interface RosterHuman {
+  humanId: string;
+  displayName: string;
+  avatarVersion?: string;
+}
+
 export interface RosterChannel {
   id: string;
   name: string;
   memberCount: number;
   members: string[];
+  humanMembers?: RosterHuman[];
   avatar?: string;
   ownerBotSlug?: string;
   pendingInvites?: Array<{ id: string; botSlug: string }>;
@@ -235,13 +242,17 @@ export type DeviceRefusal =
   | 'device-revoked'
   | 'device-unknown'
   | 'device-credential-missing'
-  | 'host-key-changed';
+  | 'host-key-changed'
+  | 'sign-in-required'
+  | 'member-suspended';
 
 const REFUSALS: Record<DeviceRefusal, string> = {
   'device-revoked': 'This phone was removed from the paired devices on your computer.',
   'device-unknown': 'Your computer no longer knows this phone.',
   'device-credential-missing': 'This phone has no pairing for your computer.',
   'host-key-changed': 'This computer no longer accepts this pairing. Remove it, then pair again.',
+  'sign-in-required': 'Your password changed or you were signed out. Sign in again.',
+  'member-suspended': 'Your account on this Host was deactivated.',
 };
 
 class CredentialRefused extends Error {
@@ -257,6 +268,7 @@ export function deviceRefusal(error: unknown): DeviceRefusal | undefined {
 function refusalOf(text: string): DeviceRefusal | undefined {
   try {
     const code = record(JSON.parse(text))['code'];
+    if (code === 'credentials-invalid') return 'sign-in-required';
     return typeof code === 'string' && code in REFUSALS ? (code as DeviceRefusal) : undefined;
   } catch {
     return undefined;
@@ -318,6 +330,32 @@ function id(): string {
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+const HUMAN_AVATAR_VERSION = /^[a-f0-9]{16}$/u;
+
+function rosterHumans(value: unknown): { humanMembers?: RosterHuman[] } {
+  if (!Array.isArray(value)) return {};
+  return {
+    humanMembers: value.flatMap((raw: unknown) => {
+      if (typeof raw !== 'object' || raw === null) return [];
+      const member = raw as Record<string, unknown>;
+      const version = member['avatarVersion'];
+      return typeof member['humanId'] === 'string' &&
+        member['humanId'].length > 0 &&
+        typeof member['displayName'] === 'string'
+        ? [
+            {
+              humanId: member['humanId'],
+              displayName: member['displayName'],
+              ...(typeof version === 'string' && HUMAN_AVATAR_VERSION.test(version)
+                ? { avatarVersion: version }
+                : {}),
+            },
+          ]
+        : [];
+    }),
+  };
 }
 
 function previewOf(channel: ChannelListItem | undefined): {
@@ -553,12 +591,14 @@ export function createHostClient(options: HostClientOptions): HostClient {
           members: channel.members,
           ...previewOf(channel),
         });
-      else if (channel.type === 'group')
+      else if (channel.type === 'group') {
+        const humans = rosterHumans(channel.humanMembers);
         groups.push({
           id: channel.id,
           name: channel.name,
-          memberCount: channel.members.length,
+          memberCount: channel.members.length + (humans.humanMembers?.length ?? 0),
           members: channel.members,
+          ...humans,
           ...(channel.avatar === undefined ? {} : { avatar: channel.avatar }),
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
           pendingInvites: (channel.invitations ?? [])
@@ -575,6 +615,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
             })),
           ...previewOf(channel),
         });
+      }
     }
     groups.sort((a, b) => (b.previewAt ?? '').localeCompare(a.previewAt ?? ''));
     return {
@@ -757,7 +798,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         headers: jsonAuthorization,
         signal,
       });
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
@@ -797,7 +838,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           signal,
         },
       );
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         const code = refusalOf(await response.text());
         if (code !== undefined) throw new CredentialRefused(code);
       }
@@ -856,7 +897,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return { status: response.status, body: await response.bytes() };
         }
         const text = await response.text();
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
           const code = refusalOf(text);
           if (code !== undefined) throw new CredentialRefused(code);
         }
@@ -1776,6 +1817,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       activeRequests += 1;
       try {
         return await upload(name, data);
+      } catch (error) {
+        refusedBy(error);
+        throw error;
       } finally {
         activeRequests -= 1;
         resumeLive();

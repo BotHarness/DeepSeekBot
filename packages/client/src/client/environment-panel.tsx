@@ -30,6 +30,14 @@ import type { DockPanel } from './dock-panels.js';
 import { environmentUnread } from './environment-activity.js';
 import { WORKSPACE_CHANNELS } from './workspace-context.js';
 import { memberPage } from './member-page.js';
+import { memberStatus } from './environment-member.js';
+import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
+import { TextField } from './ds/field.js';
+import { TeamSignInDialog } from './team-sign-in-dialog.js';
+import type { TeamSignInTarget } from '@botharness/host-client/team-sign-in';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { ConnectionState } from '@botharness/host-client/client';
+import { teamHttpsRoute } from '@botharness/host-protocol/team-invitation';
 
 export const ENVIRONMENT_PANEL = 'environments';
 
@@ -148,6 +156,7 @@ function EnvironmentRow({
   selected,
   onManage,
   reconnect = false,
+  account,
   t,
 }: {
   id: string;
@@ -158,6 +167,7 @@ function EnvironmentRow({
   selected: boolean;
   onManage: () => void;
   reconnect?: boolean;
+  account?: MemberActions | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const look = useHostLook(hostId);
@@ -171,7 +181,7 @@ function EnvironmentRow({
       label: t('environment.settings'),
       icon: <ChannelSidebarIcon name="settings" />,
     },
-    ...(reconnect
+    ...(reconnect && account?.signInRequired !== true
       ? [
           {
             id: 'reconnect',
@@ -180,6 +190,15 @@ function EnvironmentRow({
           },
         ]
       : []),
+    ...(account === undefined
+      ? []
+      : [
+          ...(account.signInAgain === undefined
+            ? []
+            : [{ id: 'sign-in-again', label: t('environment.signInAgain') }]),
+          { id: 'switch-account', label: t('environment.switchAccount') },
+          { id: 'sign-out', label: t('environment.signOut'), danger: true },
+        ]),
   ];
   const closeMenu = (): void => {
     setMenu(undefined);
@@ -188,6 +207,9 @@ function EnvironmentRow({
     setMenu(undefined);
     if (action === 'settings') onManage();
     if (action === 'reconnect') remoteHosts().client(id)?.retryNow('manual_retry');
+    if (action === 'sign-in-again') account?.signInAgain?.();
+    if (action === 'switch-account') account?.switchAccount();
+    if (action === 'sign-out') account?.signOut();
   };
   return (
     <div
@@ -337,8 +359,34 @@ export function EnvironmentAddAction({ t }: { t: BotHarnessTranslate }): ReactEl
   );
 }
 
+interface MemberActions {
+  signInRequired: boolean;
+  signInAgain?: (() => void) | undefined;
+  switchAccount(): void;
+  signOut(): void;
+}
+
+function memberRoute(host: SavedHost): string | undefined {
+  return host.routes.find((route) => teamHttpsRoute(route));
+}
+
 function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement {
   const snapshot = useRemoteHosts();
+  const [team, setTeam] = useState<TeamSignInTarget>();
+  const [switching, setSwitching] = useState<{ route: string; username: string }>();
+  const [signingOut, setSigningOut] = useState<SavedHost>();
+  const actions = (host: SavedHost, connection: ConnectionState): MemberActions | undefined => {
+    const route = memberRoute(host);
+    if (host.member === undefined || route === undefined) return undefined;
+    const username = host.member.username;
+    return {
+      signInRequired: connection.status === 'refused' && connection.code === 'sign-in-required',
+      signInAgain:
+        username === '' ? undefined : () => setTeam({ kind: 'address', route, username }),
+      switchAccount: () => setSwitching({ route, username: '' }),
+      signOut: () => setSigningOut(host),
+    };
+  };
   const local = useThisHost();
   const localUnread = useClientStore((state) =>
     state.activityList.attentionStatus === 'ready'
@@ -388,21 +436,25 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
                 : undefined
             }
             reconnect={remote.snapshot.connection.status !== 'connected'}
+            account={actions(remote.host, remote.snapshot.connection)}
             selected={snapshot.tab === remote.host.hostId}
             status={
-              relationshipEnrollmentPending(remote.host)
+              memberStatus(remote.host, remote.snapshot.connection, t) ??
+              (relationshipEnrollmentPending(remote.host)
                 ? t('environment.confirming')
                 : remote.snapshot.connection.status === 'connected'
                   ? remote.inbox.status === 'ready'
                     ? environmentUnread(remote.inbox) === undefined
                       ? t('environment.partial')
-                      : undefined
+                      : remote.host.member === undefined
+                        ? undefined
+                        : t('environment.signedInAs', { name: remote.host.member.displayName })
                     : t(
                         remote.inbox.status === 'error'
                           ? 'environment.unavailable'
                           : 'environment.loading',
                       )
-                  : t('environment.offline')
+                  : t('environment.offline'))
             }
             onManage={() => {
               openHostSettings({
@@ -414,6 +466,53 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
           />
         ))}
       </div>
+      {team === undefined ? null : (
+        <TeamSignInDialog
+          target={team}
+          onClose={() => setTeam(undefined)}
+          onDone={() => setTeam(undefined)}
+          t={t}
+        />
+      )}
+      {switching === undefined ? null : (
+        <FormDialog
+          title={t('environment.switchAccount')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t('teamSignIn.continue')}
+          submitDisabled={switching.username.trim() === ''}
+          onCancel={() => setSwitching(undefined)}
+          onClose={() => setSwitching(undefined)}
+          onSubmit={() => {
+            setTeam({
+              kind: 'address',
+              route: switching.route,
+              username: switching.username.trim(),
+            });
+            setSwitching(undefined);
+          }}
+        >
+          <TextField
+            label={t('teamSignIn.username')}
+            autoComplete="username"
+            value={switching.username}
+            onChange={(value) => setSwitching({ ...switching, username: value })}
+            initialFocus
+          />
+        </FormDialog>
+      )}
+      {signingOut === undefined ? null : (
+        <ConfirmDialog
+          title={t('environment.signOut.title', { name: signingOut.hostName })}
+          description={t('environment.signOut.description')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          confirmLabel={t('environment.signOut')}
+          onCancel={() => setSigningOut(undefined)}
+          onConfirm={() => {
+            void remoteHosts().remove(signingOut.hostId);
+            setSigningOut(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }

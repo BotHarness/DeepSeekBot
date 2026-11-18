@@ -42,7 +42,8 @@
     "docs:deploy": "pnpm --filter docs run deploy",
     "telemetry:plan": "BOTHARNESS_WRITE_TELEMETRY_PLAN=1 vitest run packages/core/test/telemetry-plan.test.ts",
     "prepare": "husky",
-    "lint:baseline": "node scripts/lint-ratchet.mjs --update"
+    "lint:baseline": "node scripts/lint-ratchet.mjs --update",
+    "inbox:eval": "vitest run --config packages/core/test/inbox-eval/vitest.config.ts"
   },
   "devDependencies": {
     "@astrojs/compiler": "2.13.1",

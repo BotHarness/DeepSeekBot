@@ -4040,6 +4040,157 @@ describe('Bot Schedule Tools', () => {
   });
 });
 
+describe('Assignment Routing Groups (#4420)', () => {
+  it('lists groups with resting members and creates an Assignment on the first usable member', async () => {
+    const spent = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
+    const until = '2026-11-18T00:00:00.000Z';
+    const plan = {
+      revision: 2,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: pro,
+      assignmentDefault: pro,
+      assignmentGroups: ['g'],
+      assignmentDefaultGroupId: 'g',
+      appliedAt: BOT.createdAt,
+    };
+    let picks = 0;
+    const calls: Array<Promise<unknown>> = [];
+    const created: unknown[] = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const tool = (name: string) => {
+            const found = scope?.tools.find((candidate) => candidate.name === name);
+            if (found === undefined) throw new Error(`${name} not registered`);
+            return found;
+          };
+          const run = async (name: string, args: Record<string, unknown>) =>
+            tool(name).execute(args, {} as ToolRunContext);
+          calls.push(
+            run('list_assignment_models', {}),
+            run('create_assignment', {
+              title: 'Default group',
+              description: 'Runs on the default group.',
+              grant_id: 'grant-1',
+            }),
+            run('create_assignment', {
+              title: 'Direct',
+              description: 'Runs on a listed model.',
+              grant_id: 'grant-1',
+              provider: pro.provider,
+              model: pro.model,
+            }),
+            run('create_assignment', {
+              title: 'Unknown',
+              description: 'Names a group outside the plan.',
+              grant_id: 'grant-1',
+              group: 'other',
+            }).catch((error: Error) => JSON.stringify({ error: error.message })),
+            run('create_assignment', {
+              title: 'Exhausted',
+              description: 'Every member rests.',
+              grant_id: 'grant-1',
+              group: 'g',
+            }),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      resolveModelPlan: () => plan,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentGroups: {
+        pick: async () =>
+          ++picks > 1
+            ? {
+                kind: 'exhausted',
+                rests: [
+                  { ...spent, until, reason: 'quota' },
+                  { ...pro, until, reason: 'credential' },
+                ],
+              }
+            : { kind: 'route', route: pro },
+        describe: (id) => (id === 'g' ? { name: 'Fallback', routes: [spent, pro] } : undefined),
+        restingUntil: (route) =>
+          route.provider === spent.provider ? { ...spent, until, reason: 'quota' } : undefined,
+      },
+    });
+    await adapter.runOrchestrator({
+      sessionId: 'orchestrator-ada',
+      resume: false,
+      bot: { ...BOT, modelPlan: plan },
+      message: 'Start the work',
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      channels: {
+        ...groupTools,
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => {
+          throw new Error('unexpected ignore');
+        },
+        read: () => [],
+        requestGrant: async () => {
+          throw new Error('unexpected Grant request');
+        },
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
+        grants: () => [],
+        list: () => [],
+        inspect: () => undefined,
+        stop: async () => ASSIGNMENT,
+        request: () => {
+          throw new Error('unexpected Assignment request');
+        },
+      },
+    });
+    try {
+      const parsed = (await Promise.all(calls)).map((value) => JSON.parse(String(value)));
+      expect(parsed[0]).toMatchObject({
+        assignmentDefault: pro,
+        assignmentGroups: [
+          {
+            group: 'g',
+            name: 'Fallback',
+            default: true,
+            members: [{ ...spent, restingUntil: until }, pro],
+          },
+        ],
+      });
+      expect(parsed[0].assignmentGroups[0].restingUntil).toBeUndefined();
+      expect(parsed[3].error).toContain('Routing Group other is not allowed');
+      expect(parsed[4]).toMatchObject({ outcome: 'refused' });
+      expect(parsed[4].message).toContain(`opencode-go/deepseek-v4.1-flash until ${until}`);
+      expect(created).toMatchObject([
+        { title: 'Default group', model: pro, modelGroupId: 'g' },
+        { title: 'Direct', model: pro },
+      ]);
+      expect(created[1]).not.toHaveProperty('modelGroupId');
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
 describe('Assignment Directory Tools', () => {
   it('forward list filters and archive decisions to the Orchestrator run', async () => {
     const calls: Array<Promise<unknown>> = [];
@@ -4329,7 +4480,7 @@ describe('Assignment Directory Tools', () => {
           delivery: 'refused',
           code: 'request-not-delivered',
           message:
-            'Assignment Session stopped was unarchived, but the request was not delivered: Assignment Session stopped was stopped by the Human',
+            'Assignment Session stopped is active, but the request was not delivered: Assignment Session stopped was stopped by the Human',
         },
         {
           outcome: 'unarchived',
@@ -4342,7 +4493,7 @@ describe('Assignment Directory Tools', () => {
           limit: 4,
           retryable: true,
           message:
-            'Assignment Session full was unarchived, but the request was not delivered: At capacity',
+            'Assignment Session full is active, but the request was not delivered: At capacity',
         },
       ]);
       expect(values.slice(5)).toEqual([
@@ -4561,3 +4712,78 @@ it.each(['create', 'resume'] as const)(
     }
   },
 );
+
+it('links the Assignments a turn created or sent to on its Human DM message', async () => {
+  const sent: Record<string, unknown>[] = [];
+  const outcomes: Promise<unknown>[] = [];
+  const summary = (sessionId: string, title: string) => ({ sessionId, title }) as never;
+  const host = new FakeAgentHost(
+    { kind: 'completed' },
+    {
+      onAgentCreated: () => {
+        const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
+        const run = (name: string, args: Record<string, unknown>, id: string) =>
+          tools
+            .find((tool) => tool.name === name)!
+            .execute(args, {
+              callId: ToolCallId(id),
+              signal: new AbortController().signal,
+            } as ToolRunContext);
+        outcomes.push(
+          (async () => {
+            await run('send_assignment_request', { session_id: 'asg-old', text: 'Go on' }, 'a');
+            await run(
+              'create_assignment',
+              { title: 'New', description: 'New work', grant_id: 'g' },
+              'b',
+            );
+            await run('send_assignment_request', { session_id: 'asg-new', text: 'Also' }, 'c');
+            return run(
+              'bot_send_message',
+              {
+                channel_id: 'dm-test',
+                body: 'Both underway.',
+                session_ids: ['asg-new', 'asg-old'],
+              },
+              'd',
+            );
+          })(),
+        );
+      },
+    },
+  );
+  const adapter = createDshBotAgentAdapter({
+    agents: host,
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => undefined,
+  });
+  await adapter.runOrchestrator({
+    sessionId: 'orchestrator-ada',
+    resume: false,
+    bot: BOT,
+    message: 'Start both',
+    inboundChannelId: 'dm-test',
+    inbox: '',
+    channels: {
+      list: () => ({ channels: [{ id: 'dm-test', kind: 'human-dm' }] }),
+      send: async (input: Record<string, unknown>) => {
+        sent.push(input);
+        return { id: 'm1', at: '', author: { kind: 'bot', slug: 'ada' }, body: input['body'] };
+      },
+    } as never,
+    assignments: {
+      create: () => ({ outcome: 'created', assignment: summary('asg-new', 'New') }),
+      request: (input: { sessionId: string }) => ({
+        assignment: summary(input.sessionId, input.sessionId === 'asg-new' ? 'New' : 'Old'),
+        delivery: 'followup',
+      }),
+      inspect: (sessionId: string) => summary(sessionId, sessionId === 'asg-new' ? 'New' : 'Old'),
+    } as never,
+  } as never);
+  await Promise.all(outcomes);
+  expect(sent[0]?.['sessionLinks']).toEqual([
+    { sessionId: 'asg-new', kind: 'created', title: 'New' },
+    { sessionId: 'asg-old', kind: 'sent', title: 'Old' },
+  ]);
+});

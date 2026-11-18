@@ -123,7 +123,7 @@ describe('Session Stop on an Assignment', () => {
       const next = f.live.orchestratorRuns.at(-1)!;
       expect(next).toContain(runaway);
       expect(next).toContain('The Human stopped this Assignment');
-      expect(next).toContain('Do not send it another Assignment Request or redispatch');
+      expect(next).toContain('send_assignment_request to this Session id wakes it');
     } finally {
       await f.close();
     }
@@ -205,7 +205,7 @@ describe('Session Stop on an Assignment', () => {
     }
   });
 
-  it('resumes only on an Assignment Request', async () => {
+  it('resumes on the next Assignment Request', async () => {
     const f = await fixture();
     try {
       const id = f.create('Draft the report');
@@ -213,12 +213,6 @@ describe('Session Stop on an Assignment', () => {
       await f.human('Something else');
       expect(f.core.runtime.getAssignment('ada', id)).toMatchObject({ activity: 'stopped' });
       expect(f.live.assignmentRuns).toHaveLength(1);
-      expect(() => f.access.request({ sessionId: id, mode: 'next-turn', text: 'Go on' })).toThrow(
-        /stopped by the Human/,
-      );
-      expect(f.core.runtime.getAssignment('ada', id)).toMatchObject({ activity: 'stopped' });
-
-      await expect(f.access.unarchive!(id)).resolves.toMatchObject({ outcome: 'unarchived' });
       const resumed = f.access.request({
         sessionId: id,
         mode: 'next-turn',
@@ -234,14 +228,14 @@ describe('Session Stop on an Assignment', () => {
     }
   });
 
-  it('keeps refusing requests to an Assignment the Orchestrator stopped', async () => {
+  it('resumes an Assignment the Orchestrator stopped on its next request', async () => {
     const f = await fixture();
     try {
       const id = f.create('Draft the report');
       await f.access.stop!(id);
-      expect(() => f.access.request({ sessionId: id, mode: 'next-turn', text: 'Go on' })).toThrow(
-        /stopped or stopping/,
-      );
+      expect(f.access.request({ sessionId: id, mode: 'next-turn', text: 'Go on' })).toMatchObject({
+        delivery: 'followup',
+      });
     } finally {
       await f.close();
     }

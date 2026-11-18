@@ -14,6 +14,7 @@ import {
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
+import { HumanAvatarImage } from './human-avatar.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { AtSignIcon } from './at-sign-icon.js';
 import { useClientStore } from './use-client-store.js';
@@ -464,7 +465,7 @@ export function MemberWakePolicyModal({
   const [mode, setMode] = useState<'all' | 'mentions' | 'digest' | 'silent'>(
     saved?.mode ?? 'digest',
   );
-  const [count, setCount] = useState(saved?.count ?? 5);
+  const [count, setCount] = useState(saved?.count ?? 10);
   const [seconds, setSeconds] = useState(saved?.intervalSeconds ?? 30);
   const submission = useSubmission();
   const busy = submission.state === 'busy';
@@ -480,7 +481,7 @@ export function MemberWakePolicyModal({
       await submission.run(() =>
         actions.setGroupWakePolicy(group.id, slug, {
           mode: inherit ? (saved?.mode ?? 'digest') : mode,
-          count: inherit ? (saved?.count ?? 5) : count,
+          count: inherit ? (saved?.count ?? 10) : count,
           intervalSeconds: inherit ? (saved?.intervalSeconds ?? 30) : seconds,
           ...(inherit ? { inherit } : {}),
         }),
@@ -623,7 +624,12 @@ function MembersEntryForChannel({
             data-human-id={member.humanId}
           >
             <span className="bh-delivery-human-avatar" aria-hidden="true">
-              {name.slice(0, 1)}
+              <HumanAvatarImage
+                cache={actions.humanAvatars}
+                humanId={member.humanId}
+                version={member.avatarVersion}
+                fallback={name.slice(0, 1)}
+              />
             </span>
             <span className="bh-name">{name}</span>
             {member.humanId === self && name !== t('channelActivity.human') ? (

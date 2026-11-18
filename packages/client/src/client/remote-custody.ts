@@ -54,27 +54,10 @@ export async function forgetRemoteHost(handle: string): Promise<void> {
   if (isCustodyHandle(handle)) await call({ action: 'forget', handle });
 }
 
-export async function custodyResponse(
-  handle: string,
-  url: string,
-  init: { method: 'GET' | 'POST'; headers?: Record<string, string>; body?: string | Blob },
-  signal?: AbortSignal,
-): Promise<{ status: number; contentType: string; bytes: Uint8Array }> {
-  const value = (await call(
-    {
-      action: 'request',
-      handle,
-      url,
-      method: init.method,
-      ...(init.headers ? { headers: init.headers } : {}),
-      ...(init.body === undefined
-        ? {}
-        : typeof init.body === 'string'
-          ? { body: init.body }
-          : { bodyBase64: base64(new Uint8Array(await init.body.arrayBuffer())) }),
-    },
-    signal,
-  )) as { status?: unknown; contentType?: unknown; body?: unknown };
+type Forwarded = { status: number; contentType: string; bytes: Uint8Array };
+
+function forwarded(input: unknown): Forwarded {
+  const value = input as { status?: unknown; contentType?: unknown; body?: unknown };
   if (typeof value.status !== 'number' || typeof value.body !== 'string')
     throw new Error('custody-request-failed');
   return {
@@ -83,6 +66,51 @@ export async function custodyResponse(
       typeof value.contentType === 'string' ? value.contentType : 'application/octet-stream',
     bytes: bytesOf(value.body),
   };
+}
+
+export async function custodyResponse(
+  handle: string,
+  url: string,
+  init: { method: 'GET' | 'POST'; headers?: Record<string, string>; body?: string | Blob },
+  signal?: AbortSignal,
+): Promise<Forwarded> {
+  return forwarded(
+    await call(
+      {
+        action: 'request',
+        handle,
+        url,
+        method: init.method,
+        ...(init.headers ? { headers: init.headers } : {}),
+        ...(init.body === undefined
+          ? {}
+          : typeof init.body === 'string'
+            ? { body: init.body }
+            : { bodyBase64: base64(new Uint8Array(await init.body.arrayBuffer())) }),
+      },
+      signal,
+    ),
+  );
+}
+
+export async function teamCustodyResponse(
+  route: string,
+  path: 'device-sign-in' | 'device-password',
+  init: { headers?: Record<string, string>; body: string },
+  signal?: AbortSignal,
+): Promise<Forwarded> {
+  return forwarded(
+    await call(
+      {
+        action: 'team',
+        route,
+        path,
+        ...(init.headers ? { headers: init.headers } : {}),
+        body: init.body,
+      },
+      signal,
+    ),
+  );
 }
 
 export function custodyCarrier(handle: string, raw: HostCarrier): HostCarrier {

@@ -83,3 +83,9 @@ legacy local-Human row remains that Human’s arrangement across Host ownership 
 ## Shared client implementation seam (#4201)
 
 The Team invitation, pairing and Noise formats belong to the pure `packages/host-protocol` workspace. Desktop and mobile use `packages/host-client` for member requests, saved identities and the fingerprint → sign-in → forced-password-change flow. Native storage, installed version and key-agreement adapters remain application-owned and injected. This avoids package imports of the mobile app and preserves the Host as the sole identity/grant authority. The [desktop UI contract](../architecture/team-mode-desktop-sign-in.md) describes the adapter and its regression limits; visual and native acceptance are separate.
+
+## Desktop sign-in and shared public Bots — 2026-11-18
+
+The Team Host refuses `device-sign-in` and `device-password` requests that carry a browser `Origin`. A desktop or Web Client therefore asks its own Host, through the owner-only remote custody endpoint (`action: "team"`), to post those two requests to the HTTPS or Tailscale route. The Host accepts only a bare HTTPS origin that is not loopback, and only those two paths. Tobs Connect routes keep their encrypted sign-in.
+
+A public Bot keeps one shared memory for every member. Skills are prompts, so a Skill a member has the Bot install carries no more risk than the same text sent as a message; the difference is that it persists into other members' chats. Team settings say so instead of partitioning memory per member.

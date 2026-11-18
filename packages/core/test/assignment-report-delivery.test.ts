@@ -62,4 +62,51 @@ describe('Assignment report delivery contract', () => {
       await adapter.close();
     }
   });
+
+  it('forwards the final reply to the Inbox when the Assignment never reported', async () => {
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async (session) => {
+          session.append('assistant/message', {
+            message: { role: 'assistant', content: [{ type: 'text', text: 'The review is done' }] },
+          });
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      ensureWorkspace: () => undefined,
+    });
+    const report = vi.fn(async () => ({}) as never);
+    try {
+      await adapter.runAssignment({
+        sessionId: 'forgot-report',
+        bot: FAKE_BOT,
+        text: 'Review the change.',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report,
+      });
+      expect(host.received.get('forgot-report')).toHaveLength(1);
+      expect(report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: 'completed',
+          summary: expect.stringMatching(
+            /without report_to_orchestrator[\s\S]*The review is done$/u,
+          ),
+        }),
+        { turn: 1 },
+      );
+    } finally {
+      await adapter.close();
+    }
+  });
 });

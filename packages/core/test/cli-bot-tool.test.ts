@@ -88,8 +88,7 @@ describe('Harness Bot tool runner commands', () => {
         activity: 'stopped',
         delivery: 'refused',
         code: 'request-not-delivered',
-        message:
-          'Assignment Session assignment-1 was unarchived, but the request was not delivered',
+        message: 'Assignment Session assignment-1 is active, but the request was not delivered',
       },
     };
     const live = await host(() => ({ ok: true, value }));
