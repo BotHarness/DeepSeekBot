@@ -374,6 +374,19 @@ describe('native Model Plans and Presets', () => {
     );
     expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupId: 'daily' });
     expect(fake.calls.at(-1)?.args).not.toHaveProperty('orchestrator');
+    const side = { id: 'side', name: 'Side', revision: 1, routes: [pro] };
+    const { plan: _plan, ...following } = state;
+    await setModelGroup(
+      client,
+      scope,
+      { ...following, groups: [daily, side], defaultGroupId: 'daily' },
+      'side',
+      'assignment',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      orchestratorGroupId: 'daily',
+      assignmentDefaultGroupId: 'side',
+    });
   });
 
   it('sets the global default to a Routing Group and shows it for Bots that follow it (#4500)', async () => {

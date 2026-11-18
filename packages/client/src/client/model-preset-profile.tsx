@@ -507,6 +507,7 @@ export function ModelPresetProfile({
     );
     const allowed = option.allowedEfforts ?? [];
     const checkedEfforts = shared.filter((effort) => allowed.includes(effort.id));
+    const stale = allowed.some((id) => !shared.some((effort) => effort.id === id));
     return (
       <li key={`group:${option.group}`} className="bh-card-row bh-model-card" data-model-group="">
         <div className="bh-model-card-head">
@@ -551,25 +552,24 @@ export function ModelPresetProfile({
         {frontHint === undefined ? null : (
           <span className="bh-model-card-provider">{frontHint}</span>
         )}
-        {shared.length === 0 ? (
-          allowed.length === 0 ? null : (
-            <div className="bh-model-card-field">
-              <span className="bh-note">{t('modelPreset.groupEffortsStale')}</span>
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={() =>
-                  editGroup(
-                    option.group,
-                    ({ allowedEfforts: _efforts, defaultEffort: _default, ...rest }) => rest,
-                  )
-                }
-              >
-                {t('modelPreset.groupEffortsClear')}
-              </Button>
-            </div>
-          )
-        ) : (
+        {stale ? (
+          <div className="bh-model-card-field">
+            <span className="bh-note">{t('modelPreset.groupEffortsStale')}</span>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() =>
+                editGroup(
+                  option.group,
+                  ({ allowedEfforts: _efforts, defaultEffort: _default, ...rest }) => rest,
+                )
+              }
+            >
+              {t('modelPreset.groupEffortsClear')}
+            </Button>
+          </div>
+        ) : null}
+        {shared.length === 0 ? null : (
           <div className="bh-model-card-field">
             <span>{t('modelPreset.allowedEfforts')}</span>
             <div className="bh-model-card-efforts">
@@ -692,7 +692,8 @@ export function ModelPresetProfile({
               edit({
                 assignment,
                 allowed:
-                  assignment.key === draft.assignment.key
+                  assignment.key === draft.assignment.key ||
+                  groupMenuId(assignment.key) !== undefined
                     ? draft.allowed
                     : draft.allowed.filter((option) => modelKey(option) !== draft.assignment.key),
               })
