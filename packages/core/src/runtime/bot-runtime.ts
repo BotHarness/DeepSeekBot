@@ -10857,10 +10857,10 @@ class BotRuntimeImplementation implements BotRuntime {
       delivery = this.#agents.requestAssignment(run);
       if (interrupted !== undefined) this.#interruptedTools.delete(input.sessionId);
     } catch (error) {
-      if (error instanceof AssignmentInboxAcceptanceUncertainError)
-        this.#setActivity(input.sessionId, 'error');
+      const uncertain = error instanceof AssignmentInboxAcceptanceUncertainError;
+      if (uncertain) this.#setActivity(input.sessionId, 'error');
       else if (waking) this.#setActivity(input.sessionId, settledActivity);
-      if (stopped !== undefined)
+      if (stopped !== undefined && !uncertain)
         this.#setStopState(bot.slug, input.sessionId, 'running', 'stopped', stopped.activity);
       this.#publishAssignmentRefusal(row, error);
       throw error;
