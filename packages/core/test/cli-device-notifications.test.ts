@@ -5,28 +5,36 @@ import { expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { runDeviceNotifications } from '../src/bots/cli-device-notifications.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 it('reads and writes the admitted device copy with secrets only in a file, and reports coded refusals', async () => {
   const calls: Array<{ method: string | undefined; url: string | undefined; body: string }> = [];
   let refused = false;
-  const server = createServer(async (req, res) => {
-    expect(req.headers.authorization).toBe('Device paired.private-secret');
-    expect(req.headers.cookie).toBeUndefined();
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    calls.push({ method: req.method, url: req.url, body: Buffer.concat(chunks).toString() });
-    res.writeHead(refused ? 401 : 200, { 'content-type': 'application/json' });
-    res.end(
-      JSON.stringify(
-        refused
-          ? { code: 'device-revoked' }
-          : {
-              registered: false,
-              preferences: { approval: false, question: true, 'private-input': true, reply: true },
-            },
-      ),
-    );
-  });
+  const server = createServer(
+    requestListener(async (req, res) => {
+      expect(req.headers.authorization).toBe('Device paired.private-secret');
+      expect(req.headers.cookie).toBeUndefined();
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      calls.push({ method: req.method, url: req.url, body: Buffer.concat(chunks).toString() });
+      res.writeHead(refused ? 401 : 200, { 'content-type': 'application/json' });
+      res.end(
+        JSON.stringify(
+          refused
+            ? { code: 'device-revoked' }
+            : {
+                registered: false,
+                preferences: {
+                  approval: false,
+                  question: true,
+                  'private-input': true,
+                  reply: true,
+                },
+              },
+        ),
+      );
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('missing address');

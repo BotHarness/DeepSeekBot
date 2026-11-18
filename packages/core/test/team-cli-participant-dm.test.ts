@@ -7,6 +7,7 @@ import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const alice = humanContext('alice'),
   bob = humanContext('bob'),
@@ -63,35 +64,39 @@ async function fixture() {
   });
   const bridge = createBridgeMethodsForHumans(core);
   const requests: Array<{ username: string; method: string; args: Record<string, unknown> }> = [];
-  const server = createServer(async (req, res) => {
-    if (req.method === 'GET') {
-      res.writeHead(302, { 'set-cookie': 'authority=test; HttpOnly', location: '/' }).end();
-      return;
-    }
-    try {
-      expect(req.headers.cookie).toBe('authority=test');
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const input = z
-        .object({
-          namespace: z.literal('botharness'),
-          username: z.enum(['alice', 'bob', 'eve']),
-          method: z.string(),
-          args: z.record(z.string(), z.unknown()),
-        })
-        .parse(JSON.parse(Buffer.concat(chunks).toString()));
-      expect(req.url).toBe('/api/botharness/team-as');
-      requests.push(input);
-      const methods = bridge(humanContext(input.username));
-      const method: unknown = Reflect.get(methods, input.method);
-      if (typeof method !== 'function') throw new Error('unknown method');
-      const value: unknown = await Reflect.apply(method, methods, [input.args]);
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(value));
-    } catch {
-      res.writeHead(500).end(JSON.stringify({ ok: false, error: { code: 'test-handler-failed' } }));
-    }
-  });
+  const server = createServer(
+    requestListener(async (req, res) => {
+      if (req.method === 'GET') {
+        res.writeHead(302, { 'set-cookie': 'authority=test; HttpOnly', location: '/' }).end();
+        return;
+      }
+      try {
+        expect(req.headers.cookie).toBe('authority=test');
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const input = z
+          .object({
+            namespace: z.literal('botharness'),
+            username: z.enum(['alice', 'bob', 'eve']),
+            method: z.string(),
+            args: z.record(z.string(), z.unknown()),
+          })
+          .parse(JSON.parse(Buffer.concat(chunks).toString()));
+        expect(req.url).toBe('/api/botharness/team-as');
+        requests.push(input);
+        const methods = bridge(humanContext(input.username));
+        const method: unknown = Reflect.get(methods, input.method);
+        if (typeof method !== 'function') throw new Error('unknown method');
+        const value: unknown = await Reflect.apply(method, methods, [input.args]);
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(value));
+      } catch {
+        res
+          .writeHead(500)
+          .end(JSON.stringify({ ok: false, error: { code: 'test-handler-failed' } }));
+      }
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   closes.push(async () => {
     server.closeAllConnections();

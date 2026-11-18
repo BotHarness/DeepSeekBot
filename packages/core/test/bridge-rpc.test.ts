@@ -649,6 +649,7 @@ describe('bridge typert service', () => {
       'route',
       'globalDefault',
       'expectedDefaultRevision',
+      'groupId',
     ]);
     expect(parameterNames(service.modelPresetApply)).toEqual([
       'slug',
