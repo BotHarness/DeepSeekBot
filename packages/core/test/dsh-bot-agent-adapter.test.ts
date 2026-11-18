@@ -4215,6 +4215,97 @@ describe('Assignment Routing Groups (#4420)', () => {
   });
 });
 
+describe('Effort range for Assignment Routing Groups (#4502)', () => {
+  it('lists the group effort range and starts the Assignment at the chosen or default effort', async () => {
+    const spent = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
+    const until = '2026-11-18T00:00:00.000Z';
+    const plan = {
+      revision: 2,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: pro,
+      assignmentDefault: pro,
+      assignmentGroups: ['g'],
+      assignmentDefaultGroupId: 'g',
+      assignmentGroupOptions: [
+        { group: 'g', allowedEfforts: ['low', 'high'], defaultEffort: 'high', note: 'Cheap first' },
+      ],
+      appliedAt: BOT.createdAt,
+    };
+    const calls: Array<Promise<unknown>> = [];
+    const created: unknown[] = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async () => undefined,
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const run = async (name: string, args: Record<string, unknown>) =>
+            scope!.tools.find((tool) => tool.name === name)!.execute(args, {} as ToolRunContext);
+          const assignment = (title: string, extra: Record<string, unknown>) =>
+            run('create_assignment', {
+              title,
+              description: 'Runs on the group.',
+              grant_id: 'grant-1',
+              ...extra,
+            }).catch((error: Error) => JSON.stringify({ error: error.message }));
+          calls.push(
+            run('list_assignment_models', {}),
+            assignment('Default effort', {}),
+            assignment('Chosen effort', { group: 'g', reasoning_effort: 'low' }),
+            assignment('Outside the range', { group: 'g', reasoning_effort: 'max' }),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      resolveModelPlan: () => plan,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentGroups: {
+        pick: async () => ({ kind: 'route', route: { ...pro, reasoningEffort: 'medium' } }),
+        describe: (id) => (id === 'g' ? { name: 'Fallback', routes: [spent, pro] } : undefined),
+        restingUntil: (route) =>
+          route.provider === spent.provider ? { ...spent, until, reason: 'quota' } : undefined,
+      },
+    });
+    await adapter.runOrchestrator({
+      ...reportRun,
+      bot: { ...BOT, modelPlan: plan },
+      assignments: {
+        ...reportRun.assignments,
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
+      },
+    });
+    try {
+      const parsed = (await Promise.all(calls)).map((value) => JSON.parse(String(value)));
+      expect(parsed[0].assignmentGroups).toMatchObject([
+        {
+          group: 'g',
+          note: 'Cheap first',
+          front: pro,
+          efforts: ['low', 'high'],
+          defaultEffort: 'high',
+        },
+      ]);
+      expect(parsed[3].error).toContain('Routing Group g allows efforts low, high');
+      expect(created).toMatchObject([
+        { title: 'Default effort', model: { ...pro, reasoningEffort: 'high' }, modelGroupId: 'g' },
+        { title: 'Chosen effort', model: { ...pro, reasoningEffort: 'low' }, modelGroupId: 'g' },
+      ]);
+      expect(created).toHaveLength(2);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
 describe('Assignment Directory Tools', () => {
   it('forward list filters and archive decisions to the Orchestrator run', async () => {
     const calls: Array<Promise<unknown>> = [];

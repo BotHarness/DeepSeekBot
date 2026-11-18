@@ -1,0 +1,44 @@
+name: pr visual evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-visual-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: pr-visual-evidence
+    if: github.event.action != 'edited' || github.event.changes.title || github.event.changes.body
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .node-version
+            scripts/check-pr-visual-evidence.mjs
+            scripts/pr-body-field.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename' > "$RUNNER_TEMP/paths.txt"
+          node scripts/check-pr-visual-evidence.mjs --title "$TITLE" --author "$AUTHOR" --labels "$LABELS" --body-file "$RUNNER_TEMP/body.md" --paths-file "$RUNNER_TEMP/paths.txt"

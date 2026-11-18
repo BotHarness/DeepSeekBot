@@ -78,6 +78,6 @@ it('still rejects a timeline page whose entries are not messages at all', async 
     },
   });
   await expect(loadTimelinePage(call, 'dm-nexus')).rejects.toThrow(
-    'invalid channelTimeline response',
+    'channelTimeline returned an unreadable message.',
   );
 });

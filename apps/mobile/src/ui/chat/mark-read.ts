@@ -1,5 +1,6 @@
 import { useMemo, useRef, type RefCallback } from 'react';
 
+import { markChannelRead } from '@botharness/host-client/channel-messages';
 import type { HostClient } from '@botharness/host-client/client';
 import type { Conversation, ConversationMessage } from '@botharness/host-client/conversation';
 import type { Inbox } from '@botharness/host-client/inbox';
@@ -59,9 +60,7 @@ export function useMarkRead(
       client === undefined
         ? undefined
         : createReadMarker((id, messageId) =>
-            client
-              .call('channelMarkRead', { channelId: id, messageId })
-              .then(() => inbox?.refresh()),
+            markChannelRead(client, id, messageId).then(() => inbox?.refresh()),
           ),
     [client, inbox],
   );

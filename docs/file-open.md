@@ -46,7 +46,7 @@ To inspect an original, ask the Bot to read the specified attachment. To change 
 
 Refresh the Channel, then download or reopen the original message's attachment to inspect current contents. Explicitly shared references to the same fileId show the edit, even after Host restart; identical independent uploads and the uploader's local source file remain separate. Native access expires at the end of the turn and rechecks current source membership on each operation. Leaving the source Channel or losing the original file prevents further access; a missing original is never recreated from upload bytes. File edits produce no Source Revision, file-change Inbox Admission or automatic wake; any conversational confirmation is an explicit reply. Native checks and Shell approval remain, with no BotHarness lock or file-version archive.
 
-These local slices are #632 and #633. See [ADR-0105](adr/0105-attachments-use-native-file-operations-under-source-authority.md).
+These local slices are #632 and #633. See [ADR-0105](decisions/im-providers.md#adr-0105).
 
 ## Process a Lark ZIP in its original topic
 
@@ -56,4 +56,4 @@ Upload a small CSV ZIP to the authorized Lark group/topic. Reply to that file us
 
 The Bot uses `bridge_read` and `bridge_attachment_save` to save an independent working copy, then native files and approved Shell to process it. It explicitly selects the new result with `channel_attachment_import` and uses `bot_send_message` to return it in the exact original topic under its own identity. Each explicit message has its own identity. File replies use attachments and an empty body; useful text can be sent separately to the same source. Download the received result in Lark and check its contents; **Platform accepted** alone is not delivery or read evidence.
 
-The original stays unchanged. Transfers use the existing 25 MiB limit; revoking source access blocks future provider reads/replies, while a completed independent copy remains under its own Workspace Grant. Restart retains source and file identity and never repeats uncertain sends. This is the #657 temporary-provider slice, not production enablement, Slack support or general message history. See [ADR-0107](adr/0107-external-files-use-trusted-source-capabilities-and-existing-owner.md).
+The original stays unchanged. Transfers use the existing 25 MiB limit; revoking source access blocks future provider reads/replies, while a completed independent copy remains under its own Workspace Grant. Restart retains source and file identity and never repeats uncertain sends. This is the #657 temporary-provider slice, not production enablement, Slack support or general message history. See [ADR-0107](decisions/im-providers.md#adr-0107).

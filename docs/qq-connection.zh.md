@@ -25,7 +25,7 @@
 
 展开**接收区间**查看暂停、屏蔽、等待允许和连接记录。**本地控制边界**来自本地操作，**本地观察时间**来自连接检查。异常重启后，**连续性未验证**范围覆盖上次观察到下次检查之间的时间。这些区间不能证明漏收数量。每个应用保留最近 128 条已结束区间和当前区间，不另存消息副本。
 
-见 [#1153](https://github.com/BotHarness/BotHarness/issues/1153) 与 [ADR-0152](adr/0152-qq-reception-intervals-record-local-observations.md)。
+见 [#1153](https://github.com/BotHarness/BotHarness/issues/1153) 与 [ADR-0152](decisions/im-providers.md#adr-0152)。
 
 ## 两个 Bot 使用同一个 QQ 群
 
@@ -115,7 +115,7 @@ QQ 没有向这个 consumer 提供群历史接口或持久恢复游标，断线�
 - 来源过期时，在 QQ 发送新的 @ 提及。发送结果不确定时，先到原群核对，再请求另一条消息。
 - 检查 Bot、绑定和会话是否启用并允许。暂停、屏蔽和解绑会撤销尚未发送的权限。
 
-[Provider 接入指南](dev/guides/im-provider-integration.md) 与 [ADR-0151](adr/0151-qq-group-replies-use-authenticated-apps-and-process-local-source-proof.md) 记录实现边界。
+[Provider 接入指南](dev/guides/im-provider-integration.md) 与 [ADR-0151](decisions/im-providers.md#adr-0151) 记录实现边界。
 
 ## 接收并播放群语音
 
