@@ -354,6 +354,8 @@ export const LIVE_OPTIONS = {
   timeout: { type: 'string' },
   'message-id': { type: 'string' },
   'reply-to': { type: 'string' },
+  quote: { type: 'string', multiple: true },
+  'quote-note': { type: 'string', multiple: true },
   'failure-message-id': { type: 'string' },
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },

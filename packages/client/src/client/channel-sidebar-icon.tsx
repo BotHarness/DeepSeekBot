@@ -1010,6 +1010,51 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
   ],
 };
 
+export const ASSIGNMENT_SESSION_ICON = 'text-quote';
+
+function glyph(name: string): readonly [string, Record<string, string | number>][] {
+  return Object.hasOwn(glyphs, name) ? glyphs[name]! : glyphs['panels-top-left']!;
+}
+
+export function channelSidebarIconElement(
+  document: Document,
+  name: string,
+  size: number,
+): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [key, value] of Object.entries({
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': 2,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  }))
+    svg.setAttribute(key, String(value));
+  for (const [tag, attributes] of glyph(name)) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
+    svg.append(node);
+  }
+  return svg;
+}
+
+export function channelSidebarIconMask(name: string): string {
+  const body = glyph(name)
+    .map(
+      ([tag, attributes]) =>
+        `<${tag} ${Object.entries(attributes)
+          .map(([key, value]) => `${key}='${String(value)}'`)
+          .join(' ')}/>`,
+    )
+    .join('');
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>${body}</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 export function ChannelSidebarIcon({
   name = 'panels-top-left',
   size = 16,
@@ -1021,7 +1066,7 @@ export function ChannelSidebarIcon({
   filled?: boolean;
   strokeWidth?: number;
 }): ReactElement {
-  const nodes = Object.hasOwn(glyphs, name) ? glyphs[name]! : glyphs['panels-top-left']!;
+  const nodes = glyph(name);
   return (
     <svg
       width={size}

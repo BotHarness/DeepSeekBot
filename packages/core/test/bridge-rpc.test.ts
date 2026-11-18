@@ -1293,6 +1293,7 @@ describe('bridge typert service', () => {
       'allBotMention',
       'genuiReply',
       'skillInvocations',
+      'quotes',
     ]);
     expect(parameterNames(service.channelSkillCatalog)).toEqual(['channelId']);
     expect(parameterNames(service.botAttention)).toEqual(['slug', 'limit', 'cursor', 'state']);

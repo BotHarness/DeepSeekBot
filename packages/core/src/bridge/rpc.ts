@@ -2132,12 +2132,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.composerIdentity({}));
   }
 
-  composerValidate(channelId: string, attachments: ChannelAttachmentRef[], replyTo?: string) {
+  composerValidate(
+    channelId: string,
+    attachments: ChannelAttachmentRef[],
+    replyTo?: string,
+    quotes?: Array<{ messageId: string; text?: string }>,
+  ) {
     return unwrap(
       this.methods.composerValidate({
         channelId,
         attachments,
         ...(replyTo === undefined ? {} : { replyTo }),
+        ...(quotes === undefined ? {} : { quotes }),
       }),
     );
   }
@@ -2340,10 +2346,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     allBotMention?: AllBotMention,
     genuiReply?: GenuiMessageReply,
     skillInvocations?: ChannelSkillInvocationToken[],
+    quotes?: ChannelMessage['quotes'],
   ): Promise<{ message: ChannelMessage }> {
     return unwrap(
       await this.methods.channelSend({
         ...(skillInvocations === undefined ? {} : { skillInvocations }),
+        ...(quotes === undefined ? {} : { quotes }),
         channelId,
         body,
         ...(allBotMention === undefined ? {} : { allBotMention }),

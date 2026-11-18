@@ -120,6 +120,24 @@ export type ChannelAuthor =
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
+export interface QuoteRef {
+  messageId: string;
+  text?: string;
+  note?: string;
+}
+
+export function quoteRefOf({ messageId, text, note }: QuoteRef): QuoteRef {
+  return {
+    messageId,
+    ...(text === undefined ? {} : { text }),
+    ...(note === undefined ? {} : { note }),
+  };
+}
+
+export interface ChannelMessageQuote extends QuoteRef {
+  preview?: ChannelReplyPreview | null;
+}
+
 export interface ChannelReplyPreview {
   author: ChannelAuthor;
   body: string;
@@ -309,6 +327,7 @@ export interface ChannelMessage {
   format?: 'markdown' | 'text';
   replyTo?: string;
   replyToPreview?: ChannelReplyPreview | null;
+  quotes?: ChannelMessageQuote[];
   pending?: boolean;
   failed?: string;
   unconfirmed?: boolean;

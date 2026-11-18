@@ -13,6 +13,9 @@ import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 import { font } from './ds/tobs.stylex.js';
+import { ASSIGNMENT_SESSION_ICON, channelSidebarIconMask } from './channel-sidebar-icon.js';
+
+const ASSIGNMENT_SESSION_MASK = channelSidebarIconMask(ASSIGNMENT_SESSION_ICON);
 
 export const CSS =
   WORKSPACE_CSS +
@@ -3917,77 +3920,7 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   outline: ${border.focus} solid var(--bh-accent);
   outline-offset: 2px;
 }
-.bh-bubble-reply {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  margin: 0 0 ${space.x2};
-  padding: ${space.x1} ${space.x3} ${space.x1} ${space.x4};
-  overflow: hidden;
-  border: 0;
-  border-radius: ${radius.xs};
-  background: color-mix(in srgb, currentColor 13%, transparent);
-  color: ${color.accentText};
-  font: inherit;
-  font-size: ${text.metaSize};
-  line-height: ${text.metaLine};
-  text-align: left;
-  cursor: pointer;
-}
-/* The bar and the name take the quoted author's colour; the preview keeps the bubble's text. */
-.bh-bubble-reply::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: currentColor;
-}
-.bh-bubble-reply[data-bubble-quote='other'],
-.bh-bubble-reply-unavailable {
-  color: var(--tobs-ink-secondary);
-}
-.bh-bubble-reply:hover {
-  background: color-mix(in srgb, currentColor 20%, transparent);
-}
-.bh-bubble-reply:focus-visible {
-  outline: ${border.focus} solid currentColor;
-  outline-offset: 2px;
-}
-.bh-bubble-me .bh-bubble-reply {
-  color: inherit;
-}
-.bh-bubble-reply-unavailable {
-  cursor: default;
-}
-.bh-bubble-reply-author {
-  overflow: hidden;
-  max-width: 100%;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-weight: ${text.strong};
-}
-.bh-bubble-reply-body {
-  overflow: hidden;
-  max-width: 100%;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: ${color.fg};
-  opacity: 0.9;
-}
-.bh-bubble-me .bh-bubble-reply-body {
-  color: inherit;
-}
-.bh-bubble-reply-media {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  column-gap: ${space.x3};
-  align-items: center;
-}
-.bh-bubble-reply-media > .bh-bubble-reply-thumb {
+.bh-bubble-reply-thumb {
   grid-row: 1 / span 2;
 }
 .bh-bubble-reply-thumb {
@@ -4295,6 +4228,20 @@ a[href^="https://session.tobs.invalid/"] {
   text-decoration: none;
   font: inherit;
   cursor: pointer;
+}
+a[href^="https://session.tobs.invalid/"] > svg:first-child {
+  display: none;
+}
+a[href^="https://session.tobs.invalid/"]::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: ${space.x1};
+  vertical-align: -2px;
+  background: currentColor;
+  -webkit-mask: ${ASSIGNMENT_SESSION_MASK} center / contain no-repeat;
+  mask: ${ASSIGNMENT_SESSION_MASK} center / contain no-repeat;
 }
 .bh-inline-mention-link:hover,
 .bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"]:hover {
@@ -7069,8 +7016,8 @@ html[data-bh-intro-see-through] [role='presentation'] > [aria-hidden='true']::af
 .bh-schedule-muted {margin:0;}
 .bh-schedule-empty {display:flex;flex-direction:column;align-items:flex-start;gap:${space.x3};}
 .bh-schedule-error {margin:0;color:var(--tobs-status-danger-base);font-size:${text.metaSize};}
-.bh-card-list {display:flex;flex-direction:column;margin:0;padding:0;list-style:none;overflow:hidden;border:${border.hairline} solid ${color.border};border-radius:${radius.md};}
-.bh-card-list + .bh-card-list {margin-top:${space.x3};}
+.bh-card-list {display:flex;flex-direction:column;gap:var(--bh-card-list-gap, 0px);margin:0;padding:var(--bh-card-list-padding, 0px);list-style:none;overflow:hidden;border:${border.hairline} solid var(--bh-card-list-edge, ${color.border});border-radius:var(--bh-card-list-radius, ${radius.md});background:var(--bh-card-list-fill, transparent);box-shadow:var(--bh-card-list-shadow, none);}
+.bh-card-list + .bh-card-list {margin-top:var(--bh-card-list-stack, ${space.x3});}
 .bh-card-list[data-flush] {border:0;border-radius:0;}
 .bh-card-list[data-flush] + .bh-card-list[data-flush] {margin-top:0;border-top:${border.hairline} solid ${color.divider};}
 .bh-card-list.bh-message-card-list {border:0;background:${color.well};}
@@ -7086,11 +7033,11 @@ label.bh-card-main {cursor:pointer;}
 label.bh-card-main:has(.bh-card-checkbox:disabled) {cursor:default;}
 .bh-card-row:not([data-selected="true"]):has(> .bh-card-line > label.bh-card-main > .bh-card-checkbox:not(:disabled)):hover {background:var(--tobs-state-hover);}
 
-.bh-card-row {min-width:0;}
-.bh-card-row + .bh-card-row {border-top:${border.hairline} solid ${color.divider};}
+.bh-card-row {min-width:0;border-radius:var(--bh-card-row-radius, 0px);background:var(--bh-card-row-fill, transparent);}
+.bh-card-row + .bh-card-row {border-top:${border.hairline} solid var(--bh-card-row-separator, ${color.divider});}
 .bh-card-line {display:flex;align-items:center;gap:${space.x3};min-width:0;}
 .bh-card-row:not([data-selected="true"]):has(> .bh-card-line > button.bh-card-main:not(:disabled):hover) {background:var(--tobs-state-hover);}
-.bh-card-main {display:flex;flex:1;align-items:flex-start;gap:${space.x3};min-width:0;margin:0;padding:${space.x3} ${space.x3};border:0;border-radius:0;background:transparent;color:var(--tobs-ink-primary);font:inherit;text-align:left;}
+.bh-card-main {display:flex;flex:1;align-items:flex-start;gap:${space.x3};min-width:0;margin:0;padding:${space.x3} var(--bh-card-main-inline, ${space.x3});border:0;border-radius:0;background:transparent;color:var(--tobs-ink-primary);font:inherit;text-align:left;}
 button.bh-card-main {cursor:pointer;}
 button.bh-card-main:disabled {cursor:default;}
 .bh-card-main:focus-visible {outline:${border.focus} solid var(--tobs-ink-primary);outline-offset:-2px;}
@@ -7113,7 +7060,7 @@ button.bh-card-main:disabled {cursor:default;}
 .bh-card-glyph {display:inline-grid;place-items:center;color:var(--tobs-ink-secondary);}
 .bh-card-meta {display:flex;flex-wrap:wrap;align-items:baseline;gap:${space.x1} ${space.x3};min-width:0;color:var(--tobs-ink-secondary);font-size:${text.metaSize};line-height:${text.metaLine};overflow-wrap:anywhere;}
 .bh-card-meta-line {flex-basis:100%;}
-.bh-card-trailing {display:flex;flex:none;align-items:center;gap:${space.x2};padding-right:${space.x3};color:var(--tobs-ink-secondary);}
+.bh-card-trailing {display:flex;flex:none;align-items:center;gap:${space.x2};padding-right:var(--bh-card-main-inline, ${space.x3});color:var(--tobs-ink-secondary);}
 .bh-card-detail {padding:0 ${space.x3} ${space.x3} 34px;}
 .bh-card-row[data-muted="true"] .bh-card-icon,
 .bh-card-row[data-muted="true"] .bh-card-title {color:var(--tobs-ink-secondary);}

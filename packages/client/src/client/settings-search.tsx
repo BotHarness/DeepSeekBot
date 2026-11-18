@@ -172,6 +172,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'devices.connect.computersStatus',
     'connect.health.title',
     'devices.connect.thisComputer',
+    'connections.manage.existing',
     'connections.manage.switches',
     'connections.title',
     'connections.methods',

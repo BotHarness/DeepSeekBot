@@ -18,6 +18,14 @@ import {
 import { projectAttachmentFiles } from '../attachments/message-files.js';
 import { replyPreviewOf } from './reply-preview.js';
 import {
+  assertQuoteTargets,
+  durableQuotes,
+  projectQuotes,
+  quoteIds,
+  referencedIds,
+  sameQuoteIntent,
+} from './quotes.js';
+import {
   assertGrantRequestReply,
   grantRequester,
   isGrantRequestResolved,
@@ -219,11 +227,16 @@ function replyProjection(
   byId: ReadonlyMap<string, ChannelMessage>,
   projectThumbnail: (target: ChannelMessage, ref: ChannelAttachmentRef) => ChannelAttachmentRef,
 ): ChannelMessage {
-  if (message.replyTo === undefined) return message;
-  const target = byId.get(message.replyTo);
-  if (target === undefined) return { ...message, replyToPreview: null };
+  const quoted = projectQuotes(
+    message,
+    (messageId) => byId.get(messageId),
+    (target, ref) => projectThumbnail(target as ChannelMessage, ref),
+  );
+  if (quoted.replyTo === undefined) return quoted;
+  const target = byId.get(quoted.replyTo);
+  if (target === undefined) return { ...quoted, replyToPreview: null };
   return {
-    ...message,
+    ...quoted,
     replyToPreview: replyPreviewOf(target, (ref) => projectThumbnail(target, ref)),
   };
 }
@@ -274,25 +287,25 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
       genuiReply: left.genuiReply,
       genuiReplyContext: left.genuiReplyContext,
     }) ===
-    JSON.stringify({
-      author: author(right),
-      body: right.body,
-      attachments: attachmentIntent(right.attachments ?? []),
-      replyTo: right.replyTo,
-      memorySwitchTarget: right.memorySwitchTarget,
-      tobCliRequestId: right.tobCliRequestId,
-      mentions: right.mentions ?? [],
-      humanMentions: right.humanMentions ?? [],
-      channelRefs: right.channelRefs ?? [],
-      skillInvocations: skillInvocationIntent(right),
-      botDmAction: right.botDmAction,
-      botCausation: right.botCausation,
-      grantRequestResolution: right.grantRequestResolution,
-      assignmentReply: right.assignmentReply,
-      genui: right.genui,
-      genuiReply: right.genuiReply,
-      genuiReplyContext: right.genuiReplyContext,
-    })
+      JSON.stringify({
+        author: author(right),
+        body: right.body,
+        attachments: attachmentIntent(right.attachments ?? []),
+        replyTo: right.replyTo,
+        memorySwitchTarget: right.memorySwitchTarget,
+        tobCliRequestId: right.tobCliRequestId,
+        mentions: right.mentions ?? [],
+        humanMentions: right.humanMentions ?? [],
+        channelRefs: right.channelRefs ?? [],
+        skillInvocations: skillInvocationIntent(right),
+        botDmAction: right.botDmAction,
+        botCausation: right.botCausation,
+        grantRequestResolution: right.grantRequestResolution,
+        assignmentReply: right.assignmentReply,
+        genui: right.genui,
+        genuiReply: right.genuiReply,
+        genuiReplyContext: right.genuiReplyContext,
+      }) && sameQuoteIntent(left.quotes, right.quotes)
   );
 }
 
@@ -319,7 +332,7 @@ function sourceKind(message: ChannelMessage): string {
 }
 
 function rawMessage(message: ChannelMessage): ChannelMessage {
-  const result = { ...message };
+  const result = durableQuotes({ ...message });
   delete result.grantRequestResolved;
   delete result.replyToPreview;
   delete result.botChannelPostPreview;
@@ -1020,11 +1033,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       ...selected,
       ...placementMessages(
         id,
-        selected.flatMap((message) =>
-          message.replyTo === undefined || selectedIds.has(message.replyTo)
-            ? []
-            : [message.replyTo],
-        ),
+        [
+          ...new Set(
+            selected.flatMap((message) =>
+              referencedIds(message).filter((reference) => !selectedIds.has(reference)),
+            ),
+          ),
+        ],
         visibleFrom,
       ),
       ...grantResolutions(
@@ -1168,9 +1183,20 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     }
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
     if (message.author.kind === 'bot') humanAccess?.requireBotPost?.(message.author.slug, channel);
-    const existing = projectRows(id, placementsById(id, [message.id]))[0];
+    const stored = placementsById(id, [message.id]);
+    const existing = projectRows(id, stored)[0];
     if (existing !== undefined) {
-      if (!once || !sameIntent(existing, message)) return { status: 'conflict' as const };
+      const storedQuotes = parseMessage(
+        stored[0]!.payload_json,
+        stored[0]!.body,
+        stored[0]!.message_id,
+        id,
+      )?.quotes;
+      if (
+        !once ||
+        !sameIntent({ ...existing, ...(storedQuotes ? { quotes: storedQuotes } : {}) }, message)
+      )
+        return { status: 'conflict' as const };
       return { status: 'existing' as const, message: existing };
     }
     const grantRequestId = message.grantRequestResolution?.requestMessageId;
@@ -1181,6 +1207,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         message.takeoverResolution?.requestMessageId,
         message.genui?.predecessorMessageId,
         message.genuiReply?.messageId,
+        ...quoteIds(message),
       ]),
       ...grantResolutions(id, grantRequestId === undefined ? [] : [grantRequestId]),
     ];
@@ -1193,6 +1220,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     }
     if (message.replyTo !== undefined && !previous.some((item) => item.id === message.replyTo))
       throw new ChannelReplyTargetError();
+    assertQuoteTargets(message.quotes, (messageId) =>
+      previous.find((item) => item.id === messageId),
+    );
     assertAttachmentRefs(message.attachments ?? []);
     const mentions = message.mentions ?? [];
     const humanMentions = message.humanMentions ?? [];
@@ -3188,6 +3218,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     message(id, messageId) {
       return projectRows(id, placementsById(id, [messageId]))[0];
     },
+    storedQuotes(id, messageId) {
+      const row = placementsById(id, [messageId])[0];
+      return row === undefined
+        ? undefined
+        : parseMessage(row.payload_json, row.body, row.message_id, id)?.quotes;
+    },
     humanSendStatus(id, messageId) {
       const channel = readRecord(id);
       if (channel?.type !== 'dm' || channel.botSlug === undefined) return undefined;
@@ -3664,11 +3700,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           },
         ];
       });
-      const replyIds = [
-        ...new Set(
-          selected.flatMap((message) => (message.replyTo === undefined ? [] : [message.replyTo])),
-        ),
-      ];
+      const replyIds = [...new Set(selected.flatMap((message) => referencedIds(message)))];
       const byId = new Map<string, ChannelMessage>();
       if (replyIds.length > 0) {
         const placeholders = replyIds.map(() => '?').join(', ');
@@ -3678,9 +3710,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             SELECT p.message_id, e.payload_json, e.body
               FROM channel_placements p
               JOIN source_events e ON e.source_event_id = p.source_event_id
-             WHERE p.channel_id = ? AND p.message_id IN (${placeholders})
+             WHERE p.channel_id = ? AND p.revision >= ? AND p.message_id IN (${placeholders})
           `)
-            .all(id, ...replyIds),
+            .all(id, query.visibleFrom ?? 0, ...replyIds),
         ) as unknown as Array<Pick<PlacementRow, 'message_id' | 'payload_json' | 'body'>>;
         for (const row of replies) {
           const message = parseMessage(row.payload_json, row.body, row.message_id, id);
@@ -3805,7 +3837,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         return [
           {
             channelId: row.channel_id,
-            message: projectMessageAttachments(row.source_event_id, original),
+            message: projectMessageAttachments(
+              row.source_event_id,
+              original.quotes === undefined
+                ? original
+                : { ...original, quotes: original.quotes.map(({ messageId }) => ({ messageId })) },
+            ),
             snippet: searchSnippet(row.search_text, needle),
           },
         ];
@@ -4007,12 +4044,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (channel === undefined) return undefined;
       const member = humanMembers(id).find((entry) => entry.human_id === human.humanId);
       if (channel.type === 'group' && member === undefined && !humanAccess) return undefined;
+      const visibleFrom = member?.visible_from_revision ?? 0;
       return pageChannelJournalRange(
         id,
         revisionOf(id),
-        { ...request, visibleFrom: member?.visible_from_revision ?? 0 },
+        { ...request, visibleFrom },
         (first, last) =>
-          projectRows(id, placementRange(id, first, last)).map((message) => ({
+          projectRows(id, placementRange(id, first, last), visibleFrom).map((message) => ({
             message,
             revision: message.channelRevision!,
           })),

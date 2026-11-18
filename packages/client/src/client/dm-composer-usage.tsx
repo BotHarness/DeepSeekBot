@@ -14,7 +14,7 @@ import type { BotSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { compactTokenCount, profileTokenSummaryText } from './profile-token-summary.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { BotPromptView } from './bot-prompt-viewer.js';
 import type { ActionSymbol } from '../shared/action-presentation.js';
 
@@ -268,7 +268,7 @@ export function DmComposerUsagePopover({
                     <div className="bh-composer-usage-session" key={row.sessionId}>
                       <div className="bh-composer-usage-row">
                         <ChannelSidebarIcon
-                          name={role === 'orchestrator' ? 'bot' : 'list-checks'}
+                          name={role === 'orchestrator' ? 'bot' : ASSIGNMENT_SESSION_ICON}
                           size={14}
                         />
                         <span title={row.label}>

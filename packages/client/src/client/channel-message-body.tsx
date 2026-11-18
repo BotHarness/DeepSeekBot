@@ -65,6 +65,8 @@ import {
   withSessionMentionLinks,
 } from './session-links.js';
 import { type BotSummary, type ChannelMessage } from './store.js';
+import { sessionReferenceRuns } from './session-refs.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { skillOwnerLabel, skillSummary, useSkillPeek } from './skill-preview.js';
@@ -93,16 +95,18 @@ export function MessageMarkdown({
 }
 
 function SessionMentionScope({
+  enabled,
   botSlug,
   children,
 }: {
+  enabled: boolean;
   botSlug: string | undefined;
   children: ReactNode;
 }): ReactNode {
-  return botSlug === undefined ? (
-    children
-  ) : (
+  return enabled ? (
     <SessionMentionDelegate botSlug={botSlug}>{children}</SessionMentionDelegate>
+  ) : (
+    children
   );
 }
 
@@ -110,7 +114,7 @@ function SessionMentionDelegate({
   botSlug,
   children,
 }: {
-  botSlug: string;
+  botSlug: string | undefined;
   children: ReactNode;
 }): ReactNode {
   const parent = useMarkdownDelegate();
@@ -590,6 +594,7 @@ export function ChannelMessageBody({
   );
   const host = useMessageHost();
   const skillPeek = useSkillPeek(t);
+  const openSession = useOpenSession();
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
@@ -927,10 +932,26 @@ export function ChannelMessageBody({
   const channel = store.getSnapshot().conversation.channel;
   const interactiveReport =
     host === undefined && channel?.id === channelId && channel?.type === 'dm';
+  const renderSessionText = (text: string) =>
+    sessionReferenceRuns(text).map((part, index) => {
+      const session = part.session;
+      if (session === undefined) return <span key={index}>{part.text}</span>;
+      return (
+        <InlineTokenButton
+          key={index}
+          data-session-mention={session.sessionId}
+          disabled={openSession === undefined}
+          onClick={() => openSession?.(undefined, session.sessionId, session.title)}
+        >
+          <ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />
+          <span>{session.title}</span>
+        </InlineTokenButton>
+      );
+    });
   const renderAttachmentText = (text: string) =>
     attachmentReferenceRuns(text, attachedFiles).map((part, index) => {
       const item = part.attachment;
-      if (item === undefined) return <span key={index}>{part.text}</span>;
+      if (item === undefined) return <span key={index}>{renderSessionText(part.text)}</span>;
       return (
         <button
           key={index}
@@ -1052,16 +1073,17 @@ export function ChannelMessageBody({
           )}
           {leading === undefined || leading.text.length > 0 ? (
             <SessionMentionScope
-              botSlug={
-                message.author.kind === 'bot' && hasSessionMentions(message.body)
-                  ? message.author.slug
-                  : undefined
+              enabled={
+                (message.author.kind === 'bot' || humanMarkdown) && hasSessionMentions(message.body)
               }
+              botSlug={message.author.kind === 'bot' ? message.author.slug : undefined}
             >
               <ChannelMarkdownText
                 text={
                   humanMarkdown
-                    ? preserveHumanLineBreaks(leading?.text ?? message.body)
+                    ? withSessionMentionLinks(
+                        preserveHumanLineBreaks(leading?.text ?? message.body),
+                      )
                     : message.author.kind === 'bot'
                       ? withSessionMentionLinks(leading?.text ?? message.body)
                       : (leading?.text ?? message.body)

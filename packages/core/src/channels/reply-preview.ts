@@ -63,7 +63,15 @@ export function replyPreviewMedia<Ref extends { name: string; mime: string }>(
 }
 
 export function replyPreviewBody(body: string): string {
-  const characters = Array.from(body.replace(/\s+/gu, ' ').trim());
+  const characters = Array.from(
+    body
+      .replace(
+        /\[((?:\\.|[^\]\\\n])*)\]\(session:[A-Za-z0-9_.:-]{1,200}\)/gu,
+        (_match, title: string) => title.replace(/\\(.)/gu, '$1'),
+      )
+      .replace(/\s+/gu, ' ')
+      .trim(),
+  );
   return characters.length > REPLY_PREVIEW_LIMIT
     ? characters.slice(0, REPLY_PREVIEW_LIMIT).join('') + '...'
     : characters.join('');

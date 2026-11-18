@@ -2749,10 +2749,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     (sessionId, callId, signal) =>
       core.runtime.beginAssignmentApprovalWait?.(sessionId, callId, signal),
-    (sessionId) => core.runtime.askChannel?.(sessionId),
+    (query) => core.runtime.toolApprovalOrigin?.(query),
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
     core.team.approvals,
+    (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
@@ -3085,7 +3086,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           channelApproval: toolApproval,
           ownership: core.ownership,
           forceChannel:
-            eachUse || toolEffects(execution.name, execution.arguments)?.authority === 'management',
+            eachUse ||
+            toolEffects(execution.name, execution.arguments)?.authority === 'management' ||
+            core.runtime.hasDirectToolInvocation?.({
+              sessionId: agent.session.id,
+              callId: execution.callId,
+            }) === true,
           request: {
             agent,
             toolName: execution.name,
