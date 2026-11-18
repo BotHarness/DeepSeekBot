@@ -105,8 +105,10 @@ export function PromptPresetSettings({ port }: { port: PromptPresetSettingsPort 
                     on={SHEET_GROUP}
                     title={preset.name}
                     testID={`prompt-preset-${preset.id}`}
+                    {...(preset.id === library.globalPresetId
+                      ? { control: { kind: 'value' as const, text: t.prompts.globalTag } }
+                      : {})}
                     detail={[
-                      ...(preset.id === library.globalPresetId ? [t.prompts.globalTag] : []),
                       t.prompts.changed(promptPresetChanges(preset)),
                       ...(promptPresetStale(preset, library.parts)
                         ? [t.prompts.defaultChanged]
