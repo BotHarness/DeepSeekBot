@@ -381,7 +381,7 @@ it('Slack shared routing preserves one source, independent member policy and own
               platform: 'feishu',
               origin: 'platform',
               defaultRevision: 0,
-              policy: { mode: 'digest', count: 5, intervalSeconds: 30 },
+              policy: { mode: 'digest', count: 10, intervalSeconds: 30 },
             },
             {
               platform: 'slack',
@@ -393,7 +393,7 @@ it('Slack shared routing preserves one source, independent member policy and own
               platform: 'discord',
               origin: 'platform',
               defaultRevision: 0,
-              policy: { mode: 'digest', count: 5, intervalSeconds: 30 },
+              policy: { mode: 'digest', count: 10, intervalSeconds: 30 },
             },
           ],
         },
@@ -402,7 +402,7 @@ it('Slack shared routing preserves one source, independent member policy and own
           externals: [
             { platform: 'feishu' },
             { platform: 'slack', policy: { count: 7 } },
-            { platform: 'discord', defaultRevision: 0, policy: { count: 5 } },
+            { platform: 'discord', defaultRevision: 0, policy: { count: 10 } },
           ],
         },
       ],

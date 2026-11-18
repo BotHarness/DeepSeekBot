@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
+import { CopyableFingerprint } from '../primitives/copyable-fingerprint';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { PairingActions } from '../primitives/pairing-actions';
 import { RowIcon } from '../primitives/row-icon';
@@ -56,25 +57,13 @@ export function PairingVerification({
           <Text style={{ textAlign: 'center' }}>
             {verification ? t.pairingVerification.compare : t.deviceFingerprintHint}
           </Text>
-          <View
-            style={{
-              padding: space.x5,
-              gap: space.x3,
-              borderRadius: radius.lg,
-              backgroundColor: theme.layer.raised.fill,
-            }}
-          >
-            <Text variant="meta" tone="muted" style={{ textAlign: 'center' }}>
-              {verification ? t.pairingVerification.computerKey : t.pairingVerification.phoneKey}
-            </Text>
-            <Text
-              testID="pairing-fingerprint"
-              selectable
-              style={{ fontFamily: theme.mono, textAlign: 'center' }}
-            >
-              {fingerprint}
-            </Text>
-          </View>
+          <CopyableFingerprint
+            testID="pairing-fingerprint"
+            fingerprint={fingerprint}
+            label={
+              verification ? t.pairingVerification.computerKey : t.pairingVerification.phoneKey
+            }
+          />
         </>
       ) : null}
       {!verification ? <LoadingIndicator accessibilityLabel={title} /> : null}

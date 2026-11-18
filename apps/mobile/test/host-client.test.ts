@@ -1107,6 +1107,18 @@ describe('Host client', () => {
     },
   );
 
+  it('stops at a member refusal that an upload meets first', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    await until(target, (s) => s.connection.status === 'connected');
+    host.teamRefusal = { status: 403, code: 'member-suspended' };
+    await expect(target.upload('qa.txt', new Blob(['qa']))).rejects.toThrow();
+    expect(target.getSnapshot().connection).toMatchObject({
+      status: 'refused',
+      code: 'member-suspended',
+    });
+  });
+
   it('asks to pair again when the Host does not know this phone', async () => {
     const host = new FakeHost();
     const target = connect(host, 'device-9.unknown');

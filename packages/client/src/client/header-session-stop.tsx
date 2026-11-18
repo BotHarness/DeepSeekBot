@@ -5,7 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { IconStopFillRegular, MenuSurface, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { PersonaBotAvatar } from './avatar.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
@@ -455,7 +455,7 @@ export function SessionStopPopover({
                     >
                       <span aria-hidden="true" {...stylex.props(styles.rowIcon)}>
                         <ChannelSidebarIcon
-                          name={session.role === 'orchestrator' ? 'bot' : 'list-checks'}
+                          name={session.role === 'orchestrator' ? 'bot' : ASSIGNMENT_SESSION_ICON}
                           size={16}
                         />
                       </span>
@@ -516,7 +516,7 @@ export function SessionStopPopover({
         }}
         {...stylex.props(styles.footer)}
       >
-        <ChannelSidebarIcon name="text-quote" size={16} />
+        <ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={16} />
         {t('sessionStop.openSessions')}
       </button>
       {extraAction === undefined ? null : (

@@ -16,7 +16,7 @@ A Bot instead has one of three choices: dynamically inherit the optional global 
 
 The three template sections are natural-language Reviewer instructions. Always ask takes precedence over Always allow; free text supplements them without cancelling their requirements. The Reviewer returns only allow for the current request or ask-human. Conflicts, insufficient coverage, uncertainty and failures go to the Human. It neither rejects autonomously nor creates reusable Tool Approval Rules. This trades autonomous rejection for Human control over requests the model will not approve; rejection-based Reviewer circuit breaking no longer applies.
 
-Deterministic authorization is resolved before calling the model. Human-saved card rules stay Bot-scoped, show their source and scope, remain revocable, and are neither template rows interpreted by the model nor copied with templates. Full Access is not blanket exemption from the irreversible external-effect approval proposed by E2 #4210. Actual tool-effect admission belongs to that work; this decision does not implement it. Natural-language instructions are fallible and are not deterministic security boundaries.
+Deterministic authorization is resolved before calling the model. Human-saved card rules stay Bot-scoped, show their source and scope, remain revocable, and are neither template rows interpreted by the model nor copied with templates. The interview retained the irreversible external-effect admission proposed by E2 #4210; that admission direction is superseded by the later amendment below. Natural-language instructions are fallible and are not deterministic security boundaries.
 
 Each Review uses the template version captured at its start. Edits and selection changes affect later Reviews, accepting that an already-started Review can finish with the previous policy. Approval records retain the template identity and version used. This does not waive current ownership, Grant, scope or authorization-revocation checks.
 
@@ -33,3 +33,15 @@ Rejected alternatives were global-plus-Bot layering (ambiguous effective policy)
 ## File compatibility for #4244
 
 Three-part editing keeps the existing template-file owner and 32 KiB bounded reader. A saved structured template uses the exact marker `<!-- botharness:approval-guidance:v1 -->`, a newline, then JSON containing `alwaysAsk` and `alwaysAllow` string arrays and `freeText`. This is a versioned content representation inside the existing file, not a SQLite migration. Legacy Markdown without that marker maps in full to free text with empty row arrays; headings are not parsed into rules or rewritten. Invalid marked content is unavailable, so a Review falls back to the Human. The Review content hash covers the complete saved representation; decoding for Reviewer assembly uses only that captured text. Copies contain content only. Global defaults and built-ins are unchanged.
+
+## Amendment: restored admission confirmed on 2026-11-18
+
+The Human confirmed that the product decision delivered in [#4337](https://github.com/BotHarness/BotHarness/pull/4337) governs current admission. It restores approval behavior from before #4266: effect declarations describe calls and label existing cards, but irreversible/external metadata alone does not require a card or override Full Access. This supersedes only the earlier E2 blanket-effect admission direction in this record.
+
+Existing secret, Bot-creation, attachment-write and protected-management checks retain their own boundaries. Browser and Computer keep per-session authorization rather than adding a card for each already-authorized action. Reviewer guidance applies only when the existing admission rules reach the Reviewer; the three-part template, single effective selection, deterministic rule precedence and ADR-0249 management scope remain unchanged.
+
+The trade-off avoids repeated cards for ordinary messaging, delegation and authorized device actions, without claiming a universal approval guarantee for every irreversible external effect. This task fixes private calls that already require approval; it does not reintroduce the retired E2 gate.
+
+## Review context for direct calls
+
+[ADR-0207’s request-scoped context amendment](0207-an-approval-template-lets-a-reviewer-session-answer-tool-approvals.md#amendment-request-scoped-context-for-direct-calls-2026-11-18) governs authenticated direct private-tool and standalone effect Reviews: template and pending call context only, with no borrowed Session excerpt. Ordinary model-turn Reviews retain their bounded Session excerpt. This context distinction does not alter the single effective template, deterministic authorization precedence or restored admission above.

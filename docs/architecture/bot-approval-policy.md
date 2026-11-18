@@ -35,6 +35,10 @@ There are only two model outcomes:
 
 The target removes autonomous model reject. Consequently, the current model-rejection counters and rejection-triggered pause/resume mechanism do not apply. Existing historical decisions are implementation evidence, not proof that this target has shipped.
 
+## Later confirmed admission boundary (2026-11-18)
+
+The Human confirmed that [#4337](https://github.com/BotHarness/BotHarness/pull/4337) takes precedence over the earlier E2 mandatory-effect admission target. Effect declarations label approval cards; irreversible/external metadata alone does not add approval or override Full Access. Existing admission rules determine which requests reach the Reviewer or Human. Authorized Browser and Computer sessions keep their existing per-session behavior.
+
 ## Deterministic authorization and effect admission
 
 The target first uses deterministic code to determine whether the action needs approval and resolve valid deterministic authorization. A covered request does not incur a model call. An uncovered request uses the effective Reviewer policy or goes to the Human when the Reviewer is disabled.
@@ -72,20 +76,20 @@ Missing or unreadable selected templates, unavailable models, timeouts and malfo
 
 The source baseline inspected was fc29d448467392b1e9ed2f3d048d3d1df0b14381. These are static observations, not a live-Host verification:
 
-| Aspect              | Existing fact or specification                                                          | Confirmed target                                                                    |
-| ------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Selection           | Single optional Bot field; no global default in plugin.ts:2491                          | Global inheritance, specific selection or Off                                       |
-| Policy shape        | ADR-0207 specifies whole Markdown; #4203 and E3 specify three parts plus Bot extra rows | Three parts in one selected template; no extra Bot layer                            |
-| Reviewer output     | approval-reviewer.ts:189 has allow/reject/ask-human                                     | allow/ask-human only                                                                |
-| Rule precedence     | tool-approval.ts:306–349 resolves Full Access and saved rules before Reviewer           | Keep deterministic authorization first; retain E2's changed effect admission target |
-| Card rules          | #4203 and E3 AC-3 retain deterministic execution and source labels                      | Preserve that requirement and Bot ownership                                         |
-| Referenced deletion | Previously unresolved in this interview                                                 | Confirm once, disclose effects and fall back to inheritance                         |
+| Aspect              | Existing fact or specification                                                          | Confirmed target                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Selection           | Single optional Bot field; no global default in plugin.ts:2491                          | Global inheritance, specific selection or Off                                             |
+| Policy shape        | ADR-0207 specifies whole Markdown; #4203 and E3 specify three parts plus Bot extra rows | Three parts in one selected template; no extra Bot layer                                  |
+| Reviewer output     | approval-reviewer.ts:189 has allow/reject/ask-human                                     | allow/ask-human only                                                                      |
+| Rule precedence     | tool-approval.ts:306–349 resolves Full Access and saved rules before Reviewer           | Keep deterministic authorization first; effect admission follows the later #4337 decision |
+| Card rules          | #4203 and E3 AC-3 retain deterministic execution and source labels                      | Preserve that requirement and Bot ownership                                               |
+| Referenced deletion | Previously unresolved in this interview                                                 | Confirm once, disclose effects and fall back to inheritance                               |
 
 Source files: [Bot record](../../packages/core/src/bots/persona-bot.ts), [template lookup](../../packages/core/src/plugin.ts), [Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts), [approval owner](../../packages/core/src/workspaces/tool-approval.ts), [rules](../../packages/core/src/workspaces/tool-approval-rules.ts). ADR-0205/0207/0239/0249 explain the historical evolution; ADR-0207 alone is not the current complete pipeline.
 
 On 2026-11-15, [#4203](https://github.com/BotHarness/DeepSeekBot/issues/4203), E1, E2, [E3 #4211](https://github.com/BotHarness/DeepSeekBot/issues/4211) and E4 were open, unassigned, with zero comments. No claim or new-scope implementation PR was found in the checked evidence; this does not prove no implementation exists. The local gh CLI lacked authentication, so timeline completeness was not established. Existing template/Reviewer and card-rule capabilities have merged predecessors, including PRs #1835 and #2739. No issue or comment was created or edited during the interview.
 
-This target modifies #4203/E3's selection composition and the existing Reviewer outcome contract, preserves the three-part editor and deterministic source-labelled card rules, and retains the E2 direction. Reconciliation belongs in those existing issues; no duplicate issue is needed. SQLite migration #4227 is outside this design. Performance PR #4228 is unrelated and was not modified or monitored.
+The 2026-11-15 interview modified #4203/E3's selection composition and the existing Reviewer outcome contract, preserved the three-part editor and deterministic source-labelled card rules, and retained the then-current E2 direction. The later confirmed #4337 amendment supersedes E2's mandatory-effect admission; the template and card-rule decisions remain. Reconciliation belongs in those existing issues; no duplicate issue is needed. SQLite migration #4227 is outside this design. Performance PR #4228 is unrelated and was not modified or monitored.
 
 ## Research boundary
 
@@ -116,7 +120,7 @@ Performance assessment: documentation-only edits introduce no dependency and cha
 
 The #4244 editor retains the template-file owner and 32 KiB bounded reads. ADR-0342 records the v1 content representation; legacy Markdown maps intact to free text. Copies contain only content. Save and apply are separate choices, shared-original editing shows global inheritors among actual users, and content edits affect future Reviews.
 
-Direct CLI effect calls use an owned native execution Session with the existing `direct-` identity prefix. Ownership resolves for admission and audit, but these one-call executions are excluded from persistent Bot root enumeration: they must not become the current chat Orchestrator or cause report delivery to wake a model. The native Agent is disposed after the call; ownership and execution evidence remain.
+Standalone direct CLI effect calls use an owned native execution Session with the existing `direct-` identity prefix. Ownership resolves for admission and audit, but these one-call executions are excluded from persistent Bot root enumeration: they must not become the current chat Orchestrator or cause report delivery to wake a model. The native Agent is disposed after the call; ownership and execution evidence remain.
 
 ## Human approval result presentation
 
@@ -128,4 +132,4 @@ Typed Tob command preparation must provide a review proposal whenever the shared
 
 Tool approval requests and Reviewer records for an Orchestrator stay in the actual originating DM or Group. A participant DM never falls back to the principal’s legacy DM. An unavailable or mismatched origin refuses review and card creation; this does not grant the participant any approval permission. Existing approver and audience checks still control visibility and decisions.
 
-Authenticated direct `bot-tool` requests bind their transient native execution to the calling Human’s DM, before dispatch, and remove that binding when the call settles. Tool targets and historical Channel placements do not select the approval recipient. A missing calling context does not fall back to another Human.
+Authenticated direct private-tool requests and standalone effect calls bind the Host-generated call ID and actual Agent Session to the calling Human before dispatch, then remove that binding when the call settles. The caller is validated before Full Access or saved-rule resolution. The DM is resolved only when an approval origin is needed; an ungoverned read or a missing Agent does not create an empty DM. During shutdown, the registered direct identity remains until settlement while its unavailable origin refuses approval. Private tools borrow the live Orchestrator Agent without creating or disposing it. Read-only private tools that need approval use the same caller DM binding. Direct-call review receives only the template and pending input, without reading borrowed Session history. Tool targets and historical Channel placements do not select the approval recipient. A missing calling context does not fall back to another Human. This binding does not create the Human Source Event required for private-input interaction.

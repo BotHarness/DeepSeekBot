@@ -1,4 +1,5 @@
 import { Button } from './ds/button.js';
+import { ASSIGNMENT_SESSION_ICON } from './channel-sidebar-icon.js';
 import { useTeamMode } from './team-state.js';
 import { BotAccessEntry } from './bot-access-entry.js';
 import type { ConversationStateView } from './store.js';
@@ -161,7 +162,7 @@ function inboxIcon(item: BotAttentionItem): string {
   if (item.sourceKind === 'schedule') return 'alarm-clock';
   if (item.sourceKind === 'memory-change') return 'git-branch';
   if (item.sourceKind === 'assignment-report' || item.assignmentSessionId !== undefined)
-    return 'list-checks';
+    return ASSIGNMENT_SESSION_ICON;
   if (item.externalOrigin !== undefined) return 'globe';
   if (item.authorKind === 'human') return 'user';
   if (item.authorKind === 'bot') return 'bot';
@@ -1355,7 +1356,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'sessions',
-      icon: 'text-quote',
+      icon: ASSIGNMENT_SESSION_ICON,
       label: t('entry.sessions'),
       order: 10,
       scope: 'both',
