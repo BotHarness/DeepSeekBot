@@ -125,6 +125,6 @@ Enforced by: `verification/enrollment/Enrollment.tla`, checked by `node scripts/
 - A key gets at most one grant.
 - A cancelled key has no active grant.
 - No grant is issued after the deadline.
-- A grant whose reply was lost is eventually revoked, assuming cleanup keeps getting a turn (weak fairness). The model does not bound attempts; the code stops automatic cleanup after 8 attempts, and after that only a manual cleanup attempt revokes the grant.
+- A grant whose reply was lost is eventually revoked, assuming cleanup keeps getting a turn (weak fairness). The model does not bound attempts. In the code, automatic cleanup stops after 8 failed attempts; a manual cleanup attempt resets that budget, and revocation needs a cleanup that succeeds.
 
 Other tests: `packages/core/test/host-relationships.test.ts`, `account-relationships.test.ts`, `relationship-admission.test.ts`, `relationship-control.test.ts`, `cli-relationships.test.ts`, `cli-relationship-deadline.test.ts`, `cli-relationship-private-file.test.ts`.
