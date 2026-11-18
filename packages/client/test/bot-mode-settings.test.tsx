@@ -15,7 +15,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 });
 
 import { botModeActions, parseBotModesView } from '../src/client/bot-mode-actions.js';
-import { BotModeSettingsEntry } from '../src/client/bot-mode-settings.js';
+import { BotModeSettingsEntry, modeText } from '../src/client/bot-mode-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
 
 const VIEW = {
@@ -71,5 +71,29 @@ describe('Bot mode page', () => {
       await Promise.resolve();
     });
     expect(botModes).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('product mode text', () => {
+  it('shows the localized name and short description of a Tobs scenario mode', () => {
+    expect(
+      modeText(
+        {
+          id: 'tobs-script',
+          name: 'Tobs 脚本',
+          description: 'Tobs 脚本模式：bilingual Orchestrator text',
+        },
+        zhTranslate,
+      ),
+    ).toEqual({
+      name: 'Tobs 脚本',
+      description: '只有终端和文件，不能上网。适合处理本地数据、算统计、跑小脚本。',
+    });
+    expect(
+      modeText({ id: 'plugin-mode', name: 'Plugin', description: 'Own text' }, zhTranslate),
+    ).toEqual({
+      name: 'Plugin',
+      description: 'Own text',
+    });
   });
 });

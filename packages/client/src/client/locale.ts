@@ -1748,6 +1748,15 @@ export const zh = {
   'botMode.builtIn.deepseekbot.name': 'Tobs',
   'botMode.builtIn.deepseekbot.description':
     '标准模式，但提问卡 45 秒没人回答时 Bot 会继续处理其他消息。',
+  'botMode.builtIn.tobs-research.name': 'Tobs 调研',
+  'botMode.builtIn.tobs-research.description':
+    '上网搜索和抓取网页、读写文件，没有终端。适合查资料、核对事实和写报告。',
+  'botMode.builtIn.tobs-code.name': 'Tobs 编程',
+  'botMode.builtIn.tobs-code.description':
+    '终端、文件、后台任务、技能和上网查文档。适合写代码、跑测试和构建。',
+  'botMode.builtIn.tobs-script.name': 'Tobs 脚本',
+  'botMode.builtIn.tobs-script.description':
+    '只有终端和文件，不能上网。适合处理本地数据、算统计、跑小脚本。',
   'botMode.template.all': '全部模式',
   'botMode.template.bot.title': '可选模式',
   'botMode.template.bot.all': '这个 Bot 和它的 Orchestrator 可以用任何已安装的模式。',
@@ -8083,6 +8092,15 @@ export const en = {
   'botMode.builtIn.deepseekbot.name': 'Tobs',
   'botMode.builtIn.deepseekbot.description':
     'Standard mode, except that a question card left unanswered for 45 seconds no longer holds the Bot.',
+  'botMode.builtIn.tobs-research.name': 'Tobs Research',
+  'botMode.builtIn.tobs-research.description':
+    'Web search and fetch plus files, no terminal. For looking things up, checking facts and writing reports.',
+  'botMode.builtIn.tobs-code.name': 'Tobs Coding',
+  'botMode.builtIn.tobs-code.description':
+    'Terminal, files, background jobs, skills and web lookups. For writing code and running tests and builds.',
+  'botMode.builtIn.tobs-script.name': 'Tobs Script',
+  'botMode.builtIn.tobs-script.description':
+    'Terminal and files only, no web. For processing local data, computing statistics and running small scripts.',
   'entry.mode': 'Mode',
   'botSettings.section.computerBrowser': 'Computer and browser',
   'account.section.hostLook': 'Host name and icon',

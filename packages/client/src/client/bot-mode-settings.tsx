@@ -24,12 +24,27 @@ import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
-const BUILT_IN_MODES = ['standard', 'ptc', 'minimal', 'cordis', 'deepseekbot'] as const;
+const BUILT_IN_MODES = [
+  'standard',
+  'ptc',
+  'minimal',
+  'cordis',
+  'deepseekbot',
+  'tobs-research',
+  'tobs-code',
+  'tobs-script',
+] as const;
+const PRODUCT_MODES: ReadonlySet<string> = new Set([
+  'deepseekbot',
+  'tobs-research',
+  'tobs-code',
+  'tobs-script',
+]);
 type BuiltInMode = (typeof BUILT_IN_MODES)[number];
 
 function builtIn(mode: BotModeOptionView): BuiltInMode | undefined {
   const id = BUILT_IN_MODES.find((entry) => entry === mode.id);
-  return id === undefined || (mode.name !== undefined && id !== 'deepseekbot') ? undefined : id;
+  return id === undefined || (mode.name !== undefined && !PRODUCT_MODES.has(id)) ? undefined : id;
 }
 
 export function modeText(
