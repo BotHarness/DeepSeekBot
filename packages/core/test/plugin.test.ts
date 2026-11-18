@@ -960,6 +960,7 @@ describe('plugin entry', () => {
       'botTurnInput',
       'channelBotStop',
       'sessionStop',
+      'sessionMessageSend',
       'botStop',
       'modelCatalog',
       'modelPresets',
