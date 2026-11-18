@@ -946,7 +946,11 @@ export function SessionDetail({
           <ChannelComposer
             value={draft}
             placeholder=""
-            label={t('sessions.detail.composer')}
+            label={t(
+              transcript?.role === 'orchestrator'
+                ? 'sessions.detail.composerOrchestrator'
+                : 'sessions.detail.composer',
+            )}
             sending={sending}
             t={t}
             quotes={quotes}
