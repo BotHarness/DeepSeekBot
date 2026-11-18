@@ -314,6 +314,7 @@ import {
   updateModelPreset,
   applyModelPreset,
   customizeModelPlan,
+  chooseModelPlanGroup,
   setModelPlanAssignments,
   setModelPlan,
   setStandingLimits,
@@ -680,6 +681,11 @@ export interface BridgeActions {
   customizeModelPlan(
     slug: string,
     orchestrator: ModelRouteView,
+    expectedRevision?: number,
+  ): Promise<ModelPlanView>;
+  chooseModelPlanGroup(
+    slug: string,
+    groupId: string,
     expectedRevision?: number,
   ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
@@ -2190,6 +2196,10 @@ export function createActions(
     customizeModelPlan: (slug, orchestrator, expectedRevision) =>
       recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
         actions.telemetryEvent('model:plan_update', { via: 'custom' }),
+      ),
+    chooseModelPlanGroup: (slug, groupId, expectedRevision) =>
+      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'group' }),
       ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>

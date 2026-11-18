@@ -243,12 +243,22 @@ export interface ModelCatalogEntryView {
   efforts: { id: string; name: string }[];
   defaultEffort?: string;
   credential?: 'missing' | 'invalid';
+  restingUntil?: string;
+}
+
+export interface ModelCatalogGroupView {
+  id: string;
+  name: string;
+  revision: number;
+  routes: ModelRouteView[];
+  restingUntil?: string;
 }
 
 export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
   default?: ModelRouteView;
   favorites?: ModelChoice[];
+  groups?: ModelCatalogGroupView[];
 }
 
 export type { ModelChoice };
@@ -282,6 +292,7 @@ export interface ModelPlanView {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRouteView;
+  orchestratorGroupId?: string;
   assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
   openAssignmentModels?: true;
@@ -303,6 +314,7 @@ export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogVi
       ? {}
       : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
     ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
+    ...(catalog.groups === undefined ? {} : { groups: catalog.groups }),
   };
 }
 
@@ -463,6 +475,23 @@ export async function customizeModelPlan(
 ): Promise<ModelPlanView> {
   const value = asRecord(
     await unwrap(call, 'modelPlanCustomize', { slug, orchestrator, expectedRevision }),
+  );
+  if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
+  return value!['plan'] as ModelPlanView;
+}
+
+export async function chooseModelPlanGroup(
+  call: BridgeCall,
+  slug: string,
+  groupId: string,
+  expectedRevision?: number,
+): Promise<ModelPlanView> {
+  const value = asRecord(
+    await unwrap(call, 'modelPlanCustomize', {
+      slug,
+      orchestratorGroupId: groupId,
+      expectedRevision,
+    }),
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;

@@ -267,3 +267,69 @@ it('opens on Favorites, stars from the row and jumps with Ctrl+number', async ()
   );
   expect(onSelect).toHaveBeenCalledWith(key(catalog[3]!));
 });
+
+it('lists Routing Groups in their own column with the member in front, and stars them (#4421)', async () => {
+  const until = '2026-11-22T23:23:00.000Z';
+  const resting = catalog.map((entry, index) =>
+    index === 0 ? { ...entry, restingUntil: until } : entry,
+  );
+  const groups = [
+    {
+      id: 'daily',
+      name: 'Daily',
+      revision: 1,
+      routes: [catalog[0]!, catalog[1]!].map(({ provider, model }) => ({ provider, model })),
+    },
+    {
+      id: 'flash-only',
+      name: 'Flash only',
+      revision: 1,
+      routes: [{ provider: catalog[0]!.provider, model: catalog[0]!.model }],
+      restingUntil: until,
+    },
+  ];
+  const write = vi.fn(async (choice: { kind: string }) => [
+    choice as { kind: 'group'; id: string },
+  ]);
+  rememberModelFavorites([], 'host', write);
+  const { rows, onSelect } = await render({
+    items: catalogMenuItems(resting, zhTranslate, groups),
+  });
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>('[data-picker-filter="groups"]')!.click(),
+  );
+  const rest = zhTranslate('routingGroups.resting', {
+    until: new Date(until).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+  });
+  expect(rows()).toEqual([
+    `Daily${zhTranslate('modelMenu.groupFront', { model: 'GPT-6.1' })}Ctrl+1`,
+    `Flash only${rest}`,
+  ]);
+  expect(
+    document.body
+      .querySelector("[data-picker-option='group:flash-only']")
+      ?.hasAttribute('disabled'),
+  ).toBe(true);
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>('[data-picker-filter="all"]')!.click(),
+  );
+  expect(rows()).toContain(`DeepSeek V4.1 FlashOpenCode Go · ${rest}`);
+  expect(
+    document.body
+      .querySelector(`[data-picker-option='${key(catalog[0]!)}']`)
+      ?.hasAttribute('disabled'),
+  ).toBe(true);
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>("[data-picker-favorite='group:daily']")!.click(),
+  );
+  expect(write).toHaveBeenCalledWith({ kind: 'group', id: 'daily' }, true);
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>("[data-picker-option='group:daily']")!.click(),
+  );
+  expect(onSelect).toHaveBeenCalledWith('group:daily');
+});

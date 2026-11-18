@@ -383,6 +383,20 @@ import {
   type BotSkill,
 } from '../skills/bot-skills.js';
 
+export interface ModelCatalogGroup {
+  id: string;
+  name: string;
+  revision: number;
+  mode: 'order';
+  members: RoutingGroupMember[];
+  routes: ModelRoute[];
+  restingUntil?: string;
+}
+
+function routeKey(route: { provider: string; model: string }): string {
+  return JSON.stringify([route.provider, route.model]);
+}
+
 export interface SkillDetail {
   name: string;
   description: string;
@@ -449,6 +463,7 @@ import {
   type RoutingGroupStore,
 } from '../models/routing-groups.js';
 import type { ModelCatalog, ModelCatalogEntry } from '../models/catalog.js';
+
 import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
 import { MemoryPathError } from '../memory/jail.js';
@@ -861,6 +876,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       defaultRevision?: number;
       defaultGroupId?: string;
       favorites?: ModelFavorite[];
+      groups?: ModelCatalogGroup[];
     }>
   >;
   modelFavoriteSet(payload: unknown): BridgeResult<{ favorites: ModelFavorite[] }>;
@@ -2391,6 +2407,48 @@ function buildBridgeMethods(
   deps: BridgeMethodsDeps,
   globalRegistry = deps.registry,
 ): BridgeMethods {
+  const catalogRests = (): Map<string, string> =>
+    new Map((deps.routeRests?.list() ?? []).map((rest) => [routeKey(rest), rest.until]));
+  const catalogEntry = <T extends { provider: string; model: string }>(
+    entry: T,
+    rests: ReadonlyMap<string, string>,
+  ): T & { restingUntil?: string } => {
+    const until = rests.get(routeKey(entry));
+    return until === undefined ? entry : { ...entry, restingUntil: until };
+  };
+  const catalogGroups = (
+    rests: ReadonlyMap<string, string>,
+    allowed: (route: ModelRoute) => boolean,
+  ): { groups?: ModelCatalogGroup[] } => {
+    const store = deps.routingGroups;
+    if (store === undefined) return {};
+    return {
+      groups: store.list().flatMap((group) => {
+        let routes: ModelRoute[];
+        try {
+          routes = store.routes(group.id);
+        } catch {
+          return [];
+        }
+        if (routes.length === 0 || !routes.every(allowed)) return [];
+        const untils = routes.map((route) => rests.get(routeKey(route)));
+        const restingUntil = untils.every((until) => until !== undefined)
+          ? [...(untils as string[])].sort()[0]
+          : undefined;
+        return [
+          {
+            id: group.id,
+            name: group.name,
+            revision: group.revision,
+            mode: group.mode,
+            members: group.members,
+            routes,
+            ...(restingUntil === undefined ? {} : { restingUntil }),
+          },
+        ];
+      }),
+    };
+  };
   const favoritesOf = (): { favorites?: ModelFavorite[] } =>
     deps.modelFavorites === undefined ? {} : { favorites: deps.modelFavorites.list(human.humanId) };
   const isHostOwner = () =>
@@ -4102,18 +4160,19 @@ function buildBridgeMethods(
       if (deps.modelCatalog === undefined) return unavailable();
       try {
         const models = await deps.modelCatalog.list();
+        const rests = catalogRests();
         if (deps.team && !deps.team.isOwner(human)) {
           const allowed = deps.team.roles.modelsAllowed(human);
+          const isAllowed = (route: { provider: string; model: string }) =>
+            allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`);
           return {
             ok: true,
             value: {
               models: models
-                .filter(
-                  (route) =>
-                    allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`),
-                )
-                .map(({ credential: _credential, ...route }) => route),
+                .filter(isAllowed)
+                .map(({ credential: _credential, ...route }) => catalogEntry(route, rests)),
               ...favoritesOf(),
+              ...catalogGroups(rests, isAllowed),
             },
           };
         }
@@ -4127,13 +4186,14 @@ function buildBridgeMethods(
         return {
           ok: true,
           value: {
-            models,
+            models: models.map((entry) => catalogEntry(entry, rests)),
             ...(defaultRoute === undefined ? {} : { default: defaultRoute }),
             ...(defaultRevision === undefined ? {} : { defaultRevision }),
             ...(defaultGroup?.groupId === undefined
               ? {}
               : { defaultGroupId: defaultGroup.groupId }),
             ...favoritesOf(),
+            ...catalogGroups(rests, () => true),
           },
         };
       } catch (error) {

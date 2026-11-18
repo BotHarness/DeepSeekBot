@@ -3,10 +3,11 @@ import {
   modelChoice as favoriteChoice,
   parseModelCatalog,
   type ModelCatalogEntry,
+  type ModelCatalogGroup,
   type ModelChoice,
 } from './model-catalog';
 
-export type { ModelCatalogEntry, ModelChoice };
+export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
 
 export type Loadable<T> =
   | { status: 'loading' }
@@ -32,6 +33,7 @@ export interface ModelPlan {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
+  orchestratorGroupId?: string;
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
 }
@@ -51,6 +53,7 @@ export interface BotModel {
   plan?: ModelPlan;
   repair?: string;
   models: ModelCatalogEntry[];
+  groups?: ModelCatalogGroup[];
   favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
@@ -149,6 +152,9 @@ function plan(value: unknown): ModelPlan | undefined {
     sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
     sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
     orchestrator,
+    ...(text(row['orchestratorGroupId'])
+      ? { orchestratorGroupId: row['orchestratorGroupId'] }
+      : {}),
     ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
     ...(assignmentModels === undefined ? {} : { assignmentModels }),
   };
@@ -205,7 +211,7 @@ export async function loadBotModel(
       return { presets: [] };
     }),
   ]);
-  const { models, default: fallback, favorites } = catalogAnswer(catalog);
+  const { models, default: fallback, favorites, groups } = catalogAnswer(catalog);
   const current = record(state);
   const saved = plan(current?.['plan']);
   const repair = record(current?.['repair']);
@@ -215,6 +221,7 @@ export async function loadBotModel(
     ...(saved === undefined ? {} : { plan: saved }),
     ...(text(repair?.['code']) ? { repair: repair['code'] } : {}),
     models,
+    ...(groups === undefined ? {} : { groups }),
     ...(favorites === undefined ? {} : { favorites }),
     ...(fallback === undefined ? {} : { fallback }),
     presets: some(record(presets)?.['presets'], preset),
@@ -230,11 +237,12 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     client.call('modelCatalog', {}),
     client.call('modelPresets', {}),
   ]);
-  const { models, default: fallback, defaultRevision, favorites } = catalogAnswer(catalog);
+  const { models, default: fallback, defaultRevision, favorites, groups } = catalogAnswer(catalog);
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
     models,
+    ...(groups === undefined ? {} : { groups }),
     ...(favorites === undefined ? {} : { favorites }),
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),
@@ -259,7 +267,11 @@ export function sameModel(
   return b !== undefined && a.provider === b.provider && a.model === b.model;
 }
 
-export function currentModel(model: BotModel): { route?: ModelRoute; name?: string } {
+export function currentModel(model: BotModel): {
+  route?: ModelRoute;
+  name?: string;
+  group?: string;
+} {
   const usableFallback =
     model.fallback !== undefined &&
     model.models.some((entry) => sameModel(entry, model.fallback) && entry.credential === undefined)
@@ -267,9 +279,15 @@ export function currentModel(model: BotModel): { route?: ModelRoute; name?: stri
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
   if (current === undefined) return {};
+  const groupId = model.plan?.orchestratorGroupId;
+  const group =
+    groupId === undefined
+      ? undefined
+      : (model.groups?.find((entry) => entry.id === groupId)?.name ?? groupId);
   return {
     route: current,
     name: model.models.find((entry) => sameModel(entry, current))?.modelName ?? current.model,
+    ...(group === undefined ? {} : { group }),
   };
 }
 

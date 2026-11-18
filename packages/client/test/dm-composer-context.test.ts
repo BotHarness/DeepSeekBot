@@ -634,3 +634,88 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
     host.remove();
   }
 });
+
+it('runs the DM Bot on a Routing Group chosen from the header model menu (#4421)', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const flash = { provider: 'deepseek', model: 'flash' };
+  const pro = { provider: 'deepseek', model: 'pro' };
+  const bot = { ...ada, slug: 'composer-group' };
+  const plan = (revision: number, orchestrator: typeof flash, groupId?: string) => ({
+    revision,
+    orchestrator,
+    ...(groupId === undefined ? {} : { orchestratorGroupId: groupId }),
+    assignmentDefault: orchestrator,
+    sourcePresetId: 'custom',
+    sourcePresetName: 'Custom',
+    assignmentModels: [],
+    appliedAt: '',
+  });
+  const customize = vi.fn();
+  let current = plan(2, pro);
+  const actions = createActions(async (method, payload) => {
+    if (method === 'modelPlan') return { ok: true, value: { plan: current } };
+    if (method === 'modelPlanCustomize') {
+      customize(payload);
+      current = plan(3, flash, 'daily');
+      return { ok: true, value: { plan: current } };
+    }
+    if (method === 'modelCatalog')
+      return {
+        ok: true,
+        value: {
+          models: [flash, pro].map((entry) => ({
+            ...entry,
+            modelName: entry.model === 'flash' ? 'Flash' : 'Pro',
+            providerName: 'DeepSeek',
+            efforts: [],
+          })),
+          groups: [{ id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] }],
+        },
+      };
+    if (method === 'grants') return { ok: true, value: { grants: [] } };
+    if (method === 'telemetryEvent') return { ok: true, value: {} };
+    throw new Error(`Unexpected method ${method}`);
+  }, createStore());
+  function Harness() {
+    return createElement(
+      'div',
+      null,
+      useDmComposerContext({
+        bot,
+        channelId: `dm-${bot.slug}`,
+        actions,
+        companion: undefined,
+        activity: undefined,
+        loading: false,
+        t: zhTranslate,
+        onUsage() {},
+      })?.content,
+    );
+  }
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    const chip = host.querySelector<HTMLButtonElement>('[data-composer-chip="model"]')!;
+    await act(async () => chip.click());
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>("[data-picker-option='group:daily']")!.click(),
+    );
+    expect(customize).toHaveBeenCalledWith({
+      slug: bot.slug,
+      orchestratorGroupId: 'daily',
+      expectedRevision: 2,
+    });
+    expect(chip.title).toBe('Daily · Flash');
+    await act(async () => chip.click());
+    expect(
+      document.body
+        .querySelector("[data-picker-option='group:daily']")
+        ?.getAttribute('aria-selected'),
+    ).toBe('true');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
