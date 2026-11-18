@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from '@babel/parser';
@@ -134,9 +134,20 @@ function sources(root) {
   return Object.fromEntries(
     [...new Set(listed.stdout.split('\0'))]
       .filter((path) => /\.(?:ts|tsx)$/u.test(path) && !/\.d\.ts$|\.test\.tsx?$/u.test(path))
-      .filter((path) => existsSync(join(root, path)))
-      .map((path) => [path, readFileSync(join(root, path), 'utf8')]),
+      .flatMap((path) => {
+        const text = sourceText(join(root, path));
+        return text === undefined ? [] : [[path, text]];
+      }),
   );
+}
+
+function sourceText(path) {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
 }
 
 export function addedToBaseline(baseline, base) {
@@ -145,8 +156,12 @@ export function addedToBaseline(baseline, base) {
   return baseline.filter((method) => !known.has(method));
 }
 
-function mainBaseline(root) {
-  const shown = git(root, ['show', `origin/main:${BASELINE}`]);
+function baselineAt(root, revision, required) {
+  if (git(root, ['cat-file', '-e', `${revision}^{commit}`]).status !== 0) {
+    if (required) throw new Error(`cannot read revision ${revision}; fetch it first`);
+    return undefined;
+  }
+  const shown = git(root, ['show', `${revision}:${BASELINE}`]);
   return shown.status === 0 ? JSON.parse(shown.stdout) : undefined;
 }
 
@@ -161,10 +176,14 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.log(`host readers: ${next.length} baselined methods`);
   } else {
     const errors = checkHostReaders(readers, baseline);
-    const added = addedToBaseline(baseline, mainBaseline(root));
+    const base = process.argv.find((arg) => arg.startsWith('--base='))?.slice('--base='.length);
+    const added = addedToBaseline(
+      baseline,
+      baselineAt(root, base ?? 'origin/main', base !== undefined),
+    );
     if (added.length)
       errors.push(
-        `${BASELINE} adds ${added.join(', ')}, which main does not list. The baseline only shrinks: give each of these methods one reader instead.`,
+        `${BASELINE} adds ${added.join(', ')}, which the base does not list. The baseline only shrinks: give each of these methods one reader instead.`,
       );
     for (const error of errors) console.error(`host readers: ${error}`);
     if (errors.length) process.exitCode = 1;

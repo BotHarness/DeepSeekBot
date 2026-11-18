@@ -54,7 +54,7 @@ describe('host readers', () => {
     expect(duplicated(readers)).toEqual(['storageUsage']);
   });
 
-  it('refuses baseline entries that main does not list', () => {
+  it('refuses baseline entries that the base does not list', () => {
     expect(addedToBaseline(['a', 'b'], ['a'])).toEqual(['b']);
     expect(addedToBaseline(['a'], undefined)).toEqual([]);
   });
