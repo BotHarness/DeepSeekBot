@@ -1,0 +1,194 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { createAttachmentStore } from '../src/attachments/store.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createChannelStore } from '../src/channels/store.js';
+import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { createModelPresetStore } from '../src/models/presets.js';
+import { createRoutingGroupStore } from '../src/models/routing-groups.js';
+import { createBotStateTracker } from '../src/state/bot-state.js';
+import { createTestOwnership } from './helpers.js';
+import { createTestRegistry } from './registry-fixture.js';
+import { createTestRosterStore } from './roster-fixture.js';
+
+const GO = { kind: 'model' as const, provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+const DEEPSEEK = { kind: 'model' as const, provider: 'deepseek', model: 'deepseek-v4.1-flash' };
+const ROUTE = { provider: 'deepseek', model: 'deepseek-v4.1-flash' };
+const roots: string[] = [];
+const owners: OperationalDatabaseOwner[] = [];
+
+afterEach(() => {
+  for (const owner of owners.splice(0)) owner.close();
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+function setup() {
+  const root = mkdtempSync(join(tmpdir(), 'bh-preset-groups-'));
+  roots.push(root);
+  const database = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  owners.push(database);
+  const registry = createTestRegistry({ rootDir: root, database });
+  const modelPresets = createModelPresetStore({ rootDir: root, database });
+  const routingGroups = createRoutingGroupStore({ database, references: () => [] });
+  const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+    registry,
+    modelPresets,
+    routingGroups,
+    modelCatalog: {
+      list: async () =>
+        [GO, DEEPSEEK].map(({ provider, model }) => ({
+          provider,
+          providerName: provider,
+          model,
+          modelName: model,
+          efforts: [],
+        })),
+      validate: async (route) => {
+        if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
+      },
+    },
+    states: createBotStateTracker(),
+    channels: createChannelStore({ rootDir: join(root, 'channels'), attachments }),
+    attachments,
+    ownership: createTestOwnership(),
+    roster: createTestRosterStore(),
+  });
+  registry.create({ slug: 'ada', displayName: 'Ada' });
+  return { root, database, registry, methods };
+}
+
+async function group(methods: ReturnType<typeof setup>['methods'], name: string) {
+  const created = await methods.modelGroupCreate({ name, members: [GO, DEEPSEEK] });
+  if (!created.ok) throw new Error(created.error.message);
+  return created.value.group.id;
+}
+
+describe('Model Presets with Routing Groups', () => {
+  it('stores groups by id in every slot and copies them into the Bot plan on apply', async () => {
+    const { root, database, registry, methods } = setup();
+    const main = await group(methods, 'Main');
+    const side = await group(methods, 'Side');
+    const created = await methods.modelPresetCreate({
+      name: 'Grouped',
+      orchestratorGroupId: main,
+      assignmentDefault: ROUTE,
+      assignmentGroups: [side],
+      assignmentDefaultGroupId: side,
+    });
+    expect(created).toMatchObject({
+      ok: true,
+      value: {
+        preset: {
+          orchestrator: ROUTE,
+          orchestratorGroupId: main,
+          assignmentGroups: [side],
+          assignmentDefaultGroupId: side,
+        },
+      },
+    });
+    if (!created.ok) return;
+    const id = created.value.preset.id;
+    expect(createModelPresetStore({ rootDir: root, database }).get(id)).toMatchObject({
+      orchestratorGroupId: main,
+      assignmentGroups: [side],
+    });
+
+    expect(await methods.modelPresetApply({ slug: 'ada', presetId: id })).toMatchObject({
+      ok: true,
+      value: {
+        plan: {
+          sourcePresetId: id,
+          orchestrator: ROUTE,
+          orchestratorGroupId: main,
+          assignmentGroups: [side],
+          assignmentDefaultGroupId: side,
+        },
+      },
+    });
+    expect(registry.get('ada')?.modelPlan?.orchestratorGroupId).toBe(main);
+  });
+
+  it('refuses an old client save that would drop groups and lets a new client clear them', async () => {
+    const { methods } = setup();
+    const main = await group(methods, 'Main');
+    const created = await methods.modelPresetCreate({
+      name: 'Grouped',
+      orchestratorGroupId: main,
+      assignmentDefault: ROUTE,
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const id = created.value.preset.id;
+
+    expect(
+      await methods.modelPresetUpdate({
+        id,
+        expectedRevision: 1,
+        name: 'Renamed',
+        orchestrator: ROUTE,
+        assignmentDefault: ROUTE,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'client-update-required' } });
+    expect(methods.modelPresets({})).toMatchObject({
+      ok: true,
+      value: { presets: [{ name: 'Grouped', revision: 1, orchestratorGroupId: main }] },
+    });
+
+    const cleared = await methods.modelPresetUpdate({
+      id,
+      expectedRevision: 1,
+      name: 'Plain',
+      orchestrator: ROUTE,
+      assignmentDefault: ROUTE,
+      orchestratorGroupId: null,
+      assignmentGroups: [],
+      assignmentDefaultGroupId: null,
+    });
+    expect(cleared).toMatchObject({ ok: true, value: { preset: { revision: 2, name: 'Plain' } } });
+    if (!cleared.ok) return;
+    expect(cleared.value.preset.orchestratorGroupId).toBeUndefined();
+    expect(
+      await methods.modelPresetUpdate({
+        id,
+        expectedRevision: 2,
+        name: 'Plain again',
+        orchestrator: ROUTE,
+        assignmentDefault: ROUTE,
+      }),
+    ).toMatchObject({ ok: true, value: { preset: { revision: 3 } } });
+  });
+
+  it('refuses unknown groups, a default outside the list, and a route beside a group', async () => {
+    const { methods } = setup();
+    const main = await group(methods, 'Main');
+    expect(
+      await methods.modelPresetCreate({
+        name: 'Ghost',
+        orchestratorGroupId: 'missing',
+        assignmentDefault: ROUTE,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'routing-group-not-found' } });
+    expect(
+      await methods.modelPresetCreate({
+        name: 'Outside',
+        orchestrator: ROUTE,
+        assignmentDefault: ROUTE,
+        assignmentGroups: [main],
+        assignmentDefaultGroupId: 'other',
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      await methods.modelPresetCreate({
+        name: 'Both',
+        orchestrator: ROUTE,
+        orchestratorGroupId: main,
+        assignmentDefault: ROUTE,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+  });
+});

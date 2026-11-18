@@ -896,11 +896,21 @@ function initializeCore(
     startup.enter('routing-groups', 'initialize');
     routingGroups = createRoutingGroupStore({
       database: operationalDatabase,
-      references: (groupId) =>
-        registry
-          .list()
-          .filter((bot) => bot.modelPlan?.orchestratorGroupId === groupId)
-          .map((bot) => `Bot ${bot.displayName}`),
+      references: (groupId) => {
+        const uses = (source: { orchestratorGroupId?: string; assignmentGroups?: string[] }) =>
+          source.orchestratorGroupId === groupId ||
+          (source.assignmentGroups ?? []).includes(groupId);
+        return [
+          ...registry
+            .list()
+            .filter((bot) => bot.modelPlan !== undefined && uses(bot.modelPlan))
+            .map((bot) => `Bot ${bot.displayName}`),
+          ...modelPresets
+            .list()
+            .filter(uses)
+            .map((preset) => `Model Preset ${preset.name}`),
+        ];
+      },
     });
   } catch (error) {
     operationalDatabase.close();

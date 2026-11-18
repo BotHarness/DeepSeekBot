@@ -67,6 +67,7 @@ import type { TelemetryEventName } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
 import {
   isPersonaBotModelPlan,
+  presetGroups,
   type AssignmentModelOption,
   type ModelPreset,
   type ModelRoute,
@@ -1150,6 +1151,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
               })),
             }),
         ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+        ...presetGroups(preset),
         appliedAt: now().toISOString(),
       };
       record.modelPlan = plan;
