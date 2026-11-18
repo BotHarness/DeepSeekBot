@@ -233,4 +233,30 @@ describe('native Model Plans and Presets', () => {
     await expect(a.refresh()).rejects.toThrow();
     expect(a.peek()?.plan).toEqual(plan);
   });
+
+  it('reads favorites with the catalog and stars a model for every cached scope', async () => {
+    const { fake, client } = setup();
+    const starred = [{ kind: 'model', ...flash }];
+    fake.methods.set('modelCatalog', () => ({ models, default: flash, favorites: starred }));
+    fake.methods.set('modelFavoriteSet', (args) => ({
+      favorites: (args as { favorite: boolean }).favorite
+        ? [...starred, { kind: 'model', ...pro }]
+        : [],
+    }));
+    const bot = modelSettingsResource(client, { kind: 'bot', slug: 'qa' });
+    const global = modelSettingsResource(client, { kind: 'global' });
+    expect((await bot.refresh()).favorites).toEqual(starred);
+    await global.refresh();
+    const next = await global.favorite({ kind: 'model', ...pro }, true);
+    expect(fake.calls.at(-1)).toMatchObject({
+      method: 'modelFavoriteSet',
+      args: { choice: { kind: 'model', ...pro }, favorite: true },
+    });
+    expect(next).toEqual([...starred, { kind: 'model', ...pro }]);
+    expect(bot.peek()?.favorites).toEqual(next);
+    expect(global.peek()?.favorites).toEqual(next);
+    expect(await global.favorite({ kind: 'model', ...pro }, false)).toEqual([]);
+    fake.methods.set('modelFavoriteSet', () => ({}));
+    await expect(global.favorite({ kind: 'model', ...pro }, true)).rejects.toThrow();
+  });
 });

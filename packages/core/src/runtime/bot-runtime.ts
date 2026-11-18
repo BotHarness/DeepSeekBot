@@ -301,6 +301,7 @@ export interface ChannelAssignmentSummary {
   latestReport?: AssignmentReport;
   modelRoute?: ModelRoute;
   subagentCount?: number;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -1673,7 +1674,13 @@ const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 const HUMAN_SESSION_STOP_NOTICE =
-  'The Human stopped this Assignment; it is paused with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
+  'The Human stopped this Assignment; it is now a Stopped Session with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
+
+const HUMAN_TURN_STOP_NOTICE =
+  'Stopped by the Human together with your turn; it is now a Stopped Session with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
+
+const ORCHESTRATOR_STOP_NOTICE =
+  'Stopped by the Orchestrator; it is now a Stopped Session with its history kept. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
 
 interface PendingAutoContinue {
   timer: NodeJS.Timeout;
@@ -5843,7 +5850,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   a.continuity_key, a.open_ask_source_event_id, a.open_ask_at,
                   a.grant_id, a.workspace_id, a.primary_cwd, a.permission_mode,
                   a.approval_policy, a.preset_revision, a.created_at, a.updated_at,
-                  a.model_route_json
+                  a.model_route_json, a.archived_at
              FROM assignments a
              JOIN source_events s ON s.source_event_id = a.source_event_id
             WHERE s.channel_id = ?
@@ -5862,6 +5869,7 @@ class BotRuntimeImplementation implements BotRuntime {
         activity: assignment.activity,
         ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
         ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),
+        ...(assignment.archivedAt === undefined ? {} : { archivedAt: assignment.archivedAt }),
         createdAt: assignment.createdAt,
         updatedAt: assignment.updatedAt,
       };
@@ -10735,20 +10743,8 @@ class BotRuntimeImplementation implements BotRuntime {
         message: `Assignment Session ${input.sessionId} is archived (resolved); nothing was delivered. Create a new Assignment for new work, or call unarchive_assignment first to continue this one.`,
       };
     }
-    if (row.stop_state === 'stopped') {
-      this.#database.transaction(
-        (database) => {
-          database
-            .prepare(
-              `UPDATE assignments SET stop_state = 'running', activity = 'idle', updated_at = ?
-                WHERE bot_slug = ? AND session_id = ? AND stop_state = 'stopped'`,
-            )
-            .run(this.#now().toISOString(), bot.slug, input.sessionId);
-        },
-        ['assignments'],
-      );
-      row = this.#assignmentRow(bot.slug, input.sessionId)!;
-    }
+    const stopped = row.stop_state === 'stopped' ? row : undefined;
+    if (stopped !== undefined) row = { ...row, stop_state: 'running', activity: 'idle' };
     if (row.stop_state !== 'running') {
       throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
     }
@@ -10792,18 +10788,6 @@ class BotRuntimeImplementation implements BotRuntime {
       modelRoute = selectAssignmentRoute(plan, input.model);
     }
     if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
-    const waking = row.activity === 'idle' || recovering;
-    if (waking) {
-      const refusal = this.#assignmentCapacityRefusal('awakened');
-      if (refusal !== undefined) {
-        return {
-          ...refusal,
-          assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
-          delivery: 'capacity',
-        };
-      }
-      this.#setActivity(input.sessionId, 'working');
-    }
     const interrupted = this.#interruptedTools.get(input.sessionId);
     const initiatingHuman = this.#database.read((db) => {
       const source = db
@@ -10856,14 +10840,30 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#recordUnsuccessfulAssignment(bot.slug, input.sessionId, execution, 'cancelled'),
       failedTurn: (execution) => this.#assignmentFailed(bot.slug, input.sessionId, execution),
     };
+    const waking = row.activity === 'idle' || recovering;
+    if (waking) {
+      const refusal = this.#assignmentCapacityRefusal('awakened');
+      if (refusal !== undefined) {
+        return {
+          ...refusal,
+          assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
+          delivery: 'capacity',
+        };
+      }
+      if (stopped !== undefined)
+        this.#setStopState(bot.slug, input.sessionId, 'stopped', 'running', 'working');
+      else this.#setActivity(input.sessionId, 'working');
+    }
     let delivery: AssignmentRequestDelivery;
     try {
       delivery = this.#agents.requestAssignment(run);
       if (interrupted !== undefined) this.#interruptedTools.delete(input.sessionId);
     } catch (error) {
-      if (error instanceof AssignmentInboxAcceptanceUncertainError)
-        this.#setActivity(input.sessionId, 'error');
+      const uncertain = error instanceof AssignmentInboxAcceptanceUncertainError;
+      if (uncertain) this.#setActivity(input.sessionId, 'error');
       else if (waking) this.#setActivity(input.sessionId, settledActivity);
+      if (stopped !== undefined && !uncertain)
+        this.#setStopState(bot.slug, input.sessionId, 'running', 'stopped', stopped.activity);
       this.#publishAssignmentRefusal(row, error);
       throw error;
     }
@@ -11001,8 +11001,8 @@ class BotRuntimeImplementation implements BotRuntime {
             cause === 'human-session-stop'
               ? HUMAN_SESSION_STOP_NOTICE
               : cause === 'human-stop'
-                ? 'Stopped by the Human together with your turn. This Session will not accept further requests or reports.'
-                : 'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
+                ? HUMAN_TURN_STOP_NOTICE
+                : ORCHESTRATOR_STOP_NOTICE,
             at,
             at,
             JSON.stringify({
@@ -12301,6 +12301,27 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       ['assignments'],
     );
+  }
+
+  #setStopState(
+    botSlug: string,
+    sessionId: string,
+    from: 'running' | 'stopped',
+    to: 'running' | 'stopped',
+    activity: AssignmentRow['activity'] = 'idle',
+  ): void {
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `UPDATE assignments SET stop_state = ?, activity = ?, updated_at = ?
+              WHERE bot_slug = ? AND session_id = ? AND stop_state = ?`,
+          )
+          .run(to, activity, this.#now().toISOString(), botSlug, sessionId, from);
+      },
+      ['assignments'],
+    );
+    this.#approvalCapacity.changed();
   }
 
   #setActivity(sessionId: string, activity: AssignmentActivity): void {

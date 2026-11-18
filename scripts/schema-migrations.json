@@ -658,5 +658,9 @@
   {
     "id": "human-profile-setup",
     "sha256": "b0262ea93b28bc5b54d04c57a7782f2f4f8bc39c025bbf63c02180932cd06f42"
+  },
+  {
+    "id": "human-model-favorites",
+    "sha256": "d96b95f4f809df572d7a0c0ff5b45e9a111f8bb9e0fbffd5afe3edf7546b79ec"
   }
 ]

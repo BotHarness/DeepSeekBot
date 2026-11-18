@@ -106,6 +106,27 @@ describe('Model commands', () => {
     expect(live.calls).toEqual([{ method: 'modelCatalog', args: {} }]);
   });
 
+  it('stars and unstars a model or a Model Route Group for the signed-in Human', async () => {
+    const live = await host(() => ({ ok: true, value: { favorites: [] } }));
+    expect((await invoke(['model-favorite-add', 'deepseek/v4-pro'], live.url)).json).toEqual({
+      favorites: [],
+    });
+    await invoke(['model-favorite-remove', 'group:daily'], live.url);
+    expect((await invoke(['model-favorite-add', 'v4-pro'], live.url)).json.error.code).toBe(
+      'usage',
+    );
+    expect(live.calls).toEqual([
+      {
+        method: 'modelFavoriteSet',
+        args: { choice: { kind: 'model', provider: 'deepseek', model: 'v4-pro' }, favorite: true },
+      },
+      {
+        method: 'modelFavoriteSet',
+        args: { choice: { kind: 'group', id: 'daily' }, favorite: false },
+      },
+    ]);
+  });
+
   it('sets a whole plan or its Assignment part from stdin against the current revision', async () => {
     const live = await host((method) =>
       method === 'modelPlan'

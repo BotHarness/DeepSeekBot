@@ -5,9 +5,10 @@ import type { ApprovalReviewerModelView, ModelCatalogEntryView, ModelRouteView }
 import { errorMessage } from './bridge.js';
 import { Callout } from './ds/callout.js';
 import { Note } from './ds/note.js';
-import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { catalogMenuItems, type ModelMenuItem } from './model-menu.js';
+import { ModelTrigger } from './model-trigger.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const BOT = 'bot';
@@ -44,8 +45,13 @@ export function ApprovalReviewerModelSetting({
   const set = actions.setApprovalReviewerModel;
   const current = view?.model ?? null;
   const known = current !== null && models.some((model) => routeKey(model) === routeKey(current));
-  const options = [
-    { value: BOT, label: t('autoApproval.reviewerModel.followBot') },
+  const items: ModelMenuItem[] = [
+    {
+      value: BOT,
+      label: t('autoApproval.reviewerModel.followBot'),
+      brand: undefined,
+      name: t('autoApproval.reviewerModel.followBot'),
+    },
     ...(current !== null && !known
       ? [
           {
@@ -53,15 +59,12 @@ export function ApprovalReviewerModelSetting({
             label: t('autoApproval.reviewerModel.missing', {
               model: `${current.provider} / ${current.model}`,
             }),
+            name: `${current.provider} / ${current.model}`,
+            brand: undefined,
           },
         ]
       : []),
-    ...models.map((model) => ({
-      value: routeKey(model),
-      label:
-        `${model.providerName} / ${model.modelName}` +
-        (model.credential ? ' · ' + t('onboarding.needsKey') : ''),
-    })),
+    ...catalogMenuItems(models, t),
   ];
   const choose = (value: string): void => {
     if (busy) return;
@@ -81,12 +84,14 @@ export function ApprovalReviewerModelSetting({
         title={t('autoApproval.reviewerModel.title')}
         description={t('autoApproval.reviewerModel.description')}
         control={
-          <Select
+          <ModelTrigger
             label={t('autoApproval.reviewerModel.title')}
+            items={items}
             value={current === null ? BOT : routeKey(current)}
+            placeholder={t('autoApproval.reviewerModel.followBot')}
             disabled={busy || view === undefined}
-            options={options}
-            onChange={choose}
+            onSelect={choose}
+            t={t}
           />
         }
       />

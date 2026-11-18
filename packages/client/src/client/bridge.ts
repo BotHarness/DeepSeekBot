@@ -26,6 +26,11 @@ import {
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
+import {
+  modelChoice,
+  parseModelCatalog,
+  type ModelChoice,
+} from '@botharness/host-client/model-catalog';
 import { clientLog } from './diagnostic-log.js';
 import {
   genuiReplySchema,
@@ -243,6 +248,22 @@ export interface ModelCatalogEntryView {
 export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
   default?: ModelRouteView;
+  favorites?: ModelChoice[];
+}
+
+export type { ModelChoice };
+
+export async function setModelFavorite(
+  call: BridgeCall,
+  choice: ModelChoice,
+  favorite: boolean,
+): Promise<ModelChoice[]> {
+  const value = asRecord(await unwrap(call, 'modelFavoriteSet', { choice, favorite }));
+  if (!Array.isArray(value?.['favorites'])) throw new Error('Invalid model favorites');
+  return value['favorites'].flatMap((entry) => {
+    const parsed = modelChoice(entry);
+    return parsed === undefined ? [] : [parsed];
+  });
 }
 
 export interface ModelPresetView {
@@ -275,16 +296,13 @@ export async function loadActivitySnapshot(
 }
 
 export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogView> {
-  const value = asRecord(await unwrap(call, 'modelCatalog', {}));
-  if (!Array.isArray(value?.['models'])) throw new Error('Invalid model catalog');
-  const fallback = asRecord(value['default']);
+  const catalog = parseModelCatalog(await unwrap(call, 'modelCatalog', {}));
   return {
-    models: value['models'] as ModelCatalogEntryView[],
-    ...(typeof fallback?.['provider'] === 'string' && typeof fallback['model'] === 'string'
-      ? {
-          default: { provider: fallback['provider'], model: fallback['model'] },
-        }
-      : {}),
+    models: catalog.models.map((entry) => ({ ...entry, efforts: entry.efforts ?? [] })),
+    ...(catalog.default === undefined
+      ? {}
+      : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
+    ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
   };
 }
 

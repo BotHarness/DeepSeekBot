@@ -1,5 +1,5 @@
 ---
-Status: Accepted — the Human confirmed the design on 2026-11-18; the step-0 seam spike chooses option A or B
+Status: Accepted — the Human confirmed the design on 2026-11-18; the step-0 spike chose option A (see the amendment)
 Date: 2026-11-18
 ---
 
@@ -42,3 +42,34 @@ Humans asked to run their Bots on the Claude or ChatGPT subscription they alread
 - ADR-0017, ADR-0048, ADR-0067, ADR-0207, ADR-0342.
 - [Anthropic: Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)
 - [OpenAI: Sign in with ChatGPT, local open-source flow](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+
+## Amendment 2026-11-18: the seam is option A ([#4485](https://github.com/BotHarness/DeepSeekBot/issues/4485))
+
+The step-0 spike chose **A**: an engine Session is an ordinary DSH Session that runs no internal Agent, and the Host writes its events.
+
+- **Why A works.** The Host creates the Session through the public DSH Session Store (`prepare`, `enter`, `announce`) with a write handle from DSH Session Persistence, so its events persist like any other. It appends the existing event types: `turn/start`, `step/start`, `user/message`, `assistant/message` (with an empty provider stream), `tool/call`, `tool/result`, `step/end` and `turn/end`. The spike prototype showed that DSH accepts this log and that the Session detail transcript projects it without change: input, reasoning, the engine's private final text, engine tools such as `Bash` and Bot-layer tools such as `bot_send_message`, and the turn end. After a crash the Host opens the stored log with a write handle, restores the Session, appends `interruptedTurnClosers` and continues with the next turn; the interrupted tool shows as cancelled.
+- **What A costs.** The engine path does not go through `DshAgentHost`, so it does not inherit Agent-loop features: `agent/pre-step` admission, compaction, request retry and `approval/*` events from DSH approval. The Engine Session runner calls the same admission checks itself before a turn, writes `approval/asked` and `approval/decided` events for engine approvals, and leaves compaction to the engine.
+- **Why not B.** A plugin-owned Session with its own log would need a second persistence format, a projection into every existing view (Session detail, Activity, usage, tool details, Session Query) and its own recovery rules. A reuses all of them.
+- **Not reusing the model-free turn.** The Host already runs a turn without a model for Tob CLI commands, by owning `agent/pre-step` of a live DSH Agent. That path keeps a DSH Agent and its loop and rejects the step, so it cannot carry an engine's many model steps and native tools; it stays specific to the Tob CLI.
+
+### Engine Session interface (for #4486)
+
+One interface over every engine, owned by the Host:
+
+- `start(session, persona, cwd, gateway)` or `resume(session, nativeSessionId)` opens the engine process for one Orchestrator or Assignment Session.
+- `send(input)` delivers one Inbox batch or Assignment Request and resolves when the engine's turn ends.
+- An ordered event stream of normalized items (input, reasoning, text, tool call, tool result, approval request, rate-limit report, turn end) that the runner writes into the DSH Session.
+- `answer(approvalId, decision)` returns a `ChannelToolApproval` decision to the engine.
+- `account()` reports the engine's login (see below); `close()` ends the process when idle.
+
+A fake engine that replays recorded traffic implements the same interface for CI.
+
+### The login must be a subscription, not only the environment
+
+Removing `ANTHROPIC_API_KEY` is not enough. The probe on the Human's Mac ran the unmodified `claude` through the Agent SDK with provider key variables removed, no setting sources and no MCP servers. With the CLI signed in to a Console account, its own stored login was a Console-managed API key (`apiKeySource: "/login managed key"`) and the turn billed API credits. After the Human signed in with their Claude subscription, the same probe reported `apiKeySource: "none"`, a subscription type in the account info and a seven-day rate-limit event, and the turn completed on the subscription with no API charge (the SDK's `total_cost_usd` is a notional estimate).
+
+So before an engine Session starts, the Host reads the engine's account report (Claude: the SDK's account info and the `init` key source) and refuses to run it as a Subscription Engine unless the login is a subscription: a subscription type is present and the key source is `none`. The Host checks for presence only, since the reported plan name differs between surfaces. Codex follows the same rule with its own account report. The refusal tells the Human to sign in with the subscription account.
+
+Claude reports subscription limits through rate-limit events, including whether paid overage is enabled and in use. A report that the run is using paid overage counts as metered billing and stops the Bot like an exhausted limit, unless the Human chose a fallback beforehand.
+
+Claude Code does not ask `canUseTool` for commands it treats as read-only (the probe's `ls` ran without a request), so approval cards cover only what the engine itself asks about; #4487 tests the deny path with a writing command.

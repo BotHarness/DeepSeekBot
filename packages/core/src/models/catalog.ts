@@ -19,6 +19,10 @@ export interface ModelCatalog {
   defaultRoute?(): ModelRoute | undefined;
 }
 
+function displayName(name: string | undefined, id: string): string {
+  return typeof name === 'string' && name.trim() !== '' ? name : id;
+}
+
 export function createModelCatalog(
   llm: Pick<LlmRuntime, 'listProviders' | 'listModels' | 'resolveModelInfo' | 'resolveCallConfig'>,
   options: {
@@ -44,9 +48,9 @@ export function createModelCatalog(
               const exact = await llm.resolveModelInfo(provider.id, model.id);
               return {
                 provider: provider.id,
-                providerName: provider.name,
+                providerName: displayName(provider.name, provider.id),
                 model: model.id,
-                modelName: model.name,
+                modelName: displayName(model.name, model.id),
                 efforts: (exact.reasoning?.efforts ?? []).map((effort) => ({
                   id: effort.id,
                   name: effort.name,

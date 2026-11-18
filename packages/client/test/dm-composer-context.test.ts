@@ -119,9 +119,20 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPinOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
   IconChevronRightOutlineRegular: () => null,
+  IconChevronDownOutlineRegular: () => null,
+  useDismissOnOutsidePointer: () => undefined,
   Modal: ({ children, title }: { children: ReactNode; title: string }) =>
     createElement('div', { role: 'dialog', 'aria-label': title }, children),
 }));
+
+async function openModelSettings(chip: HTMLButtonElement): Promise<void> {
+  await act(async () => chip.click());
+  expect(document.body.querySelector('[data-filter-picker]')).not.toBeNull();
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>('[data-picker-footer]')!.click(),
+  );
+  expect(document.body.querySelector('[data-filter-picker]')).toBeNull();
+}
 
 const ada: BotSummary = {
   slug: 'composer-ada',
@@ -192,8 +203,8 @@ it('keeps model, workspace and usage actions available across mobile and desktop
     await act(async () =>
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
     );
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
+    await openModelSettings(
+      host.querySelector<HTMLButtonElement>('[data-composer-context] button')!,
     );
     expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(host.querySelector('[role="dialog"]')!.textContent).toContain('model:footer-mobile');
@@ -270,7 +281,7 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
     expect(model().getAttribute('title')).toBe(alternateName);
     expect(model().getAttribute('aria-label')).not.toContain('继承全局');
     expect(model().getAttribute('aria-label')).not.toContain('DeepSeek Provider');
-    await act(async () => model().click());
+    await openModelSettings(model());
     expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     await act(async () =>
       rememberModelPlan(
