@@ -282,7 +282,7 @@ Vain 的决定：**共享 Bot 要提供，放在共享空间里**。重点是：
 
 - 白名单按 Session 类型和访问类型计算，与 `grant-native-tools.ts` 的 `currentRoots(session, kind)` 保持一致：
   - Orchestrator：可读写自己的 Memory；可读这个 Bot 的有效 Grant；其中 `orchestratorWrite` 为 true 的 Grant 才可写。
-  - Assignment：只包含这次 Assignment 的 primary Grant（`permission.grantId`，并要求 cwd 匹配）。只有在 `orchestratorWrite` 为 true 时可写，否则只读；不包含这个 Bot 的其他 Grant。
+  - Assignment：只包含这次 Assignment 的 primary Grant（`permission.grantId`，并要求 cwd 匹配）。只有在 `orchestratorWrite` 为 true 时可写，否则只读（原生写入被拒为只读，`workspace-write` 的 Assignment Shell 按 DSH `read-only` 沙箱运行，#4580）；不包含这个 Bot 的其他 Grant。
   - 两种 Session 都有一个私有 tmp。
 - 只读（所有 Session）：系统运行时目录（`/usr`、`/bin`、`/lib*`、`/etc` 中除敏感项以外的部分；macOS 上是 `/System`、`/usr`、`/Library` 的只读部分，以及 Homebrew 前缀）；托管 git（`$DSH_HOME/botharness/git`，只读）。
 - 隐藏：`$DSH_HOME` 的其余部分、所有其他 Memory、其他成员的根目录、服务账号的 `$HOME`（Linux 用 tmpfs 覆盖；Seatbelt 用 `deny file-read*` subpath）。

@@ -126,6 +126,28 @@ export function sessionRoots(
   }
 }
 
+const OUTSIDE_WORKSPACE = "Path is outside this Session's authorized workspace";
+const READ_ONLY_WORKSPACE =
+  'This Workspace Grant is read-only: the Human has not allowed this Bot to write in this folder. Do not write it another way; ask the Human to allow writing in this folder';
+
+function insideAnyRoot(roots: readonly string[], target: string): boolean {
+  return roots.some((root) => {
+    const canonical = canonicalRoot(root);
+    return canonical !== undefined && within(canonical, target);
+  });
+}
+
+function outsideDenial(
+  core: GrantCore,
+  session: Session,
+  kind: AccessKind,
+  target: string,
+): string {
+  return kind === 'write' && insideAnyRoot(currentRoots(core, session, 'read'), target)
+    ? READ_ONLY_WORKSPACE
+    : OUTSIDE_WORKSPACE;
+}
+
 function nativePath(name: string, args: unknown): { path: string; kind: AccessKind } | undefined {
   if (typeof args !== 'object' || args === null) return undefined;
   const input = args as Record<string, unknown>;
@@ -257,14 +279,8 @@ function nativeFileToolDenialImpl(
     if (originalAttachmentRoot(core, session, target, request.kind) !== undefined) continue;
     const spaceDenial = validateSpacePath(core, session, path);
     if (spaceDenial) return spaceDenial;
-    const roots = currentRoots(core, session, request.kind);
-    if (
-      !roots.some((root) => {
-        const canonical = canonicalRoot(root);
-        return canonical !== undefined && within(canonical, target);
-      })
-    )
-      return "Path is outside this Session's authorized workspace";
+    if (!insideAnyRoot(currentRoots(core, session, request.kind), target))
+      return outsideDenial(core, session, request.kind, target);
   }
   return undefined;
 }
@@ -338,7 +354,10 @@ export function nativeExecutionRoot(
   const input = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {};
   const shell = NATIVE_SHELL_TOOL_NAMES.has(name);
   const request = shell
-    ? { path: typeof input.workdir === 'string' ? input.workdir : '.', kind: 'write' as const }
+    ? {
+        path: typeof input.workdir === 'string' ? input.workdir : '.',
+        kind: 'write' as const,
+      }
     : nativePaths(name, args)[0];
   if (request === undefined || session.header.cwd === undefined)
     throw new Error('BotHarness requires an authorized execution path');
@@ -371,8 +390,9 @@ export function nativeExecutionRoot(
       )
         return root;
     }
+    throw new Error(outsideDenial(core, session, request.kind, target));
   }
-  throw new Error("Path is outside this Session's authorized workspace");
+  throw new Error(OUTSIDE_WORKSPACE);
 }
 
 export function authorizedPathRoot(roots: readonly string[], path: string): string | undefined {

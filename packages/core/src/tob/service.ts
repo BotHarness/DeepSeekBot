@@ -96,10 +96,12 @@ export function createTobService(options: {
         () => {
           const identity = database.read((db) =>
             db
-              .prepare(`SELECT 1 FROM tob_identity t
+              .prepare(
+                `SELECT 1 FROM tob_identity t
           JOIN humans h ON h.human_id = t.human_id
           JOIN team_settings s ON s.owner_human_id = t.human_id
-          WHERE t.human_id = ? AND t.bot_slug = ? AND h.status = 'active'`)
+          WHERE t.human_id = ? AND t.bot_slug = ? AND h.status = 'active'`,
+              )
               .get(human.humanId, slug),
           );
           if (!identity) throw new TobError('tob-identity-unavailable');
@@ -113,8 +115,14 @@ export function createTobService(options: {
       const current = registry.get(slug);
       if (!current || current.ownerHumanId !== human.humanId || human.humanId !== ownerId())
         throw new TobError('tob-identity-unavailable');
-      if (!options.grants.list(slug).some((grant) => grant.workspaceId === workspace.id))
-        await options.grants.create(slug, workspace.id);
+      let grant = options.grants.list(slug).find((entry) => entry.workspaceId === workspace.id);
+      grant ??= await options.grants.create(slug, workspace.id);
+      if (
+        grant.revokedAt === undefined &&
+        grant.orchestratorWrite !== true &&
+        (grant.writeRevision ?? 0) === 0
+      )
+        options.grants.setOrchestratorWrite(slug, grant.id, true);
     }
     const channel = channels.getOrCreateDm(human, slug, bot.displayName);
     if (!channel) throw new TobError('tob-channel-unavailable');
@@ -135,7 +143,11 @@ export function createTobService(options: {
       8;
     if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 32)
       throw new TobError('invalid-setting');
-    return { scope: 'global', value: Number(value), revision: descriptor.revision };
+    return {
+      scope: 'global',
+      value: Number(value),
+      revision: descriptor.revision,
+    };
   };
   return {
     async ensure(human = humanContext(ownerId())) {

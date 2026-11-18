@@ -49,7 +49,11 @@ function fixture(linkedParent = false) {
     workspaceTitle: 'project',
     createdAt: '2026-01-01T00:00:00Z',
   };
-  const newGrant = { ...oldGrant, id: 'new-grant', createdAt: '2026-01-02T00:00:00Z' };
+  const newGrant = {
+    ...oldGrant,
+    id: 'new-grant',
+    createdAt: '2026-01-02T00:00:00Z',
+  };
   const requireActive = vi.fn((_botSlug: string, grantId: string) => {
     if (grantId === oldGrant.id && oldActive) return oldGrant;
     if (grantId === newGrant.id && newActive) return newGrant;
@@ -73,7 +77,10 @@ function fixture(linkedParent = false) {
         botSlug === 'bob'
           ? []
           : [
-              { ...oldGrant, ...(oldActive ? {} : { revokedAt: '2026-01-03T00:00:00Z' }) },
+              {
+                ...oldGrant,
+                ...(oldActive ? {} : { revokedAt: '2026-01-03T00:00:00Z' }),
+              },
               ...(newActive ? [newGrant] : []),
             ],
       requireActive,
@@ -102,7 +109,10 @@ function fixture(linkedParent = false) {
     project,
     outside,
     orchestrator,
-    nonGrantedOrchestrator: { id: 'bob-orch', header: { cwd: memory } } as never,
+    nonGrantedOrchestrator: {
+      id: 'bob-orch',
+      header: { cwd: memory },
+    } as never,
     oldAssignment,
     newAssignment,
     gate,
@@ -123,7 +133,11 @@ describe('Grant policy for native DSH file tools', () => {
     writeFileSync(path, 'Project review instructions');
     const snapshot = {
       name: 'review',
-      owner: { kind: 'workspace', workspaceId: 'project', name: 'Project' } as const,
+      owner: {
+        kind: 'workspace',
+        workspaceId: 'project',
+        name: 'Project',
+      } as const,
       path,
       content: readFileSync(path, 'utf8'),
       start: 0,
@@ -139,17 +153,26 @@ describe('Grant policy for native DSH file tools', () => {
     const f = fixture();
     expect(f.gate(f.orchestrator, 'read', { file_path: 'memory.txt' })).toBeUndefined();
     expect(
-      f.gate(f.orchestrator, 'read', { file_path: join(f.project, 'project.txt') }),
+      f.gate(f.orchestrator, 'read', {
+        file_path: join(f.project, 'project.txt'),
+      }),
     ).toBeUndefined();
-    expect(f.gate(f.orchestrator, 'read', { file_path: join(f.outside, 'secret.txt') })).toMatch(
-      /outside/,
-    );
     expect(
-      f.gate(f.orchestrator, 'write', { file_path: 'new.txt', content: 'remembered' }),
+      f.gate(f.orchestrator, 'read', {
+        file_path: join(f.outside, 'secret.txt'),
+      }),
+    ).toMatch(/outside/);
+    expect(
+      f.gate(f.orchestrator, 'write', {
+        file_path: 'new.txt',
+        content: 'remembered',
+      }),
     ).toBeUndefined();
-    expect(f.gate(f.orchestrator, 'edit', { file_path: join(f.project, 'project.txt') })).toMatch(
-      /outside/,
-    );
+    expect(
+      f.gate(f.orchestrator, 'edit', {
+        file_path: join(f.project, 'project.txt'),
+      }),
+    ).toMatch(/read-only/);
     expect(readFileSync(join(f.project, 'project.txt'), 'utf8')).toBe('project');
   });
 
@@ -160,31 +183,44 @@ describe('Grant policy for native DSH file tools', () => {
     expect(f.gate(f.oldAssignment, 'glob', { pattern: '*', path: '.' })).toBeUndefined();
     expect(f.gate(f.oldAssignment, 'grep', { pattern: 'x', path: '.' })).toBeUndefined();
     expect(
-      f.gate(f.oldAssignment, 'str_replace_editor', { command: 'view', path: 'project.txt' }),
+      f.gate(f.oldAssignment, 'str_replace_editor', {
+        command: 'view',
+        path: 'project.txt',
+      }),
     ).toBeUndefined();
     expect(
-      f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
-    ).toMatch(/outside/);
+      f.gate(f.oldAssignment, 'str_replace_editor', {
+        command: 'create',
+        path: 'new.txt',
+      }),
+    ).toMatch(/read-only/);
     f.allowWrite(true);
     expect(
-      f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
+      f.gate(f.oldAssignment, 'str_replace_editor', {
+        command: 'create',
+        path: 'new.txt',
+      }),
     ).toBeUndefined();
     for (const path of ['../outside/secret.txt', 'escape/secret.txt', 'dangling']) {
       expect(f.gate(f.oldAssignment, 'read', { file_path: path })).toMatch(/outside|resolved/);
     }
     expect(f.gate(f.oldAssignment, 'write', { file_path: 'escape/new.txt' })).toMatch(/outside/);
-    expect(f.gate(f.oldAssignment, 'write', { file_path: join(f.memory, 'memory.txt') })).toMatch(
-      /outside/,
-    );
+    expect(
+      f.gate(f.oldAssignment, 'write', {
+        file_path: join(f.memory, 'memory.txt'),
+      }),
+    ).toMatch(/outside/);
     expect(f.gate(f.oldAssignment, 'read', {})).toMatch(/valid native file path/);
   });
 
   it('revocation blocks future native calls and a new Grant cannot revive an old Assignment', () => {
     const f = fixture();
     f.revoke();
-    expect(f.gate(f.orchestrator, 'read', { file_path: join(f.project, 'project.txt') })).toMatch(
-      /outside/,
-    );
+    expect(
+      f.gate(f.orchestrator, 'read', {
+        file_path: join(f.project, 'project.txt'),
+      }),
+    ).toMatch(/outside/);
     expect(f.gate(f.oldAssignment, 'read', { file_path: 'project.txt' })).toMatch(/outside/);
     expect(f.gate(f.oldAssignment, 'write', { file_path: 'project.txt' })).toMatch(/outside/);
     expect(f.gate(f.orchestrator, 'read', { file_path: 'memory.txt' })).toBeUndefined();
@@ -192,7 +228,9 @@ describe('Grant policy for native DSH file tools', () => {
     expect(f.gate(f.oldAssignment, 'read', { file_path: 'project.txt' })).toMatch(/outside/);
     expect(f.gate(f.newAssignment, 'read', { file_path: 'project.txt' })).toBeUndefined();
     expect(
-      f.gate(f.orchestrator, 'read', { file_path: join(f.project, 'project.txt') }),
+      f.gate(f.orchestrator, 'read', {
+        file_path: join(f.project, 'project.txt'),
+      }),
     ).toBeUndefined();
   });
 });
@@ -203,23 +241,32 @@ describe('Native write into missing parent directories (#3289)', () => {
     for (const path of ['probe/missing/child/file.md', '探针/不存在的子目录/深层探针.md']) {
       expect(f.gate(f.orchestrator, 'write', { file_path: path, content: 'x' })).toBeUndefined();
       expect(f.gate(f.orchestrator, 'edit', { file_path: path })).toBeUndefined();
-      expect(nativeExecutionRoot(f.core, f.orchestrator, 'write', { file_path: path })).toBe(
-        f.memory,
-      );
+      expect(
+        nativeExecutionRoot(f.core, f.orchestrator, 'write', {
+          file_path: path,
+        }),
+      ).toBe(f.memory);
     }
     expect(
-      f.gate(f.orchestrator, 'write', { file_path: join(f.memory, 'a', 'b', 'c.md') }),
+      f.gate(f.orchestrator, 'write', {
+        file_path: join(f.memory, 'a', 'b', 'c.md'),
+      }),
     ).toBeUndefined();
     f.allowWrite(true);
     expect(
-      f.gate(f.oldAssignment, 'write', { file_path: 'docs/new/notes.md', content: 'x' }),
+      f.gate(f.oldAssignment, 'write', {
+        file_path: 'docs/new/notes.md',
+        content: 'x',
+      }),
     ).toBeUndefined();
     expect(f.gate(f.oldAssignment, 'write', { file_path: 'escape/missing/new.txt' })).toMatch(
       /outside/,
     );
-    expect(f.gate(f.oldAssignment, 'write', { file_path: '../outside/missing/new.txt' })).toMatch(
-      /outside/,
-    );
+    expect(
+      f.gate(f.oldAssignment, 'write', {
+        file_path: '../outside/missing/new.txt',
+      }),
+    ).toMatch(/outside/);
     expect(f.gate(f.oldAssignment, 'write', { file_path: 'dangling/child/new.txt' })).toMatch(
       /outside|resolved|directory/,
     );
@@ -234,42 +281,62 @@ describe('Orchestrator execution root selection', () => {
     const f = fixture();
     expect(nativeExecutionRoot(f.core, f.orchestrator, 'bash', { command: 'pwd' })).toBe(f.memory);
     expect(() =>
-      nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project }),
-    ).toThrow(/outside/);
+      nativeExecutionRoot(f.core, f.orchestrator, 'bash', {
+        workdir: f.project,
+      }),
+    ).toThrow(/read-only/);
     f.allowWrite(true);
     expect(
-      f.gate(f.orchestrator, 'write', { file_path: join(f.project, 'new.txt') }),
+      f.gate(f.orchestrator, 'write', {
+        file_path: join(f.project, 'new.txt'),
+      }),
     ).toBeUndefined();
     expect(
       nativeExecutionRoot(f.core, f.orchestrator, 'write', {
         file_path: join(f.project, 'new.txt'),
       }),
     ).toBe(f.project);
-    expect(nativeExecutionRoot(f.core, f.orchestrator, 'write', { file_path: 'new.txt' })).toBe(
-      f.memory,
-    );
-    expect(nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project })).toBe(
-      f.project,
-    );
-    expect(nativeExecutionRoot(f.core, f.orchestrator, 'pwsh', { workdir: f.project })).toBe(
-      f.project,
-    );
+    expect(
+      nativeExecutionRoot(f.core, f.orchestrator, 'write', {
+        file_path: 'new.txt',
+      }),
+    ).toBe(f.memory);
+    expect(
+      nativeExecutionRoot(f.core, f.orchestrator, 'bash', {
+        workdir: f.project,
+      }),
+    ).toBe(f.project);
+    expect(
+      nativeExecutionRoot(f.core, f.orchestrator, 'pwsh', {
+        workdir: f.project,
+      }),
+    ).toBe(f.project);
     expect(() =>
-      nativeExecutionRoot(f.core, f.orchestrator, 'pwsh', { workdir: dirname(f.project) }),
+      nativeExecutionRoot(f.core, f.orchestrator, 'pwsh', {
+        workdir: dirname(f.project),
+      }),
     ).toThrow(/outside/);
     expect(() =>
-      nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: dirname(f.project) }),
+      nativeExecutionRoot(f.core, f.orchestrator, 'bash', {
+        workdir: dirname(f.project),
+      }),
     ).toThrow(/outside/);
     expect(() =>
-      nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: join(f.project, 'escape') }),
+      nativeExecutionRoot(f.core, f.orchestrator, 'bash', {
+        workdir: join(f.project, 'escape'),
+      }),
     ).toThrow(/outside/);
     f.allowWrite(false);
-    expect(f.gate(f.orchestrator, 'write', { file_path: join(f.project, 'new.txt') })).toMatch(
-      /outside/,
-    );
+    expect(
+      f.gate(f.orchestrator, 'write', {
+        file_path: join(f.project, 'new.txt'),
+      }),
+    ).toMatch(/read-only/);
     expect(() =>
-      nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project }),
-    ).toThrow(/outside/);
+      nativeExecutionRoot(f.core, f.orchestrator, 'bash', {
+        workdir: f.project,
+      }),
+    ).toThrow(/read-only/);
   });
 });
 
@@ -278,14 +345,19 @@ describe('Workspace roots under a symlinked parent (#1292)', () => {
     const f = fixture(true);
     expect(f.gate(f.orchestrator, 'read', { file_path: 'memory.txt' })).toBeUndefined();
     expect(
-      f.gate(f.orchestrator, 'write', { file_path: 'new.txt', content: 'remembered' }),
+      f.gate(f.orchestrator, 'write', {
+        file_path: 'new.txt',
+        content: 'remembered',
+      }),
     ).toBeUndefined();
     expect(f.gate(f.oldAssignment, 'read', { file_path: 'project.txt' })).toBeUndefined();
     expect(nativeExecutionRoot(f.core, f.orchestrator, 'bash', { command: 'pwd' })).toBe(f.memory);
     expect(f.gate(f.oldAssignment, 'read', { file_path: 'escape/secret.txt' })).toMatch(/outside/);
-    expect(f.gate(f.oldAssignment, 'read', { file_path: join(f.outside, 'secret.txt') })).toMatch(
-      /outside/,
-    );
+    expect(
+      f.gate(f.oldAssignment, 'read', {
+        file_path: join(f.outside, 'secret.txt'),
+      }),
+    ).toMatch(/outside/);
   });
 
   it('still refuses a root that is itself a symlink', () => {
@@ -294,7 +366,10 @@ describe('Workspace roots under a symlinked parent (#1292)', () => {
     symlinkSync(f.memory, linkedMemory);
     const core = {
       ...(f.core as object),
-      registry: { memoryDirFor: () => linkedMemory, get: () => ({ slug: 'ada' }) },
+      registry: {
+        memoryDirFor: () => linkedMemory,
+        get: () => ({ slug: 'ada' }),
+      },
     } as never;
     const session = { id: 'orch', header: { cwd: linkedMemory } } as never;
     expect(nativeFileToolDenial(core, session, 'read', { file_path: 'memory.txt' })).toMatch(
