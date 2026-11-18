@@ -11,7 +11,7 @@ export const BOT_MODE_COMMANDS = [
   {
     command: 'bot-modes',
     description:
-      "list the installed DSH modes, the global default every Bot follows and, with <slug>, that Bot's own mode",
+      "list the installed DSH modes, the global default every Bot follows and, with <bot-id>, that Bot's own mode",
   },
   {
     command: 'bot-mode-default-set',
@@ -19,7 +19,7 @@ export const BOT_MODE_COMMANDS = [
   },
   {
     command: 'bot-mode-set',
-    description: `set one Bot's own mode (<slug> <mode>), or \`${INHERIT_BOT_MODE}\` to follow the global default; applies from its next new Session`,
+    description: `set one Bot's own mode (<bot-id> <mode>), or \`${INHERIT_BOT_MODE}\` to follow the global default; applies from its next new Session`,
   },
   {
     command: 'bot-mode-template-save',
@@ -32,7 +32,7 @@ export const BOT_MODE_COMMANDS = [
   },
   {
     command: 'bot-mode-template-set',
-    description: `limit one Bot to a mode template (<slug> <template-id>), or \`${ALL_BOT_MODES}\` to allow every installed mode`,
+    description: `limit one Bot to a mode template (<bot-id> <template-id>), or \`${ALL_BOT_MODES}\` to allow every installed mode`,
   },
 ] as const;
 
@@ -56,7 +56,7 @@ export async function runBotModeCommand(
   if (options.id !== undefined && command !== 'bot-mode-template-save')
     usage(`${command} does not take --id; only bot-mode-template-save does.`);
   if (command === 'bot-modes') {
-    if (args.length > 1 || args[0] === '') usage('bot-modes takes at most one <slug>.');
+    if (args.length > 1 || args[0] === '') usage('bot-modes takes at most one <bot-id>.');
     return (await connect())('botModes', args.length === 0 ? {} : { slug: args[0] });
   }
   if (command === 'bot-mode-default-set') {
@@ -84,12 +84,14 @@ export async function runBotModeCommand(
   }
   if (command === 'bot-mode-template-set') {
     if (args.length !== 2 || !args[0] || !args[1])
-      usage(`bot-mode-template-set needs <slug> and <template-id>, or <slug> ${ALL_BOT_MODES}.`);
+      usage(
+        `bot-mode-template-set needs <bot-id> and <template-id>, or <bot-id> ${ALL_BOT_MODES}.`,
+      );
     const template = args[1] === ALL_BOT_MODES ? null : args[1];
     return (await connect())('botModeTemplateSet', { slug: args[0], template });
   }
   if (args.length !== 2 || !args[0] || !args[1])
-    usage(`bot-mode-set needs <slug> and <mode>, or <slug> ${INHERIT_BOT_MODE}.`);
+    usage(`bot-mode-set needs <bot-id> and <mode>, or <bot-id> ${INHERIT_BOT_MODE}.`);
   const mode = args[1] === INHERIT_BOT_MODE ? null : args[1];
   return (await connect())('botModeSet', { slug: args[0], mode });
 }

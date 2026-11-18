@@ -80,3 +80,4 @@ Repeat the approval routing check with `secret_http`, a synthetic missing accoun
 - Read actual native Tool results as well as the visible reply; a model-authored success marker alone is insufficient.
 - The journey is not a real Lark/Discord delivery check, and `gh --version` does not qualify GitHub API access. Source revocation and scheduled branches are separate automated regressions.
 - Preserve failed drives before retrying. Newer native preview dialogs must be dismissed before waiting for Settings. On Windows, verify that the Client bundle contains no Node built-in imports; see the dsh-dev pitfall log.
+- On 2026-11-18 (PR #4461, head 69e0387f3) `scripts/e2e-private-input-origin.mjs` stopped at its first navigation step: it waits for a rail button named `Messages · …`, which the current Client no longer renders (the rail shows `Channels`). Update that selector before relying on the journey; the regression matrix above passed on the same head.
