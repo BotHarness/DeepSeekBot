@@ -45,6 +45,8 @@ import { Chip } from '../primitives/chip';
 import { FavoriteButton } from '../primitives/favorite-button';
 import { modelEntryLabel, modelFamilyKey, restingLabel, restingNotice } from './composer-labels';
 import { GroupNotes } from './group-notes';
+import { PickerLink, RouteIcon } from './model-route-label';
+import { presetDetail, presetFront, routeLabel, shortModelName } from './model-route-text';
 import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
@@ -146,26 +148,6 @@ function useModels(client: HostClient, scope: ModelScope) {
     );
   };
   return { value, error, busy, refresh, run, favorites, favorite };
-}
-
-function routeLabel(value: ModelSettingsState, route: ModelRoute | undefined): string {
-  if (route === undefined) return t.modelSettings.inherited;
-  const model = value.models.find((entry) => sameModel(entry, route));
-  return `${model?.modelName ?? route.model} · ${model?.providerName ?? route.provider}`;
-}
-
-function PickerLink({
-  label,
-  detail,
-  onPress,
-}: {
-  label: string;
-  detail: string;
-  onPress?: (() => void) | undefined;
-}) {
-  return (
-    <SettingsRow on={SHEET_GROUP} title={label} detail={detail} disclosure onPress={onPress} />
-  );
 }
 
 function ModelsView({
@@ -398,6 +380,13 @@ function ModelsView({
       shownFamily === FAVORITES
         ? found
         : [...found.filter(listedRow), ...found.filter((row) => !listedRow(row))];
+    const lastGroup = entries.findLastIndex((row) => row.kind === 'group');
+    const rows: (PickerRow | { kind: 'notes' })[] =
+      picker === 'allowed' && listedGroups.length > 0 && lastGroup >= 0
+        ? [...entries.slice(0, lastGroup + 1), { kind: 'notes' }, ...entries.slice(lastGroup + 1)]
+        : entries;
+    const first = (index: number) => index === 0 || rows[index - 1]?.kind === 'notes';
+    const last = (index: number) => index === rows.length - 1 || rows[index + 1]?.kind === 'notes';
     const star = (row: PickerRow, on: boolean) => {
       if (family === undefined) setFamily(shownFamily);
       setHeld(
@@ -500,38 +489,33 @@ function ModelsView({
         {models.busy ? <LoadingIndicator /> : null}
         <FlatList
           style={{ flex: 1 }}
-          data={entries}
-          keyExtractor={rowKey}
+          data={rows}
+          keyExtractor={(row) => (row.kind === 'notes' ? 'group-notes' : rowKey(row))}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           ListHeaderComponent={
             picker === 'allowed' ? <SheetNote>{t.modelSettings.allowedHint}</SheetNote> : undefined
           }
           ListEmptyComponent={<SheetNote>{t.modelSettings.noResults}</SheetNote>}
-          ListFooterComponent={
-            picker === 'allowed' ? (
-              <GroupNotes
-                listed={listedGroups}
-                groups={value.groups ?? []}
-                options={routes.groups.assignmentGroupOptions ?? []}
-                busy={models.busy}
-                onSave={(id, note) =>
-                  models.run(() => setAssignmentGroupNote(client, scope, value, id, note))
-                }
-              />
-            ) : undefined
-          }
           renderItem={({ item: row, index }) => {
+            if (row.kind === 'notes')
+              return (
+                <GroupNotes
+                  listed={listedGroups}
+                  groups={value.groups ?? []}
+                  options={routes.groups.assignmentGroupOptions ?? []}
+                  busy={models.busy}
+                  onSave={(id, note) =>
+                    models.run(() => setAssignmentGroupNote(client, scope, value, id, note))
+                  }
+                />
+              );
             if (row.kind === 'preset') {
               const { preset } = row;
               const selected = value.plan?.sourcePresetId === preset.id;
               const isFavorite = starredRow(row);
               return (
-                <SettingsGroupItem
-                  first={index === 0}
-                  last={index === entries.length - 1}
-                  on={SHEET_GROUP}
-                >
+                <SettingsGroupItem first={first(index)} last={last(index)} on={SHEET_GROUP}>
                   <SettingsRow
                     on={SHEET_GROUP}
                     testID={`model-preset-${preset.id}`}
@@ -595,11 +579,7 @@ function ModelsView({
                 );
               const isFavorite = starredRow(row);
               return (
-                <SettingsGroupItem
-                  first={index === 0}
-                  last={index === entries.length - 1}
-                  on={SHEET_GROUP}
-                >
+                <SettingsGroupItem first={first(index)} last={last(index)} on={SHEET_GROUP}>
                   <SettingsRow
                     on={SHEET_GROUP}
                     testID={`model-group-${group.id}`}
@@ -635,7 +615,7 @@ function ModelsView({
                         : t.modelSettings.groupFront(
                             front === undefined
                               ? (group.routes[0]?.model ?? '')
-                              : `${/\p{L}/u.test(modelEntryLabel(front).short) ? modelEntryLabel(front).short : front.modelName} · ${front.providerName}`,
+                              : shortModelName(front),
                           ),
                       ...(picker === 'allowed' && note !== undefined ? [note] : []),
                     ].join(' · ')}
@@ -701,11 +681,7 @@ function ModelsView({
             const required = picker === 'allowed' && sameModel(item, routes.assignmentDefault);
             const isFavorite = starredRow(row);
             return (
-              <SettingsGroupItem
-                first={index === 0}
-                last={index === entries.length - 1}
-                on={SHEET_GROUP}
-              >
+              <SettingsGroupItem first={first(index)} last={last(index)} on={SHEET_GROUP}>
                 <SettingsRow
                   on={SHEET_GROUP}
                   leading={
@@ -816,6 +792,7 @@ function ModelsView({
                 ? `${orchestratorGroup} · ${routeLabel(value, routes.orchestrator)}`
                 : routeLabel(value, routes.orchestrator)
             }
+            leading={<RouteIcon value={value} route={routes.orchestrator} />}
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
           {orchestratorGroup === undefined &&
@@ -834,6 +811,14 @@ function ModelsView({
                   assignmentGroup !== undefined
                     ? `${assignmentGroup} · ${routeLabel(value, assignmentShown)}`
                     : routeLabel(value, routes.assignmentDefault)
+                }
+                leading={
+                  <RouteIcon
+                    value={value}
+                    route={
+                      assignmentGroup !== undefined ? assignmentShown : routes.assignmentDefault
+                    }
+                  />
                 }
                 onPress={models.busy ? undefined : () => openPicker('assignment')}
               />
@@ -932,7 +917,8 @@ function ModelsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={item.name}
-            detail={`${groupName(item.orchestratorGroupId) ?? routeLabel(value, item.orchestrator)}${item.assignmentDefault === undefined ? '' : ` / ${groupName(item.assignmentDefaultGroupId) ?? routeLabel(value, item.assignmentDefault)}`}`}
+            leading={<RouteIcon value={value} route={presetFront(value, item)} />}
+            detail={presetDetail(value, item)}
             disclosure={scope.kind === 'global'}
             selected={scope.kind === 'bot' && value.plan?.sourcePresetId === item.id}
             onPress={

@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { approvePhonePairing } from './mobile-web-pairing.mjs';
 import { verifyPaths } from './verify-app.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
@@ -309,6 +310,10 @@ async function main() {
       link,
     );
     await page.locator('::-p-aria(Pair)').click();
+    await approvePhonePairing(page, {
+      receipt: offer.receipt,
+      post: (path, body) => operator(hostOrigin, path, body),
+    });
     await text(displayName);
     steps.push('paired the app by pasting the link');
     await page.goto(`${origin}/settings`, { waitUntil: 'networkidle0' });

@@ -28,6 +28,7 @@ vi.mock('expo-localization', () => ({
 }));
 vi.mock('react-native', () => ({
   Appearance: { setColorScheme: native.appearance },
+  Platform: { OS: 'ios' },
   AppState: {
     addEventListener: (_event: string, callback: (state: string) => void) => {
       native.foreground = callback;

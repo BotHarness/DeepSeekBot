@@ -104,7 +104,69 @@ Every reply, report or post first commits one Outbox intent with a stable reques
 
 Why: BotHarness and a platform API share no transaction. Retrying a lost response duplicates messages; dropping failures loses accepted intent. A model cannot prove external state, so it cannot clear an unknown.
 
-Enforced by: the schema (`messaging_outbox.request_id` is UNIQUE; `messaging_outbox_attempts.intent_id` is the primary key, so one intent has at most one attempt), `outbox-idempotency.property.test.ts` (any sequence of requests, provider results and restarts sends each key at most once and keeps an unknown unknown), `messaging-outbound.test.ts`.
+Enforced by: the schema (`messaging_outbox.request_id` is UNIQUE; `messaging_outbox_attempts.intent_id` is the primary key, so one intent has at most one attempt), `outbox-idempotency.property.test.ts` (any sequence of requests, provider results and restarts sends each key at most once and keeps an unknown unknown), `messaging-outbound.test.ts`, and the TLA+ model `verification/outbox/Outbox.tla` (`node scripts/verify-tla.mjs outbox`; the `verify-outbox` skill). TLC checks every order of request, claim, provider call, result, revocation and restart for two keys, two concurrent sends and two restarts. It confirms that a key reaches the provider at most once, and that a pending, cancelled or revoked intent was never sent. Three broken variants show what each guard buys: removing all three repeat guards (return the existing intent, claim only a pending intent, one attempt row) sends twice; calling the provider before the claim commits leaves a sent message marked pending, which a restart cancels; recovering an in-flight attempt as pending marks a sent message unsent.
+
+Generated from the model by `/statechart` (one key, one restart):
+
+```mermaid
+---
+title: "Outbox: one request key"
+config:
+  markdownAutoWrap: false
+  state:
+    useMaxWidth: false
+---
+stateDiagram-v2
+  classDef works fill:#f4f6f7,stroke:#566573,color:#1b2631
+  classDef wrong fill:#fdedec,stroke:#c0392b,color:#7b241c
+  classDef fixed fill:#e9f7ef,stroke:#1e8449,color:#145a32
+  classDef mixed fill:#fdebd0,stroke:#d35400,color:#7e5109
+  classDef after fill:#ffffff,stroke:#808b96,color:#566573
+  classDef worse fill:#f4ecf7,stroke:#7d3c98,color:#4a235a
+  classDef worksPath fill:#f4f6f7,stroke:#1f3a93,stroke-width:4px,color:#1b2631
+  classDef wrongPath fill:#fdedec,stroke:#1f3a93,stroke-width:4px,color:#7b241c
+  classDef fixedPath fill:#e9f7ef,stroke:#1f3a93,stroke-width:4px,color:#145a32
+  classDef mixedPath fill:#fdebd0,stroke:#1f3a93,stroke-width:4px,color:#7e5109
+  classDef afterPath fill:#ffffff,stroke:#1f3a93,stroke-width:4px,color:#566573
+  classDef worsePath fill:#f4ecf7,stroke:#1f3a93,stroke-width:4px,color:#4a235a
+  state "Legend" as legend {
+    state "Works" as legendWorks
+  }
+  class legendWorks works
+  state "Accepted, sent once" as s0
+  state "Cancelled at restart" as s1
+  state "No request yet" as s2
+  state "Rejected" as s3
+  state "Rejected, sent once" as s4
+  state "Revoked before sending" as s5
+  state "Saved, not sent" as s6
+  state "Sending" as s7
+  state "Sending, sent once" as s8
+  state "Unknown outcome" as s9
+  state "Unknown outcome, sent once" as s10
+  [*] --> s2
+  s2 --> s6 : Bot sends with a request key
+  s6 --> s7 : attempt recorded
+  s6 --> s5 : grant revoked
+  s6 --> s1 : Host restarts
+  s7 --> s8 : provider called
+  s7 --> s3 : result recorded
+  s7 --> s9 : result recorded or Host<br/>restarts
+  s8 --> s0 : result recorded
+  s8 --> s4 : result recorded
+  s8 --> s10 : result recorded or Host<br/>restarts
+  class s0 works
+  class s1 works
+  class s2 works
+  class s3 works
+  class s4 works
+  class s5 works
+  class s6 works
+  class s7 works
+  class s8 works
+  class s9 works
+  class s10 works
+```
 
 ## 10. Proactive posts reach where the platform lets the app speak
 
