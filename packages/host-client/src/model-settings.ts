@@ -17,7 +17,7 @@ import {
   type ModelSettingsClient,
 } from './bot-settings';
 import { recordFeature } from './telemetry/features';
-import { serialWrites } from './model-catalog';
+import { modelCatalogGroupFront, serialWrites } from './model-catalog';
 
 export type ModelScope =
   | { kind: 'global' }
@@ -125,6 +125,7 @@ export function modelRoutes(state: ModelSettingsState) {
     ...(source?.assignmentGroupOptions === undefined
       ? {}
       : { assignmentGroupOptions: source.assignmentGroupOptions.map((option) => ({ ...option })) }),
+    ...(source?.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
   };
   return { orchestrator, assignmentDefault, assignmentModels, groups };
 }
@@ -142,6 +143,7 @@ function groupFields(groups: ModelPlanGroups, orchestrator: ModelRoute) {
     assignmentGroupOptions: (groups.assignmentGroupOptions ?? []).filter((option) =>
       ids.includes(option.group),
     ),
+    ...(groups.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
   };
 }
 
@@ -292,7 +294,7 @@ export async function setModelGroup(
   if (field === 'assignment' || scope.kind === 'preset') {
     if (scope.kind === 'global') throw new HostAnswerInvalid('GLOBAL_MODEL_REQUIRED');
     const previous = modelRoutes(state);
-    const front = requireRoute(group.routes[0]);
+    const front = requireRoute(modelCatalogGroupFront(group, state.models));
     const ids = previous.groups.assignmentGroups ?? [];
     const assignmentDefault = previous.assignmentDefault ?? front;
     await writePlan(client, scope, state, {
@@ -441,7 +443,12 @@ export async function saveModelPreset(
   const value = await client.call(update ? 'modelPresetUpdate' : 'modelPresetCreate', {
     ...(update && preset !== undefined ? { id: preset.id, expectedRevision: preset.revision } : {}),
     name: name.trim(),
-    ...groupFields(routes.groups, orchestrator),
+    ...groupFields(
+      state.preset === undefined && state.plan === undefined && state.defaultGroupId !== undefined
+        ? { ...routes.groups, orchestratorGroupId: state.defaultGroupId }
+        : routes.groups,
+      orchestrator,
+    ),
     assignmentDefault,
     assignmentModels,
   });

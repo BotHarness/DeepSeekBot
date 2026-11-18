@@ -28,7 +28,7 @@ import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { groupMenuId, groupMenuKey } from './model-menu.js';
+import { groupFrontHint, groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -284,6 +284,10 @@ function Models({
     [hostId, client, resource],
   );
   const routes = value === undefined ? undefined : modelRoutes(value);
+  const catalog = (value?.models ?? []).map((entry) => ({
+    ...entry,
+    efforts: entry.efforts ?? [],
+  }));
   const catalogGroups = (value?.groups ?? []).map((group) => ({
     ...group,
     revision: group.revision ?? 0,
@@ -319,7 +323,7 @@ function Models({
               }
             : { key: groupMenuKey(pickerGroup(field)!), effort: '' }
         }
-        catalog={value.models.map((entry) => ({ ...entry, efforts: entry.efforts ?? [] }))}
+        catalog={catalog}
         groups={catalogGroups}
         options={value.models.map((entry) => ({
           value: JSON.stringify([entry.provider, entry.model]),
@@ -441,10 +445,10 @@ function Models({
                 />
                 {routes?.groups.assignmentGroups?.map((id) => {
                   const group = catalogGroups.find((entry) => entry.id === id);
-                  const front = group?.routes[0];
-                  const frontEntry = value.models.find(
-                    (entry) => front !== undefined && sameModel(entry, front),
-                  );
+                  const frontHint = groupFrontHint(group, catalog, t);
+                  const note = routes.groups.assignmentGroupOptions?.find(
+                    (option) => option.group === id,
+                  )?.note;
                   return (
                     <Checkbox
                       key={`group:${id}`}
@@ -452,16 +456,8 @@ function Models({
                       label={[
                         group?.name ?? id,
                         t('modelPreset.groupCount', { count: group?.routes.length ?? 0 }),
-                        ...(front === undefined
-                          ? []
-                          : [
-                              t('modelMenu.groupFront', {
-                                model:
-                                  frontEntry === undefined
-                                    ? front.model
-                                    : `${frontEntry.modelName} · ${frontEntry.providerName}`,
-                              }),
-                            ]),
+                        ...(frontHint === undefined ? [] : [frontHint]),
+                        ...(note === undefined ? [] : [note]),
                       ].join(' · ')}
                       disabled={busy || !available || routes.groups.assignmentDefaultGroupId === id}
                       onChange={() =>

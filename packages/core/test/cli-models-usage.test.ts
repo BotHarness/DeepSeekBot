@@ -209,6 +209,16 @@ describe('Model commands', () => {
         )
       ).json.error.code,
     ).toBe('usage');
+    const plain = { ...plan, orchestratorGroupId: null };
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify(plain),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...plain },
+    });
   });
 
   it('opens or keeps listed Assignment models with --assignment-models', async () => {

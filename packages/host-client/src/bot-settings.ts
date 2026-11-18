@@ -40,6 +40,7 @@ export interface ModelPlanGroups {
   assignmentGroups?: string[];
   assignmentDefaultGroupId?: string;
   assignmentGroupOptions?: AssignmentGroupOption[];
+  openAssignmentModels?: true;
 }
 
 export interface ModelPlan extends ModelPlanGroups {
@@ -171,6 +172,7 @@ function planGroups(row: Record<string, unknown>): ModelPlanGroups {
       ? { assignmentDefaultGroupId: row['assignmentDefaultGroupId'] }
       : {}),
     ...(options.length === 0 ? {} : { assignmentGroupOptions: options }),
+    ...(row['openAssignmentModels'] === true ? { openAssignmentModels: true } : {}),
   };
 }
 

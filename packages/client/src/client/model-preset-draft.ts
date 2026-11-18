@@ -37,6 +37,7 @@ export interface ModelDraft {
   advanced: boolean;
   open: boolean;
   presetId: string;
+  fallback?: ModelRouteView | undefined;
 }
 
 export function allowedOf(
@@ -97,6 +98,7 @@ export function draftOf(
       groups.some((option) => option.note !== undefined || option.allowedEfforts !== undefined),
     open: source.openAssignmentModels === true,
     presetId,
+    fallback: source.assignmentDefault,
   };
 }
 
@@ -191,17 +193,24 @@ export function planParts(
     assignmentDefault = assignmentRoute(draft);
     assignmentModels = finalAllowed(draft);
   } else {
-    const listed = draft.advanced
-      ? draft.allowed.map((option) => withNote(option, option.note))
-      : [];
-    const first = listed[0];
+    const listed = draft.allowed.map((option) => withNote(option, option.note));
+    const { fallback } = draft;
+    const kept =
+      fallback === undefined
+        ? undefined
+        : listed.find((option) => modelKey(option) === modelKey(fallback));
+    const first = kept ?? listed[0];
     const front = frontRoute(catalogGroups, defaultGroupId);
     if (first !== undefined) {
+      const effort =
+        kept !== undefined && first.allowedEfforts.includes(fallback?.reasoningEffort ?? '')
+          ? (fallback?.reasoningEffort ?? '')
+          : first.defaultEffort;
       assignmentModels = listed;
       assignmentDefault = {
         provider: first.provider,
         model: first.model,
-        ...(first.defaultEffort === '' ? {} : { reasoningEffort: first.defaultEffort }),
+        ...(effort === '' ? {} : { reasoningEffort: effort }),
       };
     } else if (front !== undefined) {
       assignmentModels = [{ ...front, allowedEfforts: [''], defaultEffort: '' }];

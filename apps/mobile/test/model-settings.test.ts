@@ -354,6 +354,44 @@ describe('native Model Plans and Presets', () => {
     expect(fake.calls.at(-1)?.args).toMatchObject({ orchestrator: pro, orchestratorGroupId: null });
   });
 
+  it('keeps open Assignments, starts a group on a ready model, and copies the default group into a new Preset (#4501)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const keyless = [{ ...models[0]!, credential: 'missing' as const }, models[1]!];
+    const scope = { kind: 'bot' as const, slug: 'qa' };
+    fake.methods.set('modelPlanSet', () => ({ plan }));
+    const open = { ...plan, openAssignmentModels: true as const };
+    await toggleAssignmentGroup(client, scope, { ...state, plan: open, groups: [daily] }, 'daily');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ openAssignmentModels: true });
+    const { assignmentDefault: _default, assignmentModels: _models, ...bare } = plan;
+    await setModelGroup(
+      client,
+      scope,
+      { ...state, models: keyless, plan: bare, groups: [daily] },
+      'daily',
+      'assignment',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentDefault: pro,
+      assignmentDefaultGroupId: 'daily',
+    });
+    fake.methods.set('modelPresetCreate', () => ({ preset }));
+    await saveModelPreset(
+      client,
+      {
+        revision: 0,
+        models,
+        presets: [],
+        fallback: flash,
+        groups: [daily],
+        defaultGroupId: 'daily',
+      },
+      'Grouped',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupId: 'daily' });
+    expect(fake.calls.at(-1)?.args).not.toHaveProperty('orchestrator');
+  });
+
   it('sets the global default to a Routing Group and shows it for Bots that follow it (#4500)', async () => {
     const { fake, client } = setup();
     const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };

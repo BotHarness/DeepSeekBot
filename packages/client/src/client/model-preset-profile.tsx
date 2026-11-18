@@ -24,7 +24,7 @@ import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { groupMenuId, groupMenuKey } from './model-menu.js';
+import { groupFrontHint, groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
 import {
   assignmentChoice,
@@ -497,10 +497,7 @@ export function ModelPresetProfile({
     const group = catalogGroups.find((item) => item.id === option.group);
     const name = group?.name ?? option.group;
     const routes = group?.routes ?? [];
-    const front = routes[0];
-    const frontEntry = catalog?.find(
-      (item) => front !== undefined && modelKey(item) === modelKey(front),
-    );
+    const frontHint = groupFrontHint(group, catalog ?? [], t);
     const lists = routes.map(
       (route) => catalog?.find((item) => modelKey(item) === modelKey(route))?.efforts ?? [],
     );
@@ -550,17 +547,28 @@ export function ModelPresetProfile({
             </>
           )}
         </div>
-        {front === undefined ? null : (
-          <span className="bh-model-card-provider">
-            {t('modelMenu.groupFront', {
-              model:
-                frontEntry === undefined
-                  ? front.model
-                  : `${frontEntry.modelName} · ${frontEntry.providerName}`,
-            })}
-          </span>
+        {frontHint === undefined ? null : (
+          <span className="bh-model-card-provider">{frontHint}</span>
         )}
-        {shared.length === 0 ? null : (
+        {shared.length === 0 ? (
+          allowed.length === 0 ? null : (
+            <div className="bh-model-card-field">
+              <span className="bh-note">{t('modelPreset.groupEffortsStale')}</span>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() =>
+                  editGroup(
+                    option.group,
+                    ({ allowedEfforts: _efforts, defaultEffort: _default, ...rest }) => rest,
+                  )
+                }
+              >
+                {t('modelPreset.groupEffortsClear')}
+              </Button>
+            </div>
+          )
+        ) : (
           <div className="bh-model-card-field">
             <span>{t('modelPreset.allowedEfforts')}</span>
             <div className="bh-model-card-efforts">

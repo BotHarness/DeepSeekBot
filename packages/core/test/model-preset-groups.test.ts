@@ -220,6 +220,8 @@ describe('Model Presets with Routing Groups', () => {
     ).toMatchObject({ ok: true });
     expect(registry.get('ada')?.modelPlan).not.toHaveProperty('orchestratorGroupId');
     expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentGroups');
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentDefaultGroupId');
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentGroupOptions');
   });
 
   it('refuses unknown groups, a default outside the list, and a route beside a group', async () => {
