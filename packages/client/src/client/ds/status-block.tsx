@@ -1,10 +1,11 @@
-import { useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useContext, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
+import { SettingsGroupContext, settingsRowBase, settingsRowStyles } from './settings-row.js';
 import { Tooltip } from './tooltip.js';
 import { border, color, radius, space, text } from './tokens.stylex.js';
-import { font } from './tobs.stylex.js';
+import { font, style } from './tobs.stylex.js';
 
 const NARROW = '@container (max-width: 480px)';
 
@@ -15,7 +16,7 @@ const styles = stylex.create({
   heading: {
     margin: 0,
     paddingBottom: space.x1,
-    color: color.muted,
+    color: style.textSectionTitle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     fontWeight: text.strong,
@@ -93,6 +94,12 @@ const styles = stylex.create({
     cursor: 'pointer',
     textAlign: 'start',
     font: 'inherit',
+  },
+  disclosureRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: { default: style.listItemFill, ':hover': color.hover },
   },
   chevron: { color: color.muted, transitionProperty: 'transform', transitionDuration: '120ms' },
   chevronOpen: { transform: 'rotate(90deg)' },
@@ -315,13 +322,25 @@ export function StatusBlock({
   data?: Record<`data-${string}`, string | undefined>;
   children?: ReactNode;
 }): ReactElement {
+  const row = useContext(SettingsGroupContext);
   return (
-    <div {...data} {...stylex.props(styles.card, tone === 'warning' && styles.warningCard)}>
+    <div
+      {...data}
+      data-settings-row={row ? '' : undefined}
+      {...stylex.props(
+        styles.card,
+        tone === 'warning' && styles.warningCard,
+        row && settingsRowBase,
+        row && settingsRowStyles.block,
+      )}
+    >
       <div {...stylex.props(styles.head)}>
-        <StatusBadge icon={icon} tone={tone} />
+        {row ? null : <StatusBadge icon={icon} tone={tone} />}
         <div {...stylex.props(styles.copy)}>
-          <p {...stylex.props(styles.title)}>{title}</p>
-          {body === undefined ? null : <div {...stylex.props(styles.body)}>{body}</div>}
+          <p {...stylex.props(styles.title, row && settingsRowStyles.title)}>{title}</p>
+          {body === undefined ? null : (
+            <div {...stylex.props(styles.body, row && settingsRowStyles.description)}>{body}</div>
+          )}
         </div>
         {action === undefined ? null : <div {...stylex.props(styles.action)}>{action}</div>}
       </div>
@@ -349,19 +368,23 @@ export function StatusDisclosure({
   children: ReactNode;
   fullWidth?: boolean;
 }): ReactElement {
+  const row = useContext(SettingsGroupContext);
   return (
     <>
       <button
         type="button"
         aria-expanded={open}
         {...data}
+        data-settings-row={row ? '' : undefined}
         onClick={onToggle}
-        {...stylex.props(styles.disclosure)}
+        {...stylex.props(styles.disclosure, row && settingsRowBase, row && styles.disclosureRow)}
       >
-        <StatusBadge icon={icon} tone="neutral" />
+        {row ? null : <StatusBadge icon={icon} tone="neutral" />}
         <span {...stylex.props(styles.copy)}>
-          <span {...stylex.props(styles.title)}>{title}</span>
-          {hint === undefined ? null : <span {...stylex.props(styles.body)}>{hint}</span>}
+          <span {...stylex.props(styles.title, row && settingsRowStyles.title)}>{title}</span>
+          {hint === undefined ? null : (
+            <span {...stylex.props(styles.body, row && settingsRowStyles.description)}>{hint}</span>
+          )}
         </span>
         <span {...stylex.props(styles.chevron, open && styles.chevronOpen)}>
           <ChannelSidebarIcon name="chevron-right" size={16} />

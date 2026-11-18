@@ -12,6 +12,7 @@ import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostLook } from '../../host/native-host-look';
 import { useActivityCount } from '../../host/native-activity-count';
 import { useQuickActionRouting } from './quick-action-routing';
+import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import {
   creationTargets,
   type CreationAction,
@@ -27,6 +28,7 @@ import { fab, materialNavigationBar, navigationBar, radius, space } from '../des
 import { useMounted } from '../mounted';
 import { NavigationMaterial } from './navigation-material';
 import { NavigationDestinations } from './navigation-destinations';
+import { creationMenuItems } from './creation-menu-items';
 import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
@@ -71,8 +73,11 @@ function NavigationLayout() {
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const quickActions = useQuickActionRouting();
+  const profileSetup = useProfileSetupPrompt();
   return (
     <FloatingTabInset.Provider value={reserved}>
+      <View ref={profileSetup.load} collapsable={false} />
+      <View ref={profileSetup.prompt} collapsable={false} />
       <WorkspacePager>
         <View ref={quickActions} collapsable={false} style={{ flex: 1 }}>
           <Tabs
@@ -221,15 +226,18 @@ function ScopedNavigationBar({
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
   const fabBottom = size + bottom + fab.margin;
-  const create = (buttonSize: number) => (
-    <CreationMenuButton
-      scope={scope}
-      targets={targets}
-      size={buttonSize}
-      busy={busy}
-      onPick={(action, target) => void choose(action, target)}
-    />
-  );
+  const creatable =
+    creationMenuItems({ scope, targets, nativeChannelForm: Platform.OS === 'android' }).length > 0;
+  const create = (buttonSize: number) =>
+    creatable ? (
+      <CreationMenuButton
+        scope={scope}
+        targets={targets}
+        size={buttonSize}
+        busy={busy}
+        onPick={(action, target) => void choose(action, target)}
+      />
+    ) : null;
   if (Platform.OS === 'android')
     return (
       <>

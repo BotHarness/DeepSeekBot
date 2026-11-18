@@ -7,6 +7,8 @@ import { connectAccount } from '../../src/host/native-connect-account';
 import { pickAvatarImage } from '../../src/host/pick-avatar-image';
 import { useAvatarEditor } from '../../src/ui/chat/avatar-editor';
 import { AccountProfileView } from '../../src/ui/shell/account-profile-view';
+import { useHostSession } from '../../src/host/host-session';
+import { saveHumanAvatar, useHumanIdentity } from '../../src/host/human-profile';
 
 export default function AccountProfileScreen() {
   const router = useRouter();
@@ -23,10 +25,33 @@ export default function AccountProfileScreen() {
       await accountProfile.saveAvatar(image === null ? null : dataUrlBytes(image));
     },
   });
+  const { client } = useHostSession();
+  const human = useHumanIdentity(client);
+  const chatAvatar = useAvatarEditor({
+    pick: pickAvatarImage,
+    save: async (image) => {
+      if (client !== undefined) await saveHumanAvatar(client, image);
+    },
+  });
   return (
     <AccountProfileView
       state={state}
       avatar={avatar}
+      chat={
+        client === undefined
+          ? undefined
+          : {
+              name: human.identity?.displayName,
+              avatar: human.avatar,
+              hasAvatar:
+                human.identity === undefined
+                  ? undefined
+                  : human.identity.avatarVersion !== undefined,
+              editor: chatAvatar,
+              mount: human.mount,
+              onEditName: () => router.push('/settings/chat-name'),
+            }
+      }
       signingIn={signingIn}
       actions={{
         onRetry: () => void accountProfile.refresh(),

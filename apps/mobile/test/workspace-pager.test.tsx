@@ -81,7 +81,8 @@ vi.mock('../src/ui/shell/host-drawer', async () => {
 });
 
 const { WorkspacePager } = await import('../src/ui/shell/workspace-pager.ios');
-const { openWorkspacePage, closeWorkspacePage } = await import('../src/ui/shell/workspace-paging');
+const { openWorkspacePage, closeWorkspacePage, closeWorkspacePageWhenShown } =
+  await import('../src/ui/shell/workspace-paging');
 
 const { ChatsPagingContext } = await import('../src/ui/shell/chats-paging');
 const { useMounted } = await import('../src/ui/mounted');
@@ -195,6 +196,24 @@ describe('retained iOS workspace pages', () => {
     expect(openWorkspacePage()).toBe(true);
     expect(closeWorkspacePage()).toBe(true);
     expect(native.setPage.mock.calls).toEqual([[0], [1]]);
+  });
+
+  it('returns to Chats once the shell is shown again after a sheet closes over Workspaces', async () => {
+    await render();
+    await act(async () => native.selected(0));
+    native.focused = false;
+    await render();
+    native.setPage.mockClear();
+    closeWorkspacePageWhenShown();
+    expect(native.setPage).not.toHaveBeenCalled();
+    native.focused = true;
+    await render();
+    expect(native.setPage.mock.calls).toEqual([[1]]);
+    native.focused = false;
+    await render();
+    native.focused = true;
+    await render();
+    expect(native.setPage.mock.calls).toEqual([[1]]);
   });
 
   it('uses native page commands for button navigation and follows live Reduce Motion', async () => {

@@ -3,6 +3,7 @@ import type {
   HostClient,
   RosterBot,
   RosterChannel,
+  RosterHuman,
   RosterView,
 } from '@botharness/host-client/client';
 
@@ -22,6 +23,7 @@ export interface GroupPending {
 
 export interface GroupInfo {
   channel: RosterChannel;
+  people: RosterHuman[];
   members: GroupMember[];
   invites: GroupPending[];
   joins: GroupPending[];
@@ -43,6 +45,7 @@ export function groupInfo(
   const invited = new Set(invites.map((invite) => invite.slug));
   return {
     channel,
+    people: channel.humanMembers ?? [],
     members: channel.members.map((slug) => {
       const bot = bots.get(slug);
       return { slug, ...(bot === undefined ? {} : { bot }), owner: channel.ownerBotSlug === slug };

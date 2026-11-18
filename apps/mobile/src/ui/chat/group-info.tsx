@@ -16,7 +16,9 @@ import {
   type GroupMember,
   type GroupPending,
 } from '../../host/group-channel';
-import type { RosterBot } from '@botharness/host-client/client';
+import type { HostClient, RosterBot, RosterHuman } from '@botharness/host-client/client';
+import { useHumanAvatar } from '../../host/human-profile';
+import { AccountAvatar } from '../shell/account-avatar';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { profileShell, radius, space } from '../design/tokens';
@@ -57,6 +59,7 @@ type GroupSection = 'joins' | 'members';
 type RowBody =
   | { kind: 'join'; pending: GroupPending }
   | { kind: 'member'; member: GroupMember }
+  | { kind: 'person'; person: RosterHuman }
   | { kind: 'invite'; pending: GroupPending }
   | { kind: 'add' }
   | { kind: 'empty' };
@@ -69,9 +72,11 @@ function frame(bodies: RowBody[]): Row[] {
     key:
       body.kind === 'member'
         ? `member:${body.member.slug}`
-        : body.kind === 'join' || body.kind === 'invite'
-          ? `${body.kind}:${body.pending.id}`
-          : body.kind,
+        : body.kind === 'person'
+          ? `person:${body.person.humanId}`
+          : body.kind === 'join' || body.kind === 'invite'
+            ? `${body.kind}:${body.pending.id}`
+            : body.kind,
     first: index === 0,
     last: index === bodies.length - 1,
   }));
@@ -80,6 +85,7 @@ function frame(bodies: RowBody[]): Row[] {
 export function groupRows(info: GroupInfo): Array<{ section: GroupSection; data: Row[] }> {
   const members: RowBody[] = [
     ...(info.candidates.length > 0 ? [{ kind: 'add' } as const] : []),
+    ...info.people.map((person) => ({ kind: 'person', person }) as const),
     ...info.members.map((member) => ({ kind: 'member', member }) as const),
     ...info.invites.map((pending) => ({ kind: 'invite', pending }) as const),
   ];
@@ -95,7 +101,7 @@ export function groupRows(info: GroupInfo): Array<{ section: GroupSection; data:
     {
       section: 'members',
       data: frame(
-        info.members.length === 0 && info.invites.length === 0
+        info.members.length === 0 && info.invites.length === 0 && info.people.length === 0
           ? [...members, { kind: 'empty' }]
           : members,
       ),
@@ -125,6 +131,11 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
   );
 }
 
+function PersonAvatar({ person, client }: { person: RosterHuman; client: HostClient | undefined }) {
+  const avatar = useHumanAvatar(client, person.humanId, person.avatarVersion);
+  return <AccountAvatar uri={avatar} name={person.displayName} size={MEMBER_AVATAR} />;
+}
+
 function RowButtons({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
   return (
@@ -139,11 +150,21 @@ function RenameSheet({
   name,
   onSave,
   onClose,
+  title,
+  fieldLabel,
+  placeholder,
+  allowEmpty = false,
+  testID,
 }: {
   visible: boolean;
   name: string;
   onSave(name: string): Promise<boolean>;
   onClose(): void;
+  title?: string;
+  fieldLabel?: string;
+  placeholder?: string;
+  allowEmpty?: boolean;
+  testID?: string;
 }) {
   const t = useStrings();
   const [draft, setDraft] = useState(name);
@@ -158,39 +179,37 @@ function RenameSheet({
   return (
     <Sheet
       visible={visible}
-      label={t.groupRename}
-      title={t.groupRename}
+      label={title ?? t.groupRename}
+      title={title ?? t.groupRename}
       onClose={onClose}
       avoidKeyboard
     >
       <KeyboardFormScroll enabled={false} nestedScrollEnabled>
-        <TextField
-          value={draft}
-          onChangeText={setDraft}
-          accessibilityLabel={t.groupName}
-          placeholder={name}
-          maxLength={GROUP_NAME_MAX}
-          autoFocus
-          returnKeyType="done"
-          onSubmitEditing={() => {
-            if (next !== '' && next !== name) void save();
-          }}
-          style={{ marginHorizontal: space.x5 }}
-        />
+        <View style={{ paddingHorizontal: space.x5 }}>
+          <TextField
+            value={draft}
+            onChangeText={setDraft}
+            accessibilityLabel={fieldLabel ?? t.groupName}
+            placeholder={placeholder ?? name}
+            {...(testID === undefined ? {} : { testID })}
+            maxLength={GROUP_NAME_MAX}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if ((allowEmpty || next !== '') && next !== name) void save();
+            }}
+          />
+        </View>
         <SheetActions>
-          <View>
-            <Button label={t.cancel} on="canvas" onPress={onClose} />
-          </View>
-          <View>
-            <Button
-              label={t.groupRenameSave}
-              tone="primary"
-              on="canvas"
-              busy={busy}
-              disabled={next === '' || next === name}
-              onPress={() => void save()}
-            />
-          </View>
+          <Button label={t.cancel} on="canvas" onPress={onClose} />
+          <Button
+            label={t.groupRenameSave}
+            tone="primary"
+            on="canvas"
+            busy={busy}
+            disabled={(!allowEmpty && next === '') || next === name}
+            onPress={() => void save()}
+          />
         </SheetActions>
       </KeyboardFormScroll>
     </Sheet>
@@ -211,6 +230,14 @@ export interface GroupProfileProps {
   onNotifications?: (() => void) | undefined;
   files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
   stopper?: SessionStopper | undefined;
+  nickname?: GroupNickname | undefined;
+  client?: HostClient | undefined;
+}
+
+export interface GroupNickname {
+  value: string | null | undefined;
+  name: string | undefined;
+  save(nickname: string | null): Promise<void>;
 }
 
 export function GroupProfilePage({
@@ -227,11 +254,13 @@ export function GroupProfilePage({
   onNotifications,
   files,
   stopper,
+  nickname,
+  client,
 }: GroupProfileProps) {
   const t = useStrings();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
-  const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
+  const [sheet, setSheet] = useState<'invite' | 'rename' | 'nickname' | undefined>();
   const [renameOpened, setRenameOpened] = useState(0);
   const [work, setWork] = useState<ProfilePart<ProfileAssignment[]> | undefined>();
   const avatar = useAvatarEditor({ pick: pickAvatar, save: actions.setAvatar });
@@ -355,6 +384,7 @@ export function GroupProfilePage({
           <SettingsGroupItem first={item.first} last={item.last} on={ON}>
             <GroupRow
               row={item}
+              client={client}
               busy={busy}
               onInvite={() => setSheet('invite')}
               onOpenBot={onOpenBot}
@@ -390,6 +420,23 @@ export function GroupProfilePage({
             setSheet('rename');
           }}
         />
+        {nickname === undefined ? null : (
+          <SettingsRow
+            on={ON}
+            testID="group-nickname"
+            title={t.groupNickname}
+            detail={nickname.value ?? nickname.name ?? ''}
+            control={{ kind: 'chevron' }}
+            onPress={
+              nickname.value === undefined
+                ? undefined
+                : () => {
+                    setRenameOpened((count) => count + 1);
+                    setSheet('nickname');
+                  }
+            }
+          />
+        )}
       </SettingsSection>
     )),
     gap(
@@ -518,6 +565,20 @@ export function GroupProfilePage({
         onSave={(name) => run('rename', () => actions.rename(name))}
         onClose={() => setSheet(undefined)}
       />
+      {nickname === undefined ? null : (
+        <RenameSheet
+          key={`nickname:${renameOpened}`}
+          visible={sheet === 'nickname'}
+          name={nickname.value ?? ''}
+          title={t.groupNickname}
+          fieldLabel={t.groupNickname}
+          placeholder={nickname.name ?? ''}
+          allowEmpty
+          testID="group-nickname-field"
+          onSave={(next) => run('nickname', () => nickname.save(next === '' ? null : next))}
+          onClose={() => setSheet(undefined)}
+        />
+      )}
     </>
   );
 }
@@ -566,6 +627,7 @@ function GroupIdentity({
 
 function GroupRow({
   row,
+  client,
   busy,
   onInvite,
   onOpenBot,
@@ -575,6 +637,7 @@ function GroupRow({
   onDecide,
 }: {
   row: Row;
+  client: HostClient | undefined;
   busy: string | undefined;
   onInvite(): void;
   onOpenBot(slug: string): void;
@@ -612,6 +675,15 @@ function GroupRow({
           </View>
         }
         onPress={onInvite}
+      />
+    );
+  if (row.kind === 'person')
+    return (
+      <SettingsRow
+        on={ON}
+        testID={`group-person-${row.person.humanId}`}
+        title={row.person.displayName}
+        leading={<PersonAvatar person={row.person} client={client} />}
       />
     );
   if (row.kind === 'member')

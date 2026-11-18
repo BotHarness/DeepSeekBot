@@ -9,6 +9,13 @@ import {
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import {
+  humanAvatarVersionOf,
+  parseHumanAvatars,
+  parseHumanIdentity,
+  type HumanAvatarImage,
+  type HumanIdentity,
+} from '@botharness/host-client/human-profile';
 import { memberPage } from './member-page.js';
 import {
   isTakeoverRequestCard,
@@ -41,6 +48,8 @@ import {
 } from '../../../core/src/channels/genui-document.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
+import { isChannelTurnStopRests } from '../../../core/src/channels/turn-stop.js';
+import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
@@ -167,13 +176,17 @@ import type {
   ChannelAuthor,
   ChannelAttachmentRef,
   ChannelMessage,
+  ChannelMessageQuote,
+  ChannelReplyPreview,
   ChannelReaction,
   ChannelSummary,
   OwnedSessionSummary,
+  QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
   ApprovalCardView,
 } from './store.js';
+import { quoteRefOf } from './store.js';
 import {
   parseRosterSection,
   parseRosterSnapshot,
@@ -260,6 +273,7 @@ export interface ModelPresetView {
   orchestrator: ModelRouteView;
   assignmentDefault: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
+  openAssignmentModels?: true;
   createdAt: string;
 }
 
@@ -270,6 +284,7 @@ export interface ModelPlanView {
   orchestrator: ModelRouteView;
   assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
+  openAssignmentModels?: true;
   appliedAt: string;
 }
 
@@ -322,12 +337,79 @@ export async function loadModelPlanState(
   return value === undefined ? {} : (value as ModelPlanStateView);
 }
 
+export type RoutingGroupMemberView =
+  | { kind: 'model'; provider: string; model: string; reasoningEffort?: string }
+  | { kind: 'group'; id: string };
+
+export interface RoutingGroupView {
+  id: string;
+  name: string;
+  revision: number;
+  mode: 'order';
+  members: RoutingGroupMemberView[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RestingRouteView {
+  provider: string;
+  model: string;
+  until: string;
+  reason?: 'quota' | 'credential' | 'rate-limit';
+}
+
+export async function loadRoutingGroups(
+  call: BridgeCall,
+): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }> {
+  const value = asRecord(await unwrap(call, 'modelGroups', {}));
+  if (!Array.isArray(value?.['groups'])) throw new Error('Invalid Routing Groups');
+  return {
+    groups: value['groups'] as RoutingGroupView[],
+    rests: Array.isArray(value['rests']) ? (value['rests'] as RestingRouteView[]) : [],
+  };
+}
+
+function routingGroupOf(value: unknown): RoutingGroupView {
+  const group = asRecord(asRecord(value)?.['group']);
+  if (group === undefined) throw new Error('Invalid Routing Group result');
+  return group as unknown as RoutingGroupView;
+}
+
+export async function createRoutingGroup(
+  call: BridgeCall,
+  name: string,
+  members: RoutingGroupMemberView[],
+): Promise<RoutingGroupView> {
+  return routingGroupOf(await unwrap(call, 'modelGroupCreate', { name, members }));
+}
+
+export async function updateRoutingGroup(
+  call: BridgeCall,
+  id: string,
+  expectedRevision: number,
+  name: string,
+  members: RoutingGroupMemberView[],
+): Promise<RoutingGroupView> {
+  return routingGroupOf(
+    await unwrap(call, 'modelGroupUpdate', { id, expectedRevision, name, members }),
+  );
+}
+
+export async function deleteRoutingGroup(
+  call: BridgeCall,
+  id: string,
+  expectedRevision: number,
+): Promise<RoutingGroupView> {
+  return routingGroupOf(await unwrap(call, 'modelGroupDelete', { id, expectedRevision }));
+}
+
 export async function createModelPreset(
   call: BridgeCall,
   name: string,
   orchestrator: ModelRouteView,
   assignmentDefault: ModelRouteView,
   assignmentModels?: AssignmentModelOptionView[],
+  openAssignmentModels?: boolean,
 ): Promise<ModelPresetView> {
   const value = asRecord(
     await unwrap(call, 'modelPresetCreate', {
@@ -335,6 +417,7 @@ export async function createModelPreset(
       orchestrator,
       assignmentDefault,
       ...(assignmentModels === undefined ? {} : { assignmentModels }),
+      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
     }),
   );
   if (asRecord(value?.['preset']) === undefined) throw new Error('Invalid Model Preset result');
@@ -948,7 +1031,13 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
             const member = asRecord(raw);
             return typeof member?.['humanId'] === 'string' &&
               typeof member['displayName'] === 'string'
-              ? [{ humanId: member['humanId'], displayName: member['displayName'] }]
+              ? [
+                  {
+                    humanId: member['humanId'],
+                    displayName: member['displayName'],
+                    ...humanAvatarVersionOf(member['avatarVersion']),
+                  },
+                ]
               : [];
           }),
         }
@@ -1295,8 +1384,20 @@ export async function loadChannelSkillCatalog(
   call: BridgeCall,
   channelId: string,
 ): Promise<SkillCatalogEntry[]> {
-  const value = asRecord(await unwrap(call, 'channelSkillCatalog', { channelId }));
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid channelSkillCatalog response');
+  return skillCatalogEntries(await unwrap(call, 'channelSkillCatalog', { channelId }));
+}
+
+export async function loadSessionSkillCatalog(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<SkillCatalogEntry[]> {
+  return skillCatalogEntries(await unwrap(call, 'sessionSkillCatalog', { slug, sessionId }));
+}
+
+function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
+  const value = asRecord(response);
+  if (!Array.isArray(value?.['skills'])) throw new Error('invalid Skill catalog response');
   return value['skills'].flatMap((entry: unknown): SkillCatalogEntry[] => {
     const item = asRecord(entry);
     const owner = asRecord(item?.['owner']);
@@ -1562,6 +1663,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
+  let modelSwitch: ChannelMessage['modelSwitch'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
   let voiceCallRecord: ChannelMessage['voiceCallRecord'];
@@ -1640,6 +1742,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
+  } else if (record['modelSwitch'] !== undefined) {
+    if (author.kind !== 'system' || !isChannelModelSwitch(record['modelSwitch'])) return undefined;
+    modelSwitch = record['modelSwitch'];
   } else if (record['turnStop'] !== undefined) {
     const stop = asRecord(record['turnStop']);
     if (
@@ -1668,10 +1773,13 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
             }
           : {}),
       ...(stop['held'] === true ? { held: true } : {}),
-      ...(stop['cause'] === 'failures' || stop['cause'] === 'human-stop'
+      ...(stop['cause'] === 'failures' ||
+      stop['cause'] === 'human-stop' ||
+      stop['cause'] === 'quota'
         ? { cause: stop['cause'] }
         : {}),
       ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
+      ...(isChannelTurnStopRests(stop['rests']) ? { rests: stop['rests'] } : {}),
     };
   } else if (author.kind === 'system' && asRecord(record['onboardingWelcome'])?.['version'] !== 1) {
     return undefined;
@@ -1968,6 +2076,8 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       };
     }
   }
+  const quotes = parseMessageQuotes(record['quotes']);
+  if (quotes === false) return undefined;
   const rawPreview = record['replyToPreview'];
   let replyToPreview: ChannelMessage['replyToPreview'];
   if (rawPreview === null) {
@@ -2150,6 +2260,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(modelSwitch === undefined ? {} : { modelSwitch }),
     ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
@@ -2183,6 +2294,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+    ...(quotes === undefined ? {} : { quotes }),
     ...(perf === undefined ? {} : { perf }),
   };
 }
@@ -2877,12 +2989,18 @@ export async function validateComposerDraft(
   channelId: string,
   attachments: ChannelAttachmentRef[],
   replyTo?: string,
-): Promise<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }> {
+  quotes?: ReadonlyArray<{ messageId: string; text?: string }>,
+): Promise<{
+  reply?: ChannelMessage;
+  attachments: Array<ChannelAttachmentRef | null>;
+  quotes?: Array<ChannelMessage | null>;
+}> {
   const value = asRecord(
     await unwrap(call, 'composerValidate', {
       channelId,
       attachments,
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined ? {} : { quotes }),
     }),
   );
   if (
@@ -2895,9 +3013,17 @@ export async function validateComposerDraft(
   const reply = value['reply'] === undefined ? undefined : parseChannelMessage(value['reply']);
   if (value['reply'] !== undefined && reply === undefined)
     throw new Error('invalid composer reply');
+  const rawQuotes = value['quotes'];
+  if (quotes !== undefined && (!Array.isArray(rawQuotes) || rawQuotes.length !== quotes.length))
+    throw new Error('invalid composer quotes');
+  const checked = Array.isArray(rawQuotes)
+    ? rawQuotes.map((raw) => (raw === null ? null : parseChannelMessage(raw)))
+    : undefined;
+  if (checked?.some((message) => message === undefined)) throw new Error('invalid composer quotes');
   return {
     ...(reply === undefined ? {} : { reply }),
     attachments: value['attachments'] as Array<ChannelAttachmentRef | null>,
+    ...(checked === undefined ? {} : { quotes: checked as Array<ChannelMessage | null> }),
   };
 }
 
@@ -2949,28 +3075,7 @@ export async function renameChannel(
   return { channel, ...(bot === undefined ? {} : { bot }) };
 }
 
-export interface LocalHumanIdentity {
-  humanId: string;
-  defaultDisplayName: string | null;
-  displayName: string;
-}
-
-function parseHumanIdentity(value: unknown): LocalHumanIdentity {
-  const item = asRecord(value);
-  const name = item?.['defaultDisplayName'];
-  if (
-    item?.['humanId'] !== 'local-human' ||
-    (name !== null &&
-      (typeof name !== 'string' || name.trim().length === 0 || name.length > 128)) ||
-    item['displayName'] !== (name ?? 'Human')
-  )
-    throw new Error('invalid local Human identity');
-  return {
-    humanId: 'local-human',
-    defaultDisplayName: name,
-    displayName: item['displayName'] as string,
-  };
-}
+export type LocalHumanIdentity = HumanIdentity;
 
 export type TelemetryLock = 'config' | 'DO_NOT_TRACK' | 'BOTHARNESS_TELEMETRY';
 
@@ -3582,6 +3687,24 @@ export async function setHumanDefaultName(
   displayName: string | null,
 ): Promise<LocalHumanIdentity> {
   return parseHumanIdentity(await unwrap(call, 'humanNameSet', { displayName }));
+}
+
+export async function setHumanAvatar(
+  call: BridgeCall,
+  avatar: string | null,
+): Promise<LocalHumanIdentity> {
+  return parseHumanIdentity(await unwrap(call, 'humanAvatarSet', { avatar }));
+}
+
+export async function finishHumanProfileSetup(call: BridgeCall): Promise<LocalHumanIdentity> {
+  return parseHumanIdentity(await unwrap(call, 'humanProfileSetupFinish', {}));
+}
+
+export async function loadHumanAvatars(
+  call: BridgeCall,
+  humanIds: string[],
+): Promise<HumanAvatarImage[]> {
+  return parseHumanAvatars(await unwrap(call, 'humanAvatars', { humanIds }));
 }
 
 export async function setChannelHumanName(
@@ -4387,8 +4510,8 @@ export async function sendSessionRequest(
   const value = asRecord(
     await unwrap(call, 'botToolRun', {
       slug,
-      tool: 'send_assignment_request',
-      args: { session_id: sessionId, text, mode: steer ? 'next-step' : 'next-turn' },
+      tool: 'unarchive_assignment',
+      args: { session_id: sessionId, message: text, mode: steer ? 'next-step' : 'next-turn' },
     }),
   );
   let result: unknown = value?.['result'];
@@ -4404,6 +4527,15 @@ export async function sendSessionRequest(
     throw new Error(
       typeof outcome['message'] === 'string' ? outcome['message'] : String(outcome['code']),
     );
+}
+
+export async function sendOrchestratorMessage(
+  call: BridgeCall,
+  botSlug: string,
+  sessionId: string,
+  text: string,
+): Promise<void> {
+  await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
 }
 
 const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
@@ -4936,6 +5068,7 @@ export async function sendChannelMessage(
   allBotMention?: AllBotMention,
   genuiReply?: GenuiMessageReply,
   skillInvocations?: ChannelSkillInvocationToken[],
+  quotes?: readonly QuoteRef[],
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -4947,6 +5080,11 @@ export async function sendChannelMessage(
         ? {}
         : { skillInvocations }),
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined || quotes.length === 0
+        ? {}
+        : {
+            quotes: quotes.map(quoteRefOf),
+          }),
       ...(attachments === undefined ? {} : { attachments }),
       ...(messageId === undefined ? {} : { messageId }),
       ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
@@ -7935,6 +8073,7 @@ export async function setModelPlan(
   orchestrator: ModelRouteView,
   assignmentDefault: ModelRouteView,
   assignmentModels: AssignmentModelOptionView[],
+  openAssignmentModels?: boolean,
 ): Promise<ModelPlanView> {
   const value = asRecord(
     await unwrap(call, 'modelPlanSet', {
@@ -7943,8 +8082,45 @@ export async function setModelPlan(
       orchestrator,
       assignmentDefault,
       assignmentModels,
+      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
     }),
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;
+}
+
+function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {
+  if (value === null) return null;
+  const preview = asRecord(value);
+  if (preview === undefined || typeof preview['body'] !== 'string') return false;
+  const author = parseAuthor(preview['author']);
+  if (author === undefined) return false;
+  const media = preview['media'];
+  return {
+    author,
+    body: preview['body'],
+    ...(isChannelReplyPreviewMedia(media) ? { media } : {}),
+  };
+}
+
+function parseMessageQuotes(value: unknown): ChannelMessageQuote[] | undefined | false {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 8) return false;
+  const quotes: ChannelMessageQuote[] = [];
+  for (const entry of value) {
+    const quote = asRecord(entry);
+    if (quote === undefined || typeof quote['messageId'] !== 'string') return false;
+    if (quote['text'] !== undefined && typeof quote['text'] !== 'string') return false;
+    if (quote['note'] !== undefined && typeof quote['note'] !== 'string') return false;
+    const preview =
+      quote['preview'] === undefined ? undefined : parseQuotePreview(quote['preview']);
+    if (preview === false) return false;
+    quotes.push({
+      messageId: quote['messageId'],
+      ...(typeof quote['text'] === 'string' ? { text: quote['text'] } : {}),
+      ...(typeof quote['note'] === 'string' ? { note: quote['note'] } : {}),
+      ...(preview === undefined ? {} : { preview }),
+    });
+  }
+  return quotes;
 }

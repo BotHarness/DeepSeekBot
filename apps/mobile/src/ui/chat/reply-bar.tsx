@@ -1,3 +1,4 @@
+import { useContext } from 'react';
 import { Pressable, View } from 'react-native';
 import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { useDesignTheme } from '../design/theme';
@@ -5,7 +6,7 @@ import { radius, space, swipeReply } from '../design/tokens';
 import { CloseIcon, ReplyIcon } from '../shell/icons';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { replyAuthor } from './reply-quote';
+import { replyAuthor, ReplyPeopleContext } from './reply-author';
 
 export function ReplyBar({
   message,
@@ -18,6 +19,7 @@ export function ReplyBar({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const people = useContext(ReplyPeopleContext);
   const author = replyAuthor(
     {
       author:
@@ -33,6 +35,7 @@ export function ReplyBar({
     t.reply.you,
     botName,
     t.reply.member,
+    people,
   );
   return (
     <View

@@ -8,6 +8,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 
 import type { PersonaBotModelPlan } from '../src/models/presets.js';
 import {
+  createBotSubagentModelTools,
   installBotSubagentModelTools,
   installOrchestratorSubagentGuard,
   type BotSubagentPresetConfig,
@@ -694,6 +695,53 @@ describe('Bot-owned DSH Subagent tools', () => {
       default: plan.assignmentDefault,
       allowed: plan.assignmentModels,
       parentSession: 'parent',
+    });
+  });
+  it('starts a child on the first usable Routing Group member and lists the groups (#4420)', async () => {
+    const harness = createHarness({ plan });
+    const picked: string[] = [];
+    const tools = createBotSubagentModelTools(harness.ctx, () => plan, {}, undefined, undefined, {
+      pick: async (groupId) => {
+        picked.push(groupId);
+        return { provider: 'openai', model: 'sol', reasoningEffort: 'high' };
+      },
+      list: () => [
+        {
+          group: 'g',
+          name: 'Fallback',
+          members: [{ provider: 'deepseek', model: 'pro', restingUntil: '2026-11-18T00:00:00Z' }],
+        },
+      ],
+    });
+    for (const tool of tools) harness.definitions.set(tool.name, tool);
+    const listed = JSON.parse((await callTool(harness, 'list_bot_subagent_models', {})) as string);
+    expect(listed.groups).toEqual([
+      {
+        group: 'g',
+        name: 'Fallback',
+        members: [{ provider: 'deepseek', model: 'pro', restingUntil: '2026-11-18T00:00:00Z' }],
+      },
+    ]);
+    await expect(
+      callTool(harness, 'bot_subagent', {
+        description: 'Both',
+        prompt: 'Work',
+        group: 'g',
+        provider: 'deepseek',
+        model: 'pro',
+      }),
+    ).rejects.toThrow('group must be a Routing Group id');
+    expect(
+      await callTool(harness, 'bot_subagent', {
+        description: 'Grouped',
+        prompt: 'Work',
+        group: 'g',
+      }),
+    ).toContain(`Started Subagent ${CHILD_ID} on openai/sol`);
+    expect(picked).toEqual(['g']);
+    expect(startedActivation(harness).request.agentOptions).toMatchObject({
+      provider: 'openai',
+      model: 'sol',
     });
   });
 });

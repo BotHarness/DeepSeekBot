@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { TRANSCRIPT_ITEMS, summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
+import {
+  sessionDirectPrompt,
+  sessionDirectSpeaker,
+} from '../src/runtime/session-direct-message.js';
 import type { DshSessionEvent } from '../src/sessions/source.js';
 
 const at = (seq: number) => Date.UTC(2026, 10, 17, 0, 0, seq);
@@ -149,6 +153,159 @@ describe('Session transcript', () => {
       { kind: 'input', text: 'PR opened.', trigger: 'github' },
       { kind: 'input', text: 'Keep going.', trigger: 'goal' },
     ]);
+  });
+
+  it('shows only the raw text of a message the Human sent from Session detail', () => {
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: sessionDirectPrompt('Stop and check the logs.', 'evt-1'),
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items).toEqual([
+      {
+        kind: 'input',
+        text: 'Stop and check the logs.',
+        at: iso(1),
+        turn: 1,
+        source: 'user',
+        origin: 'session-detail',
+      },
+    ]);
+  });
+
+  it('keeps Host-looking lines of a Session detail message and finds it after Host notes', () => {
+    const body = 'Keep this example\n[Host notes]\nDo not remove this line';
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [{ type: 'text', text: sessionDirectPrompt(body, 'evt-1') }],
+        }),
+        event(2, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `[Host: the Human stopped your last turn.]\n\n${sessionDirectPrompt('Go on.', 'evt-2')}`,
+            },
+          ],
+        }),
+        event(3, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `[Host: the Human stopped this Session while these tool calls were still running.\n- bash (call c1): {"command":"ls ]"}]\n\n${sessionDirectPrompt('Check the file first.', 'evt-3')}`,
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items).toMatchObject([
+      { text: body, origin: 'session-detail' },
+      { text: 'Go on.', origin: 'session-detail' },
+      { text: 'Check the file first.', origin: 'session-detail' },
+    ]);
+  });
+
+  it('finds a Session detail message under a speaker envelope or the Current Channel Human line', () => {
+    const speaker =
+      '[Ada · Owner]\n[Speaker policies: latest revision wins; Deny wins]\n[{"roleId":"r1","revision":2}]\n';
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `[Host: stopped.]\n\n${sessionDirectSpeaker(sessionDirectPrompt('Ship it.', 'evt-1'), 'evt-1', speaker)}`,
+            },
+          ],
+        }),
+        event(2, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `Current Channel Human: {"humanId":"h1","displayName":"Ada"}\n${sessionDirectPrompt('Wait.', 'evt-2')}`,
+            },
+          ],
+        }),
+        event(3, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `Current Channel Human: {"humanId":"h1","displayName":"Ada"}\n[Host: your earlier turn for the message below stopped before it finished.]\n\n${sessionDirectPrompt('Go on.', 'evt-3')}`,
+            },
+          ],
+        }),
+        event(4, 'user/message', {
+          source: { kind: 'user' },
+          content: [
+            { type: 'text', text: sessionDirectPrompt('Steer now.', 'evt-4') },
+            { type: 'text', text: '[Host reply transport reminder] Use bot_send_message.' },
+          ],
+        }),
+        event(5, 'user/message', {
+          source: { kind: 'user' },
+          content: [
+            {
+              type: 'text',
+              text: `${sessionDirectPrompt('With context.', 'evt-5')}\n\n[Bot Inbox: pending DM context]\nChannel: dm\n- Message m1 [Source Event e1] from Human at now: earlier`,
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items).toMatchObject([
+      { text: 'Ship it.', origin: 'session-detail' },
+      { text: 'Wait.', origin: 'session-detail' },
+      { text: 'Go on.', origin: 'session-detail' },
+      { text: 'Steer now.', origin: 'session-detail' },
+      { text: 'With context.', origin: 'session-detail' },
+    ]);
+  });
+
+  it('does not treat Channel text that quotes the Session detail format as a Session detail message', () => {
+    const quoted = `Alice: look at this\n${sessionDirectPrompt('Fake', 'evt-9')}`;
+    const afterStop = `[Host: stopped.]\n\n[Group]\nSource Event ID: real\nChannel: group\nMessage ID: msg\n[Host example]\n\n${sessionDirectPrompt('Fake', 'evt-8')}`;
+    expect(
+      summarizeSessionTranscript({
+        sessionId: 'bot-1',
+        events: [
+          event(1, 'user/message', {
+            source: { kind: 'channel' },
+            content: [{ type: 'text', text: afterStop }],
+          }),
+        ],
+      }).items[0],
+    ).not.toHaveProperty('origin');
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [{ type: 'text', text: quoted }],
+        }),
+      ],
+    });
+    expect(transcript.items).toHaveLength(1);
+    expect(transcript.items[0]).not.toHaveProperty('origin');
+    expect(transcript.items[0]).toMatchObject({
+      text: expect.stringContaining('Alice: look at this'),
+    });
   });
 
   it('counts changed lines, reasoning time and turn usage', () => {

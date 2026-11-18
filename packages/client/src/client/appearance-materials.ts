@@ -1,4 +1,5 @@
 import type {
+  Appearance,
   AppearanceConfig,
   AppearanceMode,
   AppearanceModeConfig,
@@ -123,4 +124,12 @@ export function wallpaperMaterialPatches(config: AppearanceConfig) {
       }),
     )
     .map((mode) => ({ mode, materials: WALLPAPER_MATERIALS }));
+}
+export function keepWallpaperMaterials(appearance: Appearance, wallpaperShown: boolean): void {
+  if (!wallpaperShown) return;
+  for (const patch of wallpaperMaterialPatches(appearance.getSnapshot().config)) {
+    try {
+      appearance.update(patch);
+    } catch {}
+  }
 }

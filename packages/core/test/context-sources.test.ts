@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionEvent, SessionSeq } from '@deepseek-ai/dsh-session';
 
-import { contextSources } from '../src/runtime/context-sources.js';
+import { contextSources, textShares } from '../src/runtime/context-sources.js';
 
 function event(seq: number, type: string, data: Record<string, unknown>): SessionEvent {
   return {
@@ -114,5 +114,46 @@ describe('context sources', () => {
       eventAt: () => empty,
     });
     expect(rows).toEqual([{ source: 'other', tokens: 50 }]);
+  });
+
+  it('counts every Bot Inbox section, not only the [Bot Inbox] list', () => {
+    const harvest = [
+      '[Bot Inbox harvest] 3 attention items are ready.',
+      '',
+      'Source Event ID: se-1',
+      '[Bot Inbox: direct Group mention from Human]',
+      'Channel: c1',
+      'Message: can you check this?',
+      '',
+      '[Bot Inbox: Group digest]',
+      'Channel: Team (c2)',
+      '- Message m1 [Source Event se-2] from Ada at now: hello',
+      '',
+      '[Bot Inbox: Takeover Handoff ended]',
+      'Source Event ID: se-3',
+      '',
+      '[Bot Inbox] External mentions, due Bot Schedules since your last turn.',
+      'Answer an item that waits for your answer.',
+      '- a-1 (key fix, activity idle, repeats 0) reported [Source Event se-4]: Done.',
+      '- Memory change (event se-5): notes.md changed.',
+      '',
+      '[Open Inbox] 2 items you have seen but not resolved.',
+      '- [Source Event se-6] Channel "Team", now: hello',
+    ].join('\n');
+    const by = new Map<string, number>();
+    for (const [source, size] of textShares(harvest)) by.set(source, (by.get(source) ?? 0) + size);
+    expect(by.get('human')).toBeUndefined();
+    expect(by.get('inbox-mention')).toBeGreaterThan(150);
+    expect(by.get('host')).toBeGreaterThan(30);
+    expect(by.get('inbox-assignment')).toBeGreaterThan(80);
+    expect(by.get('inbox-memory')).toBeGreaterThan(40);
+    expect(by.get('inbox-open')).toBeGreaterThan(80);
+    expect([...by.values()].reduce((sum, size) => sum + size, 0)).toBe(harvest.length);
+  });
+
+  it('keeps a Human message ahead of the inbox as human', () => {
+    const shares = textShares('Please look at this\n\n[Bot Inbox: Group digest]\n- Message m1');
+    expect(shares[0]).toEqual(['human', 'Please look at this\n\n'.length]);
+    expect(shares[1]?.[0]).toBe('inbox-mention');
   });
 });

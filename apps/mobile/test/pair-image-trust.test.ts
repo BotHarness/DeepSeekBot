@@ -86,6 +86,37 @@ it('keeps a legacy pairing until its explicitly approved replacement succeeds', 
   expect(previous.credential).toBe('legacy.secret');
 });
 
+it('pairs as the owner instead of refreshing routes when this phone is signed in to the Host as a member', async () => {
+  const options = setup();
+  const member = {
+    hostId: 'qa-host',
+    hostName: 'QA computer',
+    deviceId: 'member-device',
+    credential: 'member.secret',
+    routes: ['http://192.168.1.5:14277'],
+    encryption: {
+      protocol: 'connect-noise-xk-v1' as const,
+      hostKey: '11'.repeat(32),
+      deviceKey: '22'.repeat(32),
+    },
+    member: {
+      humanId: 'alice',
+      displayName: 'Alice',
+      username: 'alice',
+      fingerprint: noiseFingerprint(new Uint8Array(32).fill(0x11)),
+      mustChangePassword: false,
+    },
+  };
+  const confirmFingerprint = vi.fn(async () => false);
+  expect(await pairHost({ ...options, existing: () => member, confirmFingerprint })).toEqual({
+    ok: false,
+    code: 'host-key-confirmation-required',
+  });
+  expect(confirmFingerprint).toHaveBeenCalledOnce();
+  expect(options.carrier.request).not.toHaveBeenCalled();
+  expect(options.save).not.toHaveBeenCalled();
+});
+
 it('cancels while comparing the image fingerprint without enrolling even if confirmation arrives later', async () => {
   const options = setup();
   const controller = new AbortController();

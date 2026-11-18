@@ -178,6 +178,7 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     expect(lists[0]!.querySelector('[data-session-orchestrator]')?.getAttribute('aria-label')).toBe(
       'Orchestrator',
     );
+    expect(lists[0]!.querySelector('[data-session-orchestrator] .bh-avatar-media')).not.toBeNull();
     expect(
       [...container.querySelectorAll<HTMLElement>('[data-section]')].map(
         (node) => node.dataset['section'],
