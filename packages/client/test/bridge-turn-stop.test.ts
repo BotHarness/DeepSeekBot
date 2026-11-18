@@ -129,7 +129,7 @@ it('shows a subscription limit card with a one-tap switch to the API model (#449
   const plain = renderToStaticMarkup(
     createElement(TurnStopLine, {
       messageId: 'turn-stopped-5',
-      stop: { ...stop, engine: undefined },
+      stop: { botName: stop.botName, humanName: stop.humanName, botSlug: 'ada', cause: 'quota' },
       t: enTranslate,
     }),
   );
