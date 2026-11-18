@@ -16,6 +16,11 @@ export interface RoutesExhausted {
   rests: RestingRoute[];
 }
 
+export type GroupPick =
+  | { kind: 'route'; route: ModelRoute }
+  | { kind: 'exhausted'; rests: RestingRoute[] }
+  | { kind: 'missing' };
+
 export interface GroupFallback {
   route(sessionId: string): ModelRoute | undefined;
   choose(
@@ -24,6 +29,7 @@ export interface GroupFallback {
     failed: RestingRoute,
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
   restore(botSlug: string, sessionId: string): Promise<ModelSwitch | undefined>;
+  pick(botSlug: string, groupId: string): Promise<GroupPick>;
   forget(sessionId: string): void;
 }
 
@@ -111,6 +117,30 @@ export function createGroupFallback(options: {
         };
       }
       return undefined;
+    },
+    async pick(botSlug, groupId) {
+      let routes: ModelRoute[];
+      try {
+        routes = options.routes(groupId);
+      } catch {
+        return { kind: 'missing' };
+      }
+      const rests: RestingRoute[] = [];
+      for (const route of routes) {
+        const rest = options.rests.restingUntil(route);
+        if (rest !== undefined) {
+          rests.push(rest);
+          continue;
+        }
+        try {
+          options.requireAllowed(botSlug, route);
+          await options.validate(route);
+        } catch {
+          continue;
+        }
+        return { kind: 'route', route: { ...route } };
+      }
+      return { kind: 'exhausted', rests };
     },
     forget(sessionId) {
       overrides.delete(sessionId);

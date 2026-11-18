@@ -3823,6 +3823,15 @@ const REMOTE_HOST_CUSTODY_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_MODEL_GROUP_MIGRATION: SchemaMigration = {
+  id: 'assignment-model-group',
+  module: 'assignments',
+  description: 'Remember the Routing Group an Assignment Session runs on so it can fall back',
+  migrate(database) {
+    database.exec(`ALTER TABLE assignments ADD COLUMN model_group_id TEXT;`);
+  },
+};
+
 const noticeOf = (payload: string) =>
   `CASE WHEN json_valid(${payload}) THEN coalesce(${['botDmAction', 'botCreateAction', 'botChannelPost', 'memoryCommit', 'toolAutoApproval', 'toolAutoApprovalPause', 'modelSwitch'].map((field) => `json_type(${payload}, '$.${field}') = 'object'`).join(' OR ')}, 0) ELSE 0 END`;
 
@@ -4068,6 +4077,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   REMOTE_HOST_CUSTODY_MIGRATION,
   ROUTING_GROUP_STORAGE_MIGRATION,
   MODEL_SWITCH_NOTICE_MIGRATION,
+  ASSIGNMENT_MODEL_GROUP_MIGRATION,
   HUMAN_AVATAR_MIGRATION,
   HUMAN_AVATAR_CHANGE_MIGRATION,
   HUMAN_PROFILE_SETUP_MIGRATION,

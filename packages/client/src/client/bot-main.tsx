@@ -1417,7 +1417,7 @@ function ConversationView({
   const workspaceEnabled = useContext(WorkspaceContext) !== undefined;
   const teamMode = useTeamMode(actions.teamCall)?.enabled === true;
   const [detail, setDetail] = useScopedState<
-    'files' | 'inbox' | { sessionId: string; title: string } | undefined
+    'files' | 'inbox' | { botSlug?: string; sessionId: string; title: string } | undefined
   >(
     scopeKey,
     state.selection?.kind === 'bot' && state.selection.inboxRequest ? 'inbox' : undefined,
@@ -1482,6 +1482,7 @@ function ConversationView({
     [dockChannelSummary?.id, dockChannelSummary?.type, dockChannelBotSlug],
   );
   const dockBotSlug = dockBotDeleted ? undefined : dockChannelContext?.botSlug;
+  const sessionOwner = sessionDetail?.botSlug ?? dockBotSlug;
   const dockInboxMount = useMountedResource<HTMLSpanElement>(() => {
     if (!inboxOpen || dockBotSlug === undefined) return;
     void actions.refreshBotInbox(dockBotSlug);
@@ -4223,13 +4224,35 @@ function ConversationView({
       conversationPane
     );
   const openSession = (botSlug: string | undefined, sessionId: string, title: string): void => {
-    if (dockBotSlug === undefined || (botSlug ?? dockBotSlug) !== dockBotSlug) return;
-    setDetail({
-      sessionId,
-      title:
-        title ||
-        sessionItems.find((item) => item.sessionId === sessionId)?.assignmentTitle ||
-        t('sessions.detail.title'),
+    const show = (owner: string): void =>
+      setDetail({
+        ...(owner === dockBotSlug ? {} : { botSlug: owner }),
+        sessionId,
+        title:
+          title ||
+          sessionItems.find((item) => item.sessionId === sessionId)?.assignmentTitle ||
+          composerSessions.options.find((option) => option.sessionId === sessionId)?.title ||
+          t('sessions.detail.title'),
+      });
+    const owner =
+      botSlug ??
+      dockBotSlug ??
+      composerSessions.options.find((option) => option.sessionId === sessionId)?.botSlug;
+    if (owner !== undefined) {
+      show(owner);
+      return;
+    }
+    if (channel?.type !== 'group') return;
+    void Promise.all(
+      channel.members.map((slug) =>
+        actions.readSessions(slug).then(
+          (items) => (items.some((item) => item.sessionId === sessionId) ? slug : undefined),
+          () => undefined,
+        ),
+      ),
+    ).then((owners) => {
+      const found = owners.find((slug) => slug !== undefined);
+      if (found !== undefined) show(found);
     });
   };
   return (
@@ -4388,7 +4411,7 @@ function ConversationView({
                 }
                 inbox={inboxAvailable ? { open: inboxOpen, setOpen: setInboxOpen } : undefined}
                 session={
-                  sessionDetail === undefined || dockBotSlug === undefined
+                  sessionDetail === undefined || sessionOwner === undefined
                     ? undefined
                     : {
                         title: sessionDetail.title,
@@ -4397,7 +4420,7 @@ function ConversationView({
                           <SessionDetail
                             key={sessionDetail.sessionId}
                             actions={actions}
-                            botSlug={dockBotSlug}
+                            botSlug={sessionOwner}
                             sessionId={sessionDetail.sessionId}
                             t={t}
                           />

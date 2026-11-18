@@ -40,7 +40,42 @@ export interface PersonaBotModelPlan {
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
   openAssignmentModels?: true;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
   appliedAt: string;
+}
+
+export interface AssignmentGroupChoice {
+  group: string;
+}
+
+export function isAssignmentGroupChoice(value: unknown): value is AssignmentGroupChoice {
+  if (typeof value !== 'object' || value === null) return false;
+  const group = (value as Record<string, unknown>)['group'];
+  return typeof group === 'string' && group.trim().length > 0;
+}
+
+export function selectAssignmentGroup(
+  plan: PersonaBotModelPlan,
+  requested?: ModelRoute | AssignmentGroupChoice,
+): string | undefined {
+  if (requested === undefined) return plan.assignmentDefaultGroupId;
+  if (!isAssignmentGroupChoice(requested)) return undefined;
+  const id = requested.group.trim();
+  if (!(plan.assignmentGroups ?? []).includes(id))
+    throw new Error(`Assignment Routing Group ${id} is not allowed`);
+  return id;
+}
+
+function isAssignmentGroups(groups: unknown, defaultId: unknown): boolean {
+  if (groups === undefined) return defaultId === undefined;
+  return (
+    Array.isArray(groups) &&
+    groups.length > 0 &&
+    groups.every((id) => typeof id === 'string' && id.trim().length > 0) &&
+    new Set(groups).size === groups.length &&
+    (defaultId === undefined || (typeof defaultId === 'string' && groups.includes(defaultId)))
+  );
 }
 
 export interface ModelPresetStore {
@@ -213,6 +248,8 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     (plan['orchestratorGroupId'] === undefined ||
       (typeof plan['orchestratorGroupId'] === 'string' &&
         plan['orchestratorGroupId'].trim().length > 0)) &&
+    isAssignmentGroups(plan['assignmentGroups'], plan['assignmentDefaultGroupId']) &&
+    (plan['assignmentGroups'] === undefined || plan['assignmentDefault'] !== undefined) &&
     (plan['assignmentDefault'] === undefined
       ? plan['assignmentModels'] === undefined
       : isModelRoute(plan['assignmentDefault']) &&

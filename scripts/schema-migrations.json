@@ -644,6 +644,10 @@
     "sha256": "cf7d113580319972cb05aab4ebb89e7e48057ce50960791faf4bb165c82f6e29"
   },
   {
+    "id": "assignment-model-group",
+    "sha256": "13a736b040c4019d21fc4942a5f27a8f1b0924b632af6f1dff0380a018cc7a76"
+  },
+  {
     "id": "human-avatar",
     "sha256": "d5b46fddbe5a3902ab2d12670eec3bca1626b7cb83cf07f314246d4ba348dc79"
   },

@@ -4356,9 +4356,19 @@ function buildBridgeMethods(
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
       const openAssignmentModels = source['openAssignmentModels'];
+      const assignmentGroups = source['assignmentGroups'];
+      const assignmentDefaultGroupId = source['assignmentDefaultGroupId'];
       if (
         typeof slug !== 'string' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
+        (assignmentGroups !== undefined &&
+          (!Array.isArray(assignmentGroups) ||
+            !assignmentGroups.every((id) => typeof id === 'string' && id.trim() !== '') ||
+            new Set(assignmentGroups).size !== assignmentGroups.length)) ||
+        (assignmentDefaultGroupId !== undefined &&
+          (typeof assignmentDefaultGroupId !== 'string' ||
+            !Array.isArray(assignmentGroups) ||
+            !assignmentGroups.includes(assignmentDefaultGroupId))) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4373,12 +4383,25 @@ function buildBridgeMethods(
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
+        for (const id of (assignmentGroups ?? []) as string[]) {
+          if (deps.routingGroups?.get(id) === undefined)
+            throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+          requireRoutes(slug, deps.routingGroups.routes(id));
+        }
         const result = deps.registry.setAssignmentModels(
           slug,
           assignmentDefault,
           assignmentModels,
           expectedRevision,
-          ...(openAssignmentModels === undefined ? [] : [openAssignmentModels]),
+          typeof openAssignmentModels === 'boolean' ? openAssignmentModels : undefined,
+          assignmentGroups === undefined
+            ? undefined
+            : {
+                ids: assignmentGroups as string[],
+                ...(typeof assignmentDefaultGroupId === 'string'
+                  ? { defaultId: assignmentDefaultGroupId }
+                  : {}),
+              },
         );
         if (!result.ok)
           return result.reason === 'not-found'

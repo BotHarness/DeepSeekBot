@@ -1791,6 +1791,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    assignmentGroups: {
+      pick: (botSlug, groupId) => groupFallback.pick(botSlug, groupId),
+      describe: (groupId) => {
+        const group = core.routingGroups.get(groupId);
+        if (group === undefined) return undefined;
+        try {
+          return { name: group.name, routes: core.routingGroups.routes(groupId) };
+        } catch {
+          return undefined;
+        }
+      },
+      restingUntil: (route) => routeRests.restingUntil(route),
+    },
     openAssignmentRoutes,
     orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
     subagentTools: (slug) =>
@@ -1803,6 +1816,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           await openAssignmentRoutes.require(slug, route);
         },
         () => openAssignmentRoutes.list(slug),
+        {
+          pick: async (groupId) => {
+            const plan = core.registry.get(slug)?.modelPlan;
+            if (!(plan?.assignmentGroups ?? []).includes(groupId))
+              throw new Error(`Routing Group ${groupId} is not allowed for Subagents`);
+            const picked = await groupFallback.pick(slug, groupId);
+            if (picked.kind === 'route') return picked.route;
+            throw new Error(
+              picked.kind === 'exhausted' && picked.rests.length > 0
+                ? `Every model in Routing Group ${groupId} is resting: ${picked.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
+                : `Routing Group ${groupId} has no usable model`,
+            );
+          },
+          list: () =>
+            (core.registry.get(slug)?.modelPlan?.assignmentGroups ?? []).flatMap((groupId) => {
+              const group = core.routingGroups.get(groupId);
+              if (group === undefined) return [];
+              return [
+                {
+                  group: groupId,
+                  name: group.name,
+                  members: core.routingGroups.routes(groupId).map((route) => {
+                    const rest = routeRests.restingUntil(route);
+                    return rest === undefined ? route : { ...route, restingUntil: rest.until };
+                  }),
+                },
+              ];
+            }),
+        },
       ),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
@@ -2562,10 +2604,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
       onQuotaExhausted: (route, untilMs, reason, sessionId) => {
         const owner = sessionId === undefined ? undefined : core.ownership.resolve(sessionId);
+        const plan = owner === undefined ? undefined : core.registry.get(owner.botSlug)?.modelPlan;
         if (
           reason === 'quota' ||
-          (owner !== undefined &&
-            core.registry.get(owner.botSlug)?.modelPlan?.orchestratorGroupId !== undefined)
+          plan?.orchestratorGroupId !== undefined ||
+          (plan?.assignmentGroups?.length ?? 0) > 0
         )
           routeRests.rest(route, untilMs, reason);
       },

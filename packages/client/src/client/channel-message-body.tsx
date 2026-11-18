@@ -97,14 +97,18 @@ export function MessageMarkdown({
 function SessionMentionScope({
   enabled,
   botSlug,
+  body,
   children,
 }: {
   enabled: boolean;
   botSlug: string | undefined;
+  body: string;
   children: ReactNode;
 }): ReactNode {
   return enabled ? (
-    <SessionMentionDelegate botSlug={botSlug}>{children}</SessionMentionDelegate>
+    <SessionMentionDelegate botSlug={botSlug} body={body}>
+      {children}
+    </SessionMentionDelegate>
   ) : (
     children
   );
@@ -112,9 +116,11 @@ function SessionMentionScope({
 
 function SessionMentionDelegate({
   botSlug,
+  body,
   children,
 }: {
   botSlug: string | undefined;
+  body: string;
   children: ReactNode;
 }): ReactNode {
   const parent = useMarkdownDelegate();
@@ -125,7 +131,13 @@ function SessionMentionDelegate({
       {...parent}
       openExternalLink={(href) => {
         const sessionId = sessionMentionId(href);
-        if (sessionId !== undefined) open(botSlug, sessionId, '');
+        if (sessionId !== undefined)
+          open(
+            botSlug,
+            sessionId,
+            sessionReferenceRuns(body).find((run) => run.session?.sessionId === sessionId)?.session
+              ?.title ?? '',
+          );
         else if (parent.openExternalLink !== undefined) parent.openExternalLink(href);
         else window.open(href, '_blank', 'noopener,noreferrer');
       }}
@@ -1077,6 +1089,7 @@ export function ChannelMessageBody({
                 (message.author.kind === 'bot' || humanMarkdown) && hasSessionMentions(message.body)
               }
               botSlug={message.author.kind === 'bot' ? message.author.slug : undefined}
+              body={message.body}
             >
               <ChannelMarkdownText
                 text={
