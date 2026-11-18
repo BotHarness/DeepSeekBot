@@ -1074,6 +1074,7 @@
         "engine-tools",
         "engine-tool",
         "engine-login",
+        "engine-models",
         "engine-use"
       ]
     },

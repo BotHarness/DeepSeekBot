@@ -11,6 +11,39 @@ export type EngineAccount =
   | { kind: 'metered'; engine: EngineId; detail: string }
   | { kind: 'signed-out'; engine: EngineId };
 
+export interface EngineEffort {
+  id: string;
+  name: string;
+}
+
+export interface EngineModel {
+  id: string;
+  name: string;
+  description?: string;
+  efforts: EngineEffort[];
+  defaultEffort?: string;
+  isDefault?: boolean;
+}
+
+export interface EngineChoice {
+  model?: string;
+  effort?: string;
+}
+
+const EFFORT_NAMES: Record<string, string> = {
+  none: 'None',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max',
+};
+
+export function engineEffort(id: string): EngineEffort {
+  return { id, name: EFFORT_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1) };
+}
+
 export type EngineEvent =
   | { kind: 'reasoning'; text: string }
   | { kind: 'text'; text: string }
@@ -56,6 +89,7 @@ export interface EngineSession {
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
   answer(approvalId: string, decision: EngineApprovalDecision): void;
+  models(): Promise<EngineModel[]>;
   close(): Promise<void>;
 }
 

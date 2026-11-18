@@ -5,12 +5,15 @@ import { engineLaunch } from './engine-launch.js';
 import {
   type EngineAccount,
   type EngineApprovalDecision,
+  type EngineChoice,
   type EngineEvent,
   type EngineGatewayEndpoint,
+  type EngineModel,
   type EngineSendOptions,
   type EngineSession,
   type EngineTurnEnd,
   EngineRefusal,
+  engineEffort,
   engineEnvironment,
 } from './engine-session.js';
 
@@ -53,8 +56,10 @@ export interface ClaudeQueryOptions {
     string,
     { type: 'http'; url: string; headers: Record<string, string>; alwaysLoad: true }
   >;
-  mcpServersDelivery: 'initialize';
+  mcpServersDelivery?: 'initialize';
   permissionMode: 'default';
+  model?: string;
+  effort?: string;
   systemPrompt: { type: 'preset'; preset: 'claude_code'; append: string };
   resume?: string;
   sessionId?: string;
@@ -69,6 +74,7 @@ export interface ClaudeQueryOptions {
 
 export interface ClaudeQuery extends AsyncIterable<unknown> {
   accountInfo(): Promise<unknown>;
+  supportedModels(): Promise<unknown>;
   interrupt(): Promise<unknown>;
   close(): void;
 }
@@ -107,12 +113,12 @@ export function spawnClaudeProcess(
   return child;
 }
 
-export interface ClaudeProcessOptions {
+export interface ClaudeProcessOptions extends EngineChoice {
   executable: string;
   home: string;
   cwd: string;
   instructions: string;
-  gateway: EngineGatewayEndpoint;
+  gateway?: EngineGatewayEndpoint;
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -130,16 +136,21 @@ export function claudeQueryOptions(
     pathToClaudeCodeExecutable: options.executable,
     settingSources: [],
     strictMcpConfig: true,
-    mcpServers: {
-      [CLAUDE_GATEWAY_SERVER]: {
-        type: 'http',
-        url: options.gateway.url,
-        headers: { Authorization: `Bearer ${options.gateway.token}` },
-        alwaysLoad: true,
-      },
-    },
-    mcpServersDelivery: 'initialize',
+    mcpServers:
+      options.gateway === undefined
+        ? {}
+        : {
+            [CLAUDE_GATEWAY_SERVER]: {
+              type: 'http',
+              url: options.gateway.url,
+              headers: { Authorization: `Bearer ${options.gateway.token}` },
+              alwaysLoad: true,
+            },
+          },
+    ...(options.gateway === undefined ? {} : { mcpServersDelivery: 'initialize' as const }),
     permissionMode: 'default',
+    ...(options.model === undefined ? {} : { model: options.model }),
+    ...(options.effort === undefined ? {} : { effort: options.effort }),
     systemPrompt: { type: 'preset', preset: 'claude_code', append: options.instructions },
     ...session,
     ...handlers,
@@ -186,6 +197,30 @@ export function claudeAccount(info: unknown): EngineAccount {
       detail: 'Claude Code is not signed in with a Claude subscription',
     };
   return { kind: 'signed-out', engine: 'claude' };
+}
+
+export function claudeModels(list: unknown): EngineModel[] {
+  return (Array.isArray(list) ? list : []).flatMap((raw): EngineModel[] => {
+    const entry = record(raw);
+    const id = text(entry['value']);
+    if (id === '') return [];
+    const levels = entry['supportedEffortLevels'];
+    const description = text(entry['description']);
+    return [
+      {
+        id,
+        name: text(entry['displayName']) || id,
+        ...(description === '' ? {} : { description }),
+        efforts:
+          entry['supportsEffort'] === false || !Array.isArray(levels)
+            ? []
+            : levels.flatMap((level) =>
+                typeof level === 'string' && level !== '' ? [engineEffort(level)] : [],
+              ),
+        ...(id === 'default' ? { isDefault: true } : {}),
+      },
+    ];
+  });
 }
 
 export function claudeToolName(name: string): string {
@@ -346,6 +381,16 @@ export class ClaudeEngineSession implements EngineSession {
     } finally {
       options.signal?.removeEventListener('abort', abort);
     }
+  }
+
+  async models(): Promise<EngineModel[]> {
+    const open = await this.#ensure(this.#options.resume);
+    return claudeModels(
+      await Promise.race([
+        open.query.supportedModels(),
+        open.exited.then((detail) => Promise.reject(new Error(detail))),
+      ]),
+    );
   }
 
   answer(approvalId: string, decision: EngineApprovalDecision): void {

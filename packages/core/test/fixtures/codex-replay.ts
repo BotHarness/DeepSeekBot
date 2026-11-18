@@ -28,12 +28,14 @@ async function callGateway(
   tool: string,
   args: unknown,
 ): Promise<{ status: number; result: unknown }> {
-  const response = await fetch(options.gateway.url, {
+  const gateway = options.gateway;
+  if (gateway === undefined) throw new Error('Codex was started without the gateway');
+  const response = await fetch(gateway.url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       accept: 'application/json, text/event-stream',
-      authorization: `Bearer ${options.gateway.token}`,
+      authorization: `Bearer ${gateway.token}`,
     },
     body: JSON.stringify({
       jsonrpc: '2.0',

@@ -10,6 +10,7 @@ import type {
 
 export type ClaudeRecordedLine =
   | { kind: 'account'; info: Record<string, unknown> }
+  | { kind: 'models'; list: unknown[] }
   | { kind: 'await-input' }
   | { kind: 'message'; msg: Record<string, unknown> }
   | {
@@ -79,6 +80,7 @@ export function claudeReplay(recordings: readonly ClaudeRecordedLine[][]): Claud
     replay.options.push(options);
     const input = prompt[Symbol.asyncIterator]();
     const account = lines.find((line) => line.kind === 'account');
+    const models = lines.find((line) => line.kind === 'models');
     const exit = lines.find((line) => line.kind === 'exit');
     let closed = false;
     let wake: (() => void) | undefined;
@@ -89,6 +91,7 @@ export function claudeReplay(recordings: readonly ClaudeRecordedLine[][]): Claud
         if (closed) return;
         switch (line.kind) {
           case 'account':
+          case 'models':
             break;
           case 'exit':
             throw new Error(line.detail);
@@ -159,6 +162,10 @@ export function claudeReplay(recordings: readonly ClaudeRecordedLine[][]): Claud
       accountInfo: async () => {
         if (account === undefined) throw new Error(exit?.detail ?? 'no account');
         return account.info;
+      },
+      supportedModels: async () => {
+        if (models === undefined) throw new Error(exit?.detail ?? 'no models');
+        return models.list;
       },
       interrupt: async () => {
         replay.interrupts += 1;

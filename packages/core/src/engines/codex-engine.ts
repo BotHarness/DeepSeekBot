@@ -6,12 +6,15 @@ import { engineLaunch } from './engine-launch.js';
 import {
   type EngineAccount,
   type EngineApprovalDecision,
+  type EngineChoice,
   type EngineEvent,
+  type EngineModel,
   type EngineSendOptions,
   type EngineSession,
   type EngineStartOptions,
   type EngineTurnEnd,
   EngineRefusal,
+  engineEffort,
   engineEnvironment,
 } from './engine-session.js';
 
@@ -29,7 +32,7 @@ export interface CodexProcessOptions {
   command: string;
   home: string;
   cwd: string;
-  gateway: EngineStartOptions['gateway'];
+  gateway?: EngineStartOptions['gateway'];
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -38,19 +41,23 @@ export function codexProcessSpec(options: CodexProcessOptions): {
   env: Record<string, string>;
 } {
   const server = `mcp_servers.${CODEX_GATEWAY_SERVER}`;
+  const { gateway } = options;
   return {
-    args: [
-      'app-server',
-      '-c',
-      `${server}.url=${JSON.stringify(options.gateway.url)}`,
-      '-c',
-      `${server}.bearer_token_env_var=${JSON.stringify(GATEWAY_TOKEN_VARIABLE)}`,
-      '-c',
-      `${server}.default_tools_approval_mode="approve"`,
-    ],
+    args:
+      gateway === undefined
+        ? ['app-server']
+        : [
+            'app-server',
+            '-c',
+            `${server}.url=${JSON.stringify(gateway.url)}`,
+            '-c',
+            `${server}.bearer_token_env_var=${JSON.stringify(GATEWAY_TOKEN_VARIABLE)}`,
+            '-c',
+            `${server}.default_tools_approval_mode="approve"`,
+          ],
     env: engineEnvironment(options.env ?? process.env, {
       CODEX_HOME: options.home,
-      [GATEWAY_TOKEN_VARIABLE]: options.gateway.token,
+      ...(gateway === undefined ? {} : { [GATEWAY_TOKEN_VARIABLE]: gateway.token }),
     }),
   };
 }
@@ -173,6 +180,37 @@ export function codexRateLimit(limits: Json): Extract<EngineEvent, { kind: 'rate
   };
 }
 
+export function codexModels(pages: readonly unknown[]): EngineModel[] {
+  return pages.flatMap((page) => {
+    const data = record(page)['data'];
+    return (Array.isArray(data) ? data : []).flatMap((raw): EngineModel[] => {
+      const entry = record(raw);
+      const id = text(entry['model']) || text(entry['id']);
+      if (id === '' || entry['hidden'] === true) return [];
+      const efforts = Array.isArray(entry['supportedReasoningEfforts'])
+        ? entry['supportedReasoningEfforts'].flatMap((option) => {
+            const effort = text(record(option)['reasoningEffort']);
+            return effort === '' ? [] : [engineEffort(effort)];
+          })
+        : [];
+      const description = text(entry['description']);
+      const defaultEffort = text(entry['defaultReasoningEffort']);
+      return [
+        {
+          id,
+          name: text(entry['displayName']) || id,
+          ...(description === '' ? {} : { description }),
+          efforts,
+          ...(defaultEffort === '' ? {} : { defaultEffort }),
+          ...(entry['isDefault'] === true ? { isDefault: true } : {}),
+        },
+      ];
+    });
+  });
+}
+
+const MODEL_PAGES = 10;
+
 export const CODEX_TURN_SANDBOX = {
   type: 'workspaceWrite',
   writableRoots: [],
@@ -202,6 +240,7 @@ export class CodexEngineSession implements EngineSession {
   readonly #transport: CodexTransport;
   readonly #cwd: string;
   readonly #instructions: string;
+  readonly #choice: EngineChoice;
   #next = 1;
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
   readonly #approvals = new Map<string, number | string>();
@@ -215,11 +254,16 @@ export class CodexEngineSession implements EngineSession {
 
   constructor(
     transport: CodexTransport,
-    options: Pick<EngineStartOptions, 'cwd' | 'instructions'> & { requestTimeoutMs?: number },
+    options: Pick<EngineStartOptions, 'cwd' | 'instructions'> &
+      EngineChoice & { requestTimeoutMs?: number },
   ) {
     this.#transport = transport;
     this.#cwd = options.cwd;
     this.#instructions = options.instructions;
+    this.#choice = {
+      ...(options.model === undefined ? {} : { model: options.model }),
+      ...(options.effort === undefined ? {} : { effort: options.effort }),
+    };
     this.#requestTimeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
     transport.onMessage((message) => this.#receive(record(message)));
     transport.onExit((detail) => {
@@ -250,6 +294,7 @@ export class CodexEngineSession implements EngineSession {
       approvalPolicy: 'on-request',
       sandbox: 'workspace-write',
       developerInstructions: this.#instructions,
+      ...(this.#choice.model === undefined ? {} : { model: this.#choice.model }),
     };
     let result: Json;
     if (resume === undefined)
@@ -301,6 +346,7 @@ export class CodexEngineSession implements EngineSession {
           threadId,
           input: [{ type: 'text', text: input, text_elements: [] }],
           sandboxPolicy: CODEX_TURN_SANDBOX,
+          ...this.#choice,
         }),
       );
       turnId = text(record(started['turn'])['id']) || undefined;
@@ -321,6 +367,24 @@ export class CodexEngineSession implements EngineSession {
     if (id === undefined) return;
     this.#approvals.delete(approvalId);
     this.#transport.send({ id, result: { decision } });
+  }
+
+  async models(): Promise<EngineModel[]> {
+    await this.#initialize();
+    const pages: unknown[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = record(
+        await this.#request('model/list', {
+          limit: 100,
+          includeHidden: false,
+          ...(cursor === undefined ? {} : { cursor }),
+        }),
+      );
+      pages.push(page);
+      cursor = text(page['nextCursor']) || undefined;
+    } while (cursor !== undefined && pages.length < MODEL_PAGES);
+    return codexModels(pages);
   }
 
   async close(): Promise<void> {

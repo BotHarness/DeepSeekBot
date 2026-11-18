@@ -14,6 +14,7 @@ import {
 import { type CodexStatus, detectCodex, startCodexLogin } from './codex-status.js';
 import {
   CLAUDE_MIN_VERSION,
+  type ClaudeEngineOptions,
   type ClaudeQueryFactory,
   ClaudeEngineSession,
   olderThan,
@@ -36,8 +37,10 @@ import type {
 import { EngineTurnLog } from './engine-log.js';
 import {
   type EngineAccount,
+  type EngineChoice,
   type EngineEvent,
   type EngineId,
+  type EngineModel,
   type EngineQuota,
   type EngineSession,
   EngineLimitError,
@@ -159,6 +162,7 @@ interface TurnScope {
 
 interface LiveEngineSession {
   botSlug: string;
+  choice: string;
   engine: EngineSession;
   account: string;
   grant: EngineGrant;
@@ -173,6 +177,11 @@ interface LiveEngineSession {
 }
 
 const LIMIT_REST_MS = 60 * 60_000;
+const MODELS_TTL_MS = 5 * 60_000;
+
+function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string | undefined {
+  return engine === undefined ? undefined : JSON.stringify([engine, choice.model, choice.effort]);
+}
 
 const SIGN_IN_HINTS: Record<EngineId, string> = {
   codex:
@@ -188,7 +197,8 @@ export class EngineHost {
   readonly #options: EngineHostOptions;
   readonly #live = new Map<string, LiveEngineSession>();
   readonly #opening = new Map<string, Promise<LiveEngineSession>>();
-  readonly #openingEngine = new Map<string, EngineId>();
+  readonly #openingChoice = new Map<string, string>();
+  readonly #models = new Map<EngineId, { at: number; models: Promise<EngineModel[]> }>();
   readonly #states = new Map<string, EngineSessionDescription>();
   #closed = false;
   readonly #releasing = new Map<string, Promise<void>>();
@@ -228,11 +238,15 @@ export class EngineHost {
     return this.store.selection(botSlug, role);
   }
 
+  choiceFor(botSlug: string, role: EngineRole = 'orchestrator'): string | undefined {
+    return choiceKey(this.engineFor(botSlug, role), this.store.choice(botSlug, role));
+  }
+
   use(
     botSlug: string,
     role: EngineRole,
     engine: EngineId | undefined,
-    options: { fallback?: boolean } = {},
+    options: { fallback?: boolean } & EngineChoice = {},
   ): void {
     if (engine !== undefined && !this.#options.local)
       throw new EngineRefusal(
@@ -343,6 +357,83 @@ export class EngineHost {
         ? await (this.#options.startCodexLogin ?? startCodexLogin)(this.#codex)
         : await (this.#options.startClaudeLogin ?? startClaudeLogin)(this.#claude);
     return { engine, started: true, ...started };
+  }
+
+  async models(engine: EngineId): Promise<EngineModel[]> {
+    if (!this.#options.local)
+      throw new EngineRefusal(
+        'engine-unavailable',
+        'Subscription Engines run only on a local Host',
+      );
+    const cached = this.#models.get(engine);
+    if (cached !== undefined && this.#now() - cached.at < MODELS_TTL_MS) return cached.models;
+    const models = this.#listModels(engine);
+    const entry = { at: this.#now(), models };
+    this.#models.set(engine, entry);
+    models.catch(() => {
+      if (this.#models.get(engine) === entry) this.#models.delete(engine);
+    });
+    return models;
+  }
+
+  async #listModels(engine: EngineId): Promise<EngineModel[]> {
+    const cwd = join(this.#options.root, 'workdirs', '.models');
+    mkdirSync(cwd, { recursive: true });
+    const session =
+      engine === 'codex'
+        ? new CodexEngineSession(
+            (this.#options.openCodex ?? spawnCodexTransport)({ ...this.#codex, cwd }),
+            { cwd, instructions: '' },
+          )
+        : await this.#claudeSession({ cwd, instructions: '' });
+    try {
+      requireSubscription(await this.#account(session));
+      return await session.models();
+    } finally {
+      await session.close().catch(() => undefined);
+    }
+  }
+
+  async #account(session: EngineSession): Promise<EngineAccount> {
+    const name = ENGINE_LABELS[session.engine];
+    return session.account().catch((error: unknown) => {
+      if (error instanceof EngineRefusal) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      throw /ENOENT/u.test(message)
+        ? new EngineRefusal('engine-not-installed', `${name} is not installed on this computer`)
+        : new EngineRefusal('engine-failed', `${name} did not start: ${message}`);
+    });
+  }
+
+  async #claudeSession(
+    options: { cwd: string; instructions: string; resume?: string } & Pick<
+      ClaudeEngineOptions,
+      'gateway' | 'model' | 'effort'
+    >,
+  ): Promise<ClaudeEngineSession> {
+    const claude = this.#claude;
+    const executable = resolveEngineCommand(claude.command, { env: claude.env ?? process.env });
+    if (executable === undefined)
+      throw new EngineRefusal(
+        'engine-not-installed',
+        'Claude Code is not installed on this computer',
+      );
+    const { version } = await (this.#options.detectClaude ?? detectClaude)({
+      ...claude,
+      command: executable,
+    });
+    if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
+      throw new EngineRefusal(
+        'engine-unavailable',
+        `Claude Code ${version ?? 'of an unknown version'} cannot run a Bot here. Update it to ${CLAUDE_MIN_VERSION} or newer`,
+      );
+    return new ClaudeEngineSession({
+      query: this.#options.openClaude ?? sdkClaudeQuery,
+      executable,
+      home: claude.home,
+      ...(claude.env === undefined ? {} : { env: claude.env }),
+      ...options,
+    });
   }
 
   async runTurn(request: EngineTurnRequest): Promise<void> {
@@ -573,30 +664,33 @@ export class EngineHost {
   async #open(request: EngineTurnRequest): Promise<LiveEngineSession> {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const live = this.#live.get(request.sessionId);
-    const selected = this.engineFor(request.botSlug);
-    if (live !== undefined && !live.engine.ended && live.engine.engine === selected) return live;
+    const selected = this.choiceFor(request.botSlug);
+    if (live !== undefined && !live.engine.ended && live.choice === selected) return live;
     if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const engineId = this.engineFor(request.botSlug);
+    const choice = this.store.choice(request.botSlug, 'orchestrator');
+    const key = choiceKey(engineId, choice);
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) {
-      if (this.#openingEngine.get(request.sessionId) === engineId) return pending;
+      if (this.#openingChoice.get(request.sessionId) === key) return pending;
       await pending.catch(() => undefined);
       return this.#open(request);
     }
-    const opening = this.#start(request, engineId).finally(() => {
+    const opening = this.#start(request, engineId, choice).finally(() => {
       this.#opening.delete(request.sessionId);
-      this.#openingEngine.delete(request.sessionId);
+      this.#openingChoice.delete(request.sessionId);
     });
     this.#opening.set(request.sessionId, opening);
-    if (engineId !== undefined) this.#openingEngine.set(request.sessionId, engineId);
+    if (key !== undefined) this.#openingChoice.set(request.sessionId, key);
     return opening;
   }
 
   async #start(
     request: EngineTurnRequest,
     engineId: EngineId | undefined,
+    choice: EngineChoice,
   ): Promise<LiveEngineSession> {
     const { botSlug, sessionId } = request;
     if (engineId === undefined)
@@ -643,34 +737,17 @@ export class EngineHost {
       if (engineId === 'codex') {
         const options: CodexProcessOptions = { ...this.#codex, cwd, gateway: gatewayEndpoint };
         const transport = (this.#options.openCodex ?? spawnCodexTransport)(options);
-        opened = new CodexEngineSession(transport, { cwd, instructions: request.instructions });
+        opened = new CodexEngineSession(transport, {
+          cwd,
+          instructions: request.instructions,
+          ...choice,
+        });
       } else {
-        const claude = this.#claude;
-        const executable = resolveEngineCommand(claude.command, {
-          env: claude.env ?? process.env,
-        });
-        if (executable === undefined)
-          throw new EngineRefusal(
-            'engine-not-installed',
-            'Claude Code is not installed on this computer',
-          );
-        const { version } = await (this.#options.detectClaude ?? detectClaude)({
-          ...claude,
-          command: executable,
-        });
-        if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
-          throw new EngineRefusal(
-            'engine-unavailable',
-            `Claude Code ${version ?? 'of an unknown version'} cannot run a Bot here. Update it to ${CLAUDE_MIN_VERSION} or newer`,
-          );
-        opened = new ClaudeEngineSession({
-          query: this.#options.openClaude ?? sdkClaudeQuery,
-          executable,
-          home: claude.home,
+        opened = await this.#claudeSession({
           cwd,
           instructions: request.instructions,
           gateway: gatewayEndpoint,
-          ...(claude.env === undefined ? {} : { env: claude.env }),
+          ...choice,
           ...(resume === undefined ? {} : { resume }),
         });
       }
@@ -678,14 +755,7 @@ export class EngineHost {
       const started = opened;
       this.#cancels.set(sessionId, () => void started.close());
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-      const name = ENGINE_LABELS[engineId];
-      const account = await opened.account().catch((error: unknown) => {
-        if (error instanceof EngineRefusal) throw error;
-        const message = error instanceof Error ? error.message : String(error);
-        throw /ENOENT/u.test(message)
-          ? new EngineRefusal('engine-not-installed', `${name} is not installed on this computer`)
-          : new EngineRefusal('engine-failed', `${name} did not start: ${message}`);
-      });
+      const account = await this.#account(opened);
       const label = requireSubscription(account);
       let nativeId: string;
       try {
@@ -699,6 +769,7 @@ export class EngineHost {
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
         botSlug,
+        choice: choiceKey(engineId, choice) ?? '',
         engine: opened,
         account: label,
         grant,

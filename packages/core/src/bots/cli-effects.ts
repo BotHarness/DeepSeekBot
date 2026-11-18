@@ -384,6 +384,7 @@ export const CLI_EFFECTS = {
   'engine-approvals': { effects: read, brokerRead: true },
   'engine-list': { effects: read, brokerRead: true },
   'engine-login': { effects: externalManagement, brokerRead: false },
+  'engine-models': { effects: read, brokerRead: true },
   'engine-status': { effects: read, brokerRead: true },
   'engine-tool': { effects: opaque, brokerRead: false },
   'engine-tools': { effects: read, brokerRead: true },

@@ -32,9 +32,14 @@ export const ENGINE_COMMANDS = [
       'start the Bot engine sign-in on the Host computer and print its URL (engine login codex|claude)',
   },
   {
+    command: 'engine-models',
+    description:
+      'list the models and effort levels the signed-in engine subscription offers (engine models codex|claude)',
+  },
+  {
     command: 'engine-use',
     description:
-      'run a Bot Orchestrator on an engine, or none for its API model, and resume a Bot paused by the limit (engine use <bot> codex|claude --role orchestrator [--fallback on])',
+      'run a Bot Orchestrator on an engine, or none for its API model, and resume a Bot paused by the limit (engine use <bot> codex|claude --role orchestrator [--model <id>] [--effort <level>] [--fallback on])',
   },
 ] as const;
 
@@ -76,7 +81,14 @@ async function call(
 export async function runEngineCommand(
   command: string,
   rest: string[],
-  values: { role?: string[]; fallback?: string; query?: string; 'args-stdin'?: boolean },
+  values: {
+    role?: string[];
+    fallback?: string;
+    query?: string;
+    model?: string;
+    effort?: string;
+    'args-stdin'?: boolean;
+  },
   connect: Connect,
   readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
@@ -139,6 +151,13 @@ export async function runEngineCommand(
     if (value['started'] !== true || typeof value['engine'] !== 'string') throw protocolError();
     return value;
   }
+  if (command === 'engine-models') {
+    if (rest.length !== 1)
+      throw new CliLiveError('usage', 'engine models needs one engine: codex or claude.');
+    const value = await call(connect, { action: 'models', engine: rest[0] });
+    if (!Array.isArray(value['models']) || !value['models'].every(isObject)) throw protocolError();
+    return value;
+  }
   if (command === 'engine-use') {
     if (rest.length !== 2)
       throw new CliLiveError(
@@ -154,12 +173,17 @@ export async function runEngineCommand(
       throw new CliLiveError('usage', 'engine use --fallback takes on or off.');
     if (fallback !== undefined && engine === 'none')
       throw new CliLiveError('usage', 'engine use none takes no --fallback.');
+    const { model, effort } = values;
+    if ((model !== undefined || effort !== undefined) && engine === 'none')
+      throw new CliLiveError('usage', 'engine use none takes no --model or --effort.');
     const value = await call(connect, {
       action: 'use',
       bot,
       role: 'orchestrator',
       engine: engine === 'none' ? null : engine,
       ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
+      ...(model === undefined ? {} : { model }),
+      ...(effort === undefined ? {} : { effort }),
     });
     if (value['bot'] !== bot || value['role'] !== 'orchestrator') throw protocolError();
     return value;

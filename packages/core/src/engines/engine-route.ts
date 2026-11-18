@@ -49,6 +49,11 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
       if (!isEngineId(body['engine'])) return refusal('unknown-engine', 'Unknown engine');
       return Response.json(await host.login(body['engine']));
     }
+    if (body['action'] === 'models') {
+      const engine = body['engine'];
+      if (!isEngineId(engine)) return refusal('unknown-engine', 'Unknown engine');
+      return Response.json({ engine, models: await host.models(engine) });
+    }
     if (body['action'] === 'use') {
       const bot = body['bot'];
       const engine = body['engine'];
@@ -63,13 +68,52 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
         return refusal('invalid-input', 'fallback must be true or false');
       if (engine === null && fallback === true)
         return refusal('invalid-input', 'fallback needs an engine');
-      host.use(bot, 'orchestrator', engine ?? undefined, { fallback: fallback === true });
+      const model = body['model'];
+      const effort = body['effort'];
+      for (const [name, value] of [
+        ['model', model],
+        ['effort', effort],
+      ] as const)
+        if (value !== undefined && (typeof value !== 'string' || value === ''))
+          return refusal('invalid-input', `${name} must be a non-empty string`);
+      if (engine === null && (model !== undefined || effort !== undefined))
+        return refusal('invalid-input', 'model and effort need an engine');
+      const choice = {
+        ...(typeof model === 'string' ? { model } : {}),
+        ...(typeof effort === 'string' ? { effort } : {}),
+      };
+      if (engine !== null && (choice.model !== undefined || choice.effort !== undefined)) {
+        const models = await host.models(engine);
+        const picked =
+          choice.model === undefined
+            ? (models.find((entry) => entry.isDefault === true) ?? models[0])
+            : models.find((entry) => entry.id === choice.model);
+        if (picked === undefined)
+          return refusal(
+            'unknown-model',
+            `${choice.model ?? 'The default model'} is not offered by this ${engine} subscription. List them with deepseekbot engine models ${engine}`,
+          );
+        if (
+          choice.effort !== undefined &&
+          !picked.efforts.some((option) => option.id === choice.effort)
+        )
+          return refusal(
+            'unknown-effort',
+            picked.efforts.length === 0
+              ? `${picked.id} takes no effort level`
+              : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
+          );
+      }
+      host.use(bot, 'orchestrator', engine ?? undefined, {
+        fallback: fallback === true,
+        ...choice,
+      });
       deps.releaseQuotaHold?.(bot);
       return Response.json({
         bot,
         role: 'orchestrator',
         engine,
-        ...(engine === null ? {} : { fallback: fallback === true }),
+        ...(engine === null ? {} : { fallback: fallback === true, ...choice }),
       });
     }
     if (body['action'] === 'tools' || body['action'] === 'tool') {
@@ -102,7 +146,7 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
         return refusal('tool-failed', error instanceof Error ? error.message : String(error), 409);
       }
     }
-    return refusal('invalid-input', 'action must be login, use, tools or tool');
+    return refusal('invalid-input', 'action must be login, models, use, tools or tool');
   } catch (error) {
     if (error instanceof EngineRefusal) return refusal(error.code, error.message, 409);
     throw error;
