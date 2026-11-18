@@ -30,6 +30,7 @@ import {
   searchModels,
   setModelGroup,
   setModelRoute,
+  toggleAssignmentGroup,
   toggleAssignmentModel,
   type ModelField,
   type ModelScope,
@@ -204,7 +205,9 @@ function ModelsView({
         : picker === 'assignment'
           ? t.modelSettings.assignment
           : picker === 'orchestrator'
-            ? t.modelSettings.orchestrator
+            ? scope.kind === 'global'
+              ? t.modelSettings.global
+              : t.modelSettings.orchestrator
             : scope.kind === 'preset'
               ? (value?.preset?.name ?? t.modelPresets)
               : t.modelSettings.title;
@@ -294,9 +297,16 @@ function ModelsView({
         name: entry.modelName,
       })),
     );
-    const groups = picker === 'orchestrator' && scope.kind !== 'preset' ? (value.groups ?? []) : [];
+    const groups = picker === 'orchestrator' || scope.kind !== 'global' ? (value.groups ?? []) : [];
+    const listedGroups = routes.groups.assignmentGroups ?? [];
     const currentGroupId =
-      scope.kind === 'global' ? value.defaultGroupId : value.plan?.orchestratorGroupId;
+      picker === 'orchestrator'
+        ? scope.kind === 'global'
+          ? value.defaultGroupId
+          : routes.groups.orchestratorGroupId
+        : picker === 'assignment'
+          ? routes.groups.assignmentDefaultGroupId
+          : undefined;
     const currentGroup = groups.find((group) => group.id === currentGroupId);
     const starredKeys = new Set(models.favorites.map(modelChoiceKey));
     const rowKey = (row: PickerRow) =>
@@ -457,7 +467,15 @@ function ModelsView({
           renderItem={({ item: row, index }) => {
             if (row.kind === 'group') {
               const { group, front } = row;
-              const selected = currentGroup?.id === group.id;
+              const selected =
+                picker === 'allowed'
+                  ? listedGroups.includes(group.id)
+                  : currentGroup?.id === group.id;
+              const required =
+                picker === 'allowed' && routes.groups.assignmentDefaultGroupId === group.id;
+              const note = routes.groups.assignmentGroupOptions?.find(
+                (option) => option.group === group.id,
+              )?.note;
               const usable =
                 group.restingUntil === undefined &&
                 group.routes.some(
@@ -497,15 +515,19 @@ function ModelsView({
                       )
                     }
                     title={group.name}
-                    detail={
+                    detail={[
+                      ...(picker === 'orchestrator'
+                        ? []
+                        : [t.modelSettings.count(group.routes.length)]),
                       group.restingUntil !== undefined
                         ? restingLabel(group.restingUntil)
                         : t.modelSettings.groupFront(
                             front === undefined
                               ? (group.routes[0]?.model ?? '')
-                              : `${modelEntryLabel(front).short} · ${front.providerName}`,
-                          )
-                    }
+                              : `${/\p{L}/u.test(modelEntryLabel(front).short) ? modelEntryLabel(front).short : front.modelName} · ${front.providerName}`,
+                          ),
+                      ...(picker === 'allowed' && note !== undefined ? [note] : []),
+                    ].join(' · ')}
                     tone={usable ? 'fg' : 'muted'}
                     selected={selected}
                     control={selected ? { kind: 'check' } : undefined}
@@ -523,20 +545,37 @@ function ModelsView({
                       />
                     }
                     onPress={
-                      models.busy || selected
+                      models.busy || required || (selected && picker !== 'allowed')
                         ? undefined
-                        : restingNotice(group.name, group) !== undefined
-                          ? () => setRestNotice(restingNotice(group.name, group))
-                          : !usable
-                            ? undefined
-                            : () =>
-                                models.run(
-                                  () => setModelGroup(client, scope, value, group.id),
-                                  () => {
-                                    Keyboard.dismiss();
-                                    router.back();
-                                  },
-                                )
+                        : picker === 'allowed' && selected
+                          ? () =>
+                              models.run(() =>
+                                toggleAssignmentGroup(client, scope, value, group.id),
+                              )
+                          : restingNotice(group.name, group) !== undefined
+                            ? () => setRestNotice(restingNotice(group.name, group))
+                            : !usable
+                              ? undefined
+                              : picker === 'allowed'
+                                ? () =>
+                                    models.run(() =>
+                                      toggleAssignmentGroup(client, scope, value, group.id),
+                                    )
+                                : () =>
+                                    models.run(
+                                      () =>
+                                        setModelGroup(
+                                          client,
+                                          scope,
+                                          value,
+                                          group.id,
+                                          picker === 'assignment' ? 'assignment' : 'orchestrator',
+                                        ),
+                                      () => {
+                                        Keyboard.dismiss();
+                                        router.back();
+                                      },
+                                    )
                     }
                   />
                 </SettingsGroupItem>
@@ -628,6 +667,13 @@ function ModelsView({
 
   const showPreset = scope.kind === 'preset';
   const presets = showPreset ? [] : value.presets;
+  const groupName = (id: string | undefined) =>
+    id === undefined ? undefined : (value.groups?.find((group) => group.id === id)?.name ?? id);
+  const orchestratorGroup =
+    scope.kind === 'preset'
+      ? groupName(routes.groups.orchestratorGroupId)
+      : currentModel(value).group;
+  const assignmentGroup = groupName(routes.groups.assignmentDefaultGroupId);
   const form = (
     <View style={{ gap: space.x4 }}>
       <SheetNote>
@@ -647,13 +693,13 @@ function ModelsView({
           <PickerLink
             label={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.orchestrator}
             detail={
-              scope.kind !== 'preset' && currentModel(value).group !== undefined
-                ? `${currentModel(value).group} · ${routeLabel(value, routes.orchestrator)}`
+              orchestratorGroup !== undefined
+                ? `${orchestratorGroup} · ${routeLabel(value, routes.orchestrator)}`
                 : routeLabel(value, routes.orchestrator)
             }
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
-          {currentModel(value).group === undefined &&
+          {orchestratorGroup === undefined &&
           value.models.find((entry) => sameModel(entry, routes.orchestrator))?.efforts?.length ? (
             <PickerLink
               label={t.modelSettings.effort}
@@ -665,10 +711,11 @@ function ModelsView({
             <>
               <PickerLink
                 label={t.modelSettings.assignment}
-                detail={routeLabel(value, routes.assignmentDefault)}
+                detail={assignmentGroup ?? routeLabel(value, routes.assignmentDefault)}
                 onPress={models.busy ? undefined : () => openPicker('assignment')}
               />
-              {value.models.find((entry) => sameModel(entry, routes.assignmentDefault))?.efforts
+              {assignmentGroup === undefined &&
+              value.models.find((entry) => sameModel(entry, routes.assignmentDefault))?.efforts
                 ?.length ? (
                 <PickerLink
                   label={t.modelSettings.effort}
@@ -683,7 +730,10 @@ function ModelsView({
                 detail={
                   routes.assignmentDefault === undefined
                     ? t.modelSettings.inherited
-                    : t.modelSettings.count(routes.assignmentModels.length)
+                    : t.modelSettings.count(
+                        routes.assignmentModels.length +
+                          (routes.groups.assignmentGroups?.length ?? 0),
+                      )
                 }
                 onPress={
                   models.busy || routes.assignmentDefault === undefined
@@ -759,7 +809,7 @@ function ModelsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={item.name}
-            detail={`${routeLabel(value, item.orchestrator)}${item.assignmentDefault === undefined ? '' : ` / ${routeLabel(value, item.assignmentDefault)}`}`}
+            detail={`${groupName(item.orchestratorGroupId) ?? routeLabel(value, item.orchestrator)}${item.assignmentDefault === undefined ? '' : ` / ${groupName(item.assignmentDefaultGroupId) ?? routeLabel(value, item.assignmentDefault)}`}`}
             disclosure={scope.kind === 'global'}
             selected={scope.kind === 'bot' && value.plan?.sourcePresetId === item.id}
             onPress={

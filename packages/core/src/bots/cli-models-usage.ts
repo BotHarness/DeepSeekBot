@@ -450,17 +450,24 @@ export async function runModelsUsage(
   }
   if (command === 'model-plan-set' || command === 'model-plan-assignments-set') {
     const full = command === 'model-plan-set';
-    const required = full
-      ? ['orchestrator', 'assignmentDefault', 'assignmentModels']
-      : ['assignmentDefault', 'assignmentModels'];
+    const required = ['assignmentDefault', 'assignmentModels'];
     const plan = await planInput(
       io,
       values,
-      full
-        ? required
-        : [...required, 'assignmentGroups', 'assignmentDefaultGroupId', 'assignmentGroupOptions'],
+      [
+        ...required,
+        ...(full ? ['orchestrator', 'orchestratorGroupId'] : []),
+        'assignmentGroups',
+        'assignmentDefaultGroupId',
+        'assignmentGroupOptions',
+      ],
       required,
     );
+    if (
+      full &&
+      (plan['orchestrator'] === undefined) === (plan['orchestratorGroupId'] === undefined)
+    )
+      usage('Plan stdin needs either orchestrator or orchestratorGroupId.');
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const expectedRevision =

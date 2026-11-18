@@ -11,6 +11,7 @@ import {
   type BotModel,
   type ModelCatalogEntry,
   type ModelChoice,
+  type ModelPlanGroups,
   type ModelPreset,
   type ModelRoute,
   type ModelSettingsClient,
@@ -111,7 +112,37 @@ export function modelRoutes(state: ModelSettingsState) {
             defaultEffort: assignmentDefault.reasoningEffort ?? '',
           },
         ]);
-  return { orchestrator, assignmentDefault, assignmentModels };
+  const groups: ModelPlanGroups = {
+    ...(source?.orchestratorGroupId === undefined
+      ? {}
+      : { orchestratorGroupId: source.orchestratorGroupId }),
+    ...(source?.assignmentGroups === undefined
+      ? {}
+      : { assignmentGroups: [...source.assignmentGroups] }),
+    ...(source?.assignmentDefaultGroupId === undefined
+      ? {}
+      : { assignmentDefaultGroupId: source.assignmentDefaultGroupId }),
+    ...(source?.assignmentGroupOptions === undefined
+      ? {}
+      : { assignmentGroupOptions: source.assignmentGroupOptions.map((option) => ({ ...option })) }),
+  };
+  return { orchestrator, assignmentDefault, assignmentModels, groups };
+}
+
+function groupFields(groups: ModelPlanGroups, orchestrator: ModelRoute) {
+  const ids = groups.assignmentGroups ?? [];
+  return {
+    ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
+    orchestratorGroupId: groups.orchestratorGroupId ?? null,
+    assignmentGroups: ids,
+    assignmentDefaultGroupId:
+      groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
+        ? groups.assignmentDefaultGroupId
+        : null,
+    assignmentGroupOptions: (groups.assignmentGroupOptions ?? []).filter((option) =>
+      ids.includes(option.group),
+    ),
+  };
 }
 
 export function searchModels(
@@ -141,9 +172,15 @@ async function writePlan(
     orchestrator: ModelRoute;
     assignmentDefault: ModelRoute;
     assignmentModels: AssignmentModelOption[];
+    groups: ModelPlanGroups;
   },
 ): Promise<void> {
   if (scope.kind === 'global') throw new HostAnswerInvalid('BOT_OR_PRESET_REQUIRED');
+  const fields = {
+    ...groupFields(routes.groups, routes.orchestrator),
+    assignmentDefault: routes.assignmentDefault,
+    assignmentModels: routes.assignmentModels,
+  };
   if (scope.kind === 'preset') {
     if (state.preset?.revision === undefined)
       throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
@@ -151,15 +188,20 @@ async function writePlan(
       id: scope.id,
       expectedRevision: state.preset.revision,
       name: state.preset.name,
-      ...routes,
+      ...fields,
     });
   } else {
     await client.call('modelPlanSet', {
       slug: scope.slug,
       expectedRevision: state.plan?.revision ?? state.revision,
-      ...routes,
+      ...fields,
     });
   }
+}
+
+function withoutKey<T extends object, K extends keyof T>(value: T, key: K): Omit<T, K> {
+  const { [key]: _removed, ...rest } = value;
+  return rest;
 }
 
 export async function setModelRoute(
@@ -229,6 +271,10 @@ export async function setModelRoute(
     orchestrator: field === 'orchestrator' ? route : requireRoute(previous.orchestrator),
     assignmentDefault,
     assignmentModels,
+    groups: withoutKey(
+      previous.groups,
+      field === 'orchestrator' ? 'orchestratorGroupId' : 'assignmentDefaultGroupId',
+    ),
   });
   recordFeature('model:plan_update', { via: 'plan' });
 }
@@ -238,11 +284,43 @@ export async function setModelGroup(
   scope: ModelScope,
   state: ModelSettingsState,
   groupId: string,
+  field: 'orchestrator' | 'assignment' = 'orchestrator',
 ): Promise<void> {
-  if (scope.kind === 'preset') throw new HostAnswerInvalid('MODEL_GROUP_NEEDS_BOT');
   const group = state.groups?.find((entry) => entry.id === groupId);
   if (group === undefined || group.restingUntil !== undefined)
     throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
+  if (field === 'assignment' || scope.kind === 'preset') {
+    if (scope.kind === 'global') throw new HostAnswerInvalid('GLOBAL_MODEL_REQUIRED');
+    const previous = modelRoutes(state);
+    const front = requireRoute(group.routes[0]);
+    const ids = previous.groups.assignmentGroups ?? [];
+    const assignmentDefault = previous.assignmentDefault ?? front;
+    await writePlan(client, scope, state, {
+      orchestrator: requireRoute(previous.orchestrator),
+      assignmentDefault,
+      assignmentModels:
+        previous.assignmentModels.length > 0
+          ? previous.assignmentModels
+          : [
+              {
+                provider: assignmentDefault.provider,
+                model: assignmentDefault.model,
+                allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
+                defaultEffort: assignmentDefault.reasoningEffort ?? '',
+              },
+            ],
+      groups:
+        field === 'orchestrator'
+          ? { ...previous.groups, orchestratorGroupId: groupId }
+          : {
+              ...previous.groups,
+              assignmentGroups: ids.includes(groupId) ? ids : [...ids, groupId],
+              assignmentDefaultGroupId: groupId,
+            },
+    });
+    recordFeature('model:plan_update', { via: 'group' });
+    return;
+  }
   if (scope.kind === 'global') {
     await client.call('onboardingModel', {
       expectedRevision: 0,
@@ -293,6 +371,33 @@ export async function toggleAssignmentModel(
     orchestrator: requireRoute(routes.orchestrator),
     assignmentDefault,
     assignmentModels,
+    groups: routes.groups,
+  });
+  recordFeature('model:plan_update', { via: 'assignments' });
+}
+
+export async function toggleAssignmentGroup(
+  client: ModelSettingsClient,
+  scope: ModelScope,
+  state: ModelSettingsState,
+  groupId: string,
+): Promise<void> {
+  const routes = modelRoutes(state);
+  const assignmentDefault = requireRoute(routes.assignmentDefault);
+  if (routes.groups.assignmentDefaultGroupId === groupId)
+    throw new HostAnswerInvalid('ASSIGNMENT_DEFAULT_REQUIRED');
+  const ids = routes.groups.assignmentGroups ?? [];
+  const listed = ids.includes(groupId);
+  if (!listed && state.groups?.some((entry) => entry.id === groupId) !== true)
+    throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
+  await writePlan(client, scope, state, {
+    orchestrator: requireRoute(routes.orchestrator),
+    assignmentDefault,
+    assignmentModels: routes.assignmentModels,
+    groups: {
+      ...routes.groups,
+      assignmentGroups: listed ? ids.filter((id) => id !== groupId) : [...ids, groupId],
+    },
   });
   recordFeature('model:plan_update', { via: 'assignments' });
 }
@@ -336,7 +441,7 @@ export async function saveModelPreset(
   const value = await client.call(update ? 'modelPresetUpdate' : 'modelPresetCreate', {
     ...(update && preset !== undefined ? { id: preset.id, expectedRevision: preset.revision } : {}),
     name: name.trim(),
-    orchestrator,
+    ...groupFields(routes.groups, orchestrator),
     assignmentDefault,
     assignmentModels,
   });

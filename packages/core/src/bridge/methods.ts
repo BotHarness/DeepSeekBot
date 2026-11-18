@@ -4824,10 +4824,15 @@ function buildBridgeMethods(
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
       const openAssignmentModels = source['openAssignmentModels'];
+      const groupInput = presetGroupsInput(source);
+      if ('invalid' in groupInput) return invalidInput('Model Plan Routing Groups are invalid');
+      const groups = groupInput.given ? groupInput.groups : undefined;
       if (
         typeof slug !== 'string' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        !isModelRoute(orchestrator) ||
+        (groups?.orchestratorGroupId === undefined
+          ? !isModelRoute(orchestrator)
+          : orchestrator !== undefined) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4840,18 +4845,23 @@ function buildBridgeMethods(
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
       try {
-        requireRoutes(slug, [orchestrator]);
-        await deps.modelCatalog.validate(orchestrator);
+        const grouped = groups === undefined ? [] : presetGroupRoutes(groups);
+        requireRoutes(slug, grouped);
+        await validateGroupOptions(groups?.assignmentGroupOptions);
+        const route = (await presetOrchestrator(orchestrator, groups))!;
+        requireRoutes(slug, [route]);
+        await deps.modelCatalog.validate(route);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
+        requireRoutes(slug, [route, assignmentDefault, ...assignmentModels, ...grouped]);
         const result = deps.registry.setModelPlan(
           slug,
           {
-            orchestrator,
+            orchestrator: route,
             assignmentDefault,
             assignmentModels,
             ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+            ...(groups === undefined ? {} : { groups }),
           },
           expectedRevision,
         );
@@ -4862,6 +4872,7 @@ function buildBridgeMethods(
         if (result.record.modelPlan === undefined) return unknownBot(slug);
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');

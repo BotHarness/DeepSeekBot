@@ -28,17 +28,30 @@ export interface AssignmentModelOption {
   note?: string;
 }
 
-export interface ModelPlan {
+export interface AssignmentGroupOption {
+  group: string;
+  allowedEfforts?: string[];
+  defaultEffort?: string;
+  note?: string;
+}
+
+export interface ModelPlanGroups {
+  orchestratorGroupId?: string;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
+  assignmentGroupOptions?: AssignmentGroupOption[];
+}
+
+export interface ModelPlan extends ModelPlanGroups {
   revision: number;
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
-  orchestratorGroupId?: string;
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
 }
 
-export interface ModelPreset {
+export interface ModelPreset extends ModelPlanGroups {
   id: string;
   name: string;
   revision?: number;
@@ -134,6 +147,33 @@ function route(value: unknown): ModelRoute | undefined {
   };
 }
 
+function groupOption(value: unknown): AssignmentGroupOption | undefined {
+  const row = record(value);
+  if (!text(row?.['group'])) return undefined;
+  const efforts = row['allowedEfforts'];
+  return {
+    group: row['group'],
+    ...(Array.isArray(efforts) && efforts.every(text) ? { allowedEfforts: [...efforts] } : {}),
+    ...(text(row['defaultEffort']) ? { defaultEffort: row['defaultEffort'] } : {}),
+    ...(text(row['note']) ? { note: row['note'] } : {}),
+  };
+}
+
+function planGroups(row: Record<string, unknown>): ModelPlanGroups {
+  const ids = Array.isArray(row['assignmentGroups']) ? row['assignmentGroups'].filter(text) : [];
+  const options = some(row['assignmentGroupOptions'], groupOption);
+  return {
+    ...(text(row['orchestratorGroupId'])
+      ? { orchestratorGroupId: row['orchestratorGroupId'] }
+      : {}),
+    ...(ids.length === 0 ? {} : { assignmentGroups: ids }),
+    ...(text(row['assignmentDefaultGroupId']) && ids.includes(row['assignmentDefaultGroupId'])
+      ? { assignmentDefaultGroupId: row['assignmentDefaultGroupId'] }
+      : {}),
+    ...(options.length === 0 ? {} : { assignmentGroupOptions: options }),
+  };
+}
+
 function plan(value: unknown): ModelPlan | undefined {
   const row = record(value);
   const orchestrator = route(row?.['orchestrator']);
@@ -153,9 +193,7 @@ function plan(value: unknown): ModelPlan | undefined {
     sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
     sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
     orchestrator,
-    ...(text(row['orchestratorGroupId'])
-      ? { orchestratorGroupId: row['orchestratorGroupId'] }
-      : {}),
+    ...planGroups(row),
     ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
     ...(assignmentModels === undefined ? {} : { assignmentModels }),
   };
@@ -181,6 +219,7 @@ function preset(value: unknown): ModelPreset | undefined {
     ...(Array.isArray(row['assignmentModels'])
       ? { assignmentModels: row['assignmentModels'] as AssignmentModelOption[] }
       : {}),
+    ...planGroups(row),
   };
 }
 

@@ -8,8 +8,11 @@ import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
 import type {
+  AssignmentGroupOptionView,
   AssignmentModelOptionView,
   ModelCatalogEntryView,
+  ModelCatalogGroupView,
+  ModelPlanGroupsView,
   ModelPlanView,
   ModelPlanStateView,
   ModelPresetView,
@@ -21,7 +24,19 @@ import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
+import {
+  assignmentChoice,
+  draftOf,
+  modelKey,
+  planParts,
+  routeLabel,
+  routeOfKey,
+  trailing,
+  withAdvanced,
+  type ModelDraft,
+} from './model-preset-draft.js';
 import {
   invalidateModelPlan,
   modelPlanOf,
@@ -51,157 +66,6 @@ const styles = stylex.create({
   grow: { flexGrow: 1, minWidth: 0 },
 });
 
-export function routeLabel(route: ModelRouteView, defaultLabel: string): string {
-  return `${route.model} · ${route.reasoningEffort ?? defaultLabel}`;
-}
-
-const modelKey = (route: Pick<ModelRouteView, 'provider' | 'model'>): string =>
-  JSON.stringify([route.provider, route.model]);
-
-function routeOfKey(key: string, effort: string): ModelRouteView {
-  const [provider, model] = JSON.parse(key) as [string, string];
-  return {
-    provider,
-    model,
-    ...(effort === '' ? {} : { reasoningEffort: effort }),
-  };
-}
-
-interface ModelChoice {
-  key: string;
-  effort: string;
-}
-
-interface ModelDraft {
-  orchestrator: ModelChoice;
-  assignment: ModelChoice;
-  allowed: AssignmentModelOptionView[];
-  advanced: boolean;
-  open: boolean;
-  presetId: string;
-}
-
-function allowedOf(
-  assignmentDefault: ModelRouteView | undefined,
-  assignmentModels: readonly AssignmentModelOptionView[] | undefined,
-): AssignmentModelOptionView[] {
-  if (assignmentDefault === undefined) return [];
-  return (
-    assignmentModels ?? [
-      {
-        provider: assignmentDefault.provider,
-        model: assignmentDefault.model,
-        allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-        defaultEffort: assignmentDefault.reasoningEffort ?? '',
-      },
-    ]
-  ).map((option) => ({
-    ...option,
-    allowedEfforts: [...option.allowedEfforts],
-  }));
-}
-
-function draftOf(
-  source: Pick<
-    ModelPlanView,
-    'orchestrator' | 'assignmentDefault' | 'assignmentModels' | 'openAssignmentModels'
-  >,
-  presetId: string,
-): ModelDraft {
-  return {
-    orchestrator: {
-      key: modelKey(source.orchestrator),
-      effort: source.orchestrator.reasoningEffort ?? '',
-    },
-    assignment: {
-      key: source.assignmentDefault === undefined ? '' : modelKey(source.assignmentDefault),
-      effort: source.assignmentDefault?.reasoningEffort ?? '',
-    },
-    allowed: allowedOf(source.assignmentDefault, source.assignmentModels),
-    advanced:
-      (source.assignmentModels?.length ?? 1) > 1 ||
-      source.assignmentModels?.some(
-        (option) => option.note !== undefined || option.allowedEfforts.length > 1,
-      ) === true,
-    open: source.openAssignmentModels === true,
-    presetId,
-  };
-}
-
-function withNote(
-  option: AssignmentModelOptionView,
-  note: string | undefined,
-): AssignmentModelOptionView {
-  const { note: _previous, ...rest } = option;
-  const trimmed = note?.trim() ?? '';
-  return trimmed === '' ? rest : { ...rest, note: trimmed };
-}
-
-function assignmentChoice(draft: ModelDraft): ModelChoice {
-  if (!draft.advanced) return draft.assignment;
-  const option = draft.allowed.find((item) => modelKey(item) === draft.assignment.key);
-  return {
-    key: draft.assignment.key,
-    effort: option?.defaultEffort ?? draft.assignment.effort,
-  };
-}
-
-function assignmentRoute(draft: ModelDraft): ModelRouteView {
-  const { key, effort } = assignmentChoice(draft);
-  return routeOfKey(key, effort);
-}
-
-function finalAllowed(draft: ModelDraft): AssignmentModelOptionView[] {
-  if (draft.advanced) return draft.allowed.map((option) => withNote(option, option.note));
-  const {
-    provider,
-    model,
-    reasoningEffort = '',
-  } = routeOfKey(draft.assignment.key, draft.assignment.effort);
-  return [
-    {
-      provider,
-      model,
-      allowedEfforts: [reasoningEffort],
-      defaultEffort: reasoningEffort,
-    },
-  ];
-}
-
-function openArgument(draft: ModelDraft): [] | [true] {
-  return draft.open ? [true] : [];
-}
-
-function withAdvanced(draft: ModelDraft, advanced: boolean): ModelDraft {
-  if (!advanced) return { ...draft, advanced, assignment: assignmentChoice(draft) };
-  const { key, effort } = draft.assignment;
-  const existing = draft.allowed.find((option) => modelKey(option) === key);
-  const route = routeOfKey(key, effort);
-  const allowed =
-    existing === undefined
-      ? [
-          {
-            provider: route.provider,
-            model: route.model,
-            allowedEfforts: [effort],
-            defaultEffort: effort,
-          },
-          ...draft.allowed,
-        ]
-      : draft.allowed.map((option) =>
-          modelKey(option) === key
-            ? {
-                ...option,
-                allowedEfforts: option.allowedEfforts.includes(effort)
-                  ? option.allowedEfforts
-                  : [...option.allowedEfforts, effort],
-                defaultEffort: effort,
-              }
-            : option,
-        );
-  return { ...draft, advanced, allowed };
-}
-
 export function ModelPresetProfile({
   slug,
   actions,
@@ -214,6 +78,7 @@ export function ModelPresetProfile({
   onClose?: (() => void) | undefined;
 }): ReactElement {
   const [catalog, setCatalog] = useState<ModelCatalogEntryView[]>();
+  const [catalogGroups, setCatalogGroups] = useState<ModelCatalogGroupView[]>([]);
   const [presets, setPresets] = useState<ModelPresetView[]>([]);
   const [plan, setPlan] = useState<ModelPlanView>();
   const [revision, setRevision] = useState(0);
@@ -273,7 +138,7 @@ export function ModelPresetProfile({
     const request = planRequest.current;
     setError(undefined);
     try {
-      const [{ models, default: fallback }, saved, state] = await Promise.all([
+      const [{ models, default: fallback, groups }, saved, state] = await Promise.all([
         actions.modelCatalog(),
         actions.modelPresets(),
         actions.modelPlanState(slug),
@@ -284,6 +149,7 @@ export function ModelPresetProfile({
       acceptPlan(current, state.revision);
       setRepair(state.repair);
       setCatalog(models);
+      setCatalogGroups(groups ?? []);
       setPresets(saved);
       const initial = (() => {
         if (current !== undefined) return draftOf(current, current.sourcePresetId);
@@ -333,8 +199,12 @@ export function ModelPresetProfile({
       current === undefined ? current : { ...current, ...change, presetId: '' },
     );
 
-  const inCatalog = (key: string): boolean =>
-    catalog?.some((entry) => modelKey(entry) === key) === true;
+  const inCatalog = (key: string): boolean => {
+    const group = groupMenuId(key);
+    return group === undefined
+      ? catalog?.some((entry) => modelKey(entry) === key) === true
+      : catalogGroups.some((entry) => entry.id === group);
+  };
   const canSave =
     draft !== undefined &&
     inCatalog(draft.orchestrator.key) &&
@@ -364,24 +234,35 @@ export function ModelPresetProfile({
     setBusy(true);
     setError(undefined);
     try {
+      const orchestratorGroup = groupMenuId(draft.orchestrator.key);
+      const parts = draft.assignment.key === '' ? undefined : planParts(draft, catalogGroups);
       const applied =
         draft.presetId !== '' && presets.some((preset) => preset.id === draft.presetId)
           ? await actions.applyModelPreset(slug, draft.presetId)
           : draft.assignment.key === ''
-            ? await actions.customizeModelPlan(
-                slug,
-                routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-                plan?.revision ?? revision,
-              )
-            : await actions.setModelPlan(
-                slug,
-                plan?.revision ?? revision,
-                routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-                assignmentRoute(draft),
-                finalAllowed(draft),
-                ...openArgument(draft),
-              );
-      finish(applied);
+            ? orchestratorGroup === undefined
+              ? await actions.customizeModelPlan(
+                  slug,
+                  routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
+                  plan?.revision ?? revision,
+                )
+              : await actions.chooseModelPlanGroup(
+                  slug,
+                  orchestratorGroup,
+                  plan?.revision ?? revision,
+                )
+            : parts === undefined
+              ? undefined
+              : await actions.setModelPlan(
+                  slug,
+                  plan?.revision ?? revision,
+                  parts.orchestrator,
+                  parts.assignmentDefault,
+                  parts.assignmentModels,
+                  ...trailing(draft, parts),
+                );
+      if (applied === undefined) setError(t('modelPreset.routeUnavailable'));
+      else finish(applied);
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
@@ -392,15 +273,20 @@ export function ModelPresetProfile({
   const saveAsPreset = async (): Promise<void> => {
     const name = presetName?.trim() ?? '';
     if (!canSave || draft === undefined || draft.assignment.key === '' || name === '') return;
+    const parts = planParts(draft, catalogGroups);
+    if (parts === undefined) {
+      setError(t('modelPreset.routeUnavailable'));
+      return;
+    }
     setBusy(true);
     setError(undefined);
     try {
       const preset = await actions.createModelPreset(
         name,
-        routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-        assignmentRoute(draft),
-        finalAllowed(draft),
-        ...openArgument(draft),
+        parts.orchestrator,
+        parts.assignmentDefault,
+        parts.assignmentModels,
+        ...trailing(draft, parts),
       );
       setPresets((current) => [...current, preset]);
       finish(await actions.applyModelPreset(slug, preset.id));
@@ -427,6 +313,8 @@ export function ModelPresetProfile({
             ),
       disabled: entry.credential !== undefined,
     }));
+  const groupName = (id: string | undefined): string | undefined =>
+    id === undefined ? undefined : (catalogGroups.find((group) => group.id === id)?.name ?? id);
   const presetRouteLabel = (route: ModelRouteView): string =>
     routeLabel(
       {
@@ -591,6 +479,155 @@ export function ModelPresetProfile({
     );
   };
 
+  const editGroup = (
+    group: string,
+    change: (option: AssignmentGroupOptionView) => AssignmentGroupOptionView,
+  ): void =>
+    setDraft((current) =>
+      current === undefined
+        ? current
+        : {
+            ...current,
+            presetId: '',
+            groups: current.groups.map((item) => (item.group === group ? change(item) : item)),
+          },
+    );
+
+  const groupCard = (option: AssignmentGroupOptionView, isDefault: boolean) => {
+    const group = catalogGroups.find((item) => item.id === option.group);
+    const name = group?.name ?? option.group;
+    const routes = group?.routes ?? [];
+    const front = routes[0];
+    const frontEntry = catalog?.find(
+      (item) => front !== undefined && modelKey(item) === modelKey(front),
+    );
+    const lists = routes.map(
+      (route) => catalog?.find((item) => modelKey(item) === modelKey(route))?.efforts ?? [],
+    );
+    const shared = (lists[0] ?? []).filter((effort) =>
+      lists.every((list) => list.some((item) => item.id === effort.id)),
+    );
+    const allowed = option.allowedEfforts ?? [];
+    const checkedEfforts = shared.filter((effort) => allowed.includes(effort.id));
+    return (
+      <li key={`group:${option.group}`} className="bh-card-row bh-model-card" data-model-group="">
+        <div className="bh-model-card-head">
+          <strong>{name}</strong>
+          <span className="bh-model-card-provider">
+            {t('modelPreset.groupCount', { count: routes.length })}
+          </span>
+          {isDefault ? (
+            <Tag tone="neutral">{t('modelPreset.defaultModel')}</Tag>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() =>
+                  edit({ assignment: { key: groupMenuKey(option.group), effort: '' } })
+                }
+              >
+                {t('modelPreset.makeDefault')}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                aria-label={t('modelPreset.removeAllowed', { model: name })}
+                onClick={() =>
+                  setDraft((current) =>
+                    current === undefined
+                      ? current
+                      : {
+                          ...current,
+                          presetId: '',
+                          groups: current.groups.filter((item) => item.group !== option.group),
+                        },
+                  )
+                }
+              >
+                ×
+              </Button>
+            </>
+          )}
+        </div>
+        {front === undefined ? null : (
+          <span className="bh-model-card-provider">
+            {t('modelMenu.groupFront', {
+              model:
+                frontEntry === undefined
+                  ? front.model
+                  : `${frontEntry.modelName} · ${frontEntry.providerName}`,
+            })}
+          </span>
+        )}
+        {shared.length === 0 ? null : (
+          <div className="bh-model-card-field">
+            <span>{t('modelPreset.allowedEfforts')}</span>
+            <div className="bh-model-card-efforts">
+              {shared.map((effort) => (
+                <Checkbox
+                  key={effort.id}
+                  label={effort.name}
+                  checked={allowed.includes(effort.id)}
+                  disabled={busy}
+                  onChange={(checked) =>
+                    editGroup(option.group, (item) => {
+                      const next = shared
+                        .map((candidate) => candidate.id)
+                        .filter((id) =>
+                          id === effort.id ? checked : (item.allowedEfforts ?? []).includes(id),
+                        );
+                      const { allowedEfforts: _efforts, defaultEffort: _default, ...rest } = item;
+                      return next.length === 0
+                        ? rest
+                        : {
+                            ...rest,
+                            allowedEfforts: next,
+                            defaultEffort:
+                              item.defaultEffort !== undefined && next.includes(item.defaultEffort)
+                                ? item.defaultEffort
+                                : next[0]!,
+                          };
+                    })
+                  }
+                />
+              ))}
+            </div>
+            {allowed.length === 0 ? (
+              <span className="bh-note">{t('modelPreset.groupEffortsHint')}</span>
+            ) : null}
+          </div>
+        )}
+        {checkedEfforts.length > 1 && (
+          <div className="bh-model-card-field">
+            <span>{t('modelPreset.defaultEffort')}</span>
+            <SegmentedControl
+              id={`bh-model-card-effort-group-${option.group}`}
+              value={option.defaultEffort ?? checkedEfforts[0]!.id}
+              options={checkedEfforts.map((effort) => ({ value: effort.id, label: effort.name }))}
+              onChange={(defaultEffort) =>
+                editGroup(option.group, (item) => ({ ...item, defaultEffort }))
+              }
+              label={`${name} · ${t('modelPreset.defaultEffort')}`}
+              disabled={busy}
+            />
+          </div>
+        )}
+        <Input
+          aria-label={t('modelPreset.noteLabel', { model: name })}
+          placeholder={t('modelPreset.notePlaceholder')}
+          value={option.note ?? ''}
+          maxLength={500}
+          disabled={busy}
+          onChange={(event) => {
+            const note = event.target.value;
+            editGroup(option.group, (item) => ({ ...item, note }));
+          }}
+        />
+      </li>
+    );
+  };
+
   const modeControl =
     draft === undefined || draft.assignment.key === '' ? null : (
       <SegmentedControl
@@ -636,6 +673,7 @@ export function ModelPresetProfile({
             hint={t('modelPreset.assignmentHint')}
             choice={draft.assignment}
             catalog={catalog}
+            groups={catalogGroups}
             options={
               plan?.assignmentDefault === undefined
                 ? [{ value: '', label: t('onboarding.inherit') }, ...modelOptions]
@@ -659,10 +697,24 @@ export function ModelPresetProfile({
           <div className="bh-model-allowed">
             <Combobox
               value=""
-              options={modelOptions.filter(
-                (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
-              )}
+              options={[
+                ...catalogGroups
+                  .filter((group) => !draft.groups.some((item) => item.group === group.id))
+                  .map((group) => ({
+                    value: groupMenuKey(group.id),
+                    label: group.name,
+                    hint: t('modelPreset.groupCount', { count: group.routes.length }),
+                  })),
+                ...modelOptions.filter(
+                  (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
+                ),
+              ]}
               onSelect={(key) => {
+                const group = groupMenuId(key);
+                if (group !== undefined) {
+                  edit({ groups: [{ group }, ...draft.groups] });
+                  return;
+                }
                 const entry = catalog.find((item) => modelKey(item) === key);
                 if (entry === undefined) return;
                 const effort = entry.defaultEffort ?? '';
@@ -685,6 +737,9 @@ export function ModelPresetProfile({
               disabled={busy}
             />
             <ul className="bh-card-list bh-model-cards" aria-label={t('modelPreset.allowedTitle')}>
+              {draft.groups.map((option) =>
+                groupCard(option, groupMenuKey(option.group) === draft.assignment.key),
+              )}
               {draft.allowed.map((option) =>
                 modelCard(option, modelKey(option) === draft.assignment.key),
               )}
@@ -852,11 +907,13 @@ export function ModelPresetProfile({
                           <>
                             <span className="bh-card-meta-line">
                               {t('modelPreset.orchestrator')} ·{' '}
-                              {presetRouteLabel(preset.orchestrator)}
+                              {groupName(preset.orchestratorGroupId) ??
+                                presetRouteLabel(preset.orchestrator)}
                             </span>
                             <span className="bh-card-meta-line">
                               {t('modelPreset.assignment')} ·{' '}
-                              {presetRouteLabel(preset.assignmentDefault)}
+                              {groupName(preset.assignmentDefaultGroupId) ??
+                                presetRouteLabel(preset.assignmentDefault)}
                             </span>
                           </>
                         }
@@ -881,6 +938,7 @@ export function ModelPresetProfile({
                     hint={t('modelPreset.orchestratorHint')}
                     choice={draft.orchestrator}
                     catalog={catalog}
+                    groups={catalogGroups}
                     options={modelOptions}
                     onChange={(orchestrator) => edit({ orchestrator })}
                     disabled={busy}

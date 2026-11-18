@@ -181,6 +181,26 @@ describe('Model commands', () => {
     ] as const)
       expect((await invoke([...argv], live.url, stdin)).json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(3);
+    const { orchestrator: _route, ...rest } = plan;
+    const grouped = { ...rest, orchestratorGroupId: 'main', assignmentGroups: ['side'] };
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify(grouped),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped },
+    });
+    expect(
+      (
+        await invoke(
+          ['model-plan-set', 'ada', '--plan-stdin'],
+          live.url,
+          JSON.stringify({ ...plan, orchestratorGroupId: 'main' }),
+        )
+      ).json.error.code,
+    ).toBe('usage');
   });
 
   it('opens or keeps listed Assignment models with --assignment-models', async () => {

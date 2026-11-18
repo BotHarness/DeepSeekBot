@@ -270,7 +270,38 @@ export async function setModelFavorite(
   return setHostModelFavorite(bridgeHost(call), choice, favorite);
 }
 
-export interface ModelPresetView {
+export interface AssignmentGroupOptionView {
+  group: string;
+  allowedEfforts?: string[];
+  defaultEffort?: string;
+  note?: string;
+}
+
+export interface ModelPlanGroupsView {
+  orchestratorGroupId?: string;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
+  assignmentGroupOptions?: AssignmentGroupOptionView[];
+}
+
+function groupPayload(orchestrator: ModelRouteView, groups: ModelPlanGroupsView | undefined) {
+  if (groups === undefined) return { orchestrator };
+  const ids = groups.assignmentGroups ?? [];
+  return {
+    ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
+    orchestratorGroupId: groups.orchestratorGroupId ?? null,
+    assignmentGroups: ids,
+    assignmentDefaultGroupId:
+      groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
+        ? groups.assignmentDefaultGroupId
+        : null,
+    assignmentGroupOptions: (groups.assignmentGroupOptions ?? []).filter((option) =>
+      ids.includes(option.group),
+    ),
+  };
+}
+
+export interface ModelPresetView extends ModelPlanGroupsView {
   id: string;
   name: string;
   revision: number;
@@ -281,12 +312,11 @@ export interface ModelPresetView {
   createdAt: string;
 }
 
-export interface ModelPlanView {
+export interface ModelPlanView extends ModelPlanGroupsView {
   revision: number;
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRouteView;
-  orchestratorGroupId?: string;
   assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
   openAssignmentModels?: true;
@@ -417,11 +447,12 @@ export async function createModelPreset(
   assignmentDefault: ModelRouteView,
   assignmentModels?: AssignmentModelOptionView[],
   openAssignmentModels?: boolean,
+  groups?: ModelPlanGroupsView,
 ): Promise<ModelPresetView> {
   const value = asRecord(
     await unwrap(call, 'modelPresetCreate', {
       name,
-      orchestrator,
+      ...groupPayload(orchestrator, groups),
       assignmentDefault,
       ...(assignmentModels === undefined ? {} : { assignmentModels }),
       ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
@@ -7830,12 +7861,13 @@ export async function setModelPlan(
   assignmentDefault: ModelRouteView,
   assignmentModels: AssignmentModelOptionView[],
   openAssignmentModels?: boolean,
+  groups?: ModelPlanGroupsView,
 ): Promise<ModelPlanView> {
   const value = asRecord(
     await unwrap(call, 'modelPlanSet', {
       slug,
       expectedRevision,
-      orchestrator,
+      ...groupPayload(orchestrator, groups),
       assignmentDefault,
       assignmentModels,
       ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
