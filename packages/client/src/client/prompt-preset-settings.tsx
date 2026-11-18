@@ -1,5 +1,5 @@
 import { Button } from './ds/button.js';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import {
   IconCheckOutlineRegular,
   IconInfoOutlineRegular,
@@ -407,13 +407,14 @@ async function loadLibrary(actions: PromptActions): Promise<Library> {
 }
 
 type Editor =
-  | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft }
+  | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft; base: Library }
   | {
       mode: 'edit';
       preset: PresetView;
       name: string;
       draft: Draft;
       limits: LimitDraft;
+      base: Library;
     };
 
 export function PromptPresetSettings({
@@ -429,26 +430,32 @@ export function PromptPresetSettings({
   const [deleting, setDeleting] = useState<PresetView>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const reads = useRef({ latest: 0, live: false });
+  const read = (): Promise<void> => {
+    const seq = ++reads.current.latest;
+    const current = () => reads.current.live && seq === reads.current.latest;
+    return loadLibrary(actions).then(
+      (next) => {
+        if (!current()) return;
+        setLibrary(next);
+        setLoadError(undefined);
+      },
+      (cause: unknown) => {
+        if (current()) setLoadError(errorMessage(cause));
+      },
+    );
+  };
   const mount = useMountedResource<HTMLElement>(() => {
-    let live = true;
     if (actions.promptParts === undefined) return undefined;
+    reads.current.live = true;
     const refresh = (): void => {
-      if (document.visibilityState !== 'visible') return;
-      loadLibrary(actions)
-        .then((next) => {
-          if (!live) return;
-          setLibrary(next);
-          setLoadError(undefined);
-        })
-        .catch((cause: unknown) => {
-          if (live) setLoadError(errorMessage(cause));
-        });
+      if (document.visibilityState === 'visible') void read();
     };
     refresh();
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
     return () => {
-      live = false;
+      reads.current.live = false;
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);
     };
@@ -467,18 +474,19 @@ export function PromptPresetSettings({
     void operation()
       .then(async () => {
         if (!keepOpen) close();
-        setLibrary(await loadLibrary(actions));
+        await read();
       })
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
+  const catalog = editor?.base ?? library;
   const builtInLimit = (id: string) => ({
-    value: library?.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
+    value: catalog?.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
     source: 'built-in' as Source,
   });
   const builtIn = (id: string) => ({
-    text: library?.parts.find((part) => part.id === id)?.defaultText ?? '',
+    text: catalog?.parts.find((part) => part.id === id)?.defaultText ?? '',
     source: 'built-in' as Source,
   });
 
@@ -503,7 +511,7 @@ export function PromptPresetSettings({
     const changes = edits(layer, editor.draft, (id) => builtIn(id).text);
     const limitLayer: LimitLayer = editor.mode === 'edit' ? editor.preset.limits : {};
     const limitChanges = limitEdits(
-      library.limits,
+      editor.base.limits,
       limitLayer,
       editor.limits,
       (id) => builtInLimit(id).value,
@@ -568,7 +576,7 @@ export function PromptPresetSettings({
           />
           <Note>{t('prompts.editorHint')}</Note>
           <PartsEditor
-            parts={library.parts}
+            parts={editor.base.parts}
             layer={layer}
             draft={editor.draft}
             inherited={builtIn}
@@ -576,7 +584,7 @@ export function PromptPresetSettings({
             t={t}
           />
           <LimitsEditor
-            catalog={library.limits}
+            catalog={editor.base.limits}
             layer={limitLayer}
             draft={editor.limits}
             inherited={builtInLimit}
@@ -646,6 +654,7 @@ export function PromptPresetSettings({
                       name: '',
                       draft: {},
                       limits: {},
+                      base: library,
                     });
                   }}
                 >
@@ -689,6 +698,7 @@ export function PromptPresetSettings({
                           name: preset.name,
                           draft: {},
                           limits: {},
+                          base: library,
                         });
                       }}
                     >
@@ -700,6 +710,19 @@ export function PromptPresetSettings({
             })}
             {error === undefined || editor !== undefined || deleting !== undefined ? null : (
               <Note tone="danger">{error}</Note>
+            )}
+            {loadError === undefined ? null : (
+              <SettingsRow
+                title={
+                  <Note tone="danger">{t('prompts.refreshFailed', { error: loadError })}</Note>
+                }
+                data={{ 'data-prompt-refresh-error': '' }}
+                control={
+                  <Button variant="outline" size="sm" onClick={() => void read()}>
+                    {t('prompts.retry')}
+                  </Button>
+                }
+              />
             )}
           </>
         )}

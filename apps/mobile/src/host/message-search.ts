@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { searchMessages } from '@botharness/host-client/channel-messages';
 import type { HostClient } from '@botharness/host-client/client';
 import { hostStore, hostStoreAvailable } from './host-store';
 import { searchStoredMessages } from './local-message-search';
@@ -42,33 +43,16 @@ function newestFirst(hits: MessageSearchHit[]): MessageSearchHit[] {
     .slice(0, MESSAGE_SEARCH_LIMIT);
 }
 
-function hitsOf(hostId: string, value: unknown): MessageSearchHit[] {
-  const hits = (value as { hits?: unknown } | null)?.hits;
-  if (!Array.isArray(hits)) return [];
-  return hits.flatMap((entry) => {
-    const hit = entry as {
-      channelId?: unknown;
-      snippet?: unknown;
-      message?: { id?: unknown; at?: unknown; author?: unknown };
-    };
-    const author = hit.message?.author as MessageSearchAuthor | undefined;
-    return typeof hit.channelId === 'string' &&
-      typeof hit.snippet === 'string' &&
-      typeof hit.message?.id === 'string' &&
-      typeof hit.message.at === 'string' &&
-      typeof author?.kind === 'string'
-      ? [
-          {
-            hostId,
-            channelId: hit.channelId,
-            messageId: hit.message.id,
-            at: hit.message.at,
-            author,
-            snippet: hit.snippet,
-          },
-        ]
-      : [];
-  });
+type SearchedMessage = { id: string; at: string; author: MessageSearchAuthor };
+
+function searchedMessage(value: unknown): SearchedMessage | undefined {
+  const message = value as { id?: unknown; at?: unknown; author?: unknown } | null | undefined;
+  const author = message?.author as MessageSearchAuthor | undefined;
+  return typeof message?.id === 'string' &&
+    typeof message.at === 'string' &&
+    typeof author?.kind === 'string'
+    ? { id: message.id, at: message.at, author }
+    : undefined;
 }
 
 export async function searchHostMessages(
@@ -79,10 +63,16 @@ export async function searchHostMessages(
     hosts
       .filter((host) => host.offline !== true)
       .map(async ({ hostId, client }) =>
-        hitsOf(
+        (
+          await searchMessages(client, { text, limit: MESSAGE_SEARCH_LIMIT }, searchedMessage)
+        ).hits.map(({ channelId, message, snippet }) => ({
           hostId,
-          await client.call<unknown>('messageSearch', { text, limit: MESSAGE_SEARCH_LIMIT }),
-        ),
+          channelId,
+          messageId: message.id,
+          at: message.at,
+          author: message.author,
+          snippet,
+        })),
       ),
   );
   return newestFirst(pages.flatMap((page) => (page.status === 'fulfilled' ? page.value : [])));

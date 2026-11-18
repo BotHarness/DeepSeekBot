@@ -5,7 +5,7 @@ This note keeps the implementation constraints that were formerly explained besi
 ## PersonaBot identity and Memory
 
 - Creating a PersonaBot requires its Git-backed Memory Repository. The registry refuses creation when that repository cannot be prepared; it does not expose a partly executable identity. Opening an existing repository leaves provisional working-tree edits untouched. See [Memory ADRs](../decisions/memory.md#adr-0002) and [Persona ownership](../decisions/memory.md#adr-0014).
-- A DSH Session's PersonaBot owner comes from the recorded ownership relation. The current directory, Workspace membership, and selected Client view cannot supply a fallback owner. The first prompt assembly persists the current persona bytes for that Session. Ordinary later turns reuse those bytes; a compaction boundary is the sanctioned refresh point, and an unchanged file does not churn the snapshot. See [ADR-0024](../adr/0024-orchestrator-session-per-personabot.md).
+- A DSH Session's PersonaBot owner comes from the recorded ownership relation. The current directory, Workspace membership, and selected Client view cannot supply a fallback owner. The first prompt assembly persists the current persona bytes for that Session. Ordinary later turns reuse those bytes; a compaction boundary is the sanctioned refresh point, and an unchanged file does not churn the snapshot. See [ADR-0024](../decisions/sessions.md#adr-0024).
 
 ## Channel and roster authority
 

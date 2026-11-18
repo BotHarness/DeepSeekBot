@@ -1,3 +1,4 @@
+import { retryChannelMessage } from '@botharness/host-client/channel-messages';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { gitImportSource } from '@botharness/host-client/bot-creation';
@@ -2132,16 +2133,7 @@ export function createActions(
       await invoke('botNewSession', { slug: botSlug });
     },
     async retryMessage(channelId, messageId, recovery) {
-      await invoke('channelRetry', {
-        channelId,
-        messageId,
-        ...(recovery
-          ? {
-              recovery: recovery.action,
-              failureMessageId: recovery.failureMessageId,
-            }
-          : {}),
-      });
+      await retryChannelMessage(host, { channelId, messageId, recovery });
       await actions.refreshChannelMessages(channelId);
     },
     async compactBot(botSlug) {

@@ -11,6 +11,7 @@ import {
   mobileVerification,
   parseChanges,
   timelinePerf,
+  uiVisual,
   parseGitChanges,
   plan,
   REQUIRED_CHECK,
@@ -203,6 +204,16 @@ describe('mobile verification selection', () => {
 });
 
 describe('CI test plan', () => {
+  it('runs the UI visual checks for Client source, the gallery and full runs', () => {
+    expect(uiVisual('affected', [{ path: 'packages/client/src/client/ds/nav-item.tsx' }])).toBe(
+      true,
+    );
+    expect(uiVisual('affected', [{ path: 'scripts/ui-visual/gallery.tsx' }])).toBe(true);
+    expect(uiVisual('affected', [{ path: 'scripts/check-ui-visual.mjs' }])).toBe(true);
+    expect(uiVisual('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
+    expect(uiVisual('full', [])).toBe(true);
+  });
+
   it('runs the timeline performance budget for Client source, perf tooling and full runs', () => {
     expect(timelinePerf('affected', [{ path: 'packages/client/src/client/bot-main.tsx' }])).toBe(
       true,

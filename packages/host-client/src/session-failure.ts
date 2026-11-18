@@ -1,3 +1,4 @@
+import { retryChannelMessage } from './channel-messages';
 import { sessionMaintenanceFor } from './shared/session-maintenance';
 import {
   parseFailureAutoContinue,
@@ -76,11 +77,10 @@ export function createFailureContinuation(
     },
     {
       continueTurn: (channel, messageId, failureId) =>
-        client.call('channelRetry', {
+        retryChannelMessage(client, {
           channelId: channel,
           messageId,
-          recovery: 'continue',
-          failureMessageId: failureId,
+          recovery: { action: 'continue', failureMessageId: failureId },
         }),
       cancelAuto: (channel, botSlug, messageId) =>
         client.call('botStop', {
