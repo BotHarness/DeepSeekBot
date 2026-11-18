@@ -151,6 +151,10 @@ const info: GroupInfo = {
     { slug: 'ada', bot: ada, owner: true },
     { slug: 'bo', bot: bo, owner: false },
   ],
+  people: [
+    { humanId: 'local-human', name: 'Little Bear', avatarVersion: 'v1' },
+    { humanId: 'mia', name: 'Mia' },
+  ],
   invites: [{ id: 'inv-1', slug: 'cy', bot: cy }],
   joins: [{ id: 'join-1', slug: 'di', bot: di }],
   candidates: [bot('fay', 'Fay')],
@@ -295,6 +299,8 @@ describe('Group profile', () => {
     expect(text).toContain(t.groupOwner);
     expect(text).toContain(t.groupInvited);
     expect(text).toContain(t.groupJoinAsk);
+    expect(text).toContain('Little Bear');
+    expect(text).toContain('Mia');
     const headers = [...view.querySelectorAll('[role="header"]')]
       .filter((node) => node.closest('[hidden]') === null)
       .map((node) => node.textContent);

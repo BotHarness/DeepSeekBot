@@ -394,12 +394,19 @@ export interface ChannelListItem {
   members: string[];
   botSlug?: string;
   humanParticipants?: string[];
+  humanMembers?: WireChannelHumanMember[];
   avatar?: string;
   ownerBotSlug?: string;
   invitations?: WireGroupInvitation[];
   joinRequests?: WireGroupJoinRequest[];
   deletedAt?: string;
   latestMessage?: WireMessage;
+}
+
+export interface WireChannelHumanMember {
+  humanId: string;
+  displayName: string;
+  avatarVersion?: string;
 }
 
 export interface WireGroupInvitation {

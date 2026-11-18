@@ -56,6 +56,7 @@ import {
   type WireBotActivity,
   type WireSessionActivity,
   type WireAuthor,
+  type WireChannelHumanMember,
   type WireToolActivity,
 } from '@botharness/host-protocol/wire';
 
@@ -101,6 +102,7 @@ export interface RosterChannel {
   name: string;
   memberCount: number;
   members: string[];
+  humanMembers?: WireChannelHumanMember[];
   avatar?: string;
   ownerBotSlug?: string;
   pendingInvites?: Array<{ id: string; botSlug: string }>;
@@ -562,8 +564,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
         groups.push({
           id: channel.id,
           name: channel.name,
-          memberCount: channel.members.length,
+          memberCount: channel.members.length + (channel.humanMembers?.length ?? 0),
           members: channel.members,
+          ...(channel.humanMembers === undefined ? {} : { humanMembers: channel.humanMembers }),
           ...(channel.avatar === undefined ? {} : { avatar: channel.avatar }),
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
           pendingInvites: (channel.invitations ?? [])

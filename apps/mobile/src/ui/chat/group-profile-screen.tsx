@@ -11,6 +11,7 @@ import {
   loadChannelNickname,
   saveChannelNickname,
   useHumanIdentity,
+  HumanAvatarClientContext,
 } from '../../host/human-profile';
 import { useMounted } from '../mounted';
 import { sessionStopper } from '../../host/session-stop';
@@ -104,67 +105,69 @@ export function GroupProfileScreen({
   const params = { id: info.channel.id, hostId: saved?.hostId };
   return (
     <View ref={profileMount} style={{ flex: 1 }}>
-      <GroupProfilePage
-        nickname={{
-          value: nickname,
-          name: human.identity?.displayName,
-          save: async (next) => {
-            const save = ++latestSave.current;
-            const result = {
-              scope: `${saved?.hostId}:${info.channel.id}`,
-              value: await saveChannelNickname(client, info.channel.id, next),
-            };
-            if (save === latestSave.current)
-              setNickname((current) => settleScoped(current, result));
-          },
-        }}
-        key={`${saved?.hostId}:${info.channel.id}`}
-        info={info}
-        actions={actions}
-        tabMemory={profileTabMemory}
-        pickAvatar={pickAvatarImage}
-        onClose={onClose ?? (() => router.back())}
-        onOpenBot={(slug) =>
-          router.push({
-            pathname: '/bot/[slug]',
-            params: { slug, hostId: saved?.hostId },
-          })
-        }
-        onDisbanded={() => router.dismissAll()}
-        {...(refused ? {} : { loadWork, stopper: sessionStopper(client, info.channel.id) })}
-        onOpenAssignment={(assignment) => {
-          if (assignment.botSlug === undefined) return;
-          router.push({
-            pathname: '/group/[id]/assignment/[session]',
-            params: {
-              ...params,
-              slug: assignment.botSlug,
-              session: assignment.sessionId,
+      <HumanAvatarClientContext.Provider value={client}>
+        <GroupProfilePage
+          nickname={{
+            value: nickname,
+            name: human.identity?.displayName,
+            save: async (next) => {
+              const save = ++latestSave.current;
+              const result = {
+                scope: `${saved?.hostId}:${info.channel.id}`,
+                value: await saveChannelNickname(client, info.channel.id, next),
+              };
+              if (save === latestSave.current)
+                setNickname((current) => settleScoped(current, result));
             },
-          });
-        }}
-        onChatBackground={() =>
-          router.push({
-            pathname: '/group/[id]/chat-background',
-            params: { ...params, channelId: info.channel.id },
-          })
-        }
-        onNotifications={() => router.push({ pathname: '/group/[id]/notifications', params })}
-        files={
-          saved && !refused
-            ? (active, render) => (
-                <ChannelFilesTab
-                  client={client}
-                  hostId={saved.hostId}
-                  channelId={info.channel.id}
-                  active={active && focused}
-                >
-                  {render}
-                </ChannelFilesTab>
-              )
-            : undefined
-        }
-      />
+          }}
+          key={`${saved?.hostId}:${info.channel.id}`}
+          info={info}
+          actions={actions}
+          tabMemory={profileTabMemory}
+          pickAvatar={pickAvatarImage}
+          onClose={onClose ?? (() => router.back())}
+          onOpenBot={(slug) =>
+            router.push({
+              pathname: '/bot/[slug]',
+              params: { slug, hostId: saved?.hostId },
+            })
+          }
+          onDisbanded={() => router.dismissAll()}
+          {...(refused ? {} : { loadWork, stopper: sessionStopper(client, info.channel.id) })}
+          onOpenAssignment={(assignment) => {
+            if (assignment.botSlug === undefined) return;
+            router.push({
+              pathname: '/group/[id]/assignment/[session]',
+              params: {
+                ...params,
+                slug: assignment.botSlug,
+                session: assignment.sessionId,
+              },
+            });
+          }}
+          onChatBackground={() =>
+            router.push({
+              pathname: '/group/[id]/chat-background',
+              params: { ...params, channelId: info.channel.id },
+            })
+          }
+          onNotifications={() => router.push({ pathname: '/group/[id]/notifications', params })}
+          files={
+            saved && !refused
+              ? (active, render) => (
+                  <ChannelFilesTab
+                    client={client}
+                    hostId={saved.hostId}
+                    channelId={info.channel.id}
+                    active={active && focused}
+                  >
+                    {render}
+                  </ChannelFilesTab>
+                )
+              : undefined
+          }
+        />
+      </HumanAvatarClientContext.Provider>
     </View>
   );
 }

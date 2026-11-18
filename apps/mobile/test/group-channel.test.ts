@@ -41,6 +41,10 @@ function host(): FakeHost {
         type: 'group',
         name: 'Launch',
         members: ['ada', 'bo'],
+        humanMembers: [
+          { humanId: 'local-human', displayName: 'Little Bear', avatarVersion: 'v1' },
+          { humanId: 'mia', displayName: 'Mia' },
+        ],
         ownerBotSlug: 'ada',
         avatar: 'data:image/jpeg;base64,/9j/AA==',
         invitations: [
@@ -81,7 +85,7 @@ describe('Group Channel info', () => {
 
     expect(info.channel).toMatchObject({
       name: 'Launch',
-      memberCount: 2,
+      memberCount: 4,
       avatar: 'data:image/jpeg;base64,/9j/AA==',
       ownerBotSlug: 'ada',
     });
@@ -90,6 +94,10 @@ describe('Group Channel info', () => {
     ).toEqual([
       ['ada', 'Ada', true],
       ['bo', 'Bo', false],
+    ]);
+    expect(info.people).toEqual([
+      { humanId: 'local-human', name: 'Little Bear', avatarVersion: 'v1' },
+      { humanId: 'mia', name: 'Mia' },
     ]);
     expect(info.invites.map((invite) => [invite.id, invite.slug])).toEqual([['inv-1', 'cy']]);
     expect(info.joins.map((join) => [join.id, join.slug])).toEqual([['join-1', 'di']]);

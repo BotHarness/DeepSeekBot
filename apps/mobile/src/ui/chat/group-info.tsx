@@ -15,7 +15,10 @@ import {
   type GroupInfo,
   type GroupMember,
   type GroupPending,
+  type GroupPerson,
 } from '../../host/group-channel';
+import { useMemberAvatar } from '../../host/human-profile';
+import { humanInitial } from '../shell/human-avatar-initial';
 import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
@@ -57,6 +60,7 @@ type GroupSection = 'joins' | 'members';
 type RowBody =
   | { kind: 'join'; pending: GroupPending }
   | { kind: 'member'; member: GroupMember }
+  | { kind: 'person'; person: GroupPerson }
   | { kind: 'invite'; pending: GroupPending }
   | { kind: 'add' }
   | { kind: 'empty' };
@@ -69,9 +73,11 @@ function frame(bodies: RowBody[]): Row[] {
     key:
       body.kind === 'member'
         ? `member:${body.member.slug}`
-        : body.kind === 'join' || body.kind === 'invite'
-          ? `${body.kind}:${body.pending.id}`
-          : body.kind,
+        : body.kind === 'person'
+          ? `person:${body.person.humanId}`
+          : body.kind === 'join' || body.kind === 'invite'
+            ? `${body.kind}:${body.pending.id}`
+            : body.kind,
     first: index === 0,
     last: index === bodies.length - 1,
   }));
@@ -80,6 +86,7 @@ function frame(bodies: RowBody[]): Row[] {
 export function groupRows(info: GroupInfo): Array<{ section: GroupSection; data: Row[] }> {
   const members: RowBody[] = [
     ...(info.candidates.length > 0 ? [{ kind: 'add' } as const] : []),
+    ...info.people.map((person) => ({ kind: 'person', person }) as const),
     ...info.members.map((member) => ({ kind: 'member', member }) as const),
     ...info.invites.map((pending) => ({ kind: 'invite', pending }) as const),
   ];
@@ -95,7 +102,7 @@ export function groupRows(info: GroupInfo): Array<{ section: GroupSection; data:
     {
       section: 'members',
       data: frame(
-        info.members.length === 0 && info.invites.length === 0
+        info.members.length === 0 && info.people.length === 0 && info.invites.length === 0
           ? [...members, { kind: 'empty' }]
           : members,
       ),
@@ -122,6 +129,18 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
         {Array.from(memberName(entry))[0] ?? ''}
       </Text>
     </View>
+  );
+}
+
+function PersonAvatar({ person }: { person: GroupPerson }) {
+  const avatar = useMemberAvatar(person.humanId, person.avatarVersion);
+  return (
+    <GroupMark
+      avatar={avatar}
+      initial={humanInitial(person.name) ?? ''}
+      size={MEMBER_AVATAR}
+      corner={radius.sm}
+    />
   );
 }
 
@@ -660,6 +679,10 @@ function GroupRow({
         }
         onPress={onInvite}
       />
+    );
+  if (row.kind === 'person')
+    return (
+      <SettingsRow on={ON} title={row.person.name} leading={<PersonAvatar person={row.person} />} />
     );
   if (row.kind === 'member')
     return (

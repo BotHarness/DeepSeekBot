@@ -14,6 +14,12 @@ export interface GroupMember {
   owner: boolean;
 }
 
+export interface GroupPerson {
+  humanId: string;
+  name: string;
+  avatarVersion?: string;
+}
+
 export interface GroupPending {
   id: string;
   slug: string;
@@ -23,6 +29,7 @@ export interface GroupPending {
 export interface GroupInfo {
   channel: RosterChannel;
   members: GroupMember[];
+  people: GroupPerson[];
   invites: GroupPending[];
   joins: GroupPending[];
   candidates: RosterBot[];
@@ -47,6 +54,11 @@ export function groupInfo(
       const bot = bots.get(slug);
       return { slug, ...(bot === undefined ? {} : { bot }), owner: channel.ownerBotSlug === slug };
     }),
+    people: (channel.humanMembers ?? []).map((member) => ({
+      humanId: member.humanId,
+      name: member.displayName,
+      ...(member.avatarVersion === undefined ? {} : { avatarVersion: member.avatarVersion }),
+    })),
     invites,
     joins: (channel.pendingJoins ?? []).map(pending),
     candidates: roster.bots.filter(
