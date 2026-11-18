@@ -1809,7 +1809,7 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 
 - **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
 - **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`。
-- **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。运行中的 Assignment 由同一个 Host 运行实例接收 steer：Codex 通过 `turn/steer` 将请求送入当前轮次，Claude Code 中断当前轮次后在同一 Session 继续。终态报告由原运行实例提交一次。
+- **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。运行中的 Assignment 由同一个 Host 运行实例接收 steer：Codex 通过 `turn/steer` 将请求送入当前轮次，Claude Code 或明确拒绝 steer 的 Codex 中断当前轮次后在同一 Session 继续。原运行实例对当前工作只提交一次终态报告。
 - **审批**：`canUseTool`、Codex approval、ACP `session/request_permission` 统一进入 `ChannelToolApproval`；Assignment 的 cwd 是 Workspace Grant 的 `primaryCwd`，Orchestrator 在 PersonaBot 自己的空目录。
 - **历史**：Session 身份不变（ADR-0024）：每个 PersonaBot 一个 Orchestrator Session，照旧接收所有 Channel 的 Inbox 批次；每个 Assignment 一个 Assignment Session。每个 Session 一个引擎进程，原生会话是工作记忆。Host 记录是权威：Orchestrator 从 Bot Inbox、Channel 记录与 Memory 重建；Assignment 从 Assignment Directory、Assignment Request 与持久化的 Session 事件重建，缺失时以失败结束并报告 Orchestrator。
 - **Session detail**：引擎事件翻译成现有 `SessionTranscriptItem` 与 live 快照，面板不改。

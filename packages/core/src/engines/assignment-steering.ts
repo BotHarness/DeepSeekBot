@@ -4,8 +4,13 @@ import type { EngineSession, EngineTurnEnd } from './engine-session.js';
 export class AssignmentSteering {
   readonly #pending: string[] = [];
   #deliver: (() => void) | undefined;
+  #inputRevision = 0;
 
   constructor(readonly canContinue: () => boolean) {}
+
+  get inputRevision(): number {
+    return this.#inputRevision;
+  }
 
   offer(text: string): boolean {
     if (!this.canContinue()) return false;
@@ -16,7 +21,9 @@ export class AssignmentSteering {
 
   takeInput(input: string): string {
     const next = this.#takeNext();
-    return next === undefined ? input : `${input}\n\n${next}`;
+    if (next === undefined) return input;
+    this.#inputRevision += 1;
+    return `${input}\n\n${next}`;
   }
 
   async run<T>(
@@ -33,6 +40,7 @@ export class AssignmentSteering {
         if (update === undefined || !this.canContinue()) return outcome;
         next = update;
         continuation = true;
+        this.#inputRevision += 1;
       }
     } finally {
       settle();
@@ -62,11 +70,16 @@ export class AssignmentSteering {
   }) {
     let delivering: Promise<void> | undefined;
     let failure: { error: unknown } | undefined;
+    let replacing = false;
+    const replace = () => {
+      replacing = true;
+      stop.abort();
+    };
     this.#deliver = () => {
       const text = this.#pending[0];
       if (delivering !== undefined || signal.aborted || text === undefined) return;
       if (engine.steer === undefined) {
-        stop.abort();
+        replace();
         return;
       }
       delivering = engine
@@ -74,8 +87,9 @@ export class AssignmentSteering {
         .then((delivered) => {
           if (delivered) {
             this.#pending.shift();
+            this.#inputRevision += 1;
             log.input(text);
-          } else stop.abort();
+          } else replace();
         })
         .catch((error: unknown) => {
           failure = { error };
@@ -94,6 +108,6 @@ export class AssignmentSteering {
       this.#deliver = undefined;
     }
     if (delivering !== undefined) await delivering;
-    return { end, failure };
+    return { end, failure, replacing };
   }
 }

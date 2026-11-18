@@ -105,6 +105,7 @@ export interface EngineToolApproval {
 
 export interface EngineToolContext {
   session: Session;
+  readonly assignmentInputRevision?: number | undefined;
   ask(request: EngineToolApproval): Promise<ApprovalOutcome>;
 }
 
@@ -574,6 +575,9 @@ export class EngineHost {
         let limitedNow = false;
         scope.context = {
           session: live.dsh.session,
+          get assignmentInputRevision() {
+            return steering?.inputRevision;
+          },
           ask: (approval) =>
             this.#ask(
               live,
@@ -619,7 +623,8 @@ export class EngineHost {
           if (end.status === 'failed') {
             const limit = limitedNow ? this.limit(engine) : undefined;
             if (limit !== undefined) throw new EngineLimitError(engine, limit.account, limit.until);
-            throw new EngineRefusal('engine-failed', end.message);
+            if (steered?.replacing !== true || !current())
+              throw new EngineRefusal('engine-failed', end.message);
           }
         } finally {
           if (!current()) steering?.discard();

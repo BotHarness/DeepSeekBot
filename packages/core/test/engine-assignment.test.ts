@@ -317,21 +317,24 @@ describe('Engine Assignment at the adapter seam', () => {
       release: async () => undefined,
       runTurn: async (request) => {
         requests.push(request);
-        expect(
-          await request.execute(
+        const sendReport = () =>
+          request.execute(
             'report_to_orchestrator',
             { state: 'completed', summary: 'Fixed', expects_reply: false },
             request.signal,
             contextAt(3),
-          ),
-        ).toBe('Report delivered to the Orchestrator.');
+          );
+        expect(await Promise.all([sendReport(), sendReport()])).toEqual([
+          'Report delivered to the Orchestrator.',
+          'Terminal report already delivered to the Orchestrator.',
+        ]);
         await expect(
           request.execute('bot_send_message', {}, request.signal, contextAt(3)),
         ).rejects.toThrow('refused');
         return { turn: 3, endSeq: 12, text: 'Done.' };
       },
     });
-    const run = adapterRun();
+    const run = adapterRun(vi.fn(async () => undefined));
     try {
       await adapter.runAssignment(run);
     } finally {
@@ -430,125 +433,174 @@ describe('Engine Assignment at the adapter seam', () => {
 });
 
 describe('Codex Assignment steering through the Bot Inbox', () => {
-  it.each(['accepted', 'refused'])('delivers once when the native steer is %s', async (steer) => {
-    const text = 'Keep the existing export format.';
-    const summary = 'Kept the existing export format';
-    const originalTurnId = '019a7f10-0000-7000-8000-000000000002';
-    const end = (id: string, status: string) => ({
-      method: 'turn/completed',
-      params: { turn: { id, status } },
-    });
-    const report = (id: string) => ({
-      method: 'item/started',
-      params: {
-        item: {
-          type: 'mcpToolCall',
-          id,
-          server: 'deepseekbot',
-          tool: 'report_to_orchestrator',
-          arguments: { state: 'completed', summary },
+  it.each([
+    { name: 'native steer', native: true, previousReport: false, interruptedStatus: 'interrupted' },
+    {
+      name: 'codex refusal',
+      native: false,
+      previousReport: false,
+      interruptedStatus: 'interrupted',
+    },
+    {
+      name: 'failed interruption',
+      native: false,
+      previousReport: false,
+      interruptedStatus: 'failed',
+    },
+    {
+      name: 'steer after a report',
+      native: true,
+      previousReport: true,
+      interruptedStatus: 'interrupted',
+    },
+  ])(
+    'delivers one report for the request after $name',
+    async ({ native, previousReport, interruptedStatus }) => {
+      const text = 'Keep the existing export format.';
+      const summary = 'Kept the existing export format';
+      const preceding = 'Reported before the new request';
+      const beforeSteer = 'I am checking the export button.';
+      const originalTurnId = '019a7f10-0000-7000-8000-000000000002';
+      const end = (id: string, status: string) => ({
+        method: 'turn/completed',
+        params: { turn: { id, status } },
+      });
+      const report = (id: string, reportSummary = summary) => ({
+        method: 'item/started',
+        params: {
+          item: {
+            type: 'mcpToolCall',
+            id,
+            server: 'deepseekbot',
+            tool: 'report_to_orchestrator',
+            arguments: { state: 'completed', summary: reportSummary },
+          },
         },
-      },
-    });
-    const continuation: typeof CODEX_DM =
-      steer === 'accepted'
+      });
+      const continuation: typeof CODEX_DM = native
         ? [{ dir: 'in', msg: { id: 5, result: { turnId: originalTurnId } } }]
         : [
             { dir: 'in', msg: { id: 5, error: { code: -32601, message: 'Method not found' } } },
             { dir: 'out', msg: { id: 6, method: 'turn/interrupt' } },
             { dir: 'in', msg: { id: 6, result: {} } },
-            { dir: 'in', msg: end(originalTurnId, 'interrupted') },
+            { dir: 'in', msg: end(originalTurnId, interruptedStatus) },
             ...CODEX_DM.slice(3, 5),
             { dir: 'out', msg: { id: 7, method: 'turn/start' } },
             { dir: 'in', msg: { id: 7, result: { turn: { id: 'continued' } } } },
           ];
-    let start!: (replay: CodexReplay) => void;
-    const started = new Promise<CodexReplay>((resolve) => (start = resolve));
-    const { host } = hostSetup([], {
-      openCodex(options) {
-        const replay = codexReplay(
-          [
-            ...CODEX_DM.slice(0, 11),
-            { dir: 'out', msg: { id: 5, method: 'turn/steer' } },
-            ...continuation,
-            { dir: 'in', msg: report('report-1') },
-            { dir: 'in', msg: report('report-2') },
-            {
-              dir: 'in',
-              msg: end(steer === 'accepted' ? originalTurnId : 'continued', 'completed'),
-            },
-          ],
-          options,
-        );
-        start(replay);
-        return replay.transport;
-      },
-    });
-    host.use('ada', 'assignment', 'codex', {});
-    const { adapter } = adapterWith(host);
-    const home = createTempRoot('engine-assignment-inbox-');
-    const workspace = createTestNativeWorkspace(home);
-    const orchestratorRuns: OrchestratorAgentRun[] = [];
-    const core = createCore({
-      dshHome: home,
-      workspaces: () => workspace.lookup,
-      agents: {
-        runOrchestrator: async (run) => void orchestratorRuns.push(run),
-        runAssignment: (run) => adapter.runAssignment(run),
-        requestAssignment: (run) => adapter.requestAssignment(run),
-        close: () => adapter.close(),
-      },
-    });
-    try {
-      core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
-      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
-      if (dm === undefined) throw new Error('Missing DM');
-      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
-        channelId: dm.id,
-        messageId: 'start-export',
-        body: 'Fix the export button',
+      let start!: (replay: CodexReplay) => void;
+      const started = new Promise<CodexReplay>((resolve) => (start = resolve));
+      const { host, dsh } = hostSetup([], {
+        openCodex(options) {
+          const replay = codexReplay(
+            [
+              ...CODEX_DM.slice(0, 11),
+              {
+                dir: 'in',
+                msg: {
+                  method: 'item/completed',
+                  params: { item: { type: 'agentMessage', id: 'before-steer', text: beforeSteer } },
+                },
+              },
+              ...(previousReport
+                ? [{ dir: 'in' as const, msg: report('prior-report', preceding) }]
+                : []),
+              { dir: 'out', msg: { id: 5, method: 'turn/steer' } },
+              ...continuation,
+              { dir: 'in', msg: report('report-1') },
+              { dir: 'in', msg: report('report-2') },
+              {
+                dir: 'in',
+                msg: end(native ? originalTurnId : 'continued', 'completed'),
+              },
+            ],
+            options,
+          );
+          start(replay);
+          return replay.transport;
+        },
       });
-      if (!admission.admitted) throw new Error('DM was not admitted');
-      await admission.settled;
-      const access = orchestratorRuns[0]?.assignments;
-      if (access === undefined) throw new Error('Missing Orchestrator Assignment access');
-      const created = access.create({
-        title: 'Fix export',
-        description: 'Fix the export button',
-        grantId: TEST_GRANT_ID,
+      host.use('ada', 'assignment', 'codex', {});
+      const { adapter } = adapterWith(host);
+      const home = createTempRoot('engine-assignment-inbox-');
+      const workspace = createTestNativeWorkspace(home);
+      const orchestratorRuns: OrchestratorAgentRun[] = [];
+      const core = createCore({
+        dshHome: home,
+        workspaces: () => workspace.lookup,
+        agents: {
+          runOrchestrator: async (run) => void orchestratorRuns.push(run),
+          runAssignment: (run) => adapter.runAssignment(run),
+          requestAssignment: (run) => adapter.requestAssignment(run),
+          close: () => adapter.close(),
+        },
       });
-      if (created.outcome !== 'created') throw new Error('Assignment was not created');
-      const { sessionId } = created.assignment;
-      const replay = await started;
-      await vi.waitFor(() => expect(replay.sent.at(-1)?.['method']).toBe('turn/start'));
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+        if (dm === undefined) throw new Error('Missing DM');
+        const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: 'start-export',
+          body: 'Fix the export button',
+        });
+        if (!admission.admitted) throw new Error('DM was not admitted');
+        await admission.settled;
+        const access = orchestratorRuns[0]?.assignments;
+        if (access === undefined) throw new Error('Missing Orchestrator Assignment access');
+        const created = access.create({
+          title: 'Fix export',
+          description: 'Fix the export button',
+          grantId: TEST_GRANT_ID,
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment was not created');
+        const { sessionId } = created.assignment;
+        const replay = await started;
+        await vi.waitFor(() => expect(replay.sent.at(-1)?.['method']).toBe('turn/start'));
+        if (previousReport) {
+          await vi.waitFor(() =>
+            expect(orchestratorRuns.some((run) => run.inbox.includes(preceding))).toBe(true),
+          );
+        }
 
-      const delivery = access.request({ sessionId, mode: 'next-step', text });
-      await vi.waitFor(() => expect(replay.gatewayCalls).toHaveLength(2));
-      await core.runtime.whenIdle();
-      expect(delivery).toMatchObject({ delivery: 'steer', acceptance: 'accepted' });
-      expect(replay.mismatches).toEqual([]);
-      expect(
-        replay.sent.find((frame) => frame['method'] === 'turn/steer')?.['params'],
-      ).toMatchObject({ expectedTurnId: originalTurnId, input: [{ type: 'text', text }] });
-      const turns = replay.sent.filter((frame) => frame['method'] === 'turn/start');
-      expect(turns).toHaveLength(steer === 'accepted' ? 1 : 2);
-      if (steer === 'refused')
-        expect(turns[1]?.['params']).toMatchObject({ input: [{ type: 'text', text }] });
-      const reports = core.attention
-        .list({ botSlug: 'ada', limit: 100 })
-        .items.filter((item) => item.reason === 'assignment-report');
-      expect(reports).toHaveLength(1);
-      expect(orchestratorRuns.slice(1).filter((run) => run.inbox.includes(summary))).toHaveLength(
-        1,
-      );
-    } finally {
-      await host.close();
-      await core.runtime.whenIdle();
-      await core.runtime.close();
-      core.operationalDatabase.close();
-    }
-  });
+        const delivery = access.request({ sessionId, mode: 'next-step', text });
+        await vi.waitFor(() => expect(replay.gatewayCalls).toHaveLength(previousReport ? 3 : 2));
+        await core.runtime.whenIdle();
+        expect(delivery).toMatchObject({ delivery: 'steer', acceptance: 'accepted' });
+        expect(replay.mismatches).toEqual([]);
+        expect(
+          replay.sent.find((frame) => frame['method'] === 'turn/steer')?.['params'],
+        ).toMatchObject({ expectedTurnId: originalTurnId, input: [{ type: 'text', text }] });
+        const turns = replay.sent.filter((frame) => frame['method'] === 'turn/start');
+        expect(turns).toHaveLength(native ? 1 : 2);
+        if (!native)
+          expect(turns[1]?.['params']).toMatchObject({ input: [{ type: 'text', text }] });
+        const reports = core.attention
+          .list({ botSlug: 'ada', limit: 100 })
+          .items.filter((item) => item.reason === 'assignment-report');
+        expect(reports).toHaveLength(previousReport ? 2 : 1);
+        expect(orchestratorRuns.slice(1).filter((run) => run.inbox.includes(summary))).toHaveLength(
+          1,
+        );
+        const events = dsh.stored.get(sessionId)?.events ?? [];
+        const transcript = summarizeSessionTranscript({ sessionId, events });
+        const before = transcript.items.findIndex(
+          (item) => item.kind === 'reply' && item.text === beforeSteer,
+        );
+        const after = transcript.items.findIndex(
+          (item) => item.kind === 'input' && item.text === text,
+        );
+        expect(before).toBeGreaterThan(-1);
+        expect(after).toBeGreaterThan(before);
+      } finally {
+        await host.close();
+        await core.runtime.whenIdle();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
 });
 
 it('keeps a channelless Assignment grant away from every Channel and destination', () => {

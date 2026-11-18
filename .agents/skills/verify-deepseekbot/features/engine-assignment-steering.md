@@ -24,7 +24,7 @@ On an isolated local Host with a signed-in engine, choose it with `engine use <b
 
 1. Launch and run doctor. Use `bot-tool <bot> create_assignment --args-stdin` with instructions that keep the engine occupied long enough to steer.
 2. Confirm the Assignment is running with `assignment` and `session-transcript`. Run `bot-tool <bot> send_assignment_request --args-stdin` with the Session ID, `mode: "next-step"` and a unique instruction.
-3. Check for `delivery: "steer"`. Read `session-transcript` to verify the input appears in the same Codex turn, or in the turn immediately after the interrupted Claude Code turn.
+3. Check for `delivery: "steer"`. Read `session-transcript` to verify the input appears in the active Codex turn when the steer succeeds. For Claude Code or an explicit Codex refusal, verify the input appears in a new turn in the same Session after the interruption.
 4. Read `assignment` and `activity` to verify the requested outcome and its single terminal report. Repeat with the other engine.
 
 ## Gotchas

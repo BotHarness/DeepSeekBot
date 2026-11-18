@@ -72,6 +72,7 @@ export class EngineTurnLog {
   }
 
   input(text: string) {
+    this.#flushAssistant();
     return this.#target.session.append(
       'user/message',
       createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }),
@@ -144,8 +145,7 @@ export class EngineTurnLog {
   async end(end: EngineTurnEnd): Promise<void> {
     for (const id of [...this.#approvals]) this.approvalDecided(id, 'cancelled');
     this.#ended = true;
-    if (this.#pending.length) this.#assistant(this.#pending);
-    this.#pending = [];
+    this.#flushAssistant();
     for (const callId of this.#open)
       this.#result(callId, 'The engine turn ended before this tool finished.', true);
     this.#open.clear();
@@ -185,6 +185,11 @@ export class EngineTurnLog {
       },
       { surfaceOp: 'append' },
     );
+  }
+
+  #flushAssistant(): void {
+    if (this.#pending.length > 0) this.#assistant(this.#pending);
+    this.#pending = [];
   }
 
   #result(callId: string, text: string, isError: boolean): void {

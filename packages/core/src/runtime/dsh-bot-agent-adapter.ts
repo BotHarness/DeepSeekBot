@@ -1645,7 +1645,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       stop.signal.aborted ||
       this.#stopping.has(run.sessionId) ||
       this.#stoppedBots.has(run.bot.slug);
-    let terminalReport: ReturnType<AssignmentAgentRun['report']> | undefined;
+    let terminalReport:
+      | { inputRevision: number; published: ReturnType<AssignmentAgentRun['report']> }
+      | undefined;
     try {
       const native = this.#handles.get(run.sessionId);
       if (native !== undefined) {
@@ -1687,11 +1689,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               );
             if (typeof args['summary'] !== 'string')
               throw new Error('report_to_orchestrator: summary must be a string');
-            if (signal.aborted || this.#runs.get(run.sessionId) !== entry)
-              throw new Error('report_to_orchestrator: Assignment run is unavailable');
+            const assertActive = () => {
+              if (signal.aborted || this.#runs.get(run.sessionId) !== entry)
+                throw new Error('report_to_orchestrator: Assignment run is unavailable');
+            };
+            assertActive();
             const terminal = state === 'completed' || state === 'failed';
-            if (terminal && terminalReport !== undefined) {
-              await terminalReport;
+            const inputRevision = context.assignmentInputRevision ?? 0;
+            const prior = terminalReport;
+            if (terminal && prior?.inputRevision === inputRevision) {
+              await prior.published;
               return 'Terminal report already delivered to the Orchestrator.';
             }
             const start = context.session
@@ -1699,21 +1706,28 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               .findLast((event) => event.type === 'turn/start');
             if (start === undefined)
               throw new Error('Assignment Report has no native Turn identity');
-            const report = run.report(
-              {
-                state,
-                summary: args['summary'],
-                ...(args['expects_reply'] === undefined
-                  ? {}
-                  : { expectsReply: args['expects_reply'] === true }),
-              },
-              { turn: start.data.turn },
-            );
-            if (terminal) terminalReport = report;
+            const summary = args['summary'];
+            const expectsReply = args['expects_reply'];
+            const publish = async () => {
+              assertActive();
+              return run.report(
+                {
+                  state,
+                  summary,
+                  ...(expectsReply === undefined ? {} : { expectsReply: expectsReply === true }),
+                },
+                { turn: start.data.turn },
+              );
+            };
+            const report =
+              terminal && prior !== undefined
+                ? prior.published.catch(() => undefined).then(publish)
+                : publish();
+            if (terminal) terminalReport = { inputRevision, published: report };
             try {
               await report;
             } catch (error) {
-              if (terminalReport === report) terminalReport = undefined;
+              if (terminalReport?.published === report) terminalReport = undefined;
               throw error;
             }
             entry.reported = true;
@@ -1722,7 +1736,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           signal: stop.signal,
         })) ?? {};
       if (stopped()) return;
-      await terminalReport?.catch(() => undefined);
+      await terminalReport?.published.catch(() => undefined);
       if (stopped()) return;
       if (outcome.turn !== undefined && outcome.endSeq !== undefined)
         run.completedTurn?.({ turn: outcome.turn, endSeq: outcome.endSeq });
