@@ -2,6 +2,8 @@
 
 Use this guide when a PR changes a rendered screen or user interaction: layout, styling, visible copy, navigation, forms, feedback states, or responsive behavior. The PR description keeps the headings from `visual-pr`; put this evidence inside its **Change outline**, next to the relevant structural view.
 
+The `pr-visual-evidence` CI job enforces light and dark `https://media.botharness.ai/` image references, nearby **Before**/**After** labels, and an answered **UI review** checklist when a PR touches Client TSX/styles/design-system paths or mobile UI/routes (test files do not count). It accepts `<img>` and Markdown links; labels come from alt/link text, the same line, the nearest preceding heading, or the adjacent non-empty caption within three lines, ignoring case and accepting light/dark, 浅色/深色 or 亮色/暗色. Check each review box or append an explanation after its item, for example `: checked English and Chinese`. Add `no-visual-change` only when these paths have no visual change, and explain why in the PR; this label skips both checks. Bot authors, release PRs and reverts are exempt. CI checks references and answers; reviewers still verify the images and review claims. This metadata-only check adds no application runtime work or dependencies.
+
 ## Capture
 
 Keep local originals, redacted copies and their source/build records according to

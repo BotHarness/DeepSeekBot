@@ -18,6 +18,15 @@ Model:
 - Fix PRs: name the test that fails without the fix and passes with it (CI checks this), or write `No regression test: <why>` / 修 bug 的 PR 写明哪个测试在去掉修复后失败、加上后通过（CI 会验证），确实无法自动测试时写 `No regression test: <原因>`。
 - CI test plan: the mode the `plan tests` job chose (affected / full / none). If this PR adds a config file, a test directory or a test that reads repo files, name the `scripts/ci-plan.mjs` rule it updated / 写明 CI 选测模式；新增配置、测试目录或读仓库文件的测试时，写明改了哪条规则。
 
+## UI review / UI 评审
+
+For UI PRs, check each item or explain after it (`: <answer>`) / UI PR 请逐项勾选，或在条目后说明（`: <回答>`）。
+
+- [ ] Object/state/next action recognisable / 对象、状态和下一步操作清晰可辨
+- [ ] Every description adds a needed fact / 每段描述都补充必要信息
+- [ ] Both themes checked / 已检查浅色和深色主题
+- [ ] Maintained languages checked / 已检查维护的语言
+
 ## Change outline
 
 Show the smallest useful before/after or structural outline / 简明展示变更形状。
