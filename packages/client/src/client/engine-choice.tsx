@@ -179,6 +179,7 @@ export function EngineChoice({
   const alive = useRef(true);
   const generation = useRef(0);
   const poll = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const signInDeadline = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const refresh = (): Promise<EnginesView | undefined> => {
     const current = generation.current;
@@ -202,6 +203,7 @@ export function EngineChoice({
     return () => {
       alive.current = false;
       clearTimeout(poll.current);
+      clearTimeout(signInDeadline.current);
     };
   }, [slug]);
 
@@ -249,15 +251,24 @@ export function EngineChoice({
           tab.opener = null;
           tab.location.href = url;
         }
-        const deadline = Date.now() + SIGN_IN_POLL_DEADLINE_MS;
+        let done = false;
+        const finish = (ready: boolean): void => {
+          done = true;
+          clearTimeout(poll.current);
+          clearTimeout(signInDeadline.current);
+          setSigningIn(undefined);
+          if (ready) setSignInUrl(undefined);
+        };
+        signInDeadline.current = setTimeout(() => {
+          if (alive.current) finish(false);
+        }, SIGN_IN_POLL_DEADLINE_MS);
         const check = (): void => {
+          if (done) return;
           void refresh().then((next) => {
-            if (!alive.current) return;
-            const ready = next?.engines.find((entry) => entry.engine === engine)?.available;
-            if (ready === true || Date.now() >= deadline) {
-              setSigningIn(undefined);
-              if (ready === true) setSignInUrl(undefined);
-            } else poll.current = setTimeout(check, SIGN_IN_POLL_MS);
+            if (!alive.current || done) return;
+            if (next?.engines.find((entry) => entry.engine === engine)?.available === true)
+              finish(true);
+            else poll.current = setTimeout(check, SIGN_IN_POLL_MS);
           });
         };
         poll.current = setTimeout(check, SIGN_IN_POLL_MS);

@@ -274,3 +274,27 @@ it('rejects a malformed status body at the boundary', () => {
     selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }],
   });
 });
+
+it('stops waiting for sign-in after three minutes even when a status read hangs', async () => {
+  let calls = 0;
+  const read = vi.fn(() => {
+    calls += 1;
+    return calls === 1 ? Promise.resolve(local()) : new Promise<EnginesView>(() => {});
+  });
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  vi.useFakeTimers();
+  try {
+    await render({ read, use: async () => {}, login: async () => ({ url: 'https://x.test' }) });
+    await act(async () => button('Sign in')!.click());
+    expect(button('Waiting for sign-in')).toBeDefined();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3 * 60_000);
+    });
+    expect(button('Waiting for sign-in')).toBeUndefined();
+    expect(button('Sign in')).toBeDefined();
+    expect(read).toHaveBeenCalledTimes(2);
+  } finally {
+    open.mockRestore();
+    vi.useRealTimers();
+  }
+});
