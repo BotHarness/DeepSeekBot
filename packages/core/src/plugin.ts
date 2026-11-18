@@ -4510,7 +4510,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
-          (route) => requireBotModel(core.team, core.registry.get(owner.botSlug), route),
+          async (route) => {
+            requireBotModel(core.team, core.registry.get(owner.botSlug), route);
+            await openAssignmentRoutes.require(owner.botSlug, route);
+          },
           () => openAssignmentRoutes.list(owner.botSlug),
         );
       }
