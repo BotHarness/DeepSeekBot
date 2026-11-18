@@ -544,7 +544,7 @@ function ModelsView({
                       />
                     }
                     onPress={
-                      models.busy || selected || scope.kind !== 'bot'
+                      models.busy || scope.kind !== 'bot'
                         ? undefined
                         : () =>
                             models.run(

@@ -816,6 +816,10 @@ it('applies a Preset from the header model menu and clears its check after a mod
     if (option('preset:fast') === null) await act(async () => chip.click());
     await presets();
     expect(option('preset:fast')?.getAttribute('aria-selected')).toBe('true');
+    await act(async () => option('preset:fast')!.click());
+    expect(applied).toHaveBeenCalledTimes(2);
+    if (document.body.querySelector('[data-picker-filter]') === null)
+      await act(async () => chip.click());
     await act(async () =>
       document.body.querySelector<HTMLButtonElement>('[data-picker-filter="all"]')!.click(),
     );

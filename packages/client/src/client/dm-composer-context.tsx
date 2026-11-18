@@ -209,7 +209,7 @@ export function useDmComposerContext({
     void applyBotModelRoute(actions, slug, planState, route)
       .then((next) =>
         setModelData((current) =>
-          current?.slug === slug
+          current?.slug === slug && (current.state.revision ?? 0) <= next.revision
             ? { ...current, state: { revision: next.revision, plan: next } }
             : current,
         ),
@@ -225,7 +225,7 @@ export function useDmComposerContext({
     void applyBotModelGroup(actions, slug, planState, groupId)
       .then((next) =>
         setModelData((current) =>
-          current?.slug === slug
+          current?.slug === slug && (current.state.revision ?? 0) <= next.revision
             ? { ...current, state: { revision: next.revision, plan: next } }
             : current,
         ),
@@ -241,7 +241,7 @@ export function useDmComposerContext({
     void applyBotModelPreset(actions, slug, presetId)
       .then((next) =>
         setModelData((current) =>
-          current?.slug === slug
+          current?.slug === slug && (current.state.revision ?? 0) <= next.revision
             ? { ...current, state: { revision: next.revision, plan: next } }
             : current,
         ),
@@ -604,7 +604,7 @@ function DmComposerContextView({
           onSelect={(key) => {
             const chosenPreset = presetMenuId(key);
             if (chosenPreset !== undefined) {
-              if (!modelBusy && chosenPreset !== sourcePresetId) onChoosePreset(chosenPreset);
+              if (!modelBusy) onChoosePreset(chosenPreset);
               return;
             }
             const chosenGroup = groupMenuId(key);
