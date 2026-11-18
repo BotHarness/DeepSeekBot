@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { zstdDecompressSync } from 'node:zlib';
 import { resolve, dirname } from 'node:path';
 import { cookieFor } from './verify-app.mjs';
+import { requestListener } from './request-listener.mjs';
 
 const instance = JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE, 'utf8'));
 const expected = process.env.BH_E2E_EXPECT ?? 'recovered';
@@ -71,81 +72,83 @@ function replacementCheckpoint() {
   }
   throw new Error('No persisted Session for retry');
 }
-const server = createServer(async (request, response) => {
-  try {
-    let raw = '';
-    for await (const chunk of request) raw += chunk;
-    const input = JSON.parse(raw);
-    requestOrder++;
-    const messages = JSON.stringify(input.messages ?? []);
-    const summary = messages.includes('acting as a compaction engine');
-    const probe = messages.includes('[OVERFLOW_PROBE]');
-    if (summary) {
-      summaries++;
-      summaryOrder = requestOrder;
-    }
-    if (probe && !summary && summaries > 0 && retryOrder === undefined) {
-      retryOrder = requestOrder;
-      retriedWithReplacedContext =
-        !messages.includes('[SEED]') &&
-        messages.includes('Earlier seed completed. Preserve the latest recovery request.');
-      assert(retriedWithReplacedContext, 'retry must use the summary instead of the old seed');
-      persistedReplacement = await replacementCheckpoint();
-    }
-    if (probe && !summary && summaries === 0) {
-      refusals++;
-      response.writeHead(400, { 'content-type': 'application/json' });
-      response.end(
-        JSON.stringify({
-          type: 'invalid_request_error',
-          code: 'invalid_request_error',
-          message:
-            'Upstream request failed: [invalid_request_error] Input too long: model limit 1048576 tokens, requested 1123530 tokens',
-        }),
-      );
-      return;
-    }
-    const tool = input.tools?.find((item) => item.function?.name === 'bot_send_message');
-    const delta = summary
-      ? { content: 'Earlier seed completed. Preserve the latest recovery request.' }
-      : input.messages.at(-1)?.role === 'tool' || !tool
-        ? { content: 'Done.' }
-        : {
-            tool_calls: [
-              {
-                index: 0,
-                id: `qa-${crypto.randomUUID()}`,
-                type: 'function',
-                function: {
-                  name: tool.function.name,
-                  arguments: JSON.stringify({
-                    channel_id: channelId,
-                    body: probe ? 'OVERFLOW_RECOVERED' : 'SEED_OK',
-                    end_turn: true,
-                  }),
+const server = createServer(
+  requestListener(async (request, response) => {
+    try {
+      let raw = '';
+      for await (const chunk of request) raw += chunk;
+      const input = JSON.parse(raw);
+      requestOrder++;
+      const messages = JSON.stringify(input.messages ?? []);
+      const summary = messages.includes('acting as a compaction engine');
+      const probe = messages.includes('[OVERFLOW_PROBE]');
+      if (summary) {
+        summaries++;
+        summaryOrder = requestOrder;
+      }
+      if (probe && !summary && summaries > 0 && retryOrder === undefined) {
+        retryOrder = requestOrder;
+        retriedWithReplacedContext =
+          !messages.includes('[SEED]') &&
+          messages.includes('Earlier seed completed. Preserve the latest recovery request.');
+        assert(retriedWithReplacedContext, 'retry must use the summary instead of the old seed');
+        persistedReplacement = await replacementCheckpoint();
+      }
+      if (probe && !summary && summaries === 0) {
+        refusals++;
+        response.writeHead(400, { 'content-type': 'application/json' });
+        response.end(
+          JSON.stringify({
+            type: 'invalid_request_error',
+            code: 'invalid_request_error',
+            message:
+              'Upstream request failed: [invalid_request_error] Input too long: model limit 1048576 tokens, requested 1123530 tokens',
+          }),
+        );
+        return;
+      }
+      const tool = input.tools?.find((item) => item.function?.name === 'bot_send_message');
+      const delta = summary
+        ? { content: 'Earlier seed completed. Preserve the latest recovery request.' }
+        : input.messages.at(-1)?.role === 'tool' || !tool
+          ? { content: 'Done.' }
+          : {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: `qa-${crypto.randomUUID()}`,
+                  type: 'function',
+                  function: {
+                    name: tool.function.name,
+                    arguments: JSON.stringify({
+                      channel_id: channelId,
+                      body: probe ? 'OVERFLOW_RECOVERED' : 'SEED_OK',
+                      end_turn: true,
+                    }),
+                  },
                 },
-              },
+              ],
+            };
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.end(
+        [
+          { choices: [{ delta: { role: 'assistant', ...delta }, index: 0, finish_reason: null }] },
+          {
+            choices: [
+              { delta: {}, index: 0, finish_reason: delta.tool_calls ? 'tool_calls' : 'stop' },
             ],
-          };
-    response.writeHead(200, { 'content-type': 'text/event-stream' });
-    response.end(
-      [
-        { choices: [{ delta: { role: 'assistant', ...delta }, index: 0, finish_reason: null }] },
-        {
-          choices: [
-            { delta: {}, index: 0, finish_reason: delta.tool_calls ? 'tool_calls' : 'stop' },
-          ],
-          usage: { prompt_tokens: 3000, completion_tokens: 20 },
-        },
-      ]
-        .map((value) => `data: ${JSON.stringify(value)}\n\n`)
-        .join('') + 'data: [DONE]\n\n',
-    );
-  } catch {
-    response.writeHead(500);
-    response.end('fixture failed');
-  }
-});
+            usage: { prompt_tokens: 3000, completion_tokens: 20 },
+          },
+        ]
+          .map((value) => `data: ${JSON.stringify(value)}\n\n`)
+          .join('') + 'data: [DONE]\n\n',
+      );
+    } catch {
+      response.writeHead(500);
+      response.end('fixture failed');
+    }
+  }),
+);
 
 async function until(read, accept) {
   const deadline = Date.now() + 60_000;

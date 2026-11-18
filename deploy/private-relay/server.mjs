@@ -93,7 +93,7 @@ export function createPrivateRelay({ directory, bootstrap, hostKeys = () => new 
     }
     return text;
   };
-  const server = createServer(async (request, response) => {
+  const handle = async (request, response) => {
     if (request.url === '/health' && request.method === 'GET')
       return json(response, 200, { protocol: PROTOCOL_V1, protocols: [PROTOCOL_V1, PROTOCOL_V2] });
     if (request.url === '/status' && request.method === 'GET') {
@@ -153,6 +153,9 @@ export function createPrivateRelay({ directory, bootstrap, hostKeys = () => new 
         code: error.code === 'EEXIST' ? 'already-claimed' : 'claim-invalid',
       });
     }
+  };
+  const server = createServer((request, response) => {
+    handle(request, response).catch(() => response.destroy());
   });
   server.requestTimeout = 10_000;
   server.headersTimeout = 10_000;

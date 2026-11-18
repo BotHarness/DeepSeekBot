@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { requestListener } from './request-listener.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const assets = join(root, 'packages/computer/native/local-video');
@@ -326,43 +327,45 @@ async function runScenario(name, scenario) {
   const transcripts = [...scenario.transcripts];
   const asrAudio = [];
   let calls;
-  const server = createServer(async (request, response) => {
-    const path = new URL(request.url ?? '/', 'http://x').pathname;
-    if (path === '/api/voice/call') {
-      const chunks = [];
-      for await (const chunk of request) chunks.push(chunk);
-      const reply = await route(
-        new Request('http://x/api/voice/call', { method: 'POST', body: Buffer.concat(chunks) }),
-      );
-      response.writeHead(reply.status, { 'content-type': 'application/json' });
-      response.end(await reply.text());
-      return;
-    }
-    if (path === '/capture.wav') {
-      response.writeHead(200, { 'content-type': 'audio/wav' });
-      response.end(readFileSync(capture));
-      return;
-    }
-    if (path === '/desktop.html') {
-      response.writeHead(200, { 'content-type': 'text/html' });
-      response.end('<!doctype html><meta charset="utf-8"><script src="desktop.js"></script>');
-      return;
-    }
-    if (path === '/desktop.js') {
-      response.writeHead(200, { 'content-type': 'text/javascript' });
-      response.end(desktopJs);
-      return;
-    }
-    const name = path.slice(1);
-    if (['call-renderer.html', 'call-renderer.js'].includes(name)) {
-      response.writeHead(200, {
-        'content-type': name.endsWith('.html') ? 'text/html' : 'text/javascript',
-      });
-      response.end(readFileSync(join(assets, name)));
-      return;
-    }
-    response.writeHead(404).end();
-  });
+  const server = createServer(
+    requestListener(async (request, response) => {
+      const path = new URL(request.url ?? '/', 'http://x').pathname;
+      if (path === '/api/voice/call') {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const reply = await route(
+          new Request('http://x/api/voice/call', { method: 'POST', body: Buffer.concat(chunks) }),
+        );
+        response.writeHead(reply.status, { 'content-type': 'application/json' });
+        response.end(await reply.text());
+        return;
+      }
+      if (path === '/capture.wav') {
+        response.writeHead(200, { 'content-type': 'audio/wav' });
+        response.end(readFileSync(capture));
+        return;
+      }
+      if (path === '/desktop.html') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end('<!doctype html><meta charset="utf-8"><script src="desktop.js"></script>');
+        return;
+      }
+      if (path === '/desktop.js') {
+        response.writeHead(200, { 'content-type': 'text/javascript' });
+        response.end(desktopJs);
+        return;
+      }
+      const name = path.slice(1);
+      if (['call-renderer.html', 'call-renderer.js'].includes(name)) {
+        response.writeHead(200, {
+          'content-type': name.endsWith('.html') ? 'text/html' : 'text/javascript',
+        });
+        response.end(readFileSync(join(assets, name)));
+        return;
+      }
+      response.writeHead(404).end();
+    }),
+  );
   await new Promise((ready) => server.listen(0, '127.0.0.1', ready));
   const base = `http://127.0.0.1:${server.address().port}`;
   const helperBrowser = await chromium.launch({

@@ -5,7 +5,7 @@ const reply = (id, body) =>
   process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, ...body }) + '\n');
 const text = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
 
-createInterface({ input: process.stdin }).on('line', async (line) => {
+createInterface({ input: process.stdin }).on('line', (line) => {
   let request;
   try {
     request = JSON.parse(line);
@@ -40,14 +40,13 @@ createInterface({ input: process.stdin }).on('line', async (line) => {
       },
     });
   if (request.method === 'tools/call' && request.params.name === 'check_status') {
-    try {
-      const response = await fetch(STATUS_ENDPOINT, {
-        headers: { 'x-api-key': STATUS_API_KEY ?? '', 'x-api-secret': STATUS_API_SECRET ?? '' },
-      });
-      return reply(request.id, { result: text({ status: response.status }) });
-    } catch {
-      return reply(request.id, { result: { ...text({ error: 'request failed' }), isError: true } });
-    }
+    fetch(STATUS_ENDPOINT, {
+      headers: { 'x-api-key': STATUS_API_KEY ?? '', 'x-api-secret': STATUS_API_SECRET ?? '' },
+    }).then(
+      (response) => reply(request.id, { result: text({ status: response.status }) }),
+      () => reply(request.id, { result: { ...text({ error: 'request failed' }), isError: true } }),
+    );
+    return;
   }
   if (request.method === 'tools/call' && request.params.name === 'describe_setup')
     return reply(request.id, {
