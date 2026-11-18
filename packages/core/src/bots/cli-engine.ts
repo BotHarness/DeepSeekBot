@@ -104,7 +104,7 @@ export async function runEngineCommand(
     return { approvals };
   }
   if (command === 'engine-tools') {
-    if (rest.length !== 1) throw new CliLiveError('usage', 'engine tools needs one bot id.');
+    if (rest.length !== 1) throw new CliLiveError('usage', 'engine tools needs one Bot ID.');
     const value = await call(connect, {
       action: 'tools',
       bot: rest[0],
@@ -115,7 +115,7 @@ export async function runEngineCommand(
   }
   if (command === 'engine-tool') {
     if (rest.length !== 2)
-      throw new CliLiveError('usage', 'engine tool needs a bot id and a tool name.');
+      throw new CliLiveError('usage', 'engine tool needs a Bot ID and a tool name.');
     let args: unknown = {};
     if (values['args-stdin'] === true) {
       try {
