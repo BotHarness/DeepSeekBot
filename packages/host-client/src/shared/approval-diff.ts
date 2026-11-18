@@ -153,10 +153,9 @@ export interface ApprovalSummary {
 export function approvalSummary(toolName: string, input: string): ApprovalSummary {
   const shell = approvalShellCommand(toolName, input);
   if (shell !== undefined) {
-    const line = shell.command.trim().split('\n')[0] ?? '';
     return {
       ...(shell.description === undefined ? {} : { description: shell.description }),
-      command: line,
+      command: shell.command.trim(),
     };
   }
   const file = approvalFileChange(toolName, input);

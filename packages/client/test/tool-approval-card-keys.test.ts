@@ -186,6 +186,13 @@ describe('Tool approval card layout', () => {
     );
     expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
   });
+  it('shows every line of a multi-line command on the closed card', async () => {
+    const card = await render(
+      message('shell', JSON.stringify({ command: 'pwd\nrm -rf ./data', reason: 'Clean up' })),
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe('pwd\nrm -rf ./data');
+    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
+  });
   it('closes as Session stopped when the Human stopped the asking Session', async () => {
     const card = await render(message(), {
       toolApprovalStatus: async () => 'stopped',
