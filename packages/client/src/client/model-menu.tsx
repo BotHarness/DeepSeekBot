@@ -194,11 +194,7 @@ export function presetMenuItems(
     const entry = catalog.find(
       (item) => item.provider === route.provider && item.model === route.model,
     );
-    if (entry === undefined) return route.model;
-    return groupFrontName(
-      entry.modelName,
-      modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName }),
-    );
+    return entry?.modelName ?? route.model;
   };
   return presets.map((preset) => ({
     value: presetMenuKey(preset.id),

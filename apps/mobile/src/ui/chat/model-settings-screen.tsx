@@ -342,9 +342,7 @@ function ModelsView({
       if (group !== undefined) return group.name;
       if (route === undefined) return t.modelSettings.presetInherited;
       const entry = value.models.find((item) => sameModel(item, route));
-      if (entry === undefined) return route.model;
-      const short = modelEntryLabel(entry).short;
-      return /\p{L}/u.test(short) ? short : entry.modelName;
+      return entry?.modelName ?? route.model;
     };
     const favoriteCount =
       value.models.filter(starredModel).length +

@@ -377,8 +377,8 @@ it('lists Presets in their own column with main and side models, checks the sour
     document.body.querySelector<HTMLButtonElement>('[data-picker-filter="presets"]')!.click(),
   );
   expect(rows()).toEqual([
-    `Fast${zhTranslate('modelMenu.presetRoutes', { main: 'V4.1 Flash', side: 'GPT-6.1' })}Ctrl+1`,
-    `Team${zhTranslate('modelMenu.presetRoutes', { main: 'Daily', side: 'V4.1 Flash' })}Ctrl+2`,
+    `Fast${zhTranslate('modelMenu.presetRoutes', { main: 'DeepSeek V4.1 Flash', side: 'GPT-6.1' })}Ctrl+1`,
+    `Team${zhTranslate('modelMenu.presetRoutes', { main: 'Daily', side: 'DeepSeek V4.1 Flash' })}Ctrl+2`,
   ]);
   expect(zhTranslate('modelMenu.presetRoutes', { main: 'A', side: 'B' })).toBe('主：A · 副：B');
   const option = (id: string) => document.body.querySelector(`[data-picker-option='preset:${id}']`);
