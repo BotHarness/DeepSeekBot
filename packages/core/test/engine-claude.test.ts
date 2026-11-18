@@ -51,7 +51,11 @@ function withAccount(info: Record<string, unknown>): ClaudeRecordedLine[] {
   return RECORDING.map((line) => (line.kind === 'account' ? { kind: 'account', info } : line));
 }
 
-function setup(recordings: ClaudeRecordedLine[][] = [RECORDING], root = createTempRoot('claude-')) {
+function setup(
+  recordings: ClaudeRecordedLine[][] = [RECORDING],
+  root = createTempRoot('claude-'),
+  approve?: ConstructorParameters<typeof EngineHost>[0]['approve'],
+) {
   const dsh = memoryDsh();
   const gateway = createEngineGateway();
   gateways.push(gateway);
@@ -72,6 +76,7 @@ function setup(recordings: ClaudeRecordedLine[][] = [RECORDING], root = createTe
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
     openClaude: replay.factory,
+    ...(approve === undefined ? {} : { approve }),
     detectCodex: async () => ({ installed: false, login: 'unknown' }),
     detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'subscription' }),
     startClaudeLogin: async () => ({ url: 'https://claude.ai/oauth/authorize?x=1' }),
@@ -151,7 +156,7 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     const tools = transcript.items.filter((item) => item.kind === 'tool');
     expect(tools.map((item) => [item.tool, item.status])).toEqual([
       ['channel_read', 'done'],
-      ['Bash', 'failed'],
+      ['Bash', 'denied'],
       ['bot_send_message', 'done'],
     ]);
     expect(transcript.items.at(-1)).toMatchObject({ kind: 'turn-end', state: 'done' });
@@ -168,6 +173,41 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     });
     await host.close();
     expect(replay.closed).toBe(1);
+  });
+
+  it('turns a canUseTool request into an approval card and returns the answer to Claude', async () => {
+    const approve = vi.fn(async () => 'allowed-once' as const);
+    const { host, request, replay } = setup(
+      [RECORDING],
+      createTempRoot('claude-approve-'),
+      approve,
+    );
+    await host.runTurn(request);
+    expect(approve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        botSlug: 'ada',
+        sessionId: 'orchestrator-ada',
+        callId: 'toolu_02Touch',
+        toolName: 'Bash',
+        input: {
+          command: 'touch ../outside.txt',
+          description: 'Create a file outside the Bot folder',
+        },
+      }),
+    );
+    expect(replay.permissions).toEqual([
+      {
+        tool: 'Bash',
+        decision: {
+          behavior: 'allow',
+          updatedInput: {
+            command: 'touch ../outside.txt',
+            description: 'Create a file outside the Bot folder',
+          },
+        },
+      },
+    ]);
+    await host.close();
   });
 
   it('refuses a Console API-key login with a sign-in hint and opens no DSH Session', async () => {

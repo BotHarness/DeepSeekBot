@@ -468,7 +468,9 @@ export class ClaudeEngineSession implements EngineSession {
       this.#emit({
         kind: 'approval',
         approvalId,
+        ...(context.toolUseID ? { callId: context.toolUseID } : {}),
         tool: claudeToolName(name),
+        input,
         summary:
           context.title ||
           context.description ||
