@@ -287,10 +287,10 @@ export function withAdvanced(draft: ModelDraft, advanced: boolean): ModelDraft {
   const group = groupMenuId(key);
   if (group !== undefined) {
     const current = draft.groups.find((option) => option.group === group) ?? { group };
-    const allowed = current.allowedEfforts ?? [];
+    const { allowedEfforts: allowed = [], defaultEffort: _default, ...rest } = current;
     const next =
       effort === ''
-        ? current
+        ? rest
         : {
             ...current,
             allowedEfforts: allowed.includes(effort) ? allowed : [...allowed, effort],

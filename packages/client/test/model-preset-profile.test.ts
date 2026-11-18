@@ -1764,5 +1764,16 @@ describe('one reasoning effort for a Routing Group (#4497)', () => {
       { group: 'daily', allowedEfforts: ['high'], defaultEffort: 'high' },
     ]);
     expect(withAdvanced(advanced, false).assignment.effort).toBe('high');
+    const cleared = withAdvanced(
+      {
+        ...advanced,
+        groups: [{ ...advanced.groups[0]!, note: 'Daily work' }],
+        advanced: false,
+        assignment: { ...advanced.assignment, effort: '' },
+      },
+      true,
+    );
+    expect(cleared.groups).toEqual([{ group: 'daily', note: 'Daily work' }]);
+    expect(withAdvanced(cleared, false).assignment.effort).toBe('');
   });
 });

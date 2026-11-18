@@ -296,7 +296,8 @@ function ModelsView({
       );
     if (picker.endsWith('-effort'))
       return frame(
-        effortGroup !== undefined && scope.kind === 'global' ? (
+        effortGroup !== undefined &&
+          (scope.kind === 'global' || groupEffortChoices(value, effortGroup).length === 0) ? (
           <GroupEfforts value={value} group={effortGroup} header={banner} />
         ) : (
           <View>
