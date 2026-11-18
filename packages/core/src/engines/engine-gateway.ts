@@ -8,8 +8,13 @@ export interface EngineGatewayTool {
   inputSchema: Record<string, unknown>;
 }
 
+export type EngineGatewayContent =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string };
+
 export interface EngineGatewayCallResult {
   text: string;
+  content?: readonly EngineGatewayContent[];
   isError: boolean;
 }
 
@@ -46,6 +51,11 @@ export function gatewayScopeRefusal(
   channelId: string | undefined,
 ): string | undefined {
   if (channelId === undefined) return 'session-not-running';
+  const nested = args['arguments'];
+  if (typeof nested === 'object' && nested !== null && !Array.isArray(nested)) {
+    const refusal = gatewayScopeRefusal(nested as Record<string, unknown>, channelId);
+    if (refusal !== undefined) return refusal;
+  }
   const requested = args['channel_id'];
   if (requested !== undefined && requested !== channelId) return 'channel-out-of-scope';
   if (args['scope'] === 'joined') return 'channel-out-of-scope';
@@ -173,7 +183,13 @@ export function createEngineGateway(): EngineGateway {
     return {
       jsonrpc: '2.0',
       id: message.id,
-      result: { content: [{ type: 'text', text: result.text }], isError: result.isError },
+      result: {
+        content:
+          'content' in result && result.content !== undefined
+            ? result.content.map((part) => ({ ...part }))
+            : [{ type: 'text', text: result.text }],
+        isError: result.isError,
+      },
     };
   };
 

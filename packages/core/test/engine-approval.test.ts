@@ -170,6 +170,67 @@ describe('Codex approval requests (replay)', () => {
   });
 });
 
+describe('Bot tool approvals through the gateway', () => {
+  it('records a gateway tool approval in the engine Session like a Codex approval', async () => {
+    const asked: EngineApprovalRequest[] = [];
+    let gatewayUrl = '';
+    let gatewayToken = '';
+    const { host, dsh, request } = engineHost(decided('accept'), async (ask) => {
+      asked.push(ask);
+      if (ask.toolName !== 'shell') return 'rejected';
+      const response = await fetch(gatewayUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${gatewayToken}` },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'tool_call', arguments: { name: 'browser_open', arguments: {} } },
+        }),
+      });
+      const reply = (await response.json()) as { result: { content: { text: string }[] } };
+      expect(reply.result.content[0]!.text).toBe('Human approval was rejected');
+      return 'allowed-once';
+    });
+    const gateway = gateways.at(-1)!;
+    const grant = gateway.grant.bind(gateway);
+    vi.spyOn(gateway, 'grant').mockImplementation((spec) => {
+      const granted = grant(spec);
+      gatewayUrl = granted.url;
+      gatewayToken = granted.token;
+      return granted;
+    });
+    await host.runTurn({
+      ...request,
+      tools: [{ name: 'tool_call', description: 'Run a Bot tool', parameters: {} }],
+      execute: vi.fn(async (_name, _args, _signal, context) => {
+        const outcome = await context.ask({
+          toolName: 'browser_open',
+          input: {},
+          reason: 'Browser please',
+          device: { kind: 'browser' },
+        });
+        return `Human approval was ${outcome}`;
+      }),
+      signal: new AbortController().signal,
+    });
+    expect(asked.map((ask) => ask.toolName)).toEqual(['shell', 'browser_open']);
+    expect(asked[1]).toMatchObject({ reason: 'Browser please', device: { kind: 'browser' } });
+    const audit = dsh.stored
+      .get('orchestrator-ada')!
+      .events.filter((event) => event.type.startsWith('approval/'));
+    expect(
+      audit.map((event) => [event.type, (event.data as { toolName?: string }).toolName]),
+    ).toEqual([
+      ['approval/asked', 'shell'],
+      ['approval/asked', 'browser_open'],
+      ['approval/decided', undefined],
+      ['approval/decided', undefined],
+    ]);
+    await host.close();
+  });
+});
+
 const agents: BotAgentAdapter = {
   async runOrchestrator() {},
   async runAssignment() {},

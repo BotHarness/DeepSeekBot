@@ -167,6 +167,24 @@ export function modelCatalogGroupFront(
   return group.routes.find((route) => !resting(route)) ?? group.routes[0]!;
 }
 
+export function modelCatalogGroupEfforts(
+  group: Pick<ModelCatalogGroup, 'routes'>,
+  models: readonly ModelCatalogEntry[],
+): { id: string; name: string }[] {
+  const lists = group.routes
+    .map(
+      (route) =>
+        models
+          .find((entry) => entry.provider === route.provider && entry.model === route.model)
+          ?.efforts?.filter((effort) => effort.id !== '') ?? [],
+    )
+    .filter((list) => list.length > 0);
+  const [first, ...rest] = lists;
+  return (first ?? []).filter((effort) =>
+    rest.every((list) => list.some((item) => item.id === effort.id)),
+  );
+}
+
 function catalogRoute(value: unknown): ModelCatalogRoute | undefined {
   const row = record(value);
   const provider = row?.['provider'];

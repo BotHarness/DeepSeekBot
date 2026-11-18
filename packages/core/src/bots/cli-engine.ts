@@ -17,6 +17,16 @@ export const ENGINE_COMMANDS = [
       'list the approval cards engine Sessions are waiting on; answer one with tool-approval-decide (engine approvals)',
   },
   {
+    command: 'engine-tools',
+    description:
+      'list or search the Bot tools an engine-backed Bot reaches through tool_search (engine tools <bot> --query memory)',
+  },
+  {
+    command: 'engine-tool',
+    description:
+      'run an engine-only Bot tool such as memory_write without the model (engine tool <bot> memory_read --args-stdin)',
+  },
+  {
     command: 'engine-login',
     description:
       'start the Bot engine sign-in on the Host computer and print its URL (engine login codex|claude)',
@@ -66,8 +76,9 @@ async function call(
 export async function runEngineCommand(
   command: string,
   rest: string[],
-  values: { role?: string[]; fallback?: string },
+  values: { role?: string[]; fallback?: string; query?: string; 'args-stdin'?: boolean },
   connect: Connect,
+  readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
   if (command === 'engine-list' || command === 'engine-status') {
     if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
@@ -91,6 +102,35 @@ export async function runEngineCommand(
     const approvals = (await call(connect))['approvals'];
     if (!Array.isArray(approvals) || !approvals.every(isObject)) throw protocolError();
     return { approvals };
+  }
+  if (command === 'engine-tools') {
+    if (rest.length !== 1) throw new CliLiveError('usage', 'engine tools needs one Bot ID.');
+    const value = await call(connect, {
+      action: 'tools',
+      bot: rest[0],
+      ...(values.query === undefined ? {} : { query: values.query }),
+    });
+    if (!Array.isArray(value['tools']) || !value['tools'].every(isObject)) throw protocolError();
+    return value;
+  }
+  if (command === 'engine-tool') {
+    if (rest.length !== 2)
+      throw new CliLiveError('usage', 'engine tool needs a Bot ID and a tool name.');
+    let args: unknown = {};
+    if (values['args-stdin'] === true) {
+      try {
+        args = JSON.parse(await readStdin());
+      } catch {
+        args = undefined;
+      }
+      if (!isObject(args))
+        throw new CliLiveError('usage', '--args-stdin must be a JSON object of tool arguments.');
+    }
+    const [bot, tool] = rest as [string, string];
+    const value = await call(connect, { action: 'tool', bot, tool, args });
+    if (value['bot'] !== bot || value['tool'] !== tool || !('result' in value))
+      throw protocolError();
+    return value;
   }
   if (command === 'engine-login') {
     if (rest.length !== 1)

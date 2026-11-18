@@ -207,12 +207,16 @@ describe('DM turn end to end', () => {
       join(dshHome, 'botharness', 'bots', 'ada', 'memory'),
       workspacePath,
     ]);
-    for (const session of host.sessions) {
-      expect(session.snapshotEvents(0, 2).map((event) => [event.type, event.data])).toEqual([
-        ['sandbox/mode', { mode: 'workspace-write' }],
+    expect(
+      host.sessions.map((session) =>
+        session.snapshotEvents(0, 2).map((event) => [event.type, event.data]),
+      ),
+    ).toEqual(
+      ['workspace-write', 'read-only'].map((mode) => [
+        ['sandbox/mode', { mode }],
         ['approval/policy', { policy: 'ask' }],
-      ]);
-    }
+      ]),
+    );
 
     expect(core.runtime.listAssignments('ada')).toEqual([
       expect.objectContaining({

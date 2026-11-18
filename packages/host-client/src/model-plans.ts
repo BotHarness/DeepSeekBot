@@ -24,6 +24,7 @@ export interface AssignmentGroupOption {
 
 export interface ModelPlanGroups {
   orchestratorGroupId?: string;
+  orchestratorGroupEffort?: string;
   assignmentGroups?: string[];
   assignmentDefaultGroupId?: string;
   assignmentGroupOptions?: AssignmentGroupOption[];
@@ -110,6 +111,9 @@ function planGroups(row: Record<string, unknown>): ModelPlanGroups {
   return {
     ...(text(row['orchestratorGroupId'])
       ? { orchestratorGroupId: row['orchestratorGroupId'] }
+      : {}),
+    ...(text(row['orchestratorGroupId']) && text(row['orchestratorGroupEffort'])
+      ? { orchestratorGroupEffort: row['orchestratorGroupEffort'] }
       : {}),
     ...(ids.length === 0 ? {} : { assignmentGroups: ids }),
     ...(text(row['assignmentDefaultGroupId']) && ids.includes(row['assignmentDefaultGroupId'])
@@ -230,7 +234,9 @@ export async function loadModelPlanState(host: HostCall, slug: string): Promise<
 export async function customizeModelPlan(
   host: HostCall,
   slug: string,
-  change: { orchestrator: ModelRoute } | { orchestratorGroupId: string },
+  change:
+    | { orchestrator: ModelRoute }
+    | { orchestratorGroupId: string; orchestratorGroupEffort?: string },
   expectedRevision?: number,
 ): Promise<ModelPlan> {
   return planAnswer(
@@ -260,6 +266,7 @@ export interface ModelRoutes {
 
 export interface ModelPlanGroupsInput {
   orchestratorGroupId?: string | null;
+  orchestratorGroupEffort?: string | null;
   assignmentGroups?: string[];
   assignmentDefaultGroupId?: string | null;
   assignmentGroupOptions?: AssignmentGroupOption[];
@@ -275,6 +282,9 @@ function routes(input: Partial<ModelRoutes> & ModelPlanGroupsInput): Record<stri
     ...(input.orchestratorGroupId === undefined
       ? {}
       : { orchestratorGroupId: input.orchestratorGroupId }),
+    ...(input.orchestratorGroupEffort === undefined
+      ? {}
+      : { orchestratorGroupEffort: input.orchestratorGroupEffort }),
     ...(input.assignmentGroups === undefined ? {} : { assignmentGroups: input.assignmentGroups }),
     ...(input.assignmentDefaultGroupId === undefined
       ? {}

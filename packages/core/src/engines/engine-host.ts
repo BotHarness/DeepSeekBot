@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -26,7 +27,12 @@ import {
   type OpenedEngineDshSession,
   openEngineDshSession,
 } from './engine-dsh-session.js';
-import type { EngineGateway, EngineGatewayTool, EngineGrant } from './engine-gateway.js';
+import type {
+  EngineGateway,
+  EngineGatewayCallResult,
+  EngineGatewayTool,
+  EngineGrant,
+} from './engine-gateway.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
   type EngineAccount,
@@ -48,6 +54,8 @@ export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
   'bot_send_message',
   'channel_read',
   'inbox_resolve',
+  'tool_search',
+  'tool_call',
 ]);
 
 export interface EngineTool {
@@ -63,8 +71,25 @@ export interface EngineTurnRequest {
   input: string;
   instructions: string;
   tools: readonly EngineTool[];
-  execute(name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+  execute(
+    name: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+    context: EngineToolContext,
+  ): Promise<unknown>;
   signal: AbortSignal;
+}
+
+export interface EngineToolApproval {
+  toolName: string;
+  input: Record<string, unknown>;
+  reason?: string;
+  device?: { kind: 'computer' | 'browser'; authorizationScope?: () => string };
+}
+
+export interface EngineToolContext {
+  session: Session;
+  ask(request: EngineToolApproval): Promise<ApprovalOutcome>;
 }
 
 export type EngineSessionState = 'starting' | 'running' | 'waiting-approval' | 'idle';
@@ -76,6 +101,8 @@ export interface EngineApprovalRequest {
   callId: string;
   toolName: string;
   input: Record<string, unknown>;
+  reason?: string;
+  device?: EngineToolApproval['device'];
   signal: AbortSignal;
 }
 
@@ -127,6 +154,7 @@ export interface EngineHostOptions {
 interface TurnScope {
   channelId: string | undefined;
   execute: EngineTurnRequest['execute'];
+  context?: EngineToolContext;
 }
 
 interface LiveEngineSession {
@@ -362,6 +390,18 @@ export class EngineHost {
         const log = new EngineTurnLog(live.dsh, engine, live.account, request.input);
         let limitedNow = false;
         const signal = AbortSignal.any([request.signal, stop.signal]);
+        scope.context = {
+          session: live.dsh.session,
+          ask: (approval) =>
+            this.#ask(
+              live,
+              scope,
+              log,
+              { ...approval, callId: `${request.sessionId}:engine:${randomUUID()}` },
+              request.sessionId,
+              signal,
+            ),
+        };
         try {
           const end = await live.engine.send(request.input, {
             signal,
@@ -415,11 +455,37 @@ export class EngineHost {
     sessionId: string,
     signal: AbortSignal,
   ): Promise<void> {
+    const outcome = await this.#ask(
+      live,
+      scope,
+      log,
+      {
+        callId: event.approvalId,
+        logCallId: event.callId,
+        toolName: event.tool,
+        input: event.input,
+        reason: event.summary,
+      },
+      sessionId,
+      signal,
+    );
+    live.engine.answer(event.approvalId, outcome === 'allowed-once' ? 'accept' : 'decline');
+  }
+
+  async #ask(
+    live: LiveEngineSession,
+    scope: TurnScope,
+    log: EngineTurnLog,
+    request: EngineToolApproval & { callId: string; logCallId?: string | undefined },
+    sessionId: string,
+    signal: AbortSignal,
+  ): Promise<ApprovalOutcome> {
     const engine = live.engine.engine;
+    const logCallId = 'logCallId' in request ? request.logCallId : request.callId;
     const asked = log.approvalAsked({
-      toolName: event.tool,
-      ...(event.callId === undefined ? {} : { callId: event.callId }),
-      reason: event.summary,
+      toolName: request.toolName,
+      ...(logCallId === undefined ? {} : { callId: logCallId }),
+      ...(request.reason === undefined ? {} : { reason: request.reason }),
     });
     live.approvals += 1;
     this.#setState(
@@ -435,9 +501,11 @@ export class EngineHost {
           botSlug: live.botSlug,
           sessionId,
           session: live.dsh.session,
-          callId: event.approvalId,
-          toolName: event.tool,
-          input: event.input,
+          callId: request.callId,
+          toolName: request.toolName,
+          input: request.input,
+          ...(request.reason === undefined ? {} : { reason: request.reason }),
+          ...(request.device === undefined ? {} : { device: request.device }),
           signal,
         });
     } catch {
@@ -452,7 +520,7 @@ export class EngineHost {
           live.botSlug,
         );
     }
-    live.engine.answer(event.approvalId, outcome === 'allowed-once' ? 'accept' : 'decline');
+    return outcome;
   }
 
   async release(sessionId: string): Promise<void> {
@@ -563,12 +631,9 @@ export class EngineHost {
         channelId: () => holder.live?.turn?.channelId,
         call: async (name, args, signal) => {
           const turn = holder.live?.turn;
-          if (turn === undefined) return { text: 'refused: session-not-running', isError: true };
-          const value = await turn.execute(name, args, signal);
-          return {
-            text: typeof value === 'string' ? value : JSON.stringify(value),
-            isError: false,
-          };
+          if (turn?.context === undefined)
+            return { text: 'refused: session-not-running', isError: true };
+          return engineGatewayResult(await turn.execute(name, args, signal, turn.context));
         },
       });
       const stored = this.store.nativeSession(sessionId);
@@ -662,6 +727,32 @@ export class EngineHost {
 }
 
 const RELEASE_GRACE_MS = 10_000;
+
+export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
+  if (typeof value === 'string') return { text: value, isError: false };
+  const content =
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray((value as { content?: unknown }).content)
+      ? ((value as { content: unknown[] }).content.filter(
+          (part) =>
+            typeof part === 'object' &&
+            part !== null &&
+            (((part as { type?: unknown }).type === 'text' &&
+              typeof (part as { text?: unknown }).text === 'string') ||
+              ((part as { type?: unknown }).type === 'image' &&
+                typeof (part as { data?: unknown }).data === 'string' &&
+                typeof (part as { mimeType?: unknown }).mimeType === 'string')),
+        ) as EngineGatewayCallResult['content'])
+      : undefined;
+  if (content !== undefined && content.length > 0)
+    return {
+      text: content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n'),
+      content,
+      isError: (value as { isError?: unknown }).isError === true,
+    };
+  return { text: JSON.stringify(value) ?? 'null', isError: false };
+}
 
 async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;

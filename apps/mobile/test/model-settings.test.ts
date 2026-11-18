@@ -448,4 +448,60 @@ describe('native Model Plans and Presets', () => {
     fake.methods.set('modelPlan', () => ({ revision: 0 }));
     expect(currentModel(await loadBotModel(client, 'qa')).group).toBe('Daily');
   });
+
+  it('saves one shared effort with a Routing Group in every slot (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const groups = { ...state, groups: [daily] };
+    fake.methods.set('modelPlanCustomize', () => ({ plan }));
+    await setModelGroup(
+      client,
+      { kind: 'bot', slug: 'qa' },
+      groups,
+      'daily',
+      'orchestrator',
+      'high',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+    });
+    await expect(
+      setModelGroup(client, { kind: 'bot', slug: 'qa' }, groups, 'daily', 'orchestrator', 'max'),
+    ).rejects.toThrow('MODEL_UNAVAILABLE');
+    const scope = { kind: 'preset' as const, id: 'fast' };
+    let saved: Record<string, unknown> = { ...preset };
+    fake.methods.set('modelPresetUpdate', (args) => {
+      saved = { ...saved, ...args, revision: Number(args['expectedRevision']) + 1 };
+      return { preset: saved };
+    });
+    const current = () => ({ ...groups, preset: saved as typeof preset });
+    await setModelGroup(client, scope, current(), 'daily', 'orchestrator', 'high');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupEffort: 'high' });
+    await setModelGroup(client, scope, current(), 'daily', 'orchestrator');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupEffort: null });
+    await setModelGroup(client, scope, current(), 'daily', 'assignment', 'high');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentDefaultGroupId: 'daily',
+      assignmentGroupOptions: [{ group: 'daily', allowedEfforts: ['high'], defaultEffort: 'high' }],
+    });
+    await setModelGroup(client, scope, current(), 'daily', 'assignment');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ assignmentGroupOptions: [] });
+    await setModelRoute(client, scope, current(), 'orchestrator', pro);
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupId: null });
+    expect(fake.calls.at(-1)?.args).not.toHaveProperty('orchestratorGroupEffort');
+  });
+
+  it('keeps a stored group effort when a Preset is renamed (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const grouped = { ...preset, orchestratorGroupId: 'daily', orchestratorGroupEffort: 'high' };
+    fake.methods.set('modelPresetUpdate', (args) => ({ preset: { ...grouped, ...args } }));
+    await saveModelPreset(client, { ...state, groups: [daily], preset: grouped }, 'Renamed', true);
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      name: 'Renamed',
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+    });
+  });
 });

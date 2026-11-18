@@ -5,7 +5,10 @@ import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
-import { modelEffortChoices } from '@botharness/host-client/model-catalog';
+import {
+  modelCatalogGroupEfforts,
+  modelEffortChoices,
+} from '@botharness/host-client/model-catalog';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -252,6 +255,7 @@ export function ModelPresetProfile({
                   slug,
                   orchestratorGroup,
                   plan?.revision ?? revision,
+                  draft.orchestrator.effort,
                 )
             : parts === undefined
               ? undefined
@@ -500,12 +504,7 @@ export function ModelPresetProfile({
     const name = group?.name ?? option.group;
     const routes = group?.routes ?? [];
     const frontHint = groupFrontHint(group, catalog ?? [], t);
-    const lists = routes.map(
-      (route) => catalog?.find((item) => modelKey(item) === modelKey(route))?.efforts ?? [],
-    );
-    const shared = (lists[0] ?? []).filter((effort) =>
-      lists.every((list) => list.some((item) => item.id === effort.id)),
-    );
+    const shared = modelCatalogGroupEfforts({ routes }, catalog ?? []);
     const allowed = option.allowedEfforts ?? [];
     const checkedEfforts = shared.filter((effort) => allowed.includes(effort.id));
     const stale = allowed.some((id) => !shared.some((effort) => effort.id === id));
@@ -684,6 +683,7 @@ export function ModelPresetProfile({
             choice={draft.assignment}
             catalog={catalog}
             groups={catalogGroups}
+            groupEffort
             options={
               plan?.assignmentDefault === undefined
                 ? [{ value: '', label: t('onboarding.inherit') }, ...modelOptions]
@@ -944,6 +944,7 @@ export function ModelPresetProfile({
                     choice={draft.orchestrator}
                     catalog={catalog}
                     groups={catalogGroups}
+                    groupEffort
                     options={modelOptions}
                     onChange={(orchestrator) => edit({ orchestrator })}
                     disabled={busy}

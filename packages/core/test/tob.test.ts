@@ -269,11 +269,33 @@ describe('Tob canonical identity and settings', () => {
       expect(home.botSlug).toBe(reserved);
       expect(f.core.registry.list()).toHaveLength(1);
       const grant = f.core.grants.list(home.botSlug)[0]!;
+      expect(grant).toMatchObject({ orchestratorWrite: true, writeRevision: 1 });
       f.core.grants.revoke(home.botSlug, grant.id);
       await f.core.tob.ensure();
       expect(f.core.grants.list(home.botSlug)).toHaveLength(1);
       expect(f.core.grants.list(home.botSlug)[0]?.revokedAt).toBeTruthy();
       expect(f.core.channels.readMessages(home.channelId)).toHaveLength(0);
+    } finally {
+      await f.close();
+    }
+  });
+  it("starts Tob's own files folder writable and keeps a read-only Grant read-only (#4580)", async () => {
+    let workspace: DshWorkspace | undefined;
+    const f = fixture(undefined, {
+      ensureTobWorkspace: async (path) => {
+        workspace = { id: 'tob-workspace', path, title: 'Tob', status: async () => 'ok' };
+        return workspace;
+      },
+      workspaces: () => ({ get: () => workspace, list: () => (workspace ? [workspace] : []) }),
+    });
+    try {
+      const home = await f.core.tob.ensure();
+      const grant = f.core.grants.list(home.botSlug)[0]!;
+      expect(grant).toMatchObject({ workspacePath: home.workspacePath, orchestratorWrite: true });
+      f.core.grants.setOrchestratorWrite(home.botSlug, grant.id, false);
+      await f.core.tob.ensure();
+      expect(f.core.grants.list(home.botSlug)).toHaveLength(1);
+      expect(f.core.grants.requireActive(home.botSlug, grant.id).orchestratorWrite).toBe(false);
     } finally {
       await f.close();
     }

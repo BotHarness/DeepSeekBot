@@ -544,6 +544,7 @@ describe('bridge typert service', () => {
       'assignmentGroups',
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
+      'orchestratorGroupEffort',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -557,6 +558,7 @@ describe('bridge typert service', () => {
       'assignmentGroups',
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
+      'orchestratorGroupEffort',
     ]);
     expect(parameterNames(service.modelPlanSet)).toEqual([
       'slug',
@@ -569,6 +571,7 @@ describe('bridge typert service', () => {
       'assignmentGroups',
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
+      'orchestratorGroupEffort',
     ]);
     const planSet = vi
       .spyOn(methods, 'modelPlanSet')
@@ -706,6 +709,7 @@ describe('bridge typert service', () => {
       'assignmentGroups',
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
+      'orchestratorGroupEffort',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -719,6 +723,7 @@ describe('bridge typert service', () => {
       'assignmentGroups',
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
+      'orchestratorGroupEffort',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [

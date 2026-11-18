@@ -11504,15 +11504,22 @@ class BotRuntimeImplementation implements BotRuntime {
       return current;
     const rest = this.#routeRests?.restingUntil(current);
     if (rest === undefined) return current;
-    const pick = await this.#groupFallback.pick(botSlug, groupId);
-    if (pick.kind !== 'route' || sameModelRoute(pick.route, current)) return current;
     const kept = assignmentGroupOptionOf(
       this.#registry.get(botSlug)?.modelPlan,
       groupId,
     )?.allowedEfforts?.includes(current.reasoningEffort ?? '');
+    const pick = await this.#groupFallback.pick(
+      botSlug,
+      groupId,
+      kept ? current.reasoningEffort : undefined,
+    );
+    if (pick.kind !== 'route' || sameModelRoute(pick.route, current)) return current;
     const picked = {
       ...pick,
-      route: kept ? { ...pick.route, reasoningEffort: current.reasoningEffort! } : pick.route,
+      route:
+        kept && pick.route.reasoningEffort !== undefined
+          ? { ...pick.route, reasoningEffort: current.reasoningEffort! }
+          : pick.route,
     };
     const at = this.#now().toISOString();
     this.#database.transaction(

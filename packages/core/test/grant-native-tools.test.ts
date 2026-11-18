@@ -148,7 +148,7 @@ describe('Grant policy for native DSH file tools', () => {
       f.gate(f.orchestrator, 'write', { file_path: 'new.txt', content: 'remembered' }),
     ).toBeUndefined();
     expect(f.gate(f.orchestrator, 'edit', { file_path: join(f.project, 'project.txt') })).toMatch(
-      /outside/,
+      /read-only.*request_workspace_grant/,
     );
     expect(readFileSync(join(f.project, 'project.txt'), 'utf8')).toBe('project');
   });
@@ -164,7 +164,7 @@ describe('Grant policy for native DSH file tools', () => {
     ).toBeUndefined();
     expect(
       f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
-    ).toMatch(/outside/);
+    ).toMatch(/read-only.*report.*Orchestrator can ask the Human/);
     f.allowWrite(true);
     expect(
       f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
@@ -235,7 +235,7 @@ describe('Orchestrator execution root selection', () => {
     expect(nativeExecutionRoot(f.core, f.orchestrator, 'bash', { command: 'pwd' })).toBe(f.memory);
     expect(() =>
       nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project }),
-    ).toThrow(/outside/);
+    ).toThrow(/read-only/);
     f.allowWrite(true);
     expect(
       f.gate(f.orchestrator, 'write', { file_path: join(f.project, 'new.txt') }),
@@ -265,11 +265,11 @@ describe('Orchestrator execution root selection', () => {
     ).toThrow(/outside/);
     f.allowWrite(false);
     expect(f.gate(f.orchestrator, 'write', { file_path: join(f.project, 'new.txt') })).toMatch(
-      /outside/,
+      /read-only/,
     );
     expect(() =>
       nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project }),
-    ).toThrow(/outside/);
+    ).toThrow(/read-only/);
   });
 });
 

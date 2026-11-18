@@ -539,16 +539,39 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
               info: { botSlug: string; rootRole: string },
             ) => void,
           ) => () => void;
+          registry?: { get(slug: string): { computerAccess?: boolean } | undefined };
+          contributeEngineTools?: (
+            source: (info: { botSlug: string }) => Promise<
+              readonly {
+                name: string;
+                description: string;
+                inputSchema: Record<string, unknown>;
+                run(args: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+              }[]
+            >,
+          ) => () => void;
         };
       }
     ).botharness;
     const remove = core?.contributeBotAgentSetup?.((agentCtx, agent, info) => {
       toolProvider.attachAgent(agentCtx, String(agent.id), info);
     });
+    const removeEngineTools = core?.contributeEngineTools?.(async ({ botSlug }) =>
+      core.registry?.get(botSlug)?.computerAccess === true
+        ? (await toolProvider.directTools()).map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: (tool.inputSchema ?? { type: 'object' }) as Record<string, unknown>,
+            run: (args: Record<string, unknown>, signal: AbortSignal) =>
+              toolProvider.runDirect(botSlug, tool.name, args, signal),
+          }))
+        : [],
+    );
     const hostTools = (core as { hostTools?: Set<string> } | undefined)?.hostTools;
     for (const name of computerToolNames()) hostTools?.add(name);
     return () => {
       remove?.();
+      removeEngineTools?.();
       for (const name of computerToolNames()) hostTools?.delete(name);
     };
   });

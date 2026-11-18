@@ -701,6 +701,7 @@ export interface BridgeActions extends BotModeActions {
     slug: string,
     groupId: string,
     expectedRevision?: number,
+    effort?: string,
   ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
   setModelPlanAssignments(
@@ -2223,8 +2224,8 @@ export function createActions(
       recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
         actions.telemetryEvent('model:plan_update', { via: 'custom' }),
       ),
-    chooseModelPlanGroup: (slug, groupId, expectedRevision) =>
-      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision), () =>
+    chooseModelPlanGroup: (slug, groupId, expectedRevision, effort) =>
+      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision, effort), () =>
         actions.telemetryEvent('model:plan_update', { via: 'group' }),
       ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),

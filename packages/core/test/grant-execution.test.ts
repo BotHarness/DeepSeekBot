@@ -50,6 +50,7 @@ function fixture() {
     id: grantId,
     workspaceId: 'workspace-1',
     workspacePath: cwd,
+    orchestratorWrite: true as boolean,
   }));
   const getAssignment = vi.fn(() => ({
     permission: {
@@ -952,8 +953,38 @@ describe('Workspace Grant execution boundary', () => {
     });
     expect(
       admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
-    ).toMatch(/permission mode differs from its snapshot/);
+    ).toMatch(/Workspace Grant is missing, revoked, or unavailable/);
     expect(append).not.toHaveBeenCalled();
+  });
+  it('runs a workspace-write Assignment read-only while its Grant does not allow Bot writes (#4580)', () => {
+    const state = fixture();
+    let writable = false;
+    state.requireActive.mockImplementation(() => ({
+      id: grantId,
+      workspaceId: 'workspace-1',
+      workspacePath: cwd,
+      orchestratorWrite: writable,
+    }));
+    const append = vi.fn();
+    const assignment = { id: assignmentSessionId, header: { cwd }, append } as never;
+    expect(
+      admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
+    ).toMatch(/permission mode differs from its snapshot/);
+    expect(append).toHaveBeenCalledWith('sandbox/mode', { mode: 'read-only' });
+    state.resolvePolicy.mockReturnValue({ mode: 'read-only' });
+    expect(
+      admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
+    ).toBeUndefined();
+    writable = true;
+    append.mockClear();
+    expect(alignAssignmentPermission(state.core, assignment, state.policy, state.approval)).toBe(
+      true,
+    );
+    expect(append).toHaveBeenCalledWith('sandbox/mode', { mode: 'workspace-write' });
+    state.resolvePolicy.mockReturnValue({ mode: 'workspace-write' });
+    expect(
+      admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
+    ).toBeUndefined();
   });
   it('leaves delegated Assignment Subagents to their own snapshot check', () => {
     const state = fixture();
