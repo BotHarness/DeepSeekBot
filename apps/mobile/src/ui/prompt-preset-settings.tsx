@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, type ViewInstance } from 'react-native';
+import { AppState, View, type ViewInstance } from 'react-native';
 
 import {
   promptPresetChanges,
@@ -31,7 +31,13 @@ export function PromptPresetSettings({ port }: { port: PromptPresetSettingsPort 
     setLoadError(undefined);
     return port.load().then(setLibrary, (reason: unknown) => setLoadError(errorText(reason)));
   }, [port]);
-  const mount = useMounted<ViewInstance>(() => void load(), [load]);
+  const mount = useMounted<ViewInstance>(() => {
+    void load();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void load();
+    });
+    return () => subscription.remove();
+  }, [load]);
 
   const choose = (value: string) => {
     if (library === undefined || saving !== undefined) return;
@@ -105,8 +111,10 @@ export function PromptPresetSettings({ port }: { port: PromptPresetSettingsPort 
                     on={SHEET_GROUP}
                     title={preset.name}
                     testID={`prompt-preset-${preset.id}`}
+                    {...(preset.id === library.globalPresetId
+                      ? { control: { kind: 'value' as const, text: t.prompts.globalTag } }
+                      : {})}
                     detail={[
-                      ...(preset.id === library.globalPresetId ? [t.prompts.globalTag] : []),
                       t.prompts.changed(promptPresetChanges(preset)),
                       ...(promptPresetStale(preset, library.parts)
                         ? [t.prompts.defaultChanged]

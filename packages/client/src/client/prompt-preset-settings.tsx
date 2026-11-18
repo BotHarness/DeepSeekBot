@@ -431,16 +431,28 @@ export function PromptPresetSettings({
   const [error, setError] = useState<string>();
   const mount = useMountedResource<HTMLElement>(() => {
     let live = true;
-    if (actions.promptParts !== undefined)
+    const load = (): void => {
+      if (actions.promptParts === undefined) return;
       loadLibrary(actions)
         .then((next) => {
-          if (live) setLibrary(next);
+          if (!live) return;
+          setLibrary(next);
+          setLoadError(undefined);
         })
         .catch((cause: unknown) => {
           if (live) setLoadError(errorMessage(cause));
         });
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') load();
+    };
+    load();
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       live = false;
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [actions]);
   if (actions.promptParts === undefined) return null;

@@ -4,7 +4,16 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
-vi.mock('react-native', () => import('./react-native-shim'));
+const appState = vi.hoisted(() => ({ change: undefined as ((state: string) => void) | undefined }));
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  AppState: {
+    addEventListener: (_event: string, listener: (state: string) => void) => {
+      appState.change = listener;
+      return { remove: () => (appState.change = undefined) };
+    },
+  },
+}));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('expo-router', () => ({ useRouter: () => ({ back() {} }) }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -108,5 +117,19 @@ describe('Prompt preset settings', () => {
       `${t.prompts.failed} Unknown Prompt Preset`,
     );
     expect(row(view, 'prompt-global-built-in').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('reads the Host again when the app comes back, so a change made on the computer shows', async () => {
+    let global: string | null = null;
+    const load = vi.fn(async () => library(global));
+    const view = await render(<PromptPresetSettings port={{ load, setGlobal: vi.fn() }} />);
+    expect(row(view, 'prompt-global-built-in').getAttribute('aria-selected')).toBe('true');
+    global = 'concise';
+    await act(async () => appState.change?.('background'));
+    expect(load).toHaveBeenCalledTimes(1);
+    await act(async () => appState.change?.('active'));
+    await act(async () => undefined);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(row(view, 'prompt-global-concise').getAttribute('aria-selected')).toBe('true');
   });
 });
