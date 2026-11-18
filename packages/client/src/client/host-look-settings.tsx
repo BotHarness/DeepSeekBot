@@ -230,7 +230,9 @@ export function HostLookSettings({
                   aria-label={t(`remoteHosts.look.symbol.${id}`)}
                   data-host-look-symbol={id}
                   {...stylex.props(styles.choice, chosen && styles.chosen)}
-                  onClick={() => change((current) => withHostIcon(current, { kind: 'symbol', id }))}
+                  onClick={() =>
+                    void change((current) => withHostIcon(current, { kind: 'symbol', id }))
+                  }
                 >
                   <HostGlyph look={{ ...look, icon: { kind: 'symbol', id } }} />
                 </button>
@@ -256,7 +258,7 @@ export function HostLookSettings({
                   aria-label={emoji}
                   {...stylex.props(styles.choice, chosen && styles.chosen)}
                   onClick={() =>
-                    change((current) => withHostIcon(current, { kind: 'emoji', emoji }))
+                    void change((current) => withHostIcon(current, { kind: 'emoji', emoji }))
                   }
                 >
                   <span {...stylex.props(styles.emoji)}>{emoji}</span>
@@ -278,7 +280,7 @@ export function HostLookSettings({
               aria-checked={look.color === undefined}
               aria-label={t('remoteHosts.look.noColor')}
               {...stylex.props(styles.choice, look.color === undefined && styles.chosen)}
-              onClick={() => change((current) => withHostColor(current, undefined))}
+              onClick={() => void change((current) => withHostColor(current, undefined))}
             >
               <ChannelSidebarIcon name="ban" size={14} />
             </button>
@@ -290,7 +292,7 @@ export function HostLookSettings({
                 aria-checked={look.color === id}
                 aria-label={t(`remoteHosts.look.color.${id}`)}
                 {...stylex.props(styles.choice, look.color === id && styles.chosen)}
-                onClick={() => change((current) => withHostColor(current, id))}
+                onClick={() => void change((current) => withHostColor(current, id))}
               >
                 <span {...stylex.props(styles.swatch(HOST_COLORS[id][scheme]))} />
               </button>

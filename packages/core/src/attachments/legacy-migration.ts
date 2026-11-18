@@ -208,16 +208,18 @@ export function createLegacyAttachmentMigration(
               }
             };
             stage = 'upload';
-            const target = await files
-              .upload({
-                data: data(),
-                name: ref.name,
-                uploadId: row.file_id.slice(5),
-                ...(signal === undefined ? {} : { signal }),
-              })
-              .finally(async () => {
-                if (!source.body.locked) await source.body.cancel().catch(() => undefined);
-              });
+            const upload = files.upload({
+              data: data(),
+              name: ref.name,
+              uploadId: row.file_id.slice(5),
+              ...(signal === undefined ? {} : { signal }),
+            });
+            let target: Awaited<typeof upload>;
+            try {
+              target = await upload;
+            } finally {
+              if (!source.body.locked) await source.body.cancel().catch(() => undefined);
+            }
             if (target.fileId !== row.file_id)
               throw new ChannelAttachmentError(
                 'Converted attachment identity changed',

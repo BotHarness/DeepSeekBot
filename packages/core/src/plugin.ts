@@ -3543,7 +3543,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )
         refresh.reconcile();
     });
-    const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
+    const offHost = onHostSkillsChange(ctx, () => void refresh.hostChanged());
     const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
     return () => {
       offAgents();
