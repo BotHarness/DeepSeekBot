@@ -172,7 +172,14 @@ async function complete(endpoint: ModelEndpoint, messages: Message[], maxTokens 
         max_tokens: maxTokens,
       }),
     });
-    const body = (await response.json()) as {
+    const raw = await response.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = { error: raw.slice(0, 300) };
+    }
+    const body = parsed as {
       choices?: {
         message: {
           content?: string;
@@ -184,7 +191,9 @@ async function complete(endpoint: ModelEndpoint, messages: Message[], maxTokens 
     };
     if (response.ok && body.choices?.[0])
       return { message: body.choices[0].message, usage: body.usage };
-    if (attempt >= 3 || ![429, 500, 502, 503].includes(response.status))
+    const retryable =
+      [429, 500, 502, 503, 504].includes(response.status) || raw.trimStart()[0] !== '{';
+    if (attempt >= 3 || !retryable)
       throw new Error(`model ${response.status}: ${JSON.stringify(body).slice(0, 300)}`);
     await new Promise((resolve) => setTimeout(resolve, 2_000 * (attempt + 1)));
   }
