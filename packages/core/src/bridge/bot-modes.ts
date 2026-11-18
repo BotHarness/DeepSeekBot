@@ -2,6 +2,8 @@ import type { PersonaBotRegistry } from '../bots/registry.js';
 import {
   isBotModeId,
   normalizeTemplateInput,
+  resolveBotMode,
+  UnknownBotModeTemplateError,
   type BotModeOption,
   type BotModeSettings,
   type BotModeTemplate,
@@ -12,7 +14,6 @@ export interface BotModesDeps {
   settings: BotModeSettings;
   productDefault: string;
   roster(): Promise<BotModeOption[]>;
-  modeOf?(slug: string): string;
   changed?(): void;
 }
 
@@ -72,12 +73,13 @@ export function createBotModeBridgeMethods(deps: {
   ): Promise<BotModesView> => {
     const roster = known ?? (await modes.roster());
     const globalDefault = modes.settings.defaultMode() ?? null;
+    const healthy = new Set(
+      roster.filter((entry) => entry.broken === undefined).map((entry) => entry.id),
+    );
     const effectiveDefault =
-      globalDefault !== null &&
-      roster.some((entry) => entry.id === globalDefault && entry.broken === undefined)
-        ? globalDefault
-        : modes.productDefault;
+      globalDefault !== null && healthy.has(globalDefault) ? globalDefault : modes.productDefault;
     const bot = slug === undefined ? undefined : deps.registry.get(slug);
+    const allowed = bot === undefined ? undefined : modes.settings.allowedModes(bot.slug);
     return {
       modes: roster,
       productDefault: modes.productDefault,
@@ -90,9 +92,14 @@ export function createBotModeBridgeMethods(deps: {
             bot: {
               slug: bot.slug,
               mode: bot.preset ?? null,
-              effective: modes.modeOf?.(bot.slug) ?? bot.preset ?? effectiveDefault,
+              effective: resolveBotMode({
+                own: bot.preset,
+                inherited: effectiveDefault,
+                allowed,
+                installed: healthy,
+              }),
               template: modes.settings.templateOf(bot.slug) ?? null,
-              allowed: modes.settings.allowedModes(bot.slug) ?? null,
+              allowed: allowed ?? null,
             },
           }),
     };
@@ -214,8 +221,11 @@ export function createBotModeBridgeMethods(deps: {
       const refused = unreadable(modes);
       if (refused !== undefined) return refused;
       const id = object(payload)['id'];
-      if (typeof id !== 'string' || modes.settings.template(id) === undefined)
+      if (typeof id !== 'string')
         return fail('not-found', `No mode template has id ${String(id)}; read botModes.`);
+      const roster = await modes.roster();
+      if (modes.settings.template(id) === undefined)
+        return fail('not-found', `No mode template has id ${id}; read botModes.`);
       const users = everyone
         .list()
         .filter((bot) => modes.settings.templateOf(bot.slug) === id)
@@ -227,7 +237,7 @@ export function createBotModeBridgeMethods(deps: {
         );
       modes.settings.deleteTemplate(id);
       modes.changed?.();
-      return { ok: true, value: await view(modes) };
+      return { ok: true, value: await view(modes, undefined, roster) };
     },
     async botModeTemplateSet(payload) {
       const modes = deps.modes;
@@ -238,11 +248,12 @@ export function createBotModeBridgeMethods(deps: {
       const slug = source['slug'];
       if (typeof slug !== 'string' || slug.length === 0)
         return fail('invalid-input', 'slug is required');
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return fail('not-found', `unknown PersonaBot: ${slug}`);
       const template = source['template'];
       if (template !== null && typeof template !== 'string')
         return fail('invalid-input', 'template must be a mode template id from botModes, or null');
+      const roster = await modes.roster();
+      const bot = deps.registry.get(slug);
+      if (bot === undefined) return fail('not-found', `unknown PersonaBot: ${slug}`);
       const allowed = template === null ? undefined : modes.settings.template(template)?.modes;
       if (template !== null && allowed === undefined)
         return fail('not-found', `No mode template has id ${template}; read botModes.`);
@@ -251,9 +262,14 @@ export function createBotModeBridgeMethods(deps: {
           'mode-not-allowed',
           `This Bot uses mode ${bot.preset}, which the template leaves out. Change the Bot's mode first.`,
         );
-      modes.settings.setTemplateOf(slug, template ?? undefined);
+      try {
+        modes.settings.setTemplateOf(slug, template ?? undefined);
+      } catch (error) {
+        if (!(error instanceof UnknownBotModeTemplateError)) throw error;
+        return fail('not-found', `No mode template has id ${String(template)}; read botModes.`);
+      }
       modes.changed?.();
-      return { ok: true, value: await view(modes, slug) };
+      return { ok: true, value: await view(modes, slug, roster) };
     },
   };
 }

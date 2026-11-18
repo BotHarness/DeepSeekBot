@@ -14,6 +14,7 @@ import { FieldStack, TextField } from './ds/field.js';
 import { DangerTextButton, FormDialog } from './ds/form-dialog.js';
 import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { Switch } from './ds/switch.js';
@@ -100,27 +101,6 @@ function useBotModes(
   return [view, setView, error, mount, () => setAttempt((count) => count + 1)];
 }
 
-function LoadFailure({
-  message,
-  retry,
-  t,
-  inset = false,
-}: {
-  message: string;
-  retry: () => void;
-  t: BotHarnessTranslate;
-  inset?: boolean;
-}): ReactElement {
-  return (
-    <Note tone="danger" inset={inset}>
-      {message}{' '}
-      <Button size="sm" variant="ghost" onClick={retry}>
-        {t('botMode.retry')}
-      </Button>
-    </Note>
-  );
-}
-
 export function BotModeDefaultSetting({
   actions,
   t,
@@ -152,10 +132,7 @@ export function BotModeDefaultSetting({
               ]
             : []),
           ...view.modes
-            .filter(
-              (mode) =>
-                (mode.id !== view.productDefault || value === mode.id) && mode.broken === undefined,
-            )
+            .filter((mode) => mode.broken === undefined)
             .map((mode) => ({ value: mode.id, label: modeText(mode, t).name })),
         ];
   const choose = (next: string): void => {
@@ -187,7 +164,9 @@ export function BotModeDefaultSetting({
       />
       {view === undefined ? null : <Note inset>{t('botMode.notTobs')}</Note>}
       {view === undefined && loadError !== undefined ? (
-        <LoadFailure message={loadError} retry={retry} t={t} inset />
+        <ReadFailure retryLabel={t('botMode.retry')} onRetry={retry}>
+          {loadError}
+        </ReadFailure>
       ) : null}
       {shown === undefined ? null : (
         <Note tone="danger" inset>
@@ -224,7 +203,9 @@ export function BotModeSettingsEntry({
       loadError === undefined ? (
         <LoadingSkeleton kind="sidebar" label={t('entry.mode')} />
       ) : (
-        <LoadFailure message={loadError} retry={retry} t={t} />
+        <ReadFailure retryLabel={t('botMode.retry')} onRetry={retry}>
+          {loadError}
+        </ReadFailure>
       ),
     );
   const own = view.bot?.mode ?? null;
@@ -241,11 +222,18 @@ export function BotModeSettingsEntry({
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
+  const healthy = (id: string) => view.modes.some((mode) => mode.id === id && !mode.broken);
+  const followed =
+    own === null && view.bot !== undefined
+      ? view.bot.effective
+      : allowed === null || allowed.includes(view.effectiveDefault)
+        ? view.effectiveDefault
+        : (allowed.find(healthy) ?? allowed[0] ?? view.effectiveDefault);
   const cards = [
     {
       id: FOLLOW,
       title: t('botMode.follow'),
-      meta: t('botMode.followHint', { name: modeName(view, view.effectiveDefault, t) }),
+      meta: t('botMode.followHint', { name: modeName(view, followed, t) }),
       disabled: false,
     },
     ...(own !== null && !view.modes.some((mode) => mode.id === own)
@@ -401,7 +389,9 @@ export function BotModeTemplateSettings({
         loadError === undefined ? (
           <Note inset>…</Note>
         ) : (
-          <LoadFailure message={loadError} retry={retry} t={t} inset />
+          <ReadFailure retryLabel={t('botMode.retry')} onRetry={retry}>
+            {loadError}
+          </ReadFailure>
         )
       ) : view.templates.length === 0 ? (
         <Note inset>{t('botMode.templates.empty')}</Note>

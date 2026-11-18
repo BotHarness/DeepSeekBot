@@ -287,13 +287,6 @@ describe('Bot mode bridge methods', () => {
         settings,
         productDefault: 'deepseekbot',
         roster: async () => ROSTER,
-        modeOf: (slug) =>
-          resolveBotMode({
-            own: bots[slug]?.preset,
-            inherited: settings.defaultMode() ?? 'deepseekbot',
-            allowed: settings.allowedModes(slug),
-            installed: undefined,
-          }),
       },
       registry: registry(bots),
     });
@@ -327,13 +320,6 @@ describe('Bot mode bridge methods', () => {
         settings,
         productDefault: 'deepseekbot',
         roster: async () => ROSTER.filter((mode) => installed.has(mode.id)),
-        modeOf: (slug) =>
-          resolveBotMode({
-            own: bots[slug]?.preset,
-            inherited: 'deepseekbot',
-            allowed: settings.allowedModes(slug),
-            installed,
-          }),
       },
       registry: registry(bots),
     });
@@ -412,6 +398,59 @@ describe('Bot mode bridge methods', () => {
     expect(await methods.botModeTemplateDelete({ id })).toMatchObject({
       ok: false,
       error: { code: 'template-in-use', message: /max/ },
+    });
+  });
+
+  it('notices a settings file that breaks while the Host runs', async () => {
+    const home = dir();
+    const bots: Record<string, Partial<PersonaBotRecord>> = { ada: {} };
+    const methods = createBotModeBridgeMethods({
+      modes: {
+        settings: createBotModeSettings(home),
+        productDefault: 'deepseekbot',
+        roster: async () => ROSTER,
+      },
+      registry: registry(bots),
+    });
+    expect(await methods.botModes()).toMatchObject({ ok: true });
+    writeFileSync(join(home, BOT_MODE_SETTINGS_FILE), 'not json');
+    expect(await methods.botModeSet({ slug: 'ada', mode: 'ptc' })).toMatchObject({
+      ok: false,
+      error: { code: 'settings-unreadable' },
+    });
+    expect(bots['ada']!.preset).toBeUndefined();
+  });
+
+  it('leaves templates unchanged when the roster cannot be read, and reports a template deleted elsewhere as not found', async () => {
+    const home = dir();
+    const bots: Record<string, Partial<PersonaBotRecord>> = { ada: {} };
+    let rosterFails = false;
+    const methods = createBotModeBridgeMethods({
+      modes: {
+        settings: createBotModeSettings(home),
+        productDefault: 'deepseekbot',
+        roster: async () => {
+          if (rosterFails) throw new Error('roster unavailable');
+          return ROSTER;
+        },
+      },
+      registry: registry(bots),
+    });
+    const saved = await methods.botModeTemplateSave({ name: 'Coding', modes: ['ptc'] });
+    const id = saved.ok ? saved.value.templates[0]!.id : '';
+    rosterFails = true;
+    await expect(methods.botModeTemplateDelete({ id })).rejects.toThrow('roster unavailable');
+    await expect(methods.botModeTemplateSet({ slug: 'ada', template: id })).rejects.toThrow(
+      'roster unavailable',
+    );
+    const other = createBotModeSettings(home);
+    expect(other.template(id)).toMatchObject({ modes: ['ptc'] });
+    expect(other.templateOf('ada')).toBeUndefined();
+    rosterFails = false;
+    other.deleteTemplate(id);
+    expect(await methods.botModeTemplateSet({ slug: 'ada', template: id })).toMatchObject({
+      ok: false,
+      error: { code: 'not-found' },
     });
   });
 

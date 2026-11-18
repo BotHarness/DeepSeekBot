@@ -3706,7 +3706,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       settings: botModeSettings,
       productDefault: productBotMode,
       roster: installedBotModes,
-      modeOf: botModeOf,
       changed: () => reconcileBotModeSkills?.(),
     },
     idleCompaction: {

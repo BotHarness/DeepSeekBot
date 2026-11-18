@@ -4347,6 +4347,7 @@ describe('Assignment Directory Tools', () => {
   });
 
   it('lets the Orchestrator pick an allowed mode for a new Assignment', async () => {
+    let modesFail = false;
     const calls: Array<Promise<unknown>> = [];
     const created: Array<{ title: string; mode?: string }> = [];
     const host = new FakeAgentHost(
@@ -4372,6 +4373,12 @@ describe('Assignment Directory Tools', () => {
           calls.push(tool('list_assignment_models').execute({}, {} as ToolRunContext));
           calls.push(create('ptc'));
           calls.push(create('acp').then(String, (error: Error) => error.message));
+          calls.push(
+            Promise.allSettled([...calls]).then(() => {
+              modesFail = true;
+              return tool('list_assignment_models').execute({}, {} as ToolRunContext);
+            }),
+          );
         },
       },
     );
@@ -4382,11 +4389,14 @@ describe('Assignment Directory Tools', () => {
       },
       orchestratorCwd: () => '/memory/ada',
       ensureWorkspace: () => undefined,
-      assignmentModes: async () => ({
-        default: 'deepseekbot',
-        restricted: true,
-        allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
-      }),
+      assignmentModes: async () => {
+        if (modesFail) throw new Error('roster unavailable');
+        return {
+          default: 'deepseekbot',
+          restricted: true,
+          allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+        };
+      },
     });
     await adapter.runOrchestrator({
       sessionId: 'orchestrator-ada',
@@ -4436,7 +4446,7 @@ describe('Assignment Directory Tools', () => {
       },
     });
     try {
-      const [models, accepted, refused] = await Promise.all(calls);
+      const [models, accepted, refused, withoutModes] = await Promise.all(calls);
       expect(JSON.parse(String(models))).toMatchObject({
         assignmentModes: {
           default: 'deepseekbot',
@@ -4448,6 +4458,9 @@ describe('Assignment Directory Tools', () => {
         mode: 'ptc',
       });
       expect(refused).toContain('mode acp is not allowed');
+      const fallback = JSON.parse(String(withoutModes)) as Record<string, unknown>;
+      expect(fallback['assignmentModes']).toBeUndefined();
+      expect(String(fallback['assignmentModesError'])).toContain('roster unavailable');
       expect(created).toContainEqual({
         title: 'Port the parser',
         description: 'Port the parser to the new API.',
@@ -4494,6 +4507,43 @@ describe('Assignment Directory Tools', () => {
         report: vi.fn(),
       });
       expect(host.createOptions.at(-1)?.meta).toMatchObject({ agentPreset: 'deepseekbot' });
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('frees the Session for the next turn when the mode roster read never answers', async () => {
+    const host = new FakeAgentHost();
+    let hang = true;
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      preparationTimeoutMs: 20,
+      ensureBotModes: () => (hang ? new Promise<void>(() => undefined) : Promise.resolve()),
+    });
+    const run = {
+      sessionId: 'assignment-hung-roster',
+      bot: BOT,
+      text: 'Port the parser',
+      permission: {
+        grantId: 'grant-1',
+        workspaceId: 'workspace-1',
+        primaryCwd: '/project',
+        mode: 'workspace-write' as const,
+        approval: 'ask' as const,
+        presetRevision: 0,
+      },
+      report: vi.fn(),
+    };
+    try {
+      await expect(adapter.runAssignment(run)).rejects.toThrow('took longer than');
+      hang = false;
+      await adapter.runAssignment(run);
+      expect(host.createOptions.at(-1)?.sessionId).toBe('assignment-hung-roster');
     } finally {
       await adapter.close();
     }

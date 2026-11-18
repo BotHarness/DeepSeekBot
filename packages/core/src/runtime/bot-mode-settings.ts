@@ -51,6 +51,13 @@ export function isBotModeId(value: unknown): value is string {
   return typeof value === 'string' && MODE_ID.test(value);
 }
 
+export class UnknownBotModeTemplateError extends Error {
+  constructor(id: string) {
+    super(`unknown mode template: ${id}`);
+    this.name = 'UnknownBotModeTemplateError';
+  }
+}
+
 function isTemplate(value: unknown): value is BotModeTemplate {
   if (typeof value !== 'object' || value === null) return false;
   const template = value as Record<string, unknown>;
@@ -197,7 +204,7 @@ export function createBotModeSettings(dir: string): BotModeSettings {
       const templates = state.templates ?? [];
       if (input.id !== undefined) {
         if (!templates.some((template) => template.id === input.id))
-          throw new Error(`unknown mode template: ${input.id}`);
+          throw new UnknownBotModeTemplateError(input.id);
         const saved = { id: input.id, name, modes };
         write({
           ...state,
@@ -227,7 +234,7 @@ export function createBotModeSettings(dir: string): BotModeSettings {
     setTemplateOf(slug, template) {
       const state = fresh();
       if (template !== undefined && !(state.templates ?? []).some((entry) => entry.id === template))
-        throw new Error(`unknown mode template: ${template}`);
+        throw new UnknownBotModeTemplateError(template);
       const { [slug]: _previous, ...others } = state.botTemplates ?? {};
       write({
         ...state,
@@ -240,7 +247,7 @@ export function createBotModeSettings(dir: string): BotModeSettings {
     },
     readError() {
       try {
-        current();
+        fresh();
         return undefined;
       } catch (error) {
         return (error as Error).message;

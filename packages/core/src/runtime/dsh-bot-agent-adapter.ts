@@ -1544,8 +1544,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     run: OrchestratorAgentRun,
     options: Omit<CreateAgentOptions, 'sessionId' | 'meta'>,
   ): Promise<AgentHandle> {
-    await this.#ensureBotModes?.();
-    options.signal?.throwIfAborted();
+    await this.#loadBotModes(options.signal);
     const meta = createMeta(
       run,
       this.#resolveOrchestratorCwd(run.bot),
@@ -1731,11 +1730,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-          const modes = await this.#assignmentModes?.(run.bot.slug);
-          const modeChoices =
-            modes === undefined
-              ? {}
-              : { assignmentModes: { default: modes.default, allowed: modes.allowed } };
+          const modeChoices = await this.#assignmentModes?.(run.bot.slug).then(
+            (modes) => ({ assignmentModes: { default: modes.default, allowed: modes.allowed } }),
+            (error: unknown) => ({
+              assignmentModesError: `DSH modes could not be read, so new Assignments use this Bot's mode: ${error instanceof Error ? error.message : String(error)}`,
+            }),
+          );
           if (plan?.assignmentDefault === undefined)
             return JSON.stringify({
               configured: false,
@@ -4576,13 +4576,29 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return cwd;
   }
 
+  async #loadBotModes(signal: AbortSignal | undefined): Promise<void> {
+    signal?.throwIfAborted();
+    const loading = this.#ensureBotModes?.();
+    if (loading === undefined) return;
+    if (signal === undefined) return loading;
+    await new Promise<void>((resolve, reject) => {
+      const stop = () =>
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new Error('Preparation stopped', { cause: signal.reason }),
+        );
+      signal.addEventListener('abort', stop, { once: true });
+      loading.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
+    });
+  }
+
   async #createAssignment(
     run: AssignmentAgentRun,
     options: CreateAgentOptions,
     signal: AbortSignal | undefined,
   ): Promise<AgentHandle> {
-    await this.#ensureBotModes?.();
-    signal?.throwIfAborted();
+    await this.#loadBotModes(signal);
     const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
     return this.#agents.create({
       ...options,
@@ -4592,6 +4608,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   async #assignmentHandle(run: AssignmentAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
+    signal?.throwIfAborted();
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const resolvedAgentOptions = agentOptions(
@@ -4717,6 +4734,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         await (
           createOptions.setup as (ctx: Context, agent: Agent, borrowed: boolean) => Promise<void>
         )(live.ctx, live, true);
+        signal?.throwIfAborted();
       } catch (error) {
         for (const dispose of borrowedDisposers.reverse()) await dispose();
         throw error;
