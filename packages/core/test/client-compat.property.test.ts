@@ -63,6 +63,19 @@ describe('Phone and computer tolerate each other (docs/decisions/connections.md)
     );
   });
 
+  it('orders release cores by major, then minor, then patch', () => {
+    fc.assert(
+      fc.property(part, part, part, part, part, part, (a1, a2, a3, b1, b2, b3) => {
+        const expected = Math.sign(a1 - b1) || Math.sign(a2 - b2) || Math.sign(a3 - b3);
+        expect(compareVersions(`${a1 + 1}.${a2}.${a3}`, `${b1 + 1}.${b2}.${b3}`)).toBe(expected);
+      }),
+      { numRuns: 1000 },
+    );
+    expect(belowMinimum('1.6.0', '1.7.0')).toBe(true);
+    expect(belowMinimum('1.7.0', '1.7.0')).toBe(false);
+    expect(belowMinimum('1.8.0', '1.7.0')).toBe(false);
+  });
+
   it('follows SemVer precedence for prerelease identifiers', () => {
     fc.assert(
       fc.property(
