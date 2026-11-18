@@ -14,8 +14,8 @@ import { t } from '../strings';
 export function modelLabel(model: Loadable<BotModel>): string {
   if (model.status === 'loading') return t.contextLoading;
   if (model.status === 'failed') return t.contextUnavailable;
-  const { name } = currentModel(model.value);
-  if (name !== undefined) return name;
+  const { name, group } = currentModel(model.value);
+  if (name !== undefined) return group === undefined ? name : `${group} · ${name}`;
   return model.value.repair === undefined ? t.noModel : t.contextUnavailable;
 }
 

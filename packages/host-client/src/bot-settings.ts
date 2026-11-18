@@ -267,7 +267,11 @@ export function sameModel(
   return b !== undefined && a.provider === b.provider && a.model === b.model;
 }
 
-export function currentModel(model: BotModel): { route?: ModelRoute; name?: string } {
+export function currentModel(model: BotModel): {
+  route?: ModelRoute;
+  name?: string;
+  group?: string;
+} {
   const usableFallback =
     model.fallback !== undefined &&
     model.models.some((entry) => sameModel(entry, model.fallback) && entry.credential === undefined)
@@ -275,9 +279,15 @@ export function currentModel(model: BotModel): { route?: ModelRoute; name?: stri
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
   if (current === undefined) return {};
+  const groupId = model.plan?.orchestratorGroupId;
+  const group =
+    groupId === undefined
+      ? undefined
+      : (model.groups?.find((entry) => entry.id === groupId)?.name ?? groupId);
   return {
     route: current,
     name: model.models.find((entry) => sameModel(entry, current))?.modelName ?? current.model,
+    ...(group === undefined ? {} : { group }),
   };
 }
 

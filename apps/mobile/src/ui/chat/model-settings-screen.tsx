@@ -5,6 +5,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import {
   applyModelPreset,
+  currentModel,
   errorText,
   sameModel,
   type ModelChoice,
@@ -60,15 +61,17 @@ type PickerRow =
   | { kind: 'model'; entry: ModelCatalogEntry }
   | { kind: 'group'; group: ModelCatalogGroup; front: ModelCatalogEntry | undefined };
 
+function restTime(until: string): string {
+  return new Date(until).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function restingText(until: string): string {
-  return t.modelSettings.resting(
-    new Date(until).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-  );
+  return t.modelSettings.resting(restTime(until));
 }
 
 function useModels(client: HostClient, scope: ModelScope) {
@@ -188,9 +191,11 @@ function ModelsView({
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState<string>();
   const [held, setHeld] = useState<ReadonlySet<string>>();
+  const [restNotice, setRestNotice] = useState<string>();
   const chooseFamily = (next: string) => {
     setFamily(next);
     setHeld(undefined);
+    setRestNotice(undefined);
   };
   const [name, setName] = useState<string>();
   const [saved, setSaved] = useState(false);
@@ -448,6 +453,7 @@ function ModelsView({
           </ScrollView>
         ) : null}
         {banner}
+        {restNotice === undefined ? null : <SheetCallout tone="warning">{restNotice}</SheetCallout>}
         {models.busy ? <LoadingIndicator /> : null}
         <FlatList
           style={{ flex: 1 }}
@@ -511,16 +517,26 @@ function ModelsView({
                       />
                     }
                     onPress={
-                      models.busy || !usable || selected
+                      models.busy || selected
                         ? undefined
-                        : () =>
-                            models.run(
-                              () => setModelGroup(client, scope, value, group.id),
-                              () => {
-                                Keyboard.dismiss();
-                                router.back();
-                              },
-                            )
+                        : group.restingUntil !== undefined
+                          ? () =>
+                              setRestNotice(
+                                t.modelSettings.restingTap(
+                                  group.name,
+                                  restTime(group.restingUntil!),
+                                ),
+                              )
+                          : !usable
+                            ? undefined
+                            : () =>
+                                models.run(
+                                  () => setModelGroup(client, scope, value, group.id),
+                                  () => {
+                                    Keyboard.dismiss();
+                                    router.back();
+                                  },
+                                )
                     }
                   />
                 </SettingsGroupItem>
@@ -577,24 +593,36 @@ function ModelsView({
                     />
                   }
                   onPress={
-                    models.busy || (!usable && !(picker === 'allowed' && selected)) || required
+                    models.busy || required
                       ? undefined
-                      : () => {
-                          if (picker === 'allowed')
-                            models.run(() => toggleAssignmentModel(client, scope, value, item));
-                          else {
-                            const reasoningEffort = sameModel(item, current)
-                              ? current?.reasoningEffort
-                              : item.defaultEffort;
-                            choose({
-                              provider: item.provider,
-                              model: item.model,
-                              ...(reasoningEffort === undefined || reasoningEffort === ''
-                                ? {}
-                                : { reasoningEffort }),
-                            });
-                          }
-                        }
+                      : item.credential === undefined &&
+                          item.restingUntil !== undefined &&
+                          !(picker === 'allowed' && selected)
+                        ? () =>
+                            setRestNotice(
+                              t.modelSettings.restingTap(
+                                item.modelName,
+                                restTime(item.restingUntil!),
+                              ),
+                            )
+                        : !usable && !(picker === 'allowed' && selected)
+                          ? undefined
+                          : () => {
+                              if (picker === 'allowed')
+                                models.run(() => toggleAssignmentModel(client, scope, value, item));
+                              else {
+                                const reasoningEffort = sameModel(item, current)
+                                  ? current?.reasoningEffort
+                                  : item.defaultEffort;
+                                choose({
+                                  provider: item.provider,
+                                  model: item.model,
+                                  ...(reasoningEffort === undefined || reasoningEffort === ''
+                                    ? {}
+                                    : { reasoningEffort }),
+                                });
+                              }
+                            }
                   }
                 />
               </SettingsGroupItem>
@@ -625,7 +653,11 @@ function ModelsView({
         >
           <PickerLink
             label={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.orchestrator}
-            detail={routeLabel(value, routes.orchestrator)}
+            detail={
+              scope.kind === 'bot' && value.plan?.orchestratorGroupId !== undefined
+                ? `${currentModel(value).group ?? value.plan.orchestratorGroupId} · ${routeLabel(value, routes.orchestrator)}`
+                : routeLabel(value, routes.orchestrator)
+            }
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
           {value.models.find((entry) => sameModel(entry, routes.orchestrator))?.efforts?.length ? (

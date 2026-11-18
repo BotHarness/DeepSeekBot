@@ -738,6 +738,8 @@ const en = {
     groups: 'Routing Groups',
     groupFront: (model: string) => `Now: ${model}`,
     resting: (until: string) => `Resting until ${until}`,
+    restingTap: (name: string, until: string) =>
+      `${name} ran out of quota and is resting until ${until}. Pick another model or a Routing Group for now.`,
     name: 'Preset name',
     create: 'Save as new preset',
     rename: 'Save preset name',
@@ -3398,6 +3400,8 @@ const zh: typeof en = {
     groups: '路由组',
     groupFront: (model: string) => `当前：${model}`,
     resting: (until: string) => `休息至 ${until}`,
+    restingTap: (name: string, until: string) =>
+      `${name} 额度用完，休息至 ${until}。现在请先选其他模型或路由组。`,
     name: '预设名称',
     create: '另存为新预设',
     rename: '保存预设名称',

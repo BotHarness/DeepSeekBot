@@ -16,6 +16,7 @@ import {
   revokeWorkspaceGrant,
   setApprovalTemplate,
   setAssignmentAccess,
+  type BotModel,
 } from '@botharness/host-client/bot-settings';
 import { createHostClient } from '@botharness/host-client/client';
 import { modelLabel, workspaceLabel } from '../src/ui/chat/composer-labels';
@@ -93,6 +94,27 @@ describe('Bot model from the composer', () => {
     ]);
     expect(currentModel(model).name).toBe('DeepSeek V4 Pro');
     expect(modelLabel({ status: 'ready', value: model })).toBe('DeepSeek V4 Pro');
+  });
+
+  it('names the Routing Group the Bot runs on beside the model in front (#4421)', () => {
+    const model: BotModel = {
+      revision: 3,
+      plan: {
+        revision: 3,
+        sourcePresetId: '',
+        sourcePresetName: '',
+        orchestrator: pro,
+        orchestratorGroupId: 'daily',
+      },
+      models: [
+        { ...flash, providerName: 'DeepSeek', modelName: 'DeepSeek V4 Flash', efforts: [] },
+        { ...pro, providerName: 'DeepSeek', modelName: 'DeepSeek V4 Pro', efforts: [] },
+      ],
+      groups: [{ id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] }],
+      presets: [],
+    };
+    expect(currentModel(model)).toMatchObject({ name: 'DeepSeek V4 Pro', group: 'Daily' });
+    expect(modelLabel({ status: 'ready', value: model })).toBe('Daily · DeepSeek V4 Pro');
   });
 
   it('falls back to the global default model when the Bot has no plan, and survives missing presets', async () => {
