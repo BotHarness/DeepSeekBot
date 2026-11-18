@@ -96,11 +96,18 @@ export interface RosterBot {
   previewAuthor?: WireAuthor;
 }
 
+export interface RosterHuman {
+  humanId: string;
+  displayName: string;
+  avatarVersion?: string;
+}
+
 export interface RosterChannel {
   id: string;
   name: string;
   memberCount: number;
   members: string[];
+  humanMembers?: RosterHuman[];
   avatar?: string;
   ownerBotSlug?: string;
   pendingInvites?: Array<{ id: string; botSlug: string }>;
@@ -323,6 +330,32 @@ function id(): string {
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+const HUMAN_AVATAR_VERSION = /^[a-f0-9]{16}$/u;
+
+function rosterHumans(value: unknown): { humanMembers?: RosterHuman[] } {
+  if (!Array.isArray(value)) return {};
+  return {
+    humanMembers: value.flatMap((raw: unknown) => {
+      if (typeof raw !== 'object' || raw === null) return [];
+      const member = raw as Record<string, unknown>;
+      const version = member['avatarVersion'];
+      return typeof member['humanId'] === 'string' &&
+        member['humanId'].length > 0 &&
+        typeof member['displayName'] === 'string'
+        ? [
+            {
+              humanId: member['humanId'],
+              displayName: member['displayName'],
+              ...(typeof version === 'string' && HUMAN_AVATAR_VERSION.test(version)
+                ? { avatarVersion: version }
+                : {}),
+            },
+          ]
+        : [];
+    }),
+  };
 }
 
 function previewOf(channel: ChannelListItem | undefined): {
@@ -564,6 +597,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           name: channel.name,
           memberCount: channel.members.length,
           members: channel.members,
+          ...rosterHumans(channel.humanMembers),
           ...(channel.avatar === undefined ? {} : { avatar: channel.avatar }),
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
           pendingInvites: (channel.invitations ?? [])

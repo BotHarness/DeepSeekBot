@@ -27,7 +27,7 @@ export interface AccountProfileActions {
 export interface ChatProfile {
   name: string | undefined;
   avatar: string | undefined;
-  hasAvatar: boolean;
+  hasAvatar: boolean | undefined;
   editor: ReturnType<typeof useAvatarEditor>;
   mount?: RefCallback<ViewInstance>;
   onEditName(): void;
@@ -66,11 +66,17 @@ function ChatProfileRows({ chat }: { chat: ChatProfile }) {
         <SettingsRow
           on={SHEET_GROUP}
           testID="chat-avatar-choose"
-          title={chat.hasAvatar ? t.avatarChange : t.avatarChoose}
+          title={
+            chat.hasAvatar === undefined
+              ? t.avatarTitle
+              : chat.hasAvatar
+                ? t.avatarChange
+                : t.avatarChoose
+          }
           control={editor.busy ? { kind: 'busy' } : { kind: 'chevron' }}
           onPress={editor.busy ? undefined : () => void editor.choose()}
         />
-        {chat.hasAvatar ? (
+        {chat.hasAvatar === true ? (
           <SettingsRow
             on={SHEET_GROUP}
             testID="chat-avatar-remove"

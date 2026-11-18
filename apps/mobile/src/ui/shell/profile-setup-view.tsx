@@ -17,12 +17,14 @@ import { AccountAvatar } from './account-avatar';
 export function ProfileSetupView({
   name,
   avatar,
+  hasAvatar,
   editor,
   onDone,
   onLater,
 }: {
   name: string;
   avatar: string | undefined;
+  hasAvatar: boolean;
   editor: ReturnType<typeof useAvatarEditor>;
   onDone(name: string): Promise<void>;
   onLater(): Promise<void>;
@@ -78,7 +80,7 @@ export function ProfileSetupView({
             <AccountAvatar uri={avatar} name={draft || name} size={profileShell.avatar} />
           </EditableAvatar>
           <Button
-            label={avatar === undefined ? t.avatarChoose : t.avatarChange}
+            label={hasAvatar ? t.avatarChange : t.avatarChoose}
             variant="text"
             busy={editor.busy}
             disabled={busy}

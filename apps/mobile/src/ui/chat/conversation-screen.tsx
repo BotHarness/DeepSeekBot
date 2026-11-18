@@ -237,6 +237,13 @@ type ConversationPresentation = {
   onClose(): void;
   onNestedChange(open: boolean): void;
 };
+function currentPersonName(
+  people: readonly { humanId: string; displayName: string }[] | undefined,
+  humanId: string,
+): string | undefined {
+  return people?.find((member) => member.humanId === humanId)?.displayName;
+}
+
 export function ConversationScreen({
   expectedHostId,
   place,
@@ -1210,6 +1217,7 @@ function ChatConversation({
     [roster, botName, groupOf],
   );
   const personFallback = person?.name;
+  const people = channel?.humanMembers;
   const personSpeaker = useCallback(
     (
       message: ConversationMessage,
@@ -1218,13 +1226,17 @@ function ChatConversation({
       message.person === undefined
         ? undefined
         : {
-            name: message.person.name || personFallback || t.reply.member,
+            name:
+              currentPersonName(people, message.person.humanId) ||
+              message.person.name ||
+              personFallback ||
+              t.reply.member,
             bot: undefined,
             group: groupOf.get(row.key) ?? row.key,
             first: row.first,
             last: row.last,
           },
-    [personFallback, groupOf, t],
+    [people, personFallback, groupOf, t],
   );
 
   const nativeRows = nativeChatRecycler;

@@ -394,6 +394,7 @@ export interface ChannelListItem {
   members: string[];
   botSlug?: string;
   humanParticipants?: string[];
+  humanMembers?: Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
   avatar?: string;
   ownerBotSlug?: string;
   invitations?: WireGroupInvitation[];
