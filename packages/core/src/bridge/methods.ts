@@ -769,7 +769,9 @@ export interface BridgeMethods extends TeamBridgeMethods {
   acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
   acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
-  onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
+  onboardingModel(
+    payload: unknown,
+  ): Promise<BridgeResult<{ revision: number; groupRevision?: number }>>;
   telemetryEvent(payload: unknown): BridgeResult<null>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
@@ -854,6 +856,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       models: ModelCatalogEntry[];
       default?: ModelRoute;
       defaultRevision?: number;
+      defaultGroupId?: string;
     }>
   >;
   modelPresets(payload: unknown): BridgeResult<{ presets: ModelPreset[] }>;
@@ -3626,9 +3629,31 @@ function buildBridgeMethods(
       if (deps.modelCatalog === undefined || deps.defaultModel === undefined) return unavailable();
       const source = asObject(payload);
       const slug = asSlug(payload);
-      const route = source['route'];
+      const groupId = source['groupId'];
       const revision = source['expectedRevision'];
       const defaultRevision = source['expectedDefaultRevision'];
+      if (
+        groupId !== undefined &&
+        (typeof groupId !== 'string' ||
+          !groupId.trim() ||
+          source['route'] !== undefined ||
+          source['globalDefault'] !== true ||
+          slug !== undefined ||
+          deps.routingGroups === undefined)
+      )
+        return invalidInput('A default Routing Group replaces the route and needs global scope');
+      let route = source['route'];
+      if (typeof groupId === 'string') {
+        try {
+          if (deps.routingGroups?.get(groupId) === undefined)
+            throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
+          route = await firstUsableRoute(deps.routingGroups.routes(groupId));
+        } catch (error) {
+          return error instanceof RoutingGroupError
+            ? routingGroupFailure(error)
+            : invalidInput(error instanceof Error ? error.message : 'Model unavailable');
+        }
+      }
       if (
         defaultRevision !== undefined &&
         (!Number.isSafeInteger(defaultRevision) ||
@@ -3701,7 +3726,25 @@ function buildBridgeMethods(
             saved.reasoningEffort !== route.reasoningEffort
           )
             return invalidInput('Profile default model was not saved; open native model settings');
-          if (slug === undefined) return { ok: true, value: { revision: savedDefaultRevision } };
+          const groups = deps.routingGroups;
+          const previous = groups?.defaultGroup();
+          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
+          const groupRevision =
+            groups === undefined || previous === undefined
+              ? undefined
+              : previous.groupId === nextGroup
+                ? nextGroup === undefined
+                  ? undefined
+                  : previous.revision
+                : groups.setDefaultGroup(nextGroup, previous.revision).revision;
+          if (slug === undefined)
+            return {
+              ok: true,
+              value: {
+                revision: savedDefaultRevision,
+                ...(groupRevision === undefined ? {} : { groupRevision }),
+              },
+            };
           return this.modelPlanInherit({ slug, expectedRevision: revision });
         }
         if (slug === undefined) return invalidInput('Choose a Bot for an individual model');
@@ -4016,12 +4059,16 @@ function buildBridgeMethods(
           .defaultModelSettings?.()
           ?.describe({ redactSecrets: true })
           .find((entry) => entry.ns === 'agent-default-model')?.revision;
+        const defaultGroup = deps.routingGroups?.defaultGroup();
         return {
           ok: true,
           value: {
             models,
             ...(defaultRoute === undefined ? {} : { default: defaultRoute }),
             ...(defaultRevision === undefined ? {} : { defaultRevision }),
+            ...(defaultGroup?.groupId === undefined
+              ? {}
+              : { defaultGroupId: defaultGroup.groupId }),
           },
         };
       } catch (error) {

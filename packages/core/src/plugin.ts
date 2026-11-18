@@ -1804,6 +1804,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         }
       },
       restingUntil: (route) => routeRests.restingUntil(route),
+      inherited: () => core.routingGroups.defaultGroup().groupId,
     },
     openAssignmentRoutes,
     orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
@@ -2067,6 +2068,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const routeRests = createRouteRests();
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
+    inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
     routes: (groupId) => core.routingGroups.routes(groupId),
     rests: routeRests,
     requireAllowed: (botSlug, route) =>

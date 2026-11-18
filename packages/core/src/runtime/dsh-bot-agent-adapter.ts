@@ -84,6 +84,7 @@ export interface AssignmentGroupRoutes {
   pick(botSlug: string, groupId: string): Promise<GroupPick>;
   describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
+  inherited?(): string | undefined;
 }
 
 export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
@@ -1701,18 +1702,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-          if (plan?.assignmentDefault === undefined)
-            return JSON.stringify({
-              configured: false,
-              message: 'Ask the Human to apply a Model Preset first',
-            });
-          const open = plan.openAssignmentModels === true;
           const groups = this.#assignmentGroups;
           const resting = <T extends { provider: string; model: string }>(route: T) => {
             const rest = groups?.restingUntil(route);
             return rest === undefined ? route : { ...route, restingUntil: rest.until };
           };
-          const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) => {
+          const describeGroup = (id: string, isDefault: boolean) => {
             const group = groups?.describe(id);
             if (group === undefined) return [];
             const members = group.routes.map(resting);
@@ -1723,14 +1718,33 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               {
                 group: id,
                 name: group.name,
-                ...(id === plan.assignmentDefaultGroupId ? { default: true } : {}),
+                ...(isDefault ? { default: true } : {}),
                 members,
                 ...(until.length > 0 && until.every((value) => value !== undefined)
                   ? { restingUntil: until.sort()[0] }
                   : {}),
               },
             ];
-          });
+          };
+          if (plan?.assignmentDefault === undefined) {
+            const inherited = groups?.inherited?.();
+            const inheritedGroups = inherited === undefined ? [] : describeGroup(inherited, true);
+            return JSON.stringify(
+              inheritedGroups.length === 0
+                ? { configured: false, message: 'Ask the Human to apply a Model Preset first' }
+                : {
+                    configured: false,
+                    inherited: true,
+                    assignmentGroups: inheritedGroups,
+                    message:
+                      'Assignments follow the Profile default Routing Group; omit provider, model and group to use it',
+                  },
+            );
+          }
+          const open = plan.openAssignmentModels === true;
+          const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) =>
+            describeGroup(id, id === plan.assignmentDefaultGroupId),
+          );
           return JSON.stringify({
             configured: true,
             revision: plan.revision,
@@ -1816,12 +1830,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (args.group !== undefined && args.provider !== undefined)
             throw new Error('create_assignment: pass either group or provider/model');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+          const inherited =
+            plan?.assignmentDefault === undefined
+              ? this.#assignmentGroups?.inherited?.()
+              : undefined;
           const groupId =
             args.group ??
-            (args.provider === undefined ? plan?.assignmentDefaultGroupId : undefined);
+            (args.provider === undefined
+              ? (plan?.assignmentDefaultGroupId ?? inherited)
+              : undefined);
           let picked: ModelRoute | undefined;
           if (groupId !== undefined) {
-            if (!(plan?.assignmentGroups ?? []).includes(groupId))
+            if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
             const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId);
             if (pick?.kind !== 'route')

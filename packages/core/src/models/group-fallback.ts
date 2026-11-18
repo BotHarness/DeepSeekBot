@@ -38,14 +38,19 @@ const same = (left: RouteKey, right: RouteKey) =>
 
 export function createGroupFallback(options: {
   plan(botSlug: string): PersonaBotModelPlan | undefined;
+  inheritedGroup?(): string | undefined;
   routes(groupId: string): ModelRoute[];
   rests: Pick<RouteRests, 'restingUntil'>;
   requireAllowed(botSlug: string, route: ModelRoute): void;
   validate(route: ModelRoute): Promise<void>;
 }): GroupFallback {
   const overrides = new Map<string, { botSlug: string; groupId: string; route: ModelRoute }>();
+  const groupOf = (botSlug: string): string | undefined => {
+    const plan = options.plan(botSlug);
+    return plan === undefined ? options.inheritedGroup?.() : plan.orchestratorGroupId;
+  };
   const routesOf = (botSlug: string): { groupId: string; routes: ModelRoute[] } | undefined => {
-    const groupId = options.plan(botSlug)?.orchestratorGroupId;
+    const groupId = groupOf(botSlug);
     if (groupId === undefined) return undefined;
     try {
       return { groupId, routes: options.routes(groupId) };
@@ -57,7 +62,7 @@ export function createGroupFallback(options: {
     route(sessionId) {
       const override = overrides.get(sessionId);
       if (override === undefined) return undefined;
-      if (options.plan(override.botSlug)?.orchestratorGroupId !== override.groupId) {
+      if (groupOf(override.botSlug) !== override.groupId) {
         overrides.delete(sessionId);
         return undefined;
       }
