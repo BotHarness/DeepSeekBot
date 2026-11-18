@@ -18,6 +18,7 @@ import { createTestRosterStore } from './roster-fixture.js';
 
 const GO = { kind: 'model' as const, provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const DEEPSEEK = { kind: 'model' as const, provider: 'deepseek', model: 'deepseek-v4.1-flash' };
+const PRO = { kind: 'model' as const, provider: 'deepseek', model: 'deepseek-v4-pro' };
 const ROUTE = { provider: 'deepseek', model: 'deepseek-v4.1-flash' };
 const roots: string[] = [];
 const owners: OperationalDatabaseOwner[] = [];
@@ -27,7 +28,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function setup() {
+function setup(rests: { provider: string; model: string; until: string }[] = []) {
   const root = mkdtempSync(join(tmpdir(), 'bh-preset-groups-'));
   roots.push(root);
   const database = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
@@ -42,7 +43,7 @@ function setup() {
     routingGroups,
     modelCatalog: {
       list: async () =>
-        [GO, DEEPSEEK].map(({ provider, model }) => ({
+        [GO, DEEPSEEK, PRO].map(({ provider, model }) => ({
           provider,
           providerName: provider,
           model,
@@ -53,6 +54,7 @@ function setup() {
         if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
       },
     },
+    routeRests: { list: () => rests },
     states: createBotStateTracker(),
     channels: createChannelStore({ rootDir: join(root, 'channels'), attachments }),
     attachments,
@@ -161,6 +163,23 @@ describe('Model Presets with Routing Groups', () => {
         assignmentDefault: ROUTE,
       }),
     ).toMatchObject({ ok: true, value: { preset: { revision: 3 } } });
+  });
+
+  it('saves a grouped Orchestrator on a member that is not resting (#4501)', async () => {
+    const { methods } = setup([{ ...ROUTE, until: '2999-01-01T00:00:00.000Z' }]);
+    const created = await methods.modelGroupCreate({ name: 'Main', members: [DEEPSEEK, PRO] });
+    if (!created.ok) throw new Error(created.error.message);
+    const saved = await methods.modelPlanSet({
+      slug: 'ada',
+      expectedRevision: 0,
+      orchestratorGroupId: created.value.group.id,
+      assignmentDefault: ROUTE,
+      assignmentModels: [{ ...ROUTE, allowedEfforts: [''], defaultEffort: '' }],
+    });
+    expect(saved).toMatchObject({
+      ok: true,
+      value: { plan: { orchestrator: { provider: 'deepseek', model: 'deepseek-v4-pro' } } },
+    });
   });
 
   it('sets a whole Bot plan with groups in every slot and clears them on a plain save (#4501)', async () => {
