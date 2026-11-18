@@ -152,6 +152,19 @@ const record = (value: unknown): Json =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Json) : {};
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+export const CLAUDE_MIN_VERSION = '2.1.326';
+
+function olderThan(version: string, minimum: string): boolean {
+  const parts = (value: string) => (value.match(/\d+/gu) ?? []).slice(0, 3).map(Number);
+  const have = parts(version);
+  const need = parts(minimum);
+  for (let index = 0; index < need.length; index += 1) {
+    const difference = (have[index] ?? 0) - need[index]!;
+    if (difference !== 0) return difference < 0;
+  }
+  return false;
+}
+
 export function claudeAccount(info: unknown): EngineAccount {
   const account = record(info);
   const provider = text(account['apiProvider']);
@@ -273,6 +286,7 @@ export class ClaudeEngineSession implements EngineSession {
   #closed = false;
   #resumeLost = false;
   #metered: string | undefined;
+  #outdated: string | undefined;
   #stderr = '';
   readonly #approvals = new Map<string, (decision: EngineApprovalDecision) => void>();
 
@@ -307,6 +321,9 @@ export class ClaudeEngineSession implements EngineSession {
     if (open === undefined) throw new Error('Claude Code session is not started');
     if (this.#turn !== undefined) throw new Error('A Claude Code turn is already running');
     if (this.ended) return { status: 'failed', message: this.#exited ?? 'Claude Code is closed' };
+    if (this.#metered !== undefined)
+      return { status: 'failed', message: `${this.#metered}, which bills per use` };
+    if (this.#outdated !== undefined) return { status: 'failed', message: this.#outdated };
     if (options.signal?.aborted === true) return { status: 'interrupted' };
     let active!: ActiveTurn;
     const ended = new Promise<EngineTurnEnd>((resolve) => {
@@ -385,6 +402,11 @@ export class ClaudeEngineSession implements EngineSession {
           id === undefined ? { sessionId } : { resume: id },
         ),
       });
+      if (this.#closed) {
+        input.close();
+        query.close();
+        throw new EngineRefusal('engine-unavailable', 'Claude Code is closing');
+      }
       let exited!: (detail: string) => void;
       const open: OpenQuery = {
         query,
@@ -479,6 +501,13 @@ export class ClaudeEngineSession implements EngineSession {
     });
   }
 
+  #refuse(failure: string): void {
+    const turn = this.#turn;
+    if (turn === undefined) return;
+    turn.failure ??= failure;
+    this.#current?.query.interrupt().catch(() => this.close());
+  }
+
   #receive(message: Json): void {
     switch (message['type']) {
       case 'system': {
@@ -486,11 +515,12 @@ export class ClaudeEngineSession implements EngineSession {
         const keySource = text(message['apiKeySource']);
         if (keySource !== '' && keySource !== 'none') {
           this.#metered = `Claude Code is signed in with an API key (${keySource})`;
-          const turn = this.#turn;
-          if (turn !== undefined) {
-            turn.failure = `${this.#metered}, which bills per use`;
-            this.#current?.query.interrupt().catch(() => this.close());
-          }
+          this.#refuse(`${this.#metered}, which bills per use`);
+        }
+        const version = text(message['claude_code_version']);
+        if (version !== '' && olderThan(version, CLAUDE_MIN_VERSION)) {
+          this.#outdated = `Claude Code ${version} is too old for DeepSeekBot. Update it to ${CLAUDE_MIN_VERSION} or newer`;
+          this.#refuse(this.#outdated);
         }
         return;
       }

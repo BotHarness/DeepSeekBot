@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { accessSync, constants, existsSync, statSync } from 'node:fs';
 import { posix, win32 } from 'node:path';
 
 export interface EngineLaunch {
@@ -11,6 +11,17 @@ export interface EngineLaunchOptions {
   platform?: NodeJS.Platform;
   env?: Readonly<Record<string, string | undefined>>;
   exists?(path: string): boolean;
+  executable?(path: string): boolean;
+}
+
+function isExecutableFile(path: string): boolean {
+  try {
+    if (!statSync(path).isFile()) return false;
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function variable(env: Readonly<Record<string, string | undefined>>, name: string) {
@@ -43,12 +54,13 @@ export function resolveEngineCommand(
   const platform = options.platform ?? process.platform;
   const env = options.env ?? process.env;
   const exists = options.exists ?? existsSync;
+  const executable = options.executable ?? isExecutableFile;
   if (platform === 'win32') return resolveWindows(command, env, exists);
-  if (command.includes('/')) return exists(command) ? command : undefined;
+  if (command.includes('/')) return exists(command) && executable(command) ? command : undefined;
   for (const directory of (variable(env, 'PATH') ?? '').split(':')) {
     if (directory === '') continue;
     const candidate = posix.join(directory, command);
-    if (exists(candidate)) return candidate;
+    if (exists(candidate) && executable(candidate)) return candidate;
   }
   return undefined;
 }

@@ -244,6 +244,34 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     });
   });
 
+  it('sends no prompt when the API-key init arrives before the first turn', async () => {
+    const init = RECORDING.find(
+      (line) => line.kind === 'message' && line.msg['subtype'] === 'init',
+    )!;
+    const early = [
+      RECORDING[0]!,
+      { ...init, msg: { ...(init as { msg: object }).msg, apiKeySource: 'ANTHROPIC_API_KEY' } },
+      ...RECORDING.slice(1).filter((line) => line !== init),
+    ] as ClaudeRecordedLine[];
+    const { host, request, replay } = setup([early]);
+    await expect(host.runTurn(request)).rejects.toMatchObject({
+      message: expect.stringContaining('bills per use'),
+    });
+    expect(replay.prompts).toEqual([]);
+  });
+
+  it('stops a turn on a Claude Code too old to take the gateway at initialize', async () => {
+    const old = RECORDING.map((line) =>
+      line.kind === 'message' && line.msg['subtype'] === 'init'
+        ? { ...line, msg: { ...line.msg, claude_code_version: '2.1.99' } }
+        : line,
+    );
+    const { host, request } = setup([old]);
+    await expect(host.runTurn(request)).rejects.toMatchObject({
+      message: expect.stringContaining('Update it to 2.1.326 or newer'),
+    });
+  });
+
   it('resumes the stored native session and starts a new one only when Claude has lost it', async () => {
     const root = createTempRoot('claude-resume-');
     const first = setup([RECORDING], root);
@@ -426,16 +454,23 @@ describe('Claude Code engine boundaries', () => {
   });
 
   it('finds the Human claude on PATH and reports a missing one', () => {
-    const exists = (path: string) => path === '/opt/claude/bin/claude';
+    const exists = (path: string) => ['/tmp/stale/claude', '/opt/claude/bin/claude'].includes(path);
+    const executable = (path: string) => path === '/opt/claude/bin/claude';
     expect(
       resolveEngineCommand('claude', {
         platform: 'darwin',
-        env: { PATH: '/usr/bin:/opt/claude/bin' },
+        env: { PATH: '/usr/bin:/tmp/stale:/opt/claude/bin' },
         exists,
+        executable,
       }),
     ).toBe('/opt/claude/bin/claude');
     expect(
-      resolveEngineCommand('claude', { platform: 'linux', env: { PATH: '/usr/bin' }, exists }),
+      resolveEngineCommand('claude', {
+        platform: 'linux',
+        env: { PATH: '/usr/bin' },
+        exists,
+        executable,
+      }),
     ).toBeUndefined();
   });
 

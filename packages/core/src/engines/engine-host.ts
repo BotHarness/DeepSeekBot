@@ -140,6 +140,7 @@ export class EngineHost {
   readonly #options: EngineHostOptions;
   readonly #live = new Map<string, LiveEngineSession>();
   readonly #opening = new Map<string, Promise<LiveEngineSession>>();
+  readonly #openingEngine = new Map<string, EngineId>();
   readonly #states = new Map<string, EngineSessionDescription>();
   #closed = false;
   readonly #releasing = new Map<string, Promise<void>>();
@@ -403,9 +404,17 @@ export class EngineHost {
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const pending = this.#opening.get(request.sessionId);
-    if (pending !== undefined) return pending;
-    const opening = this.#start(request).finally(() => this.#opening.delete(request.sessionId));
+    if (pending !== undefined) {
+      if (this.#openingEngine.get(request.sessionId) === selected) return pending;
+      await pending.catch(() => undefined);
+      return this.#open(request);
+    }
+    const opening = this.#start(request).finally(() => {
+      this.#opening.delete(request.sessionId);
+      this.#openingEngine.delete(request.sessionId);
+    });
     this.#opening.set(request.sessionId, opening);
+    if (selected !== undefined) this.#openingEngine.set(request.sessionId, selected);
     return opening;
   }
 
