@@ -603,12 +603,18 @@ it('offers a jump to the latest step after scrolling up', async () => {
   timeline.scrollTop = 100;
   await act(async () => timeline.dispatchEvent(new Event('scroll')));
   expect(host.querySelector('[data-session-composer]')?.contains(jump())).toBe(true);
+  const other = document.createElement('button');
+  document.body.append(other);
+  other.focus();
   act(() => {
     jump()!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
   });
   expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: 'smooth' });
-  expect(document.activeElement).toBe(timeline);
+  expect(document.activeElement).toBe(other);
+  other.remove();
+  jump()!.focus();
   act(() => jump()!.click());
+  expect(document.activeElement).toBe(timeline);
   expect(scrollTo).toHaveBeenLastCalledWith({ top: 1000, behavior: 'auto' });
   document.documentElement.dataset['botharnessMotion'] = 'reduce';
   act(() => jump()!.click());
@@ -640,4 +646,27 @@ it('drops a prefetch whose newer transcript was evicted while it ran', async () 
   expect(cachedSessionDetail(at)).toBeUndefined();
   await act(async () => finish({ ...transcript('assignment'), items: [] }));
   expect(cachedSessionDetail(at)).toBeUndefined();
+});
+
+it('warns while a refresh fails and clears the warning once one succeeds', async () => {
+  const empty = { ...transcript('assignment'), items: [] };
+  const actions: Partial<BridgeActions> = { sessionTranscript: vi.fn(async () => empty) };
+  await render(actions);
+  for (const unmount of mounted.splice(0)) unmount();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    actions.sessionTranscript = vi
+      .fn<NonNullable<BridgeActions['sessionTranscript']>>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(empty);
+    const host = await render(actions);
+    await act(async () => {});
+    expect(host.textContent).toContain('刷新失败');
+    expect(host.textContent).toContain('还没有会话记录');
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(actions.sessionTranscript).toHaveBeenCalledTimes(2);
+    expect(host.textContent).not.toContain('刷新失败');
+  } finally {
+    vi.useRealTimers();
+  }
 });

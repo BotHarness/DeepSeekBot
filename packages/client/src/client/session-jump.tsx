@@ -36,6 +36,7 @@ export function SessionJump({
             .closest('[data-session-detail]')
             ?.querySelector<HTMLElement>('[data-session-transcript]');
           if (node == null) return;
+          const owned = document.activeElement === event.currentTarget;
           node.scrollTo({
             top: node.scrollHeight,
             behavior:
@@ -44,7 +45,7 @@ export function SessionJump({
                 ? 'auto'
                 : 'smooth',
           });
-          node.focus({ preventScroll: true });
+          if (owned) node.focus({ preventScroll: true });
         }}
       >
         <svg

@@ -935,6 +935,11 @@ export function SessionDetail({
         }}
         {...stylex.props(styles.transcript)}
       >
+        {transcript !== undefined && failed ? (
+          <div role="status" {...stylex.props(styles.quiet, styles.center)}>
+            {t('sessions.detail.refreshFailed')}
+          </div>
+        ) : null}
         {transcript === undefined ? (
           <div {...stylex.props(styles.quiet)}>
             {failed ? t('sessions.detail.loadFailed') : t('sessions.detail.loading')}
@@ -943,11 +948,6 @@ export function SessionDetail({
           <div {...stylex.props(styles.quiet)}>{t('sessions.detail.empty')}</div>
         ) : (
           <>
-            {failed ? (
-              <div role="status" {...stylex.props(styles.quiet, styles.center)}>
-                {t('sessions.detail.refreshFailed')}
-              </div>
-            ) : null}
             {transcript.omitted === 0 ? null : (
               <div {...stylex.props(styles.quiet, styles.center)}>
                 {t('sessions.detail.omitted', { count: transcript.omitted })}
