@@ -760,6 +760,53 @@ describe('Assignment collaboration', () => {
     }
   });
 
+  it('wakes once when parallel Assignments from one request complete', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        for (const title of ['First', 'Second'])
+          run.assignments.create({ title, grantId: TEST_GRANT_ID, description: title });
+      };
+      await admit('Research both in parallel', 'parallel-start');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const [first, second] = agents.started.map((entry) => entry.run);
+      await first!.report({ state: 'completed', summary: 'First result' }, { turn: 1 });
+      first!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(first!.sessionId);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(agents.inboxTurns).toHaveLength(0);
+      await second!.report({ state: 'completed', summary: 'Second result' }, { turn: 1 });
+      second!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(second!.sessionId);
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      await runtime.whenIdle();
+      expect(agents.inboxTurns).toHaveLength(1);
+      expect(agents.inboxTurns[0]).toContain('First result');
+      expect(agents.inboxTurns[0]).toContain('Second result');
+    } finally {
+      await close();
+    }
+  });
+
+  it('does not hold a blocked Report for a sibling Assignment', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        for (const title of ['First', 'Second'])
+          run.assignments.create({ title, grantId: TEST_GRANT_ID, description: title });
+      };
+      await admit('Research both in parallel', 'parallel-blocked');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const first = agents.started[0]!.run;
+      await first.report({ state: 'blocked', summary: 'Need a key' }, { turn: 1 });
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      expect(agents.inboxTurns[0]).toContain('Need a key');
+      agents.finishAll();
+    } finally {
+      await close();
+    }
+  });
+
   it('leaves a Report committed after the wait returned in the Inbox', async () => {
     const { runtime, agents, owner, admit, close } = await setup();
     let claimed: string[] | undefined;

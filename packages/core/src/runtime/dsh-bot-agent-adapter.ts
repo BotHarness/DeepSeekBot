@@ -321,6 +321,9 @@ const ASSIGNMENT_REPORT_CONTRACT = `## Report delivery contract
 Your result reaches the Orchestrator only through report_to_orchestrator. Ordinary assistant text stays private in this Session and does not deliver a report. Before ending, call report_to_orchestrator with the actual outcome and the requested report in summary; use progress at milestones and a terminal state when finished.
 A text-only task, a request for a Markdown final answer, or a prohibition on work tools does not replace this internal reply transport. Keep those work restrictions: do not run commands, inspect files, delegate, or contact a Channel unless the task permits it. Put the requested Markdown in the report tool, not just a final text reply. Never claim delivery until the tool succeeds. 中文：纯文本 final 不会提交报告；只做文字分析或禁止工作工具时，仍须通过 report_to_orchestrator 提交结果。`;
 
+const MISSING_REPORT_NUDGE =
+  '[Host] Your turn ended without report_to_orchestrator, so the Orchestrator has not received anything. Call report_to_orchestrator now with your actual outcome and the requested result in summary. Do not redo the work.';
+
 function assignmentMessage(text: string) {
   return createUserMessage({
     content: [
@@ -1225,6 +1228,30 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       run.completedTurn?.(completion);
       if (run.resume === true) return;
+      if (!entry.reported) {
+        const nudgeFrom = handle.agent.session.seq;
+        run.beginTurn?.();
+        handle.agent.followup(assignmentMessage(MISSING_REPORT_NUDGE));
+        const again = await Promise.race([handle.agent.whenIdle(), abandonable.abandoned]);
+        if (
+          again === 'abandoned' ||
+          this.#stopping.has(run.sessionId) ||
+          this.#stoppedBots.has(run.bot.slug)
+        )
+          return;
+        run.completedTurn?.(
+          requireCompletedTurn(
+            handle,
+            nudgeFrom,
+            run.cancelledTurn,
+            run.failedTurn,
+            (code) => {
+              if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
+            },
+            this.#turnRefusal?.(run.sessionId),
+          ),
+        );
+      }
       if (!entry.reported) {
         throw new Error('Assignment finished without report_to_orchestrator');
       }

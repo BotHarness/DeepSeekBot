@@ -1399,6 +1399,8 @@ export function queryAssignmentDirectory(
   };
 }
 
+const SIBLING_REPORT_HOLD_MS = 15_000;
+
 function onlyPairedLifecycle(unit: InboxUnit): boolean {
   return (
     unit.sourceKind === 'assignment-lifecycle' &&
@@ -1711,6 +1713,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #steerSettlements = new Set<Promise<void>>();
   readonly #pendingHarvests = new Set<string>();
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
+  readonly #siblingHoldTimers = new Map<string, NodeJS.Timeout>();
   readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
   readonly #autoContinues = new Map<string, PendingAutoContinue>();
   readonly #readTurnProgress: BotRuntimeOptions['readTurnProgress'];
@@ -3607,6 +3610,75 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#digestTimers.set(key, timer);
   }
 
+  #scheduleReportHarvest(botSlug: string): boolean {
+    if (!this.#waitsForSiblings(botSlug)) {
+      const prior = this.#siblingHoldTimers.get(botSlug);
+      if (prior !== undefined) clearTimeout(prior);
+      this.#siblingHoldTimers.delete(botSlug);
+      this.#scheduleHarvest(botSlug);
+      return true;
+    }
+    if (!this.#siblingHoldTimers.has(botSlug)) {
+      const timer = setTimeout(() => {
+        this.#siblingHoldTimers.delete(botSlug);
+        this.#scheduleHarvest(botSlug);
+      }, SIBLING_REPORT_HOLD_MS);
+      timer.unref();
+      this.#siblingHoldTimers.set(botSlug, timer);
+    }
+    return false;
+  }
+
+  #waitsForSiblings(botSlug: string): boolean {
+    return this.#database.read((database) => {
+      const rows = database
+        .prepare(
+          `SELECT e.assignment_session_id AS session_id, e.source_kind,
+                  e.expects_reply, json_extract(e.payload_json, '$.assignmentReport.state') AS state
+             FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id
+            WHERE a.bot_slug = ? AND a.attempt_state = 'pending' AND e.observed_at IS NULL
+              AND a.reason IN ('assignment-report', 'assignment-lifecycle')
+              AND NOT (e.source_kind = 'assignment-lifecycle' AND
+                json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') IS NOT NULL)
+              AND NOT (e.source_kind = 'assignment-report' AND e.expects_reply = 0 AND
+                json_extract(e.payload_json, '$.assignmentReport.state') = 'progress')`,
+        )
+        .all(botSlug) as unknown as Array<{
+        session_id: string | null;
+        source_kind: string;
+        expects_reply: number;
+        state: string | null;
+      }>;
+      if (
+        rows.length === 0 ||
+        rows.some(
+          (row) =>
+            row.session_id === null ||
+            row.source_kind !== 'assignment-report' ||
+            row.expects_reply !== 0 ||
+            row.state !== 'completed',
+        )
+      )
+        return false;
+      const sessions = [...new Set(rows.map((row) => row.session_id!))];
+      const placeholders = sessions.map(() => '?').join(', ');
+      const sibling = database
+        .prepare(
+          `SELECT 1 FROM request_assignments mine
+             JOIN request_assignments sib
+               ON sib.request_source_event_id = mine.request_source_event_id
+             JOIN assignments s ON s.session_id = sib.session_id
+            WHERE mine.session_id IN (${placeholders})
+              AND sib.session_id NOT IN (${placeholders})
+              AND s.bot_slug = ? AND s.activity = 'working' AND s.stop_state = 'running'
+              AND s.archived_at IS NULL
+            LIMIT 1`,
+        )
+        .get(...sessions, ...sessions, botSlug);
+      return sibling !== undefined;
+    });
+  }
+
   #scheduleHarvest(botSlug: string): void {
     if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
@@ -3692,10 +3764,7 @@ class BotRuntimeImplementation implements BotRuntime {
           )
           .get(botSlug),
       );
-      if (report !== undefined) {
-        this.#scheduleHarvest(botSlug);
-        return;
-      }
+      if (report !== undefined && this.#scheduleReportHarvest(botSlug)) return;
     }
     this.#scheduleExternalDigest(botSlug);
     for (const channelId of this.#pendingDigestChannels(botSlug)) {
@@ -6390,6 +6459,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#typingAssignments.clear();
     for (const timer of this.#digestTimers.values()) clearTimeout(timer);
     this.#digestTimers.clear();
+    for (const timer of this.#siblingHoldTimers.values()) clearTimeout(timer);
+    this.#siblingHoldTimers.clear();
     for (const timer of this.#snoozeTimers.values()) clearTimeout(timer);
     this.#snoozeTimers.clear();
     for (const pending of this.#autoContinues.values()) clearTimeout(pending.timer);
@@ -11086,7 +11157,7 @@ class BotRuntimeImplementation implements BotRuntime {
       reportWake === 'immediate' ||
       (reportWake === 'conditional' && this.#shouldWakeNow(input.state, expectsReply))
     )
-      this.#scheduleHarvest(botSlug);
+      this.#scheduleReportHarvest(botSlug);
     return report;
   }
 

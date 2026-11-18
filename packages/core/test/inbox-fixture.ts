@@ -1,7 +1,11 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
-import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import type {
+  AssignmentAgentRun,
+  BotAgentAdapter,
+  OrchestratorAgentRun,
+} from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { createTestNativeWorkspace, createTestWorkspaceGrants } from './workspace-grant-fixture.js';
 
@@ -13,6 +17,7 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
   const hooks: TurnHook[] = [];
   const results: unknown[] = [];
   const held: Array<() => void> = [];
+  const assignments: AssignmentAgentRun[] = [];
   const adapter: BotAgentAdapter = {
     async runOrchestrator(run) {
       runs.push(run);
@@ -20,6 +25,7 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
       if (hook !== undefined) results.push(await hook(run));
     },
     runAssignment(run) {
+      assignments.push(run);
       run.setExecutionReady?.(true);
       run.acceptNativeInput?.();
       return new Promise<void>((resolve) => held.push(resolve));
@@ -72,6 +78,19 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
     if (row === undefined) throw new Error('Missing Source Event');
     return row.source_event_id;
   }
+  function sourceId(messageId: string) {
+    const row = probe.read((db) =>
+      db.prepare('SELECT source_event_id FROM source_events WHERE message_id = ?').get(messageId),
+    ) as { source_event_id: string } | undefined;
+    if (row === undefined) throw new Error('Missing Source Event');
+    return row.source_event_id;
+  }
+  function resolved(id: string) {
+    const row = probe.read((db) =>
+      db.prepare('SELECT resolved_at FROM inbox_admissions WHERE source_event_id = ?').get(id),
+    ) as { resolved_at: string | null } | undefined;
+    return row?.resolved_at != null;
+  }
   function state(id: string) {
     return core.attention.list({ botSlug: 'ada', limit: 100 }).items.find((item) => item.id === id)
       ?.state;
@@ -84,5 +103,18 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
     await core.runtime.close();
     core.operationalDatabase.close();
   }
-  return { core, dm, runs, results, send, admit, state, close, finishAssignments };
+  return {
+    core,
+    dm,
+    runs,
+    results,
+    assignments,
+    send,
+    admit,
+    sourceId,
+    resolved,
+    state,
+    close,
+    finishAssignments,
+  };
 }

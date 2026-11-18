@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { SQLInputValue } from 'node:sqlite';
+import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type { ChannelStore } from '../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { channelSql, conversationSql, OPEN_ADMISSION_SQL, SNOOZED_SQL } from './attention.js';
@@ -337,8 +337,37 @@ export function createInboxTriage(
       };
       const write = (ids: string[], outcome: InboxResolution, note: string | undefined) => {
         const at = now().toISOString();
+        const settled = (db: DatabaseSync): string[] =>
+          ids.length === 0 || outcome !== 'done'
+            ? []
+            : (
+                db
+                  .prepare(
+                    `SELECT DISTINCT a.source_event_id FROM inbox_admissions a
+                       JOIN source_events e ON e.source_event_id = a.source_event_id
+                       JOIN request_assignments ra ON ra.session_id = e.assignment_session_id
+                       JOIN assignments s ON s.session_id = ra.session_id
+                      WHERE a.bot_slug = ? AND a.observed_at IS NOT NULL
+                        AND a.attempt_state IN ('running', 'handled')
+                        AND a.resolved_at IS NULL AND a.ignored_at IS NULL
+                        AND a.reason IN ('assignment-report', 'assignment-lifecycle')
+                        AND e.expects_reply = 0 AND s.activity <> 'working'
+                        AND ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})`,
+                  )
+                  .all(botSlug, ...ids) as unknown as Array<{ source_event_id: string }>
+              )
+                .map((row) => row.source_event_id)
+                .filter((id) => !ids.includes(id));
         database.transaction(
           (db) => {
+            const follow = settled(db);
+            for (const id of follow)
+              db.prepare(`
+                UPDATE inbox_admissions
+                   SET resolved_at = ?, resolution = 'done', resolution_note = ?,
+                       resolved_by_session_id = ?
+                 WHERE source_event_id = ? AND bot_slug = ? AND resolved_at IS NULL
+              `).run(at, 'Resolved with the request it served', sessionId, id, botSlug);
             for (const id of ids)
               db.prepare(`
                 UPDATE inbox_admissions

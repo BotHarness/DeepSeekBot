@@ -1,5 +1,5 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { inboxFixture as fixture } from './inbox-fixture.js';
 import { TEST_GRANT_ID } from './workspace-grant-fixture.js';
@@ -34,6 +34,39 @@ describe('Orchestrator triage continuation', () => {
       expect(f.results[0]).toMatchObject({ outcome: 'created' });
       await new Promise((resolve) => setTimeout(resolve, 500));
       expect(f.runs).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('resolves the Report of a finished Assignment with the request it served', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      let request = '';
+      let seen: string[] = [];
+      const message = await f.admit(
+        'Research the export bug',
+        (run) =>
+          run.assignments.create({ title: 'Research', grantId: TEST_GRANT_ID, description: 'Dig' }),
+        (run) => {
+          seen = run.triage!.current().filter((id) => id !== request);
+          return run.triage!.resolve({ ids: [request], outcome: 'done' });
+        },
+      );
+      request = f.sourceId(message);
+      await f.assignments[0]!.report(
+        { state: 'completed', summary: 'The bug is in the CSV writer' },
+        { turn: 1 },
+      );
+      f.finishAssignments();
+      await vi.waitFor(() => expect(f.runs).toHaveLength(2));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await f.core.runtime.whenIdle();
+      expect(f.runs[1]!.inbox).toContain('The bug is in the CSV writer');
+      expect(f.resolved(request)).toBe(true);
+      expect(seen.length).toBeGreaterThan(0);
+      for (const id of seen) expect(f.resolved(id)).toBe(true);
+      expect(f.runs).toHaveLength(2);
     } finally {
       await f.close();
     }
