@@ -1372,6 +1372,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanAssignmentsSet({
@@ -1380,6 +1382,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
         assignmentDefault,
         assignmentModels,
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
+        ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
       }),
     );
   }

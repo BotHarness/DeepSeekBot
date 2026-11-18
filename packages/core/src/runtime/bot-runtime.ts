@@ -97,6 +97,7 @@ import { readFileSync, statSync } from 'node:fs';
 import {
   isAssignmentModelChoice,
   isModelRoute,
+  selectAssignmentGroup,
   selectAssignmentRoute,
   type ModelRoute,
 } from '../models/presets.js';
@@ -343,7 +344,9 @@ export interface OrchestratorAssignmentAccess {
     key?: string;
     grantId: string;
     model?: ModelRoute;
+    modelGroupId?: string;
   }): AssignmentCreateOutcome;
+  refreshRoute?(sessionId: string): Promise<unknown>;
   grants(): WorkspaceGrant[];
   list(): AssignmentSummary[];
   inspect(sessionId: string): AssignmentDetail | undefined;
@@ -1007,7 +1010,7 @@ export interface BotRuntimeOptions {
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
-  groupFallback?: Pick<GroupFallback, 'choose' | 'restore'>;
+  groupFallback?: Pick<GroupFallback, 'choose' | 'restore' | 'pick'>;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -1105,6 +1108,7 @@ interface AssignmentRow {
   approval_policy: string | null;
   preset_revision: number | null;
   model_route_json: string | null;
+  model_group_id?: string | null;
   archived_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -1676,6 +1680,14 @@ function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
   return `[Host: the Human stopped this Session while these tool calls were still running. Each is recorded as stopped by the Human with an unknown result: it may or may not have taken effect. Check its effect before you redo any of them, and do not repeat a side effect blindly.\n${lines.join('\n')}]\n\n`;
 }
 
+const ASSIGNMENT_FALLBACK_NOTE =
+  'The previous model stopped before finishing this Turn (out of quota or unavailable). The Host moved this Session to the next model in its Routing Group. Continue the work from where it stopped.';
+
+const sameModelRoute = (left: ModelRoute, right: ModelRoute) =>
+  left.provider === right.provider &&
+  left.model === right.model &&
+  (left.reasoningEffort ?? '') === (right.reasoningEffort ?? '');
+
 const ASSIGNMENT_RECOVERY_NOTE =
   '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
 
@@ -1761,6 +1773,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #nativeStepReady = new Map<string, (accepted: boolean) => void>();
   readonly #preparedOrchestrators = new Set<string>();
   readonly #preparedAssignments = new Set<string>();
+  readonly #groupContinuations = new Map<string, { error?: unknown }>();
   readonly #nativeAssignmentSteps = new Map<
     string,
     { step: Promise<boolean>; signal: AbortSignal }
@@ -5910,8 +5923,10 @@ class BotRuntimeImplementation implements BotRuntime {
         };
         const abort = () => finish(false);
         cancellation.addEventListener('abort', abort, { once: true });
-        const modelRoute = modelRouteFromRow(row);
         this.#trackAssignmentRun(sessionId, async () => {
+          const modelRoute = await this.refreshAssignmentRoute(row.bot_slug, sessionId).catch(() =>
+            modelRouteFromRow(row),
+          );
           try {
             await this.#agents.runAssignment({
               sessionId,
@@ -5946,8 +5961,7 @@ class BotRuntimeImplementation implements BotRuntime {
                 this.#recordCompletedAssignment(bot.slug, sessionId, execution),
               cancelledTurn: (execution) =>
                 this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'cancelled'),
-              failedTurn: (execution) =>
-                this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'failed'),
+              failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
             });
           } finally {
             this.#preparedAssignments.delete(sessionId);
@@ -7521,6 +7535,7 @@ class BotRuntimeImplementation implements BotRuntime {
         }
         return outcome;
       },
+      refreshRoute: (sessionId) => this.refreshAssignmentRoute(bot.slug, sessionId),
       grants: () => this.#grants?.list(bot.slug) ?? [],
       list: () => this.listAssignments(bot.slug),
       query: (input) => queryAssignmentDirectory(this.listAssignments(bot.slug), input),
@@ -10218,6 +10233,7 @@ class BotRuntimeImplementation implements BotRuntime {
       key?: string;
       grantId: string;
       model?: ModelRoute;
+      modelGroupId?: string;
     },
     trackDelivery?: (sessionId: string, pending: boolean) => void,
   ): AssignmentCreateOutcome {
@@ -10239,7 +10255,21 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error('Assignment model choice is invalid');
     if (input.model !== undefined && plan === undefined)
       throw new Error('Apply a Model Preset before choosing an Assignment model');
-    const modelRoute = plan === undefined ? undefined : selectAssignmentRoute(plan, input.model);
+    const modelGroupId =
+      input.modelGroupId === undefined || plan === undefined
+        ? undefined
+        : selectAssignmentGroup(plan, { group: input.modelGroupId });
+    if (
+      input.modelGroupId !== undefined &&
+      (modelGroupId === undefined || input.model === undefined)
+    )
+      throw new Error('An Assignment Routing Group needs its chosen member route');
+    const modelRoute =
+      plan === undefined
+        ? undefined
+        : modelGroupId !== undefined
+          ? { ...input.model! }
+          : selectAssignmentRoute(plan, input.model);
     if (this.#grants === undefined) throw new Error('Workspace Grants are unavailable');
     const grant = this.#grants.requireActive(bot.slug, grantId);
     const access = this.#assignmentAccessPresetStore?.get(bot.slug) ?? {
@@ -10339,8 +10369,8 @@ class BotRuntimeImplementation implements BotRuntime {
             `INSERT INTO assignments (
                session_id, source_event_id, bot_slug, title, description, activity,
                continuity_key, grant_id, workspace_id, primary_cwd, permission_mode,
-               approval_policy, preset_revision, model_route_json, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               approval_policy, preset_revision, model_route_json, model_group_id, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             sessionId,
@@ -10356,6 +10386,7 @@ class BotRuntimeImplementation implements BotRuntime {
             permission.approval,
             permission.presetRevision,
             modelRoute === undefined ? null : JSON.stringify(modelRoute),
+            modelGroupId ?? null,
             createdAt,
             createdAt,
           );
@@ -10383,8 +10414,7 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#recordCompletedAssignment(bot.slug, sessionId, execution),
         cancelledTurn: (execution) =>
           this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'cancelled'),
-        failedTurn: (execution) =>
-          this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'failed'),
+        failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
       }),
     );
     return {
@@ -10528,8 +10558,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#recordCompletedAssignment(bot.slug, input.sessionId, execution),
       cancelledTurn: (execution) =>
         this.#recordUnsuccessfulAssignment(bot.slug, input.sessionId, execution, 'cancelled'),
-      failedTurn: (execution) =>
-        this.#recordUnsuccessfulAssignment(bot.slug, input.sessionId, execution, 'failed'),
+      failedTurn: (execution) => this.#assignmentFailed(bot.slug, input.sessionId, execution),
     };
     let delivery: AssignmentRequestDelivery;
     try {
@@ -10920,6 +10949,12 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#setActivity(sessionId, 'idle');
       } catch (error) {
         if (this.#assignmentRuns.get(sessionId) !== tracked) return;
+        const continuation = this.#groupContinuations.get(sessionId);
+        if (continuation !== undefined) {
+          continuation.error = error;
+          this.#setActivity(sessionId, 'idle');
+          return;
+        }
         const refused = failure();
         this.#setActivity(sessionId, refused.activity);
         const row = this.#assignmentRow(undefined, sessionId);
@@ -11011,6 +11046,121 @@ class BotRuntimeImplementation implements BotRuntime {
     const assignment = this.getAssignment(botSlug, sessionId);
     if (assignment === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
     return assignment;
+  }
+
+  #assignmentFailed(
+    botSlug: string,
+    sessionId: string,
+    execution: { turn: number; endSeq: number },
+  ): void {
+    const row = this.#assignmentRow(botSlug, sessionId);
+    const current = row === undefined ? undefined : modelRouteFromRow(row);
+    if (
+      row?.model_group_id == null ||
+      current === undefined ||
+      this.#groupFallback === undefined ||
+      this.#routeRests?.restingUntil(current) === undefined
+    ) {
+      this.#recordUnsuccessfulAssignment(botSlug, sessionId, execution, 'failed');
+      return;
+    }
+    const continuation: { error?: unknown } = {};
+    this.#groupContinuations.set(sessionId, continuation);
+    void this.#continueOnGroup(botSlug, sessionId, current, execution, continuation).finally(() => {
+      if (this.#groupContinuations.get(sessionId) === continuation)
+        this.#groupContinuations.delete(sessionId);
+    });
+  }
+
+  async #continueOnGroup(
+    botSlug: string,
+    sessionId: string,
+    failed: ModelRoute,
+    execution: { turn: number; endSeq: number },
+    continuation: { error?: unknown },
+  ): Promise<void> {
+    const fail = (error: unknown) => {
+      this.#recordUnsuccessfulAssignment(botSlug, sessionId, execution, 'failed');
+      this.#setActivity(sessionId, 'error');
+      const row = this.#assignmentRow(botSlug, sessionId);
+      const channel = row === undefined ? undefined : this.#assignmentDmChannel(row);
+      if (row === undefined || channel === undefined || row.stop_state !== 'running') return;
+      void this.#publishSessionFailure({
+        channelId: channel.id,
+        botSlug,
+        sessionId,
+        role: 'assignment',
+        error,
+        context: row.title,
+      });
+    };
+    try {
+      await Promise.resolve();
+      const running = this.#assignmentRuns.get(sessionId);
+      if (running !== undefined) await running.catch(() => undefined);
+      if (this.#groupContinuations.get(sessionId) === continuation)
+        this.#groupContinuations.delete(sessionId);
+      const cause = continuation.error ?? new Error('The Assignment model stopped');
+      const next = await this.refreshAssignmentRoute(botSlug, sessionId);
+      const bot = this.#registry.get(botSlug);
+      if (next === undefined || sameModelRoute(next, failed) || bot === undefined) {
+        fail(cause);
+        return;
+      }
+      const request = this.#requestAssignment(bot, {
+        sessionId,
+        mode: 'next-turn',
+        text: ASSIGNMENT_FALLBACK_NOTE,
+      });
+      if (request.delivery === 'refused' || request.delivery === 'capacity') fail(cause);
+    } catch (error) {
+      fail(continuation.error ?? error);
+    }
+  }
+
+  async refreshAssignmentRoute(
+    botSlug: string,
+    sessionId: string,
+  ): Promise<ModelRoute | undefined> {
+    const row = this.#assignmentRow(botSlug, sessionId);
+    const groupId = row?.model_group_id;
+    const current = row === undefined ? undefined : modelRouteFromRow(row);
+    if (groupId == null || current === undefined || this.#groupFallback === undefined)
+      return current;
+    const picked = await this.#groupFallback.pick(botSlug, groupId);
+    if (picked.kind !== 'route' || sameModelRoute(picked.route, current)) return current;
+    const rest = this.#routeRests?.restingUntil(current);
+    const at = this.#now().toISOString();
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `UPDATE assignments SET model_route_json = ?, updated_at = ?
+              WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running'`,
+          )
+          .run(JSON.stringify(picked.route), at, sessionId, botSlug);
+      },
+      ['assignments'],
+    );
+    const choice: ModelSwitch = {
+      kind: 'switch',
+      from: { provider: current.provider, model: current.model },
+      to: picked.route,
+      reason: rest === undefined ? 'returned' : (rest.reason ?? 'quota'),
+      ...(rest === undefined ? {} : { until: rest.until }),
+    };
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: rest === undefined ? 'model-return' : 'model-fallback',
+        botSlug,
+        session: sessionId,
+        from: `${choice.from.provider}/${choice.from.model}`,
+        to: `${choice.to.provider}/${choice.to.model}`,
+      }),
+    );
+    await this.#appendModelSwitch(botSlug, sessionId, undefined, choice);
+    return picked.route;
   }
 
   #recordUnsuccessfulAssignment(
