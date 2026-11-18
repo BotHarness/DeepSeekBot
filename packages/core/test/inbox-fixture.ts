@@ -91,6 +91,17 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
     ) as { resolved_at: string | null } | undefined;
     return row?.resolved_at != null;
   }
+  function assignmentItems() {
+    return probe.read((db) =>
+      db
+        .prepare(
+          `SELECT e.source_kind, a.resolved_at FROM inbox_admissions a
+             JOIN source_events e USING(source_event_id)
+            WHERE a.reason IN ('assignment-report', 'assignment-lifecycle')`,
+        )
+        .all(),
+    ) as Array<{ source_kind: string; resolved_at: string | null }>;
+  }
   function state(id: string) {
     return core.attention.list({ botSlug: 'ada', limit: 100 }).items.find((item) => item.id === id)
       ?.state;
@@ -113,6 +124,7 @@ export async function inboxFixture(options: { triageContinuation?: boolean } = {
     admit,
     sourceId,
     resolved,
+    assignmentItems,
     state,
     close,
     finishAssignments,

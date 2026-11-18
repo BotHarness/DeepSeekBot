@@ -50,6 +50,7 @@ describe('Orchestrator triage continuation', () => {
           run.assignments.create({ title: 'Research', grantId: TEST_GRANT_ID, description: 'Dig' }),
         (run) => {
           seen = run.triage!.current().filter((id) => id !== request);
+          f.assignments[0]!.completedTurn!({ turn: 1, endSeq: 10 });
           return run.triage!.resolve({ ids: [request], outcome: 'done' });
         },
       );
@@ -66,6 +67,8 @@ describe('Orchestrator triage continuation', () => {
       expect(f.resolved(request)).toBe(true);
       expect(seen.length).toBeGreaterThan(0);
       for (const id of seen) expect(f.resolved(id)).toBe(true);
+      expect(f.assignmentItems().map((item) => item.source_kind)).toContain('assignment-lifecycle');
+      expect(f.assignmentItems().every((item) => item.resolved_at !== null)).toBe(true);
       expect(f.runs).toHaveLength(2);
     } finally {
       await f.close();

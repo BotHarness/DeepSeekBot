@@ -337,37 +337,70 @@ export function createInboxTriage(
       };
       const write = (ids: string[], outcome: InboxResolution, note: string | undefined) => {
         const at = now().toISOString();
-        const settled = (db: DatabaseSync): string[] =>
-          ids.length === 0 || outcome !== 'done'
-            ? []
-            : (
-                db
-                  .prepare(
-                    `SELECT DISTINCT a.source_event_id FROM inbox_admissions a
-                       JOIN source_events e ON e.source_event_id = a.source_event_id
-                       JOIN request_assignments ra ON ra.session_id = e.assignment_session_id
-                       JOIN assignments s ON s.session_id = ra.session_id
-                      WHERE a.bot_slug = ? AND a.observed_at IS NOT NULL
-                        AND a.attempt_state IN ('running', 'handled')
-                        AND a.resolved_at IS NULL AND a.ignored_at IS NULL
-                        AND a.reason IN ('assignment-report', 'assignment-lifecycle')
-                        AND e.expects_reply = 0 AND s.activity <> 'working'
-                        AND ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})`,
-                  )
-                  .all(botSlug, ...ids) as unknown as Array<{ source_event_id: string }>
+        const settled = (db: DatabaseSync): string[] => {
+          if (ids.length === 0 || outcome !== 'done') return [];
+          const list = (values: readonly string[]) => values.map(() => '?').join(', ');
+          const linked = (
+            db
+              .prepare(
+                `SELECT DISTINCT a.source_event_id FROM inbox_admissions a
+                   JOIN source_events e ON e.source_event_id = a.source_event_id
+                   JOIN request_assignments ra ON ra.session_id = e.assignment_session_id
+                   JOIN assignments s ON s.session_id = ra.session_id
+                  WHERE a.bot_slug = ? AND a.observed_at IS NOT NULL
+                    AND a.attempt_state IN ('running', 'handled')
+                    AND a.resolved_at IS NULL AND a.ignored_at IS NULL
+                    AND a.reason IN ('assignment-report', 'assignment-lifecycle')
+                    AND e.expects_reply = 0 AND s.activity <> 'working'
+                    AND ra.request_source_event_id IN (${list(ids)})`,
               )
-                .map((row) => row.source_event_id)
-                .filter((id) => !ids.includes(id));
+              .all(botSlug, ...ids) as unknown as Array<{ source_event_id: string }>
+          ).map((row) => row.source_event_id);
+          const reports = [...ids, ...linked];
+          const paired = (
+            db
+              .prepare(
+                `SELECT a.source_event_id FROM inbox_admissions a
+                   JOIN source_events e ON e.source_event_id = a.source_event_id
+                  WHERE a.bot_slug = ? AND a.reason = 'assignment-lifecycle'
+                    AND a.resolved_at IS NULL AND a.ignored_at IS NULL
+                    AND a.attempt_state <> 'needs-repair'
+                    AND json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId')
+                      IN (${list(reports)})`,
+              )
+              .all(botSlug, ...reports) as unknown as Array<{ source_event_id: string }>
+          ).map((row) => row.source_event_id);
+          return [...new Set([...linked, ...paired])].filter((id) => !ids.includes(id));
+        };
         database.transaction(
           (db) => {
             const follow = settled(db);
-            for (const id of follow)
+            for (const id of follow) {
+              db.prepare(
+                'UPDATE source_events SET observed_at = COALESCE(observed_at, ?) WHERE source_event_id = ?',
+              ).run(at, id);
               db.prepare(`
                 UPDATE inbox_admissions
                    SET resolved_at = ?, resolution = 'done', resolution_note = ?,
-                       resolved_by_session_id = ?
+                       resolved_by_session_id = ?,
+                       observed_at = COALESCE(observed_at, ?),
+                       opened_at = COALESCE(opened_at, ?),
+                       handled_at = CASE WHEN attempt_state IN ('pending', 'retryable')
+                         THEN COALESCE(handled_at, ?) ELSE handled_at END,
+                       attempt_state = CASE WHEN attempt_state IN ('pending', 'retryable')
+                         THEN 'handled' ELSE attempt_state END
                  WHERE source_event_id = ? AND bot_slug = ? AND resolved_at IS NULL
-              `).run(at, 'Resolved with the request it served', sessionId, id, botSlug);
+              `).run(
+                at,
+                'Resolved with the work it belongs to',
+                sessionId,
+                at,
+                at,
+                at,
+                id,
+                botSlug,
+              );
+            }
             for (const id of ids)
               db.prepare(`
                 UPDATE inbox_admissions
@@ -389,7 +422,7 @@ export function createInboxTriage(
                 botSlug,
               );
           },
-          ['bot-inbox'],
+          ['source-event', 'bot-inbox'],
         );
         notify(ids);
       };
