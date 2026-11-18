@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
+import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 
@@ -31,7 +24,6 @@ import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js'
 import { MessageMarkdown } from './channel-message-body.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ChipButton } from './ds/chip-button.js';
-import { font, status } from './ds/tobs.stylex.js';
 import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -39,11 +31,11 @@ import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import { SessionJump } from './session-jump.js';
 import { quotedRequest, quoteSourceId, SessionQuoteToolbar } from './session-quotes.js';
+import { ChangedFiles } from './session-changed-files.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
 import { todoCount, TodoRing } from './session-progress-view.js';
 import {
-  changedFiles,
   clockText,
   detailDefaults,
   durationText,
@@ -210,30 +202,6 @@ const styles = stylex.create({
   },
   add: { color: color.success },
   remove: { color: color.danger },
-  files: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    paddingInlineStart: space.x6,
-    paddingBottom: space.x2,
-  },
-  file: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minWidth: 0,
-    fontFamily: font.familyMono,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
-  filePath: {
-    flex: 1,
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    color: color.muted,
-  },
   stat: { display: 'inline-flex', gap: space.x2, flexShrink: 0 },
   bad: { color: color.danger },
   ok: { color: color.success, display: 'inline-flex' },
@@ -459,43 +427,6 @@ function ProcessGroup({
               step={step}
               context={context}
             />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ChangedFiles({
-  block,
-  t,
-}: {
-  block: Extract<TranscriptBlock, { kind: 'turn' }>;
-  t: BotHarnessTranslate;
-}): ReactNode {
-  const [open, setOpen] = useState(false);
-  const files = changedFiles(block.segments);
-  if (block.live || files.length === 0) return null;
-  const added = files.reduce((sum, file) => sum + file.added, 0);
-  const removed = files.reduce((sum, file) => sum + file.removed, 0);
-  return (
-    <div data-transcript="changes">
-      <WorkRow
-        icon="files"
-        label={t('sessions.detail.changes', { count: files.length })}
-        trailing={<DiffStat added={added} removed={removed} />}
-        expanded={open}
-        onToggle={() => setOpen(!open)}
-      />
-      {open ? (
-        <div {...stylex.props(styles.files)}>
-          {files.map((file) => (
-            <div key={file.path} data-changed-file={file.path} {...stylex.props(styles.file)}>
-              <span title={file.path} {...stylex.props(styles.filePath)}>
-                {file.path}
-              </span>
-              <DiffStat added={file.added} removed={file.removed} />
-            </div>
           ))}
         </div>
       ) : null}
