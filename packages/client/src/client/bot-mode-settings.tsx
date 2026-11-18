@@ -52,7 +52,6 @@ function modeName(view: BotModesView, id: string, t: BotHarnessTranslate): strin
   return mode === undefined ? id : modeText(mode, t).name;
 }
 
-const TOBS = 'deepseekbot';
 const PRODUCT = '@product';
 const FOLLOW = '@global';
 const ALL = '@all';
@@ -186,9 +185,7 @@ export function BotModeDefaultSetting({
           />
         }
       />
-      {view !== undefined && view.effectiveDefault !== TOBS ? (
-        <Note inset>{t('botMode.notTobs')}</Note>
-      ) : null}
+      {view === undefined ? null : <Note inset>{t('botMode.notTobs')}</Note>}
       {view === undefined && loadError !== undefined ? (
         <LoadFailure message={loadError} retry={retry} t={t} inset />
       ) : null}
@@ -272,7 +269,6 @@ export function BotModeSettingsEntry({
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
-  const effective = view.bot?.effective ?? view.effectiveDefault;
   return page(
     <>
       <Note>{t('botMode.nextSession')}</Note>
@@ -328,7 +324,7 @@ export function BotModeSettingsEntry({
           })}
         </SidebarCardList>
       </section>
-      {effective === TOBS ? null : <Note>{t('botMode.notTobs')}</Note>}
+      <Note>{t('botMode.notTobs')}</Note>
       {error === undefined ? null : <Note tone="danger">{error}</Note>}
     </>,
   );

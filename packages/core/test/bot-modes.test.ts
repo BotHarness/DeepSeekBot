@@ -130,6 +130,14 @@ describe('Bot mode settings', () => {
     expect(resolve(undefined, ['acp', 'ptc'])).toBe('ptc');
     expect(resolve('standard', ['ptc'])).toBe('standard');
     expect(resolve(undefined, ['acp'])).toBe('acp');
+    expect(
+      resolveBotMode({
+        own: undefined,
+        inherited: 'standard',
+        allowed: ['standard', 'ptc'],
+        installed: new Set(['ptc']),
+      }),
+    ).toBe('ptc');
   });
 });
 

@@ -117,11 +117,12 @@ export function resolveBotMode(input: {
   installed: ReadonlySet<string> | undefined;
 }): string {
   if (input.own !== undefined) return input.own;
-  if (input.allowed === undefined || input.allowed.includes(input.inherited))
-    return input.inherited;
+  if (input.allowed === undefined) return input.inherited;
+  const healthy = (mode: string) => input.installed === undefined || input.installed.has(mode);
+  if (input.allowed.includes(input.inherited) && healthy(input.inherited)) return input.inherited;
   return (
-    input.allowed.find((mode) => input.installed === undefined || input.installed.has(mode)) ??
-    input.allowed[0] ??
+    input.allowed.find(healthy) ??
+    (input.allowed.includes(input.inherited) ? input.inherited : input.allowed[0]) ??
     input.inherited
   );
 }

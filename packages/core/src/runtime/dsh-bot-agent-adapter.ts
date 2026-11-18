@@ -1250,9 +1250,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#stopSeqs.delete(run.sessionId);
     const abandonable = this.#abandonable(run.sessionId);
     try {
-      const handle = await this.#prepare(run.sessionId, async () => {
+      const handle = await this.#prepare(run.sessionId, async (signal) => {
         await this.#prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
-        return this.#assignmentHandle(run);
+        return this.#assignmentHandle(run, signal);
       }).catch((error: unknown) => {
         if (error instanceof PreparationStopped)
           throw new Error('Assignment stopped before Inbox acceptance');
@@ -1542,6 +1542,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     options: Omit<CreateAgentOptions, 'sessionId' | 'meta'>,
   ): Promise<AgentHandle> {
     await this.#ensureBotModes?.();
+    options.signal?.throwIfAborted();
     const meta = createMeta(
       run,
       this.#resolveOrchestratorCwd(run.bot),
@@ -4575,13 +4576,19 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   async #createAssignment(
     run: AssignmentAgentRun,
     options: CreateAgentOptions,
+    signal: AbortSignal | undefined,
   ): Promise<AgentHandle> {
     await this.#ensureBotModes?.();
+    signal?.throwIfAborted();
     const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
-    return this.#agents.create({ ...options, ...(meta === undefined ? {} : { meta }) });
+    return this.#agents.create({
+      ...options,
+      ...(meta === undefined ? {} : { meta }),
+      ...(signal === undefined ? {} : { signal }),
+    });
   }
 
-  async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
+  async #assignmentHandle(run: AssignmentAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const resolvedAgentOptions = agentOptions(
@@ -4729,8 +4736,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           resumeSessionId: SessionId(run.sessionId),
           agentOptions: resolvedAgentOptions,
           setup: createOptions.setup!,
+          ...(signal === undefined ? {} : { signal }),
         })
-      : await this.#createAssignment(run, createOptions);
+      : await this.#createAssignment(run, createOptions, signal);
     const raced = this.#handles.get(run.sessionId);
     if (raced !== undefined || this.#closed) {
       await handle.dispose();
