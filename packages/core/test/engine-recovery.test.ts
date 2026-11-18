@@ -207,6 +207,37 @@ describe('Engine Host recovery', () => {
     await host.close();
   });
 
+  it('stops writing a turn after a failed append and reopens the Session for the next turn', async () => {
+    const { host, opened, request, dsh } = hostWith(() => fakeCodex());
+    let failNext = true;
+    const wrap = <T extends { append(events: readonly unknown[]): Promise<void> }>(
+      handle: T,
+    ): T => ({
+      ...handle,
+      append: async (events: readonly unknown[]) => {
+        if (failNext) {
+          failNext = false;
+          throw new Error('disk full');
+        }
+        await handle.append(events);
+      },
+    });
+    const create = dsh.persistence.create;
+    const open = dsh.persistence.open;
+    dsh.persistence.create = async (...args) => wrap(await create(...args));
+    dsh.persistence.open = async (...args) => wrap(await open(...args));
+    await expect(host.runTurn(request())).rejects.toThrow();
+    expect(dsh.stored.get('orchestrator-ada')?.events ?? []).toEqual([]);
+    await host.runTurn(request());
+    expect(opened).toHaveLength(2);
+    const kinds = dsh.stored
+      .get('orchestrator-ada')!
+      .events.map((event) => (event as unknown as { type: string }).type);
+    expect(kinds[0]).toBe('turn/start');
+    expect(kinds.at(-1)).toBe('turn/end');
+    await host.close();
+  });
+
   it('releases a Session whose turn hangs, so the next turn can reopen it', async () => {
     const { host, opened, request } = hostWith(() =>
       fakeCodex({

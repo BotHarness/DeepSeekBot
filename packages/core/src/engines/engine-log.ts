@@ -165,7 +165,7 @@ export class EngineTurnLog {
     if (suffix.length === 0) return;
     this.#stored += suffix.length;
     this.#writing = this.#writing
-      .then(() => this.#target.persist(suffix))
+      .then(() => (this.#failure === undefined ? this.#target.persist(suffix) : undefined))
       .catch((error: unknown) => {
         this.#failure ??= error;
       });
