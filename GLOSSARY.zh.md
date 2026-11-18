@@ -257,7 +257,7 @@ Web Human 或当前获授权的外部审核人显式保存且可撤销的规则�
 _避免使用_：Workspace Grant、Provider Service Grant、sandbox preset、推断的命令相似性
 
 **Approval Template**：
-由 Human 编写、供 Approval Reviewer 使用的共享自然语言审批策略，包含 Always ask、Always allow 与 free text。PersonaBot 通过继承全局或选择特定模板，至多使用一份有效模板，也可关闭 Reviewer（[ADR-0342](docs/adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)）。
+由 Human 编写、供 Approval Reviewer 使用的共享自然语言审批策略，包含 Always ask、Always allow 与 free text。PersonaBot 通过继承全局或选择特定模板，至多使用一份有效模板，也可关闭 Reviewer（[ADR-0342](docs/decisions/approvals.md#adr-0342)）。
 _避免使用_：approval mode、auto mode、Tool Approval Rule
 
 **Approval Reviewer**：

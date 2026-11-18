@@ -258,7 +258,7 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A shared, Human-written natural-language policy containing Always ask guidance, Always allow guidance and free text for an Approval Reviewer. A PersonaBot uses at most one effective template, through global inheritance or a specific selection, or disables the Reviewer ([ADR-0342](docs/adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)).
+A shared, Human-written natural-language policy containing Always ask guidance, Always allow guidance and free text for an Approval Reviewer. A PersonaBot uses at most one effective template, through global inheritance or a specific selection, or disables the Reviewer ([ADR-0342](docs/decisions/approvals.md#adr-0342)).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:

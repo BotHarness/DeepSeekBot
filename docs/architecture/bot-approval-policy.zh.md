@@ -2,7 +2,7 @@
 
 状态：Human 于 2026-11-15 确认的设计。本文记录设计与实现边界；GitHub issue 记录交付状态，文档不改变运行设置。[English](bot-approval-policy.md)。
 
-[ADR-0342](../adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md) 记录长期决策与权衡，本文整合目标行为；GitHub issue 记录交付状态。设计确认不授权实施功能、更改运行权限或推进 SQLite 迁移。
+[ADR-0342](../decisions/approvals.md#adr-0342) 记录长期决策与权衡，本文整合目标行为；GitHub issue 记录交付状态。设计确认不授权实施功能、更改运行权限或推进 SQLite 迁移。
 
 实现沿用既有模板文件 owner 保存模板与全局选择、Bot Registry 保存 Bot 选择、Tool Approval Rule owner 保存卡片授权、Channel Tool Approval 决定审批。#4205、#4211、#4244、#4245、#4246、#4210、#4212 分别覆盖效果声明、选择、三部分编辑、规则管理、确认删除及 CLI/native 共用准入。交付证据保留源码与平台范围；iOS 和未完成的匹配性能检查仍在 [QA #2742](https://github.com/BotHarness/DeepSeekBot/issues/2742#issuecomment-6909957258) 跟踪。
 
