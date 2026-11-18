@@ -107,17 +107,14 @@ export function createHumanAvatarCache(
     void load(batch.map(([humanId]) => humanId))
       .then((value) => {
         const received = parseHumanAvatars(value);
-        const answered = new Set<string>();
         for (const image of received) {
           images.set(key(image.humanId, image.version), image.avatar);
           settled.add(key(image.humanId, image.version));
-          answered.add(image.humanId);
         }
         release();
         for (const [humanId, version] of batch) {
           const requested = key(humanId, version);
-          if (!answered.has(humanId)) settled.add(requested);
-          else if (!settled.has(requested)) missed.set(requested, Date.now());
+          if (!settled.has(requested)) missed.set(requested, Date.now());
         }
         publish();
       })
