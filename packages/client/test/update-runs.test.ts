@@ -1,20 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type UpdateRun } from '../../core/src/release/update-runs.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
-    createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
 
-  IconCloseOutlineRegular: () => null,
-  IconDownloadOutlineRegular: () => null,
-  Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
   MarkdownText: (props: { text: string }) => createElement('div', null, props.text),
 }));
 
-import type { UpdateRun } from '../../core/src/release/update-runs.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { en, type BotHarnessTranslate } from '../src/client/locale.js';
 import { UpdateRunPanel } from '../src/client/update-run-view.js';

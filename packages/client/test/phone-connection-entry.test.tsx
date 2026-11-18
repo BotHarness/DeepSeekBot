@@ -1,17 +1,15 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { type ClientRelationship } from '../../core/src/devices/relationship-contract.js';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ConnectionsDialog } from '../src/client/connections-dialog.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate as t } from '../src/client/locale.js';
-import type { ClientRelationship } from '../../core/src/devices/relationship-contract.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: 'button',
-  Input: 'input',
-  Switch: 'input',
 
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));

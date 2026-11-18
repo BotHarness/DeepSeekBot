@@ -1,6 +1,9 @@
+import { Checkbox } from './ds/checkbox.js';
+import { SegmentedControl } from './ds/segmented.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import { Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import * as stylex from '@stylexjs/stylex';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
@@ -564,11 +567,13 @@ export function GroupDialog({
       </fieldset>
       <div className="bh-pairing-workspace">
         <section className="bh-group-editor-selection">
-          <SegmentedTabs
+          <SegmentedControl
+            id={id}
+            controlsPanel
             label={t('pairing.groupConfiguration')}
             value={tab}
             onChange={setTab}
-            items={[
+            options={[
               {
                 value: 'management',
                 label: t('pairing.groupManagement'),
@@ -577,7 +582,7 @@ export function GroupDialog({
               },
               {
                 value: 'behavior',
-                label: `${t('pairing.behaviorPermissions')} (${[...new Set([...(behaviorValue.behaviorAllow ?? []), ...(behaviorValue.behaviorDeny ?? [])])].length})`,
+                label: `${t('pairing.behaviorPermissions')} (${new Set([...(behaviorValue.behaviorAllow ?? []), ...(behaviorValue.behaviorDeny ?? [])]).size})`,
                 id: `${id}-behavior`,
                 panelId: `${id}-panel-behavior`,
               },

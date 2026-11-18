@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -11,18 +13,15 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: (props: import('react').InputHTMLAttributes<HTMLInputElement>) =>
-    createElement('input', props),
 }));
 
 import { createActions } from '../src/client/actions.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { ActivityListView } from '../src/client/activity-list-view.js';
-import { createStore, store, type HumanAttentionItem } from '../src/client/store.js';
+import { createStore, store } from '../src/client/store.js';
 
 const item = (slug: string, minute: string): HumanAttentionItem => ({
   id: 'question:' + slug,

@@ -1,36 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    Checkbox: (props: {
-      checked: boolean;
-      disabled?: boolean;
-      label: string;
-      onChange(next: boolean): void;
-    }) =>
-      element(
-        'label',
-        null,
-        element('input', {
-          type: 'checkbox',
-          checked: props.checked,
-          disabled: props.disabled,
-          onChange: (event: { target: HTMLInputElement }) => props.onChange(event.target.checked),
-        }),
-        props.label,
-      ),
-    IconCloseOutlineRegular: () => element('span'),
-    IconChevronDownOutlineRegular: () => element('span'),
-    IconChevronRightOutlineRegular: () => element('span'),
-    SegmentedControl: () => element('span'),
-    Tag: (props: { children?: ReactNode }) => element('span', null, props.children),
   };
 });
 
@@ -44,7 +23,7 @@ import {
   formatBotZipSize,
   ImportBotZipModal,
 } from '../src/client/bot-zip.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 import type { BotSummary } from '../src/client/store.js';
 import { buttonNamed } from './primitive-mocks.js';
 

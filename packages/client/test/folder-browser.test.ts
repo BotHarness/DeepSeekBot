@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type HostDirectoryListing } from '../src/client/actions.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -8,16 +9,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    Switch: () => null,
-    Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-
-    IconChevronDownOutlineRegular: () => null,
-    IconCloseOutlineRegular: () => null,
-    IconFolderOpenOutlineRegular: () => null,
   };
 });
 
-import type { BridgeActions, HostDirectoryListing } from '../src/client/actions.js';
+import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { FolderBrowser } from '../src/client/workspace-grants-entry.js';
 import { createActions } from '../src/client/actions.js';

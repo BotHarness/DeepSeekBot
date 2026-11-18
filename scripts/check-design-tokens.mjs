@@ -16,7 +16,10 @@ export const RULES = {
   dshImport: {
     pattern: /from\s+['"]@deepseek-ai\/dsh-client-ui[\w-]*['"]/g,
     fix: 'use a ds/ component instead of a DSH UI import',
-    exempt: ['packages/client/src/client/ds/shell-layer.ts'],
+    exempt: [
+      'packages/client/src/client/ds/shell-layer.ts',
+      'packages/client/src/client/ds/file-type-icon.tsx',
+    ],
   },
   rawControl: {
     pattern: /<(?:button|input|select|textarea)\b(?:=>|[^>])*?(?:stylex\.props|className=)/gs,

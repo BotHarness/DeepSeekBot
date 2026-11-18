@@ -1,19 +1,16 @@
 // @vitest-environment jsdom
+import { type WindowZoom } from '../src/client/window-zoom.js';
+import { type ZoomSurface } from '../src/client/window-zoom-mount.js';
+import { type WindowZoomSetupStatus } from '../src/client/window-zoom-setup.js';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({ variant: _v, size: _s, ...props }: Record<string, unknown>) => <button {...props} />,
 }));
 import { zhTranslate } from '../src/client/locale.js';
-import type { WindowZoom } from '../src/client/window-zoom.js';
-import type { ZoomSurface } from '../src/client/window-zoom-mount.js';
-import {
-  WindowZoomSetup,
-  type WindowZoomSetupHost,
-  type WindowZoomSetupStatus,
-} from '../src/client/window-zoom-setup.js';
+
+import { WindowZoomSetup, type WindowZoomSetupHost } from '../src/client/window-zoom-setup.js';
 
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;

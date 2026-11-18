@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactElement } from 'react';
+import type { KeyboardEvent, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { joinClass } from './class-name.js';
 import { on } from './surface.stylex.js';
@@ -42,7 +42,9 @@ const styles = stylex.create({
 
 export interface SegmentedControlOption<Value extends string> {
   readonly value: Value;
-  readonly label: string;
+  readonly label: ReactNode;
+  readonly id?: string;
+  readonly panelId?: string;
   readonly disabled?: boolean | undefined;
   readonly title?: string | undefined;
 }
@@ -94,9 +96,7 @@ export function SegmentedControl<Value extends string>({
     const target = walk(options, selected, event.key);
     if (target === undefined || target.value === value) return;
     onChange(target.value);
-    event.currentTarget.parentElement
-      ?.querySelector<HTMLElement>(`[id="${CSS.escape(`${id}-${target.value}`)}"]`)
-      ?.focus();
+    event.currentTarget.ownerDocument.getElementById(target.id ?? `${id}-${target.value}`)?.focus();
   };
   return (
     <div
@@ -109,11 +109,15 @@ export function SegmentedControl<Value extends string>({
         return (
           <button
             key={option.value}
-            id={`${id}-${option.value}`}
+            id={option.id ?? `${id}-${option.value}`}
             type="button"
             role="tab"
             aria-selected={active}
-            aria-controls={controlsPanel && active ? `${id}-${option.value}-panel` : undefined}
+            aria-controls={
+              controlsPanel && active
+                ? (option.panelId ?? `${id}-${option.value}-panel`)
+                : undefined
+            }
             tabIndex={active ? 0 : -1}
             disabled={disabled || option.disabled === true}
             title={option.title}

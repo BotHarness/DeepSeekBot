@@ -1,27 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: {
-    children?: ReactNode;
-    disabled?: boolean;
-    onClick?: () => void;
-    'data-plugin-install'?: string;
-    'data-plugin-restart-action'?: boolean;
-  }) =>
-    createElement(
-      'button',
-      {
-        disabled: props.disabled,
-        onClick: props.onClick,
-        'data-plugin-install': props['data-plugin-install'],
-        'data-plugin-restart-action': props['data-plugin-restart-action'] ? '' : undefined,
-      },
-      props.children,
-    ),
 }));
 
 import type { BridgeCall } from '../src/client/bridge.js';

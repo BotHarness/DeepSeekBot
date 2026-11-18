@@ -1,8 +1,9 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import { Combobox } from './combobox.js';
 import * as stylex from '@stylexjs/stylex';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type {
   ThreadReceptionInput,
   ThreadReceptionView,

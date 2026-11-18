@@ -1,5 +1,6 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import type { ReactElement } from 'react';
-import { IconCloseOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BotHarnessTranslate } from './locale.js';
 import { NameInput } from './name-input.js';
@@ -50,7 +51,7 @@ export function TagEditor({
                 disabled={disabled}
                 onClick={() => onTags(tags.filter((item) => item !== tag))}
               >
-                <IconCloseOutlineRegular size={12} />
+                <Icon name="x" size={12} />
               </button>
             </span>
           ))}

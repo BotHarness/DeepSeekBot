@@ -7,7 +7,6 @@ import { zhTranslate as t } from '../src/client/locale.js';
 import type { ConnectHealthStatus } from '../../core/src/devices/connect-health-contract.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: 'button',
 }));
 const mounted: Array<() => void> = [];
 afterEach(() => {

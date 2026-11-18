@@ -1,8 +1,9 @@
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { SettingsGroupPart } from './ds/settings-row.js';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { MethodRefused } from '@botharness/host-client/client';
 import {

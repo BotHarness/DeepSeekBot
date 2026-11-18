@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronDownOutlineRegular: () => null,
 }));
 
 import { openTooltip, hoverTooltip } from './primitive-mocks.js';

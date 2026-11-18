@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { MessageBotDialog } from './message-bot-dialog.js';
 import { BotCreateSourceModal } from './bot-create-source.js';
@@ -50,26 +52,6 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-import {
-  IconAgentPresetOutlineRegular,
-  IconCheckOutlineRegular,
-  IconChevronDownOutlineRegular,
-  IconChevronRightOutlineRegular,
-  IconCloseFillRegular,
-  IconEditOutlineRegular,
-  IconEllipsisOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconGlobeOutlineRegular,
-  IconNewChatOutlineRegular,
-  IconPinFillRegular,
-  IconPinOutlineRegular,
-  IconPlusOutlineRegular,
-  IconSearchOutlineRegular,
-  IconSettingsOutlineRegular,
-  IconShareOutlineRegular,
-  IconTrashOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 import { HoverCard } from './ds/hover-card.js';
 import { Toast } from './ds/toast.js';
 import { MenuItemButton, type MenuEntry } from './ds/menu.js';
@@ -430,7 +412,7 @@ export function BotPanelIcon({
                     openSettings();
                   }}
                 >
-                  <IconSettingsOutlineRegular size={14} />
+                  <Icon name="settings" size={14} />
                 </span>
               ) : null}
             </span>,
@@ -2243,7 +2225,7 @@ export function BotSidebar({
                 setSearchOpen(true);
               }}
             >
-              <IconSearchOutlineRegular size={searchOpen ? 11 : 14} />
+              <Icon name="search" size={searchOpen ? 11 : 14} />
             </button>
           </Tooltip>
           <input
@@ -2271,7 +2253,7 @@ export function BotSidebar({
                 setSearchOpen(false);
               }}
             >
-              <IconCloseFillRegular />
+              <Icon name="circle-x" />
             </button>
           ) : null}
         </div>
@@ -2292,7 +2274,7 @@ export function BotSidebar({
                   setSortMenuOpen((value) => !value);
                 }}
               >
-                <IconEllipsisOutlineRegular size={16} />
+                <Icon name="ellipsis" size={16} />
               </button>
             </Tooltip>
           }
@@ -2320,7 +2302,7 @@ export function BotSidebar({
                   setMenuOpen((value) => !value);
                 }}
               >
-                <IconPlusOutlineRegular size={16} />
+                <Icon name="plus" size={16} />
               </button>
             </Tooltip>
           }
@@ -2618,7 +2600,7 @@ export function BotSidebar({
                       aria-label={t('pin.sort')}
                       onClick={() => setPinSortMenuOpen((value) => !value)}
                     >
-                      <IconEllipsisOutlineRegular />
+                      <Icon name="ellipsis" />
                     </button>
                   }
                   items={pinnedSortMenuItems(t)}
@@ -3042,7 +3024,8 @@ export function BotSidebar({
                       }}
                     >
                       <span className="bh-section-name">{section.name}</span>
-                      <IconChevronDownOutlineRegular
+                      <Icon
+                        name="chevron-down"
                         size={14}
                         className={
                           collapsed
@@ -3080,7 +3063,7 @@ export function BotSidebar({
                                 setSectionCreateMenuId(undefined);
                               }}
                             >
-                              <IconEllipsisOutlineRegular />
+                              <Icon name="ellipsis" />
                             </button>
                           }
                           items={sectionMenuItems(t, {
@@ -3114,7 +3097,7 @@ export function BotSidebar({
                                 );
                               }}
                             >
-                              <IconPlusOutlineRegular />
+                              <Icon name="plus" />
                             </button>
                           }
                           items={sectionCreateMenuItems(t, gitReady(state.git), member)}
@@ -3726,13 +3709,13 @@ export function BulkChannelMenu({
     {
       id: allPinned ? 'unpin' : 'pin',
       label: t(allPinned ? 'bulk.unpin' : 'bulk.pin', { items: itemsLabel }),
-      icon: allPinned ? <IconPinFillRegular size={16} /> : <IconPinOutlineRegular size={16} />,
+      icon: allPinned ? <Icon name="pin" filled size={16} /> : <Icon name="pin" size={16} />,
     },
     { type: 'separator', id: 'bulk-pin-separator' },
     {
       id: 'move',
       label: t('bulk.move', { items: itemsLabel }),
-      icon: <IconFolderOpenOutlineRegular size={16} />,
+      icon: <Icon name="folder-open" size={16} />,
       submenu: [
         { id: NEW_SECTION_MOVE_TARGET, label: t('move.newSection') },
         ...sections.map((section) => ({ id: section.id, label: section.name })),
@@ -3806,7 +3789,7 @@ function BotModelMenu({
             }}
           >
             <span className="bh-move-checked-text">{label}</span>
-            <IconChevronRightOutlineRegular size={16} />
+            <Icon name="chevron-right" size={16} />
           </span>
         }
         onClose={() => {
@@ -3838,9 +3821,9 @@ function BotModelMenu({
               >
                 <span className="bh-move-checked">
                   <span className="bh-move-checked-text">{group.label}</span>
-                  {group.current ? <IconCheckOutlineRegular size={16} /> : null}
+                  {group.current ? <Icon name="check" size={16} /> : null}
                 </span>
-                <IconChevronRightOutlineRegular size={16} />
+                <Icon name="chevron-right" size={16} />
               </button>
             }
             onClose={() => setActive(undefined)}
@@ -3853,7 +3836,7 @@ function BotModelMenu({
               >
                 <span className="bh-move-checked">
                   <span className="bh-move-checked-text">{effort.label}</span>
-                  {effort.current ? <IconCheckOutlineRegular size={16} /> : null}
+                  {effort.current ? <Icon name="check" size={16} /> : null}
                 </span>
               </MenuItemButton>
             ))}
@@ -3982,7 +3965,7 @@ export function ChannelMoveMenu({
           {
             id: 'share',
             label: shareAction.label,
-            icon: <IconShareOutlineRegular size={16} />,
+            icon: <Icon name="share" size={16} />,
           },
         ]),
     ...(marketAction === undefined
@@ -3997,7 +3980,7 @@ export function ChannelMoveMenu({
     {
       id: pinned ? 'unpin' : 'pin',
       label: t(pinned ? 'pin.remove' : 'pin.add'),
-      icon: pinned ? <IconPinFillRegular size={16} /> : <IconPinOutlineRegular size={16} />,
+      icon: pinned ? <Icon name="pin" filled size={16} /> : <Icon name="pin" size={16} />,
     },
     ...(readAction === undefined
       ? []
@@ -4005,7 +3988,7 @@ export function ChannelMoveMenu({
           {
             id: 'mark-read',
             label: readAction.label,
-            icon: <IconCheckOutlineRegular size={16} />,
+            icon: <Icon name="check" size={16} />,
           },
         ]),
     ...(muteAction === undefined
@@ -4031,19 +4014,19 @@ export function ChannelMoveMenu({
                 setOpen={setModelOpen}
               />
             ),
-            icon: <IconAgentPresetOutlineRegular size={16} />,
+            icon: <Icon name="bot" size={16} />,
             disabled: modelAction.disabled || modelAction.groups.length === 0,
           },
         ]),
     ...(sectionManagement ? channelMoveMenuItems(t, sections, currentSectionId) : []).map(
       (entry) =>
-        'type' in entry ? entry : { ...entry, icon: <IconFolderOpenOutlineRegular size={16} /> },
+        'type' in entry ? entry : { ...entry, icon: <Icon name="folder-open" size={16} /> },
     ),
     { type: 'separator', id: 'channel-action-separator' },
     {
       id: 'rename',
       label: t('channel.rename'),
-      icon: <IconEditOutlineRegular size={16} />,
+      icon: <Icon name="pencil" size={16} />,
     },
     ...(nicknameAction === undefined ? [] : [channelNicknameItem(t)]),
     ...(dmActions === undefined
@@ -4061,7 +4044,7 @@ export function ChannelMoveMenu({
           {
             id: 'delete',
             label: deleteAction.label,
-            icon: <IconTrashOutlineRegular size={16} />,
+            icon: <Icon name="trash" size={16} />,
             danger: true,
           },
         ]),
@@ -4173,13 +4156,13 @@ function menuItems(
     {
       id: 'bot',
       label: t('roster.menu.createBot'),
-      icon: <IconAgentPresetOutlineRegular size={16} />,
+      icon: <Icon name="bot" size={16} />,
       disabled,
     },
     {
       id: 'channel',
       label: t('roster.menu.createChannel'),
-      icon: <IconNewChatOutlineRegular size={16} />,
+      icon: <Icon name="message-square-plus" size={16} />,
     },
     ...(people
       ? [
@@ -4202,7 +4185,7 @@ function menuItems(
     {
       id: 'section',
       label: t('roster.menu.createSection'),
-      icon: <IconFolderOpenOutlineRegular size={16} />,
+      icon: <Icon name="folder-open" size={16} />,
     },
     {
       id: 'marketplace',
@@ -4210,7 +4193,7 @@ function menuItems(
         ? t('roster.menu.marketplace')
         : `${t('roster.menu.marketplace')} · ${t('environment.create.localOnly')}`,
       disabled: !localImports,
-      icon: <IconGlobeOutlineRegular size={16} />,
+      icon: <Icon name="globe" size={16} />,
     },
   ];
 }

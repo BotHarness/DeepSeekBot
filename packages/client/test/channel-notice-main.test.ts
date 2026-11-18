@@ -1,27 +1,15 @@
 // @vitest-environment jsdom
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
 import { menuItem, openSubmenu } from './primitive-mocks.js';
-import {
-  act,
-  Fragment,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { act, Fragment, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type TestMenuItem = { id: string; label?: ReactNode; disabled?: boolean; submenu?: TestMenuItem[] };
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const flatten = (items: TestMenuItem[]): TestMenuItem[] =>
@@ -29,61 +17,32 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
 
-    IconCodeOutlineRegular: () => null,
-
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & {
-      variant?: string;
-      size?: string;
-    }) => createElement('button', props, children),
     IconAgentPresetOutline16: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconBranchOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
+
     IconChevronDownOutline14: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
+
     IconCloseFill14: stub,
     IconCopyOutline16: stub,
-    IconCopyOutlineRegular: stub,
+
     IconCloseOutline16: stub,
     IconEllipsisOutline16: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
+
     IconFolderOpenOutline16: stub,
     IconNewChatOutline16: stub,
     IconPanelLeftOutline16: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
+
     IconPlusOutline16: stub,
-    IconRefreshOutlineRegular: stub,
-    IconWrapLinesOutlineRegular: stub,
+
     IconSearchOutline16: stub,
     IconSendOutline16: stub,
-    IconSendOutlineRegular: stub,
+
     IconTrashOutline16: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
 
     MarkdownText: stub,
 
-    Switch: ({ label, checked, onChange }: { label: string; checked: boolean; onChange(): void }) =>
-      createElement('input', { type: 'checkbox', 'aria-label': label, checked, onChange }),
     StateDot: stub,
-    Tag: stub,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
@@ -96,7 +55,7 @@ import { zhTranslate } from '../src/client/locale.js';
 import { BotMain } from '../src/client/bot-main.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { toggleHiddenDmAction } from '../src/client/dm-actions.js';
-import { store, type BotSummary, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 
 const AT = '2026-10-09T00:00:00Z';
@@ -478,7 +437,9 @@ describe('Channel Notices in a Group', () => {
       '简约',
     );
     expect(container.textContent).not.toContain('Remember the launch date');
-    const memorySwitch = container.querySelector<HTMLInputElement>('input[aria-label="记忆更新"]')!;
+    const memorySwitch = container.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="记忆更新"]',
+    )!;
     await act(async () => memorySwitch.click());
     expect(container.querySelector<HTMLButtonElement>('[aria-label="记忆显示"]')?.disabled).toBe(
       true,

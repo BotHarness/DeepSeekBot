@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { type LanBotSnapshot } from '../../core/src/devices/bot-lan-control.js';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { LanBotSettings } from '../src/client/lan-bot-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { LanBotSnapshot } from '../../core/src/devices/bot-lan-control.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: 'button',
 }));
 
 it('shows full identity before approval and refuses a changed candidate without sending a mutation', async () => {

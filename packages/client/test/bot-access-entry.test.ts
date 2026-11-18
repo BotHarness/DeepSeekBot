@@ -1,40 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: ({
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
-    createElement('button', props),
-  Checkbox: () => null,
-
-  Switch: ({
-    label,
-    checked,
-    onChange,
-  }: {
-    label: string;
-    checked: boolean;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('input', {
-      type: 'checkbox',
-      'aria-label': label,
-      checked,
-      onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-    }),
 }));
 
 vi.mock('../src/client/team-state.js', () => ({
@@ -71,10 +42,8 @@ describe('Bot access entry', () => {
         };
       return new Promise((resolve) => pending.push(resolve));
     }) as unknown as BridgeCall;
-    const box = (key: string): HTMLInputElement =>
-      container.querySelector<HTMLInputElement>(
-        `[data-bot-access-row="${key}"] input[type="checkbox"]`,
-      )!;
+    const box = (key: string): HTMLButtonElement =>
+      container.querySelector<HTMLButtonElement>(`[data-bot-access-row="${key}"] [role="switch"]`)!;
     try {
       await act(async () =>
         root.render(
@@ -88,14 +57,14 @@ describe('Bot access entry', () => {
         ),
       );
       await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
-      expect(box('proactiveDms').checked).toBe(false);
+      expect(box('proactiveDms').getAttribute('aria-checked')).toBe('false');
       await act(async () => box('proactiveDms').click());
       await act(async () => box('speakerContext').click());
       expect(pending).toHaveLength(2);
       await act(async () => pending[1]!({ ok: true, value: { switches: switches(true, false) } }));
       await act(async () => pending[0]!({ ok: true, value: { switches: switches(true, true) } }));
-      expect(box('proactiveDms').checked).toBe(true);
-      expect(box('speakerContext').checked).toBe(false);
+      expect(box('proactiveDms').getAttribute('aria-checked')).toBe('true');
+      expect(box('speakerContext').getAttribute('aria-checked')).toBe('false');
 
       await act(async () => box('proactiveDms').click());
       await act(async () => box('speakerContext').click());
@@ -107,8 +76,8 @@ describe('Bot access entry', () => {
           error: { code: 'permission-required', message: 'permission-required' },
         }),
       );
-      expect(box('proactiveDms').checked).toBe(false);
-      expect(box('speakerContext').checked).toBe(false);
+      expect(box('proactiveDms').getAttribute('aria-checked')).toBe('false');
+      expect(box('speakerContext').getAttribute('aria-checked')).toBe('false');
       expect(container.textContent).toContain(zhTranslate('team.error.permissionRequired'));
     } finally {
       await act(async () => root.unmount());

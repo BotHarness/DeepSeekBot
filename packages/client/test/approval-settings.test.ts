@@ -1,72 +1,15 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type PropsWithChildren,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ApprovalMessagingSnapshot } from '../../core/src/messaging/approval-messaging.js';
+import { type FailureAlertSnapshot } from '../../core/src/messaging/failure-alerts.js';
+import { act, createElement } from 'react';
+import { fieldNamed, buttonNamed } from './primitive-mocks.js';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ApprovalMessagingSnapshot } from '../../core/src/messaging/approval-messaging.js';
-import type { FailureAlertSnapshot } from '../../core/src/messaging/failure-alerts.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Button: ({
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
-    createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Checkbox: ({
-    label,
-    checked,
-    disabled,
-    onChange,
-  }: {
-    label: string;
-    checked: boolean;
-    disabled?: boolean;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('input', {
-      type: 'checkbox',
-      'aria-label': label,
-      checked,
-      disabled,
-      onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-    }),
-  SegmentedTabs: ({
-    items,
-    value,
-    onChange,
-  }: {
-    items: { value: string; label: string; id: string; panelId: string }[];
-    value: string;
-    onChange(value: string): void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'tablist' },
-      items.map((item) =>
-        createElement(
-          'button',
-          {
-            key: item.value,
-            role: 'tab',
-            id: item.id,
-            'aria-controls': item.panelId,
-            'aria-selected': item.value === value,
-            onClick: () => onChange(item.value),
-          },
-          item.label,
-        ),
-      ),
-    ),
 }));
 vi.mock('../src/client/messaging-help.js', () => ({ MessagingHelp: () => null }));
 
@@ -195,7 +138,7 @@ it('offers retry only for the selected known-unsent failure and refuses unavaila
     [...host.querySelectorAll('button')].some((b) => b.textContent === t('approvalIm.retry')),
   ).toBe(false);
   const name = t('pairing.selectEntry', { name: `${t('failureAlerts.event')} unsent-failure` });
-  const choice = host.querySelector<HTMLInputElement>(`input[aria-label="${name}"]`);
+  const choice = fieldNamed(name, host);
   if (!choice) throw Error('Missing delivery choice');
   await act(async () => choice.click());
   await act(async () => button(t('approvalIm.retry')).click());
@@ -219,9 +162,7 @@ it('offers retry only for the selected known-unsent failure and refuses unavaila
 it('saves only the failure event setting using its current revision and preserves the route', async () => {
   const p = props();
   await act(async () => root.render(createElement(ApprovalSettings, p)));
-  const toggle = host.querySelector<HTMLInputElement>(
-    `input[aria-label="${t('failureAlerts.title')}"]`,
-  );
+  const toggle = fieldNamed(t('failureAlerts.title'), host);
   if (!toggle) throw Error('Missing event toggle');
   await act(async () => toggle.click());
   expect(p.failureAlerts.save).toHaveBeenCalledWith(false, 13);

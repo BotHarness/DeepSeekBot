@@ -1,8 +1,8 @@
+import { Icon } from './icon.js';
 import { PointerMenu, type MenuPoint } from './pointer-menu.js';
 import { useMountedResource } from '../mounted-resource.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { on } from './surface.stylex.js';
 import { accent, ink, style } from './tobs.stylex.js';
@@ -149,7 +149,7 @@ export function Select<Value extends string>({
       >
         <span {...stylex.props(styles.label)}>{current?.label}</span>
         <span {...stylex.props(styles.chevron)}>
-          <IconChevronDownOutlineRegular size={12} />
+          <Icon name="chevron-down" size={12} />
         </span>
       </button>
       {active && point ? (

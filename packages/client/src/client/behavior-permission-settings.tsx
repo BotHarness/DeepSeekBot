@@ -1,10 +1,9 @@
+import { Icon } from './ds/icon.js';
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import {
-  Checkbox,
-  IconChevronDownOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   resolveBehaviorPermissions,
@@ -261,7 +260,7 @@ function BehaviorPersonPreview({
           className={`bh-channel-sidebar-entry-chevron${open ? '' : ' bh-chevron-collapsed'}`}
           aria-hidden="true"
         >
-          <IconChevronDownOutlineRegular size={14} />
+          <Icon name="chevron-down" size={14} />
         </span>
         <span className="bh-channel-sidebar-entry-label" title={name}>
           {name}

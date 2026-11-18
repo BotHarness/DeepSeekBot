@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanion } from '../src/client/window-companion.js';
@@ -12,10 +12,6 @@ import { companionPosition } from './companion-position.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
 }));
 
 it('speaks one sentence beat at a time and follows the whole message while reading', async () => {

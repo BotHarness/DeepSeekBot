@@ -1,16 +1,13 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type PropsWithChildren } from 'react';
+import { type Root } from 'react-dom/client';
+import { type OnboardingSnapshot } from '../../core/src/onboarding/types.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props),
 }));
 vi.mock('../src/client/modal.js', () => ({
   Modal: ({
@@ -62,7 +59,6 @@ vi.mock('../src/client/connections-dialog.js', () => ({
     ),
 }));
 
-import type { OnboardingSnapshot } from '../../core/src/onboarding/types.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { Appearance } from '../src/client/appearance.js';
 import { BotIntro } from '../src/client/bot-intro.js';

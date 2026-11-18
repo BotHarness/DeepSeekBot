@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import {
   useMemo,
@@ -33,11 +34,7 @@ import {
   type PixelCustomPart,
 } from '../../../core/src/bots/avatar-appearance.js';
 import type { BotHarnessTranslate } from './locale.js';
-import {
-  IconEditOutlineRegular,
-  IconSaveOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 
 type Key = Parameters<BotHarnessTranslate>[0];
@@ -438,7 +435,7 @@ export function CustomPartEditor({
             variant="ghost"
             icon={
               value === 'pencil' ? (
-                <IconEditOutlineRegular />
+                <Icon name="pencil" />
               ) : (
                 <ChannelSidebarIcon name={TOOL_ICONS[value]} />
               )
@@ -750,7 +747,7 @@ export function CustomPartEditor({
         <Button
           size="sm"
           variant="primary"
-          icon={<IconSaveOutlineRegular />}
+          icon={<Icon name="save" />}
           type="button"
           data-part-save
           disabled={empty || busy}
@@ -761,7 +758,7 @@ export function CustomPartEditor({
         <Button
           size="sm"
           variant="ghost"
-          icon={<IconCloseOutlineRegular />}
+          icon={<Icon name="x" />}
           type="button"
           data-part-cancel
           disabled={busy}

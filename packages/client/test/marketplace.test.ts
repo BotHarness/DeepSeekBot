@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type MarketplaceDetail } from '../../core/src/marketplace/client.js';
+import { type MarketplaceEntry } from '../../core/src/marketplace/client.js';
+import { type MarketplaceQuery } from '../../core/src/marketplace/client.js';
+import { type MarketplaceTopic } from '../../core/src/marketplace/client.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,38 +15,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     unit: 'days',
     n: Math.floor((now - at) / 86_400_000),
   }),
-  IconRefreshOutlineRegular: () => null,
-  Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
-    createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  IconChevronDownOutlineRegular: () => null,
-  Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
 
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
-  SegmentedControl: (props: {
-    value: string;
-    disabled?: boolean;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'tablist' },
-      props.options.map((option) =>
-        createElement(
-          'button',
-          {
-            key: option.value,
-            role: 'tab',
-            'aria-selected': option.value === props.value,
-            disabled: props.disabled,
-            onClick: () => props.onChange(option.value),
-          },
-          option.label,
-        ),
-      ),
-    ),
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
@@ -50,13 +25,7 @@ vi.mock('../src/client/avatar.js', () => ({
     createElement('span', { 'data-avatar': props.name }),
 }));
 
-import type {
-  MarketplaceDetail,
-  MarketplaceEntry,
-  MarketplacePage,
-  MarketplaceQuery,
-  MarketplaceTopic,
-} from '../../core/src/marketplace/client.js';
+import type { MarketplacePage } from '../../core/src/marketplace/client.js';
 import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BridgeCallError } from '../src/client/bridge.js';

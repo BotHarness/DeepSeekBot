@@ -1,12 +1,10 @@
+import { Icon } from './ds/icon.js';
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import { useId, useState, type CSSProperties, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 import { color, space, radius, text } from './ds/tokens.stylex.js';
-import {
-  IconChevronRightOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import type { ProfileActivity, ProfileSessionUsage } from './bridge.js';
 import { botNameSource, paintBotName, paintBotScale } from './bot-primary-color.js';
@@ -149,7 +147,7 @@ export function DmComposerUsagePopover({
           }}
           aria-label={t('approval.cancel')}
         >
-          <IconCloseOutlineRegular size={16} />
+          <Icon name="x" size={16} />
         </button>
       </div>
       <section
@@ -302,7 +300,7 @@ export function DmComposerUsagePopover({
       <div className="bh-composer-usage-footer">
         <button type="button" className="bh-composer-usage-details" onClick={onDetails}>
           <span>{t('composerContext.details')}</span>
-          <IconChevronRightOutlineRegular size={16} />
+          <Icon name="chevron-right" size={16} />
         </button>
       </div>
     </div>,

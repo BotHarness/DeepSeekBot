@@ -1,19 +1,13 @@
 // @vitest-environment jsdom
+import { type ComputerSettings } from '../src/settings.js';
+import { type ComputerKey } from '../src/client/locale.js';
 import { act, createElement } from 'react';
-import type { ComputerSettings } from '../src/settings.js';
+
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
   Menu: ({ anchor }: { anchor: unknown }) => anchor,
-  Input: ({ className: _className, ...props }: { className?: string }) =>
-    createElement('input', props),
-  Switch: () => null,
-  Tag: ({ children }: { children: string }) => createElement('span', null, children),
-  Button: ({ children, ...props }: { children: string }) =>
-    createElement('button', props, children),
 }));
 
 import {
@@ -21,7 +15,7 @@ import {
   ComputerSettingsRows,
   createComputerSettingsFace,
 } from '../src/client/settings-rows.js';
-import { en, type ComputerKey, type ComputerTranslate } from '../src/client/locale.js';
+import { en, type ComputerTranslate } from '../src/client/locale.js';
 
 const t = ((key: ComputerKey, params?: Record<string, unknown>) => {
   let text = en[key];

@@ -1,6 +1,5 @@
+import { Icon } from './ds/icon.js';
 import { useMemo, useState, type ReactElement } from 'react';
-
-import { IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import type { ProfileActivity } from './bridge.js';
@@ -69,7 +68,7 @@ export function ProfileView({
   return (
     <div className="bh-profile-view">
       <button type="button" className="bh-profile-back" onClick={onClose}>
-        <IconChevronLeftOutlineRegular />
+        <Icon name="chevron-left" />
         <span>{t('profile.close')}</span>
       </button>
       <ProfileHeader

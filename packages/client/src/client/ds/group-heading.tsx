@@ -1,6 +1,6 @@
+import { Icon } from './icon.js';
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
@@ -82,7 +82,7 @@ export function GroupHeading({
       data-panel-chevron=""
       {...stylex.props(styles.chevron, expanded === false && styles.collapsed)}
     >
-      <IconChevronDownOutlineRegular size={14} />
+      <Icon name="chevron-down" size={14} />
     </span>
   );
   const content = (

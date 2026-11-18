@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { useMountedResource } from './mounted-resource.js';
@@ -9,7 +10,7 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModeSendKey } from '@botharness/host-client/shared/bot-mode-settings';
@@ -474,7 +475,7 @@ export function ShortcutHelpList({
                             xstyle={styles.locked}
                             onClick={(event) => event.preventDefault()}
                           >
-                            <IconEditOutlineRegular size={14} />
+                            <Icon name="pencil" size={14} />
                           </IconButton>
                         </Tooltip>
                       ) : recording === entry.id ? (
@@ -507,7 +508,7 @@ export function ShortcutHelpList({
                                 setRecording(entry.id);
                               }}
                             >
-                              <IconEditOutlineRegular size={14} />
+                              <Icon name="pencil" size={14} />
                             </IconButton>
                           </Tooltip>
                         </>

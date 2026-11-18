@@ -1,10 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode } from 'react';
-import {
-  FileTypeIcon,
-  IconDownloadOutlineRegular,
-  fileSizeText,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { Tooltip } from './ds/tooltip.js';
 import { channelAttachmentUrl } from './bridge.js';
 import {
@@ -345,7 +343,7 @@ function CompactAttachment({
               aria-label={`${t('fileAction.download')}: ${ref.name}`}
               onClick={(event) => event.stopPropagation()}
             >
-              <IconDownloadOutlineRegular size={16} />
+              <Icon name="download" size={16} />
             </a>
           ) : (
             <Button
@@ -356,7 +354,7 @@ function CompactAttachment({
               disabled={resource.loading}
               onClick={() => void resource.download(ref.name)}
             >
-              <IconDownloadOutlineRegular size={16} />
+              <Icon name="download" size={16} />
             </Button>
           )}
         </Tooltip>

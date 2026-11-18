@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -20,8 +20,6 @@ const source = vi.hoisted(() => {
 vi.mock('../src/client/remote-hosts.js', () => ({ remoteHosts: () => source }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: 'button',
-  Input: 'input',
 }));
 afterEach(() => {
   vi.unstubAllGlobals();

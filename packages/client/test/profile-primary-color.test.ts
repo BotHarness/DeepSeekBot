@@ -1,22 +1,17 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const stub = () => null;
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-
-    IconCloseOutlineRegular: stub,
-    IconEditOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconShareOutlineRegular: stub,
-
-    Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   };
 });
 
@@ -30,7 +25,7 @@ import {
 import { zhTranslate } from '../src/client/locale.js';
 import { PrimaryColorModal } from '../src/client/primary-color-editor.js';
 import { ProfileHeader } from '../src/client/profile-header.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+
 import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
 import { fallbackPrimaryColor } from '../../core/src/bots/primary-color.js';
 import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';

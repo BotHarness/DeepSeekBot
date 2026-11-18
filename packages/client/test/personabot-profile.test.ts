@@ -1,90 +1,37 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type PropsWithChildren } from 'react';
+import { type UsageFilter } from '../src/client/bridge.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type GroupProfileActivity } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconCodeOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: ({
-      children,
-      onClick,
-      disabled,
-      type = 'button',
-      form,
-      ...rest
-    }: PropsWithChildren<{
-      onClick?: () => void;
-      disabled?: boolean;
-      type?: 'button' | 'submit';
-      form?: string;
-      [key: `data-${string}`]: unknown;
-    }>) =>
-      createElement(
-        'button',
-        {
-          type,
-          form,
-          onClick,
-          disabled,
-          ...Object.fromEntries(Object.entries(rest).filter(([key]) => key.startsWith('data-'))),
-        },
-        children,
-      ),
 
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconCloseFillRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconCopyOutlineRegular: stub,
-    IconEditOutlineRegular: stub,
-    IconInfoOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPinFillRegular: stub,
-    IconPinOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconShareOutlineRegular: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: ({ className: _className, ...props }: InputHTMLAttributes<HTMLInputElement>) =>
-      createElement('input', props),
+
     MarkdownText: stub,
 
-    SegmentedControl: stub,
     StateDot: stub,
-    Switch: stub,
-    Tag,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
 import { menuItem } from './primitive-mocks.js';
-import type { UsageFilter } from '../src/client/bridge.js';
+
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotMain } from '../src/client/bot-main.js';
 import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-builtins.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
-import { zhTranslate, en, type BotHarnessTranslate } from '../src/client/locale.js';
+import { zhTranslate, en } from '../src/client/locale.js';
 import { createGroupProfileCards } from '../src/client/group-profile.js';
-import { loadGroupProfileActivity, type GroupProfileActivity } from '../src/client/bridge.js';
+import { loadGroupProfileActivity } from '../src/client/bridge.js';
 import { createProfileCardBuiltins } from '../src/client/profile-cards-builtins.js';
 import { createProfileCardRegistry } from '../src/client/profile-cards.js';
 import { ProfileView } from '../src/client/personabot-profile.js';

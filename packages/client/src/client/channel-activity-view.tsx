@@ -1,11 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-  IconChevronDownOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -91,7 +88,8 @@ export function ChannelActivityView({
             aria-label={t('channelActivity.toggle')}
             onClick={toggle}
           >
-            <IconChevronDownOutlineRegular
+            <Icon
+              name="chevron-down"
               size={16}
               className={collapsed ? 'bh-channel-activity-closed' : ''}
             />
@@ -119,7 +117,7 @@ export function ChannelActivityView({
             aria-busy={busy}
             onClick={() => refresh.current()}
           >
-            <IconRefreshOutlineRegular size={16} /> {t('channelActivity.refresh')}
+            <Icon name="refresh-cw" size={16} /> {t('channelActivity.refresh')}
           </Button>
         </header>
         {status === 'loading' ? <p role="status">{t('channelActivity.loading')}</p> : null}
@@ -162,7 +160,8 @@ export function ChannelActivityView({
                           })
                         }
                       >
-                        <IconChevronDownOutlineRegular
+                        <Icon
+                          name="chevron-down"
                           size={16}
                           className={open ? '' : 'bh-channel-activity-closed'}
                         />
@@ -175,7 +174,7 @@ export function ChannelActivityView({
                         aria-label={`${t('channelActivity.open')}: ${row.name}`}
                         onClick={() => void actions.openChannel(row.channelId)}
                       >
-                        <IconRightUpOutlineRegular size={16} />
+                        <Icon name="arrow-up-right" size={16} />
                       </Button>
                     </div>
                     {open ? (

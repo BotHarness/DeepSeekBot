@@ -1,3 +1,4 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { SegmentedControl } from './ds/segmented.js';
@@ -13,7 +14,7 @@ import {
   type Ref,
 } from 'react';
 
-import { MarkdownText, Tag, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { solveChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';

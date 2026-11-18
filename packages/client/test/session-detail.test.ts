@@ -1,36 +1,24 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { type SessionLiveSnapshot } from '../src/client/bridge.js';
+import { type SessionTranscript } from '../src/client/bridge.js';
+import { type SessionDetailPrefs } from '../src/client/session-detail.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
 
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
   FileTypeIcon: () => null,
   fileSizeText: (size: number) => `${size} B`,
-  IconCloseOutlineRegular: () => null,
-  IconMicrophoneOutlineRegular: () => null,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
-  IconSkillOutlineRegular: () => null,
-  IconStopFillRegular: () => null,
+
   MarkdownText: ({ text }: { text: string }) => createElement('div', null, text),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
-import type { SessionLiveSnapshot, SessionTranscript } from '../src/client/bridge.js';
+
 import { zhTranslate } from '../src/client/locale.js';
-import {
-  SessionDetail,
-  SessionDetailPrefsContext,
-  type SessionDetailPrefs,
-} from '../src/client/session-detail.js';
+import { SessionDetail, SessionDetailPrefsContext } from '../src/client/session-detail.js';
 import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
 import {
   cachedSessionDetail,

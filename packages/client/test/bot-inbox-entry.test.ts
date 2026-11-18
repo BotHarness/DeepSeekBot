@@ -1,29 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type BotAttentionItem } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    Button: ({
-      children,
-      onClick,
-      disabled,
-    }: PropsWithChildren<{ onClick?(): void; disabled?: boolean }>) =>
-      createElement('button', { onClick, disabled }, children),
-    Input: stub,
-    Tag,
 
     StateDot: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
@@ -35,7 +22,7 @@ import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-buil
 import { ChannelSidebarEntrySection } from '../src/client/channel-sidebar-view.js';
 import { setInboxLayout } from '../src/client/inbox-view-prefs.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type BotAttentionItem } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const item: BotAttentionItem = {
   id: 'source-1',

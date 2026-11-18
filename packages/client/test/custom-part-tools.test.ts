@@ -5,9 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  IconEditOutlineRegular: () => null,
-  IconSaveOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
 }));
 import { CustomPartEditor } from '../src/client/custom-part-editor.js';
 import {

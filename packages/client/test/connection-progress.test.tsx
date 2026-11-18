@@ -5,8 +5,6 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: Record<string, unknown>) => <button {...props} />,
-  IconRefreshOutlineRegular: () => null,
 }));
 
 import { ConnectionProgress } from '../src/client/connection-progress.js';

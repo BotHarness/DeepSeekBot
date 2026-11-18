@@ -1,4 +1,5 @@
-import { IconMicrophoneOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Icon } from './ds/icon.js';
+
 import {
   useMemo,
   useRef,
@@ -286,7 +287,7 @@ export function ComposerMicButton({
           else voice.start('toggle');
         }}
       >
-        <IconMicrophoneOutlineRegular size={16} />
+        <Icon name="mic" size={16} />
       </button>
     </Tooltip>
   );

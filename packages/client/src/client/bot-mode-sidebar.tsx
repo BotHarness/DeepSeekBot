@@ -1,11 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
-import {
-  IconPanelLeftOutlineRegular,
-  IconSettingsOutlineRegular,
-  isDarwinDesktop,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { isDarwinDesktop } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
 
@@ -173,7 +170,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
             aria-label={toggleLabel}
             onClick={props.toggleSidebar}
           >
-            <IconPanelLeftOutlineRegular size={wide ? 16 : 18} />
+            <Icon name="panel-left" size={wide ? 16 : 18} />
           </button>
         </Tooltip>
       </div>
@@ -242,7 +239,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
         />
         {row(
           t('panel.settings'),
-          <IconSettingsOutlineRegular size={wide ? 16 : 18} />,
+          <Icon name="settings" size={wide ? 16 : 18} />,
           () => {
             props.openBotSettings();
           },

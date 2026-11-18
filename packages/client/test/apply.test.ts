@@ -4,29 +4,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconCodeOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: stub,
 
-    IconAgentPresetOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEditOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
     IconTriangleRightFill14: stub,
-    IconTrashOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    Input: stub,
 
     MarkdownText: stub,
 
     StateDot: stub,
-    Tag: stub,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };

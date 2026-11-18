@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type ExternalSource } from '../../core/src/messaging/inbound.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { ExternalSource } from '../../core/src/messaging/inbound.js';
+
 import { ExternalSourceContent } from '../src/client/external-source-content.js';
 import { zhTranslate } from '../src/client/locale.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
 }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const host = document.createElement('div');

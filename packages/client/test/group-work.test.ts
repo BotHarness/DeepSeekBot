@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
+import { type ChannelSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  IconStopFillRegular: () => null,
-  Tag: ({ children }: { children: unknown }) => createElement('span', null, children as never),
-
-  IconEllipsisOutlineRegular: () => null,
 
   relativeTime: () => ({ unit: 'now', n: 0 }),
 }));
@@ -18,7 +16,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 import type { BridgeActions } from '../src/client/actions.js';
 import { GroupWorkEntry } from '../src/client/group-work-entry.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const AT = '2026-10-08T00:00:00Z';
 

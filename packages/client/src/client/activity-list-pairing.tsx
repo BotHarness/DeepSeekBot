@@ -1,5 +1,6 @@
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { useState, type ReactElement } from 'react';
 import type {
   PairingCapability,

@@ -1,15 +1,13 @@
 // @vitest-environment jsdom
+import { type BotSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { createElement: h } = await import('react');
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconNewChatOutlineRegular: () => null,
-    IconUserOutlineRegular: () => null,
   };
 });
 
@@ -21,7 +19,6 @@ import {
   MessageAuthorHoverCard,
   messageAuthorCardModel,
 } from '../src/client/message-author-card.js';
-import type { BotSummary } from '../src/client/store.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

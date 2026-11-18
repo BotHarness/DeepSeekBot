@@ -1,29 +1,15 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type MessagingSnapshot } from '../../core/src/messaging/outbound.js';
+import { type MessagingIdentityView } from '../../core/src/messaging/identity.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
-import type { MessagingIdentityView } from '../../core/src/messaging/identity.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  IconInfoOutlineRegular: () => null,
-
-  Button: ({
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Switch: () => null,
 }));
 vi.mock('../src/client/bot-settings-open.js', () => ({ openExternalBindingSettings: vi.fn() }));
 import type { BridgeActions } from '../src/client/actions.js';
@@ -31,7 +17,7 @@ import { openExternalBindingSettings } from '../src/client/bot-settings-open.js'
 import { zhTranslate } from '../src/client/locale.js';
 import { OnboardingAppBinding } from '../src/client/onboarding-binding.js';
 import { onboardingFor } from '../src/client/onboarding.js';
-import { store, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { chooseOption, openCombobox, comboboxOption } from './primitive-mocks.js';
 
 let container: HTMLDivElement;

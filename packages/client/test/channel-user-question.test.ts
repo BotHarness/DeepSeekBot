@@ -1,49 +1,23 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type ChannelMessage } from '../src/client/store.js';
 import { MessageHostContext, type MessageHost } from '../src/client/message-host.js';
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({
-    children,
-    variant: _variant,
-    size: _size,
-    icon,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: string;
-    size?: string;
-    icon?: ReactNode;
-    children: ReactNode;
-  }) => createElement('button', props, icon, children),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
-
-  Switch: () => null,
-  IconChevronDownOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconInfoOutlineRegular: () => null,
-  IconCheckOutlineRegular: () => null,
-
-  IconFolderOpenOutlineRegular: () => null,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { ChannelMessageBody, MessageDeveloperMode } from '../src/client/channel-message-body.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelMessage } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const channel = {
   id: 'dm-ada',

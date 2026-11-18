@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,49 +7,8 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { WorkspaceGrantsEntry } from '../src/client/workspace-grants-entry.js';
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
-  Switch: ({
-    checked,
-    disabled,
-    label,
-    onChange,
-  }: {
-    checked: boolean;
-    disabled?: boolean;
-    label: string;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('input', {
-      type: 'checkbox',
-      role: 'switch',
-      checked,
-      disabled,
-      'aria-label': label,
-      onChange: (event: { currentTarget: { checked: boolean } }) =>
-        onChange(event.currentTarget.checked),
-    }),
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-
-  IconChevronDownOutlineRegular: ({ size }: { size?: number }) =>
-    createElement('svg', { 'data-icon': 'sidebar-chevron', width: size, height: size }),
-  IconCloseOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  IconPlusOutlineRegular: () => null,
-  IconTrashOutlineRegular: () => null,
 }));
 
 describe('Workspace Grant sidebar', () => {
@@ -394,10 +353,12 @@ describe('Workspace Grant sidebar', () => {
       );
       expect(container.querySelector('.bh-workspace-grant-confirm')).toBeNull();
       expect(
-        container.querySelector<HTMLInputElement>(
-          `input[aria-label="${zhTranslate('grant.orchestratorWrite')}: Project"]`,
-        )!.checked,
-      ).toBe(true);
+        container
+          .querySelector<HTMLButtonElement>(
+            `button[aria-label="${zhTranslate('grant.orchestratorWrite')}: Project"]`,
+          )!
+          .getAttribute('aria-checked'),
+      ).toBe('true');
       expect(
         Array.from(container.querySelectorAll('button')).filter(
           (button) => !button.disabled && button.textContent === zhTranslate('grant.authorize'),
@@ -459,8 +420,8 @@ describe('Workspace Grant sidebar', () => {
       expect(row().getAttribute('aria-expanded')).toBe('false');
       const header = row().closest('.bh-card-line')!;
       const toggle = () =>
-        container.querySelector<HTMLInputElement>(
-          `input[aria-label="${zhTranslate('grant.orchestratorWrite')}: .dsh"]`,
+        container.querySelector<HTMLButtonElement>(
+          `button[aria-label="${zhTranslate('grant.orchestratorWrite')}: .dsh"]`,
         );
       expect(header.contains(toggle())).toBe(true);
       const deletes = Array.from(
@@ -477,14 +438,14 @@ describe('Workspace Grant sidebar', () => {
       expect(deletes[0]!.getAttribute('aria-label')).toBe(
         zhTranslate('grant.memoryDeleteUnavailable'),
       );
-      expect(toggle()!.checked).toBe(false);
+      expect(toggle()!.getAttribute('aria-checked')).toBe('false');
       await act(async () => toggle()!.click());
       expect(setWorkspaceGrantWrite).toHaveBeenCalledExactlyOnceWith(
         'composer-write',
         'composer-write-grant',
         true,
       );
-      expect(toggle()!.checked).toBe(true);
+      expect(toggle()!.getAttribute('aria-checked')).toBe('true');
       expect(row().getAttribute('aria-expanded')).toBe('false');
       expect(actions.setAssignmentAccess).not.toHaveBeenCalled();
     } finally {
@@ -553,10 +514,12 @@ describe('Workspace Grant sidebar', () => {
       expect(container.textContent).toContain('manual folder');
       expect(container.textContent).toContain('Host rejected permission change');
       expect(
-        container.querySelector<HTMLInputElement>(
-          `input[aria-label="${zhTranslate('grant.orchestratorWrite')}: manual folder"]`,
-        )!.checked,
-      ).toBe(false);
+        container
+          .querySelector<HTMLButtonElement>(
+            `button[aria-label="${zhTranslate('grant.orchestratorWrite')}: manual folder"]`,
+          )!
+          .getAttribute('aria-checked'),
+      ).toBe('false');
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -614,21 +577,21 @@ describe('Workspace Grant sidebar', () => {
       ).find((button) => button.querySelector('.bh-card-title')?.textContent === 'write project')!;
       act(() => expand.click());
       const toggle = () =>
-        container.querySelector('input[aria-label*="write project"]') as HTMLInputElement;
-      expect(toggle().checked).toBe(false);
+        container.querySelector('button[aria-label*="write project"]') as HTMLButtonElement;
+      expect(toggle().getAttribute('aria-checked')).toBe('false');
       await act(async () => toggle().click());
       expect(setWorkspaceGrantWrite).toHaveBeenCalledWith('write-test', 'write-grant', true);
-      expect(toggle().checked).toBe(false);
+      expect(toggle().getAttribute('aria-checked')).toBe('false');
       expect(toggle().disabled).toBe(true);
       await act(async () => {
         release();
         await pending;
       });
-      expect(toggle().checked).toBe(true);
+      expect(toggle().getAttribute('aria-checked')).toBe('true');
       expect(toggle().disabled).toBe(false);
       await act(async () => toggle().click());
       expect(setWorkspaceGrantWrite).toHaveBeenLastCalledWith('write-test', 'write-grant', false);
-      expect(toggle().checked).toBe(true);
+      expect(toggle().getAttribute('aria-checked')).toBe('true');
       expect(toggle().disabled).toBe(false);
       expect(container.textContent).toContain('Host rejected permission change');
     } finally {

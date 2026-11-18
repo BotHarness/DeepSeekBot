@@ -1,9 +1,10 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 import { modelEffortChoices } from '@botharness/host-client/model-catalog';
 

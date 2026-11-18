@@ -1,15 +1,10 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import {
-  IconEllipsisOutlineRegular,
-  IconNewChatOutlineRegular,
-  IconPlusOutlineRegular,
-  IconTrashOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
@@ -405,7 +400,7 @@ function MembersHeaderActionForChannel({
           aria-haspopup="dialog"
           onClick={() => setInviteOpen(true)}
         >
-          <IconPlusOutlineRegular size={16} />
+          <Icon name="plus" size={16} />
         </IconButton>
       </Tooltip>
       <Tooltip label={t('members.attention.title')} side="bottom" delayMs={500}>
@@ -588,7 +583,7 @@ function MembersEntryForChannel({
     {
       id: 'dm',
       label: t('members.openDm'),
-      icon: <IconNewChatOutlineRegular size={16} />,
+      icon: <Icon name="message-square-plus" size={16} />,
     },
     ...(canMention
       ? [
@@ -604,7 +599,7 @@ function MembersEntryForChannel({
     {
       id: 'remove',
       label: t('members.remove'),
-      icon: <IconTrashOutlineRegular size={16} />,
+      icon: <Icon name="trash" size={16} />,
     },
   ];
   return (
@@ -690,7 +685,7 @@ function MembersEntryForChannel({
                 setMenu({ slug, x: rect.left, y: rect.bottom });
               }}
             >
-              <IconEllipsisOutlineRegular size={16} />
+              <Icon name="ellipsis" size={16} />
             </button>
           </div>
         );

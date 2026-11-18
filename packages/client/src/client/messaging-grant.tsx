@@ -1,3 +1,4 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { ReceptionStatus } from './reception-status.js';
@@ -15,7 +16,7 @@ import type {
   GroupReceptionPolicy,
 } from '../../../core/src/messaging/group-policy.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { OutboxState } from '../../../core/src/messaging/outbound.js';
 import type { MessagingTarget } from '../../../core/src/messaging/provider.js';
 import type { BridgeActions } from './actions.js';

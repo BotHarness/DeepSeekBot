@@ -1,24 +1,18 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { type HostStorage } from '../src/client/remote-hosts.js';
+import { type RemoteHosts } from '../src/client/remote-hosts.js';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { HostClient } from '@botharness/host-client/client';
 import { FakeHost } from '../../host-client/test/fake-host.js';
 import { ConnectionHosts, HostDetails } from '../src/client/connection-hosts.js';
-import {
-  createRemoteHosts,
-  REMOTE_HOSTS_STORAGE_KEY,
-  type HostStorage,
-  type RemoteHosts,
-} from '../src/client/remote-hosts.js';
+import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-
-  Button: 'button',
-  IconChevronDownOutlineRegular: () => null,
-  Input: 'input',
 
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));

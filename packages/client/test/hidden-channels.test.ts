@@ -1,33 +1,11 @@
 // @vitest-environment jsdom
-import { createElement, type ReactNode } from 'react';
-import { renderOverlayMarkup } from './primitive-mocks.js';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, createElement, type ReactNode } from 'react';
+import { buttonNamed } from './primitive-mocks.js';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const captured = vi.hoisted(() => ({
-  buttons: [] as Array<Record<string, unknown>>,
-  inputs: [] as Array<Record<string, unknown>>,
-}));
-
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: Record<string, unknown>) => {
-    captured.buttons.push(props);
-    return createElement('button', null, props['children'] as ReactNode);
-  },
-  Input: (props: Record<string, unknown>) => {
-    captured.inputs.push(props);
-    return createElement('input', {
-      placeholder: props['placeholder'],
-      value: props['value'],
-      readOnly: true,
-    });
-  },
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
@@ -46,10 +24,27 @@ import { zhTranslate } from '../src/client/locale.js';
 const t = zhTranslate;
 const AT = '2026-09-21T00:00:00.000Z';
 
+let host: HTMLDivElement;
+let root: Root;
 beforeEach(() => {
-  captured.buttons.length = 0;
-  captured.inputs.length = 0;
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
 });
+afterEach(() => {
+  act(() => root.unmount());
+  host.remove();
+});
+function renderOverlayMarkup(node: ReactNode): string {
+  act(() => root.render(node));
+  return document.body.innerHTML;
+}
+function buttons(label: string): HTMLButtonElement[] {
+  return [...document.querySelectorAll<HTMLButtonElement>('button')].filter(
+    (button) => button.textContent === label,
+  );
+}
 
 it('debounces filtering without delaying the controlled input', () => {
   expect(HIDDEN_CHANNEL_SEARCH_DEBOUNCE_MS).toBe(180);
@@ -118,8 +113,8 @@ it('does not classify malformed persisted DMs as Bot DMs', () => {
     }),
   );
   expect(markup).not.toContain('Bot 私聊 · 只读');
-  expect(captured.buttons.filter((button) => button['children'] === '查看')).toHaveLength(0);
-  expect(captured.buttons.filter((button) => button['children'] === '恢复')).toHaveLength(3);
+  expect(buttons('查看')).toHaveLength(0);
+  expect(buttons('恢复')).toHaveLength(3);
 });
 
 describe('hidden Channels modal', () => {
@@ -170,9 +165,9 @@ describe('hidden Channels modal', () => {
     expect(markup).toContain('私聊 · 研究');
     expect(markup).toContain('Team');
     expect(markup).toContain('群聊');
-    expect(captured.inputs.at(-1)?.['placeholder']).toBe('搜索隐藏的频道');
-    const restore = captured.buttons.find((button) => button['children'] === '恢复');
-    (restore?.['onClick'] as (() => void) | undefined)?.();
+    expect(document.querySelector('input')?.getAttribute('placeholder')).toBe('搜索隐藏的频道');
+    const restore = buttonNamed('恢复');
+    act(() => restore.click());
     expect(onRestore).toHaveBeenCalledWith('group-team');
   });
 
@@ -200,8 +195,8 @@ describe('hidden Channels modal', () => {
       }),
     );
     expect(markup).toContain('Bot 私聊 · 只读');
-    const view = captured.buttons.find((button) => button['children'] === '查看');
-    (view?.['onClick'] as (() => void) | undefined)?.();
+    const view = buttonNamed('查看');
+    act(() => view.click());
     expect(onOpen).toHaveBeenCalledWith('dm-bots-ada-bea');
     expect(onRestore).not.toHaveBeenCalled();
   });
@@ -298,8 +293,8 @@ it('lists a deleted Bot DM as read-only history instead of a restorable Channel'
     }),
   );
   expect(markup).toContain('已删除的 Bot');
-  expect(captured.buttons.filter((button) => button['children'] === '恢复')).toHaveLength(0);
-  const view = captured.buttons.find((button) => button['children'] === '查看');
-  (view!['onClick'] as () => void)();
+  expect(buttons('恢复')).toHaveLength(0);
+  const view = buttonNamed('查看');
+  act(() => view.click());
   expect(onOpen).toHaveBeenCalledWith('dm-gone');
 });

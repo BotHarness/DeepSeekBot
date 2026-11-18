@@ -1,15 +1,12 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
 import { act, createElement, createRef } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronRightOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  Button: ({ children, ...props }: import('react').ButtonHTMLAttributes<HTMLButtonElement>) =>
-    createElement('button', props, children),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
@@ -21,7 +18,6 @@ import {
 import type { ProfileSessionUsage } from '../src/client/bridge.js';
 import { DmComposerUsagePopover } from '../src/client/dm-composer-usage.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { BotSummary } from '../src/client/store.js';
 
 const LIGHT = REFERENCE_SURFACES.light.background;
 const DARK = REFERENCE_SURFACES.dark.background;

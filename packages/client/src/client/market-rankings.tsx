@@ -1,7 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceEntry,
@@ -391,7 +391,7 @@ export function MarketplaceSections({
                 onClick={() => onSeeAll(section)}
               >
                 {t('market.section.seeAll')}
-                <IconChevronRightOutlineRegular size={12} />
+                <Icon name="chevron-right" size={12} />
               </button>
             </div>
             <div

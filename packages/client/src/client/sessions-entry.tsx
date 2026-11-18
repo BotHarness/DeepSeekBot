@@ -1,16 +1,12 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
 import { GroupWorkEntry } from './group-work-entry.js';
 import { useSessionTarget } from './session-target.js';
 import type { SessionsState } from './store.js';
 import { useCallback, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import {
-  Checkbox,
-  IconCordisPluginOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconStopFillRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { type MenuEntry } from './ds/menu.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
 import { Icon } from './ds/icon.js';
@@ -294,7 +290,7 @@ function SessionsPanel({
             {
               id: 'stop',
               label: t(status === 'stopping' ? 'sessions.status.stopping' : 'sessions.stop'),
-              icon: <IconStopFillRegular size={12} />,
+              icon: <Icon name="square" filled size={12} />,
               disabled: status === 'stopping',
             },
           ]
@@ -474,7 +470,7 @@ function SessionsPanel({
                   {showWorkspace ? (
                     <SessionMetaChip
                       kind="workspace"
-                      icon={<IconFolderOpenOutlineRegular size={12} />}
+                      icon={<Icon name="folder-open" size={12} />}
                       label={workspaceName(row.cwd) ?? t('sessions.workspace.unknown')}
                       title={row.cwd}
                     />
@@ -485,7 +481,7 @@ function SessionsPanel({
                   {row.engine === undefined ? null : (
                     <SessionMetaChip
                       kind="engine"
-                      icon={<IconCordisPluginOutlineRegular size={12} />}
+                      icon={<Icon name="puzzle" size={12} />}
                       label={engineName(row.engine.engine)}
                       title={sessionEngineText({ ...row.engine, state: 'idle' }, t)}
                     />

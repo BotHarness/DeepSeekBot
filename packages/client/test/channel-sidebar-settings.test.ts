@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronRightOutlineRegular: () => null,
 }));
 import { ChannelSidebarSettings } from '../src/client/channel-sidebar-settings.js';
 import { TerminologySettings } from './support/terminology-settings.js';

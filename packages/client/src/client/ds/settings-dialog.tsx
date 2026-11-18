@@ -1,3 +1,4 @@
+import { Icon } from './icon.js';
 import { PointerMenu, type MenuPoint } from './pointer-menu.js';
 import {
   Fragment,
@@ -9,10 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconChevronDownOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Dialog } from './dialog.js';
 import { NavGroupHeading, NavItem } from './nav-item.js';
@@ -311,7 +308,7 @@ function SectionPicker({
         {...stylex.props(styles.picker)}
       >
         {active?.label}
-        <IconChevronDownOutlineRegular size={12} />
+        <Icon name="chevron-down" size={12} />
       </button>
       {pickerPoint ? (
         <PointerMenu
@@ -460,7 +457,7 @@ export function SettingsDialog({
               onClick={close}
               {...stylex.props(styles.close)}
             >
-              <IconCloseOutlineRegular size={14} />
+              <Icon name="x" size={14} />
             </button>
           </span>
         </div>

@@ -1,24 +1,23 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSidebarEntry } from '../src/client/channel-sidebar.js';
+import { type ChannelSidebarTab } from '../src/client/channel-sidebar.js';
+import { type ChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
 }));
 import { ChannelSidebarTabs } from '../src/client/channel-sidebar-tabs.js';
 import {
   createChannelSidebarRegistry,
   resolveChannelSidebarTabs,
-  type ChannelSidebarEntry,
   type ChannelSidebarEntryProps,
-  type ChannelSidebarTab,
 } from '../src/client/channel-sidebar.js';
 import {
   channelSidebarScopeKey,
   createChannelSidebarPrefs,
-  type ChannelSidebarPrefs,
 } from '../src/client/channel-sidebar-prefs.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { mergeSavedOrder } from '../src/client/channel-sidebar-order.js';

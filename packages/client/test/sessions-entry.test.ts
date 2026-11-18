@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren, type ReactNode } from 'react';
+import { type NativeSessionCatalog } from '../src/client/sessions-entry.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -7,45 +8,15 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
 
   relativeTime: () => ({ unit: 'now', n: 0 }),
-  Button: ({
-    children,
-    type,
-    form,
-    onClick,
-  }: PropsWithChildren<{ type?: 'button' | 'submit'; form?: string; onClick?: () => void }>) =>
-    createElement('button', { type, form, onClick }, children),
-  Checkbox: ({
-    checked,
-    onChange,
-    label,
-  }: {
-    checked: boolean;
-    onChange: (value: boolean) => void;
-    label: string;
-  }) =>
-    createElement(
-      'label',
-      null,
-      createElement('input', {
-        type: 'checkbox',
-        checked,
-        onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-      }),
-      label,
-    ),
-  Input: () => null,
+
   StateDot: () => null,
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
-  IconChevronDownOutlineRegular: () => null,
-  IconStopFillRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 import { queryMenuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { SessionsEntry, type NativeSessionCatalog } from '../src/client/sessions-entry.js';
+import { SessionsEntry } from '../src/client/sessions-entry.js';
 import {
   sessionViewPreferenceSnapshot,
   updateSessionViewPreference,

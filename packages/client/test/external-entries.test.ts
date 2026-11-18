@@ -1,30 +1,14 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type MessagingSnapshot } from '../../core/src/messaging/outbound.js';
+import { type ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
-import type { ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: ({
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
-  Switch: ({ label, checked }: { label: string; checked: boolean }) =>
-    createElement('button', { role: 'switch', 'aria-label': label, 'aria-checked': checked }),
-  Checkbox: () => null,
-  IconInfoOutlineRegular: () => null,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';

@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Input } from './ds/input.js';
 import {
   Fragment,
@@ -9,11 +10,7 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconSearchOutlineRegular,
-  IconSettingsOutlineRegular,
-  ShortcutKeys,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { ShortcutKeys } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { PersonaBotAvatar, type PersonaBotActivityState } from './avatar.js';
 import type { MessageSearchHit, MessageSearchPage } from './bridge.js';
@@ -417,7 +414,7 @@ export function QuickSwitcher({
       <Input
         data-modal-autofocus=""
         className={stylex.props(styles.search).className ?? ''}
-        icon={<IconSearchOutlineRegular size={16} />}
+        icon={<Icon name="search" size={16} />}
         role="combobox"
         aria-label={t('quickSwitcher.placeholder')}
         aria-expanded="true"
@@ -508,7 +505,7 @@ export function QuickSwitcher({
                 ) : null}
                 <li {...rowProps} data-settings-section={result.section}>
                   <span {...stylex.props(styles.icon, styles.settingIcon)}>
-                    <IconSettingsOutlineRegular size={16} />
+                    <Icon name="settings" size={16} />
                   </span>
                   <span {...stylex.props(styles.copy)}>
                     <span {...stylex.props(styles.name)}>{result.title}</span>

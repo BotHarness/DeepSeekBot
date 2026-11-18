@@ -1,7 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconCopyOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import {
   ANNOTATION_TEXT_CHARS,
@@ -319,7 +319,7 @@ export function AnnotateDialog({
           <span {...stylex.props(styles.tools)}>
             <Button
               variant="ghost"
-              icon={<IconCopyOutlineRegular size={16} />}
+              icon={<Icon name="copy" size={16} />}
               disabled={!ready || busy}
               data-annotate-copy=""
               onClick={() => void copy()}

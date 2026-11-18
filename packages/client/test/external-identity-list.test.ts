@@ -1,35 +1,14 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type MessagingSnapshot } from '../../core/src/messaging/outbound.js';
+import { type MessagingIdentityInput } from '../../core/src/messaging/identity.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
-import type { MessagingIdentityInput } from '../../core/src/messaging/identity.js';
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  IconInfoOutlineRegular: () => null,
-
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Switch: ({
-    checked,
-    label,
-    disabled,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    disabled?: boolean;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': checked,
-      'aria-label': label,
-      disabled,
-      onClick: () => onChange(!checked),
-    }),
 }));
 import { ExternalIdentityList } from '../src/client/external-identity-list.js';
 import { zhTranslate } from '../src/client/locale.js';

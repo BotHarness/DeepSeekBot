@@ -2,22 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { createElement } = await import('react');
-  const toggle = (props: {
-    checked?: boolean;
-    disabled?: boolean;
-    label?: string;
-    onChange?: (next: boolean) => void;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': props.checked === true ? 'true' : 'false',
-      'aria-label': props.label,
-      disabled: props.disabled === true,
-      onClick: () => props.onChange?.(props.checked !== true),
-    });
-  return { Switch: toggle };
+  return {};
 });
 
 import * as client from '../src/client/index.js';

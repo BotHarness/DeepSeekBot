@@ -1,11 +1,5 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { BridgeActions } from '../src/client/actions.js';
@@ -13,7 +7,6 @@ import type { OutboxIntent } from '../../core/src/messaging/outbound.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
 }));
 import { ReachablePostDialog } from '../src/client/reachable-post.js';
 import { ReachablePostRequests } from '../src/client/reachable-post-requests.js';

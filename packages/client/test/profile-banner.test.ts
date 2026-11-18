@@ -1,22 +1,18 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const stub = () => null;
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconCloseOutlineRegular: stub,
-    IconEditOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconShareOutlineRegular: stub,
-
-    Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   };
 });
 
@@ -24,7 +20,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { parseBotSummary } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { ProfileHeader } from '../src/client/profile-header.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+
 import { buttonNamed, dialog } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';

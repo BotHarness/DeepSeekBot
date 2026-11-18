@@ -1,7 +1,8 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { QuestionNotifications } from './question-notifications.js';
 import { useState, type ReactElement } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { ReachablePostDialog } from './reachable-post.js';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 

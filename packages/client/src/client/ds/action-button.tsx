@@ -1,8 +1,9 @@
+import { Icon } from './icon.js';
 import { Button } from './button.js';
 import type { ActionSymbol } from '../../shared/action-presentation.js';
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
 import { layer, state, style } from './tobs.stylex.js';
 import { actionColor, color, space, text } from './tokens.stylex.js';
@@ -91,7 +92,7 @@ export function ActionButton({
     >
       <span aria-hidden="true" {...stylex.props(styles.icon, busy && styles.busy)}>
         {busy || icon === 'refresh' ? (
-          <IconRefreshOutlineRegular size={16} />
+          <Icon name="refresh-cw" size={16} />
         ) : (
           <ChannelSidebarIcon name={icon} />
         )}

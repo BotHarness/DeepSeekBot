@@ -1,5 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
-import { IconDownloadOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { PointerMenu } from './ds/pointer-menu.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -63,7 +64,7 @@ export function useAttachmentDownloadMenu(
               {
                 id: 'download',
                 label: t('fileAction.download'),
-                icon: <IconDownloadOutlineRegular size={16} />,
+                icon: <Icon name="download" size={16} />,
               },
             ]}
             onSelect={(id) => {
