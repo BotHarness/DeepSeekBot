@@ -153,6 +153,7 @@ const info: GroupInfo = {
   ],
   invites: [{ id: 'inv-1', slug: 'cy', bot: cy }],
   joins: [{ id: 'join-1', slug: 'di', bot: di }],
+  people: [],
   candidates: [bot('fay', 'Fay')],
 };
 
@@ -302,6 +303,32 @@ describe('Group profile', () => {
     for (const slug of ['ada', 'bo', 'cy', 'di'])
       expect(view.querySelector(`[data-testid="avatar-${slug}"]`)).not.toBeNull();
     expect(button(view, t.groupInvite)).not.toBeNull();
+  });
+
+  it('lists the people in the group by their group nickname, with their photo', async () => {
+    const people = [
+      { humanId: 'local-human', displayName: 'Professor' },
+      { humanId: 'mia', displayName: 'Mia Chen', avatarVersion: '0123456789abcdef' },
+    ];
+    const view = await render(
+      <GroupProfilePage
+        {...sheet({
+          info: {
+            ...info,
+            channel: { ...info.channel, memberCount: 4, humanMembers: people },
+            people,
+          },
+        })}
+      />,
+    );
+    expect(view.textContent).toContain(t.members(4));
+    const rows = [...view.querySelectorAll('[data-testid^="group-person-"]')].filter(
+      (node) => node.closest('[hidden]') === null,
+    );
+    expect(rows.map((node) => node.textContent)).toEqual([
+      expect.stringContaining('Professor'),
+      expect.stringContaining('Mia Chen'),
+    ]);
   });
 
   it('opens a member profile, cancels an invitation and decides a join request', async () => {

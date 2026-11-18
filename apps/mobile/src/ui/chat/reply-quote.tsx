@@ -11,24 +11,7 @@ import { Text } from '../primitives/text';
 import { useStrings, type t as strings } from '../strings';
 import { voiceTime } from './voice-bar';
 import { MessageIdentities } from './message-identities';
-
-export function replyAuthor(
-  preview: WireReplyPreview | null | undefined,
-  you: string,
-  botName: (id: string) => string,
-  member = you,
-): string {
-  switch (preview?.author.kind) {
-    case 'human':
-      return preview.author.humanId === undefined ? you : preview.author.displayName || member;
-    case 'bot':
-      return botName(preview.author.slug);
-    case 'bridged':
-      return preview.author.source;
-    default:
-      return '';
-  }
-}
+import { replyAuthor, ReplyPeopleContext } from './reply-author';
 
 export function replyText(preview: WireReplyPreview | null | undefined, t: typeof strings): string {
   if (!preview) return t.reply.unavailable;
@@ -87,7 +70,8 @@ export function ReplyQuote({
   const t = useStrings();
   const theme = useDesignTheme();
   const { bots } = useContext(MessageIdentities);
-  const author = replyAuthor(preview, t.reply.you, botName, t.reply.member);
+  const people = useContext(ReplyPeopleContext);
+  const author = replyAuthor(preview, t.reply.you, botName, t.reply.member, people);
   const text = replyText(preview, t);
   const background = onAccent ? theme.color.accent : theme.color.surface;
   const ink = onAccent ? theme.color.onAccent : authorInk(preview, bots, theme, background);

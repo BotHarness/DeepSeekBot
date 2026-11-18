@@ -23,6 +23,7 @@ import { usePopIn } from './pop-in';
 import { SpeakerAnchor } from './speaker-anchor';
 import { GroupMark } from './group-mark';
 import { humanInitial } from '../shell/human-avatar-initial';
+import { useMemberAvatar } from '../../host/human-profile';
 import { nativeChatRecycler } from '../primitives/chat-recycler';
 import {
   groupSpan,
@@ -35,6 +36,7 @@ import {
 export type Speaker = {
   name: string;
   bot: RosterBot | undefined;
+  human?: { humanId: string; avatarVersion?: string };
   group: string;
   first: boolean;
   last: boolean;
@@ -343,9 +345,14 @@ export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
     return (
       <BotAvatar bot={speaker.bot} size={SPEAKER_AVATAR} ring={false} corner={AVATAR_CORNER} />
     );
+  return <HumanSpeakerAvatar speaker={speaker} />;
+}
+
+function HumanSpeakerAvatar({ speaker }: { speaker: Speaker }) {
+  const avatar = useMemberAvatar(speaker.human?.humanId, speaker.human?.avatarVersion);
   return (
     <GroupMark
-      avatar={undefined}
+      avatar={avatar}
       initial={humanInitial(speaker.name) ?? ''}
       size={SPEAKER_AVATAR}
       corner={AVATAR_CORNER}

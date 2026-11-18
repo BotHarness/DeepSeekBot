@@ -170,6 +170,7 @@ import { DeliverySheet } from './delivery-sheet';
 import { GenuiInteraction, GenuiViewHost } from './genui-view-client';
 import type { GenuiDocumentReply } from '@botharness/host-client/genui/document';
 import { ChatOffline } from './chat-offline';
+import { ReplyPeopleContext } from './reply-author';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import { MessageSourcePage } from './message-source-page';
 import { useMessageSourceState } from './message-source-state';
@@ -202,6 +203,7 @@ import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
+import { HumanAvatarClientContext } from '../../host/human-profile';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
@@ -237,6 +239,7 @@ type ConversationPresentation = {
   onClose(): void;
   onNestedChange(open: boolean): void;
 };
+
 export function ConversationScreen({
   expectedHostId,
   place,
@@ -1210,21 +1213,28 @@ function ChatConversation({
     [roster, botName, groupOf],
   );
   const personFallback = person?.name;
+  const people = channel?.humanMembers;
   const personSpeaker = useCallback(
     (
       message: ConversationMessage,
       row: { key: string; first: boolean; last: boolean },
-    ): Speaker | undefined =>
-      message.person === undefined
-        ? undefined
-        : {
-            name: message.person.name || personFallback || t.reply.member,
-            bot: undefined,
-            group: groupOf.get(row.key) ?? row.key,
-            first: row.first,
-            last: row.last,
-          },
-    [personFallback, groupOf, t],
+    ): Speaker | undefined => {
+      if (message.person === undefined) return undefined;
+      const { humanId } = message.person;
+      const member = people?.find((entry) => entry.humanId === humanId);
+      return {
+        name: member?.displayName || message.person.name || personFallback || t.reply.member,
+        bot: undefined,
+        human: {
+          humanId,
+          ...(member?.avatarVersion === undefined ? {} : { avatarVersion: member.avatarVersion }),
+        },
+        group: groupOf.get(row.key) ?? row.key,
+        first: row.first,
+        last: row.last,
+      };
+    },
+    [people, personFallback, groupOf, t],
   );
 
   const nativeRows = nativeChatRecycler;
@@ -1935,646 +1945,660 @@ function ChatConversation({
     );
 
   return (
-    <ChatOffline value={!online}>
-      <GenuiViewHost value={client}>
-        <GenuiInteraction value={genuiInteraction}>
-          {paging === undefined && presentation === undefined ? (
-            <Stack.Screen
-              options={{
-                headerShown: !android,
-                headerTransparent: ios || floatingHeader,
-                headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
-                headerShadowVisible: false,
-                headerBackButtonDisplayMode: 'minimal',
-                ...(glassHeader
-                  ? {
-                      scrollEdgeEffects: {
-                        top: 'automatic' as const,
-                        bottom: 'hidden' as const,
-                      },
-                    }
-                  : {}),
-                ...(ios
-                  ? {
-                      title: '',
-                      headerTitle: glassHeader ? () => nativeHeaderRow : '',
-                      headerBackVisible: canGoBack && !headerIslands && !glassHeader,
-                      unstable_headerRightItems: () =>
-                        !canOpenProfile || glassHeader
-                          ? []
-                          : [
-                              {
-                                type: 'button' as const,
-                                label: t.openProfile,
-                                identifier: 'chat-profile-button',
-                                icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                                sharesBackground: placeCall !== undefined,
-                                onPress: openProfile,
-                              },
-                              ...(placeCall === undefined
-                                ? []
-                                : [
-                                    {
-                                      type: 'button' as const,
-                                      label: t.call.button,
-                                      identifier: 'chat-call-button',
-                                      icon: { type: 'sfSymbol' as const, name: 'phone' as const },
-                                      sharesBackground: true,
-                                      onPress: placeCall,
-                                    },
-                                  ]),
-                            ],
-                      unstable_headerLeftItems: () =>
-                        glassHeader
-                          ? []
-                          : [
-                              ...(headerIslands
-                                ? [{ type: 'custom' as const, element: back }]
-                                : canGoBack
+    <ReplyPeopleContext.Provider value={people}>
+      <ChatOffline value={!online}>
+        <GenuiViewHost value={client}>
+          <GenuiInteraction value={genuiInteraction}>
+            {paging === undefined && presentation === undefined ? (
+              <Stack.Screen
+                options={{
+                  headerShown: !android,
+                  headerTransparent: ios || floatingHeader,
+                  headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
+                  headerShadowVisible: false,
+                  headerBackButtonDisplayMode: 'minimal',
+                  ...(glassHeader
+                    ? {
+                        scrollEdgeEffects: {
+                          top: 'automatic' as const,
+                          bottom: 'hidden' as const,
+                        },
+                      }
+                    : {}),
+                  ...(ios
+                    ? {
+                        title: '',
+                        headerTitle: glassHeader ? () => nativeHeaderRow : '',
+                        headerBackVisible: canGoBack && !headerIslands && !glassHeader,
+                        unstable_headerRightItems: () =>
+                          !canOpenProfile || glassHeader
+                            ? []
+                            : [
+                                {
+                                  type: 'button' as const,
+                                  label: t.openProfile,
+                                  identifier: 'chat-profile-button',
+                                  icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                                  sharesBackground: placeCall !== undefined,
+                                  onPress: openProfile,
+                                },
+                                ...(placeCall === undefined
                                   ? []
                                   : [
                                       {
                                         type: 'button' as const,
-                                        label: t.back,
-                                        icon: {
-                                          type: 'sfSymbol' as const,
-                                          name: 'chevron.left' as const,
-                                        },
-                                        onPress: leave,
+                                        label: t.call.button,
+                                        identifier: 'chat-call-button',
+                                        icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                        sharesBackground: true,
+                                        onPress: placeCall,
                                       },
                                     ]),
-                              { type: 'spacing' as const, spacing: headerGap },
-                              { type: 'custom' as const, element: titleItem },
-                            ],
-                    }
-                  : android
-                    ? {
-                        headerLeft: () => null,
-                        headerRight: () => null,
-                        headerTitle: () => null,
+                              ],
+                        unstable_headerLeftItems: () =>
+                          glassHeader
+                            ? []
+                            : [
+                                ...(headerIslands
+                                  ? [{ type: 'custom' as const, element: back }]
+                                  : canGoBack
+                                    ? []
+                                    : [
+                                        {
+                                          type: 'button' as const,
+                                          label: t.back,
+                                          icon: {
+                                            type: 'sfSymbol' as const,
+                                            name: 'chevron.left' as const,
+                                          },
+                                          onPress: leave,
+                                        },
+                                      ]),
+                                { type: 'spacing' as const, spacing: headerGap },
+                                { type: 'custom' as const, element: titleItem },
+                              ],
                       }
-                    : {
-                        headerTitleAlign: 'left' as const,
-                        headerRight: () => headerActions,
-                        headerTitle: () => (
-                          <View
-                            key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
-                            style={{
-                              width:
-                                dm || botDm
-                                  ? undefined
-                                  : windowWidth - (theme.touch + space.x5) * 2,
-                              maxWidth:
-                                windowWidth -
-                                (theme.touch + space.x5) * 2 -
-                                (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
-                              marginHorizontal: space.x3,
-                            }}
-                          >
-                            {title}
-                          </View>
-                        ),
-                        ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
-                      }),
-              }}
-            />
-          ) : null}
-          <EndSheet
-            open={profileOpen}
-            active={focused}
-            enabled={canOpenProfile}
-            fullWidth
-            onOpening={prepareProfile}
-            onOpenChange={(open) => {
-              setProfileOpen(open);
-              setProfileOpening(false);
-            }}
-            panel={
-              android && profileVisited && saved != null ? (
-                <ProfileVisibility value={focused && (profileOpen || profileOpening)}>
-                  <RevealProfileConversation value={() => setProfileOpen(false)}>
-                    {dm ? (
-                      <BotProfileScreen
-                        {...profileHref.params}
-                        onClose={() => setProfileOpen(false)}
-                      />
-                    ) : botDm ? (
-                      <ChannelDetailsScreen
-                        hostId={saved.hostId}
-                        channelId={pairHref.params.channelId}
-                        onClose={() => setProfileOpen(false)}
-                      />
-                    ) : (
-                      <GroupProfileScreen
-                        {...groupHref.params}
-                        onClose={() => setProfileOpen(false)}
-                      />
-                    )}
-                  </RevealProfileConversation>
-                </ProfileVisibility>
-              ) : null
-            }
-          >
-            <ChatBackdrop style={{ flex: 1 }}>
-              <KeyboardChatFrame
-                onMount={screenRef}
-                backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
-                background={
-                  background.kind === 'image' ? (
-                    <ChatBackground choice={background} imageUri={backgroundImageUri} />
-                  ) : undefined
-                }
-                onComposerLayout={latest.onComposerLayout}
-                composer={
-                  <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
-                    {android ? noticeView : null}
-                    {missingGroup ? null : pickedTools !== undefined ? (
-                      android ? (
-                        <SelectionIslands
-                          {...(composable ? { reply: { onPress: pickedTools.onReply } } : {})}
-                          {...(activeChannel && saved
-                            ? { feedback: { onPress: pickedTools.onFeedback } }
-                            : {})}
-                        />
-                      ) : (
-                        <SelectionBar {...pickedTools} />
-                      )
-                    ) : botDm ? (
-                      <View style={{ padding: space.x5, alignItems: 'center' }}>
-                        <Text variant="meta" tone="muted">
-                          {t.activityRow.botDm}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Composer
-                        value={draft}
-                        disabled={
-                          conversation === undefined ||
-                          host.connection.status !== 'connected' ||
-                          !draftPersistence.loaded ||
-                          draftPersistence.failed
+                    : android
+                      ? {
+                          headerLeft: () => null,
+                          headerRight: () => null,
+                          headerTitle: () => null,
                         }
-                        files={files}
-                        canAttach={files.length < MAX_PICKED}
-                        dictation={dictation.state.status}
-                        canDictate={conversation !== undefined}
-                        onChange={edit}
-                        selection={selection}
-                        onSelection={(next) => {
-                          setSelection(undefined);
-                          setCaret(next);
-                        }}
-                        inside={android ? replyBar : undefined}
-                        above={
-                          <>
-                            {android ? null : replyBar}
-                            {draftPersistence.failed ? (
-                              <DraftSaveNotice
-                                busy={retryingDraft}
-                                onRetry={() => void retryDraft()}
-                              />
-                            ) : null}
-                            {skillChoices.length > 0 ? (
-                              <SkillSuggestions options={skillChoices} onChoose={chooseSkill} />
-                            ) : candidates.length > 0 ? (
-                              <MentionSuggestions candidates={candidates} onChoose={mention} />
-                            ) : clipboard.offered ? (
-                              <ClipboardImageOffer
-                                onUnreadable={clipboard.used}
-                                onPaste={(data) => {
-                                  clipboard.used();
-                                  setAttachError(false);
-                                  setFiles((current) =>
-                                    [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
-                                  );
-                                }}
-                              />
-                            ) : null}
-                          </>
-                        }
-                        onSend={send}
-                        onPick={pick}
-                        onRemove={(id) =>
-                          setFiles((current) => current.filter((file) => file.id !== id))
-                        }
-                        onDictate={() => {
-                          setAttachError(false);
-                          dictation.start({ text: draft, ...(typing ? { caret } : {}) });
-                        }}
-                        onStopDictation={dictation.stop}
-                        onCancelDictation={dictation.cancel}
-                        inputRef={composerInput}
-                        onFocusChange={setTyping}
-                      />
-                    )}
-                  </ComposerPillContext.Provider>
-                }
-              >
-                {android ? null : noticeView}
-                {missingGroup ? (
-                  <View
-                    style={{
-                      flex: 1,
-                      paddingTop: headerOverlap + headerPadding,
-                      paddingBottom: insets.bottom,
-                    }}
-                  >
-                    <GroupUnavailable onBack={backToChats} />
-                  </View>
-                ) : (
-                  <SwipeOpen
-                    testID="chat-profile-swipe"
-                    enabled={!android && paging === undefined && canSwipeProfile}
-                    travel={profileTravel}
-                    onOpen={swipeProfile}
-                  >
-                    <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
-                      <MarkdownViewportContext.Provider value={markdownViewport}>
-                        <SpeakerStageContext.Provider value={dm ? undefined : stage}>
-                          <SendFlightsContext.Provider value={flights}>
-                            <ChatList
-                              key={
-                                openedAtLatest || (openAtLatest && rows.length > 0)
-                                  ? 'rows'
-                                  : 'list'
-                              }
-                              inverted={android}
-                              {...(android
-                                ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
-                                : openAtLatest
-                                  ? {
-                                      initialScrollIndex: Math.max(0, rows.length - 1),
-                                      initialNumToRender: 4,
-                                    }
-                                  : {})}
-                              ref={attachList}
-                              renderScrollComponent={latest.renderScrollComponent}
-                              removeClippedSubviews={false}
-                              CellRendererComponentStyle={cellLayer}
+                      : {
+                          headerTitleAlign: 'left' as const,
+                          headerRight: () => headerActions,
+                          headerTitle: () => (
+                            <View
+                              key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                               style={{
-                                flex: 1,
-                                opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                                width:
+                                  dm || botDm
+                                    ? undefined
+                                    : windowWidth - (theme.touch + space.x5) * 2,
+                                maxWidth:
+                                  windowWidth -
+                                  (theme.touch + space.x5) * 2 -
+                                  (placeCall === undefined || !canOpenProfile ? 0 : theme.touch),
+                                marginHorizontal: space.x3,
                               }}
-                              pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
-                              accessibilityElementsHidden={!latest.ready && rows.length > 0}
-                              importantForAccessibility={
-                                !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
-                              }
-                              contentInsetAdjustmentBehavior="automatic"
-                              contentInset={{ bottom: -listSafeArea }}
-                              automaticallyAdjustsScrollIndicatorInsets
-                              scrollToOverflowEnabled
-                              contentContainerStyle={{
-                                minHeight: Math.max(
-                                  0,
-                                  viewportHeight -
-                                    headerOverlap +
-                                    (Platform.OS === 'android' ? edge.hairline : 0),
-                                ),
-                                justifyContent: android ? 'flex-start' : 'flex-end',
-                                paddingTop: android
-                                  ? composerHeight + edgeFade.bottom
-                                  : space.x3 + listTop,
-                                paddingBottom: android
-                                  ? space.x3 + headerPadding
-                                  : nativeSpacer
-                                    ? 0
-                                    : composerHeight + edgeFade.bottom,
-                              }}
-                              data={rows}
-                              keyExtractor={(row) => row.key}
-                              {...((nativeRows
-                                ? {
-                                    nativeRow,
-                                    nativeStyle,
-                                    nativeSwipe,
-                                    onNativeRow,
-                                    speakerRow,
-                                    speakerAvatar,
-                                  }
-                                : {}) as object)}
-                              renderItem={renderItem}
-                              onViewableItemsChanged={onFocusViewabilityChange}
-                              onScrollToIndexFailed={(info) => {
-                                const attempt = focusAttempt.current;
-                                if (
-                                  focusCancelled.current ||
-                                  attempt === undefined ||
-                                  attempt.index !== info.index ||
-                                  attempt.message !== focusIntent.current.message ||
-                                  attempt.request !== focusIntent.current.request
-                                )
-                                  return;
-                                focusNeedsLayout.current = true;
-                                jumped.current = undefined;
-                                focusAttempt.current = undefined;
-                                const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
-                                if (focusEstimate.current === estimate) return;
-                                focusEstimate.current = estimate;
-                                list.current?.scrollToOffset({
-                                  offset: info.averageItemLength * info.index,
-                                  animated: false,
-                                });
-                              }}
-                              {...(latest.ready && latest.browsed && !snapshot.olderError
-                                ? {
-                                    [android ? 'onEndReached' : 'onStartReached']: () =>
-                                      void conversation?.loadOlder(),
-                                  }
-                                : {})}
-                              onStartReachedThreshold={0.5}
-                              onEndReachedThreshold={0.5}
-                              {...latest.listProps}
-                              maintainVisibleContentPosition={
-                                positioningFocus
-                                  ? undefined
-                                  : latest.listProps.maintainVisibleContentPosition
-                              }
-                              onScrollBeginDrag={(event: ScrollEvent) => {
-                                focusCancelled.current = true;
-                                focusAttempt.current = undefined;
-                                if (android)
-                                  setAnchoredFocus({ message: focus, request: focusRequest });
-                                pull.onScrollBeginDrag(event);
-                                latest.listProps.onScrollBeginDrag();
-                              }}
-                              onScroll={(event: ScrollEvent) => {
-                                latest.listProps.onScroll(event);
-                                pull.onScroll(event);
-                              }}
-                              onScrollEndDrag={(event: ScrollEvent) => {
-                                latest.listProps.onScrollEndDrag(event);
-                                pull.onScrollEndDrag(event);
-                              }}
-                              onContentSizeChange={(width: number, height: number) => {
-                                latest.listProps.onContentSizeChange(width, height);
-                                focusNeedsLayout.current = false;
-                                if (positioningFocus && !focusCancelled.current) {
-                                  focusHasLiveLayout.current =
-                                    snapshot.status === 'live' && !snapshot.fromCache;
-                                  jumped.current = undefined;
-                                }
-                                jump();
-                              }}
-                              scrollEventThrottle={
-                                (!dm && SpeakerAnchor === undefined) ||
-                                (Platform.OS === 'android' && !latest.ready)
-                                  ? 16
-                                  : 32
-                              }
-                              {...{
-                                [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
-                                  LatestAnchor === undefined ? undefined : nativeSpacer ? (
-                                    <ComposerSpacer pill={latest.pill} extra={edgeFade.bottom}>
-                                      <LatestAnchor
-                                        following={latest.ready && !latest.away}
-                                        animated={!latest.reducedMotion}
-                                        style={{ height: 0 }}
-                                      />
-                                    </ComposerSpacer>
-                                  ) : (
-                                    <LatestAnchor
-                                      following={latest.ready && !latest.away}
-                                      animated={!latest.reducedMotion}
-                                      style={{ height: 0 }}
-                                    />
-                                  ),
-                              }}
-                              keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                              keyboardShouldPersistTaps="never"
-                              {...{
-                                [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
-                                  snapshot.loadingOlder || snapshot.olderError ? (
-                                    <View style={{ padding: space.x4, gap: space.x2 }}>
-                                      <Text
-                                        variant="meta"
-                                        tone="muted"
-                                        accessibilityLiveRegion="polite"
-                                      >
-                                        {snapshot.loadingOlder ? t.olderLoading : t.olderLoadFailed}
-                                      </Text>
-                                      <Button
-                                        label={t.retry}
-                                        variant="text"
-                                        busy={snapshot.loadingOlder}
-                                        testID="history-retry"
-                                        onPress={() => void conversation?.loadOlder()}
-                                      />
-                                    </View>
-                                  ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
-                                    <Text
-                                      variant="meta"
-                                      tone="muted"
-                                      style={{ textAlign: 'center', padding: space.x5 }}
-                                    >
-                                      {dm || person !== undefined
-                                        ? t.beginning
-                                        : t.beginningChannel}
-                                    </Text>
-                                  ) : undefined,
-                              }}
-                            />
-                          </SendFlightsContext.Provider>
-                        </SpeakerStageContext.Provider>
-                      </MarkdownViewportContext.Provider>
-                      <Animated.View
-                        ref={viewport}
-                        nativeID={SPEAKER_VIEWPORT}
-                        collapsable={false}
-                        pointerEvents="box-none"
-                        style={[
-                          { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-                          latest.overlayStyle,
-                        ]}
-                        onLayout={() => {
-                          viewportLayout.value += 1;
-                        }}
-                      >
-                        {!missing &&
-                        ((!latest.ready && rows.length > 0) ||
-                          (snapshot.status === 'opening' && rows.length === 0)) ? (
-                          <View
-                            pointerEvents={latest.canRetry ? 'auto' : 'none'}
-                            style={{
-                              position: 'absolute',
-                              top: listTop,
-                              bottom: composerHeight + edgeFade.bottom,
-                              left: 0,
-                              right: 0,
-                              justifyContent: 'flex-end',
-                            }}
-                          >
-                            <ListSkeleton layout="messages" />
-                            {latest.canRetry ? (
-                              <Button
-                                label={t.retry}
-                                variant="text"
-                                testID="history-loading-retry"
-                                onPress={latest.retry}
-                              />
-                            ) : null}
-                          </View>
-                        ) : null}
-                        {topFade > 0 ? (
-                          <EdgeFade
-                            edge="top"
-                            height={topFade + (glassHeader ? space.x6 : edgeFade.reach)}
-                            cover={glassHeader ? 0 : topFade}
-                            color={fadeColor}
-                          />
-                        ) : null}
-                        {nativeSpacer ? (
-                          <ComposerFollower pill={latest.pill} measured={composerHeight}>
-                            {bottomFade}
-                          </ComposerFollower>
-                        ) : (
-                          bottomFade
-                        )}
-                        {(composable || stackRoot) && Platform.OS === 'ios' ? (
-                          <PullToComposeHint
-                            progress={pull.progress}
-                            ready={pull.ready}
-                            bottom={composerHeight + space.x3}
-                            leaves={stackRoot}
-                          />
-                        ) : null}
-                        {latest.away ? (
-                          <View
-                            pointerEvents="box-none"
-                            style={{
-                              position: 'absolute',
-                              bottom: composerHeight + space.x2,
-                              left: 0,
-                              right: space.x4,
-                              alignItems: 'flex-end',
-                            }}
-                          >
-                            <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-                          </View>
-                        ) : null}
-                      </Animated.View>
-                    </Animated.View>
-                  </SwipeOpen>
-                )}
-              </KeyboardChatFrame>
-            </ChatBackdrop>
-            {android ? (
-              <ConversationTopBar
-                title={
-                  dm
-                    ? (bot?.displayName ?? slug ?? '')
-                    : botDm
-                      ? botDmName
-                      : (channel?.name ?? channelName ?? t.groupInfo)
-                }
-                bot={dm ? bot : undefined}
-                avatar={person === undefined ? channel?.avatar : undefined}
-                initial={person === undefined ? undefined : (humanInitial(person.name) ?? '#')}
-                subtitle={headerStatus.label}
-                activeBots={headerStatus.bots}
-                connectionLabel={connectionLabel}
-                onBack={leave}
-                onProfile={canOpenProfile ? openProfile : undefined}
-                onCall={canOpenProfile ? placeCall : undefined}
-                onHeight={setMeasuredHeaderHeight}
-                selection={pickedTools}
+                            >
+                              {title}
+                            </View>
+                          ),
+                          ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
+                        }),
+                }}
               />
             ) : null}
-          </EndSheet>
-          {!android && paging === undefined ? (
-            <ProfileSwipePreview
-              travel={profileTravel}
-              name={
-                dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')
-              }
-              bot={dm ? bot : undefined}
-              groupAvatar={channel?.avatar}
-            />
-          ) : null}
-          {imageSelection?.scope === selectionScope ? (
-            <SelectionScreenshot
-              messages={imageSelection.messages}
-              renderCard={(message) => {
-                const author = message.bot ?? slug;
-                return client && author && message.card ? (
-                  <RequestCard
-                    client={client}
-                    inbox={inbox}
-                    message={message}
-                    card={message.card}
-                    botSlug={author}
-                    botName={botName(author)}
-                    resolution={resolutions.get(message.id)}
-                    focused={false}
-                    replyInChat={dm}
-                    answeredHere={answered.has(message.id)}
-                    group={{ first: true, last: true }}
-                  />
-                ) : (
-                  <Text>{message.body}</Text>
-                );
+            <EndSheet
+              open={profileOpen}
+              active={focused}
+              enabled={canOpenProfile}
+              fullWidth
+              onOpening={prepareProfile}
+              onOpenChange={(open) => {
+                setProfileOpen(open);
+                setProfileOpening(false);
               }}
-              botName={botName}
-              onClose={() => setImageSelection(undefined)}
-            />
-          ) : null}
-          {viewing === undefined ? null : (
-            <ImageViewer
-              attachment={viewing}
-              onClose={() => setViewing(undefined)}
-              onShare={share}
-            />
-          )}
-          <DeliverySheet
-            message={
-              deliveryFor === undefined
-                ? undefined
-                : snapshot.messages.find((message) => message.id === deliveryFor)
-            }
-            botName={botName}
-            onClose={() => setDeliveryFor(undefined)}
-            onOpenInbox={openInbox}
-          />
-          <MessageActions
-            target={actionsFor}
-            readOnly={botDm || !online}
-            onClose={() => setActionsFor(undefined)}
-            onReact={(message, emoji, active) => react(message.id, emoji, active)}
-            onCopy={copyMessage}
-            onSelectCopy={
-              Platform.OS === 'android' || Platform.OS === 'ios' ? selectSource : undefined
-            }
-            onShareText={shareText}
-            onShareAttachment={share}
-          />
-          {sourceMessage === undefined ? null : (
-            <MessageSourcePage
-              key={selectionScope + ':' + sourceMessage.id}
-              message={sourceMessage}
-              onClose={closeSource}
-              onCopy={copyMessage}
-            />
-          )}
-          {paging === undefined ? null : (
-            <NativePageHeader
-              title={ios && glassHeader ? title : titleItem}
-              onBack={leave}
-              backID="chat-page-back"
-              action={
-                canOpenProfile
-                  ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
-                  : undefined
+              panel={
+                android && profileVisited && saved != null ? (
+                  <ProfileVisibility value={focused && (profileOpen || profileOpening)}>
+                    <RevealProfileConversation value={() => setProfileOpen(false)}>
+                      {dm ? (
+                        <BotProfileScreen
+                          {...profileHref.params}
+                          onClose={() => setProfileOpen(false)}
+                        />
+                      ) : botDm ? (
+                        <ChannelDetailsScreen
+                          hostId={saved.hostId}
+                          channelId={pairHref.params.channelId}
+                          onClose={() => setProfileOpen(false)}
+                        />
+                      ) : (
+                        <GroupProfileScreen
+                          {...groupHref.params}
+                          onClose={() => setProfileOpen(false)}
+                        />
+                      )}
+                    </RevealProfileConversation>
+                  </ProfileVisibility>
+                ) : null
               }
-              call={
-                placeCall === undefined
+            >
+              <ChatBackdrop style={{ flex: 1 }}>
+                <KeyboardChatFrame
+                  onMount={screenRef}
+                  backgroundColor={
+                    background.kind === 'color' ? background.color : theme.color.base
+                  }
+                  background={
+                    background.kind === 'image' ? (
+                      <ChatBackground choice={background} imageUri={backgroundImageUri} />
+                    ) : undefined
+                  }
+                  onComposerLayout={latest.onComposerLayout}
+                  composer={
+                    <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
+                      {android ? noticeView : null}
+                      {missingGroup ? null : pickedTools !== undefined ? (
+                        android ? (
+                          <SelectionIslands
+                            {...(composable ? { reply: { onPress: pickedTools.onReply } } : {})}
+                            {...(activeChannel && saved
+                              ? { feedback: { onPress: pickedTools.onFeedback } }
+                              : {})}
+                          />
+                        ) : (
+                          <SelectionBar {...pickedTools} />
+                        )
+                      ) : botDm ? (
+                        <View style={{ padding: space.x5, alignItems: 'center' }}>
+                          <Text variant="meta" tone="muted">
+                            {t.activityRow.botDm}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Composer
+                          value={draft}
+                          disabled={
+                            conversation === undefined ||
+                            host.connection.status !== 'connected' ||
+                            !draftPersistence.loaded ||
+                            draftPersistence.failed
+                          }
+                          files={files}
+                          canAttach={files.length < MAX_PICKED}
+                          dictation={dictation.state.status}
+                          canDictate={conversation !== undefined}
+                          onChange={edit}
+                          selection={selection}
+                          onSelection={(next) => {
+                            setSelection(undefined);
+                            setCaret(next);
+                          }}
+                          inside={android ? replyBar : undefined}
+                          above={
+                            <>
+                              {android ? null : replyBar}
+                              {draftPersistence.failed ? (
+                                <DraftSaveNotice
+                                  busy={retryingDraft}
+                                  onRetry={() => void retryDraft()}
+                                />
+                              ) : null}
+                              {skillChoices.length > 0 ? (
+                                <SkillSuggestions options={skillChoices} onChoose={chooseSkill} />
+                              ) : candidates.length > 0 ? (
+                                <MentionSuggestions candidates={candidates} onChoose={mention} />
+                              ) : clipboard.offered ? (
+                                <ClipboardImageOffer
+                                  onUnreadable={clipboard.used}
+                                  onPaste={(data) => {
+                                    clipboard.used();
+                                    setAttachError(false);
+                                    setFiles((current) =>
+                                      [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                                    );
+                                  }}
+                                />
+                              ) : null}
+                            </>
+                          }
+                          onSend={send}
+                          onPick={pick}
+                          onRemove={(id) =>
+                            setFiles((current) => current.filter((file) => file.id !== id))
+                          }
+                          onDictate={() => {
+                            setAttachError(false);
+                            dictation.start({ text: draft, ...(typing ? { caret } : {}) });
+                          }}
+                          onStopDictation={dictation.stop}
+                          onCancelDictation={dictation.cancel}
+                          inputRef={composerInput}
+                          onFocusChange={setTyping}
+                        />
+                      )}
+                    </ComposerPillContext.Provider>
+                  }
+                >
+                  {android ? null : noticeView}
+                  {missingGroup ? (
+                    <View
+                      style={{
+                        flex: 1,
+                        paddingTop: headerOverlap + headerPadding,
+                        paddingBottom: insets.bottom,
+                      }}
+                    >
+                      <GroupUnavailable onBack={backToChats} />
+                    </View>
+                  ) : (
+                    <SwipeOpen
+                      testID="chat-profile-swipe"
+                      enabled={!android && paging === undefined && canSwipeProfile}
+                      travel={profileTravel}
+                      onOpen={swipeProfile}
+                    >
+                      <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
+                        <MarkdownViewportContext.Provider value={markdownViewport}>
+                          <SpeakerStageContext.Provider value={dm ? undefined : stage}>
+                            <HumanAvatarClientContext.Provider value={client}>
+                              <SendFlightsContext.Provider value={flights}>
+                                <ChatList
+                                  key={
+                                    openedAtLatest || (openAtLatest && rows.length > 0)
+                                      ? 'rows'
+                                      : 'list'
+                                  }
+                                  inverted={android}
+                                  {...(android
+                                    ? {
+                                        initialNumToRender: 6,
+                                        maxToRenderPerBatch: 6,
+                                        windowSize: 5,
+                                      }
+                                    : openAtLatest
+                                      ? {
+                                          initialScrollIndex: Math.max(0, rows.length - 1),
+                                          initialNumToRender: 4,
+                                        }
+                                      : {})}
+                                  ref={attachList}
+                                  renderScrollComponent={latest.renderScrollComponent}
+                                  removeClippedSubviews={false}
+                                  CellRendererComponentStyle={cellLayer}
+                                  style={{
+                                    flex: 1,
+                                    opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                                  }}
+                                  pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                                  accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                                  importantForAccessibility={
+                                    !latest.ready && rows.length > 0
+                                      ? 'no-hide-descendants'
+                                      : 'auto'
+                                  }
+                                  contentInsetAdjustmentBehavior="automatic"
+                                  contentInset={{ bottom: -listSafeArea }}
+                                  automaticallyAdjustsScrollIndicatorInsets
+                                  scrollToOverflowEnabled
+                                  contentContainerStyle={{
+                                    minHeight: Math.max(
+                                      0,
+                                      viewportHeight -
+                                        headerOverlap +
+                                        (Platform.OS === 'android' ? edge.hairline : 0),
+                                    ),
+                                    justifyContent: android ? 'flex-start' : 'flex-end',
+                                    paddingTop: android
+                                      ? composerHeight + edgeFade.bottom
+                                      : space.x3 + listTop,
+                                    paddingBottom: android
+                                      ? space.x3 + headerPadding
+                                      : nativeSpacer
+                                        ? 0
+                                        : composerHeight + edgeFade.bottom,
+                                  }}
+                                  data={rows}
+                                  keyExtractor={(row) => row.key}
+                                  {...((nativeRows
+                                    ? {
+                                        nativeRow,
+                                        nativeStyle,
+                                        nativeSwipe,
+                                        onNativeRow,
+                                        speakerRow,
+                                        speakerAvatar,
+                                      }
+                                    : {}) as object)}
+                                  renderItem={renderItem}
+                                  onViewableItemsChanged={onFocusViewabilityChange}
+                                  onScrollToIndexFailed={(info) => {
+                                    const attempt = focusAttempt.current;
+                                    if (
+                                      focusCancelled.current ||
+                                      attempt === undefined ||
+                                      attempt.index !== info.index ||
+                                      attempt.message !== focusIntent.current.message ||
+                                      attempt.request !== focusIntent.current.request
+                                    )
+                                      return;
+                                    focusNeedsLayout.current = true;
+                                    jumped.current = undefined;
+                                    focusAttempt.current = undefined;
+                                    const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
+                                    if (focusEstimate.current === estimate) return;
+                                    focusEstimate.current = estimate;
+                                    list.current?.scrollToOffset({
+                                      offset: info.averageItemLength * info.index,
+                                      animated: false,
+                                    });
+                                  }}
+                                  {...(latest.ready && latest.browsed && !snapshot.olderError
+                                    ? {
+                                        [android ? 'onEndReached' : 'onStartReached']: () =>
+                                          void conversation?.loadOlder(),
+                                      }
+                                    : {})}
+                                  onStartReachedThreshold={0.5}
+                                  onEndReachedThreshold={0.5}
+                                  {...latest.listProps}
+                                  maintainVisibleContentPosition={
+                                    positioningFocus
+                                      ? undefined
+                                      : latest.listProps.maintainVisibleContentPosition
+                                  }
+                                  onScrollBeginDrag={(event: ScrollEvent) => {
+                                    focusCancelled.current = true;
+                                    focusAttempt.current = undefined;
+                                    if (android)
+                                      setAnchoredFocus({ message: focus, request: focusRequest });
+                                    pull.onScrollBeginDrag(event);
+                                    latest.listProps.onScrollBeginDrag();
+                                  }}
+                                  onScroll={(event: ScrollEvent) => {
+                                    latest.listProps.onScroll(event);
+                                    pull.onScroll(event);
+                                  }}
+                                  onScrollEndDrag={(event: ScrollEvent) => {
+                                    latest.listProps.onScrollEndDrag(event);
+                                    pull.onScrollEndDrag(event);
+                                  }}
+                                  onContentSizeChange={(width: number, height: number) => {
+                                    latest.listProps.onContentSizeChange(width, height);
+                                    focusNeedsLayout.current = false;
+                                    if (positioningFocus && !focusCancelled.current) {
+                                      focusHasLiveLayout.current =
+                                        snapshot.status === 'live' && !snapshot.fromCache;
+                                      jumped.current = undefined;
+                                    }
+                                    jump();
+                                  }}
+                                  scrollEventThrottle={
+                                    (!dm && SpeakerAnchor === undefined) ||
+                                    (Platform.OS === 'android' && !latest.ready)
+                                      ? 16
+                                      : 32
+                                  }
+                                  {...{
+                                    [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
+                                      LatestAnchor === undefined ? undefined : nativeSpacer ? (
+                                        <ComposerSpacer pill={latest.pill} extra={edgeFade.bottom}>
+                                          <LatestAnchor
+                                            following={latest.ready && !latest.away}
+                                            animated={!latest.reducedMotion}
+                                            style={{ height: 0 }}
+                                          />
+                                        </ComposerSpacer>
+                                      ) : (
+                                        <LatestAnchor
+                                          following={latest.ready && !latest.away}
+                                          animated={!latest.reducedMotion}
+                                          style={{ height: 0 }}
+                                        />
+                                      ),
+                                  }}
+                                  keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
+                                  keyboardShouldPersistTaps="never"
+                                  {...{
+                                    [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
+                                      snapshot.loadingOlder || snapshot.olderError ? (
+                                        <View style={{ padding: space.x4, gap: space.x2 }}>
+                                          <Text
+                                            variant="meta"
+                                            tone="muted"
+                                            accessibilityLiveRegion="polite"
+                                          >
+                                            {snapshot.loadingOlder
+                                              ? t.olderLoading
+                                              : t.olderLoadFailed}
+                                          </Text>
+                                          <Button
+                                            label={t.retry}
+                                            variant="text"
+                                            busy={snapshot.loadingOlder}
+                                            testID="history-retry"
+                                            onPress={() => void conversation?.loadOlder()}
+                                          />
+                                        </View>
+                                      ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
+                                        <Text
+                                          variant="meta"
+                                          tone="muted"
+                                          style={{ textAlign: 'center', padding: space.x5 }}
+                                        >
+                                          {dm || person !== undefined
+                                            ? t.beginning
+                                            : t.beginningChannel}
+                                        </Text>
+                                      ) : undefined,
+                                  }}
+                                />
+                              </SendFlightsContext.Provider>
+                            </HumanAvatarClientContext.Provider>
+                          </SpeakerStageContext.Provider>
+                        </MarkdownViewportContext.Provider>
+                        <Animated.View
+                          ref={viewport}
+                          nativeID={SPEAKER_VIEWPORT}
+                          collapsable={false}
+                          pointerEvents="box-none"
+                          style={[
+                            { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+                            latest.overlayStyle,
+                          ]}
+                          onLayout={() => {
+                            viewportLayout.value += 1;
+                          }}
+                        >
+                          {!missing &&
+                          ((!latest.ready && rows.length > 0) ||
+                            (snapshot.status === 'opening' && rows.length === 0)) ? (
+                            <View
+                              pointerEvents={latest.canRetry ? 'auto' : 'none'}
+                              style={{
+                                position: 'absolute',
+                                top: listTop,
+                                bottom: composerHeight + edgeFade.bottom,
+                                left: 0,
+                                right: 0,
+                                justifyContent: 'flex-end',
+                              }}
+                            >
+                              <ListSkeleton layout="messages" />
+                              {latest.canRetry ? (
+                                <Button
+                                  label={t.retry}
+                                  variant="text"
+                                  testID="history-loading-retry"
+                                  onPress={latest.retry}
+                                />
+                              ) : null}
+                            </View>
+                          ) : null}
+                          {topFade > 0 ? (
+                            <EdgeFade
+                              edge="top"
+                              height={topFade + (glassHeader ? space.x6 : edgeFade.reach)}
+                              cover={glassHeader ? 0 : topFade}
+                              color={fadeColor}
+                            />
+                          ) : null}
+                          {nativeSpacer ? (
+                            <ComposerFollower pill={latest.pill} measured={composerHeight}>
+                              {bottomFade}
+                            </ComposerFollower>
+                          ) : (
+                            bottomFade
+                          )}
+                          {(composable || stackRoot) && Platform.OS === 'ios' ? (
+                            <PullToComposeHint
+                              progress={pull.progress}
+                              ready={pull.ready}
+                              bottom={composerHeight + space.x3}
+                              leaves={stackRoot}
+                            />
+                          ) : null}
+                          {latest.away ? (
+                            <View
+                              pointerEvents="box-none"
+                              style={{
+                                position: 'absolute',
+                                bottom: composerHeight + space.x2,
+                                left: 0,
+                                right: space.x4,
+                                alignItems: 'flex-end',
+                              }}
+                            >
+                              <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+                            </View>
+                          ) : null}
+                        </Animated.View>
+                      </Animated.View>
+                    </SwipeOpen>
+                  )}
+                </KeyboardChatFrame>
+              </ChatBackdrop>
+              {android ? (
+                <ConversationTopBar
+                  title={
+                    dm
+                      ? (bot?.displayName ?? slug ?? '')
+                      : botDm
+                        ? botDmName
+                        : (channel?.name ?? channelName ?? t.groupInfo)
+                  }
+                  bot={dm ? bot : undefined}
+                  avatar={person === undefined ? channel?.avatar : undefined}
+                  initial={person === undefined ? undefined : (humanInitial(person.name) ?? '#')}
+                  subtitle={headerStatus.label}
+                  activeBots={headerStatus.bots}
+                  connectionLabel={connectionLabel}
+                  onBack={leave}
+                  onProfile={canOpenProfile ? openProfile : undefined}
+                  onCall={canOpenProfile ? placeCall : undefined}
+                  onHeight={setMeasuredHeaderHeight}
+                  selection={pickedTools}
+                />
+              ) : null}
+            </EndSheet>
+            {!android && paging === undefined ? (
+              <ProfileSwipePreview
+                travel={profileTravel}
+                name={
+                  dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')
+                }
+                bot={dm ? bot : undefined}
+                groupAvatar={channel?.avatar}
+              />
+            ) : null}
+            {imageSelection?.scope === selectionScope ? (
+              <SelectionScreenshot
+                messages={imageSelection.messages}
+                renderCard={(message) => {
+                  const author = message.bot ?? slug;
+                  return client && author && message.card ? (
+                    <RequestCard
+                      client={client}
+                      inbox={inbox}
+                      message={message}
+                      card={message.card}
+                      botSlug={author}
+                      botName={botName(author)}
+                      resolution={resolutions.get(message.id)}
+                      focused={false}
+                      replyInChat={dm}
+                      answeredHere={answered.has(message.id)}
+                      group={{ first: true, last: true }}
+                    />
+                  ) : (
+                    <Text>{message.body}</Text>
+                  );
+                }}
+                botName={botName}
+                onClose={() => setImageSelection(undefined)}
+              />
+            ) : null}
+            {viewing === undefined ? null : (
+              <ImageViewer
+                attachment={viewing}
+                onClose={() => setViewing(undefined)}
+                onShare={share}
+              />
+            )}
+            <DeliverySheet
+              message={
+                deliveryFor === undefined
                   ? undefined
-                  : { label: t.call.button, testID: 'chat-call-button', onPress: placeCall }
+                  : snapshot.messages.find((message) => message.id === deliveryFor)
               }
+              botName={botName}
+              onClose={() => setDeliveryFor(undefined)}
+              onOpenInbox={openInbox}
             />
-          )}
-        </GenuiInteraction>
-      </GenuiViewHost>
-    </ChatOffline>
+            <MessageActions
+              target={actionsFor}
+              readOnly={botDm || !online}
+              onClose={() => setActionsFor(undefined)}
+              onReact={(message, emoji, active) => react(message.id, emoji, active)}
+              onCopy={copyMessage}
+              onSelectCopy={
+                Platform.OS === 'android' || Platform.OS === 'ios' ? selectSource : undefined
+              }
+              onShareText={shareText}
+              onShareAttachment={share}
+            />
+            {sourceMessage === undefined ? null : (
+              <MessageSourcePage
+                key={selectionScope + ':' + sourceMessage.id}
+                message={sourceMessage}
+                onClose={closeSource}
+                onCopy={copyMessage}
+              />
+            )}
+            {paging === undefined ? null : (
+              <NativePageHeader
+                title={ios && glassHeader ? title : titleItem}
+                onBack={leave}
+                backID="chat-page-back"
+                action={
+                  canOpenProfile
+                    ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
+                    : undefined
+                }
+                call={
+                  placeCall === undefined
+                    ? undefined
+                    : { label: t.call.button, testID: 'chat-call-button', onPress: placeCall }
+                }
+              />
+            )}
+          </GenuiInteraction>
+        </GenuiViewHost>
+      </ChatOffline>
+    </ReplyPeopleContext.Provider>
   );
 }
 

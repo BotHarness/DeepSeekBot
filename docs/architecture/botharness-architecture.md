@@ -1802,3 +1802,16 @@ S3 的文件监听器同时管理每个去重 Workspace 的两个 Skill 目录�
 ### Mobile Skill Invocation（#4275）
 
 Expo 移动端复用 Web 的 `skill-refs` 解析、`rankSkillEntries` 排序与 `selectSkill`/`rebaseSkills` 编辑规则，不另写一套。Composer 在 `/` 后从 `channelSkillCatalog` 读取当前 Channel 的目录，按名称与 owner 名排序最多 8 项；每个 Channel 一个 `useSyncExternalStore` 缓存，首个订阅者加载，roster 实时帧 `skills` 命中该 Channel 时重读。选中项是原子 chip：在 chip 内退格一次删除整个 `/name`。发送时 `skillInvocations` 按去除首尾空白后的正文偏移提交，只在 `/name` 仍与正文一致时保留；不生成 mention，不改变收件 Bot。消息气泡按存储的 `skillInvocations` 渲染 chip，owner 用 Bot 头像或原生 SF Symbol / Material Symbol（folder、desktopcomputer/computer）。
+
+## 订阅引擎（ADR-0353）
+
+PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在 **Subscription Engine** 上：Human 本机上未修改的官方 agent CLI（首批 Claude Code、Codex；ChatGPT 订阅是用 Codex 自己的 `codex login` 登录的 Codex，token 留在 CLI 内），使用 Human 自己的订阅登录，由 Host 驱动。只在本地 Host 提供，Cloud 与 VPS 不提供。
+
+- **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
+- **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`。
+- **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。
+- **审批**：`canUseTool`、Codex approval、ACP `session/request_permission` 统一进入 `ChannelToolApproval`；Assignment 的 cwd 是 Workspace Grant 的 `primaryCwd`，Orchestrator 在 PersonaBot 自己的空目录。
+- **历史**：Session 身份不变（ADR-0024）：每个 PersonaBot 一个 Orchestrator Session，照旧接收所有 Channel 的 Inbox 批次；每个 Assignment 一个 Assignment Session。每个 Session 一个引擎进程，原生会话是工作记忆。Host 记录是权威：Orchestrator 从 Bot Inbox、Channel 记录与 Memory 重建；Assignment 从 Assignment Directory、Assignment Request 与持久化的 Session 事件重建，缺失时以失败结束并报告 Orchestrator。
+- **Session detail**：引擎事件翻译成现有 `SessionTranscriptItem` 与 live 快照，面板不改。
+- **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
+- **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。
