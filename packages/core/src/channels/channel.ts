@@ -2,6 +2,7 @@ import type { ApprovalCard } from '../team/approval-contract.js';
 import { isSkillWorkspaceId, type SkillOwner } from '../skills/entries.js';
 import type { ChannelMessageAuthor } from './message-author.js';
 import type { ChannelReplyPreview } from './reply-preview.js';
+import { isChannelQuoteList, type ChannelQuote } from './quotes.js';
 import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
@@ -12,6 +13,8 @@ import {
   type ChannelTurnStopRest,
   type ChannelTurnStopTarget,
 } from './turn-stop.js';
+import { isChannelModelSwitch, type ChannelModelSwitch } from './model-switch.js';
+export type { ChannelModelSwitch } from './model-switch.js';
 import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
 import { isChannelVoiceCallRecord, type ChannelVoiceCallRecord } from './voice-call-record.js';
 
@@ -254,6 +257,7 @@ export interface ChannelMessageExternal {
 }
 
 export type { ChannelReplyPreview, ChannelReplyPreviewMedia } from './reply-preview.js';
+export type { ChannelQuote } from './quotes.js';
 
 export interface SessionFailureCard {
   requestMessageId?: string;
@@ -599,6 +603,7 @@ export interface ChannelMessage {
   noticeOrigin?: { channelId: string };
   memberDeparture?: ChannelMemberDeparture;
   turnStop?: ChannelTurnStop;
+  modelSwitch?: ChannelModelSwitch;
   toolAutoApproval?: ChannelToolAutoApproval;
   toolAutoApprovalPause?: ChannelToolAutoApprovalPause;
   toolAutoApprovalOverride?: ChannelToolAutoApprovalOverride;
@@ -660,6 +665,8 @@ export interface ChannelMessage {
   replyTo?: string;
 
   replyToPreview?: ChannelReplyPreview | null;
+
+  quotes?: ChannelQuote[];
 
   perf?: ChannelMessagePerf;
 }
@@ -1295,6 +1302,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
     )
       return false;
+  } else if (message['modelSwitch'] !== undefined) {
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelModelSwitch(message['modelSwitch'])
+    )
+      return false;
   } else if (message['voiceCallRecord'] !== undefined) {
     if (
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
@@ -1426,6 +1439,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (typeof message['replyTo'] !== 'string' || message['replyTo'].length === 0)
   )
     return false;
+  if (!isChannelQuoteList(message['quotes'])) return false;
   const preview = message['replyToPreview'];
   if (preview !== undefined && preview !== null) {
     if (typeof preview !== 'object') return false;

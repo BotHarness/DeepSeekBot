@@ -8,7 +8,7 @@ import {
   conversationDraftKey,
   useComposerRecovery,
 } from '../src/client/conversation-draft.js';
-import { createStore } from '../src/client/store.js';
+import { createStore, type ChannelMessage } from '../src/client/store.js';
 import type { BridgeActions } from '../src/client/actions.js';
 
 let container: HTMLDivElement;
@@ -69,9 +69,46 @@ describe('composer recovery integration', () => {
     }
     await act(async () => root.render(createElement(View)));
     expect(container.firstElementChild?.getAttribute('data-blocked')).toBe('true');
-    expect(validate).toHaveBeenCalledWith('group', [], 'deleted-reply');
+    expect(validate).toHaveBeenCalledWith('group', [], 'deleted-reply', undefined);
     await act(async () => finish?.({ attachments: [] }));
     expect(container.textContent).toBe('@Gone #Gone|0|0||error');
+    expect(container.firstElementChild?.getAttribute('data-blocked')).toBe('false');
+    expect(container.firstElementChild?.getAttribute('data-notice')).toBe('true');
+  });
+  it('drops restored quotes whose targets are gone and keeps the loaded target for the rest', async () => {
+    const current = state();
+    const scope = conversationDraftKey(current.getSnapshot())!;
+    new ComposerDraftStore(localStorage, 'previous-page').update(scope, {
+      text: 'both?',
+      quotes: [{ messageId: 'kept', text: 'part', note: 'Agreed' }, { messageId: 'gone' }],
+    });
+    const target: ChannelMessage = {
+      id: 'kept',
+      at: '',
+      author: { kind: 'human' },
+      body: 'a part',
+    };
+    const validate = vi.fn<BridgeActions['validateComposerDraft']>(async () => ({
+      attachments: [],
+      quotes: [target, null],
+    }));
+    const actions = { validateComposerDraft: validate };
+    function View() {
+      const recovery = useComposerRecovery(scope, current.getSnapshot, actions);
+      return createElement(
+        'div',
+        { ref: recovery.mount, 'data-blocked': recovery.blocked, 'data-notice': recovery.notice },
+        recovery.draft.quotes
+          .map((quote) => `${quote.messageId}:${quote.note ?? ''}:${quote.target?.body ?? ''}`)
+          .join(','),
+      );
+    }
+    await act(async () => root.render(createElement(View)));
+    expect(validate).toHaveBeenCalledWith('group', [], undefined, [
+      { messageId: 'kept', text: 'part' },
+      { messageId: 'gone' },
+    ]);
+    expect(container.textContent).toBe('kept:Agreed:a part');
     expect(container.firstElementChild?.getAttribute('data-blocked')).toBe('false');
     expect(container.firstElementChild?.getAttribute('data-notice')).toBe('true');
   });

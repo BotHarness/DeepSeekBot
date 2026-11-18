@@ -245,6 +245,7 @@ import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
+import { createGroupFallback } from './models/group-fallback.js';
 import { createRouteRests } from './models/route-rest.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
@@ -689,6 +690,7 @@ export function createCore(
     stopSettleTimeoutMs?: number;
     closeSessionApprovals?: (sessionIds: readonly string[]) => void;
     routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
+    groupFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['groupFallback'];
     sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
     readAssignmentReportPage?: (
       sessionId: string,
@@ -1379,6 +1381,7 @@ function initializeCore(
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
+    ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
     ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
     ...(team.bots.available ? { team } : {}),
     voiceMessages,
@@ -1782,6 +1785,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
     subagentTools: (slug) =>
       createBotSubagentModelTools(
         ctx,
@@ -2007,9 +2011,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const routeRests = createRouteRests();
+  const groupFallback = createGroupFallback({
+    plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
+    routes: (groupId) => core.routingGroups.routes(groupId),
+    rests: routeRests,
+    requireAllowed: (botSlug, route) =>
+      requireBotModel(core.team, core.registry.get(botSlug), route),
+    validate: (route) => modelCatalog.validate(route),
+  });
   const core = createCore({
     routeRests,
+    groupFallback,
     sessionRoute: (botSlug, sessionId) =>
+      groupFallback.route(sessionId) ??
       agentAdapter.modelSelection(sessionId) ??
       core.registry.get(botSlug)?.modelPlan?.orchestrator ??
       modelCatalog.defaultRoute?.(),
@@ -2535,7 +2549,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'agent/request-error',
     createBotRequestRetry({
       isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
-      onQuotaExhausted: (route, untilMs) => routeRests.rest(route, untilMs),
+      onQuotaExhausted: (route, untilMs, reason, sessionId) => {
+        const owner = sessionId === undefined ? undefined : core.ownership.resolve(sessionId);
+        if (
+          reason === 'quota' ||
+          (owner !== undefined &&
+            core.registry.get(owner.botSlug)?.modelPlan?.orchestratorGroupId !== undefined)
+        )
+          routeRests.rest(route, untilMs, reason);
+      },
       log: (message) => ctx.logger.info(message),
     }),
     { global: true },

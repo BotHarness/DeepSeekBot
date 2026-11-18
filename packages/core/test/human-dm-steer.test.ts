@@ -529,6 +529,74 @@ describe('Human DM steering', () => {
     }
   });
 
+  it('counts quote blocks against the pending DM context budget', async () => {
+    const home = createTempRoot('botharness-dm-quote-limit-');
+    let markStarted = (): void => undefined;
+    let releaseTurn = (): void => undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      releaseTurn = resolve;
+    });
+    const steered: string[] = [];
+    let allowSteer = false;
+    const agents: BotAgentAdapter = {
+      async runOrchestrator() {
+        markStarted();
+        await released;
+      },
+      steerOrchestrator(_botSlug, text) {
+        if (!allowSteer) return false;
+        steered.push(text);
+        return true;
+      },
+      async runAssignment() {},
+      requestAssignment() {
+        throw new Error('No Assignment expected');
+      },
+      async close() {},
+    };
+    const core = createCore({ dshHome: home, agents });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      core.registry.setPromptSettings('ada', { limits: { 'dm-context-chars': 1000 } });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const messages = [
+        ['dm-1', 'Start the report', undefined],
+        ['dm-2', 'QUEUED-ONE', [{ messageId: 'dm-1', note: 'N'.repeat(950) }]],
+        ['dm-3', 'STEER-TWO', undefined],
+      ] as const;
+      for (const [id, body, quotes] of messages)
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+          id,
+          at: `2026-09-25T00:00:0${id.slice(-1)}.000Z`,
+          author: { kind: 'human' },
+          body,
+          ...(quotes === undefined ? {} : { quotes: [...quotes] }),
+        });
+      const admit = (messageId: string, body: string) =>
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, { channelId: dm.id, messageId, body });
+      expect(admit('dm-1', 'Start the report').admitted).toBe(true);
+      await started;
+      expect(admit('dm-2', 'QUEUED-ONE').admitted).toBe(true);
+      allowSteer = true;
+      expect(admit('dm-3', 'STEER-TWO').admitted).toBe(true);
+
+      expect(steered).toHaveLength(1);
+      expect(steered[0]).toContain('STEER-TWO');
+      expect(steered[0]).not.toContain('QUEUED-ONE');
+      expect(steered[0]).not.toContain('N'.repeat(950));
+
+      releaseTurn();
+      await core.runtime.whenIdle();
+    } finally {
+      releaseTurn();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it("cuts pending DM context to the Bot's context-message limit", async () => {
     const home = createTempRoot('botharness-dm-limit-');
     let markStarted = (): void => undefined;

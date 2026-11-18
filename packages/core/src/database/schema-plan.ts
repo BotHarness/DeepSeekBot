@@ -3823,6 +3823,37 @@ const REMOTE_HOST_CUSTODY_MIGRATION: SchemaMigration = {
   },
 };
 
+const noticeOf = (payload: string) =>
+  `CASE WHEN json_valid(${payload}) THEN coalesce(${['botDmAction', 'botCreateAction', 'botChannelPost', 'memoryCommit', 'toolAutoApproval', 'toolAutoApprovalPause', 'modelSwitch'].map((field) => `json_type(${payload}, '$.${field}') = 'object'`).join(' OR ')}, 0) ELSE 0 END`;
+
+const MODEL_SWITCH_NOTICE_MIGRATION: SchemaMigration = {
+  id: 'model-switch-notice',
+  module: 'messaging',
+  description: 'Mark Model Switch Notices as notice placements',
+  migrate(database) {
+    database.exec(`
+      DROP TRIGGER channel_placements_notice_insert;
+      DROP TRIGGER channel_placements_notice_update;
+      UPDATE channel_placements SET notice = 1 WHERE notice = 0 AND source_event_id IN (
+        SELECT source_event_id FROM source_events WHERE ${noticeOf('payload_json')}
+      );
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT ${noticeOf('payload_json')} FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = ${noticeOf('NEW.payload_json')}
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
 const HUMAN_AVATAR_MIGRATION: SchemaMigration = {
   id: 'human-avatar',
   module: 'human-identity',
@@ -4036,6 +4067,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MEMBER_DEVICES_MIGRATION,
   REMOTE_HOST_CUSTODY_MIGRATION,
   ROUTING_GROUP_STORAGE_MIGRATION,
+  MODEL_SWITCH_NOTICE_MIGRATION,
   HUMAN_AVATAR_MIGRATION,
   HUMAN_AVATAR_CHANGE_MIGRATION,
   HUMAN_PROFILE_SETUP_MIGRATION,

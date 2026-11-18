@@ -44,6 +44,7 @@ import {
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import { isChannelTurnStopRests } from '../../../core/src/channels/turn-stop.js';
+import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
@@ -170,13 +171,17 @@ import type {
   ChannelAuthor,
   ChannelAttachmentRef,
   ChannelMessage,
+  ChannelMessageQuote,
+  ChannelReplyPreview,
   ChannelReaction,
   ChannelSummary,
   OwnedSessionSummary,
+  QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
   ApprovalCardView,
 } from './store.js';
+import { quoteRefOf } from './store.js';
 import {
   parseRosterSection,
   parseRosterSnapshot,
@@ -1558,6 +1563,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
+  let modelSwitch: ChannelMessage['modelSwitch'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
   let voiceCallRecord: ChannelMessage['voiceCallRecord'];
@@ -1636,6 +1642,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
+  } else if (record['modelSwitch'] !== undefined) {
+    if (author.kind !== 'system' || !isChannelModelSwitch(record['modelSwitch'])) return undefined;
+    modelSwitch = record['modelSwitch'];
   } else if (record['turnStop'] !== undefined) {
     const stop = asRecord(record['turnStop']);
     if (
@@ -1967,6 +1976,8 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       };
     }
   }
+  const quotes = parseMessageQuotes(record['quotes']);
+  if (quotes === false) return undefined;
   const rawPreview = record['replyToPreview'];
   let replyToPreview: ChannelMessage['replyToPreview'];
   if (rawPreview === null) {
@@ -2149,6 +2160,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(modelSwitch === undefined ? {} : { modelSwitch }),
     ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
@@ -2182,6 +2194,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+    ...(quotes === undefined ? {} : { quotes }),
     ...(perf === undefined ? {} : { perf }),
   };
 }
@@ -2876,12 +2889,18 @@ export async function validateComposerDraft(
   channelId: string,
   attachments: ChannelAttachmentRef[],
   replyTo?: string,
-): Promise<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }> {
+  quotes?: ReadonlyArray<{ messageId: string; text?: string }>,
+): Promise<{
+  reply?: ChannelMessage;
+  attachments: Array<ChannelAttachmentRef | null>;
+  quotes?: Array<ChannelMessage | null>;
+}> {
   const value = asRecord(
     await unwrap(call, 'composerValidate', {
       channelId,
       attachments,
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined ? {} : { quotes }),
     }),
   );
   if (
@@ -2894,9 +2913,17 @@ export async function validateComposerDraft(
   const reply = value['reply'] === undefined ? undefined : parseChannelMessage(value['reply']);
   if (value['reply'] !== undefined && reply === undefined)
     throw new Error('invalid composer reply');
+  const rawQuotes = value['quotes'];
+  if (quotes !== undefined && (!Array.isArray(rawQuotes) || rawQuotes.length !== quotes.length))
+    throw new Error('invalid composer quotes');
+  const checked = Array.isArray(rawQuotes)
+    ? rawQuotes.map((raw) => (raw === null ? null : parseChannelMessage(raw)))
+    : undefined;
+  if (checked?.some((message) => message === undefined)) throw new Error('invalid composer quotes');
   return {
     ...(reply === undefined ? {} : { reply }),
     attachments: value['attachments'] as Array<ChannelAttachmentRef | null>,
+    ...(checked === undefined ? {} : { quotes: checked as Array<ChannelMessage | null> }),
   };
 }
 
@@ -4932,6 +4959,7 @@ export async function sendChannelMessage(
   allBotMention?: AllBotMention,
   genuiReply?: GenuiMessageReply,
   skillInvocations?: ChannelSkillInvocationToken[],
+  quotes?: readonly QuoteRef[],
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -4943,6 +4971,11 @@ export async function sendChannelMessage(
         ? {}
         : { skillInvocations }),
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined || quotes.length === 0
+        ? {}
+        : {
+            quotes: quotes.map(quoteRefOf),
+          }),
       ...(attachments === undefined ? {} : { attachments }),
       ...(messageId === undefined ? {} : { messageId }),
       ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
@@ -7943,4 +7976,40 @@ export async function setModelPlan(
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;
+}
+
+function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {
+  if (value === null) return null;
+  const preview = asRecord(value);
+  if (preview === undefined || typeof preview['body'] !== 'string') return false;
+  const author = parseAuthor(preview['author']);
+  if (author === undefined) return false;
+  const media = preview['media'];
+  return {
+    author,
+    body: preview['body'],
+    ...(isChannelReplyPreviewMedia(media) ? { media } : {}),
+  };
+}
+
+function parseMessageQuotes(value: unknown): ChannelMessageQuote[] | undefined | false {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 8) return false;
+  const quotes: ChannelMessageQuote[] = [];
+  for (const entry of value) {
+    const quote = asRecord(entry);
+    if (quote === undefined || typeof quote['messageId'] !== 'string') return false;
+    if (quote['text'] !== undefined && typeof quote['text'] !== 'string') return false;
+    if (quote['note'] !== undefined && typeof quote['note'] !== 'string') return false;
+    const preview =
+      quote['preview'] === undefined ? undefined : parseQuotePreview(quote['preview']);
+    if (preview === false) return false;
+    quotes.push({
+      messageId: quote['messageId'],
+      ...(typeof quote['text'] === 'string' ? { text: quote['text'] } : {}),
+      ...(typeof quote['note'] === 'string' ? { note: quote['note'] } : {}),
+      ...(preview === undefined ? {} : { preview }),
+    });
+  }
+  return quotes;
 }
