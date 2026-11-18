@@ -56,11 +56,12 @@ export function resolveEngineCommand(
   const exists = options.exists ?? existsSync;
   const executable = options.executable ?? isExecutableFile;
   if (platform === 'win32') return resolveWindows(command, env, exists);
-  if (command.includes('/')) return exists(command) && executable(command) ? command : undefined;
+  if (command.includes('/'))
+    return exists(command) && executable(command) ? posix.resolve(command) : undefined;
   for (const directory of (variable(env, 'PATH') ?? '').split(':')) {
     if (directory === '') continue;
     const candidate = posix.join(directory, command);
-    if (exists(candidate) && executable(candidate)) return candidate;
+    if (exists(candidate) && executable(candidate)) return posix.resolve(candidate);
   }
   return undefined;
 }

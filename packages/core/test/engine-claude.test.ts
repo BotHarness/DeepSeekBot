@@ -507,6 +507,26 @@ describe('Claude Code engine boundaries', () => {
     ).toBeUndefined();
   });
 
+  it('returns an absolute path for a relative PATH entry and skips an empty one', () => {
+    const always = () => true;
+    expect(
+      resolveEngineCommand('claude', {
+        platform: 'linux',
+        env: { PATH: ':bin' },
+        exists: (path: string) => path === 'bin/claude',
+        executable: always,
+      }),
+    ).toBe(join(process.cwd(), 'bin', 'claude'));
+    expect(
+      resolveEngineCommand('claude', {
+        platform: 'linux',
+        env: { PATH: '' },
+        exists: always,
+        executable: always,
+      }),
+    ).toBeUndefined();
+  });
+
   it('refuses a Claude turn when claude is not on PATH', async () => {
     const dsh = memoryDsh();
     const gateway = createEngineGateway();
