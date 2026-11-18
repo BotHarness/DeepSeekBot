@@ -47,9 +47,10 @@ export function SessionQuoteToolbar({
       label={t('message.quoteSelection')}
       quoteLabel={t('message.quote')}
       canQuote={(source) => source.startsWith(quoteSourceId(sessionId, ''))}
-      onQuote={(source, text) =>
-        onQuote({ messageId: source, text, author: authorOf(source), excerpt: quoteExcerpt(text) })
-      }
+      onQuote={(source, text) => {
+        onQuote({ messageId: source, text, author: authorOf(source), excerpt: quoteExcerpt(text) });
+        window.getSelection()?.removeAllRanges();
+      }}
     />
   );
 }

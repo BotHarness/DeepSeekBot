@@ -527,6 +527,9 @@ it('quotes selected Session text with a reply and sends it ahead of the request'
       );
     await select(host.querySelector('[data-transcript="reply"]')!, 'runs after an await');
     await quote();
+    expect(window.getSelection()!.rangeCount).toBe(0);
+    await act(async () => window.dispatchEvent(new Event('scroll')));
+    expect(document.body.querySelector('[data-selection-toolbar]')).toBeNull();
     await select(host.querySelector('[data-transcript="input"]')!, 'Safari export');
     await quote();
     const chips = [...host.querySelectorAll('[data-quote-chip]')];
