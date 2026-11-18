@@ -1148,17 +1148,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    route: ModelRoute,
+    route: ModelRoute | undefined,
     globalDefault: boolean,
     expectedDefaultRevision?: number,
-  ): Promise<{ revision: number }> {
+    groupId?: string,
+  ): Promise<{ revision: number; groupRevision?: number }> {
     return unwrapAsync(
       this.methods.onboardingModel({
         slug,
         expectedRevision,
-        route,
+        ...(route === undefined ? {} : { route }),
         globalDefault,
         expectedDefaultRevision,
+        ...(groupId === undefined ? {} : { groupId }),
       }),
     );
   }

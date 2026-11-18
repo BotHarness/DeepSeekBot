@@ -18,6 +18,7 @@ import { createTempRoot, trackTestOwner } from './helpers.js';
 import { redeemPairing } from '@botharness/host-client/pairing';
 import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { requestListener } from './async-listener.js';
 
 const mapping = vi.hoisted(() => ({ relay: '' }));
 
@@ -48,11 +49,13 @@ it(
       hostName: 'Private Host',
     });
     const hostKey = randomBytes(32);
-    const http = createServer(async (request, response) => {
-      let text = '';
-      for await (const chunk of request) text += String(chunk);
-      response.end(text);
-    });
+    const http = createServer(
+      requestListener(async (request, response) => {
+        let text = '';
+        for await (const chunk of request) text += String(chunk);
+        response.end(text);
+      }),
+    );
     http.listen(0, '127.0.0.1');
     await once(http, 'listening');
     const port = (http.address() as AddressInfo).port;

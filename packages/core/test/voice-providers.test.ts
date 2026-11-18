@@ -11,6 +11,7 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { chineseScript, VoiceProviders } from '../src/voice/providers.js';
 import { speakableText } from '../src/voice/speakable.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const MP3 = Buffer.concat([Buffer.from('ID3'), Buffer.alloc(64, 1)]);
 const cleanup: (() => Promise<void> | void)[] = [];
@@ -259,10 +260,10 @@ describe('speakable text', () => {
 
 async function fakeAsr(respond: (form: FormData, headers: Headers) => Response) {
   const requests: { url: string; form: FormData; headers: Headers }[] = [];
-  const server: Server = createServer((request, response) => {
-    const chunks: Buffer[] = [];
-    request.on('data', (chunk: Buffer) => chunks.push(chunk));
-    request.on('end', async () => {
+  const server: Server = createServer(
+    requestListener(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(chunk as Buffer);
       const headers = new Headers(request.headers as Record<string, string>);
       const form = await new Request('http://x', {
         method: 'POST',
@@ -273,8 +274,8 @@ async function fakeAsr(respond: (form: FormData, headers: Headers) => Response) 
       const answer = respond(form, headers);
       response.writeHead(answer.status, { 'Content-Type': 'application/json' });
       response.end(Buffer.from(await answer.arrayBuffer()));
-    });
-  });
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   cleanup.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
   const { port } = server.address() as AddressInfo;

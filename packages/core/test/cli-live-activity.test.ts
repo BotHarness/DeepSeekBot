@@ -11,18 +11,21 @@ import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { serializeSavedHost } from '@botharness/host-client/hosts';
+import { requestListener } from './async-listener.js';
 
 it('uses Device credentials from a file and activity tokens from stdin without printing either', async () => {
   const calls: { path: string | undefined; body: string }[] = [];
   let revoked = false;
-  const server = createServer(async (request, response) => {
-    expect(request.headers.authorization).toBe('Device device.private-credential');
-    let body = '';
-    for await (const chunk of request) body += String(chunk);
-    calls.push({ path: request.url, body });
-    response.writeHead(revoked ? 401 : 200, { 'content-type': 'application/json' });
-    response.end(JSON.stringify(revoked ? { code: 'device-revoked' } : { registered: true }));
-  });
+  const server = createServer(
+    requestListener(async (request, response) => {
+      expect(request.headers.authorization).toBe('Device device.private-credential');
+      let body = '';
+      for await (const chunk of request) body += String(chunk);
+      calls.push({ path: request.url, body });
+      response.writeHead(revoked ? 401 : 200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(revoked ? { code: 'device-revoked' } : { registered: true }));
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('address');
@@ -100,16 +103,20 @@ it('runs activity commands through the real pinned encrypted carrier and preserv
   let plaintext = 0;
   let upgraded = 0;
   const calls: { path: string | undefined; body: string }[] = [];
-  const upstream = createServer(async (request, response) => {
-    expect(request.headers.authorization).toBe(`Device ${paired.credential}`);
-    let body = '';
-    for await (const chunk of request) body += String(chunk);
-    calls.push({ path: request.url, body });
-    response.writeHead(configured ? 200 : 503, { 'content-type': 'application/json' });
-    response.end(
-      JSON.stringify(configured ? { available: true } : { code: 'activity-provider-unconfigured' }),
-    );
-  });
+  const upstream = createServer(
+    requestListener(async (request, response) => {
+      expect(request.headers.authorization).toBe(`Device ${paired.credential}`);
+      let body = '';
+      for await (const chunk of request) body += String(chunk);
+      calls.push({ path: request.url, body });
+      response.writeHead(configured ? 200 : 503, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify(
+          configured ? { available: true } : { code: 'activity-provider-unconfigured' },
+        ),
+      );
+    }),
+  );
   await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
   const upstreamAddress = upstream.address();
   if (!upstreamAddress || typeof upstreamAddress === 'string') throw new Error('address');

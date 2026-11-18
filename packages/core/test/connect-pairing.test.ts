@@ -12,6 +12,7 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import { requestListener, upgradeListener } from './async-listener.js';
 
 it('pairs over Noise only after both fingerprint confirmations, rejects a stolen bearer with a new key, and carries bytes', async () => {
   const owner = trackTestOwner(
@@ -28,20 +29,22 @@ it('pairs over Noise only after both fingerprint confirmations, rejects a stolen
     publicKey = noisePublicKey(key);
   const seen: string[] = [];
   const forwarded = vi.fn();
-  const server = createServer(async (request, response) => {
-    forwarded(request.url);
-    expect(pairing.admit(request.headers.authorization).ok).toBe(true);
-    if (request.url === '/botharness-device/unpair') {
-      const admitted = pairing.admit(request.headers.authorization);
-      if (admitted.ok) pairing.revoke(admitted.device.id);
-      response.end(JSON.stringify({ revoked: true }));
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    response.setHeader('content-type', 'image/png');
-    response.end(Buffer.concat(chunks));
-  });
+  const server = createServer(
+    requestListener(async (request, response) => {
+      forwarded(request.url);
+      expect(pairing.admit(request.headers.authorization).ok).toBe(true);
+      if (request.url === '/botharness-device/unpair') {
+        const admitted = pairing.admit(request.headers.authorization);
+        if (admitted.ok) pairing.revoke(admitted.device.id);
+        response.end(JSON.stringify({ revoked: true }));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      response.setHeader('content-type', 'image/png');
+      response.end(Buffer.concat(chunks));
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   const gateway = createEncryptedGateway({
@@ -49,7 +52,7 @@ it('pairs over Noise only after both fingerprint confirmations, rejects a stolen
     key: async () => Uint8Array.from(key),
     port: () => port,
   });
-  server.on('upgrade', (req, socket, head) => gateway.upgrade(req, socket, head));
+  server.on('upgrade', upgradeListener(gateway));
   const raw: HostCarrier = {
     request: vi.fn(async () => {
       throw new Error('plaintext');

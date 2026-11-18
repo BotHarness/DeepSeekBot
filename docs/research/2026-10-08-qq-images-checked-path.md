@@ -80,7 +80,7 @@ SDK 的 `src/protocol/gateway/event-dispatcher.ts:20–40` 声明每个 `Inbound
 
 产品已存在最小路径：`bridge_attachment_save -> native read_image -> channel_attachment_import -> bridge_reply_file`。首片复用它，不新增自动把所有群图片塞进模型上下文的路径。模型使用真实图像前必须通过 exact calling route gate；非图片模型应明确说明未看见图片，不能用下载成功替代理解。基线 `packages/core/src/runtime/dsh-bot-agent-adapter.ts:107` 已给外部图片这套提示。
 
-[ADR-0129](../adr/0129-wechat-owner-dms-use-private-source-continuations.md) 的图片扩展 `:43–47` 记录了同一套微信路径的既有实际 DeepSeek Flash 图像理解和原生图片 Human 确认；这是复用依据，不是 QQ 证据。QQ 仍需要独立的新 source、真实 image Tool output、实际理解（可区分纯文本猜测的图片内容）、新结果图片原群发送和公开 native receipt。
+[ADR-0129](../decisions/im-providers.md#adr-0129) 的图片扩展 `:43–47` 记录了同一套微信路径的既有实际 DeepSeek Flash 图像理解和原生图片 Human 确认；这是复用依据，不是 QQ 证据。QQ 仍需要独立的新 source、真实 image Tool output、实际理解（可区分纯文本猜测的图片内容）、新结果图片原群发送和公开 native receipt。
 
 ## 6. 最小可交付路径与真正阻塞点
 
