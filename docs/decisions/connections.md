@@ -48,6 +48,8 @@ One pairing can carry several routes for the same Host identity. LAN and Tailsca
 - **SSH.** The computer CLI runs system OpenSSH in strict, batch mode and forwards a local loopback port to the Host's existing listener. SSH gives reachability only; pairing, the pinned Noise channel and revocation are unchanged, and the forwarded port admits only the Noise WebSocket path, with cookies stripped.
 - **DNS recovery.** For official Connect and Quick Tunnel names only, an `ENOTFOUND` from the system lookup triggers one fresh IPv4 query inside the request deadline. TLS, the hostname and the pinned key are unchanged, and the product never edits system DNS.
 
+**Upgrading a Profile to two private routes.** The private connection owner migrates its credentials into a form the previous Host binary cannot read, so reverting the packages alone is not a rollback. Before first starting the upgraded Host, stop that Host and its private tunnel processes, take a complete protected backup of the Profile and its credentials Provider storage (machine-local, under the same secret protection, never in Git, logs or review evidence), record the matching pre-upgrade package revision privately, and check that the backup restores. To roll back, stop the upgraded Host and every tunnel it owns, restore that whole backup, then start the matching old packages; do not overwrite only the credentials record while an owner runs. Configuration and grants made after the backup are lost and must be reconciled by hand. A downgraded phone may reject an entry with two saved routes: rescan a single-route invitation with the same Host identity, never bypassing the fingerprint check.
+
 Why: a person moves between home, office and mobile networks, so one Host needs several routes without several identities. Every route is a carrier; keeping trust in the pin and the device grant means a new route can never become a way in.
 
 Enforced by: `packages/core/test/private-tunnel.test.ts`, `private-relay.test.ts`, `private-browser-admission.test.ts`, `managed-tls-ingress.test.ts`, `ssh-tunnel.test.ts`, `bot-tailnet.test.ts`, `connect-health.test.ts`, `apps/mobile/test/route-preference.test.ts`, `learned-routes.test.ts`, `deploy/private-relay/conformance.mjs`.
@@ -71,7 +73,7 @@ Enforced by: `packages/core/test/connect-noise.test.ts`, `connect-encrypted-gate
 <a id="adr-0327"></a>
 _Formerly ADR-0241, ADR-0313, ADR-0326 and ADR-0327._
 
-A WorkOS AuthKit account (in Tob's environment) discovers Hosts and brokers enrollment. Connect is opt-in per Host. The relay Worker in `packages/connect-relay` provisions one Cloudflare Tunnel and DNS record per online Host. The Host runs a pinned `cloudflared` whose ingress admits only `/botharness-device/*`. Sign-in uses PKCE on the phone, CLI Auth on the Host, and email/password through four bounded relay routes when the relay advertises it. WorkOS stays the only password authority.
+A WorkOS AuthKit account (in the Tobs environment) discovers Hosts and brokers enrollment. Connect is opt-in per Host. The relay Worker in `packages/connect-relay` provisions one Cloudflare Tunnel and DNS record per online Host. The Host runs a pinned `cloudflared` whose ingress admits only `/botharness-device/*`. Sign-in uses PKCE on the phone, CLI Auth on the Host, and email/password through four bounded relay routes when the relay advertises it. WorkOS stays the only password authority.
 
 **Enrollment.** When a phone or a desktop Client is signed into the same account as a Host, the account's Host list authorizes enrollment directly. The Host verifies the relay signature, the exact account and registration, the offer freshness and the verifier hash. It then approves only the exact Noise peer key, so no operator is needed at the computer. QR, pasted and private pairing keep explicit approval of the device on the Host. Trusting the account means a compromised account or relay can enroll a new device, and the Human accepted this. Existing pins still cannot be replaced. Signing out stops discovery and new enrollment but does not revoke existing devices. Remote sign-out of another linked computer writes a session tombstone before removing its tunnel, so a still-valid token cannot re-link.
 
@@ -92,7 +94,7 @@ One Connections entry with **Add connection** covers both inviting a device to T
 
 The phone and the computer ship separately, so each tolerates the other's older release. A missing bridge method (HTTP 404) means "update Tobs on the computer", not an outage. `ping` returns the Host's version and `minAppVersion`. The phone sends `x-tobs-app-version` on every JSON bridge call. Each side recommends a minimum for the other (`MIN_PHONE_APP_VERSION`, `MIN_HOST_VERSION`) and never blocks: a version below the floor shows a dismissible chip. A missing, `0.x` or malformed version never trips a floor. A floor rises only with the release that needs it, to a version already shipped.
 
-Why: a credential generated in a CLI process does not add a Remote Host to a browser, so the command must reach the Client that will hold the credential. Treating a missing method as an outage made a new phone drop an older computer every 20 seconds.
+Why: a credential generated in a CLI process does not add a Remote Host to a browser, so the command must reach the Client that will hold the credential. Treating a missing method as an outage made a new phone drop an older Remote Host every 20 seconds.
 
 Enforced by: `packages/core/test/client-compat.property.test.ts`. That property test checks the following for any version string:
 
@@ -123,6 +125,6 @@ Enforced by: `verification/enrollment/Enrollment.tla`, checked by `node scripts/
 - A key gets at most one grant.
 - A cancelled key has no active grant.
 - No grant is issued after the deadline.
-- A grant whose reply was lost is eventually revoked.
+- A grant whose reply was lost is eventually revoked, assuming cleanup keeps getting a turn (weak fairness). The model does not bound attempts; the code stops automatic cleanup after 8 attempts, and after that only a manual cleanup attempt revokes the grant.
 
 Other tests: `packages/core/test/host-relationships.test.ts`, `account-relationships.test.ts`, `relationship-admission.test.ts`, `relationship-control.test.ts`, `cli-relationships.test.ts`, `cli-relationship-deadline.test.ts`, `cli-relationship-private-file.test.ts`.
