@@ -881,7 +881,7 @@ printf '{"title":"Water the plants"}' | deepseekbot todo-tool <bot-id> todos_add
 
 ### Auto approval (Approval Templates)
 
-Each Bot dynamically inherits the optional Profile default, selects one shared template in full replacement, or turns the Reviewer off ([ADR-0342](adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)). New Bots inherit; existing specific selections and missing legacy fields keep their previous selection or Off. Off does not revoke saved Tool Approval Rules or change Full Access.
+Each Bot dynamically inherits the optional Profile default, selects one shared template in full replacement, or turns the Reviewer off ([ADR-0342](decisions/approvals.md#adr-0342)). New Bots inherit; existing specific selections and missing legacy fields keep their previous selection or Off. Off does not revoke saved Tool Approval Rules or change Full Access.
 
 ```bash
 deepseekbot approval-template list [--bot <bot-id>]

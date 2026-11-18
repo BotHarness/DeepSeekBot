@@ -2,7 +2,7 @@
 
 Status: Human-confirmed design, 2026-11-15. This document records design and implementation boundaries; GitHub issues own delivery status. Documentation changes no runtime settings. [中文](bot-approval-policy.zh.md).
 
-[ADR-0342](../adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md) owns the durable choices and trade-offs. This document owns the integrated target behavior. GitHub issues own delivery status. Neither this interview nor these documents authorize implementation, live permission changes or a SQLite migration.
+[ADR-0342](../decisions/approvals.md#adr-0342) owns the durable choices and trade-offs. This document owns the integrated target behavior. GitHub issues own delivery status. Neither this interview nor these documents authorize implementation, live permission changes or a SQLite migration.
 
 The implementation keeps template files and global selection in the existing file owner, Bot choices in the Bot Registry, card authorizations in the Tool Approval Rule owner, and decisions in Channel Tool Approval. Slices #4205, #4211, #4244, #4245, #4246, #4210 and #4212 cover declarations, selection, three-part editing, rule management, confirmed deletion and shared CLI/native admission. Delivery evidence is source-qualified; iOS and outstanding matched-performance checks remain in [QA #2742](https://github.com/BotHarness/DeepSeekBot/issues/2742#issuecomment-6909957258).
 
