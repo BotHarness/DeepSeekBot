@@ -8,6 +8,7 @@ import {
   type WorkspaceGrant,
 } from './bot-settings';
 import { MethodRefused, type HostClient } from './client';
+import { readChannelTimeline, wireTimelineMessage } from './channel-messages';
 import { recordFeature } from './telemetry/features';
 import type { FeatureEntry } from './telemetry/schema';
 import type {
@@ -15,7 +16,6 @@ import type {
   QuestionAnswer,
   QuestionItem,
   TimelineMessage,
-  TimelinePage,
   ToolApprovalOutcome,
   ToolApprovalRequestCard,
   ToolApprovalStatus,
@@ -100,13 +100,12 @@ async function readRequest(
   client: HostClient,
   ref: RequestRef,
 ): Promise<{ request: TimelineMessage; later: TimelineMessage[] }> {
-  const { page } = await client.call<{ page: TimelinePage }>('channelTimeline', {
-    channelId: ref.channelId,
-    direction: 'around',
-    around: ref.messageId,
-    olderLimit: 0,
-    newerLimit: CONTEXT_AFTER,
-  });
+  const { page } = await readChannelTimeline(
+    client,
+    ref.channelId,
+    { direction: 'around', around: ref.messageId, olderLimit: 0, newerLimit: CONTEXT_AFTER },
+    wireTimelineMessage,
+  );
   const index = page.entries.findIndex((entry) => entry.id === ref.messageId);
   if (index < 0) throw new Error('The request is no longer in this conversation.');
   return {

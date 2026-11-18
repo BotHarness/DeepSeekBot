@@ -1777,7 +1777,12 @@ it.each(
       },
     };
     host.methods.set('channelTimeline', () => ({
+      revision: 1,
       page: {
+        olderCursor: null,
+        newerCursor: null,
+        hasOlder: false,
+        hasNewer: false,
         entries: [
           request,
           ...(!pending && result === 'decided'
@@ -1889,7 +1894,12 @@ it.each(['tool-approval', 'user-question'] as const)(
     host.methods.set('toolApprovalStatus', () => ({ status: 'pending' }));
     host.methods.set('userQuestionStatus', () => ({ status: 'pending' }));
     host.methods.set('channelTimeline', () => ({
+      revision: 1,
       page: {
+        olderCursor: null,
+        newerCursor: null,
+        hasOlder: false,
+        hasNewer: false,
         entries: [
           {
             id: 'request-message',
@@ -1971,7 +1981,12 @@ it.each(
     const endpoint = read === 'timeline' ? 'channelTimeline' : status;
     host.methods.set(status, () => ({ status: 'pending' }));
     host.methods.set('channelTimeline', () => ({
+      revision: 1,
       page: {
+        olderCursor: null,
+        newerCursor: null,
+        hasOlder: false,
+        hasNewer: false,
         entries: [
           {
             id: 'request-message',
