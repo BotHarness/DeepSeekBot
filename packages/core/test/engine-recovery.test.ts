@@ -336,6 +336,26 @@ describe('Engine Host recovery', () => {
     await host.close();
   });
 
+  it('writes nothing for a turn cancelled while its account is checked', async () => {
+    const stop = new AbortController();
+    let reads = 0;
+    const { host, opened, request, dsh } = hostWith(() =>
+      fakeCodex({
+        'account/read': () => {
+          reads += 1;
+          if (reads === 2) stop.abort();
+          return { result: { account: { type: 'chatgpt', planType: 'pro' } } };
+        },
+      }),
+    );
+    await host.runTurn(request());
+    const stored = dsh.stored.get('orchestrator-ada')!.events.length;
+    await host.runTurn(request(stop.signal));
+    expect(opened[0]!.methods().filter((method) => method === 'turn/start')).toHaveLength(1);
+    expect(dsh.stored.get('orchestrator-ada')!.events).toHaveLength(stored);
+    await host.close();
+  });
+
   it('sends nothing for a turn cancelled while its Session opens', async () => {
     const stop = new AbortController();
     const { host, opened, request } = hostWith(() =>

@@ -217,6 +217,7 @@ export class EngineHost {
       } else if (!request.signal.aborted) {
         if (live.accountChecked) live.accountChecked = false;
         else live.account = requireSubscription(await live.engine.account());
+        if (request.signal.aborted) return;
         const stop = new AbortController();
         live.stop = stop;
         const scope: TurnScope = { channelId: request.channelId, execute: request.execute };
