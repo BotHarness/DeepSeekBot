@@ -250,10 +250,14 @@ import {
   type FallbackOverrideStore,
 } from './models/fallback-overrides.js';
 import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
-import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
+import {
+  assignmentGroupOptionOf,
+  createModelPresetStore,
+  type ModelPresetStore,
+} from './models/presets.js';
 import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
 import { createOpenAssignmentRoutes } from './models/open-assignments.js';
-import { createModelCatalog } from './models/catalog.js';
+import { createModelCatalog, groupMemberRoute } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
@@ -1897,7 +1901,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     assignmentGroups: {
-      pick: (botSlug, groupId) => groupFallback.pick(botSlug, groupId),
+      pick: (botSlug, groupId, effort) => groupFallback.pick(botSlug, groupId, effort),
       describe: (groupId) => {
         const group = core.routingGroups.get(groupId);
         if (group === undefined) return undefined;
@@ -1927,7 +1931,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             const plan = core.registry.get(slug)?.modelPlan;
             if (!(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`Routing Group ${groupId} is not allowed for Subagents`);
-            const picked = await groupFallback.pick(slug, groupId);
+            const picked = await groupFallback.pick(
+              slug,
+              groupId,
+              assignmentGroupOptionOf(plan, groupId)?.defaultEffort,
+            );
             if (picked.kind === 'route') return picked.route;
             throw new Error(
               picked.kind === 'exhausted' && picked.rests.length > 0
@@ -2208,6 +2216,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
     validate: (route) => modelCatalog.validate(route),
+    withEffort: async (route, effort) => groupMemberRoute(route, effort, await modelCatalog.list()),
     overrides: {
       get: (sessionId) => core.fallbackOverrides.get(sessionId),
       set: (sessionId, override) => core.fallbackOverrides.set(sessionId, override),

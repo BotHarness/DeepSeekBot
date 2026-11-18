@@ -391,3 +391,26 @@ describe('A Session stays on its fallback member until that member fails', () =>
     expect(result.held).toBeUndefined();
   });
 });
+
+describe('Routing Group effort reaches the member that runs (#4497)', () => {
+  it('gives the group effort to members that support it and keeps a member override', async () => {
+    const plain = { provider: 'plain', model: 'chat' };
+    const fallback = createGroupFallback({
+      plan: () => ({ ...plan('g'), orchestratorGroupEffort: 'max' }),
+      routes: () => [plain, DEEPSEEK],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, effort) =>
+        route.reasoningEffort !== undefined || key(route) === key(plain)
+          ? route
+          : { ...route, reasoningEffort: effort! },
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual(plain);
+    const switched = await fallback.choose('ada', 's1', { ...plain, until: '', reason: 'quota' });
+    expect(switched).toMatchObject({ kind: 'switch', to: { ...DEEPSEEK, reasoningEffort: 'max' } });
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    expect(await fallback.pick('ada', 'g', 'high')).toEqual({ kind: 'route', route: plain });
+  });
+});

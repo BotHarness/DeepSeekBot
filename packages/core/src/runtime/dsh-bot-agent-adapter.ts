@@ -85,7 +85,7 @@ import { ENGINE_GATEWAY_TOOLS, type EngineTurnRequest } from '../engines/engine-
 import { engineInstructions } from '../engines/engine-persona.js';
 
 export interface AssignmentGroupRoutes {
-  pick(botSlug: string, groupId: string): Promise<GroupPick>;
+  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
   describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
   inherited?(): string | undefined;
@@ -2061,22 +2061,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             (args.provider === undefined
               ? (plan?.assignmentDefaultGroupId ?? inherited)
               : undefined);
-          let picked: ModelRoute | undefined;
-          if (groupId !== undefined) {
-            if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
-              throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
-            const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId);
-            if (pick?.kind !== 'route')
-              return JSON.stringify({
-                outcome: 'refused',
-                retryable: false,
-                message:
-                  pick?.kind === 'exhausted' && pick.rests.length > 0
-                    ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
-                    : `Routing Group ${groupId} has no usable model`,
-              });
-            picked = pick.route;
-          }
           if ((args.provider === undefined) !== (args.model === undefined))
             throw new Error('create_assignment: provider and model must be specified together');
           if (args.reasoning_effort !== undefined && args.provider === undefined) {
@@ -2092,8 +2076,22 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             groupId === undefined
               ? undefined
               : (args.reasoning_effort ?? assignmentGroupOptionOf(plan, groupId)?.defaultEffort);
-          if (picked !== undefined && groupEffort !== undefined)
-            picked = { ...picked, reasoningEffort: groupEffort };
+          let picked: ModelRoute | undefined;
+          if (groupId !== undefined) {
+            if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
+              throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
+            const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
+            if (pick?.kind !== 'route')
+              return JSON.stringify({
+                outcome: 'refused',
+                retryable: false,
+                message:
+                  pick?.kind === 'exhausted' && pick.rests.length > 0
+                    ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
+                    : `Routing Group ${groupId} has no usable model`,
+              });
+            picked = pick.route;
+          }
           if (args.provider !== undefined)
             await this.#openAssignmentRoutes?.require(run.bot.slug, {
               provider: args.provider,

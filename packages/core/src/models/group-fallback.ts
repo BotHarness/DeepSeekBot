@@ -30,7 +30,7 @@ export interface GroupFallback {
     failed: RestingRoute,
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
   start(botSlug: string, sessionId: string): Promise<void>;
-  pick(botSlug: string, groupId: string): Promise<GroupPick>;
+  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
   inherited(): string | undefined;
 }
 
@@ -44,8 +44,17 @@ export function createGroupFallback(options: {
   rests: Pick<RouteRests, 'restingUntil'>;
   requireAllowed(botSlug: string, route: ModelRoute): void;
   validate(route: ModelRoute): Promise<void>;
+  withEffort?(route: ModelRoute, effort: string | undefined): Promise<ModelRoute>;
   overrides?: FallbackOverrideStore;
 }): GroupFallback {
+  const withEffort = async (route: ModelRoute, effort: string | undefined) =>
+    options.withEffort === undefined || effort === undefined
+      ? { ...route }
+      : options.withEffort(route, effort);
+  const effortOf = (botSlug: string): string | undefined => {
+    const plan = options.plan(botSlug);
+    return plan?.orchestratorGroupId === undefined ? undefined : plan.orchestratorGroupEffort;
+  };
   const overrides = options.overrides ?? createMemoryFallbackOverrides();
   const groupOf = (botSlug: string): string | undefined => {
     const plan = options.plan(botSlug);
@@ -92,11 +101,12 @@ export function createGroupFallback(options: {
         } catch {
           continue;
         }
-        overrides.set(sessionId, { botSlug, groupId: group.groupId, route: { ...route } });
+        const next = await withEffort(route, effortOf(botSlug));
+        overrides.set(sessionId, { botSlug, groupId: group.groupId, route: next });
         return {
           kind: 'switch',
           from: { provider: failed.provider, model: failed.model },
-          to: { ...route },
+          to: { ...next },
           reason: failed.reason ?? 'quota',
           until: failed.until,
         };
@@ -114,11 +124,15 @@ export function createGroupFallback(options: {
         } catch {
           continue;
         }
-        overrides.set(sessionId, { botSlug, groupId: group.groupId, route: { ...route } });
+        overrides.set(sessionId, {
+          botSlug,
+          groupId: group.groupId,
+          route: await withEffort(route, effortOf(botSlug)),
+        });
         return;
       }
     },
-    async pick(botSlug, groupId) {
+    async pick(botSlug, groupId, effort) {
       let routes: ModelRoute[];
       try {
         routes = options.routes(groupId);
@@ -138,7 +152,7 @@ export function createGroupFallback(options: {
         } catch {
           continue;
         }
-        return { kind: 'route', route: { ...route } };
+        return { kind: 'route', route: await withEffort(route, effort) };
       }
       return { kind: 'exhausted', rests };
     },

@@ -97,6 +97,7 @@ const option = {
 
 const noGroups = {
   orchestratorGroupId: null,
+  orchestratorGroupEffort: null,
   assignmentGroups: [],
   assignmentDefaultGroupId: null,
 };
@@ -474,6 +475,7 @@ describe('Model commands', () => {
     await invoke(['model-preset-update', 'p1', '--name', 'Renamed'], live.url);
     await invoke(['model-preset-update', 'p1', '--assignment-groups', 'side,extra'], live.url);
     await invoke(['model-preset-update', 'p1', '--orchestrator-model', 'chat'], live.url);
+    await invoke(['model-preset-update', 'p1', '--orchestrator-effort', 'max'], live.url);
     const calls = live.calls
       .filter((call) => call.method === 'modelPresetUpdate')
       .map((call) => call.args);
@@ -491,8 +493,11 @@ describe('Model commands', () => {
     });
     expect(calls[2]).toMatchObject({
       orchestratorGroupId: null,
+      orchestratorGroupEffort: null,
       orchestrator: route('chat'),
     });
+    expect(calls[3]).toMatchObject({ orchestratorGroupId: 'main', orchestratorGroupEffort: 'max' });
+    expect(calls[3]).not.toHaveProperty('orchestrator');
   });
 });
 
@@ -578,6 +583,19 @@ describe('Routing Group commands', () => {
         args: { slug: 'ada', expectedRevision: 3, orchestratorGroupId: 'g1' },
       },
     ]);
+    await invoke(
+      ['model-plan-customize', 'ada', '--orchestrator-group', 'g1', '--orchestrator-effort', 'max'],
+      live.url,
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanCustomize',
+      args: {
+        slug: 'ada',
+        expectedRevision: 3,
+        orchestratorGroupId: 'g1',
+        orchestratorGroupEffort: 'max',
+      },
+    });
   });
 });
 
