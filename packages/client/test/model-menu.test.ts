@@ -307,7 +307,7 @@ it('lists Routing Groups in their own column with the member in front, and stars
     }),
   });
   expect(rows()).toEqual([
-    `Daily${zhTranslate('modelMenu.groupFront', { model: '6.1 · OpenAI' })}Ctrl+1`,
+    `Daily${zhTranslate('modelMenu.groupFront', { model: 'GPT-6.1 · OpenAI' })}Ctrl+1`,
     `Flash only${rest}`,
   ]);
   const daily = document.body.querySelector("[data-picker-option='group:daily']");

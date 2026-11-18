@@ -204,7 +204,9 @@ function ModelsView({
         : picker === 'assignment'
           ? t.modelSettings.assignment
           : picker === 'orchestrator'
-            ? t.modelSettings.orchestrator
+            ? scope.kind === 'global'
+              ? t.modelSettings.global
+              : t.modelSettings.orchestrator
             : scope.kind === 'preset'
               ? (value?.preset?.name ?? t.modelPresets)
               : t.modelSettings.title;
@@ -503,7 +505,7 @@ function ModelsView({
                         : t.modelSettings.groupFront(
                             front === undefined
                               ? (group.routes[0]?.model ?? '')
-                              : `${modelEntryLabel(front).short} · ${front.providerName}`,
+                              : `${/\p{L}/u.test(modelEntryLabel(front).short) ? modelEntryLabel(front).short : front.modelName} · ${front.providerName}`,
                           )
                     }
                     tone={usable ? 'fg' : 'muted'}

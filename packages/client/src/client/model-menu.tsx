@@ -44,6 +44,11 @@ export function groupMenuId(key: string): string | undefined {
   return key.startsWith(GROUP_PREFIX) ? key.slice(GROUP_PREFIX.length) : undefined;
 }
 
+function groupFrontName(name: string, brand: Parameters<typeof modelShortName>[1]): string {
+  const short = modelShortName(name, brand);
+  return /\p{L}/u.test(short) ? short : name;
+}
+
 export function restingHint(until: string, t: BotHarnessTranslate): string {
   return t('routingGroups.resting', {
     until: new Date(until).toLocaleString(undefined, {
@@ -149,7 +154,7 @@ export function catalogMenuItems(
                 model:
                   entry === undefined
                     ? (front?.model ?? '')
-                    : `${modelShortName(entry.modelName, brand)} · ${entry.providerName}`,
+                    : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
               }),
         disabled,
       };
