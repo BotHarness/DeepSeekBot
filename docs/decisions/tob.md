@@ -23,7 +23,7 @@ Enforced by: `tob.test.ts` (concurrent clients converge on one Tob and one DM, r
 <a id="adr-0268"></a>
 _Formerly ADR-0268, which removed the Home panel of ADR-0223._
 
-There is no Home panel. On desktop the Tob DM opens in Messages, and the "Open Tob" command does that without changing the layout; in Simple layout the Human can hide the Side column to focus on the conversation ([ADR-0269](../adr/0269-simple-layout-keeps-messages-and-switches-a-side-column.md)). Cross-Bot attention stays in Activity Center, and the Human asks Tob in conversation to create a Bot.
+There is no Home panel. On desktop the Tob DM opens in Messages, and the "Open Tob" command does that without changing the layout; in Simple layout the Human can hide the Side column to focus on the conversation ([ADR-0269](onboarding.md#adr-0269)). Cross-Bot attention stays in Activity Center, and the Human asks Tob in conversation to create a Bot.
 
 On mobile, **Tob Mode** is the ordinary chat screen for the Tob DM with a different entrance: pulling down on Chats past the commit distance (80 pt, `tobPull.commit`) and releasing opens it, sliding in from the top (a fade under Reduce Motion), and system Back or a push up closes it. The pull opens the Tob of the filtered computer Environment, or the most recently used one under "All environments" or a cloud filter; with no matching computer it refreshes instead. The Tob row stays in the Chats list.
 
