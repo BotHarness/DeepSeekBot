@@ -3920,77 +3920,7 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   outline: ${border.focus} solid var(--bh-accent);
   outline-offset: 2px;
 }
-.bh-bubble-reply {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  margin: 0 0 ${space.x2};
-  padding: ${space.x1} ${space.x3} ${space.x1} ${space.x4};
-  overflow: hidden;
-  border: 0;
-  border-radius: ${radius.xs};
-  background: color-mix(in srgb, currentColor 13%, transparent);
-  color: ${color.accentText};
-  font: inherit;
-  font-size: ${text.metaSize};
-  line-height: ${text.metaLine};
-  text-align: left;
-  cursor: pointer;
-}
-/* The bar and the name take the quoted author's colour; the preview keeps the bubble's text. */
-.bh-bubble-reply::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: currentColor;
-}
-.bh-bubble-reply[data-bubble-quote='other'],
-.bh-bubble-reply-unavailable {
-  color: var(--tobs-ink-secondary);
-}
-.bh-bubble-reply:hover {
-  background: color-mix(in srgb, currentColor 20%, transparent);
-}
-.bh-bubble-reply:focus-visible {
-  outline: ${border.focus} solid currentColor;
-  outline-offset: 2px;
-}
-.bh-bubble-me .bh-bubble-reply {
-  color: inherit;
-}
-.bh-bubble-reply-unavailable {
-  cursor: default;
-}
-.bh-bubble-reply-author {
-  overflow: hidden;
-  max-width: 100%;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-weight: ${text.strong};
-}
-.bh-bubble-reply-body {
-  overflow: hidden;
-  max-width: 100%;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: ${color.fg};
-  opacity: 0.9;
-}
-.bh-bubble-me .bh-bubble-reply-body {
-  color: inherit;
-}
-.bh-bubble-reply-media {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  column-gap: ${space.x3};
-  align-items: center;
-}
-.bh-bubble-reply-media > .bh-bubble-reply-thumb {
+.bh-bubble-reply-thumb {
   grid-row: 1 / span 2;
 }
 .bh-bubble-reply-thumb {

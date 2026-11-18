@@ -120,6 +120,24 @@ export type ChannelAuthor =
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
+export interface QuoteRef {
+  messageId: string;
+  text?: string;
+  note?: string;
+}
+
+export function quoteRefOf({ messageId, text, note }: QuoteRef): QuoteRef {
+  return {
+    messageId,
+    ...(text === undefined ? {} : { text }),
+    ...(note === undefined ? {} : { note }),
+  };
+}
+
+export interface ChannelMessageQuote extends QuoteRef {
+  preview?: ChannelReplyPreview | null;
+}
+
 export interface ChannelReplyPreview {
   author: ChannelAuthor;
   body: string;
@@ -278,6 +296,7 @@ export interface ChannelMessage {
     failures?: number;
     rests?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopRest[];
   };
+  modelSwitch?: import('../../../core/src/channels/model-switch.js').ChannelModelSwitch;
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
   voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;
   toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;
@@ -308,6 +327,7 @@ export interface ChannelMessage {
   format?: 'markdown' | 'text';
   replyTo?: string;
   replyToPreview?: ChannelReplyPreview | null;
+  quotes?: ChannelMessageQuote[];
   pending?: boolean;
   failed?: string;
   unconfirmed?: boolean;

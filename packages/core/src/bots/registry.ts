@@ -183,6 +183,8 @@ export interface PersonaBotRegistry {
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
     expectedRevision: number,
+    openAssignmentModels?: boolean,
+    groups?: { ids: string[]; defaultId?: string },
   ): UpdatePersonaBotResult;
   setModelPlan(
     slug: string,
@@ -190,6 +192,7 @@ export interface PersonaBotRegistry {
       orchestrator: ModelRoute;
       assignmentDefault: ModelRoute;
       assignmentModels: AssignmentModelOption[];
+      openAssignmentModels?: boolean;
     },
     expectedRevision: number,
   ): UpdatePersonaBotResult;
@@ -305,6 +308,12 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         ...(plan.orchestratorGroupId === undefined
           ? {}
           : { orchestratorGroupId: plan.orchestratorGroupId }),
+        ...(plan.assignmentGroups === undefined
+          ? {}
+          : { assignmentGroups: [...plan.assignmentGroups] }),
+        ...(plan.assignmentDefaultGroupId === undefined
+          ? {}
+          : { assignmentDefaultGroupId: plan.assignmentDefaultGroupId }),
         ...(plan.assignmentDefault === undefined
           ? {}
           : { assignmentDefault: route(plan.assignmentDefault) }),
@@ -319,6 +328,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
                 ...(option.note === undefined ? {} : { note: option.note }),
               })),
             }),
+        ...(plan.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
       };
     return result;
   };
@@ -1139,6 +1149,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
                 allowedEfforts: [...option.allowedEfforts],
               })),
             }),
+        ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
         appliedAt: now().toISOString(),
       };
       record.modelPlan = plan;
@@ -1182,13 +1193,34 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       write(record);
       return { ok: true, record };
     },
-    setAssignmentModels(slug, assignmentDefault, assignmentModels, expectedRevision) {
+    setAssignmentModels(
+      slug,
+      assignmentDefault,
+      assignmentModels,
+      expectedRevision,
+      openAssignmentModels,
+      groups,
+    ) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (record.modelPlan === undefined || record.modelPlan.revision !== expectedRevision)
         return { ok: false, reason: 'invalid-input' };
+      const {
+        openAssignmentModels: currentOpen,
+        assignmentGroups: currentGroups,
+        assignmentDefaultGroupId: currentDefaultGroup,
+        ...plan
+      } = record.modelPlan;
+      const open = openAssignmentModels ?? currentOpen === true;
+      const ids = groups === undefined ? (currentGroups ?? []) : groups.ids;
+      const defaultGroup = groups === undefined ? currentDefaultGroup : groups.defaultId;
       record.modelPlan = {
-        ...record.modelPlan,
+        ...plan,
+        ...(open ? { openAssignmentModels: true } : {}),
+        ...(ids.length === 0 ? {} : { assignmentGroups: [...ids] }),
+        ...(ids.length === 0 || defaultGroup === undefined
+          ? {}
+          : { assignmentDefaultGroupId: defaultGroup }),
         revision: record.modelPlan.revision + 1,
         sourcePresetId: '',
         sourcePresetName: '',
@@ -1217,6 +1249,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
           ...option,
           allowedEfforts: [...option.allowedEfforts],
         })),
+        ...(routes.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
         appliedAt: now().toISOString(),
       };
       delete record.model;

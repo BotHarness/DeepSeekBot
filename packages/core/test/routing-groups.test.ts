@@ -127,6 +127,9 @@ describe('Choosing a Routing Group as a Bot Orchestrator', () => {
       registry,
       modelPresets: createModelPresetStore({ rootDir: root, database }),
       routingGroups,
+      routeRests: {
+        list: () => [{ provider: 'opencode-go', model: 'x', until: '2026-11-22T00:00:00.000Z' }],
+      },
       modelCatalog: {
         list: async () =>
           [GO, DEEPSEEK].map(({ provider, model }) => ({
@@ -156,7 +159,10 @@ describe('Choosing a Routing Group as a Bot Orchestrator', () => {
     expect(created.ok).toBe(true);
     if (!created.ok) return;
     const id = created.value.group.id;
-    expect(methods.modelGroups({})).toMatchObject({ ok: true, value: { groups: [{ id }] } });
+    expect(methods.modelGroups({})).toMatchObject({
+      ok: true,
+      value: { groups: [{ id }], rests: [{ provider: 'opencode-go', model: 'x' }] },
+    });
     expect(methods.modelGroup({ id })).toMatchObject({
       ok: true,
       value: { routes: [{ provider: 'opencode-go' }, { provider: 'deepseek' }] },

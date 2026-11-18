@@ -2,6 +2,9 @@ import type { ModelRoute } from './presets.js';
 
 export const LONG_RETRY_AFTER_MS = 60_000;
 export const DEFAULT_REST_MS = 60 * 60_000;
+export const RATE_LIMIT_REST_MS = 5 * 60_000;
+
+export type RestReason = 'quota' | 'credential' | 'rate-limit';
 
 const QUOTA_CODES = new Set(['QUOTA', 'ACCOUNT_QUOTA', 'QUOTA_EXCEEDED']);
 
@@ -40,12 +43,13 @@ export interface RestingRoute {
   provider: string;
   model: string;
   until: string;
+  reason?: RestReason;
 }
 
 type RouteKey = Pick<ModelRoute, 'provider' | 'model'>;
 
 export interface RouteRests {
-  rest(route: RouteKey, untilMs: number): RestingRoute;
+  rest(route: RouteKey, untilMs: number, reason?: RestReason): RestingRoute;
   restingUntil(route: RouteKey): RestingRoute | undefined;
   list(): RestingRoute[];
 }
@@ -54,6 +58,7 @@ interface RestEntry {
   provider: string;
   model: string;
   untilMs: number;
+  reason?: RestReason;
 }
 
 const keyOf = (route: RouteKey) => JSON.stringify([route.provider, route.model]);
@@ -62,6 +67,7 @@ const view = (entry: RestEntry): RestingRoute => ({
   provider: entry.provider,
   model: entry.model,
   until: new Date(entry.untilMs).toISOString(),
+  ...(entry.reason === undefined ? {} : { reason: entry.reason }),
 });
 
 export function createRouteRests(options: { now?: () => number } = {}): RouteRests {
@@ -75,12 +81,18 @@ export function createRouteRests(options: { now?: () => number } = {}): RouteRes
     return undefined;
   };
   return {
-    rest(route, untilMs) {
+    rest(route, untilMs, reason) {
       const key = keyOf(route);
+      const previous = live(key);
       const entry = {
         provider: route.provider,
         model: route.model,
-        untilMs: Math.max(untilMs, live(key)?.untilMs ?? 0),
+        untilMs: Math.max(untilMs, previous?.untilMs ?? 0),
+        ...(reason === undefined
+          ? previous?.reason === undefined
+            ? {}
+            : { reason: previous.reason }
+          : { reason }),
       };
       rests.set(key, entry);
       return view(entry);

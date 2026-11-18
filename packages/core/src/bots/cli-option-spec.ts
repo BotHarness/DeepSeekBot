@@ -164,6 +164,7 @@ export const MESSAGING_OPTIONS = {
 export const MODELS_USAGE_OPTIONS = {
   'expected-revision': { type: 'string' },
   'plan-stdin': { type: 'boolean' },
+  'assignment-models': { type: 'string' },
   'members-stdin': { type: 'boolean' },
   'orchestrator-group': { type: 'string' },
   period: { type: 'string' },
@@ -354,6 +355,8 @@ export const LIVE_OPTIONS = {
   timeout: { type: 'string' },
   'message-id': { type: 'string' },
   'reply-to': { type: 'string' },
+  quote: { type: 'string', multiple: true },
+  'quote-note': { type: 'string', multiple: true },
   'failure-message-id': { type: 'string' },
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },

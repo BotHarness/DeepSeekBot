@@ -221,6 +221,42 @@ describe('composer / sessions', () => {
     }
   });
 
+  it('asks for sessions from the plain textarea before any are loaded', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const onSessionMenu = vi.fn();
+    try {
+      await act(async () => {
+        root.render(
+          createElement(ChannelComposer, {
+            value: '',
+            sessionOptions: [],
+            onSessionMenu,
+            placeholder: 'Message',
+            sending: false,
+            onChange: () => undefined,
+            onSubmit: () => undefined,
+          }),
+        );
+      });
+      const input = container.querySelector('textarea')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+          input,
+          '/',
+        );
+        input.setSelectionRange(1, 1);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(onSessionMenu).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   it('shows a finished session once the person filters for it', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const container = document.createElement('div');

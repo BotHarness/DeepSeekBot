@@ -1,4 +1,7 @@
+import { Note } from './ds/note.js';
 import { Button } from './ds/button.js';
+import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
   composerSlashQuery,
@@ -164,6 +167,7 @@ export interface ChannelComposerProps {
   sessionOptions?: readonly ComposerSessionOption[] | undefined;
   onSessionMenu?: (() => void) | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
+  quotes?: readonly ComposerQuote[] | undefined;
   t?: BotHarnessTranslate | undefined;
   onChange(
     value: string,
@@ -172,10 +176,14 @@ export interface ChannelComposerProps {
     skills?: SelectedSkill[],
   ): void;
   onCancelReply?(): void;
+  onRemoveQuote?(quote: ComposerQuote): void;
+  onQuoteNote?(quote: ComposerQuote, note: string): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
   onStop?: (() => void) | undefined;
 }
+
+const NO_QUOTES: readonly ComposerQuote[] = [];
 
 const IMAGE_ATTACHMENT_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
 
@@ -468,9 +476,12 @@ export function ChannelComposer({
   sessionOptions = [],
   onSessionMenu,
   reply,
+  quotes = NO_QUOTES,
   t = zhTranslate,
   onChange,
   onCancelReply,
+  onRemoveQuote,
+  onQuoteNote,
   onRecall,
   onSubmit,
   onStop,
@@ -616,6 +627,7 @@ export function ChannelComposer({
     );
     setSkillQuery(undefined);
     setSlashQuery(undefined);
+    setSessionQuery(undefined);
     requestedCaret.current = selected.caret;
     requestAnimationFrame(() => {
       const editor = richRef.current;
@@ -746,7 +758,8 @@ export function ChannelComposer({
     height: 34,
     animateFirstExpand: false,
   });
-  const hasFooter = fit.expanded || reply !== undefined || attachments.length > 0;
+  const hasFooter =
+    fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
     const nextFit = fitComposerTextarea(element);
@@ -1040,6 +1053,7 @@ export function ChannelComposer({
           deleted.value,
           rebaseMentions(value, deleted.value, mentions),
           rebaseChannelRefs(value, deleted.value, channelRefs),
+          rebaseSkills(value, deleted.value, skills),
         );
         setMentionQuery(undefined);
         setChannelQuery(undefined);
@@ -1453,6 +1467,31 @@ export function ChannelComposer({
             </button>
           </div>
         )}
+        {quotes.length === 0 ? null : (
+          <QuoteChipList label={t('message.quotes')}>
+            {quotes.map((quote) => {
+              const author = quote.author ?? t('message.replyUnavailable');
+              return (
+                <QuoteChip
+                  key={`${quote.messageId}:${quote.text ?? ''}`}
+                  author={author}
+                  excerpt={quote.excerpt ?? quote.text ?? ''}
+                  part={quote.text !== undefined}
+                  note={quote.note ?? ''}
+                  noteLabel={t('message.quoteNoteLabel', { author })}
+                  notePlaceholder={t('message.quoteNote')}
+                  removeLabel={t('message.quoteRemove', { author })}
+                  disabled={locked}
+                  onNoteChange={(note) => onQuoteNote?.(quote, note)}
+                  onRemove={() => onRemoveQuote?.(quote)}
+                />
+              );
+            })}
+          </QuoteChipList>
+        )}
+        {quotes.length < MAX_DRAFT_QUOTES ? null : (
+          <Note>{t('message.quoteLimit', { count: MAX_DRAFT_QUOTES })}</Note>
+        )}
         {attachments.length > 0 ? (
           <div className="bh-composer-attachments" aria-live="polite">
             {attachments.map((item, index) =>
@@ -1584,6 +1623,12 @@ export function ChannelComposer({
                     : composerSlashQuery(next, event.currentTarget.selectionStart),
                 );
                 setShortcutIndex(0);
+                const nextSessionQuery =
+                  sessionOptions.length === 0 && onSessionMenu === undefined
+                    ? undefined
+                    : activeSessionQuery(next, event.currentTarget.selectionStart);
+                if (nextSessionQuery !== undefined && sessionQuery === undefined) onSessionMenu?.();
+                setSessionQuery(nextSessionQuery);
                 const nextMentions = rebaseMentions(value, next, mentions);
                 const nextRefs = rebaseChannelRefs(value, next, channelRefs);
                 onChange(next, nextMentions, nextRefs);

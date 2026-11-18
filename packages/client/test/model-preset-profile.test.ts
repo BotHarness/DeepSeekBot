@@ -591,6 +591,48 @@ describe('Model entry', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
+  it('opens Assignments to any model with the switch and shows it on the card', async () => {
+    const plan: ModelPlanView = {
+      revision: 4,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      appliedAt: '',
+      orchestrator: { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' },
+      assignmentDefault: { provider: 'deepseek', model: 'flash' },
+    };
+    const onClose = vi.fn();
+    const setModelPlan = vi.fn(async () => ({
+      ...plan,
+      revision: 5,
+      openAssignmentModels: true as const,
+    }));
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({ plan })),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        setModelPlan,
+      } as unknown as BridgeActions,
+      onClose,
+    );
+    const toggle = document.querySelector<HTMLButtonElement>(
+      'button[role="switch"][aria-label="Allow any model"]',
+    )!;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    await act(async () => button('Save').click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      4,
+      plan.orchestrator,
+      { provider: 'deepseek', model: 'flash' },
+      [{ provider: 'deepseek', model: 'flash', allowedEfforts: [''], defaultEffort: '' }],
+      true,
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('keeps the editor and draft open after a rejected save', async () => {
     const onClose = vi.fn();
     await render(
