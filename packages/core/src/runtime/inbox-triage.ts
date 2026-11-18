@@ -292,6 +292,47 @@ export function createInboxTriage(
       return openRows(botSlug, {}, 'inbox').map((row) => row.source_event_id);
     },
     openSummary(botSlug, limit = 5) {
+      const status = (ids: readonly string[]): string => {
+        const rows = database.read(
+          (db) =>
+            db
+              .prepare(
+                `SELECT a.title, a.activity, a.stop_state,
+                        (SELECT json_extract(r.payload_json, '$.assignmentReport.state')
+                           FROM source_events r
+                          WHERE r.assignment_session_id = a.session_id
+                            AND r.source_kind = 'assignment-report'
+                          ORDER BY r.rowid DESC LIMIT 1) AS report_state,
+                        (SELECT r.body FROM source_events r
+                          WHERE r.assignment_session_id = a.session_id
+                            AND r.source_kind = 'assignment-report'
+                          ORDER BY r.rowid DESC LIMIT 1) AS report_body
+                   FROM request_assignments ra
+                   JOIN assignments a ON a.session_id = ra.session_id
+                  WHERE ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})
+                    AND a.bot_slug = ? AND a.archived_at IS NULL
+                  ORDER BY ra.linked_at`,
+              )
+              .all(...ids, botSlug) as unknown as Array<{
+              title: string;
+              activity: string;
+              stop_state: string;
+              report_state: string | null;
+              report_body: string | null;
+            }>,
+        );
+        if (rows.length === 0) return '';
+        const parts = rows.slice(0, 2).map((row) => {
+          const state = row.stop_state === 'running' ? row.activity : 'stopped';
+          const report =
+            row.report_state === null || row.report_body === null
+              ? 'no report yet'
+              : `last report ${row.report_state}: ${oneLine(row.report_body, 80)}`;
+          return `Assignment ${JSON.stringify(oneLine(row.title, 40))} ${state}, ${report}`;
+        });
+        const extra = rows.length > 2 ? `; +${rows.length - 2} more Assignments` : '';
+        return ` Status: ${parts.join('; ')}${extra}.`;
+      };
       const rows = openRows(botSlug, {}, 'inbox');
       const snoozedCount = openRows(botSlug, {}, 'inbox', 'only').length;
       if (rows.length === 0) return '';
@@ -304,7 +345,7 @@ export function createInboxTriage(
               ? `Channel ${JSON.stringify(entry.channelName)}`
               : entry.sourceKind;
         const more = entry.count > 1 ? ` (+${entry.count - 1} more in this conversation)` : '';
-        return `- [Source Event ${entry.ids[0]}] ${where}, ${entry.latestAt}: ${oneLine(entry.latest, 120)}${more}`;
+        return `- [Source Event ${entry.ids[0]}] ${where}, ${entry.latestAt}: ${oneLine(entry.latest, 120)}${more}${status(entry.ids)}`;
       });
       const rest = [
         ...(groups.length > limit ? [`- …and ${groups.length - limit} more conversations.`] : []),

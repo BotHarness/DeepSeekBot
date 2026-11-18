@@ -75,6 +75,27 @@ describe('Orchestrator triage continuation', () => {
     }
   }, 60000);
 
+  it('shows the Assignment status beside an open request', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      await f.admit('Research the export bug', (run) =>
+        run.assignments.create({ title: 'Research', grantId: TEST_GRANT_ID, description: 'Dig' }),
+      );
+      await f.assignments[0]!.report(
+        { state: 'progress', summary: 'Halfway through the CSV writer' },
+        { turn: 1 },
+      );
+      await f.admit('Any news?');
+      await vi.waitFor(() => expect(f.runs).toHaveLength(2));
+      const open = f.runs[1]!.inbox.split('[Open Inbox]')[1] ?? '';
+      expect(open).toContain(
+        'Status: Assignment "Research" working, last report progress: Halfway through the CSV writer.',
+      );
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
   it('keeps waking while each round resolves something', async () => {
     const f = await fixture({ triageContinuation: true });
     try {
