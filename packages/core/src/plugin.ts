@@ -184,6 +184,7 @@ import { createBridgeMethodsForHumans, type BridgeMethodsDeps } from './bridge/m
 import { composerRecoveryIdentity } from './bridge/composer-recovery.js';
 import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
+import { fileLocalRefStore, LocalRefs, localRefsEnabled } from './runtime/local-refs.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
@@ -1859,6 +1860,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return modelReadiness.prepare(slug, role, retainedRoute);
     },
     orchestratorCwd: (bot) => core.registry.memoryDirFor(bot.slug),
+    ...(localRefsEnabled()
+      ? {
+          localRefs: new LocalRefs(
+            fileLocalRefStore((slug) => join(core.rootDir, slug, 'local-refs.json')),
+          ),
+        }
+      : {}),
     observePreparation: (slug, sessionId, preparing) => {
       if (!preparing && core.states.snapshot(slug).sessions[sessionId] !== 'thinking') return;
       core.states.setSessionState(

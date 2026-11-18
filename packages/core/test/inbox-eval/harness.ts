@@ -6,6 +6,7 @@ import {
   replyReminderText,
 } from '../../src/runtime/dsh-bot-agent-adapter.js';
 import { renderInbox } from '../../src/runtime/inbox-render.js';
+import { LocalRefs } from '../../src/runtime/local-refs.js';
 import type { Scenario, ToolCall } from './scenarios.js';
 import type { EvalReport, ScenarioRun } from './score.js';
 
@@ -189,15 +190,86 @@ async function complete(endpoint: ModelEndpoint, messages: Message[], maxTokens 
   }
 }
 
+export type IdMode = 'fixture' | 'uuid' | 'short';
+
+const FIXTURE_ID = /(?<![\w-])(se-[\w-]+|a-export|dm-vain|c-team)(?![\w-])/g;
+
+const REAL_IDS = new Map<string, string>();
+const FIXTURE_IDS = new Map<string, string>();
+
+export class IdCodec {
+  readonly #mode: IdMode;
+  readonly #real = REAL_IDS;
+  readonly #fixture = FIXTURE_IDS;
+  readonly #refs = new LocalRefs({ load: () => undefined, save: () => undefined });
+
+  constructor(mode: IdMode) {
+    this.#mode = mode;
+  }
+
+  #realId(fixture: string): string {
+    let real = this.#real.get(fixture);
+    if (real === undefined) {
+      const uuid = randomUUID();
+      real =
+        fixture === 'dm-vain'
+          ? `dm-bot-${uuid.replaceAll('-', '')}`
+          : fixture === 'c-team'
+            ? `group-${uuid}`
+            : fixture === 'a-export'
+              ? `botharness-${uuid}`
+              : uuid;
+      this.#real.set(fixture, real);
+      this.#fixture.set(real, fixture);
+    }
+    return real;
+  }
+
+  toModel(text: string): string {
+    if (this.#mode === 'fixture') return text;
+    const real = text.replace(FIXTURE_ID, (id) => this.#realId(id));
+    return this.#mode === 'short' ? this.#refs.encode('eval', real) : real;
+  }
+
+  fromModel(args: Record<string, unknown>): Record<string, unknown> {
+    if (this.#mode === 'fixture') return args;
+    const resolved =
+      this.#mode === 'short'
+        ? (this.#refs.decodeArgs('eval', args, new Set(['message', 'instructions'])) as Record<
+            string,
+            unknown
+          >)
+        : args;
+    const back = (value: unknown): unknown =>
+      typeof value === 'string'
+        ? [...this.#fixture].reduce(
+            (text, [real, fixture]) => text.replaceAll(real, fixture),
+            value,
+          )
+        : Array.isArray(value)
+          ? value.map(back)
+          : value !== null && typeof value === 'object'
+            ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, back(v)]))
+            : value;
+    return back(resolved) as Record<string, unknown>;
+  }
+
+  message(message: Message): Message {
+    return JSON.parse(this.toModel(JSON.stringify(message))) as Message;
+  }
+}
+
 export async function runScenario(
   endpoint: ModelEndpoint,
   scenario: Scenario,
   system: string,
+  idMode: IdMode = 'fixture',
 ): Promise<ScenarioRun & { calls: ToolCall[]; inbox: string }> {
-  const inbox = renderInbox([...scenario.units], DEFAULT_PROMPT_TEXT);
+  const ids = new IdCodec(idMode);
+  const inbox = ids.toModel(renderInbox([...scenario.units], DEFAULT_PROMPT_TEXT));
   const messages: Message[] = [
-    { role: 'system', content: system },
-    ...history(),
+    ids.message({ role: 'system', content: system }),
+    ...history().map((message) => ids.message(message)),
     { role: 'user', content: `${inbox}\n\n${replyReminderText(DEFAULT_PROMPT_TEXT)}` },
   ];
   const calls: ToolCall[] = [];
@@ -225,11 +297,12 @@ export async function runScenario(
         if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed))
           args = parsed as Record<string, unknown>;
       } catch {}
-      calls.push({ name: call.function.name, args });
+      const fixtureArgs = ids.fromModel(args);
+      calls.push({ name: call.function.name, args: fixtureArgs });
       messages.push({
         role: 'tool',
         tool_call_id: call.id,
-        content: JSON.stringify(fakeResult(call.function.name, args)),
+        content: ids.toModel(JSON.stringify(fakeResult(call.function.name, fixtureArgs))),
       });
     }
   }
@@ -246,7 +319,13 @@ export async function runScenario(
 export async function runSuite(
   endpoint: ModelEndpoint,
   scenarios: readonly Scenario[],
-  options: { runs: number; label: string; concurrency?: number; log?: (line: string) => void },
+  options: {
+    runs: number;
+    label: string;
+    concurrency?: number;
+    idMode?: IdMode;
+    log?: (line: string) => void;
+  },
 ): Promise<EvalReport & { runs: (ScenarioRun & { calls: ToolCall[]; inbox: string })[] }> {
   const system = systemPrompt();
   await complete(
@@ -260,7 +339,7 @@ export async function runSuite(
   const worker = async () => {
     while (next < jobs.length) {
       const scenario = jobs[next++]!;
-      const result = await runScenario(endpoint, scenario, system);
+      const result = await runScenario(endpoint, scenario, system, options.idMode);
       options.log?.(
         `${scenario.id} cost-in=${result.usage.uncachedInput} hit=${result.usage.cacheRead} out=${result.usage.output} steps=${result.usage.steps} ${JSON.stringify({ ...result.behavior, ...result.safety })}`,
       );

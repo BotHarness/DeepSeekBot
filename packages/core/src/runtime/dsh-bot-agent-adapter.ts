@@ -43,6 +43,7 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools';
 import type { InboxOpenFilter } from './inbox-triage.js';
+import { withLocalRefs, type LocalRefs } from './local-refs.js';
 
 import type { GroupInvitation, GroupJoinRequest } from '../channels/channel.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
@@ -456,6 +457,8 @@ export interface DshBotAgentAdapterOptions {
 
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
+
+  localRefs?: LocalRefs;
 }
 
 export interface BotAgentSetupInfo {
@@ -646,6 +649,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
   readonly #turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
   readonly #promptText: (sessionId: string) => PromptText;
+  readonly #localRefs: LocalRefs | undefined;
   readonly #hasSession: DshBotAgentAdapterOptions['hasSession'];
   readonly #onGenuiDiagnostic: DshBotAgentAdapterOptions['onGenuiDiagnostic'];
   readonly #genuiPreviewBrowserPath: DshBotAgentAdapterOptions['genuiPreviewBrowserPath'];
@@ -704,6 +708,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#observeTurnFailure = options.observeTurnFailure;
     this.#turnRefusal = options.turnRefusal;
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
+    this.#localRefs = options.localRefs;
     this.#hasSession = options.hasSession;
     this.#orchestratorCwd = options.orchestratorCwd;
     this.#defaultAgentPreset = options.defaultAgentPreset;
@@ -905,7 +910,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         }
         return;
       }
-      const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
+      const joined = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
+      const text = this.#localRefs?.encode(run.bot.slug, joined) ?? joined;
       if (run.acceptNativeInput !== undefined) {
         if (!run.acceptNativeInput()) return;
       } else
@@ -1085,7 +1091,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       handle.agent.steer(
         createUserMessage({
           content: [
-            { type: 'text', text },
+            { type: 'text', text: this.#localRefs?.encode(botSlug, text) ?? text },
             { type: 'text', text: replyReminder(this.#promptText(sessionId)) },
           ],
           source: { kind: 'user' },
@@ -1367,15 +1373,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
       const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
       if (borrowed) borrowedDisposers.push(disposeSelection);
+      const localRefs = this.#localRefs;
+      const withRefs = (tool: Parameters<typeof agentCtx.tools.register>[0]) =>
+        localRefs === undefined ? tool : withLocalRefs(tool, localRefs, run.bot.slug);
       const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
         if (run.tobCli && TOB_CLI_ONLY_TOOLS.has(tool.name)) return () => undefined;
-        const dispose = agentCtx.tools.register(tool);
+        const dispose = agentCtx.tools.register(withRefs(tool));
         if (borrowed) borrowedDisposers.push(dispose);
         return dispose;
       };
       const bridgeTools: Array<Parameters<typeof agentCtx.tools.register>[0]> = [];
       const registerBridgeTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
-        bridgeTools.push(tool);
+        bridgeTools.push(withRefs(tool));
       };
       const disposePresentation = await installAgentNativeTools(agentCtx, agent);
       if (borrowed) borrowedDisposers.push(disposePresentation);
