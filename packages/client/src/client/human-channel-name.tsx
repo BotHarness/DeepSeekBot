@@ -1,7 +1,8 @@
 import { Button } from './ds/button.js';
 import { Menu } from './appearance-primitives.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { IconTrashOutlineRegular, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconTrashOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import type { BridgeActions } from './actions.js';
 import type { ChannelSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';

@@ -1,7 +1,7 @@
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';

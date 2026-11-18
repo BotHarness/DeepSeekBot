@@ -8,11 +8,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import {
-  IconChevronRightOutlineRegular,
-  MenuItemButton,
-  MenuSurface,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuItemButton, MenuSurface } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { ChannelSidebarEntry, ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';

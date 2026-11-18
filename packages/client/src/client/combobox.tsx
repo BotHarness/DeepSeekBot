@@ -6,9 +6,9 @@ import { createPortal } from 'react-dom';
 import {
   IconChevronDownOutlineRegular,
   IconPlusOutlineRegular,
-  MenuSurface,
   useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 
 export interface ComboboxOption {
   readonly value: string;

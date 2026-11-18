@@ -9,11 +9,8 @@ import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import {
-  IconEllipsisOutlineRegular,
-  Tag,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconEllipsisOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModePrefs } from './bot-mode-prefs.js';

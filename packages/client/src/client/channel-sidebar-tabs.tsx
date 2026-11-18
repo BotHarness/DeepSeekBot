@@ -1,7 +1,7 @@
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type {

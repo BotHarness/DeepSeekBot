@@ -34,7 +34,7 @@ import {
 } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { InstantTooltipScope, Tooltip } from './ds/tooltip.js';
 import {
   DockviewReact,

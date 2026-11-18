@@ -1,7 +1,7 @@
 import { Button } from './ds/button.js';
 import { useRef, useState, type RefCallback, type ReactElement } from 'react';
 
-import { MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuItemButton } from './ds/menu.js';
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { PersonaBotAvatar } from './avatar.js';

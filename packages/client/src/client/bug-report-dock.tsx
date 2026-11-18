@@ -6,8 +6,8 @@ import {
   IconCheckOutlineRegular,
   IconCopyOutlineRegular,
   IconFullscreenOutlineRegular,
-  MenuSurface,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 
 import type { BugReportFile } from './bug-report.js';
 import { CAPTURE_DOCK_ATTRIBUTE, canCopyImage, type CaptureSource } from './bug-report-capture.js';

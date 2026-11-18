@@ -10,8 +10,8 @@ import {
   IconRefreshOutlineRegular,
   IconSettingsOutlineRegular,
   writeClipboard,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 import {
   fileOpenScope,
