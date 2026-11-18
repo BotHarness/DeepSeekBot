@@ -30,6 +30,7 @@ export interface GroupFallback {
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
   restore(botSlug: string, sessionId: string): Promise<ModelSwitch | undefined>;
   pick(botSlug: string, groupId: string): Promise<GroupPick>;
+  inherited(): string | undefined;
   forget(sessionId: string): void;
 }
 
@@ -59,6 +60,7 @@ export function createGroupFallback(options: {
     }
   };
   return {
+    inherited: () => options.inheritedGroup?.(),
     route(sessionId) {
       const override = overrides.get(sessionId);
       if (override === undefined) return undefined;

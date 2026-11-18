@@ -1049,7 +1049,7 @@ export interface BotRuntimeOptions {
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
-  groupFallback?: Pick<GroupFallback, 'choose' | 'restore' | 'pick'>;
+  groupFallback?: Pick<GroupFallback, 'choose' | 'restore' | 'pick' | 'inherited'>;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -10550,22 +10550,26 @@ class BotRuntimeImplementation implements BotRuntime {
     const plan = this.#registry.get(bot.slug)?.modelPlan ?? bot.modelPlan;
     if (input.model !== undefined && !isAssignmentModelChoice(input.model))
       throw new Error('Assignment model choice is invalid');
-    if (input.model !== undefined && plan === undefined)
-      throw new Error('Apply a Model Preset before choosing an Assignment model');
     const modelGroupId =
-      input.modelGroupId === undefined || plan === undefined
+      input.modelGroupId === undefined
         ? undefined
-        : selectAssignmentGroup(plan, { group: input.modelGroupId });
+        : plan === undefined
+          ? input.modelGroupId === this.#groupFallback?.inherited()
+            ? input.modelGroupId
+            : undefined
+          : selectAssignmentGroup(plan, { group: input.modelGroupId });
+    if (input.model !== undefined && plan === undefined && modelGroupId === undefined)
+      throw new Error('Apply a Model Preset before choosing an Assignment model');
     if (
       input.modelGroupId !== undefined &&
       (modelGroupId === undefined || input.model === undefined)
     )
       throw new Error('An Assignment Routing Group needs its chosen member route');
     const modelRoute =
-      plan === undefined
-        ? undefined
-        : modelGroupId !== undefined
-          ? { ...input.model! }
+      modelGroupId !== undefined
+        ? { ...input.model! }
+        : plan === undefined
+          ? undefined
           : selectAssignmentRoute(plan, input.model);
     if (this.#grants === undefined) throw new Error('Workspace Grants are unavailable');
     const grant = this.#grants.requireActive(bot.slug, grantId);
