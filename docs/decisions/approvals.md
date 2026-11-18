@@ -80,7 +80,7 @@ Enforced by: `approval-template-library.test.ts`, `approval-template-deletion-pe
 ## 6. The Reviewer allows a call or sends it to the Human, and never rejects
 
 <a id="adr-0207"></a>
-_Formerly ADR-0207 (the Reviewer Session and context, and its request-scoped amendment) and ADR-0342 (two outcomes and policy snapshots)._
+_Formerly ADR-0207 (the Approval Review Session and context, and its request-scoped amendment) and ADR-0342 (two outcomes and policy snapshots)._
 
 Each Review is a fresh DSH Session with no tools, no Memory and no Agent Preset, created for one decision and closed after it. Its id starts with `approval-review-`, its title is `Approval review · <bot> · <tool>`, and it lives in `botharness/approval-reviews` under the DSH home, so the Human can read how a call was judged; the session list hides it unless "Show Approval Review Sessions" is on, and a step BotHarness is not driving is refused. It uses the Bot's model unless a Profile-wide Reviewer model is set.
 
