@@ -737,6 +737,9 @@ const en = {
     favoriteRemove: (name: string) => `Remove ${name} from favorites`,
     groups: 'Routing Groups',
     groupFront: (model: string) => `Now: ${model}`,
+    presets: 'Presets',
+    presetRoutes: (main: string, side: string) => `Main: ${main} · Assignments: ${side}`,
+    presetInherited: 'Default',
     resting: (until: string) => `Resting until ${until}`,
     restingTap: (name: string, until: string) =>
       `${name} ran out of quota and is resting until ${until}. Pick another model or a Routing Group for now.`,
@@ -3430,6 +3433,9 @@ const zh: typeof en = {
     favoriteRemove: (name: string) => `取消收藏 ${name}`,
     groups: '路由组',
     groupFront: (model: string) => `当前：${model}`,
+    presets: '预设',
+    presetRoutes: (main: string, side: string) => `主：${main} · 副：${side}`,
+    presetInherited: '跟随默认',
     resting: (until: string) => `休息至 ${until}`,
     restingTap: (name: string, until: string) =>
       `${name} 额度用完，休息至 ${until}。现在请先选其他模型或路由组。`,

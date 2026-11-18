@@ -115,13 +115,17 @@ describe('Model commands', () => {
     expect(live.calls).toEqual([{ method: 'modelCatalog', args: {} }]);
   });
 
-  it('stars and unstars a model or a Model Route Group for the signed-in Human', async () => {
+  it('stars and unstars a model, a Model Route Group or a Model Preset for the signed-in Human', async () => {
     const live = await host(() => ({ ok: true, value: { favorites: [] } }));
     expect((await invoke(['model-favorite-add', 'deepseek/v4-pro'], live.url)).json).toEqual({
       favorites: [],
     });
     await invoke(['model-favorite-remove', 'group:daily'], live.url);
+    await invoke(['model-favorite-add', 'preset:p1'], live.url);
     expect((await invoke(['model-favorite-add', 'v4-pro'], live.url)).json.error.code).toBe(
+      'usage',
+    );
+    expect((await invoke(['model-favorite-add', 'preset: '], live.url)).json.error.code).toBe(
       'usage',
     );
     expect(live.calls).toEqual([
@@ -132,6 +136,10 @@ describe('Model commands', () => {
       {
         method: 'modelFavoriteSet',
         args: { choice: { kind: 'group', id: 'daily' }, favorite: false },
+      },
+      {
+        method: 'modelFavoriteSet',
+        args: { choice: { kind: 'preset', id: 'p1' }, favorite: true },
       },
     ]);
   });

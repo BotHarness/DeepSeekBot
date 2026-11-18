@@ -719,3 +719,117 @@ it('runs the DM Bot on a Routing Group chosen from the header model menu (#4421)
     host.remove();
   }
 });
+
+it('applies a Preset from the header model menu and clears its check after a model change (#4503)', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const flash = { provider: 'deepseek', model: 'flash' };
+  const pro = { provider: 'deepseek', model: 'pro' };
+  const bot = { ...ada, slug: 'composer-preset' };
+  const plan = (revision: number, orchestrator: typeof flash, sourcePresetId: string) => ({
+    revision,
+    orchestrator,
+    assignmentDefault: flash,
+    sourcePresetId,
+    sourcePresetName: sourcePresetId === '' ? '' : 'Fast',
+    assignmentModels: [],
+    appliedAt: '',
+  });
+  const applied = vi.fn();
+  let current = plan(2, pro, '');
+  const actions = createActions(async (method, payload) => {
+    if (method === 'modelPlan') return { ok: true, value: { plan: current } };
+    if (method === 'modelPresetApply') {
+      applied(payload);
+      current = plan(3, flash, 'fast');
+      return { ok: true, value: { plan: current } };
+    }
+    if (method === 'modelPlanCustomize') {
+      current = plan(4, pro, '');
+      return { ok: true, value: { plan: current } };
+    }
+    if (method === 'modelPresets')
+      return {
+        ok: true,
+        value: {
+          presets: [
+            {
+              id: 'fast',
+              name: 'Fast',
+              revision: 1,
+              orchestrator: flash,
+              assignmentDefault: flash,
+              createdAt: '',
+            },
+          ],
+        },
+      };
+    if (method === 'modelCatalog')
+      return {
+        ok: true,
+        value: {
+          models: [flash, pro].map((entry) => ({
+            ...entry,
+            modelName: entry.model === 'flash' ? 'Flash' : 'Pro',
+            providerName: 'DeepSeek',
+            efforts: [],
+          })),
+        },
+      };
+    if (method === 'grants') return { ok: true, value: { grants: [] } };
+    if (method === 'telemetryEvent') return { ok: true, value: {} };
+    throw new Error(`Unexpected method ${method}`);
+  }, createStore());
+  function Harness() {
+    return createElement(
+      'div',
+      null,
+      useDmComposerContext({
+        bot,
+        channelId: `dm-${bot.slug}`,
+        actions,
+        companion: undefined,
+        activity: undefined,
+        loading: false,
+        t: zhTranslate,
+        onUsage() {},
+      })?.content,
+    );
+  }
+  const option = (key: string) =>
+    document.body.querySelector<HTMLButtonElement>(`[data-picker-option='${key}']`);
+  const presets = async () =>
+    act(async () =>
+      document.body.querySelector<HTMLButtonElement>('[data-picker-filter="presets"]')!.click(),
+    );
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    const chip = host.querySelector<HTMLButtonElement>('[data-composer-chip="model"]')!;
+    await act(async () => chip.click());
+    await presets();
+    expect(option('preset:fast')?.getAttribute('aria-selected')).toBe('false');
+    await act(async () => option('preset:fast')!.click());
+    expect(applied).toHaveBeenCalledWith({ slug: bot.slug, presetId: 'fast' });
+    expect(chip.title).toBe('Flash');
+    if (option('preset:fast') === null) await act(async () => chip.click());
+    await presets();
+    expect(option('preset:fast')?.getAttribute('aria-selected')).toBe('true');
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('[data-picker-filter="all"]')!.click(),
+    );
+    await act(async () => option(JSON.stringify(['deepseek', 'pro']))!.click());
+    expect(chip.title).toBe('Pro');
+    if (
+      option('preset:fast') === null &&
+      document.body.querySelector('[data-picker-filter]') === null
+    )
+      await act(async () => chip.click());
+    await presets();
+    expect(option('preset:fast')?.getAttribute('aria-selected')).toBe('false');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});

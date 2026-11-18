@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { currentModel, loadBotModel, loadGlobalModel } from '@botharness/host-client/bot-settings';
 import { createHostClient } from '@botharness/host-client/client';
+import { modelChoiceKey } from '@botharness/host-client/model-catalog';
 import {
   inheritModel,
   modelSettingsResource,
@@ -272,6 +273,21 @@ describe('native Model Plans and Presets', () => {
     expect(await global.favorite({ kind: 'model', ...pro }, false)).toEqual([]);
     fake.methods.set('modelFavoriteSet', () => ({}));
     await expect(global.favorite({ kind: 'model', ...pro }, true)).rejects.toThrow();
+  });
+
+  it('stars a Model Preset and reads it back as a favorite (#4503)', async () => {
+    const { fake, client } = setup();
+    const starred = [{ kind: 'preset', id: 'fast' }];
+    fake.methods.set('modelCatalog', () => ({ models, default: flash, favorites: starred }));
+    fake.methods.set('modelFavoriteSet', () => ({ favorites: starred }));
+    const bot = modelSettingsResource(client, { kind: 'bot', slug: 'qa' });
+    expect((await bot.refresh()).favorites).toEqual(starred);
+    await bot.favorite({ kind: 'preset', id: 'fast' }, true);
+    expect(fake.calls.at(-1)).toMatchObject({
+      method: 'modelFavoriteSet',
+      args: { choice: { kind: 'preset', id: 'fast' }, favorite: true },
+    });
+    expect(modelChoiceKey({ kind: 'preset', id: 'fast' })).toBe('preset:fast');
   });
 
   it('reads Routing Groups and runs the Bot Orchestrator on one (#4421)', async () => {

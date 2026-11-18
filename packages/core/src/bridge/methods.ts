@@ -4250,7 +4250,7 @@ function buildBridgeMethods(
       const favorite = modelFavorite(input['choice']);
       if (favorite === undefined || typeof input['favorite'] !== 'boolean')
         return invalidInput(
-          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id}, favorite: boolean}",
+          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id} | {kind: 'preset', id}, favorite: boolean}",
         );
       try {
         return {

@@ -23,11 +23,12 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'model-favorite-add',
     description:
-      'star a model (<provider>/<model>) or a Model Route Group (group:<id>) for you on every device',
+      'star a model (<provider>/<model>), a Model Route Group (group:<id>) or a Model Preset (preset:<id>) for you on every device',
   },
   {
     command: 'model-favorite-remove',
-    description: 'unstar a model (<provider>/<model>) or a Model Route Group (group:<id>)',
+    description:
+      'unstar a model (<provider>/<model>), a Model Route Group (group:<id>) or a Model Preset (preset:<id>)',
   },
   {
     command: 'model-plan-set',
@@ -152,10 +153,16 @@ function favoriteChoice(target: string): ModelFavorite {
     if (!id) usage('group:<id> needs a nonempty Model Route Group id.');
     return { kind: 'group', id };
   }
+  if (target.startsWith('preset:')) {
+    const id = target.slice('preset:'.length).trim();
+    if (!id) usage('preset:<id> needs a nonempty Model Preset id.');
+    return { kind: 'preset', id };
+  }
   const slash = target.indexOf('/');
   const provider = slash < 0 ? '' : target.slice(0, slash).trim();
   const model = slash < 0 ? '' : target.slice(slash + 1).trim();
-  if (!provider || !model) usage('Name a model as <provider>/<model>, or a group as group:<id>.');
+  if (!provider || !model)
+    usage('Name a model as <provider>/<model>, a group as group:<id>, or a preset as preset:<id>.');
   return { kind: 'model', provider, model };
 }
 

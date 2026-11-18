@@ -7,7 +7,12 @@ import {
   type ModelBrand,
 } from '@botharness/host-client/shared/model-brand';
 import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
-import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
+import type {
+  ModelCatalogEntryView,
+  ModelCatalogGroupView,
+  ModelPresetView,
+  ModelRouteView,
+} from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ComboboxOption } from './combobox.js';
 import { FilterPicker } from './ds/filter-picker.js';
@@ -21,6 +26,8 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
   readonly group?: string | undefined;
+  readonly preset?: string | undefined;
+  readonly checked?: boolean | undefined;
   readonly hintBrand?: ModelBrand | undefined;
   readonly hintLabel?: string | undefined;
 }
@@ -34,7 +41,9 @@ const ALL = 'all';
 const FAVORITES = 'favorites';
 const OTHER = 'other';
 const GROUPS = 'groups';
+const PRESETS = 'presets';
 const GROUP_PREFIX = 'group:';
+const PRESET_PREFIX = 'preset:';
 
 export function groupMenuKey(id: string): string {
   return `${GROUP_PREFIX}${id}`;
@@ -42,6 +51,14 @@ export function groupMenuKey(id: string): string {
 
 export function groupMenuId(key: string): string | undefined {
   return key.startsWith(GROUP_PREFIX) ? key.slice(GROUP_PREFIX.length) : undefined;
+}
+
+export function presetMenuKey(id: string): string {
+  return `${PRESET_PREFIX}${id}`;
+}
+
+export function presetMenuId(key: string): string | undefined {
+  return key.startsWith(PRESET_PREFIX) ? key.slice(PRESET_PREFIX.length) : undefined;
 }
 
 function groupFrontName(name: string, brand: Parameters<typeof modelShortName>[1]): string {
@@ -163,6 +180,40 @@ export function catalogMenuItems(
   ];
 }
 
+export function presetMenuItems(
+  presets: readonly ModelPresetView[],
+  catalog: readonly ModelCatalogEntryView[],
+  groups: readonly ModelCatalogGroupView[],
+  sourcePresetId: string | undefined,
+  t: BotHarnessTranslate,
+): ModelMenuItem[] {
+  const part = (groupId: string | undefined, route: ModelRouteView | undefined): string => {
+    const group = groups.find((entry) => entry.id === groupId);
+    if (group !== undefined) return group.name;
+    if (route === undefined) return t('modelMenu.presetInherited');
+    const entry = catalog.find(
+      (item) => item.provider === route.provider && item.model === route.model,
+    );
+    if (entry === undefined) return route.model;
+    return groupFrontName(
+      entry.modelName,
+      modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName }),
+    );
+  };
+  return presets.map((preset) => ({
+    value: presetMenuKey(preset.id),
+    label: preset.name,
+    name: preset.name,
+    brand: undefined,
+    preset: preset.id,
+    checked: preset.id === sourcePresetId,
+    hint: t('modelMenu.presetRoutes', {
+      main: part(preset.orchestratorGroupId, preset.orchestrator),
+      side: part(preset.assignmentDefaultGroupId, preset.assignmentDefault),
+    }),
+  }));
+}
+
 function familyKey(brand: ModelBrand | undefined): string {
   return brand ?? OTHER;
 }
@@ -196,6 +247,7 @@ export function ModelMenu({
 }): ReactElement {
   const models = items.filter((item) => item.model !== undefined);
   const groups = items.filter((item) => item.group !== undefined);
+  const presets = items.filter((item) => item.preset !== undefined);
   const favorites = useModelFavorites();
   const [favoriteError, setFavoriteError] = useState<string>();
   return (
@@ -217,17 +269,34 @@ export function ModelMenu({
         disabled: item.disabled,
         search: [item.value],
         favorite:
-          (item.model !== undefined || item.group !== undefined) && favorites.keys.has(item.value),
-        ...(item.group !== undefined
-          ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
-          : item.model === undefined
-            ? {}
-            : {
-                icon: <ModelBrandIcon brand={item.brand} size={16} />,
-                filter: familyKey(item.brand),
-              }),
+          (item.model !== undefined || item.group !== undefined || item.preset !== undefined) &&
+          favorites.keys.has(item.value),
+        ...(item.preset !== undefined
+          ? {
+              icon: <ChannelSidebarIcon name="package" size={16} />,
+              filter: PRESETS,
+              exclusive: true,
+              selected: item.checked === true,
+            }
+          : item.group !== undefined
+            ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
+            : item.model === undefined
+              ? {}
+              : {
+                  icon: <ModelBrandIcon brand={item.brand} size={16} />,
+                  filter: familyKey(item.brand),
+                }),
       }))}
       filters={[
+        ...(presets.length === 0
+          ? []
+          : [
+              {
+                key: PRESETS,
+                label: t('modelMenu.presets'),
+                icon: <ChannelSidebarIcon name="package" size={16} />,
+              },
+            ]),
         ...(groups.length === 0
           ? []
           : [
@@ -283,13 +352,16 @@ export function ModelMenu({
               removeLabel: t('modelMenu.favoriteRemove'),
               onToggle: (key, favorite) => {
                 const group = groups.find((entry) => entry.value === key)?.group;
+                const preset = presets.find((entry) => entry.value === key)?.preset;
                 const item = models.find((entry) => entry.value === key);
                 const choice =
-                  group !== undefined
-                    ? ({ kind: 'group', id: group } as const)
-                    : item?.provider !== undefined && item.model !== undefined
-                      ? ({ kind: 'model', provider: item.provider, model: item.model } as const)
-                      : undefined;
+                  preset !== undefined
+                    ? ({ kind: 'preset', id: preset } as const)
+                    : group !== undefined
+                      ? ({ kind: 'group', id: group } as const)
+                      : item?.provider !== undefined && item.model !== undefined
+                        ? ({ kind: 'model', provider: item.provider, model: item.model } as const)
+                        : undefined;
                 if (choice === undefined) return;
                 setFavoriteError(undefined);
                 void setModelFavorite(choice, favorite).catch((error: unknown) =>

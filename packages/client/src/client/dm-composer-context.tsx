@@ -11,6 +11,7 @@ import { Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type {
   ModelCatalogGroupView,
+  ModelPresetView,
   ModelCatalogView,
   ModelCatalogEntryView,
   ModelPlanStateView,
@@ -27,6 +28,7 @@ import { ModelPresetProfile } from './model-preset-profile.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import {
   applyBotModelGroup,
+  applyBotModelPreset,
   applyBotModelRoute,
   botEffortChoices,
   botModelChoices,
@@ -48,7 +50,14 @@ import { BotPromptViewer, type BotPromptView } from './bot-prompt-viewer.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
 import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
-import { ModelMenu, catalogMenuItems, groupMenuId, groupMenuKey } from './model-menu.js';
+import {
+  ModelMenu,
+  catalogMenuItems,
+  groupMenuId,
+  groupMenuKey,
+  presetMenuId,
+  presetMenuItems,
+} from './model-menu.js';
 import { ContextRing } from './context-ring.js';
 
 const subscribeUnavailable = (): (() => void) => () => {};
@@ -99,6 +108,7 @@ export function useDmComposerContext({
   const [modelData, setModelData] = useScopedState<{
     slug: string;
     catalog: ModelCatalogView;
+    presets?: ModelPresetView[];
     state: ModelPlanStateView;
     inheritedRoute?: ModelRouteView;
     unavailable?: boolean;
@@ -126,7 +136,12 @@ export function useDmComposerContext({
         .then(async (state) => {
           if (!active || current !== generation) return;
           rememberModelPlan(modelSlug, state?.plan, actions);
-          const catalog = await actions.modelCatalog();
+          const [catalog, presets] = await Promise.all([
+            actions.modelCatalog(),
+            Promise.resolve()
+              .then(() => actions.modelPresets())
+              .catch((): ModelPresetView[] => []),
+          ]);
           if (!active || current !== generation) return;
           const route = catalog.default;
           const inheritedRoute =
@@ -144,6 +159,7 @@ export function useDmComposerContext({
           setModelData({
             slug: modelSlug,
             catalog,
+            presets,
             state: state ?? {},
             ...(inheritedRoute === undefined ? {} : { inheritedRoute }),
           });
@@ -207,6 +223,22 @@ export function useDmComposerContext({
     if (planState === undefined || modelBusy) return;
     setModelBusy(true);
     void applyBotModelGroup(actions, slug, planState, groupId)
+      .then((next) =>
+        setModelData((current) =>
+          current?.slug === slug
+            ? { ...current, state: { revision: next.revision, plan: next } }
+            : current,
+        ),
+      )
+      .catch((failure: unknown) => {
+        setModelError(t('modelPreset.changeFailed', { error: errorMessage(failure) }));
+      })
+      .finally(() => setModelBusy(false));
+  };
+  const applyModelPresetChoice = (presetId: string): void => {
+    if (planState === undefined || modelBusy) return;
+    setModelBusy(true);
+    void applyBotModelPreset(actions, slug, presetId)
       .then((next) =>
         setModelData((current) =>
           current?.slug === slug
@@ -299,12 +331,15 @@ export function useDmComposerContext({
           onClose={() => setPanel(undefined)}
           models={catalog?.models ?? []}
           groups={catalog?.groups ?? []}
+          presets={data?.presets ?? []}
+          sourcePresetId={plan?.sourcePresetId}
           groupId={plan?.orchestratorGroupId}
           modelStatus={modelStatus}
           route={route}
           modelBusy={modelBusy || planState === undefined || modelStatus !== 'ready'}
           onChooseModel={applyModelRoute}
           onChooseGroup={applyModelGroup}
+          onChoosePreset={applyModelPresetChoice}
         />
         {modelError === undefined ? null : (
           <Toast
@@ -334,12 +369,15 @@ function DmComposerContextView({
   onClose,
   models,
   groups,
+  presets,
+  sourcePresetId,
   groupId,
   modelStatus,
   route,
   modelBusy,
   onChooseModel,
   onChooseGroup,
+  onChoosePreset,
 }: {
   footerSettings?: Ref<ComposerFooterHandle>;
   bot: BotSummary;
@@ -355,12 +393,15 @@ function DmComposerContextView({
   onClose(): void;
   models: readonly ModelCatalogEntryView[];
   groups: readonly ModelCatalogGroupView[];
+  presets: readonly ModelPresetView[];
+  sourcePresetId: string | undefined;
   groupId: string | undefined;
   modelStatus: 'loading' | 'ready' | 'unavailable';
   route: ModelRouteView | undefined;
   modelBusy: boolean;
   onChooseModel(route: ModelRouteView): void;
   onChooseGroup(groupId: string): void;
+  onChoosePreset(presetId: string): void;
 }): ReactElement {
   const modelTrigger = useRef<HTMLButtonElement>(null);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
@@ -549,7 +590,10 @@ function DmComposerContextView({
       {modelMenuOpen ? (
         <ModelMenu
           label={`${t('entry.model')} · ${bot.displayName}`}
-          items={catalogMenuItems(models, t, groups)}
+          items={[
+            ...presetMenuItems(presets, models, groups, sourcePresetId || undefined, t),
+            ...catalogMenuItems(models, t, groups),
+          ]}
           value={
             group !== undefined
               ? groupMenuKey(group.id)
@@ -558,6 +602,11 @@ function DmComposerContextView({
                 : JSON.stringify([route.provider, route.model])
           }
           onSelect={(key) => {
+            const chosenPreset = presetMenuId(key);
+            if (chosenPreset !== undefined) {
+              if (!modelBusy && chosenPreset !== sourcePresetId) onChoosePreset(chosenPreset);
+              return;
+            }
             const chosenGroup = groupMenuId(key);
             if (chosenGroup !== undefined) {
               if (!modelBusy && chosenGroup !== group?.id) onChooseGroup(chosenGroup);

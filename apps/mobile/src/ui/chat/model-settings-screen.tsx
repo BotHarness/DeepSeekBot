@@ -9,6 +9,7 @@ import {
   errorText,
   sameModel,
   type ModelChoice,
+  type ModelPreset,
   type ModelRoute,
 } from '@botharness/host-client/bot-settings';
 import {
@@ -57,10 +58,12 @@ import { RowIcon } from '../primitives/row-icon';
 const FAVORITES = 'favorites';
 const ALL = 'all';
 const GROUPS = 'groups';
+const PRESETS = 'presets';
 
 type PickerRow =
   | { kind: 'model'; entry: ModelCatalogEntry }
-  | { kind: 'group'; group: ModelCatalogGroup; front: ModelCatalogEntry | undefined };
+  | { kind: 'group'; group: ModelCatalogGroup; front: ModelCatalogEntry | undefined }
+  | { kind: 'preset'; preset: ModelPreset };
 
 function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
@@ -310,9 +313,11 @@ function ModelsView({
     const currentGroup = groups.find((group) => group.id === currentGroupId);
     const starredKeys = new Set(models.favorites.map(modelChoiceKey));
     const rowKey = (row: PickerRow) =>
-      row.kind === 'group'
-        ? modelChoiceKey({ kind: 'group', id: row.group.id })
-        : modelChoiceKey({ kind: 'model', provider: row.entry.provider, model: row.entry.model });
+      row.kind === 'preset'
+        ? modelChoiceKey({ kind: 'preset', id: row.preset.id })
+        : row.kind === 'group'
+          ? modelChoiceKey({ kind: 'group', id: row.group.id })
+          : modelChoiceKey({ kind: 'model', provider: row.entry.provider, model: row.entry.model });
     const starredRow = (row: PickerRow) => starredKeys.has(rowKey(row));
     const starredModel = (entry: ModelRoute) =>
       starredKeys.has(
@@ -328,8 +333,23 @@ function ModelsView({
         front: value.models.find((entry) => front !== undefined && sameModel(entry, front)),
       };
     });
+    const presetRows: PickerRow[] =
+      picker === 'orchestrator' && scope.kind === 'bot'
+        ? value.presets.map((preset) => ({ kind: 'preset', preset }))
+        : [];
+    const presetPart = (groupId: string | undefined, route: ModelRoute | undefined) => {
+      const group = value.groups?.find((entry) => entry.id === groupId);
+      if (group !== undefined) return group.name;
+      if (route === undefined) return t.modelSettings.presetInherited;
+      const entry = value.models.find((item) => sameModel(item, route));
+      if (entry === undefined) return route.model;
+      const short = modelEntryLabel(entry).short;
+      return /\p{L}/u.test(short) ? short : entry.modelName;
+    };
     const favoriteCount =
-      value.models.filter(starredModel).length + groupRows.filter(starredRow).length;
+      value.models.filter(starredModel).length +
+      groupRows.filter(starredRow).length +
+      presetRows.filter(starredRow).length;
     const showFavorites = !picker.endsWith('-effort') && favoriteCount > 0;
     const filter =
       family === FAVORITES || (family === undefined && showFavorites)
@@ -341,13 +361,20 @@ function ModelsView({
           : family;
     const shownFamily =
       families.some((entry) => (entry.brand ?? 'other') === filter) ||
-      (filter === GROUPS && groups.length > 0)
+      (filter === GROUPS && groups.length > 0) ||
+      (filter === PRESETS && presetRows.length > 0)
         ? filter
         : filter === FAVORITES
           ? FAVORITES
           : ALL;
     const needle = query.trim().toLowerCase();
     const found: PickerRow[] = [
+      ...presetRows.filter(
+        (row) =>
+          row.kind === 'preset' &&
+          (shownFamily === PRESETS || shownFamily === FAVORITES || needle !== '') &&
+          (needle === '' || row.preset.name.toLowerCase().includes(needle)),
+      ),
       ...groupRows.filter(
         (row) =>
           row.kind === 'group' &&
@@ -361,9 +388,11 @@ function ModelsView({
       shownFamily === FAVORITES
         ? needle !== '' || listedRow(row)
         : shownFamily === ALL ||
-          (shownFamily === GROUPS
-            ? row.kind === 'group'
-            : row.kind === 'model' && modelFamilyKey(row.entry) === shownFamily),
+          (shownFamily === PRESETS
+            ? row.kind === 'preset'
+            : shownFamily === GROUPS
+              ? row.kind === 'group'
+              : row.kind === 'model' && modelFamilyKey(row.entry) === shownFamily),
     );
     const entries =
       shownFamily === FAVORITES
@@ -375,15 +404,21 @@ function ModelsView({
         (current) =>
           current ??
           new Set(
-            [...groupRows, ...value.models.map((entry): PickerRow => ({ kind: 'model', entry }))]
+            [
+              ...presetRows,
+              ...groupRows,
+              ...value.models.map((entry): PickerRow => ({ kind: 'model', entry })),
+            ]
               .filter(starredRow)
               .map(rowKey),
           ),
       );
       models.favorite(
-        row.kind === 'group'
-          ? { kind: 'group', id: row.group.id }
-          : { kind: 'model', provider: row.entry.provider, model: row.entry.model },
+        row.kind === 'preset'
+          ? { kind: 'preset', id: row.preset.id }
+          : row.kind === 'group'
+            ? { kind: 'group', id: row.group.id }
+            : { kind: 'model', provider: row.entry.provider, model: row.entry.model },
         on,
       );
     };
@@ -395,7 +430,7 @@ function ModelsView({
           placeholder={t.modelSettings.search}
           onChangeText={setQuery}
         />
-        {families.length > 1 || showFavorites || groups.length > 0 ? (
+        {families.length > 1 || showFavorites || groups.length > 0 || presetRows.length > 0 ? (
           <ScrollView
             horizontal
             testID="model-family-filters"
@@ -425,6 +460,15 @@ function ModelsView({
               selected={shownFamily === ALL}
               onPress={() => chooseFamily(ALL)}
             />
+            {presetRows.length > 0 ? (
+              <Chip
+                testID="model-family-presets"
+                label={t.modelSettings.presets}
+                count={presetRows.length}
+                selected={shownFamily === PRESETS}
+                onPress={() => chooseFamily(shownFamily === PRESETS ? ALL : PRESETS)}
+              />
+            ) : null}
             {groups.length > 0 ? (
               <Chip
                 testID="model-family-groups"
@@ -465,6 +509,60 @@ function ModelsView({
           }
           ListEmptyComponent={<SheetNote>{t.modelSettings.noResults}</SheetNote>}
           renderItem={({ item: row, index }) => {
+            if (row.kind === 'preset') {
+              const { preset } = row;
+              const selected = value.plan?.sourcePresetId === preset.id;
+              const isFavorite = starredRow(row);
+              return (
+                <SettingsGroupItem
+                  first={index === 0}
+                  last={index === entries.length - 1}
+                  on={SHEET_GROUP}
+                >
+                  <SettingsRow
+                    on={SHEET_GROUP}
+                    testID={`model-preset-${preset.id}`}
+                    leading={
+                      <RowIcon name="preset" size={theme.type.title.line} color={theme.color.fg} />
+                    }
+                    title={preset.name}
+                    detail={t.modelSettings.presetRoutes(
+                      presetPart(preset.orchestratorGroupId, preset.orchestrator),
+                      presetPart(preset.assignmentDefaultGroupId, preset.assignmentDefault),
+                    )}
+                    selected={selected}
+                    control={selected ? { kind: 'check' } : undefined}
+                    accessory={
+                      <FavoriteButton
+                        testID={`model-favorite-preset-${preset.id}`}
+                        label={
+                          isFavorite
+                            ? t.modelSettings.favoriteRemove(preset.name)
+                            : t.modelSettings.favoriteAdd(preset.name)
+                        }
+                        favorite={isFavorite}
+                        disabled={models.busy}
+                        onPress={() => star(row, !isFavorite)}
+                      />
+                    }
+                    onPress={
+                      models.busy || selected || scope.kind !== 'bot'
+                        ? undefined
+                        : () =>
+                            models.run(
+                              async () => {
+                                await applyModelPreset(client, scope.slug, preset.id);
+                              },
+                              () => {
+                                Keyboard.dismiss();
+                                router.back();
+                              },
+                            )
+                    }
+                  />
+                </SettingsGroupItem>
+              );
+            }
             if (row.kind === 'group') {
               const { group, front } = row;
               const selected =

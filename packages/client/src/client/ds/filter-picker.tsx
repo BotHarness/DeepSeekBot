@@ -29,6 +29,8 @@ export interface FilterPickerOption {
   readonly filter?: string | undefined;
   readonly search?: readonly string[] | undefined;
   readonly favorite?: boolean | undefined;
+  readonly selected?: boolean | undefined;
+  readonly exclusive?: boolean | undefined;
 }
 
 export interface FilterPickerFavorites {
@@ -314,7 +316,7 @@ export function FilterPicker({
   const needle = query.trim().toLowerCase();
   const matched = options.filter(
     (option) =>
-      (filter === allFilter.key ||
+      ((filter === allFilter.key && (option.exclusive !== true || needle !== '')) ||
         (filter === favoriteKey ? needle !== '' || listed(option) : option.filter === filter)) &&
       (needle === '' ||
         [option.label, option.name ?? '', option.hint ?? '', ...(option.search ?? [])].some(
@@ -454,7 +456,7 @@ export function FilterPicker({
               </div>
             ) : (
               shown.map((option, index) => {
-                const selected = option.value === value;
+                const selected = option.selected ?? option.value === value;
                 const name = option.name ?? option.label;
                 const jump = enabled.indexOf(option);
                 return (
