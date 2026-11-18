@@ -11,6 +11,7 @@ import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createUsageProjection } from '../src/usage/usage.js';
 import { requireBotModel } from '../src/team/models.js';
+import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -78,6 +79,7 @@ function fixture() {
     states: createBotStateTracker(),
     roster: createTestRosterStore({ database: db }),
     modelCatalog: catalog,
+    routingGroups: createRoutingGroupStore({ database: db }),
   };
   const methods = createBridgeMethods(member, deps);
   const ownerMethods = createBridgeMethods(owner, deps);
@@ -111,6 +113,7 @@ function fixture() {
     ownerMethods,
     usage,
     catalog,
+    deps,
     restrict,
     fold,
   };
@@ -754,6 +757,33 @@ describe('M10 member usage and role models', () => {
       expect(await select('bob')).toMatchObject({ ok: true });
     },
   );
+
+  it('refuses a Routing Group with a member the Bot owner may not use, and allows it for the Owner', async () => {
+    const f = fixture();
+    f.restrict();
+    const group = f.deps.routingGroups.create({
+      name: 'Mixed',
+      members: [
+        { kind: 'model', ...permitted },
+        { kind: 'model', ...denied },
+      ],
+    });
+    const choose = (slug: string) =>
+      f.ownerMethods.modelPlanCustomize({
+        slug,
+        expectedRevision: 0,
+        orchestratorGroupId: group.id,
+      });
+    expect(await choose('ada')).toMatchObject({
+      ok: false,
+      error: { code: 'model-not-allowed', details: { route: 'provider/denied' } },
+    });
+    expect(f.registry.get('ada')?.modelPlan).toBeUndefined();
+    expect(await choose('bob')).toMatchObject({
+      ok: true,
+      value: { plan: { orchestrator: permitted, orchestratorGroupId: group.id } },
+    });
+  });
 
   it('retains a disallowed setting and marks get/list; does not disclose catalog credentials', async () => {
     const f = fixture();

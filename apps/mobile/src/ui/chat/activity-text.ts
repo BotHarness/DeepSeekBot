@@ -148,7 +148,57 @@ export function activityText(
       const { title, detail } = callRecordLines(activity.record);
       return { name: title, verb: '', detail };
     }
+    case 'model-switch': {
+      const record = activity.record;
+      const until =
+        record.until === undefined
+          ? undefined
+          : new Date(record.until).toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+      return {
+        botSlug: record.botSlug,
+        name: botName(record.botSlug, record.botName),
+        verb: copy.switchedModel(
+          `${record.from.provider}/${record.from.model}`,
+          `${record.to.provider}/${record.to.model}`,
+        ),
+        detail:
+          record.reason === 'returned'
+            ? copy.switchReturned
+            : record.reason === 'credential'
+              ? until === undefined
+                ? copy.switchCredential
+                : copy.switchCredentialUntil(until)
+              : record.reason === 'rate-limit'
+                ? until === undefined
+                  ? copy.switchRateLimit
+                  : copy.switchRateLimitUntil(until)
+                : until === undefined
+                  ? copy.switchQuota
+                  : copy.switchQuotaUntil(until),
+      };
+    }
     case 'turn-stop': {
+      const rest = activity.cause === 'quota' ? activity.rests?.[0] : undefined;
+      if (rest !== undefined)
+        return {
+          botSlug: activity.botSlug,
+          name: activity.botName,
+          verb: copy.stoppedQuota(
+            `${rest.provider}/${rest.model}`,
+            new Date(rest.until).toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          ),
+          detail: copy.stoppedQuotaRetry,
+        };
       if (activity.cause === 'failures')
         return {
           botSlug: activity.botSlug,

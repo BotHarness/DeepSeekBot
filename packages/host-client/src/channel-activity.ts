@@ -6,7 +6,11 @@ import type {
   ChannelTurnStop,
   ChannelToolAutoApproval,
 } from '../../core/src/channels/channel';
-import { isChannelTurnStopTarget } from '../../core/src/channels/turn-stop';
+import { isChannelTurnStopRests, isChannelTurnStopTarget } from '../../core/src/channels/turn-stop';
+import {
+  isChannelModelSwitch,
+  type ChannelModelSwitch,
+} from '../../core/src/channels/model-switch';
 import {
   isChannelVoiceCallRecord,
   type ChannelVoiceCallRecord,
@@ -21,6 +25,7 @@ export type ChannelActivity =
   | ({ kind: 'bot-create' } & BotCreateAction)
   | ({ kind: 'departure' } & ChannelMemberDeparture)
   | ({ kind: 'turn-stop' } & ChannelTurnStop)
+  | { kind: 'model-switch'; record: ChannelModelSwitch }
   | { kind: 'voice-call'; record: ChannelVoiceCallRecord };
 
 function record(value: unknown): Record<string, unknown> {
@@ -100,6 +105,8 @@ export function activityOf(message: ChannelWireMessage): ChannelActivity | undef
   if (message.author.kind !== 'system' || message.contentPurge !== undefined) return undefined;
   if (approvalReview(message.toolAutoApproval))
     return { kind: 'approval-review', record: message.toolAutoApproval };
+  if (isChannelModelSwitch(message.modelSwitch))
+    return { kind: 'model-switch', record: message.modelSwitch };
   if (isChannelVoiceCallRecord(message.voiceCallRecord))
     return { kind: 'voice-call', record: message.voiceCallRecord };
   if (memoryCommit(message.memoryCommit)) {
@@ -143,10 +150,13 @@ export function activityOf(message: ChannelWireMessage): ChannelActivity | undef
       humanName: stop['humanName'],
       sessionId: stop['sessionId'],
       ...(stop['held'] === true ? { held: true as const } : {}),
-      ...(stop['cause'] === 'human-stop' || stop['cause'] === 'failures'
+      ...(stop['cause'] === 'human-stop' ||
+      stop['cause'] === 'failures' ||
+      stop['cause'] === 'quota'
         ? { cause: stop['cause'] }
         : {}),
       ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
+      ...(isChannelTurnStopRests(stop['rests']) ? { rests: stop['rests'] } : {}),
       ...(isChannelTurnStopTarget(stop['target']) ? { target: stop['target'] } : {}),
     };
   return undefined;

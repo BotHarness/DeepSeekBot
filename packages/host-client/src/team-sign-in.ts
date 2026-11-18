@@ -49,6 +49,57 @@ export interface TeamSignInFlow {
   cancel(): Promise<void>;
 }
 
+export async function addressInvitation(options: {
+  route: string;
+  username: string;
+  carrier: HostCarrier;
+  signal?: AbortSignal;
+  now?: () => number;
+}): Promise<TeamResult<TeamInvitation, TeamSignInError>> {
+  const { route, username } = options;
+  const now = options.now ?? Date.now;
+  if (!teamHttpsRoute(route) || new URL(route).origin !== route)
+    return { ok: false, code: 'insecure-transport' };
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(username)) return { ok: false, code: 'invalid-input' };
+  try {
+    const signal = AbortSignal.any([
+      AbortSignal.timeout(8_000),
+      ...(options.signal ? [options.signal] : []),
+    ]);
+    const response = await options.carrier.request(`${route}/botharness-device/channel`, {
+      method: 'GET',
+      signal,
+    });
+    if (response.status !== 200) return { ok: false, code: 'unreachable' };
+    const value = teamRecord(JSON.parse(await response.text()));
+    const encryption = teamRecord(value['encryption']);
+    const host = teamHostIdentity({
+      ...teamRecord(value['host']),
+      fingerprint: encryption['fingerprint'],
+    });
+    if (
+      !host ||
+      typeof encryption['publicKey'] !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(encryption['publicKey'])
+    )
+      return { ok: false, code: 'response-invalid' };
+    if (noiseFingerprint(keyBytes(encryption['publicKey'])) !== host.fingerprint)
+      return { ok: false, code: 'fingerprint-mismatch' };
+    return {
+      ok: true,
+      value: {
+        v: 1,
+        host,
+        routes: [route],
+        username,
+        expiresAt: new Date(now() + 30 * 60_000).toISOString(),
+      },
+    };
+  } catch {
+    return { ok: false, code: options.signal?.aborted ? 'request-cancelled' : 'unreachable' };
+  }
+}
+
 export async function prepareTeamSignIn(options: {
   target: TeamSignInTarget;
   carrier: HostCarrier;
@@ -68,44 +119,15 @@ export async function prepareTeamSignIn(options: {
     if (!parsed.ok) return parsed;
     invitation = parsed.value;
   } else {
-    const { route, username } = options.target;
-    if (!teamHttpsRoute(route) || new URL(route).origin !== route)
-      return { ok: false, code: 'insecure-transport' };
-    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(username)) return { ok: false, code: 'invalid-input' };
-    try {
-      const signal = AbortSignal.any([
-        AbortSignal.timeout(8_000),
-        ...(options.signal ? [options.signal] : []),
-      ]);
-      const response = await options.carrier.request(`${route}/botharness-device/channel`, {
-        method: 'GET',
-        signal,
-      });
-      if (response.status !== 200) return { ok: false, code: 'unreachable' };
-      const value = teamRecord(JSON.parse(await response.text()));
-      const encryption = teamRecord(value['encryption']);
-      const host = teamHostIdentity({
-        ...teamRecord(value['host']),
-        fingerprint: encryption['fingerprint'],
-      });
-      if (
-        !host ||
-        typeof encryption['publicKey'] !== 'string' ||
-        !/^[a-f0-9]{64}$/u.test(encryption['publicKey'])
-      )
-        return { ok: false, code: 'response-invalid' };
-      if (noiseFingerprint(keyBytes(encryption['publicKey'])) !== host.fingerprint)
-        return { ok: false, code: 'fingerprint-mismatch' };
-      invitation = {
-        v: 1,
-        host,
-        routes: [route],
-        username,
-        expiresAt: new Date(now() + 30 * 60_000).toISOString(),
-      };
-    } catch {
-      return { ok: false, code: options.signal?.aborted ? 'request-cancelled' : 'unreachable' };
-    }
+    const found = await addressInvitation({
+      route: options.target.route,
+      username: options.target.username,
+      carrier: options.carrier,
+      now,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    if (!found.ok) return found;
+    invitation = found.value;
   }
   const previous = options.previous(invitation.host.id);
   const pinned =

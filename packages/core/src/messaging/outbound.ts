@@ -773,6 +773,7 @@ export function createOutboundMessaging(options: {
       message.onboardingWelcome ||
       message.memberDeparture ||
       message.turnStop ||
+      message.modelSwitch ||
       message.voiceCallRecord ||
       message.toolAutoApprovalOverride
     )

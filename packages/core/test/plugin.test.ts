@@ -368,7 +368,10 @@ describe('plugin entry', () => {
         core.registry.create({ slug: 'ada', displayName: 'Ada' });
         const origin = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
         if (!origin) throw new Error('Missing device fixture DM');
-        vi.spyOn(core.runtime, 'askChannel').mockReturnValue(origin.id);
+        vi.spyOn(core.runtime, 'toolApprovalOrigin').mockReturnValue({
+          kind: 'turn',
+          channelId: origin.id,
+        });
         core.ownership.claim({
           sessionId: 'device-session',
           botSlug: 'ada',
@@ -964,6 +967,11 @@ describe('plugin entry', () => {
       'modelPresetCreate',
       'modelPresetUpdate',
       'modelPresetApply',
+      'modelGroups',
+      'modelGroup',
+      'modelGroupCreate',
+      'modelGroupUpdate',
+      'modelGroupDelete',
       'modelPlan',
       'modelPlanCustomize',
       'modelPlanAssignmentsSet',

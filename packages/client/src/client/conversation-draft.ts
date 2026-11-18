@@ -56,7 +56,7 @@ export function clearConversationDrafts(): void {
 export function useComposerRecovery(
   scope: string | undefined,
   getState: () => ClientState,
-  actions: BridgeActions,
+  actions: Pick<BridgeActions, 'validateComposerDraft'>,
 ) {
   const manager = owner();
   const read = () => (scope === undefined ? unavailable : manager.read(scope));
@@ -91,7 +91,17 @@ export function useComposerRecovery(
           item.ref === undefined ? [] : [item.ref],
         );
         void actions
-          .validateComposerDraft(channelId, uploaded, restored.reply?.id)
+          .validateComposerDraft(
+            channelId,
+            uploaded,
+            restored.reply?.id,
+            restored.quotes.length === 0
+              ? undefined
+              : restored.quotes.map(({ messageId, text }) => ({
+                  messageId,
+                  ...(text === undefined ? {} : { text }),
+                })),
+          )
           .then((checked) => {
             if (disposed || manager.read(scope).draft !== restored) return;
             const state = getState();
@@ -114,13 +124,21 @@ export function useComposerRecovery(
                 item.ref === undefined ? undefined : checked.attachments[attachmentIndex++];
               return ref == null ? { ...item, status: 'error' } : { ...item, ref, status: 'ready' };
             });
+            const quotes =
+              checked.quotes === undefined
+                ? restored.quotes
+                : restored.quotes.flatMap((quote, index) => {
+                    const target = checked.quotes?.[index];
+                    return target == null ? [] : [{ ...quote, target }];
+                  });
             manager.validated(
               scope,
-              { mentions, channelRefs, uploads, reply: checked.reply },
+              { mentions, channelRefs, uploads, reply: checked.reply, quotes },
               snapshot.notice ||
                 mentions.length !== restored.mentions.length ||
                 channelRefs.length !== restored.channelRefs.length ||
                 (restored.reply !== undefined && checked.reply === undefined) ||
+                quotes.length !== restored.quotes.length ||
                 uploads.some((item) => item.status !== 'ready'),
             );
             setFailedScope(undefined);

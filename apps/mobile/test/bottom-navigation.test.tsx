@@ -78,6 +78,25 @@ afterEach(() => {
 });
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 it.each(['ios', 'android'])(
+  'shows no create button when nothing can be created on %s',
+  async (platform) => {
+    fixture.platform = platform;
+    fixture.scope = 'another-source';
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<BottomNavigation />));
+      expect(host.querySelector(`button[aria-label="${t.createHere}"]`)).toBeNull();
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      fixture.scope = 'all';
+    }
+  },
+);
+
+it.each(['ios', 'android'])(
   'acknowledges creation once and respects scope and preference on %s',
   async (platform) => {
     fixture.platform = platform;

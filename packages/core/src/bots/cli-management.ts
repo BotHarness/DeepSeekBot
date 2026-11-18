@@ -19,6 +19,7 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { assignmentModelsMode } from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
 import type { PersonaBotDeletionPreview } from './deletion.js';
 
@@ -154,6 +155,7 @@ export async function runOnlineManagement(
         orchestrator: ModelRoute;
         assignmentDefault: ModelRoute;
         assignmentModels?: AssignmentModelOption[];
+        openAssignmentModels?: boolean;
       }
     | undefined;
   if (command === 'model-preset-create') {
@@ -163,6 +165,7 @@ export async function runOnlineManagement(
       name,
       orchestrator: route(values, 'orchestrator'),
       assignmentDefault: route(values, 'assignment'),
+      ...assignmentModelsMode(values['assignment-models']),
     };
     if (values['plan-stdin']) {
       let input: unknown;

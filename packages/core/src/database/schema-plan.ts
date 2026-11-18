@@ -1453,6 +1453,17 @@ const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
+  id: 'routing-group-storage',
+  module: 'routing-groups',
+  description: 'Own Host-wide Routing Groups: named, ordered model routes and nested groups',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE routing_groups (id TEXT PRIMARY KEY, body TEXT NOT NULL CHECK (json_valid(body)));
+    `);
+  },
+};
+
 const PERSONA_BOT_REGISTRY_MIGRATION: SchemaMigration = {
   id: 'persona-bot-registry',
   module: 'bot-registry',
@@ -3827,6 +3838,46 @@ const REMOTE_HOST_CUSTODY_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_MODEL_GROUP_MIGRATION: SchemaMigration = {
+  id: 'assignment-model-group',
+  module: 'assignments',
+  description: 'Remember the Routing Group an Assignment Session runs on so it can fall back',
+  migrate(database) {
+    database.exec(`ALTER TABLE assignments ADD COLUMN model_group_id TEXT;`);
+  },
+};
+
+const noticeOf = (payload: string) =>
+  `CASE WHEN json_valid(${payload}) THEN coalesce(${['botDmAction', 'botCreateAction', 'botChannelPost', 'memoryCommit', 'toolAutoApproval', 'toolAutoApprovalPause', 'modelSwitch'].map((field) => `json_type(${payload}, '$.${field}') = 'object'`).join(' OR ')}, 0) ELSE 0 END`;
+
+const MODEL_SWITCH_NOTICE_MIGRATION: SchemaMigration = {
+  id: 'model-switch-notice',
+  module: 'messaging',
+  description: 'Mark Model Switch Notices as notice placements',
+  migrate(database) {
+    database.exec(`
+      DROP TRIGGER channel_placements_notice_insert;
+      DROP TRIGGER channel_placements_notice_update;
+      UPDATE channel_placements SET notice = 1 WHERE notice = 0 AND source_event_id IN (
+        SELECT source_event_id FROM source_events WHERE ${noticeOf('payload_json')}
+      );
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT ${noticeOf('payload_json')} FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = ${noticeOf('NEW.payload_json')}
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -3987,5 +4038,8 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_AUTO_JOIN_MIGRATION,
   MEMBER_DEVICES_MIGRATION,
   REMOTE_HOST_CUSTODY_MIGRATION,
+  ROUTING_GROUP_STORAGE_MIGRATION,
+  MODEL_SWITCH_NOTICE_MIGRATION,
+  ASSIGNMENT_MODEL_GROUP_MIGRATION,
   HUMAN_MODEL_FAVORITES_MIGRATION,
 ]);
