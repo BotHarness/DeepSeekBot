@@ -1270,6 +1270,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
@@ -1277,6 +1278,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -1288,6 +1290,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
@@ -1297,6 +1300,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -1367,6 +1371,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision: number,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanAssignmentsSet({
@@ -1374,6 +1379,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         expectedRevision,
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -1384,6 +1390,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
@@ -1392,6 +1399,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }

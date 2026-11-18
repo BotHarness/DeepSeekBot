@@ -164,6 +164,7 @@ export const MESSAGING_OPTIONS = {
 export const MODELS_USAGE_OPTIONS = {
   'expected-revision': { type: 'string' },
   'plan-stdin': { type: 'boolean' },
+  'assignment-models': { type: 'string' },
   'members-stdin': { type: 'boolean' },
   'orchestrator-group': { type: 'string' },
   period: { type: 'string' },

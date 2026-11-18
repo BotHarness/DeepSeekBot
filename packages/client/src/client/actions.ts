@@ -299,6 +299,13 @@ import {
   loadModelPlanState,
   type ModelPlanStateView,
   createModelPreset,
+  createRoutingGroup,
+  deleteRoutingGroup,
+  loadRoutingGroups,
+  updateRoutingGroup,
+  type RestingRouteView,
+  type RoutingGroupMemberView,
+  type RoutingGroupView,
   updateModelPreset,
   applyModelPreset,
   customizeModelPlan,
@@ -652,6 +659,15 @@ export interface BridgeActions {
 
   modelCatalog(): Promise<ModelCatalogView>;
   modelPresets(): Promise<ModelPresetView[]>;
+  routingGroups(): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }>;
+  createRoutingGroup(name: string, members: RoutingGroupMemberView[]): Promise<RoutingGroupView>;
+  updateRoutingGroup(
+    id: string,
+    expectedRevision: number,
+    name: string,
+    members: RoutingGroupMemberView[],
+  ): Promise<RoutingGroupView>;
+  deleteRoutingGroup(id: string, expectedRevision: number): Promise<RoutingGroupView>;
   modelPlan(slug: string): Promise<ModelPlanView | undefined>;
   modelPlanState(slug: string): Promise<ModelPlanStateView>;
   createModelPreset(
@@ -659,6 +675,7 @@ export interface BridgeActions {
     orchestrator: ModelRouteView,
     assignmentDefault: ModelRouteView,
     assignmentModels?: AssignmentModelOptionView[],
+    openAssignmentModels?: boolean,
   ): Promise<ModelPresetView>;
   updateModelPreset(
     id: string,
@@ -686,6 +703,7 @@ export interface BridgeActions {
     orchestrator: ModelRouteView,
     assignmentDefault: ModelRouteView,
     assignmentModels: AssignmentModelOptionView[],
+    openAssignmentModels?: boolean,
   ): Promise<ModelPlanView>;
   listHostFolders(
     path?: string,
@@ -2149,10 +2167,15 @@ export function createActions(
     },
     modelCatalog: () => loadModelCatalog(call),
     modelPresets: () => loadModelPresets(call),
+    routingGroups: () => loadRoutingGroups(call),
+    createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),
+    updateRoutingGroup: (id, expectedRevision, name, members) =>
+      updateRoutingGroup(call, id, expectedRevision, name, members),
+    deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels) =>
-      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels),
+    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels, open) =>
+      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels, open),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
     applyModelPreset: (slug, presetId) =>
@@ -2169,7 +2192,14 @@ export function createActions(
         setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
         () => actions.telemetryEvent('model:plan_update', { via: 'assignments' }),
       ),
-    setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
+    setModelPlan: (
+      slug,
+      expectedRevision,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+    ) =>
       recorded(
         setModelPlan(
           call,
@@ -2178,6 +2208,7 @@ export function createActions(
           orchestrator,
           assignmentDefault,
           assignmentModels,
+          openAssignmentModels,
         ),
         () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
       ),

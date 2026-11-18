@@ -858,7 +858,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelGroups(payload: unknown): BridgeResult<{ groups: RoutingGroup[] }>;
+  modelGroups(payload: unknown): BridgeResult<{
+    groups: RoutingGroup[];
+    rests: import('../models/route-rest.js').RestingRoute[];
+  }>;
   modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
   modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
   modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
@@ -1395,6 +1398,7 @@ export interface BridgeMethodsDeps {
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
   routingGroups?: RoutingGroupStore;
+  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
@@ -4006,8 +4010,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof name !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         (assignmentModels !== undefined &&
@@ -4032,6 +4038,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         return { ok: true, value: { preset } };
       } catch (error) {
@@ -4049,8 +4056,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof id !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         typeof expectedRevision !== 'number' ||
         !Number.isSafeInteger(expectedRevision) ||
         expectedRevision < 1 ||
@@ -4085,6 +4094,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         if (preset === undefined) return invalidInput('Model Preset was not found');
         return { ok: true, value: { preset } };
@@ -4158,7 +4168,10 @@ function buildBridgeMethods(
     },
     modelGroups() {
       if (deps.routingGroups === undefined) return unavailable();
-      return { ok: true, value: { groups: deps.routingGroups.list() } };
+      return {
+        ok: true,
+        value: { groups: deps.routingGroups.list(), rests: deps.routeRests?.list() ?? [] },
+      };
     },
     modelGroup(payload) {
       if (deps.routingGroups === undefined) return unavailable();
@@ -4342,8 +4355,10 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4363,6 +4378,7 @@ function buildBridgeMethods(
           assignmentDefault,
           assignmentModels,
           expectedRevision,
+          ...(openAssignmentModels === undefined ? [] : [openAssignmentModels]),
         );
         if (!result.ok)
           return result.reason === 'not-found'
@@ -4468,8 +4484,10 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
@@ -4490,7 +4508,12 @@ function buildBridgeMethods(
         requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
         const result = deps.registry.setModelPlan(
           slug,
-          { orchestrator, assignmentDefault, assignmentModels },
+          {
+            orchestrator,
+            assignmentDefault,
+            assignmentModels,
+            ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+          },
           expectedRevision,
         );
         if (!result.ok)

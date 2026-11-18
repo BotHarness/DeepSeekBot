@@ -252,6 +252,7 @@ export interface ModelPresetView {
   orchestrator: ModelRouteView;
   assignmentDefault: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
+  openAssignmentModels?: true;
   createdAt: string;
 }
 
@@ -262,6 +263,7 @@ export interface ModelPlanView {
   orchestrator: ModelRouteView;
   assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
+  openAssignmentModels?: true;
   appliedAt: string;
 }
 
@@ -317,12 +319,79 @@ export async function loadModelPlanState(
   return value === undefined ? {} : (value as ModelPlanStateView);
 }
 
+export type RoutingGroupMemberView =
+  | { kind: 'model'; provider: string; model: string; reasoningEffort?: string }
+  | { kind: 'group'; id: string };
+
+export interface RoutingGroupView {
+  id: string;
+  name: string;
+  revision: number;
+  mode: 'order';
+  members: RoutingGroupMemberView[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RestingRouteView {
+  provider: string;
+  model: string;
+  until: string;
+  reason?: 'quota' | 'credential' | 'rate-limit';
+}
+
+export async function loadRoutingGroups(
+  call: BridgeCall,
+): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }> {
+  const value = asRecord(await unwrap(call, 'modelGroups', {}));
+  if (!Array.isArray(value?.['groups'])) throw new Error('Invalid Routing Groups');
+  return {
+    groups: value['groups'] as RoutingGroupView[],
+    rests: Array.isArray(value['rests']) ? (value['rests'] as RestingRouteView[]) : [],
+  };
+}
+
+function routingGroupOf(value: unknown): RoutingGroupView {
+  const group = asRecord(asRecord(value)?.['group']);
+  if (group === undefined) throw new Error('Invalid Routing Group result');
+  return group as unknown as RoutingGroupView;
+}
+
+export async function createRoutingGroup(
+  call: BridgeCall,
+  name: string,
+  members: RoutingGroupMemberView[],
+): Promise<RoutingGroupView> {
+  return routingGroupOf(await unwrap(call, 'modelGroupCreate', { name, members }));
+}
+
+export async function updateRoutingGroup(
+  call: BridgeCall,
+  id: string,
+  expectedRevision: number,
+  name: string,
+  members: RoutingGroupMemberView[],
+): Promise<RoutingGroupView> {
+  return routingGroupOf(
+    await unwrap(call, 'modelGroupUpdate', { id, expectedRevision, name, members }),
+  );
+}
+
+export async function deleteRoutingGroup(
+  call: BridgeCall,
+  id: string,
+  expectedRevision: number,
+): Promise<RoutingGroupView> {
+  return routingGroupOf(await unwrap(call, 'modelGroupDelete', { id, expectedRevision }));
+}
+
 export async function createModelPreset(
   call: BridgeCall,
   name: string,
   orchestrator: ModelRouteView,
   assignmentDefault: ModelRouteView,
   assignmentModels?: AssignmentModelOptionView[],
+  openAssignmentModels?: boolean,
 ): Promise<ModelPresetView> {
   const value = asRecord(
     await unwrap(call, 'modelPresetCreate', {
@@ -330,6 +399,7 @@ export async function createModelPreset(
       orchestrator,
       assignmentDefault,
       ...(assignmentModels === undefined ? {} : { assignmentModels }),
+      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
     }),
   );
   if (asRecord(value?.['preset']) === undefined) throw new Error('Invalid Model Preset result');
@@ -7964,6 +8034,7 @@ export async function setModelPlan(
   orchestrator: ModelRouteView,
   assignmentDefault: ModelRouteView,
   assignmentModels: AssignmentModelOptionView[],
+  openAssignmentModels?: boolean,
 ): Promise<ModelPlanView> {
   const value = asRecord(
     await unwrap(call, 'modelPlanSet', {
@@ -7972,6 +8043,7 @@ export async function setModelPlan(
       orchestrator,
       assignmentDefault,
       assignmentModels,
+      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
     }),
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');

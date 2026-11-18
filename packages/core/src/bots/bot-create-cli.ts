@@ -163,7 +163,7 @@ Usage:
   tobs model-preset-create --name <preset> --orchestrator-provider <p> --orchestrator-model <m>
                                   [--orchestrator-effort <e>] --assignment-provider <p>
                                   --assignment-model <m> [--assignment-effort <e>] [--home <dsh-home>]
-                                  [--plan-stdin (online Host only)]
+                                  [--assignment-models open|listed] [--plan-stdin (online Host only)]
   tobs model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
   tobs model-plan <id> [--home <dsh-home>]
   tobs pause <id> [--home <dsh-home>]
@@ -300,12 +300,13 @@ Usage:
   tobs memory-repair <id> --expected-head <commit>
   tobs memory-move <id> (--memory-location <absolute-dir> | --default-location)
   tobs model-catalog
-  tobs model-plan-set <id> --plan-stdin [--expected-revision <n>]
+  tobs model-plan-set <id> --plan-stdin [--assignment-models open|listed] [--expected-revision <n>]
   tobs model-plan-customize <id> --orchestrator-provider <p> --orchestrator-model <m> [--orchestrator-effort <e>]
   tobs model-plan-inherit <id> [--expected-revision <n>]
-  tobs model-plan-assignments-set <id> --plan-stdin [--expected-revision <n>]
+  tobs model-plan-assignments-set <id> --plan-stdin [--assignment-models open|listed] [--expected-revision <n>]
   tobs model-preset-update <preset-id> [--name <n>] [--orchestrator-provider/-model/-effort ...]
-                                  [--assignment-provider/-model/-effort ...] [--plan-stdin] [--expected-revision <n>]
+                                  [--assignment-provider/-model/-effort ...] [--assignment-models open|listed]
+                                  [--plan-stdin] [--expected-revision <n>]
   tobs overview-usage [--period today|week|month|quarter] [--after <bot-cursor>]
   tobs overview-memory [--after <bot-cursor>]
   tobs activity-overview
@@ -437,6 +438,9 @@ Models:
   write through the Host when selected, otherwise directly offline. Routes are shape-checked plus
   provider-existence-checked offline; catalog liveness and readiness
   inspection stay Host-side, and model-plan reports readiness deferred.
+  --assignment-models open lets Assignments and Subagents use any model the Bot
+  owner may use whose provider has an API key; listed (the default) keeps them to
+  the Assignment model list. The Assignment default is still required.
 
 Memory:
   memory-snapshot/file/history/diff read the bot memory store; memory-save
@@ -1299,11 +1303,19 @@ function runModelPresetCreate(values: CreateValues, io: BotCreateCliIo): { prese
   const assignmentDefault = parseRoute(values, 'assignment');
   assertKnownProvider(orchestrator.provider);
   assertKnownProvider(assignmentDefault.provider);
+  const mode = values['assignment-models'];
+  if (mode !== undefined && mode !== 'open' && mode !== 'listed')
+    throw usageError('--assignment-models must be open or listed.');
   const dshHome = resolveHome(values, io);
   const { owner } = openRegistry(dshHome);
   try {
     try {
-      const preset = modelStore(dshHome, owner).create({ name, orchestrator, assignmentDefault });
+      const preset = modelStore(dshHome, owner).create({
+        name,
+        orchestrator,
+        assignmentDefault,
+        ...(mode === undefined ? {} : { openAssignmentModels: mode === 'open' }),
+      });
       io.stderr(`tobs: created model preset ${preset.id} ("${preset.name}")`);
       return { preset };
     } catch (error) {

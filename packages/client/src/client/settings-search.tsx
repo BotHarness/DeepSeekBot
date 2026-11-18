@@ -78,6 +78,8 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'compactionThreshold.headroom',
     'compactionThreshold.reset.title',
     'assignmentLimit.title',
+    'routingGroups.title',
+    'routingGroups.new',
   ],
   messaging: [
     'messaging.section.input',
@@ -250,6 +252,7 @@ export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'profile.section.chat': 'profile.section.chatHint',
   'accountProfile.tobsTitle': 'accountProfile.description',
+  'routingGroups.new': 'routingGroups.empty',
   'relationships.prepareReturn': 'relationships.prepareReturnHint',
   'market.mine.title': 'market.mine.settingsHint',
   'connections.methods': 'connections.hosts.local',
